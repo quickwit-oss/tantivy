@@ -109,7 +109,11 @@ pub(crate) fn covering_split<S: Surface>(
         let (i, j) = child_ij[k];
         let edges = std::mem::take(&mut child_edges[i][j]);
         let (start, first_index_level) = starts[k];
-        let end = if k < 3 { starts[k + 1].0 } else { entry.index_end };
+        let end = if k < 3 {
+            starts[k + 1].0
+        } else {
+            entry.index_end
+        };
 
         let is_interior = edges.is_empty() && entry.contains_center;
 

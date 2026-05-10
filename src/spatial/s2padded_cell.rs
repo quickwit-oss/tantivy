@@ -8,8 +8,8 @@ use super::r1interval::R1Interval;
 use super::r2rect::R2Rect;
 use super::s2cell_id::S2CellId;
 use super::s2coords::{
-    ij_to_pos, ij_to_st_min, pos_to_ij, pos_to_orientation, si_ti_to_st, st_to_ij,
-    INVERT_MASK, MAX_CELL_LEVEL, SWAP_MASK,
+    ij_to_pos, ij_to_st_min, pos_to_ij, pos_to_orientation, si_ti_to_st, st_to_ij, INVERT_MASK,
+    MAX_CELL_LEVEL, SWAP_MASK,
 };
 use super::surface::Surface;
 
@@ -238,8 +238,7 @@ impl<S: Surface> S2PaddedCell<S> {
 
         for d in 0..2 {
             ij_min[d] = self.ij_lo[d].max(st_to_ij(S::uv_to_st(padded[d].lo())));
-            let ij_max = (self.ij_lo[d] + ij_size - 1)
-                .min(st_to_ij(S::uv_to_st(padded[d].hi())));
+            let ij_max = (self.ij_lo[d] + ij_size - 1).min(st_to_ij(S::uv_to_st(padded[d].hi())));
             ij_xor[d] = ij_min[d] ^ ij_max;
         }
 

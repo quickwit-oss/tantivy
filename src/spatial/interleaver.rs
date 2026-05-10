@@ -16,7 +16,9 @@ use super::s2padded_cell::S2PaddedCell;
 use super::surface::Surface;
 use crate::spatial::clip_options::ClipOptions;
 use crate::spatial::clipped_shape::{ClippedShape, GeometryId};
-use crate::spatial::clipper::{get_level_for_max_value, CELL_PADDING, CELL_SIZE_TO_LONG_EDGE_RATIO};
+use crate::spatial::clipper::{
+    get_level_for_max_value, CELL_PADDING, CELL_SIZE_TO_LONG_EDGE_RATIO,
+};
 use crate::spatial::r1interval::R1Interval;
 use crate::spatial::shape_index::ShapeCell;
 
@@ -114,7 +116,8 @@ impl<S: Surface> SpongeCell<S> {
                             continue;
                         }
                         let length = S::edge_length(&v0, &v1);
-                        let max_level = get_level_for_max_value(length * CELL_SIZE_TO_LONG_EDGE_RATIO);
+                        let max_level =
+                            get_level_for_max_value(length * CELL_SIZE_TO_LONG_EDGE_RATIO);
                         self.edge_count += 1;
                         if self.cell_id.level() < max_level {
                             self.short_edge_count += 1;
@@ -182,8 +185,9 @@ impl<S: Surface> SpongeCell<S> {
     fn absorb_index_cell_anchors(&mut self, cell: &ShapeCell, edge_cache: &EdgeCache<'_, S>) {
         let mut cell_center: Option<S::Point> = None;
         for shape in &cell.shapes {
-            let center = *cell_center
-                .get_or_insert_with(|| S2PaddedCell::<S>::new(cell.cell_id, CELL_PADDING).get_center());
+            let center = *cell_center.get_or_insert_with(|| {
+                S2PaddedCell::<S>::new(cell.cell_id, CELL_PADDING).get_center()
+            });
             let closed = edge_cache.get(shape.geometry_id).edge_set().closed;
             let anchor = SpongeShape {
                 geometry_id: shape.geometry_id,
@@ -366,7 +370,8 @@ impl<'a, S: Surface> Iterator for Interleaver<'a, S> {
                     // First absorption: Source becomes Sponge.
                     let mut merged = match sponge {
                         HeapEntry::Source { cell, .. } => {
-                            let cell_bound = S2PaddedCell::<S>::new(cell.cell_id, CELL_PADDING).bound();
+                            let cell_bound =
+                                S2PaddedCell::<S>::new(cell.cell_id, CELL_PADDING).bound();
                             let mut m = SpongeCell::new(cell.cell_id, cell_bound);
                             m.absorb_index_cell_anchors(&cell, self.edge_cache);
                             m.absorb_index_cell_edges(&cell, self.edge_cache);
@@ -976,7 +981,9 @@ fn coarse_split<S: Surface>(
                     edge_indices.push(flat_edge.edge.edge_index);
                     *crossings += 1;
                     if let Some(ref mut crosser) = crosser {
-                        if crosser.edge_or_vertex_crossing_two(&flat_edge.edge.v0, &flat_edge.edge.v1) {
+                        if crosser
+                            .edge_or_vertex_crossing_two(&flat_edge.edge.v0, &flat_edge.edge.v1)
+                        {
                             contains_center = !contains_center;
                         }
                     }

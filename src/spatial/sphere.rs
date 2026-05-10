@@ -63,8 +63,7 @@ impl Surface for Sphere {
     fn point_from_le_bytes(bytes: &[u8]) -> Self::Point {
         let mut point = [0.0f64; 3];
         for i in 0..3 {
-            point[i] =
-                f64::from_le_bytes(bytes[i * 8..(i + 1) * 8].try_into().unwrap());
+            point[i] = f64::from_le_bytes(bytes[i * 8..(i + 1) * 8].try_into().unwrap());
         }
         point
     }

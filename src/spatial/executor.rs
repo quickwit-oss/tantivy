@@ -168,11 +168,8 @@ fn evaluate(
                     let filter_bitset =
                         filter_output.bitset_for(&reader.segment_id(), reader.max_doc());
 
-                    let doc_ids = intersects.search(
-                        &cell_reader,
-                        Some(&filter_bitset),
-                        &mut edge_cache,
-                    );
+                    let doc_ids =
+                        intersects.search(&cell_reader, Some(&filter_bitset), &mut edge_cache);
 
                     let mut bitset = BitSet::with_max_value(reader.max_doc());
                     for doc_id in doc_ids {

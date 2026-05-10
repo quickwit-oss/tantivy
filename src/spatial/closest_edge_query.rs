@@ -224,8 +224,7 @@ impl ClosestEdgeQuery {
         }
 
         // Main loop.
-        let mut best: Vec<S1ChordAngle> =
-            vec![S1ChordAngle::infinity(); geometry_count];
+        let mut best: Vec<S1ChordAngle> = vec![S1ChordAngle::infinity(); geometry_count];
 
         while let Some(entry) = queue.pop() {
             if !(entry.distance < distance_limit) {

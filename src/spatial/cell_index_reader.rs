@@ -136,7 +136,12 @@ impl<'a> CellIndexReader<'a> {
 
     /// Returns the start (inclusive) and end (exclusive) positions in the directory for index
     /// cells whose ranges overlap the given target cell, searching only within the given bounds.
-    pub fn range_for_cell(&self, target: S2CellId, parent_start: u32, parent_end: u32) -> (u32, u32) {
+    pub fn range_for_cell(
+        &self,
+        target: S2CellId,
+        parent_start: u32,
+        parent_end: u32,
+    ) -> (u32, u32) {
         let target_min = target.range_min();
         let target_max = target.range_max();
 

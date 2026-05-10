@@ -10,7 +10,7 @@ use std::collections::BinaryHeap;
 use common::BitSet;
 
 use super::cell_index_reader::CellIndexReader;
-use super::covering::{covering_split, covering_contains_center, CoveringCell};
+use super::covering::{covering_contains_center, covering_split, CoveringCell};
 use super::edge_cache::EdgeCache;
 use super::edge_crosser::EdgeCrosser;
 use super::edge_provider::EdgeProvider;
@@ -93,8 +93,7 @@ impl<S: Surface> Intersects<S> {
                 }
             }
 
-            let (index_start, index_end) =
-                reader.range_for_cell(cell_id, 0, reader.cell_count());
+            let (index_start, index_end) = reader.range_for_cell(cell_id, 0, reader.cell_count());
 
             if index_start == index_end && query_edge_indices.is_empty() && !contains_center {
                 continue;
@@ -117,7 +116,10 @@ impl<S: Surface> Intersects<S> {
         }
 
         while let Some(entry) = heap.pop() {
-            if entry.query_edges.is_empty() && entry.contains_center && entry.first_index_level > entry.pcell.level() {
+            if entry.query_edges.is_empty()
+                && entry.contains_center
+                && entry.first_index_level > entry.pcell.level()
+            {
                 for pos in entry.index_start..entry.index_end {
                     let cell = reader.cell_at(pos);
                     for clipped in &cell.shapes {
@@ -139,7 +141,11 @@ impl<S: Surface> Intersects<S> {
                 let get_edge = |idx: u32| self.query_edges.get_edge((0, 0), idx);
                 let start_for_cell = |cell_id: S2CellId, lo: u32, hi: u32| {
                     let start = reader.start_for_cell(cell_id, lo, hi);
-                    let level = if start < hi { reader.cell_id_at(start).level() } else { 0 };
+                    let level = if start < hi {
+                        reader.cell_id_at(start).level()
+                    } else {
+                        0
+                    };
                     (start, level)
                 };
                 let parent_center = entry.pcell.get_center();

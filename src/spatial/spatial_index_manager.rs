@@ -16,19 +16,19 @@ use common::{CountingWriter, ReadOnlyBitSet};
 
 use crate::directory::WritePtr;
 use crate::spatial::cell_index_reader::CellIndexReader;
+use crate::spatial::clip_options::ClipOptions;
+use crate::spatial::clipper::Clipper;
 use crate::spatial::edge_cache::EdgeCache;
 use crate::spatial::edge_reader::EdgeReader;
 use crate::spatial::edge_writer::EdgeWriter;
 use crate::spatial::geometry::Geometry;
 use crate::spatial::geometry_set::{to_geometry_set, GeometrySet};
 use crate::spatial::interleaver::Interleaver;
-use crate::spatial::plane::Plane;
-use crate::spatial::surface::Surface;
-use crate::spatial::clip_options::ClipOptions;
-use crate::spatial::clipper::Clipper;
 use crate::spatial::intersects::Intersects;
+use crate::spatial::plane::Plane;
 use crate::spatial::region_coverer::CovererOptions;
 use crate::spatial::sphere::Sphere;
+use crate::spatial::surface::Surface;
 use crate::DocId;
 
 /// Default skip interval for the edge index skip list directory.
@@ -61,16 +61,10 @@ pub trait SpatialIndex: Send + Sync + SpatialIndexClone {
     ) -> io::Result<MergeResult>;
 
     /// Prepare an intersects query from a query polygon in lon/lat.
-    fn prepare_intersects(
-        &self,
-        geometry: &Geometry<Plane>,
-    ) -> Box<dyn PreparedSpatialQuery>;
+    fn prepare_intersects(&self, geometry: &Geometry<Plane>) -> Box<dyn PreparedSpatialQuery>;
 
     /// Prepare a contains query from a query polygon in lon/lat.
-    fn prepare_contains(
-        &self,
-        geometry: &Geometry<Plane>,
-    ) -> Box<dyn PreparedSpatialQuery>;
+    fn prepare_contains(&self, geometry: &Geometry<Plane>) -> Box<dyn PreparedSpatialQuery>;
 }
 
 /// A prepared spatial query that searches one segment at a time.
@@ -206,7 +200,9 @@ impl<S: Surface + Send + Sync + Clone + 'static> SpatialIndex for SurfaceIndex<S
             }
 
             let offset = cells_write.written_bytes() - cells_base;
-            cells_write.write_all(&cell.cell_id.0.to_le_bytes()).unwrap();
+            cells_write
+                .write_all(&cell.cell_id.0.to_le_bytes())
+                .unwrap();
             cells_write
                 .write_all(&(cell.shapes.len() as u32).to_le_bytes())
                 .unwrap();
@@ -216,7 +212,9 @@ impl<S: Surface + Send + Sync + Clone + 'static> SpatialIndex for SurfaceIndex<S
                 let new_id = old_to_new[segment][position];
                 assert_ne!(new_id, NOT_ASSIGNED);
                 cells_write.write_all(&new_id.to_le_bytes()).unwrap();
-                cells_write.write_all(&[shape.contains_center as u8]).unwrap();
+                cells_write
+                    .write_all(&[shape.contains_center as u8])
+                    .unwrap();
                 cells_write
                     .write_all(&(shape.edge_indices.len() as u32).to_le_bytes())
                     .unwrap();
@@ -227,10 +225,7 @@ impl<S: Surface + Send + Sync + Clone + 'static> SpatialIndex for SurfaceIndex<S
             offsets.push((cell.cell_id.0, offset));
         }
 
-        assert_eq!(
-            next_new_id,
-            edge_writer.geometry_count(),
-        );
+        assert_eq!(next_new_id, edge_writer.geometry_count(),);
         edge_writer.finish();
 
         interleave.report();
@@ -244,9 +239,7 @@ impl<S: Surface + Send + Sync + Clone + 'static> SpatialIndex for SurfaceIndex<S
         cells_write
             .write_all(&(cell_count as u32).to_le_bytes())
             .unwrap();
-        cells_write
-            .write_all(&dir_offset.to_le_bytes())
-            .unwrap();
+        cells_write.write_all(&dir_offset.to_le_bytes()).unwrap();
         cells_write.flush()?;
         edges_write.flush()?;
 
@@ -257,10 +250,7 @@ impl<S: Surface + Send + Sync + Clone + 'static> SpatialIndex for SurfaceIndex<S
         })
     }
 
-    fn prepare_intersects(
-        &self,
-        geometry: &Geometry<Plane>,
-    ) -> Box<dyn PreparedSpatialQuery> {
+    fn prepare_intersects(&self, geometry: &Geometry<Plane>) -> Box<dyn PreparedSpatialQuery> {
         let projected = geometry.project::<S>();
         let set = to_geometry_set(&projected, 0);
         Box::new(PreparedIntersects::<S> {
@@ -268,10 +258,7 @@ impl<S: Surface + Send + Sync + Clone + 'static> SpatialIndex for SurfaceIndex<S
         })
     }
 
-    fn prepare_contains(
-        &self,
-        geometry: &Geometry<Plane>,
-    ) -> Box<dyn PreparedSpatialQuery> {
+    fn prepare_contains(&self, geometry: &Geometry<Plane>) -> Box<dyn PreparedSpatialQuery> {
         let projected = geometry.project::<S>();
         let set = to_geometry_set(&projected, 0);
         Box::new(PreparedContainsNew::<S> {
@@ -283,7 +270,6 @@ impl<S: Surface + Send + Sync + Clone + 'static> SpatialIndex for SurfaceIndex<S
 struct PreparedIntersects<S: Surface> {
     query: Intersects<S>,
 }
-
 
 impl<S: Surface + 'static> PreparedSpatialQuery for PreparedIntersects<S> {
     fn search_segment_bytes(&self, cells_bytes: &[u8], edges_bytes: &[u8]) -> Vec<u32> {

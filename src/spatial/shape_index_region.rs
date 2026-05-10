@@ -15,17 +15,18 @@ use super::edge_cache::EdgeCache;
 use super::edge_crosser::EdgeCrosser;
 use super::edge_provider::EdgeProvider;
 use super::latlng_rect::S2LatLngRect;
+use super::r1interval::R1Interval;
+use super::r2rect::R2Rect;
 use super::region::Region;
 use super::s2cap::S2Cap;
 use super::s2cell::S2Cell;
 use super::s2cell_id::S2CellId;
-use super::r1interval::R1Interval;
-use super::r2rect::R2Rect;
 use super::s2coords::ij_to_st_min;
-use super::s2edge_clipping::{intersects_rect, FACE_CLIP_ERROR_UV_COORD, INTERSECTS_RECT_ERROR_UV_DIST};
+use super::s2edge_clipping::{
+    intersects_rect, FACE_CLIP_ERROR_UV_COORD, INTERSECTS_RECT_ERROR_UV_DIST,
+};
 use super::surface::Surface;
 use crate::spatial::shape_index::ShapeIndex;
-
 
 /// Minimal clipped shape data for indexed containment. Owned to avoid lifetime mismatches between
 /// borrowed in-memory data and deserialized reader data.
@@ -82,11 +83,17 @@ pub struct InMemoryIndex<'a, S: Surface, E: EdgeProvider<Point = S::Point>> {
 impl<'a, S: Surface, E: EdgeProvider<Point = S::Point>> InMemoryIndex<'a, S, E> {
     /// Create a new in-memory containment index.
     pub fn new(index: &'a ShapeIndex, edges: &'a E) -> Self {
-        Self { index, edges, _surface: std::marker::PhantomData }
+        Self {
+            index,
+            edges,
+            _surface: std::marker::PhantomData,
+        }
     }
 }
 
-impl<S: Surface, E: EdgeProvider<Point = S::Point>> ContainmentIndex<S> for InMemoryIndex<'_, S, E> {
+impl<S: Surface, E: EdgeProvider<Point = S::Point>> ContainmentIndex<S>
+    for InMemoryIndex<'_, S, E>
+{
     fn find_clipped(&mut self, geometry_id: GeometryId, point: &S::Point) -> Option<ClippedInfo> {
         let cell_id = S::cell_id_from_point(point);
         let index_cell = self.index.find_cell(cell_id)?;
@@ -144,8 +151,14 @@ fn cell_bound_uv<S: Surface>(cell_id: S2CellId) -> R2Rect {
     let i_hi = i_lo + cell_size;
     let j_hi = j_lo + cell_size;
     R2Rect::new(
-        R1Interval::new(S::st_to_uv(ij_to_st_min(i_lo)), S::st_to_uv(ij_to_st_min(i_hi))),
-        R1Interval::new(S::st_to_uv(ij_to_st_min(j_lo)), S::st_to_uv(ij_to_st_min(j_hi))),
+        R1Interval::new(
+            S::st_to_uv(ij_to_st_min(i_lo)),
+            S::st_to_uv(ij_to_st_min(i_hi)),
+        ),
+        R1Interval::new(
+            S::st_to_uv(ij_to_st_min(j_lo)),
+            S::st_to_uv(ij_to_st_min(j_hi)),
+        ),
     )
 }
 
@@ -165,8 +178,7 @@ pub fn any_edge_intersects<S: Surface, E: EdgeProvider<Point = S::Point>>(
     target: &S2Cell,
     edges: &E,
 ) -> bool {
-    let bound = cell_bound_uv::<S>(target.id())
-        .expanded(ANY_EDGE_INTERSECTS_MAX_ERROR);
+    let bound = cell_bound_uv::<S>(target.id()).expanded(ANY_EDGE_INTERSECTS_MAX_ERROR);
     let face = target.face();
 
     for &edge_index in &clipped.edge_indices {
@@ -426,7 +438,11 @@ pub struct CellIndexRegion<'a, S: Surface, E: EdgeProvider<Point = S::Point>> {
 impl<'a, S: Surface, E: EdgeProvider<Point = S::Point>> CellIndexRegion<'a, S, E> {
     /// Creates a region backed by a cell index and an edge provider.
     pub fn new(index: &'a ShapeIndex, edges: &'a E) -> Self {
-        Self { index, edges, _surface: std::marker::PhantomData }
+        Self {
+            index,
+            edges,
+            _surface: std::marker::PhantomData,
+        }
     }
 }
 

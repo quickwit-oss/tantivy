@@ -35,8 +35,8 @@
 //!
 //! s2cell_id.h and s2cell_id.cc
 use super::s2coords::{
-    face_uv_to_xyz, si_ti_to_st, st_to_ij, st_to_uv, xyz_to_face_uv,
-    MAX_CELL_LEVEL, NUM_FACES, POS_TO_IJ, POS_TO_ORIENTATION,
+    face_uv_to_xyz, si_ti_to_st, st_to_ij, st_to_uv, xyz_to_face_uv, MAX_CELL_LEVEL, NUM_FACES,
+    POS_TO_IJ, POS_TO_ORIENTATION,
 };
 
 /// Number of bits used to encode the face.
@@ -468,8 +468,6 @@ impl S2CellId {
 
         (face, si, ti)
     }
-
-
 
     /// Returns a debug string representation "f/dd...d".
     pub fn to_debug_string(&self) -> String {

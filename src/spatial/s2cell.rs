@@ -15,13 +15,13 @@ use super::s1chord_angle::S1ChordAngle;
 use super::s1interval::S1Interval;
 use super::s2cap::S2Cap;
 use super::s2cell_id::S2CellId;
-use super::sphere::Sphere;
-use super::surface::Surface;
 use super::s2coords::{
     self, face_uv_to_xyz, face_xyz_to_uvw, get_u_axis, get_u_norm, get_v_axis, get_v_norm,
     ij_to_st_min, st_to_uv, MAX_CELL_LEVEL,
 };
 use super::s2edge_distances::update_min_distance;
+use super::sphere::Sphere;
+use super::surface::Surface;
 
 /// An S2Cell represents a cell in the S2 cell decomposition.
 #[derive(Clone, Copy, Debug)]

@@ -37,7 +37,8 @@ impl SpatialWriter {
     /// Add a geometry for a document and field.
     pub fn add_geometry(&mut self, doc_id: DocId, field: Field, geometry: Geometry<Plane>) {
         let writer = self.writers.entry(field).or_insert_with(|| {
-            let name = self.field_index_names
+            let name = self
+                .field_index_names
                 .get(&field)
                 .map(|s| s.as_str())
                 .unwrap_or("sphere");

@@ -34,7 +34,11 @@ impl SpatialSerializer {
 
     /// Serialize one field's spatial data. Builds a CellIndex from the smashed GeometrySets
     /// and streams edges through EdgeWriter.
-    pub fn serialize_field<S: Surface>(&mut self, field: Field, sets: &[GeometrySet<S>]) -> io::Result<()> {
+    pub fn serialize_field<S: Surface>(
+        &mut self,
+        field: Field,
+        sets: &[GeometrySet<S>],
+    ) -> io::Result<()> {
         if sets.is_empty() {
             return Ok(());
         }

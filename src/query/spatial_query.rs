@@ -115,7 +115,9 @@ impl Query for SpatialQuery {
         let prepared: Box<dyn PreparedSpatialQuery> = match &self.predicate {
             SpatialPredicate::Contains | SpatialPredicate::Intersects => {
                 // Look up the spatial index from the manager.
-                let searcher = enable_scoring.searcher().expect("searcher required for spatial query");
+                let searcher = enable_scoring
+                    .searcher()
+                    .expect("searcher required for spatial query");
                 let schema = searcher.index().schema();
                 let field_entry = schema.get_field_entry(self.field);
                 let spatial_opts = match field_entry.field_type() {
@@ -135,9 +137,7 @@ impl Query for SpatialQuery {
                     SpatialPredicate::Intersects => {
                         spatial_index.prepare_intersects(&plane_geometry)
                     }
-                    SpatialPredicate::Contains => {
-                        spatial_index.prepare_contains(&plane_geometry)
-                    }
+                    SpatialPredicate::Contains => spatial_index.prepare_contains(&plane_geometry),
                     _ => unreachable!(),
                 }
             }
@@ -147,7 +147,9 @@ impl Query for SpatialQuery {
                 let projected = query_geometry.project::<Sphere>();
                 let set = to_geometry_set(&projected, 0);
                 let radius = S1ChordAngle::from_radians(*radius_radians);
-                Box::new(ClosestEdgeQueryAdapter(ClosestEdgeQuery::within(set, radius)))
+                Box::new(ClosestEdgeQueryAdapter(ClosestEdgeQuery::within(
+                    set, radius,
+                )))
             }
             SpatialPredicate::Between(inner_radians, outer_radians) => {
                 let query_geometry = Geometry::<Plane>::Point(self.coordinates[0]);
@@ -155,7 +157,9 @@ impl Query for SpatialQuery {
                 let set = to_geometry_set(&projected, 0);
                 let inner = S1ChordAngle::from_radians(*inner_radians);
                 let outer = S1ChordAngle::from_radians(*outer_radians);
-                Box::new(ClosestEdgeQueryAdapter(ClosestEdgeQuery::between(set, inner, outer)))
+                Box::new(ClosestEdgeQueryAdapter(ClosestEdgeQuery::between(
+                    set, inner, outer,
+                )))
             }
             SpatialPredicate::Knn(k) => {
                 let query_geometry = Geometry::<Plane>::Point(self.coordinates[0]);
@@ -206,10 +210,9 @@ impl Weight for SpatialWeight {
             }
         };
 
-        let doc_ids = self.query.search_segment_bytes(
-            spatial_reader.cells_bytes(),
-            spatial_reader.edges_bytes(),
-        );
+        let doc_ids = self
+            .query
+            .search_segment_bytes(spatial_reader.cells_bytes(), spatial_reader.edges_bytes());
 
         let mut include = BitSet::with_max_value(reader.max_doc());
         for doc_id in doc_ids {

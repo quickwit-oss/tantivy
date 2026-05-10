@@ -20,9 +20,9 @@ use super::s1chord_angle::{S1ChordAngle, RELATIVE_SUM_ERROR};
 use super::s1interval::S1Interval;
 use super::s2cell::S2Cell;
 use super::s2cell_id::S2CellId;
+use super::s2metrics::S2Metrics;
 use super::sphere::Sphere;
 use super::surface::Surface;
-use super::s2metrics::S2Metrics;
 
 /// S2Cap represents a disc-shaped region defined by a center and radius.
 #[derive(Clone, Copy, Debug)]
