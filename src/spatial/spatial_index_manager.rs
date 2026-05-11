@@ -30,6 +30,7 @@ use crate::spatial::plane::Plane;
 use crate::spatial::region_coverer::CovererOptions;
 use crate::spatial::sphere::Sphere;
 use crate::spatial::surface::Surface;
+use crate::spatial::within::Within;
 use crate::DocId;
 
 /// Default skip interval for the edge index skip list directory.
@@ -66,6 +67,9 @@ pub trait SpatialIndex: Send + Sync + SpatialIndexClone {
 
     /// Prepare a contains query from a query polygon in lon/lat.
     fn prepare_contains(&self, geometry: &Geometry<Plane>) -> Box<dyn PreparedSpatialQuery>;
+
+    /// Prepare a within query from a query polygon in lon/lat.
+    fn prepare_within(&self, geometry: &Geometry<Plane>) -> Box<dyn PreparedSpatialQuery>;
 }
 
 /// A prepared spatial query that searches one segment at a time.
@@ -266,6 +270,14 @@ impl<S: Surface + Send + Sync + Clone + 'static> SpatialIndex for SurfaceIndex<S
             query: Contains::new(set, CovererOptions::default()),
         })
     }
+
+    fn prepare_within(&self, geometry: &Geometry<Plane>) -> Box<dyn PreparedSpatialQuery> {
+        let projected = geometry.project::<S>();
+        let set = to_geometry_set(&projected, 0);
+        Box::new(PreparedWithin::<S> {
+            query: Within::new(set, CovererOptions::default()),
+        })
+    }
 }
 
 struct PreparedIntersects<S: Surface> {
@@ -287,6 +299,20 @@ struct PreparedContainsNew<S: Surface> {
 }
 
 impl<S: Surface + 'static> PreparedSpatialQuery for PreparedContainsNew<S> {
+    fn search_segment_bytes(&self, cells_bytes: &[u8], edges_bytes: &[u8], max_doc: u32) -> BitSet {
+        let cell_reader = CellIndexReader::open(cells_bytes);
+        let edge_reader = EdgeReader::<S>::open(edges_bytes);
+        let mut edge_cache = EdgeCache::new(vec![edge_reader], 100_000);
+        self.query
+            .search(&cell_reader, None, &mut edge_cache, max_doc)
+    }
+}
+
+struct PreparedWithin<S: Surface> {
+    query: Within<S>,
+}
+
+impl<S: Surface + 'static> PreparedSpatialQuery for PreparedWithin<S> {
     fn search_segment_bytes(&self, cells_bytes: &[u8], edges_bytes: &[u8], max_doc: u32) -> BitSet {
         let cell_reader = CellIndexReader::open(cells_bytes);
         let edge_reader = EdgeReader::<S>::open(edges_bytes);

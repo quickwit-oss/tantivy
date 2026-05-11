@@ -62,6 +62,7 @@ pub mod shape_index_region;
 pub mod spatial_index_manager;
 pub mod sphere;
 pub mod surface;
+pub mod within;
 pub mod writer;
 pub mod xor;
 

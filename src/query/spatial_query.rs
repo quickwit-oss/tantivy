@@ -28,6 +28,8 @@ pub enum SpatialPredicate {
     Contains,
     /// Return geometries that intersect the query polygon.
     Intersects,
+    /// Return geometries entirely inside the query polygon (ST_Within).
+    CoveredBy,
     /// Return geometries within a distance of a point. Distance in radians.
     Within(f64),
     /// Return geometries between two distances of a point. Distances in radians.
@@ -113,7 +115,9 @@ impl Query for SpatialQuery {
         let plane_geometry = Geometry::<Plane>::Polygon(vec![ring]);
 
         let prepared: Box<dyn PreparedSpatialQuery> = match &self.predicate {
-            SpatialPredicate::Contains | SpatialPredicate::Intersects => {
+            SpatialPredicate::Contains
+            | SpatialPredicate::Intersects
+            | SpatialPredicate::CoveredBy => {
                 // Look up the spatial index from the manager.
                 let searcher = enable_scoring
                     .searcher()
@@ -138,6 +142,7 @@ impl Query for SpatialQuery {
                         spatial_index.prepare_intersects(&plane_geometry)
                     }
                     SpatialPredicate::Contains => spatial_index.prepare_contains(&plane_geometry),
+                    SpatialPredicate::CoveredBy => spatial_index.prepare_within(&plane_geometry),
                     _ => unreachable!(),
                 }
             }
