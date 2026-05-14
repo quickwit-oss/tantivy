@@ -6,6 +6,7 @@ use common::{ByteCount, HasLen};
 use fnv::FnvHashMap;
 use itertools::Itertools;
 
+use crate::directory::error::OpenReadError;
 use crate::directory::{CompositeFile, FileSlice};
 use crate::error::DataCorruption;
 use crate::fastfield::{intersect_alive_bitsets, AliveBitSet, FacetReader, FastFieldReaders};
@@ -159,12 +160,10 @@ impl SegmentReader {
         let postings_file = segment.open_read(SegmentComponent::Postings)?;
         let postings_composite = CompositeFile::open(&postings_file)?;
 
-        let positions_composite = {
-            if let Ok(positions_file) = segment.open_read(SegmentComponent::Positions) {
-                CompositeFile::open(&positions_file)?
-            } else {
-                CompositeFile::empty()
-            }
+        let positions_composite = match segment.open_read(SegmentComponent::Positions) {
+            Ok(positions_file) => CompositeFile::open(&positions_file)?,
+            Err(OpenReadError::FileDoesNotExist(_)) => CompositeFile::empty(),
+            Err(open_read_error) => return Err(open_read_error.into()),
         };
 
         let schema = segment.schema();
