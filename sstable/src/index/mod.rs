@@ -98,6 +98,14 @@ impl SSTableIndex {
         }
     }
 
+    pub(crate) fn get_and_locate_with_ord(&self, ord: TermOrdinal) -> (BlockAddr, u64) {
+        match self {
+            SSTableIndex::V2(v2_index) => v2_index.get_and_locate_with_ord(ord),
+            SSTableIndex::V3(v3_index) => v3_index.get_and_locate_with_ord(ord),
+            SSTableIndex::V3Empty(v3_empty) => v3_empty.get_and_locate_with_ord(ord),
+        }
+    }
+
     pub fn get_block_for_automaton<'a>(
         &'a self,
         automaton: &'a impl Automaton,

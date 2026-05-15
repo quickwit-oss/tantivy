@@ -68,6 +68,11 @@ impl SSTableIndexV3 {
         self.block_addr_store.binary_search_ord(ord).1
     }
 
+    pub(crate) fn get_and_locate_with_ord(&self, ord: TermOrdinal) -> (BlockAddr, u64) {
+        let (location, block_addr) = self.block_addr_store.binary_search_ord(ord);
+        (block_addr, location)
+    }
+
     pub(crate) fn get_block_for_automaton<'a>(
         &'a self,
         automaton: &'a impl Automaton,
@@ -138,8 +143,8 @@ impl SSTableIndexV3Empty {
     }
 
     /// Get the [`BlockAddr`] of the requested block.
-    pub(crate) fn get_block(&self, _block_id: u64) -> Option<BlockAddr> {
-        Some(self.block_addr.clone())
+    pub(crate) fn get_block(&self, block_id: u64) -> Option<BlockAddr> {
+        (block_id == 0).then(|| self.block_addr.clone())
     }
 
     /// Get the block id of the block that would contain `key`.
@@ -163,6 +168,10 @@ impl SSTableIndexV3Empty {
     /// Get the [`BlockAddr`] of the block containing the `ord`-th term.
     pub(crate) fn get_block_with_ord(&self, _ord: TermOrdinal) -> BlockAddr {
         self.block_addr.clone()
+    }
+
+    pub(crate) fn get_and_locate_with_ord(&self, _ord: TermOrdinal) -> (BlockAddr, u64) {
+        (self.block_addr.clone(), 0)
     }
 }
 
