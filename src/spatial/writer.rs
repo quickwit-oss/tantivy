@@ -58,7 +58,7 @@ impl SpatialWriter {
     /// Serialize all fields.
     pub fn serialize(&mut self, mut serializer: SpatialSerializer) -> io::Result<()> {
         for (field, writer) in self.writers.drain() {
-            let (cells_write, edges_write) = serializer.for_field(field);
+            let (cells_write, edges_write, _doc_ids_write) = serializer.for_field(field);
             writer.serialize(cells_write, edges_write)?;
         }
         serializer.close()?;

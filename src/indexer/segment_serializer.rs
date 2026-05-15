@@ -41,7 +41,12 @@ impl SegmentSerializer {
             if segment.schema().contains_spatial_field() {
                 let cells_write = segment.open_write(SegmentComponent::SpatialCells)?;
                 let edges_write = segment.open_write(SegmentComponent::SpatialEdges)?;
-                Some(SpatialSerializer::new(cells_write, edges_write)?)
+                let doc_ids_write = segment.open_write(SegmentComponent::SpatialDocIds)?;
+                Some(SpatialSerializer::new(
+                    cells_write,
+                    edges_write,
+                    doc_ids_write,
+                )?)
             } else {
                 None
             };

@@ -183,7 +183,10 @@ impl SegmentReader {
         let spatial_readers = if schema.contains_spatial_field() {
             let cells_data = segment.open_read(SegmentComponent::SpatialCells)?;
             let edges_data = segment.open_read(SegmentComponent::SpatialEdges)?;
-            SpatialReaders::open(cells_data, edges_data)?
+            let doc_ids_data = segment
+                .open_read(SegmentComponent::SpatialDocIds)
+                .unwrap_or_else(|_| FileSlice::empty());
+            SpatialReaders::open(cells_data, edges_data, doc_ids_data)?
         } else {
             SpatialReaders::empty()
         };

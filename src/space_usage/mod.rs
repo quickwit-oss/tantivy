@@ -128,6 +128,7 @@ impl SegmentSpaceUsage {
             FieldNorms => PerField(self.fieldnorms().clone()),
             SpatialCells => PerField(self.spatial().clone()),
             SpatialEdges => PerField(self.spatial().clone()),
+            SpatialDocIds => PerField(self.spatial().clone()),
             Terms => PerField(self.termdict().clone()),
             SegmentComponent::Store => ComponentSpaceUsage::Store(self.store().clone()),
             Delete => Basic(self.deletes()),

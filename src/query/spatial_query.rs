@@ -184,7 +184,13 @@ impl Query for SpatialQuery {
 struct ClosestEdgeQueryAdapter(ClosestEdgeQuery);
 
 impl PreparedSpatialQuery for ClosestEdgeQueryAdapter {
-    fn search_segment_bytes(&self, cells_bytes: &[u8], edges_bytes: &[u8], max_doc: u32) -> BitSet {
+    fn search_segment_bytes(
+        &self,
+        cells_bytes: &[u8],
+        edges_bytes: &[u8],
+        _doc_ids_bytes: &[u8],
+        max_doc: u32,
+    ) -> BitSet {
         let cell_reader = CellIndexReader::open(cells_bytes);
         let edge_reader = EdgeReader::<Sphere>::open(edges_bytes);
         let mut edge_cache = EdgeCache::new(vec![edge_reader], 100_000);
@@ -218,6 +224,7 @@ impl Weight for SpatialWeight {
         let include = self.query.search_segment_bytes(
             spatial_reader.cells_bytes(),
             spatial_reader.edges_bytes(),
+            spatial_reader.doc_ids_bytes(),
             reader.max_doc(),
         );
 

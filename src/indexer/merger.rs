@@ -535,7 +535,8 @@ impl IndexMerger {
         let Some(spatial_serializer) = serializer.extract_spatial_serializer() else {
             return Ok(());
         };
-        let (mut cells_composite, mut edges_composite) = spatial_serializer.into_composite_writes();
+        let (mut cells_composite, mut edges_composite, mut doc_ids_composite) =
+            spatial_serializer.into_composite_writes();
 
         // Build inverted doc_id mapping: (segment_ord, old_doc_id) → new_doc_id.
         let mut doc_id_inverse: Vec<Vec<Option<DocId>>> = Vec::new();
@@ -587,6 +588,7 @@ impl IndexMerger {
 
             let cells_out = cells_composite.for_field(field);
             let edges_out = edges_composite.for_field(field);
+            let doc_ids_out = doc_ids_composite.for_field(field);
 
             let merge_start = std::time::Instant::now();
 
@@ -595,6 +597,7 @@ impl IndexMerger {
                 &doc_id_mapping.alive_bitsets,
                 cells_out,
                 edges_out,
+                doc_ids_out,
                 &doc_id_inverse,
             )?;
 
@@ -609,6 +612,7 @@ impl IndexMerger {
 
         cells_composite.close()?;
         edges_composite.close()?;
+        doc_ids_composite.close()?;
         Ok(())
     }
 

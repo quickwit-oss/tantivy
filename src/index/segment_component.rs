@@ -30,12 +30,14 @@ pub enum SegmentComponent {
     SpatialCells,
     /// Edge index for spatial fields.
     SpatialEdges,
+    /// Doc ID index for spatial fields. Parallel to the cell index for bulk inclusion.
+    SpatialDocIds,
 }
 
 impl SegmentComponent {
     /// Iterates through the components.
     pub fn iterator() -> slice::Iter<'static, SegmentComponent> {
-        static SEGMENT_COMPONENTS: [SegmentComponent; 9] = [
+        static SEGMENT_COMPONENTS: [SegmentComponent; 10] = [
             SegmentComponent::Postings,
             SegmentComponent::Positions,
             SegmentComponent::FastFields,
@@ -45,6 +47,7 @@ impl SegmentComponent {
             SegmentComponent::Delete,
             SegmentComponent::SpatialCells,
             SegmentComponent::SpatialEdges,
+            SegmentComponent::SpatialDocIds,
         ];
         SEGMENT_COMPONENTS.iter()
     }

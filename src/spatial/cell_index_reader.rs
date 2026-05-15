@@ -22,6 +22,7 @@ pub enum CellRelation {
 /// Reads a serialized cell index from a byte slice.
 pub struct CellIndexReader<'a> {
     data: &'a [u8],
+    pub doc_ids_data: &'a [u8],
     cell_count: u32,
     dir_offset: u64,
 }
@@ -29,9 +30,15 @@ pub struct CellIndexReader<'a> {
 impl<'a> CellIndexReader<'a> {
     /// Opens a cell index reader from the raw bytes of a serialized cell index.
     pub fn open(data: &'a [u8]) -> Self {
+        Self::open_with_doc_ids(data, &[])
+    }
+
+    /// Opens a cell index reader with an associated doc_id file.
+    pub fn open_with_doc_ids(data: &'a [u8], doc_ids_data: &'a [u8]) -> Self {
         if data.len() < 12 {
             return CellIndexReader {
                 data,
+                doc_ids_data,
                 cell_count: 0,
                 dir_offset: 0,
             };
@@ -41,8 +48,31 @@ impl<'a> CellIndexReader<'a> {
         let cell_count = u32::from_le_bytes(data[n - 12..n - 8].try_into().unwrap());
         CellIndexReader {
             data,
+            doc_ids_data,
             cell_count,
             dir_offset,
+        }
+    }
+
+    /// Visit doc_ids for cells in the range [start, end). Calls the visitor for each doc_id.
+    pub fn visit_doc_ids(&self, start: u32, end: u32, mut visitor: impl FnMut(u32)) {
+        if self.doc_ids_data.is_empty() || start >= end {
+            return;
+        }
+        let (_, _, start_offset) = self.read_dir_entry(start);
+        let end_offset = if end < self.cell_count {
+            let (_, _, o) = self.read_dir_entry(end);
+            o
+        } else {
+            self.doc_ids_data.len() as u64
+        };
+        let start = start_offset as usize;
+        let end = end_offset as usize;
+        let mut pos = start;
+        while pos + 4 <= end {
+            let doc_id = u32::from_le_bytes(self.doc_ids_data[pos..pos + 4].try_into().unwrap());
+            visitor(doc_id);
+            pos += 4;
         }
     }
 
@@ -58,7 +88,7 @@ impl<'a> CellIndexReader<'a> {
 
         while lo < hi {
             let mid = lo + (hi - lo) / 2;
-            let (cell_id, _) = self.read_dir_entry(mid);
+            let (cell_id, _, _) = self.read_dir_entry(mid);
             let cell_id = S2CellId(cell_id);
 
             if target < cell_id.range_min() {
@@ -66,7 +96,7 @@ impl<'a> CellIndexReader<'a> {
             } else if target > cell_id.range_max() {
                 lo = mid + 1;
             } else {
-                let (_, offset) = self.read_dir_entry(mid);
+                let (_, offset, _) = self.read_dir_entry(mid);
                 return Some(self.read_cell(offset as usize));
             }
         }
@@ -95,7 +125,7 @@ impl<'a> CellIndexReader<'a> {
         let mut hi = self.cell_count;
         while lo < hi {
             let mid = lo + (hi - lo) / 2;
-            let (cell_id, _) = self.read_dir_entry(mid);
+            let (cell_id, _, _) = self.read_dir_entry(mid);
             if S2CellId(cell_id).range_max() < target_min {
                 lo = mid + 1;
             } else {
@@ -112,7 +142,7 @@ impl<'a> CellIndexReader<'a> {
 
     /// Returns the cell ID at the given directory position.
     pub fn cell_id_at(&self, index: u32) -> S2CellId {
-        let (cell_id, _) = self.read_dir_entry(index);
+        let (cell_id, _, _) = self.read_dir_entry(index);
         S2CellId(cell_id)
     }
 
@@ -124,7 +154,7 @@ impl<'a> CellIndexReader<'a> {
         let mut hi = hi;
         while lo < hi {
             let mid = lo + (hi - lo) / 2;
-            let (cell_id, _) = self.read_dir_entry(mid);
+            let (cell_id, _, _) = self.read_dir_entry(mid);
             if S2CellId(cell_id).range_max() < target_min {
                 lo = mid + 1;
             } else {
@@ -150,7 +180,7 @@ impl<'a> CellIndexReader<'a> {
         let mut hi = parent_end;
         while lo < hi {
             let mid = lo + (hi - lo) / 2;
-            let (cell_id, _) = self.read_dir_entry(mid);
+            let (cell_id, _, _) = self.read_dir_entry(mid);
             if S2CellId(cell_id).range_max() < target_min {
                 lo = mid + 1;
             } else {
@@ -163,7 +193,7 @@ impl<'a> CellIndexReader<'a> {
         hi = parent_end;
         while lo < hi {
             let mid = lo + (hi - lo) / 2;
-            let (cell_id, _) = self.read_dir_entry(mid);
+            let (cell_id, _, _) = self.read_dir_entry(mid);
             if S2CellId(cell_id).range_min() <= target_max {
                 lo = mid + 1;
             } else {
@@ -184,15 +214,33 @@ impl<'a> CellIndexReader<'a> {
 
     /// Read the cell at a directory position.
     pub fn cell_at(&self, index: u32) -> ShapeCell {
-        let (_, offset) = self.read_dir_entry(index);
+        let (_, offset, _) = self.read_dir_entry(index);
         self.read_cell(offset as usize)
     }
 
-    fn read_dir_entry(&self, index: u32) -> (u64, u64) {
-        let base = self.dir_offset as usize + index as usize * 16;
+    fn read_dir_entry(&self, index: u32) -> (u64, u64, u64) {
+        let base = self.dir_offset as usize + index as usize * 24;
         let cell_id = u64::from_le_bytes(self.data[base..base + 8].try_into().unwrap());
         let offset = u64::from_le_bytes(self.data[base + 8..base + 16].try_into().unwrap());
-        (cell_id, offset)
+        let doc_id_offset = u64::from_le_bytes(self.data[base + 16..base + 24].try_into().unwrap());
+        (cell_id, offset, doc_id_offset)
+    }
+
+    /// Returns the doc_id offset range for cells between start (inclusive) and end (exclusive).
+    pub fn doc_id_range(&self, start: u32, end: u32) -> (u64, u64) {
+        let (_, _, start_offset) = self.read_dir_entry(start);
+        let end_offset = if end < self.cell_count {
+            let (_, _, o) = self.read_dir_entry(end);
+            o
+        } else {
+            // Past the last cell: the doc_id file extends to the end.
+            // Use the directory offset as a sentinel — the caller knows the file size.
+            // For now, compute from the last cell's offset + shape count * 4.
+            let (_, _, last_offset) = self.read_dir_entry(self.cell_count - 1);
+            let last_cell = self.cell_at(self.cell_count - 1);
+            last_offset + (last_cell.shapes.len() as u64) * 4
+        };
+        (start_offset, end_offset)
     }
 
     fn read_cell(&self, offset: usize) -> ShapeCell {
@@ -256,14 +304,14 @@ impl<'a> CellIndexCursor<'a> {
         if self.done() {
             return None;
         }
-        let (cell_id, _) = self.reader.read_dir_entry(self.pos);
+        let (cell_id, _, _) = self.reader.read_dir_entry(self.pos);
         Some(S2CellId(cell_id))
     }
 
     /// Reads and deserializes the cell at the current position. Panics if the cursor is done.
     pub fn cell(&self) -> ShapeCell {
         assert!(!self.done());
-        let (_, offset) = self.reader.read_dir_entry(self.pos);
+        let (_, offset, _) = self.reader.read_dir_entry(self.pos);
         self.reader.read_cell(offset as usize)
     }
 
@@ -273,7 +321,7 @@ impl<'a> CellIndexCursor<'a> {
         let mut hi = self.reader.cell_count;
         while lo < hi {
             let mid = lo + (hi - lo) / 2;
-            let (cell_id, _) = self.reader.read_dir_entry(mid);
+            let (cell_id, _, _) = self.reader.read_dir_entry(mid);
             if S2CellId(cell_id).range_max() < target {
                 lo = mid + 1;
             } else {
@@ -355,7 +403,7 @@ impl<'a> Iterator for CellIndexIter<'a> {
         if self.pos >= self.reader.cell_count {
             return None;
         }
-        let (cell_id, offset) = self.reader.read_dir_entry(self.pos);
+        let (cell_id, offset, _) = self.reader.read_dir_entry(self.pos);
         if let Some(max) = self.end_at {
             if S2CellId(cell_id).range_min() > max {
                 return None;

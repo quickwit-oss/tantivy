@@ -17,18 +17,24 @@ use crate::spatial::surface::Surface;
 /// Default skip interval for the edge index skip list directory.
 const EDGE_SKIP_INTERVAL: u32 = 16;
 
-/// Serializes spatial field data into cell index and edge index files.
+/// Serializes spatial field data into cell index, edge index, and doc ID index files.
 pub struct SpatialSerializer {
     cells_write: CompositeWrite,
     edges_write: CompositeWrite,
+    doc_ids_write: CompositeWrite,
 }
 
 impl SpatialSerializer {
-    /// Create the serializer from two write pointers (cells and edges).
-    pub fn new(cells_write: WritePtr, edges_write: WritePtr) -> io::Result<SpatialSerializer> {
+    /// Create the serializer from three write pointers (cells, edges, doc IDs).
+    pub fn new(
+        cells_write: WritePtr,
+        edges_write: WritePtr,
+        doc_ids_write: WritePtr,
+    ) -> io::Result<SpatialSerializer> {
         Ok(SpatialSerializer {
             cells_write: CompositeWrite::wrap(cells_write),
             edges_write: CompositeWrite::wrap(edges_write),
+            doc_ids_write: CompositeWrite::wrap(doc_ids_write),
         })
     }
 
@@ -47,10 +53,20 @@ impl SpatialSerializer {
         let builder = Clipper::new(ClipOptions::default());
         let cell_index = builder.build(sets);
 
-        // Write the cell index.
+        // Build the geometry_id to doc_id map.
+        let mut doc_id_map: Vec<u32> = Vec::new();
+        for set in sets {
+            for _member in &set.members {
+                doc_id_map.push(set.doc_id);
+            }
+        }
+
+        // Write the cell index and doc ID index.
         let cells_out = self.cells_write.for_field(field);
-        cell_index.write(cells_out);
+        let doc_ids_out = self.doc_ids_write.for_field(field);
+        cell_index.write_with_doc_ids(cells_out, Some(doc_ids_out), Some(&doc_id_map));
         cells_out.flush()?;
+        doc_ids_out.flush()?;
 
         // Write the edge index.
         let edges_out = self.edges_write.for_field(field);
@@ -68,30 +84,31 @@ impl SpatialSerializer {
         Ok(())
     }
 
-    /// Get the cells and edges writers for a field.
+    /// Get the cells, edges, and doc_ids writers for a field.
     pub fn for_field(
         &mut self,
         field: Field,
     ) -> (
         &mut common::CountingWriter<WritePtr>,
         &mut common::CountingWriter<WritePtr>,
+        &mut common::CountingWriter<WritePtr>,
     ) {
         let cells = self.cells_write.for_field(field);
-        // We need both at once but CompositeWrite borrows mutably. Split the borrows.
-        // This is safe because cells_write and edges_write are separate files.
         let edges = self.edges_write.for_field(field);
-        (cells, edges)
+        let doc_ids = self.doc_ids_write.for_field(field);
+        (cells, edges, doc_ids)
     }
 
-    /// Split into the two underlying CompositeWrites for direct access. Used by the merger.
-    pub fn into_composite_writes(self) -> (CompositeWrite, CompositeWrite) {
-        (self.cells_write, self.edges_write)
+    /// Split into the three underlying CompositeWrites for direct access. Used by the merger.
+    pub fn into_composite_writes(self) -> (CompositeWrite, CompositeWrite, CompositeWrite) {
+        (self.cells_write, self.edges_write, self.doc_ids_write)
     }
 
-    /// Close both composite files.
+    /// Close all composite files.
     pub fn close(self) -> io::Result<()> {
         self.cells_write.close()?;
         self.edges_write.close()?;
+        self.doc_ids_write.close()?;
         Ok(())
     }
 }

@@ -101,12 +101,33 @@ impl ShapeIndex {
     /// Offsets are recorded relative to the start of this write, not the global
     /// stream position, because CompositeFile shares one CountingWriter across
     /// all fields but the reader sees a per-field slice starting at zero.
+    ///
+    /// If doc_id_map is provided, each geometry_id is resolved to a doc_id and
+    /// the doc_id file position is recorded in the directory alongside the cell
+    /// offset. The doc_ids are written to a separate writer in cell order.
     pub fn write<W: Write>(&self, write: &mut CountingWriter<W>) {
+        self.write_with_doc_ids::<W>(write, None, None);
+    }
+
+    pub fn write_with_doc_ids<W: Write>(
+        &self,
+        write: &mut CountingWriter<W>,
+        mut doc_ids_write: Option<&mut CountingWriter<W>>,
+        doc_id_map: Option<&[u32]>,
+    ) {
         let base = write.written_bytes();
-        let mut offsets: Vec<(u64, u64)> = Vec::with_capacity(self.cells.len());
+        let doc_ids_base = doc_ids_write
+            .as_ref()
+            .map(|w| w.written_bytes())
+            .unwrap_or(0);
+        let mut offsets: Vec<(u64, u64, u64)> = Vec::with_capacity(self.cells.len());
 
         for cell in &self.cells {
             let offset = write.written_bytes() - base;
+            let doc_id_offset = doc_ids_write
+                .as_ref()
+                .map(|w| w.written_bytes() - doc_ids_base)
+                .unwrap_or(0);
 
             write.write_all(&cell.cell_id.0.to_le_bytes()).unwrap();
             write
@@ -122,16 +143,22 @@ impl ShapeIndex {
                 for &edge_id in &shape.edge_indices {
                     write.write_all(&edge_id.to_le_bytes()).unwrap();
                 }
+
+                if let (Some(ref mut dw), Some(map)) = (&mut doc_ids_write, doc_id_map) {
+                    let doc_id = map[shape.geometry_id.1 as usize];
+                    dw.write_all(&doc_id.to_le_bytes()).unwrap();
+                }
             }
 
-            offsets.push((cell.cell_id.0, offset));
+            offsets.push((cell.cell_id.0, offset, doc_id_offset));
         }
 
-        // Dictionary: (cell_id, offset) pairs.
+        // Directory: (cell_id, offset, doc_id_offset) triples.
         let dir_offset = write.written_bytes() - base;
-        for &(cell_id, offset) in &offsets {
+        for &(cell_id, offset, doc_id_offset) in &offsets {
             write.write_all(&cell_id.to_le_bytes()).unwrap();
             write.write_all(&offset.to_le_bytes()).unwrap();
+            write.write_all(&doc_id_offset.to_le_bytes()).unwrap();
         }
 
         // Footer: cell count, directory offset.

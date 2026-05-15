@@ -121,21 +121,27 @@ impl<S: Surface> Intersects<S> {
                 && entry.contains_center
                 && entry.first_index_level > entry.pcell.level()
             {
-                for pos in entry.index_start..entry.index_end {
-                    let cell = reader.cell_at(pos);
-                    for clipped in &cell.shapes {
-                        let gid = clipped.geometry_id.1;
-                        if seen.contains(gid) {
-                            continue;
-                        }
-                        seen.insert(gid);
-                        let doc_id = edge_cache.doc_id_for(clipped.geometry_id);
-                        if let Some(filter) = terms_filter {
-                            if !filter.contains(doc_id) {
+                if !reader.doc_ids_data.is_empty() && terms_filter.is_none() {
+                    reader.visit_doc_ids(entry.index_start, entry.index_end, |doc_id| {
+                        doc_ids.insert(doc_id);
+                    });
+                } else {
+                    for pos in entry.index_start..entry.index_end {
+                        let cell = reader.cell_at(pos);
+                        for clipped in &cell.shapes {
+                            let gid = clipped.geometry_id.1;
+                            if seen.contains(gid) {
                                 continue;
                             }
+                            seen.insert(gid);
+                            let doc_id = edge_cache.doc_id_for(clipped.geometry_id);
+                            if let Some(filter) = terms_filter {
+                                if !filter.contains(doc_id) {
+                                    continue;
+                                }
+                            }
+                            doc_ids.insert(doc_id);
                         }
-                        doc_ids.insert(doc_id);
                     }
                 }
             } else if entry.pcell.level() < entry.first_index_level && !entry.pcell.id().is_leaf() {

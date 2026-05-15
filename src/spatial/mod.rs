@@ -12,6 +12,7 @@
 //! https://proj.org/en/stable/operations/projections/s2.html
 //! https://s2geometry.io/resources/earthcube.html
 
+pub mod boundary_tree;
 pub mod cell_index_reader;
 pub mod cell_union;
 pub mod clip_options;
