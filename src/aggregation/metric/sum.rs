@@ -27,6 +27,17 @@ pub struct SumAggregation {
     /// { "field": "my_numbers", "missing": "10.0" }
     #[serde(default, deserialize_with = "deserialize_option_f64")]
     pub missing: Option<f64>,
+    /// Non-Elasticsearch extension. When `Some(true)`, the serialized result
+    /// returns `"value": null` if no values were collected (all documents had
+    /// missing/NULL values for the field), matching the behavior of `min`,
+    /// `max`, and `avg`. When `None` or `Some(false)` (the default) the
+    /// result returns `"value": 0`, matching Elasticsearch.
+    ///
+    /// Intended for SQL-style consumers (e.g. ParadeDB) where `SUM` of zero
+    /// rows is `NULL` and must be distinguishable from a bucket that
+    /// genuinely sums to `0`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub none_if_no_match: Option<bool>,
 }
 
 impl SumAggregation {
@@ -35,6 +46,7 @@ impl SumAggregation {
         Self {
             field: field_name,
             missing: None,
+            none_if_no_match: None,
         }
     }
     /// Returns the field name the aggregation is computed on.
@@ -61,17 +73,14 @@ impl IntermediateSum {
     }
     /// Computes the final sum value.
     ///
-    /// Returns `None` when no values were collected (all documents had
-    /// missing/NULL values for the field), matching the behavior of
-    /// `IntermediateMin`, `IntermediateMax`, and `IntermediateAvg`.
-    ///
-    /// Note: this diverges from Elasticsearch, which returns `"value": 0`
-    /// for sum aggregations over empty / all-missing buckets (min/max/avg
-    /// return `null`). Returning `None` here lets SQL-style consumers
-    /// (e.g. ParadeDB, where `SUM` of no rows is `NULL`) distinguish
-    /// "nothing was summed" from "values summed to 0" via the existing
-    /// `SingleMetricResult { value: Option<f64> }` boundary, which on
-    /// `main` is an `Option` that is never `None` for sum.
+    /// Returns `None` when no values were collected, matching the Rust-side
+    /// behavior of `IntermediateMin`, `IntermediateMax`, and
+    /// `IntermediateAvg`. The Elasticsearch-vs-SQL choice for the
+    /// user-visible result is made at the boundary in
+    /// [`IntermediateMetricResult::into_final_metric_result`]: by default
+    /// `None` is coerced to `Some(0.0)` to match Elasticsearch
+    /// (`"value": 0`), and the [`SumAggregation::none_if_no_match`] flag
+    /// opts out of that coercion for SQL-style consumers.
     pub fn finalize(&self) -> Option<f64> {
         let stats = self.stats.finalize();
         if stats.count == 0 {
@@ -116,5 +125,50 @@ mod tests {
         let b = IntermediateSum::default();
         a.merge_fruits(b);
         assert_eq!(a.finalize(), None);
+    }
+
+    #[test]
+    fn test_sum_aggregation_empty_index_default_matches_es() -> crate::Result<()> {
+        use serde_json::json;
+
+        use crate::aggregation::agg_req::Aggregations;
+        use crate::aggregation::tests::{exec_request, get_test_index_from_terms};
+
+        // Empty index — sum has no values to collect.
+        let values: Vec<Vec<&str>> = vec![];
+        let index = get_test_index_from_terms(false, &values)?;
+        let agg_req: Aggregations = serde_json::from_value(json!({
+            "score_sum": { "sum": { "field": "score" } }
+        }))
+        .unwrap();
+
+        let res = exec_request(agg_req, &index)?;
+        // Default: match Elasticsearch — empty sum serializes as 0, not null.
+        assert_eq!(res["score_sum"]["value"], 0.0);
+        Ok(())
+    }
+
+    #[test]
+    fn test_sum_aggregation_empty_index_none_if_no_match_opt_in() -> crate::Result<()> {
+        use serde_json::json;
+
+        use crate::aggregation::agg_req::Aggregations;
+        use crate::aggregation::tests::{exec_request, get_test_index_from_terms};
+
+        let values: Vec<Vec<&str>> = vec![];
+        let index = get_test_index_from_terms(false, &values)?;
+        let agg_req: Aggregations = serde_json::from_value(json!({
+            "score_sum": { "sum": { "field": "score", "none_if_no_match": true } }
+        }))
+        .unwrap();
+
+        let res = exec_request(agg_req, &index)?;
+        // Opt-in non-ES extension — empty sum serializes as null.
+        assert!(
+            res["score_sum"]["value"].is_null(),
+            "expected null, got {:?}",
+            res["score_sum"]["value"]
+        );
+        Ok(())
     }
 }

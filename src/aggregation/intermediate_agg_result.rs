@@ -377,7 +377,22 @@ impl IntermediateMetricResult {
                 MetricResult::ExtendedStats(intermediate_stats.finalize())
             }
             IntermediateMetricResult::Sum(intermediate_sum) => {
-                MetricResult::Sum(intermediate_sum.finalize().into())
+                // By default match Elasticsearch: empty / all-missing sum
+                // buckets serialize as `"value": 0`, not `"value": null`.
+                // The non-ES `none_if_no_match` flag on `SumAggregation`
+                // opts into SQL-style `null` for downstream consumers.
+                let none_if_no_match = req
+                    .agg
+                    .as_sum()
+                    .and_then(|sum| sum.none_if_no_match)
+                    .unwrap_or(false);
+                let value = intermediate_sum.finalize();
+                let coerced = if none_if_no_match {
+                    value
+                } else {
+                    Some(value.unwrap_or(0.0))
+                };
+                MetricResult::Sum(coerced.into())
             }
             IntermediateMetricResult::Percentiles(percentiles) => MetricResult::Percentiles(
                 percentiles
