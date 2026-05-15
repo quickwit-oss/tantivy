@@ -1455,7 +1455,8 @@ fn test_aggregation_field_validation_helper() {
     )
     .unwrap();
 
-    let result = crate::aggregation::agg_req::validate_aggregation_fields(&agg_req, segment_reader);
+    let result =
+        crate::aggregation::agg_req::validate_aggregation_fields_exist(&agg_req, segment_reader);
     assert!(result.is_err());
     match result {
         Err(crate::TantivyError::FieldNotFound(field_name)) => {
@@ -1474,6 +1475,7 @@ fn test_aggregation_field_validation_helper() {
     )
     .unwrap();
 
-    let result = crate::aggregation::agg_req::validate_aggregation_fields(&agg_req, segment_reader);
+    let result =
+        crate::aggregation::agg_req::validate_aggregation_fields_exist(&agg_req, segment_reader);
     assert!(result.is_ok());
 }
