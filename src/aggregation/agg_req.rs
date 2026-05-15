@@ -121,9 +121,14 @@ pub fn get_fast_field_names(aggs: &Aggregations) -> HashSet<String> {
 /// This is a convenience function for upfront validation before executing aggregations.
 /// Returns an error if any field doesn't exist or is not a fast field.
 ///
+/// Validation is intentionally opt-in rather than baked into aggregation execution: the
+/// default lenient behavior (returning empty results for missing fields) supports
+/// schema evolution and federated queries where the same request runs against segments
+/// or indices with different schemas.
+///
 /// # Example
 /// ```
-/// use tantivy::aggregation::agg_req::{Aggregations, validate_aggregation_fields};
+/// use tantivy::aggregation::agg_req::{Aggregations, validate_aggregation_fields_exist};
 /// use tantivy::schema::{Schema, FAST};
 /// use tantivy::Index;
 ///
@@ -144,12 +149,12 @@ pub fn get_fast_field_names(aggs: &Aggregations) -> HashSet<String> {
 ///
 /// // Validate fields before executing
 /// for segment_reader in searcher.segment_readers() {
-///     validate_aggregation_fields(&agg_req, segment_reader)?;
+///     validate_aggregation_fields_exist(&agg_req, segment_reader)?;
 /// }
 /// # Ok(())
 /// # }
 /// ```
-pub fn validate_aggregation_fields(
+pub fn validate_aggregation_fields_exist(
     aggs: &Aggregations,
     reader: &crate::SegmentReader,
 ) -> crate::Result<()> {
