@@ -967,7 +967,13 @@ fn build_terms_or_cardinality_nodes(
         let missing_value_for_accessor = if use_special_missing_agg {
             None
         } else if let Some(m) = missing.as_ref() {
-            get_missing_val_as_u64_lenient(column_type, accessor.values.num_vals(), m, field_name)?
+            get_missing_val_as_u64_lenient(
+                column_type,
+                accessor.max_value(),
+                accessor.values.num_vals() as u64,
+                m,
+                field_name,
+            )?
         } else {
             None
         };
