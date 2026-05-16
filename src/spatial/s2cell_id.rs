@@ -583,7 +583,7 @@ impl S2CellId {
 
     /// Creates a leaf cell from (face, i, j), wrapping to the appropriate
     /// adjacent face if (i, j) is outside [0, MAX_SIZE).
-    fn from_face_ij_wrap(face: i32, i: i32, j: i32) -> Self {
+    pub fn from_face_ij_wrap(face: i32, i: i32, j: i32) -> Self {
         // Clamp i and j to just beyond the valid range to prevent overflow.
         let i = i.clamp(-1, MAX_SIZE);
         let j = j.clamp(-1, MAX_SIZE);

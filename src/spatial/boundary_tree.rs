@@ -1,16 +1,16 @@
-//! KD-tree over boundary cell midpoints for nearest-neighbor queries during
-//! distance search. Built once from boundary cells, queried per sweep cell.
+//! KD-tree over boundary cell midpoints for nearest-neighbor queries during distance search. Built
+//! once from boundary cells, queried per sweep cell.
 
-/// A node in the kd-tree. Holds the XYZ center point of a boundary cell
-/// and the query edge indices assigned to that cell.
+/// A node in the kd-tree. Holds the XYZ center point of a boundary cell and the query edge indices
+/// assigned to that cell.
 pub struct BoundaryNode {
     pub point: [f64; 3],
     pub edge_indices: Vec<u32>,
 }
 
-/// KD-tree over boundary cell centers. The tree structure is implicit in the
-/// Vec ordering. Node at slice midpoint is the root, left half is the left
-/// subtree, right half is the right subtree. Axes cycle X, Y, Z.
+/// KD-tree over boundary cell centers. The tree structure is implicit in the Vec ordering. Node at
+/// slice midpoint is the root, left half is the left subtree, right half is the right subtree.
+/// Axes cycle X, Y, Z.
 pub struct BoundaryTree {
     nodes: Vec<BoundaryNode>,
 }
@@ -40,9 +40,8 @@ impl BoundaryTree {
         self.nodes.is_empty()
     }
 
-    /// Find boundary nodes within max_chord_angle of the query point.
-    /// Calls the visitor with each matching node's edge indices.
-    /// The visitor returns true to continue, false to stop early.
+    /// Find boundary nodes within max_chord_angle of the query point. Calls the visitor with each
+    /// matching node's edge indices. The visitor returns true to continue, false to stop early.
     pub fn search_within(
         &self,
         query: &[f64; 3],

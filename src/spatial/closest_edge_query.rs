@@ -10,7 +10,7 @@
 //!   within-D     -- fixed threshold, collect all within D
 
 use std::cmp::Ordering;
-use std::collections::BinaryHeap;
+use std::collections::{BinaryHeap, HashMap};
 
 use common::BitSet;
 
@@ -224,7 +224,7 @@ impl ClosestEdgeQuery {
         }
 
         // Main loop.
-        let mut best: Vec<S1ChordAngle> = vec![S1ChordAngle::infinity(); geometry_count];
+        let mut best: HashMap<u32, S1ChordAngle> = HashMap::new();
 
         while let Some(entry) = queue.pop() {
             if !(entry.distance < distance_limit) {
@@ -240,7 +240,7 @@ impl ClosestEdgeQuery {
                     &mut best,
                     &mut distance_limit,
                 );
-                if self.first_only && best.iter().any(|d| *d < S1ChordAngle::infinity()) {
+                if self.first_only && !best.is_empty() {
                     break;
                 }
                 continue;
@@ -420,13 +420,13 @@ impl ClosestEdgeQuery {
         cell_reader: &'a CellIndexReader<'a>,
         edge_cache: &mut EdgeCache<'a, Sphere>,
         terms_filter: Option<&BitSet>,
-        best: &mut [S1ChordAngle],
+        best: &mut HashMap<u32, S1ChordAngle>,
         distance_limit: &mut S1ChordAngle,
     ) {
         let cell = cell_reader.find(entry.cell_id).unwrap();
 
         for clipped in &cell.shapes {
-            let gid = clipped.geometry_id.1 as usize;
+            let gid = clipped.geometry_id.1;
 
             if let Some(filter) = terms_filter {
                 let doc_id = edge_cache.doc_id_for(clipped.geometry_id);
@@ -437,7 +437,7 @@ impl ClosestEdgeQuery {
 
             let cache_entry = edge_cache.get(clipped.geometry_id);
             let candidate_vertices = cache_entry.vertices();
-            let mut min_dist = best[gid];
+            let mut min_dist = *best.get(&gid).unwrap_or(&S1ChordAngle::infinity());
 
             if clipped.edge_indices.is_empty() {
                 if candidate_vertices.len() == 1 {
@@ -476,22 +476,23 @@ impl ClosestEdgeQuery {
                 }
             }
 
-            if min_dist < best[gid] {
-                best[gid] = min_dist;
+            let prev = best.get(&gid).copied().unwrap_or(S1ChordAngle::infinity());
+            if min_dist < prev {
+                best.insert(gid, min_dist);
                 self.maybe_tighten_limit(best, distance_limit);
             }
         }
     }
 
-    fn maybe_tighten_limit(&self, best: &[S1ChordAngle], distance_limit: &mut S1ChordAngle) {
+    fn maybe_tighten_limit(
+        &self,
+        best: &HashMap<u32, S1ChordAngle>,
+        distance_limit: &mut S1ChordAngle,
+    ) {
         if self.max_results >= best.len() {
             return;
         }
-        let mut distances: Vec<S1ChordAngle> = best
-            .iter()
-            .copied()
-            .filter(|d| *d < S1ChordAngle::infinity())
-            .collect();
+        let mut distances: Vec<S1ChordAngle> = best.values().copied().collect();
         if distances.len() >= self.max_results {
             distances.sort();
             *distance_limit = distances[self.max_results - 1];
@@ -500,14 +501,14 @@ impl ClosestEdgeQuery {
 
     fn collect_results(
         &self,
-        best: &[S1ChordAngle],
+        best: &HashMap<u32, S1ChordAngle>,
         edge_cache: &EdgeCache<'_, Sphere>,
     ) -> Vec<ClosestEdgeResult> {
         let min_distance = self.min_distance.unwrap_or(S1ChordAngle::zero());
         let mut results: Vec<ClosestEdgeResult> = Vec::new();
-        for (gid, &distance) in best.iter().enumerate() {
+        for (&gid, &distance) in best.iter() {
             if distance < self.max_distance && distance >= min_distance {
-                let doc_id = edge_cache.doc_id_for((0, gid as u32));
+                let doc_id = edge_cache.doc_id_for((0, gid));
                 results.push(ClosestEdgeResult { doc_id, distance });
             }
         }

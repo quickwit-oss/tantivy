@@ -19,6 +19,7 @@ use crate::spatial::cell_index_reader::CellIndexReader;
 use crate::spatial::clip_options::ClipOptions;
 use crate::spatial::clipper::Clipper;
 use crate::spatial::contains::Contains;
+use crate::spatial::distance::Distance;
 use crate::spatial::edge_cache::EdgeCache;
 use crate::spatial::edge_reader::EdgeReader;
 use crate::spatial::edge_writer::EdgeWriter;
@@ -71,6 +72,13 @@ pub trait SpatialIndex: Send + Sync + SpatialIndexClone {
 
     /// Prepare a within query from a query polygon in lon/lat.
     fn prepare_within(&self, geometry: &Geometry<Plane>) -> Box<dyn PreparedSpatialQuery>;
+
+    /// Prepare a distance query from a query polygon in lon/lat. Distance in radians.
+    fn prepare_distance(
+        &self,
+        geometry: &Geometry<Plane>,
+        max_distance: f64,
+    ) -> Box<dyn PreparedSpatialQuery>;
 }
 
 /// A prepared spatial query that searches one segment at a time.
@@ -296,6 +304,18 @@ impl<S: Surface + Send + Sync + Clone + 'static> SpatialIndex for SurfaceIndex<S
             query: Within::new(set, CovererOptions::default()),
         })
     }
+
+    fn prepare_distance(
+        &self,
+        geometry: &Geometry<Plane>,
+        max_distance: f64,
+    ) -> Box<dyn PreparedSpatialQuery> {
+        let projected = geometry.project::<S>();
+        let set = to_geometry_set(&projected, 0);
+        Box::new(PreparedDistance::<S> {
+            query: Distance::new(set, max_distance, CovererOptions::default()),
+        })
+    }
 }
 
 struct PreparedIntersects<S: Surface> {
@@ -343,6 +363,26 @@ struct PreparedWithin<S: Surface> {
 }
 
 impl<S: Surface + 'static> PreparedSpatialQuery for PreparedWithin<S> {
+    fn search_segment_bytes(
+        &self,
+        cells_bytes: &[u8],
+        edges_bytes: &[u8],
+        doc_ids_bytes: &[u8],
+        max_doc: u32,
+    ) -> BitSet {
+        let cell_reader = CellIndexReader::open_with_doc_ids(cells_bytes, doc_ids_bytes);
+        let edge_reader = EdgeReader::<S>::open(edges_bytes);
+        let mut edge_cache = EdgeCache::new(vec![edge_reader], 100_000);
+        self.query
+            .search(&cell_reader, None, &mut edge_cache, max_doc)
+    }
+}
+
+struct PreparedDistance<S: Surface> {
+    query: Distance<S>,
+}
+
+impl<S: Surface + 'static> PreparedSpatialQuery for PreparedDistance<S> {
     fn search_segment_bytes(
         &self,
         cells_bytes: &[u8],
