@@ -33,9 +33,8 @@ pub struct SumAggregation {
     /// `max`, and `avg`. When `None` or `Some(false)` (the default) the
     /// result returns `"value": 0`, matching Elasticsearch.
     ///
-    /// Intended for SQL-style consumers (e.g. ParadeDB) where `SUM` of zero
-    /// rows is `NULL` and must be distinguishable from a bucket that
-    /// genuinely sums to `0`.
+    /// Intended for SQL-style consumers where `SUM` of zero rows is `NULL`
+    /// and must be distinguishable from a bucket that genuinely sums to `0`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub none_if_no_match: Option<bool>,
 }
