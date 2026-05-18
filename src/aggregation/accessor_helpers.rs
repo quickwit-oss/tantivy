@@ -28,7 +28,11 @@ pub(crate) fn get_missing_val_as_u64_lenient(
             // the column has no non-nil values, the max column value defaults to 0, which is
             // actually the sentinel value we want to use, so we must specify that directly
             if column_value_count > 0 {
-                Some(column_max_value + 1)
+                Some(
+                    column_max_value
+                        .checked_add(1)
+                        .expect("This is a u64; we should never be anywhere close to overflowing"),
+                )
             } else {
                 Some(0)
             }
