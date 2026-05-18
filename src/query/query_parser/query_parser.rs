@@ -1040,11 +1040,13 @@ fn convert_literal_to_query(
                 let spatial_predicate = match predicate {
                     SpatialPredicateKind::Intersects => SpatialPredicate::Intersects,
                     SpatialPredicateKind::Contains => SpatialPredicate::Contains,
-                    SpatialPredicateKind::Within(r) => SpatialPredicate::Within(r.0),
-                    SpatialPredicateKind::Between(inner, outer) => {
-                        SpatialPredicate::Between(inner.0, outer.0)
+                    SpatialPredicateKind::Within(r) => SpatialPredicate::DistanceWithin(r.0),
+                    SpatialPredicateKind::Between(_, _) => {
+                        todo!("between is composed from distance queries")
                     }
-                    SpatialPredicateKind::Knn(k) => SpatialPredicate::Knn(k),
+                    SpatialPredicateKind::Knn(_) => {
+                        todo!("kNN via flood fill tightening")
+                    }
                 };
                 Box::new(SpatialQuery::with_predicate(
                     field,

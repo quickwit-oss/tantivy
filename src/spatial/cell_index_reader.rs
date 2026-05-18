@@ -234,7 +234,7 @@ impl<'a> CellIndexReader<'a> {
             o
         } else {
             // Past the last cell: the doc_id file extends to the end.
-            // Use the directory offset as a sentinel — the caller knows the file size.
+            // Use the directory offset as a sentinel; the caller knows the file size.
             // For now, compute from the last cell's offset + shape count * 4.
             let (_, _, last_offset) = self.read_dir_entry(self.cell_count - 1);
             let last_cell = self.cell_at(self.cell_count - 1);

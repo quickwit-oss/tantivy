@@ -10,15 +10,9 @@ use crate::query::explanation::does_not_match;
 use crate::query::{BitSetDocSet, Explanation, Query, Scorer, Weight};
 use crate::schema::{Field, FieldType};
 use crate::spatial::cell_index_reader::CellIndexReader;
-use crate::spatial::closest_edge_query::ClosestEdgeQuery;
-use crate::spatial::edge_cache::EdgeCache;
-use crate::spatial::edge_reader::EdgeReader;
 use crate::spatial::geometry::Geometry;
-use crate::spatial::geometry_set::to_geometry_set;
 use crate::spatial::plane::Plane;
-use crate::spatial::s1chord_angle::S1ChordAngle;
 use crate::spatial::spatial_index_manager::PreparedSpatialQuery;
-use crate::spatial::sphere::Sphere;
 use crate::{DocId, DocSet, Score, TERMINATED};
 
 /// The spatial predicate to apply.
@@ -32,12 +26,6 @@ pub enum SpatialPredicate {
     CoveredBy,
     /// Return geometries within a distance of a query polygon. Distance in radians.
     DistanceWithin(f64),
-    /// Return geometries within a distance of a point. Distance in radians.
-    Within(f64),
-    /// Return geometries between two distances of a point. Distances in radians.
-    Between(f64, f64),
-    /// Return the K nearest geometries to a point.
-    Knn(usize),
 }
 
 /// Spatial query.
@@ -117,11 +105,7 @@ impl Query for SpatialQuery {
         let plane_geometry = Geometry::<Plane>::Polygon(vec![ring]);
 
         let prepared: Box<dyn PreparedSpatialQuery> = match &self.predicate {
-            SpatialPredicate::Contains
-            | SpatialPredicate::Intersects
-            | SpatialPredicate::CoveredBy
-            | SpatialPredicate::DistanceWithin(_) => {
-                // Look up the spatial index from the manager.
+            _ => {
                 let searcher = enable_scoring
                     .searcher()
                     .expect("searcher required for spatial query");
@@ -149,62 +133,13 @@ impl Query for SpatialQuery {
                     SpatialPredicate::DistanceWithin(radians) => {
                         spatial_index.prepare_distance(&plane_geometry, *radians)
                     }
-                    _ => unreachable!(),
                 }
-            }
-            // Distance predicates remain Sphere-only for now.
-            SpatialPredicate::Within(radius_radians) => {
-                let query_geometry = Geometry::<Plane>::Point(self.coordinates[0]);
-                let projected = query_geometry.project::<Sphere>();
-                let set = to_geometry_set(&projected, 0);
-                let radius = S1ChordAngle::from_radians(*radius_radians);
-                Box::new(ClosestEdgeQueryAdapter(ClosestEdgeQuery::within(
-                    set, radius,
-                )))
-            }
-            SpatialPredicate::Between(inner_radians, outer_radians) => {
-                let query_geometry = Geometry::<Plane>::Point(self.coordinates[0]);
-                let projected = query_geometry.project::<Sphere>();
-                let set = to_geometry_set(&projected, 0);
-                let inner = S1ChordAngle::from_radians(*inner_radians);
-                let outer = S1ChordAngle::from_radians(*outer_radians);
-                Box::new(ClosestEdgeQueryAdapter(ClosestEdgeQuery::between(
-                    set, inner, outer,
-                )))
-            }
-            SpatialPredicate::Knn(k) => {
-                let query_geometry = Geometry::<Plane>::Point(self.coordinates[0]);
-                let projected = query_geometry.project::<Sphere>();
-                let set = to_geometry_set(&projected, 0);
-                Box::new(ClosestEdgeQueryAdapter(ClosestEdgeQuery::knn(set, *k)))
             }
         };
         Ok(Box::new(SpatialWeight {
             field: self.field,
             query: prepared,
         }))
-    }
-}
-
-/// Adapter for ClosestEdgeQuery to implement PreparedSpatialQuery.
-struct ClosestEdgeQueryAdapter(ClosestEdgeQuery);
-
-impl PreparedSpatialQuery for ClosestEdgeQueryAdapter {
-    fn search_segment_bytes(
-        &self,
-        cells_bytes: &[u8],
-        edges_bytes: &[u8],
-        _doc_ids_bytes: &[u8],
-        max_doc: u32,
-    ) -> BitSet {
-        let cell_reader = CellIndexReader::open(cells_bytes);
-        let edge_reader = EdgeReader::<Sphere>::open(edges_bytes);
-        let mut edge_cache = EdgeCache::new(vec![edge_reader], 100_000);
-        let mut bitset = BitSet::with_max_value(max_doc);
-        for r in self.0.search_segment(&cell_reader, &mut edge_cache) {
-            bitset.insert(r.doc_id);
-        }
-        bitset
     }
 }
 

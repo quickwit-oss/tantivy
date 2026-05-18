@@ -18,7 +18,6 @@ pub mod cell_union;
 pub mod clip_options;
 pub mod clipped_shape;
 pub mod clipper;
-pub mod closest_edge_query;
 pub mod collapse;
 pub mod containment;
 pub mod contains;

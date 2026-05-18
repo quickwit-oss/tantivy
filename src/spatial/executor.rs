@@ -9,13 +9,12 @@ use std::fmt;
 use common::BitSet;
 
 use super::cell_index_reader::CellIndexReader;
-use super::closest_edge_query::ClosestEdgeQuery;
+use super::distance::Distance;
 use super::edge_cache::EdgeCache;
 use super::edge_reader::EdgeReader;
 use super::geometry_set::GeometrySet;
 use super::intersects::Intersects;
 use super::region_coverer::CovererOptions;
-use super::s1chord_angle::S1ChordAngle;
 use super::sphere::Sphere;
 use crate::core::Searcher;
 use crate::docset::{DocSet, TERMINATED};
@@ -188,8 +187,7 @@ fn evaluate(
         } => {
             let filter_output = evaluate(filter, searcher, segments)?;
 
-            let query =
-                ClosestEdgeQuery::within(geometry.clone(), S1ChordAngle::from_length2(*radius));
+            let query = Distance::<Sphere>::new(geometry.clone(), *radius, CovererOptions::default());
 
             let mut results = HashMap::new();
             for reader in segments {
@@ -202,88 +200,20 @@ fn evaluate(
                     let filter_bitset =
                         filter_output.bitset_for(&reader.segment_id(), reader.max_doc());
 
-                    let hits = query.search_segment_filtered(
+                    let bitset = query.search(
                         &cell_reader,
+                        Some(&filter_bitset),
                         &mut edge_cache,
-                        &filter_bitset,
+                        reader.max_doc(),
                     );
-
-                    let mut bitset = BitSet::with_max_value(reader.max_doc());
-                    for result in hits {
-                        bitset.insert(result.doc_id);
-                    }
                     results.insert(reader.segment_id(), SegmentResult::Match(bitset));
                 }
             }
             Ok(StageOutput { results })
         }
 
-        PlanNode::Knn {
-            field,
-            geometry,
-            k,
-            filter,
-        } => {
-            let filter_output = match filter {
-                Some(node) => Some(evaluate(node, searcher, segments)?),
-                None => None,
-            };
-
-            let query = ClosestEdgeQuery::knn(geometry.clone(), *k);
-
-            // Run branch-and-bound per segment, collecting up to K results with
-            // distances. Each result is tagged with its segment ID for redistribution
-            // after the cross-segment merge.
-            let mut all_results: Vec<(SegmentId, u32, f64)> = Vec::new();
-            for reader in segments {
-                let spatial = reader.spatial_fields().get_field(*field)?;
-                if let Some(spatial_reader) = spatial {
-                    let cell_reader = CellIndexReader::open(spatial_reader.cells_bytes());
-                    let er = EdgeReader::<Sphere>::open(spatial_reader.edges_bytes());
-                    let mut edge_cache = EdgeCache::new(vec![er], 100_000);
-
-                    let hits = match &filter_output {
-                        Some(fo) => {
-                            let filter_bitset =
-                                fo.bitset_for(&reader.segment_id(), reader.max_doc());
-                            query.search_segment_filtered(
-                                &cell_reader,
-                                &mut edge_cache,
-                                &filter_bitset,
-                            )
-                        }
-                        None => query.search_segment(&cell_reader, &mut edge_cache),
-                    };
-
-                    for hit in hits {
-                        all_results.push((reader.segment_id(), hit.doc_id, hit.distance.length2()));
-                    }
-                }
-            }
-
-            // Merge across segments: sort by distance, keep global top K.
-            all_results.sort_by(|a, b| a.2.partial_cmp(&b.2).unwrap_or(std::cmp::Ordering::Equal));
-            all_results.truncate(*k);
-
-            // Redistribute to per-segment scored results.
-            let mut results: HashMap<SegmentId, Vec<(DocId, f32)>> = HashMap::new();
-            for (seg_id, doc_id, distance) in all_results {
-                results
-                    .entry(seg_id)
-                    .or_default()
-                    .push((doc_id, distance as f32));
-            }
-
-            // Sort each segment's results by doc_id for DocSet ordering.
-            let mut final_results = HashMap::new();
-            for (seg_id, mut docs) in results {
-                docs.sort_by_key(|&(doc_id, _)| doc_id);
-                final_results.insert(seg_id, SegmentResult::Scored(docs));
-            }
-
-            Ok(StageOutput {
-                results: final_results,
-            })
+        PlanNode::Knn { .. } => {
+            todo!("kNN via flood fill tightening")
         }
 
         PlanNode::Join {
@@ -292,14 +222,14 @@ fn evaluate(
             inner,
             relation,
         } => {
-            // Phase 1: collect inner bitsets across all segments.
+            // Collect inner bitsets across all segments.
             let inner_output = evaluate(inner, searcher, segments)?;
 
-            // Phase 2: collect outer bitsets across all segments.
+            // Collect outer bitsets across all segments.
             let outer_output = evaluate(outer, searcher, segments)?;
 
-            // Phase 3: for each segment, walk its cell index for outer geometries,
-            // probe all segments for inner matches.
+            // For each segment, walk its cell index for outer geometries, probe all segments for
+            // inner matches.
             let mut results = HashMap::new();
             for reader in segments.iter() {
                 let outer_bitset = outer_output.bitset_for(&reader.segment_id(), reader.max_doc());
@@ -345,17 +275,20 @@ fn evaluate(
 
                                 found = match relation {
                                     SpatialRelation::Near(r) => {
-                                        let probe = ClosestEdgeQuery::any_within(
+                                        let probe = Distance::<Sphere>::new(
                                             outer_geometry.clone(),
-                                            S1ChordAngle::from_radians(*r),
+                                            *r,
+                                            CovererOptions::default(),
                                         );
-                                        !probe
-                                            .search_segment_filtered(
+                                        probe
+                                            .search(
                                                 &probe_cell_reader,
+                                                Some(&inner_bitset),
                                                 &mut probe_edge_cache,
-                                                &inner_bitset,
+                                                probe_reader.max_doc(),
                                             )
-                                            .is_empty()
+                                            .len()
+                                            > 0
                                     }
                                     SpatialRelation::Intersects => {
                                         let probe = Intersects::new(
@@ -373,21 +306,10 @@ fn evaluate(
                                             > 0
                                     }
                                     SpatialRelation::Contains => {
-                                        todo!("contains query pending rewrite")
+                                        todo!("contains join probe")
                                     }
-                                    SpatialRelation::Between(inner_r, outer_r) => {
-                                        let probe = ClosestEdgeQuery::any_between(
-                                            outer_geometry.clone(),
-                                            S1ChordAngle::from_radians(*inner_r),
-                                            S1ChordAngle::from_radians(*outer_r),
-                                        );
-                                        !probe
-                                            .search_segment_filtered(
-                                                &probe_cell_reader,
-                                                &mut probe_edge_cache,
-                                                &inner_bitset,
-                                            )
-                                            .is_empty()
+                                    SpatialRelation::Between(_, _) => {
+                                        todo!("between is composed from distance queries")
                                     }
                                 };
                                 if found {
