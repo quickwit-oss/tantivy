@@ -1,18 +1,15 @@
 use std::collections::HashMap;
+use std::io;
+use std::sync::Arc;
 
-use tantivy_fst::raw::CompiledAddr;
-use tantivy_fst::{Automaton, Map};
+use tantivy_fst::Map;
 
-use super::term_set_query_fastfield::FastFieldTermSetWeight;
 use super::term_set_strategy::TermSetStrategyConfig;
+use super::term_set_weight::{SetDfaWrapper, TermSetWeight};
 use crate::query::score_combiner::DoNothingCombiner;
 use crate::query::{AutomatonWeight, BooleanWeight, EnableScoring, Occur, Query, Weight};
-use crate::schema::{Field, Schema, Type};
+use crate::schema::{Field, Schema};
 use crate::{SegmentReader, Term};
-
-/// The term set query will use the fast field implementation if the number of terms is larger than
-/// this threshold.
-const TERM_SET_FAST_FIELD_CARDINALITY_THRESHOLD: usize = 1024;
 
 /// A Term Set Query matches all of the documents containing any of the Term provided
 #[derive(Debug, Clone)]
@@ -44,70 +41,38 @@ impl TermSetQuery {
         self
     }
 
-    fn specialized_weight(
-        &self,
-        schema: &Schema,
-    ) -> crate::Result<BooleanWeight<DoNothingCombiner>> {
+    /// Build the per-field weights and wrap them in a `BooleanWeight`.
+    /// Every field routes through `TermSetWeight`, which dispatches per
+    /// segment based on what the field actually supports — fast
+    /// strategies (Gallop / Linear / Bitset on the fast column) when
+    /// available, `BitsetFromPostings` / `Automaton` on the inverted
+    /// index otherwise.
+    fn build_weight(&self, schema: &Schema) -> crate::Result<BooleanWeight<DoNothingCombiner>> {
         let mut sub_queries: Vec<(_, Box<dyn Weight>)> = Vec::with_capacity(self.terms_map.len());
 
         for (&field, terms) in self.terms_map.iter() {
             let field_entry = schema.get_field_entry(field);
             let field_type = field_entry.field_type();
             if !field_type.is_indexed() {
+                // Top-level schema gate: `TermSetQuery` requires an
+                // inverted index on every field. `TermSetWeight::new`
+                // would also reject (neither-fast-nor-indexed → schema
+                // error), but the early return here short-circuits
+                // before per-term decoding and yields a more specific
+                // error message.
                 let error_msg = format!("Field {:?} is not indexed.", field_entry.name());
                 return Err(crate::TantivyError::SchemaError(error_msg));
             }
 
-            let supported_for_ff = match field_type.value_type() {
-                Type::U64 | Type::I64 | Type::F64 | Type::Date | Type::IpAddr => {
-                    // NOTE: Keep in sync with `FastFieldTermSetWeight::scorer`.
-                    true
-                }
-                Type::Bool => {
-                    // Guaranteed to be low cardinality, so always more efficient to use posting
-                    // lists.
-                    false
-                }
-                Type::Json | Type::Str => {
-                    // Explicitly not supported yet: see `term_set_query_fastfield.rs`.
-                    false
-                }
-                _ => false,
-            };
-
-            // NOTE: At this point, the terms have not been deduped, and so this threshold may not
-            // be perfectly accurate. But in the case of very large input sets, it's worth avoiding
-            // sorting/deduping the terms until after we've determined their type.
-            if field_type.is_fast()
-                && supported_for_ff
-                && terms.len() > TERM_SET_FAST_FIELD_CARDINALITY_THRESHOLD
-            {
-                sub_queries.push((
-                    Occur::Should,
-                    Box::new(FastFieldTermSetWeight::new(
-                        field,
-                        terms.iter(),
-                        self.strategy_config.clone(),
-                    )?),
-                ));
-            } else {
-                let mut sorted_terms: Vec<(&[u8], u64)> = terms
-                    .iter()
-                    .map(|key| (key.serialized_value_bytes(), 0))
-                    .collect::<Vec<_>>();
-                sorted_terms.sort_unstable();
-                sorted_terms.dedup();
-                // In practice this won't fail because:
-                // - we are writing to memory, so no IoError
-                // - `sorted_terms` are ordered
-                let map = Map::from_iter(sorted_terms.into_iter())
-                    .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
-
-                sub_queries.push((
-                    Occur::Should,
-                    Box::new(AutomatonWeight::new(field, SetDfaWrapper(map))),
-                ));
-            }
+            sub_queries.push((
+                Occur::Should,
+                Box::new(TermSetWeight::new(
+                    field,
+                    terms,
+                    field_type,
+                    self.strategy_config.clone(),
+                )?),
+            ));
         }
 
         Ok(BooleanWeight::new(
@@ -120,7 +85,7 @@ impl TermSetQuery {
 
 impl Query for TermSetQuery {
     fn weight(&self, enable_scoring: EnableScoring<'_>) -> crate::Result<Box<dyn Weight>> {
-        Ok(Box::new(self.specialized_weight(enable_scoring.schema())?))
+        Ok(Box::new(self.build_weight(enable_scoring.schema())?))
     }
 
     fn query_terms(
@@ -173,13 +138,13 @@ impl Query for InvertedIndexTermSetQuery {
             let map = Map::from_iter(
                 sorted_terms
                     .iter()
-                    .map(|key| (key.serialized_value_bytes(), 0)),
+                    .map(|key| (key.serialized_value_bytes(), 0u64)),
             )
-            .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
+            .map_err(io::Error::other)?;
 
             sub_queries.push((
                 Occur::Should,
-                Box::new(AutomatonWeight::new(field, SetDfaWrapper(map))),
+                Box::new(AutomatonWeight::new(field, SetDfaWrapper(Arc::new(map)))),
             ));
         }
         Ok(Box::new(BooleanWeight::new(
@@ -187,35 +152,6 @@ impl Query for InvertedIndexTermSetQuery {
             false,
             Box::new(DoNothingCombiner::default),
         )))
-    }
-}
-
-struct SetDfaWrapper(Map<Vec<u8>>);
-
-impl Automaton for SetDfaWrapper {
-    type State = Option<CompiledAddr>;
-
-    fn start(&self) -> Option<CompiledAddr> {
-        Some(self.0.as_ref().root().addr())
-    }
-
-    fn is_match(&self, state_opt: &Option<CompiledAddr>) -> bool {
-        if let Some(state) = state_opt {
-            self.0.as_ref().node(*state).is_final()
-        } else {
-            false
-        }
-    }
-
-    fn accept(&self, state_opt: &Option<CompiledAddr>, byte: u8) -> Option<CompiledAddr> {
-        let state = state_opt.as_ref()?;
-        let node = self.0.as_ref().node(*state);
-        let transition = node.find_input(byte)?;
-        Some(node.transition_addr(transition))
-    }
-
-    fn can_match(&self, state: &Self::State) -> bool {
-        state.is_some()
     }
 }
 

@@ -38,10 +38,14 @@ use std::io;
 
 use common::file_slice::FileSlice;
 use common::BinarySerializable;
+#[cfg(feature = "quickwit")]
+pub use sstable::{sort_and_dedupe_terms, BatchedTermInfoIter, SortedTermSlice};
 use tantivy_fst::Automaton;
 
 #[cfg(feature = "quickwit")]
 use self::termdict::TermDictionaryExt;
+#[cfg(feature = "quickwit")]
+use self::termdict::TermSSTable;
 use self::termdict::{
     TermDictionary as InnerTermDict, TermDictionaryBuilder as InnerTermDictBuilder,
     TermStreamerBuilder, TermWithStateStreamerBuilder,
@@ -138,6 +142,32 @@ impl TermDictionary {
     /// Lookups the value corresponding to the key.
     pub fn get<K: AsRef<[u8]>>(&self, key: K) -> io::Result<Option<TermInfo>> {
         self.0.get(key)
+    }
+
+    /// Batched exact-key lookup over a sorted input slice.
+    ///
+    /// Returns an iterator yielding `Ok((input_index, TermInfo))` for
+    /// each `sorted_keys[input_index]` that exists in the dictionary, in
+    /// input order. Keys not present are silently skipped. I/O errors
+    /// during block decode propagate via `Err(_)`; the iterator is fused
+    /// on error.
+    ///
+    /// For workloads where many query terms cluster in the same SSTable
+    /// block, this amortises the zstd block-decompression cost that K
+    /// individual [`get`](Self::get) calls would pay repeatedly.
+    ///
+    /// Feature-gated on `quickwit` because the FST-backed dictionary
+    /// doesn't have block-decode amortization to exploit. See
+    /// [`sstable::Dictionary::batch_term_info_exact`] for the underlying
+    /// implementation and complexity envelope.
+    ///
+    /// [`sstable::Dictionary::batch_term_info_exact`]: sstable::Dictionary::batch_term_info_exact
+    #[cfg(feature = "quickwit")]
+    pub fn batch_term_info_exact<'a, K: AsRef<[u8]>>(
+        &'a self,
+        sorted_keys: SortedTermSlice<'a, K>,
+    ) -> BatchedTermInfoIter<'a, K, TermSSTable> {
+        self.0.batch_term_info_exact(sorted_keys)
     }
 
     /// Returns a range builder, to stream all of the terms

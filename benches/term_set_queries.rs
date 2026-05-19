@@ -1,91 +1,84 @@
-//! Microbenchmarks for `FastFieldTermSetQuery` (paradedb/paradedb#4895).
+//! Microbenchmarks for `FastFieldTermSetQuery`.
 //!
 //! # Tiers
 //!
-//! Three tiers driven by the `TERM_SET_BENCH_TIER` environment variable:
+//! Four tiers driven by the `TERM_SET_BENCH_TIER` environment variable.
+//! All four are designed for the SSTable backend (run with
+//! `--features quickwit`). Run a tier with:
 //!
-//!   - `smoke` (default, target < 60s wall-clock): N ∈ {1M}, K ∈ {100, 10_000}, two corpus kinds ×
-//!     two sort orders × four strategies plus the multi-column AND-intersection panel. Catches
-//!     regressions; not for threshold derivation.
-//!   - `full` (manual, ~30min): N ∈ {1M, 10M, 50M}, K ∈ {10, 100, 1_000, 10_000, 100_000}. 360-cell
-//!     matrix used to derive `TermSetStrategyConfig::default()` densities.
-//!   - `threshold` (~1min): targeted LowFk panel through K/N ∈ [0.002, 0.01] for fine-grained
-//!     crossover characterization between the full tier's 10× geometric K spacing.
+//! ```text
+//! TERM_SET_BENCH_TIER=<tier> cargo bench --bench term_set_queries --features quickwit
+//! ```
+//!
+//!   - `smoke` (default; ~1 min): regression-guard sweep. N=1M, K ∈ {100, 10K}, two corpus kinds ×
+//!     two sort orders × six force-dispatched strategies, plus the multi-column AND-intersection
+//!     panel. Catches functional regressions; not for threshold derivation.
+//!   - `production` (~5 min): planner-default dispatch on three corpora (PK_1M, PK_20M, LowFk_20M)
+//!     × {sorted, unsorted} × {planner, linear_forced, batched_forced, gallop_forced}. Prints the
+//!     strategy the planner picked per cell via a probe call against
+//!     `TermSetStrategyConfig::strategy_sink`. This is what reviewers run to validate dispatch
+//!     end-to-end.
+//!   - `cost_model` (~10 min): force-dispatched `linear` vs `batched_bitset` sweep across D ∈ {2,
+//!     5, 20, 50} and K ∈ {200, 1K, 5K, 10K, 50K, 100K}. Justifies the `1/2000` (D=1) and `1/200`
+//!     (D ≥ 2) defaults in `TermSetStrategyConfig` — batched/linear crossovers for D ≥ 2 cluster at
+//!     K/N ≈ 0.0055–0.0088; the threshold sits just below the tightest measured crossover.
+//!   - `compare` (~3 min): force-dispatched 4-way (linear, gallop, direct_bitset, batched_bitset)
+//!     on the production matrix. Useful when iterating on the bitset scorer or comparing batched vs
+//!     direct dictionary lookups.
 //!
 //! # Corpus shapes
 //!
-//! The bench varies `D` (average documents per distinct value) across three
-//! shapes that span the customer workloads we care about:
+//! `D` is the average number of documents per distinct value.
 //!
-//!   - `PrimaryKey` (`D = 1`): `value_for_doc(d) = d`, so every doc has a unique value. `distinct =
-//!     N`. Models hash-join build sides on unique keys (UUIDs, surrogate IDs).
-//!   - `LowFk` (`D ≈ 100`): `value_for_doc(d) = d / 100`, so each value appears in ~100 contiguous
-//!     docs after sorting. `distinct = N/100`. Models foreign-key joins on moderate-cardinality
-//!     columns — the typical paradedb hash-join pattern.
-//!   - `HighFk` (`D ≈ 100_000`): `value_for_doc(d) = d / 100_000`. `distinct = N/100_000`. Models
-//!     very-low-cardinality columns (status enums, region codes). Only present in the full tier at
-//!     `N ≥ 10M` where there are enough distinct values to sample from.
+//!   - `smoke` exercises two named shapes via `CorpusKind`:
+//!       - `PrimaryKey` (D = 1): every doc has a unique value; `distinct = N`. Hash-join build
+//!         sides on unique keys.
+//!       - `LowFk` (D ≈ 100): each value appears in ~100 contiguous docs after sorting; `distinct =
+//!         N/100`. The typical paradedb foreign-key shape.
+//!   - `production`, `cost_model`, `compare` instead parameterize D directly via
+//!     `build_corpus_parametric_d{,_sorted}(N, D)`, with `value_for_doc(i) = i / D`. `cost_model`
+//!     sweeps D ∈ {2, 5, 20, 50}; the other tiers use D ∈ {1, 100} to match the production PK and
+//!     LowFk shapes at N=20M.
 //!
-//! D shape matters for strategy choice: with `LowFk`, gallop emits ~D docs
-//! per term through `RangeUnionDocSet`, which adds linear-equivalent cost
-//! on top of the per-term search. PK doesn't pay that emission cost
-//! (single-doc ranges). The `gallop_max_density` default is tuned to
-//! LowFk because that's the dominant customer shape; PK queries with
-//! K/N just above the threshold underutilize gallop slightly as a
-//! tradeoff.
+//! # Strategy mapping (smoke / compare)
 //!
-//! # Strategy mapping
-//!
-//!   - `Gallop`: planner forced via `gallop_max_density = 1.0` so any K < N qualifies.
-//!   - `Linear`: planner forced to terminal `LinearScan` via `gallop_enabled = false` + zero
-//!     densities.
-//!   - `PostingDirect`: synthetic — `BooleanQuery` of `TermQuery::Should` over the same terms.
-//!     Strategy 4 in production isn't implemented yet; this gives a representative
-//!     posting-list-union measurement.
-//!   - `BitsetFromPostings`: synthetic — execute the same posting-union but materialize matched
-//!     DocIds into a `BitSet` and iterate. Strategy 3 in production isn't implemented yet; this
-//!     captures bitset construction + iteration cost on top of posting-list iteration.
+//!   - `Gallop`: planner forced via `cfg_force_gallop()`.
+//!   - `Linear`: planner forced to terminal `LinearScan` via `cfg_force_linear()` (gallop disabled
+//!     + zero densities).
+//!   - `BitsetFromPostings` (real, exercised as `bitset_from_postings_real`): planner forced via
+//!     `cfg_force_bitset_real()` (both bitset densities = 1.0).
+//!   - `DirectBitset`: bench-only `DirectBitsetQuery` wrapper that drives K individual
+//!     `term_dict.get(key)` calls into a bitset OR (no batched dictionary lookup). Used by
+//!     `cost_model` to measure the per-block-decode amortization the batched API provides.
+//!   - `PostingDirect`: synthetic baseline — `BooleanQuery` of `TermQuery::Should`. Exercises
+//!     `BufferedUnionScorer`. Retained to characterize union scaling cost.
+//!   - `BitsetFromPostings` (synthetic, `bitset_from_postings`): synthetic baseline —
+//!     `BooleanQuery::Should` union materialized into a `BitSet` via a custom collector.
+//!     Characterizes bitset construction + iteration cost on top of the union scorer.
 //!
 //! # Timing boundaries
 //!
-//! Inside the timed closure (work `searcher.search` does end-to-end per call):
-//! `Term::from_field_u64` for each term; `FastFieldTermSetQuery::new` +
-//! `with_strategy_config`; the inner `query.weight()` build; per-segment
-//! `weight.scorer()` build (which runs `select_strategy`); the collector walk.
-//! Multi-column `and_intersect` cells additionally pay one `BooleanQuery::new`
-//! per iteration.
+//! Inside the timed closure (work `searcher.search` does end-to-end per
+//! call): `Term::from_field_u64` for each term; `FastFieldTermSetQuery::new`
+//! + `with_strategy_config`; the inner `query.weight()` build; per-segment
+//! `weight.scorer()` build (which runs `select_strategy`); the collector
+//! walk. Multi-column `and_intersect` cells additionally pay one
+//! `BooleanQuery::new` per iteration.
 //!
 //! Outside the timed closure (paid once per cell as setup): corpus build
 //! (schema, index, writer, all `add_document` calls, commit), reader and
-//! `Searcher` instantiation, and the deterministic `sample_terms` shuffle.
-//! Only the raw `Vec<u64>` of sampled values is captured into the closure;
-//! `Term::from_field_u64` runs per iteration.
+//! `Searcher` instantiation, and the deterministic `sample_terms`
+//! shuffle. Only the raw `Vec<u64>` of sampled values is captured into
+//! the closure; `Term::from_field_u64` runs per iteration.
 //!
 //! For cells with K ≥ ~1_000 the per-iteration construction cost is a
 //! small fraction of total work (≤ ~5–10%), so the reported throughput
 //! reflects scoring-loop performance. For very small K (10, 100) the
 //! construction overhead is a larger fraction and binggan's
 //! input-size-divided-by-time formula reaches artifact territory when
-//! iterations finish in microseconds — relative ratios between strategies
-//! at the same cell remain meaningful but absolute throughput numbers
-//! below ~10ms are not reliable.
-//!
-//! # Captured outputs
-//!
-//! Captured outputs from the full and threshold tiers live in
-//! `benches/term_set_queries.full-tier.txt` and
-//! `benches/term_set_queries.threshold-tier.txt`. Re-run with
-//!
-//! ```text
-//! TERM_SET_BENCH_TIER=full      cargo bench --bench term_set_queries 2>&1 \
-//!     | tee benches/term_set_queries.full-tier.txt
-//! TERM_SET_BENCH_TIER=threshold cargo bench --bench term_set_queries 2>&1 \
-//!     | tee benches/term_set_queries.threshold-tier.txt
-//! ```
-//!
-//! when the gallop algorithm or `TermSetStrategyConfig::default()`
-//! changes meaningfully. Comment-only and test-only changes don't
-//! warrant a refresh.
+//! iterations finish in microseconds — relative ratios between
+//! strategies at the same cell remain meaningful but absolute throughput
+//! numbers below ~10ms are not reliable.
 
 use binggan::{black_box, BenchRunner};
 use common::BitSet;
@@ -94,12 +87,14 @@ use rand::rngs::StdRng;
 use rand::SeedableRng;
 use tantivy::collector::{Collector, Count, DocSetCollector, SegmentCollector};
 use tantivy::query::{
-    BooleanQuery, FastFieldTermSetQuery, Occur, Query, TermQuery, TermSetStrategyConfig, Weight,
+    BitSetDocSet, BooleanQuery, ConstScorer, EmptyScorer, EnableScoring, Explanation,
+    FastFieldTermSetQuery, Occur, Query, Scorer, StrategyTag, TermQuery, TermSetStrategyConfig,
+    Weight,
 };
-use tantivy::schema::{IndexRecordOption, NumericOptions, SchemaBuilder};
+use tantivy::schema::{Field, IndexRecordOption, NumericOptions, SchemaBuilder};
 use tantivy::{
-    doc, DocId, DocSet, Index, IndexSettings, IndexSortByField, Order, ReloadPolicy, Searcher,
-    SegmentOrdinal, SegmentReader, Term,
+    doc, DocId, DocSet, Index, IndexSettings, IndexSortByField, Order, ReloadPolicy, Score,
+    Searcher, SegmentOrdinal, SegmentReader, TantivyError, Term,
 };
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -108,8 +103,6 @@ enum CorpusKind {
     PrimaryKey,
     /// D ≈ 100, foreign-key shape.
     LowFk,
-    /// D ≈ 100_000.
-    HighFk,
 }
 
 impl CorpusKind {
@@ -117,7 +110,6 @@ impl CorpusKind {
         match self {
             CorpusKind::PrimaryKey => "pk",
             CorpusKind::LowFk => "lowfk",
-            CorpusKind::HighFk => "highfk",
         }
     }
 
@@ -125,7 +117,6 @@ impl CorpusKind {
         match self {
             CorpusKind::PrimaryKey => n,
             CorpusKind::LowFk => n.div_ceil(100),
-            CorpusKind::HighFk => n.div_ceil(100_000).max(1),
         }
     }
 
@@ -133,7 +124,6 @@ impl CorpusKind {
         match self {
             CorpusKind::PrimaryKey => doc_id,
             CorpusKind::LowFk => doc_id / 100,
-            CorpusKind::HighFk => doc_id / 100_000,
         }
     }
 }
@@ -159,6 +149,20 @@ enum Strat {
     Linear,
     PostingDirect,
     BitsetFromPostings,
+    /// Real planner-driven `BitsetFromPostings` strategy. Forced via
+    /// `bitset_max_density = 1.0` so the dispatch always picks it on
+    /// indexed numeric fast fields. The other `BitsetFromPostings`
+    /// variant is the synthetic posting-union-into-bitset baseline that
+    /// retains `BufferedUnionScorer`; this one exercises the real
+    /// strategy that bypasses the union scorer entirely.
+    BitsetFromPostingsReal,
+    /// K independent `TermDictionary::get(key)` lookups (no streaming
+    /// automaton, no batched dictionary API) + OR each posting list
+    /// into one `BitSet`. Bench-only — lives in this file, not in
+    /// production code. Measured by `compare` to quantify the
+    /// per-block-decode amortization the batched dictionary API
+    /// provides relative to per-key dispatch.
+    DirectBitset,
 }
 
 impl Strat {
@@ -168,6 +172,8 @@ impl Strat {
             Strat::Linear => "linear",
             Strat::PostingDirect => "posting_direct",
             Strat::BitsetFromPostings => "bitset_from_postings",
+            Strat::BitsetFromPostingsReal => "bitset_from_postings_real",
+            Strat::DirectBitset => "direct_bitset",
         }
     }
 }
@@ -176,11 +182,20 @@ fn applicable(sort: Sort, strat: Strat) -> bool {
     !(sort == Sort::None && strat == Strat::Gallop)
 }
 
+/// Tier names that `TERM_SET_BENCH_TIER` accepts. Anything else falls
+/// back to `smoke`. Each tier's behaviour is documented on its
+/// `run_*_tier` function.
+const TIER_SMOKE: &str = "smoke";
+const TIER_PRODUCTION: &str = "production";
+const TIER_COST_MODEL: &str = "cost_model";
+const TIER_COMPARE: &str = "compare";
+
 fn bench_tier() -> &'static str {
     match std::env::var("TERM_SET_BENCH_TIER").as_deref() {
-        Ok("full") => "full",
-        Ok("threshold") => "threshold",
-        _ => "smoke",
+        Ok(TIER_PRODUCTION) => TIER_PRODUCTION,
+        Ok(TIER_COST_MODEL) => TIER_COST_MODEL,
+        Ok(TIER_COMPARE) => TIER_COMPARE,
+        _ => TIER_SMOKE,
     }
 }
 
@@ -233,22 +248,30 @@ fn cfg_force_gallop() -> TermSetStrategyConfig {
     TermSetStrategyConfig {
         gallop_enabled: true,
         // Strict less-than: K/N < 1.0 admits any K < N.
-        gallop_max_density: 1.0,
         // The other thresholds don't matter for sorted+small-K cases —
         // once gallop is taken, the sort-agnostic branch isn't reached.
         ..TermSetStrategyConfig::default()
     }
 }
 
+fn cfg_force_bitset_real() -> TermSetStrategyConfig {
+    TermSetStrategyConfig {
+        gallop_enabled: false,
+        bitset_max_density_unique: 1.0,
+        bitset_max_density_multi: 1.0,
+        subsequent_bitset_max_density: 1.0,
+        strategy_sink: None,
+    }
+}
+
 fn cfg_force_linear() -> TermSetStrategyConfig {
     TermSetStrategyConfig {
         gallop_enabled: false,
-        gallop_max_density: 0.0,
-        // Strict less-than: nothing is < 0.0, so the sort-agnostic posting
-        // / bitset arms are rejected and we land on the LinearScan terminal.
-        posting_max_density: 0.0,
-        bitset_max_density: 0.0,
-        hash_probe_max_density: 0.0,
+        // `<=` gate with threshold 0.0 admits only density == 0 (i.e.
+        // k_prime == 0, which short-circuits to Empty earlier). Every
+        // non-empty term set falls through to LinearScan.
+        bitset_max_density_unique: 0.0,
+        bitset_max_density_multi: 0.0,
         subsequent_bitset_max_density: 0.0,
         strategy_sink: None,
     }
@@ -316,6 +339,229 @@ fn run_bitset_from_postings_synthetic(
     searcher.search(&q, &BitSetCounter).unwrap()
 }
 
+// --- Direct (non-batched) dict lookups + bitset OR --------------------------
+
+/// `direct_bitset_scorer`: K independent `TermDictionary::get(key)` lookups,
+/// each opening a `BlockSegmentPostings` and OR'ing its docs into a single
+/// per-segment `BitSet`. No streaming automaton, no `BufferedUnionScorer`.
+///
+/// Bench-only — lives in this file, not in `term_set_bitset.rs`.
+fn direct_bitset_scorer(
+    reader: &SegmentReader,
+    field: Field,
+    values: &[u64],
+    boost: Score,
+) -> tantivy::Result<Box<dyn Scorer>> {
+    if values.is_empty() || reader.max_doc() == 0 {
+        return Ok(Box::new(EmptyScorer));
+    }
+    let inverted_index = reader.inverted_index(field)?;
+    let term_dict = inverted_index.terms();
+    let mut bitset = BitSet::with_max_value(reader.max_doc());
+    for &v in values {
+        let key_buf = v.to_be_bytes();
+        let term_info = term_dict.get(&key_buf[..])?;
+        let Some(term_info) = term_info else { continue };
+        let mut block_postings = inverted_index
+            .read_block_postings_from_terminfo(&term_info, IndexRecordOption::Basic)?;
+        loop {
+            let docs = block_postings.docs();
+            if docs.is_empty() {
+                break;
+            }
+            for &doc in docs {
+                bitset.insert(doc);
+            }
+            block_postings.advance();
+        }
+    }
+    let docset = BitSetDocSet::from(bitset);
+    Ok(Box::new(ConstScorer::new(docset, boost)))
+}
+
+/// Minimal `Query` wrapper so `Searcher::search` can drive the fourth
+/// variant the same way it drives the other strategies — apples-to-apples
+/// on `Searcher::search` overhead.
+struct DirectBitsetQuery {
+    field: Field,
+    values: Vec<u64>,
+}
+
+impl std::fmt::Debug for DirectBitsetQuery {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("DirectBitsetQuery")
+            .field("field", &self.field)
+            .field("values_len", &self.values.len())
+            .finish()
+    }
+}
+
+impl Clone for DirectBitsetQuery {
+    fn clone(&self) -> Self {
+        Self {
+            field: self.field,
+            values: self.values.clone(),
+        }
+    }
+}
+
+impl Query for DirectBitsetQuery {
+    fn weight(&self, _enable_scoring: EnableScoring<'_>) -> tantivy::Result<Box<dyn Weight>> {
+        Ok(Box::new(DirectBitsetWeight {
+            field: self.field,
+            values: self.values.clone(),
+        }))
+    }
+}
+
+struct DirectBitsetWeight {
+    field: Field,
+    values: Vec<u64>,
+}
+
+impl Weight for DirectBitsetWeight {
+    fn scorer(&self, reader: &SegmentReader, boost: Score) -> tantivy::Result<Box<dyn Scorer>> {
+        direct_bitset_scorer(reader, self.field, &self.values, boost)
+    }
+    fn explain(&self, reader: &SegmentReader, doc: DocId) -> tantivy::Result<Explanation> {
+        let mut scorer = self.scorer(reader, 1.0)?;
+        if scorer.seek(doc) != doc {
+            return Err(TantivyError::InvalidArgument(format!(
+                "doc {doc} does not match"
+            )));
+        }
+        Ok(Explanation::new("DirectBitsetScorer", scorer.score()))
+    }
+}
+
+fn run_direct_bitset(searcher: &Searcher, field: tantivy::schema::Field, terms: &[u64]) -> usize {
+    let q = DirectBitsetQuery {
+        field,
+        values: terms.to_vec(),
+    };
+    searcher.search(&q, &Count).unwrap()
+}
+
+// --- Batched-dictionary variant ---------------------------------------------
+//
+// Gated on `quickwit` because the batched dictionary API
+// (`batch_term_info_exact`, `SortedTermSlice`, `sort_and_dedupe_terms`)
+// is only re-exported from `tantivy::termdict` under that feature.
+// The FST backend has no zstd block-decode to amortize, so there's no
+// batched counterpart to measure. Under default features the bench
+// still compiles — it just skips registering this variant.
+#[cfg(feature = "quickwit")]
+/// Scorer mirror of `direct_bitset_scorer` that uses the batched
+/// dictionary API. Same algorithm, but K independent
+/// `term_dict.get(key)` calls collapse into one forward pass through
+/// the dictionary that decompresses each touched block exactly once.
+fn batched_bitset_scorer(
+    reader: &SegmentReader,
+    field: Field,
+    values: &[u64],
+    boost: Score,
+) -> tantivy::Result<Box<dyn Scorer>> {
+    use tantivy::termdict::{sort_and_dedupe_terms, SortedTermSlice};
+
+    if values.is_empty() || reader.max_doc() == 0 {
+        return Ok(Box::new(EmptyScorer));
+    }
+    let inverted_index = reader.inverted_index(field)?;
+    let term_dict = inverted_index.terms();
+
+    // Pre-encode + sort + dedupe the BE u64 keys so we satisfy
+    // `SortedTermSlice`'s precondition without re-validating.
+    let mut keys: Vec<[u8; 8]> = values.iter().map(|v| v.to_be_bytes()).collect();
+    sort_and_dedupe_terms(&mut keys);
+    let sorted = SortedTermSlice::new_assume_sorted(&keys);
+
+    let mut bitset = BitSet::with_max_value(reader.max_doc());
+    for result in term_dict.batch_term_info_exact(sorted) {
+        let (_idx, term_info) = result?;
+        let mut block_postings = inverted_index
+            .read_block_postings_from_terminfo(&term_info, IndexRecordOption::Basic)?;
+        loop {
+            let docs = block_postings.docs();
+            if docs.is_empty() {
+                break;
+            }
+            for &doc in docs {
+                bitset.insert(doc);
+            }
+            block_postings.advance();
+        }
+    }
+    let docset = BitSetDocSet::from(bitset);
+    Ok(Box::new(ConstScorer::new(docset, boost)))
+}
+
+#[cfg(feature = "quickwit")]
+struct BatchedBitsetQuery {
+    field: Field,
+    values: Vec<u64>,
+}
+
+#[cfg(feature = "quickwit")]
+impl std::fmt::Debug for BatchedBitsetQuery {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("BatchedBitsetQuery")
+            .field("field", &self.field)
+            .field("values_len", &self.values.len())
+            .finish()
+    }
+}
+
+#[cfg(feature = "quickwit")]
+impl Clone for BatchedBitsetQuery {
+    fn clone(&self) -> Self {
+        Self {
+            field: self.field,
+            values: self.values.clone(),
+        }
+    }
+}
+
+#[cfg(feature = "quickwit")]
+impl Query for BatchedBitsetQuery {
+    fn weight(&self, _enable_scoring: EnableScoring<'_>) -> tantivy::Result<Box<dyn Weight>> {
+        Ok(Box::new(BatchedBitsetWeight {
+            field: self.field,
+            values: self.values.clone(),
+        }))
+    }
+}
+
+#[cfg(feature = "quickwit")]
+struct BatchedBitsetWeight {
+    field: Field,
+    values: Vec<u64>,
+}
+
+#[cfg(feature = "quickwit")]
+impl Weight for BatchedBitsetWeight {
+    fn scorer(&self, reader: &SegmentReader, boost: Score) -> tantivy::Result<Box<dyn Scorer>> {
+        batched_bitset_scorer(reader, self.field, &self.values, boost)
+    }
+    fn explain(&self, reader: &SegmentReader, doc: DocId) -> tantivy::Result<Explanation> {
+        let mut scorer = self.scorer(reader, 1.0)?;
+        if scorer.seek(doc) != doc {
+            return Err(TantivyError::InvalidArgument(format!(
+                "doc {doc} does not match"
+            )));
+        }
+        Ok(Explanation::new("BatchedBitsetScorer", scorer.score()))
+    }
+}
+
+#[cfg(feature = "quickwit")]
+fn run_batched_bitset(searcher: &Searcher, field: tantivy::schema::Field, terms: &[u64]) -> usize {
+    let q = BatchedBitsetQuery {
+        field,
+        values: terms.to_vec(),
+    };
+    searcher.search(&q, &Count).unwrap()
+}
+
 /// Collector that, per segment, materializes matches into a `BitSet` sized
 /// to the segment's `max_doc`, then walks the bitset to count.
 struct BitSetCounter;
@@ -381,49 +627,481 @@ fn _docset_collector_smoke(searcher: &Searcher) {
 #[allow(dead_code)]
 fn _weight_smoke<W: Weight>(_w: &W) {}
 
-fn matrix_for_tier(tier: &str) -> (Vec<u64>, Vec<usize>, Vec<CorpusKind>) {
-    match tier {
-        "full" => (
-            vec![1_000_000, 10_000_000, 50_000_000],
-            vec![10, 100, 1_000, 10_000, 100_000],
-            vec![
-                CorpusKind::PrimaryKey,
-                CorpusKind::LowFk,
-                CorpusKind::HighFk,
-            ],
-        ),
-        // Smoke skips HighFk at N=1M because its `distinct = 10` excludes
-        // every smoke K level — building its corpus would be wasted work.
-        // HighFk is exercised only in the full tier at N >= 10M where larger
-        // K values can apply.
-        _ => (
-            vec![1_000_000],
-            vec![100, 10_000],
-            vec![CorpusKind::PrimaryKey, CorpusKind::LowFk],
-        ),
+/// Matrix axes for the smoke tier. HighFk is omitted because its
+/// `distinct = N/100_000` at N=1M gives only 10 distinct values, below
+/// every smoke K level — building the corpus would be wasted work.
+fn smoke_matrix() -> (Vec<u64>, Vec<usize>, Vec<CorpusKind>) {
+    (
+        vec![1_000_000],
+        vec![100, 10_000],
+        vec![CorpusKind::PrimaryKey, CorpusKind::LowFk],
+    )
+}
+
+/// Build an unsorted corpus with parametric `D` (average docs per
+/// distinct value). `value_for_doc(i) = i / d`, so
+/// `distinct = ceil(n / d)` and each value appears in exactly `d`
+/// contiguous docs. Used by the `production`, `cost_model`, and
+/// `compare` tiers to construct corpora at specific (N, D) shapes
+/// without going through `CorpusKind`'s named enum.
+fn build_corpus_parametric_d(n: u64, d: u64) -> (Searcher, tantivy::schema::Field) {
+    let mut sb = SchemaBuilder::new();
+    let field = sb.add_u64_field("fk", NumericOptions::default().set_fast().set_indexed());
+    let schema = sb.build();
+    let index = Index::builder().schema(schema).create_in_ram().unwrap();
+    {
+        let writer_mem = (200_000_000u64).max(n * 32);
+        let mut writer = index
+            .writer_with_num_threads(1, writer_mem as usize)
+            .unwrap();
+        for doc_id in 0..n {
+            writer.add_document(doc!(field => doc_id / d)).unwrap();
+        }
+        writer.commit().unwrap();
+    }
+    let reader = index
+        .reader_builder()
+        .reload_policy(ReloadPolicy::Manual)
+        .try_into()
+        .unwrap();
+    (reader.searcher(), field)
+}
+
+/// Sorted variant of `build_corpus_parametric_d`. `sort_by_field` is
+/// set to the parametric-D column ascending, so the resulting
+/// segment has `reader.sort_by_field()` matching `"fk"` — the
+/// precondition `select_strategy` checks to admit `Gallop`.
+fn build_corpus_parametric_d_sorted(n: u64, d: u64) -> (Searcher, tantivy::schema::Field) {
+    let mut sb = SchemaBuilder::new();
+    let field = sb.add_u64_field("fk", NumericOptions::default().set_fast().set_indexed());
+    let schema = sb.build();
+    let index = Index::builder()
+        .schema(schema)
+        .settings(IndexSettings {
+            sort_by_field: Some(IndexSortByField {
+                field: "fk".to_string(),
+                order: Order::Asc,
+            }),
+            ..Default::default()
+        })
+        .create_in_ram()
+        .unwrap();
+    {
+        let writer_mem = (200_000_000u64).max(n * 32);
+        let mut writer = index
+            .writer_with_num_threads(1, writer_mem as usize)
+            .unwrap();
+        for doc_id in 0..n {
+            writer.add_document(doc!(field => doc_id / d)).unwrap();
+        }
+        writer.commit().unwrap();
+    }
+    let reader = index
+        .reader_builder()
+        .reload_policy(ReloadPolicy::Manual)
+        .try_into()
+        .unwrap();
+    (reader.searcher(), field)
+}
+
+/// Planner-default dispatch over the production cell matrix. For each
+/// (cell, sort variant, K) tuple, registers four measurements:
+///
+/// - `planner_default` — the production code path with default `TermSetStrategyConfig`. Also probes
+///   the planner's choice once via `strategy_sink` and prints `BENCH_PICK cell=... pick=...` so the
+///   capture can be parsed into a per-cell dispatch decision.
+/// - `linear_forced`   — `cfg_force_linear()`.
+/// - `batched_forced`  — bench-only `BatchedBitsetQuery` wrapper.
+/// - `gallop_forced`   — `cfg_force_gallop()`. Sorted corpora only; on unsorted segments the
+///   planner correctly rejects gallop even when force-configured.
+///
+/// Quickwit-gated: the batched-bitset wrapper depends on the
+/// quickwit-only re-exports of `SortedTermSlice` and
+/// `batch_term_info_exact`.
+#[cfg(feature = "quickwit")]
+fn run_production_tier() {
+    use std::sync::atomic::{AtomicU8, Ordering};
+    use std::sync::Arc;
+
+    let mut runner = BenchRunner::new();
+
+    let cells: &[(u64, u64, &str, &[usize])] = &[
+        (1_000_000, 1, "pk_1m", &[100, 1_000, 10_000]),
+        (20_000_000, 1, "pk_20m", &[1_000, 10_000, 100_000]),
+        (20_000_000, 100, "lowfk_20m", &[100, 1_000, 10_000]),
+    ];
+
+    for &(n, d, label, ks) in cells {
+        for sort_kind in &["asc", "unsorted"] {
+            let (searcher, field) = match *sort_kind {
+                "asc" => build_corpus_parametric_d_sorted(n, d),
+                _ => build_corpus_parametric_d(n, d),
+            };
+            let mut group = runner.new_group();
+            group.set_name(format!("production n={n} D={d} ({label}) sort={sort_kind}"));
+            group.set_input_size(n as usize);
+            let distinct = n.div_ceil(d).max(1);
+
+            for &k in ks {
+                let k_eff = k.min(distinct as usize);
+                let terms = sample_terms(distinct, k_eff, 7);
+
+                // Probe the planner's pick once, outside the timed
+                // closures, so we know what `planner_default` actually
+                // dispatched to. The sink writes the chosen tag on
+                // every `select_strategy` call; one warm-up call is
+                // enough to capture it.
+                let sink = Arc::new(AtomicU8::new(StrategyTag::None as u8));
+                let probe_cfg = TermSetStrategyConfig {
+                    strategy_sink: Some(sink.clone()),
+                    ..TermSetStrategyConfig::default()
+                };
+                let _ = run_planner_path(&searcher, field, &terms, probe_cfg);
+                let pick = StrategyTag::try_from(sink.load(Ordering::Relaxed)).unwrap();
+                eprintln!("BENCH_PICK cell={label} sort={sort_kind} k={k_eff} pick={pick:?}");
+
+                let s = searcher.clone();
+                let t = terms.clone();
+                group.register(format!("k={k_eff} run=planner_default"), move |_| {
+                    black_box(run_planner_path(
+                        &s,
+                        field,
+                        &t,
+                        TermSetStrategyConfig::default(),
+                    ))
+                });
+                let s = searcher.clone();
+                let t = terms.clone();
+                group.register(format!("k={k_eff} run=linear_forced"), move |_| {
+                    black_box(run_planner_path(&s, field, &t, cfg_force_linear()))
+                });
+                let s = searcher.clone();
+                let t = terms.clone();
+                group.register(format!("k={k_eff} run=batched_forced"), move |_| {
+                    black_box(run_batched_bitset(&s, field, &t))
+                });
+
+                if *sort_kind == "asc" {
+                    let s = searcher.clone();
+                    let t = terms;
+                    group.register(format!("k={k_eff} run=gallop_forced"), move |_| {
+                        black_box(run_planner_path(&s, field, &t, cfg_force_gallop()))
+                    });
+                }
+            }
+            group.run();
+        }
+    }
+
+    // ---- Non-fast indexed (text/string) cell ----
+    // Exercises `TermSetWeight`'s inverted-index dispatch path:
+    // `BitsetFromPostings` at low K, `Automaton` at high K.
+    run_production_text_cell(&mut runner);
+}
+
+#[cfg(feature = "quickwit")]
+fn run_production_text_cell(runner: &mut BenchRunner) {
+    use std::sync::atomic::{AtomicU8, Ordering};
+    use std::sync::Arc;
+
+    let n: u64 = 20_000_000;
+    let distinct: u64 = 200_000; // D ≈ 100
+    let (searcher, field, vocab) = build_text_corpus_parametric(n, distinct);
+
+    let mut group = runner.new_group();
+    group.set_name(format!(
+        "production n={n} text_indexed (distinct={distinct})"
+    ));
+    group.set_input_size(n as usize);
+
+    for &k in &[100usize, 1_000, 100_000] {
+        let k_eff = k.min(vocab.len());
+        let terms: Vec<String> = vocab.iter().take(k_eff).cloned().collect();
+
+        let sink = Arc::new(AtomicU8::new(StrategyTag::None as u8));
+        let probe_cfg = TermSetStrategyConfig {
+            strategy_sink: Some(sink.clone()),
+            ..TermSetStrategyConfig::default()
+        };
+        let _ = run_planner_path_text(&searcher, field, &terms, probe_cfg);
+        let pick = StrategyTag::try_from(sink.load(Ordering::Relaxed)).unwrap();
+        eprintln!("BENCH_PICK cell=text_indexed_20m k={k_eff} pick={pick:?}");
+
+        let s = searcher.clone();
+        let t = terms.clone();
+        group.register(format!("k={k_eff} run=planner_default"), move |_| {
+            black_box(run_planner_path_text(
+                &s,
+                field,
+                &t,
+                TermSetStrategyConfig::default(),
+            ))
+        });
+
+        // Force-bitset cfg: density gate admits all K.
+        let mut cfg_bitset = TermSetStrategyConfig::default();
+        cfg_bitset.gallop_enabled = false;
+        cfg_bitset.bitset_max_density_unique = 1.0;
+        cfg_bitset.bitset_max_density_multi = 1.0;
+        let s = searcher.clone();
+        let t = terms.clone();
+        group.register(format!("k={k_eff} run=bitset_forced"), move |_| {
+            black_box(run_planner_path_text(&s, field, &t, cfg_bitset.clone()))
+        });
+
+        // Force-automaton cfg: density gate rejects all K → Automaton.
+        let mut cfg_auto = TermSetStrategyConfig::default();
+        cfg_auto.gallop_enabled = false;
+        cfg_auto.bitset_max_density_unique = 0.0;
+        cfg_auto.bitset_max_density_multi = 0.0;
+        let s = searcher.clone();
+        let t = terms;
+        group.register(format!("k={k_eff} run=automaton_forced"), move |_| {
+            black_box(run_planner_path_text(&s, field, &t, cfg_auto.clone()))
+        });
+    }
+    group.run();
+}
+
+#[cfg(feature = "quickwit")]
+fn build_text_corpus_parametric(
+    n: u64,
+    distinct: u64,
+) -> (Searcher, tantivy::schema::Field, Vec<String>) {
+    use rand::{Rng, SeedableRng};
+    use tantivy::schema::STRING;
+
+    let mut sb = SchemaBuilder::new();
+    // STRING (not TEXT) for exact-match semantics — no tokenization, no
+    // analysis. Indexed only (no FAST), which routes the dispatch
+    // through the unified `TermSetWeight`'s non-fast path.
+    let field = sb.add_text_field("text", STRING);
+    let schema = sb.build();
+    let index = Index::builder().schema(schema).create_in_ram().unwrap();
+    let vocab: Vec<String> = (0..distinct).map(|i| format!("term-{i:08}")).collect();
+    let mut rng = rand::rngs::StdRng::seed_from_u64(0xbeef);
+    {
+        let mut writer = index.writer_with_num_threads(1, 200_000_000).unwrap();
+        for _ in 0..n {
+            let idx = rng.random_range(0..vocab.len());
+            writer
+                .add_document(doc!(field => vocab[idx].as_str()))
+                .unwrap();
+        }
+        writer.commit().unwrap();
+    }
+    let reader = index
+        .reader_builder()
+        .reload_policy(ReloadPolicy::Manual)
+        .try_into()
+        .unwrap();
+    (reader.searcher(), field, vocab)
+}
+
+#[cfg(feature = "quickwit")]
+fn run_planner_path_text(
+    searcher: &Searcher,
+    field: tantivy::schema::Field,
+    terms: &[String],
+    cfg: TermSetStrategyConfig,
+) -> usize {
+    let q = FastFieldTermSetQuery::new(terms.iter().map(|s| Term::from_field_text(field, s)))
+        .with_strategy_config(cfg);
+    searcher.search(&q, &Count).unwrap()
+}
+
+#[cfg(not(feature = "quickwit"))]
+fn run_production_tier() {
+    eprintln!("production tier requires `--features quickwit`");
+}
+
+/// Force-dispatched `linear` vs `batched_bitset` sweep across the
+/// (D, K) matrix the bitset thresholds are calibrated against. For
+/// each D ∈ {2, 5, 20, 50} the sweep walks K ∈ {200, 1K, 5K, 10K,
+/// 50K, 100K} on a sorted N=20M corpus; the post-processed `batched
+/// / linear` ratio per cell tells you where batched stops winning at
+/// that D. Combined with the existing measurements at D=1 (PK shape;
+/// crossover at K/N ≈ 0.0005) and D=100 (LowFk shape; crossover well
+/// past K/N=0.05), this sweep justifies the `bitset_max_density_unique
+/// = 1/2000` (D=1) and `bitset_max_density_multi = 1/200` (D >= 2)
+/// defaults in `TermSetStrategyConfig`.
+///
+/// Quickwit-gated: `run_batched_bitset` depends on the quickwit-only
+/// re-exports of `SortedTermSlice` and `batch_term_info_exact`.
+#[cfg(feature = "quickwit")]
+fn run_cost_model_tier() {
+    let mut runner = BenchRunner::new();
+
+    let n: u64 = 20_000_000;
+    // `dict_size = N/D`, exact because `build_corpus_parametric_d_sorted`
+    // writes value `doc_id / D` per doc — each value appears exactly D times.
+    let ds: &[u64] = &[2, 5, 20, 50];
+    let ks: &[usize] = &[200, 1_000, 5_000, 10_000, 50_000, 100_000];
+
+    for &d in ds {
+        let (searcher, field) = build_corpus_parametric_d_sorted(n, d);
+        let mut group = runner.new_group();
+        group.set_name(format!("cost_model n={n} D={d}"));
+        group.set_input_size(n as usize);
+        let distinct = n.div_ceil(d).max(1);
+        for &k in ks {
+            let k_eff = k.min(distinct as usize);
+            let terms = sample_terms(distinct, k_eff, 7);
+            let s = searcher.clone();
+            let t = terms.clone();
+            group.register(format!("k={k_eff} run=linear_forced"), move |_| {
+                black_box(run_planner_path(&s, field, &t, cfg_force_linear()))
+            });
+            let s = searcher.clone();
+            let t = terms;
+            group.register(format!("k={k_eff} run=batched_forced"), move |_| {
+                black_box(run_batched_bitset(&s, field, &t))
+            });
+        }
+        group.run();
+    }
+}
+
+#[cfg(not(feature = "quickwit"))]
+fn run_cost_model_tier() {
+    eprintln!("cost_model tier requires `--features quickwit`");
+}
+
+/// Force-dispatched four-way comparison — `linear`, `gallop`,
+/// `direct_bitset`, `batched_bitset` — on three corpora (PK_1M,
+/// PK_20M, LowFk_20M) at three K levels each. All corpora are sorted
+/// so the planner admits Gallop; the other three strategies are
+/// segment-sort-insensitive, so the cross-strategy comparison stays
+/// apples-to-apples.
+///
+/// `linear`         — `cfg_force_linear()`.
+/// `gallop`         — `cfg_force_gallop()` (includes the upfront sort cost).
+/// `direct_bitset`  — bench-only `DirectBitsetQuery`. K individual
+///                    `term_dict.get(key)` calls + bitset OR. Used
+///                    here as the per-key baseline for the batched
+///                    variant.
+/// `batched_bitset` — bench-only `BatchedBitsetQuery`. The
+///                    `bitset_from_postings_scorer` under
+///                    `--features quickwit`. Registered only when the
+///                    `quickwit` feature is enabled — the FST backend
+///                    has no block decode to amortize.
+fn run_compare_tier() {
+    let mut runner = BenchRunner::new();
+
+    // PK_1M (D=1, dict_size=1M, single segment).
+    {
+        let n: u64 = 1_000_000;
+        let d: u64 = 1;
+        let (searcher, field) = build_corpus_parametric_d_sorted(n, d);
+        let mut group = runner.new_group();
+        group.set_name(format!("compare n={n} D={d} (pk_1m)"));
+        group.set_input_size(n as usize);
+        let distinct = n.div_ceil(d).max(1);
+        for &k in &[100usize, 1_000, 10_000] {
+            let k_eff = k.min(distinct as usize);
+            let terms = sample_terms(distinct, k_eff, 7);
+            register_compare_cell(&mut group, &searcher, field, k_eff, terms);
+        }
+        group.run();
+    }
+
+    // PK_20M (D=1, dict_size=20M, multi-segment).
+    {
+        let n: u64 = 20_000_000;
+        let d: u64 = 1;
+        let (searcher, field) = build_corpus_parametric_d_sorted(n, d);
+        let mut group = runner.new_group();
+        group.set_name(format!("compare n={n} D={d} (pk_20m)"));
+        group.set_input_size(n as usize);
+        let distinct = n.div_ceil(d).max(1);
+        for &k in &[1_000usize, 10_000, 100_000] {
+            let k_eff = k.min(distinct as usize);
+            let terms = sample_terms(distinct, k_eff, 7);
+            register_compare_cell(&mut group, &searcher, field, k_eff, terms);
+        }
+        group.run();
+    }
+
+    // LowFk_20M (D=100, dict_size=200K, multi-segment).
+    {
+        let n: u64 = 20_000_000;
+        let d: u64 = 100;
+        let (searcher, field) = build_corpus_parametric_d_sorted(n, d);
+        let mut group = runner.new_group();
+        group.set_name(format!("compare n={n} D={d} (lowfk_20m)"));
+        group.set_input_size(n as usize);
+        let distinct = n.div_ceil(d).max(1);
+        for &k in &[100usize, 1_000, 10_000] {
+            let k_eff = k.min(distinct as usize);
+            let terms = sample_terms(distinct, k_eff, 7);
+            register_compare_cell(&mut group, &searcher, field, k_eff, terms);
+        }
+        group.run();
+    }
+}
+
+/// Register the four `compare` strategies on a single cell.
+/// `batched_bitset` is only registered under `--features quickwit`
+/// because its scorer pulls in `batch_term_info_exact`, which is
+/// quickwit-gated.
+fn register_compare_cell(
+    group: &mut binggan::BenchGroup<'_, '_>,
+    searcher: &Searcher,
+    field: Field,
+    k_eff: usize,
+    terms: Vec<u64>,
+) {
+    let s = searcher.clone();
+    let t = terms.clone();
+    group.register(format!("k={k_eff} strat=linear"), move |_| {
+        black_box(run_planner_path(&s, field, &t, cfg_force_linear()))
+    });
+    let s = searcher.clone();
+    let t = terms.clone();
+    group.register(format!("k={k_eff} strat=gallop"), move |_| {
+        black_box(run_planner_path(&s, field, &t, cfg_force_gallop()))
+    });
+    #[cfg(feature = "quickwit")]
+    let terms_for_batched = terms.clone();
+    let s = searcher.clone();
+    let t = terms;
+    group.register(format!("k={k_eff} strat=direct_bitset"), move |_| {
+        black_box(run_direct_bitset(&s, field, &t))
+    });
+    #[cfg(feature = "quickwit")]
+    {
+        let s = searcher.clone();
+        let t = terms_for_batched;
+        group.register(format!("k={k_eff} strat=batched_bitset"), move |_| {
+            black_box(run_batched_bitset(&s, field, &t))
+        });
     }
 }
 
 fn main() {
-    let tier = bench_tier();
-
-    // Threshold tier: targeted measurements to close the LowFk gallop-vs-linear
-    // crossover gap left by the full tier's 10x geometric K spacing. Runs only
-    // a focused (LowFk, ASC, gallop+linear) panel at K values distributed
-    // log-uniformly through K/N ∈ (0.001, 0.01). Bypasses the matrix loop
-    // entirely; doesn't touch smoke or full tier code paths.
-    if tier == "threshold" {
-        run_threshold_tier();
-        return;
+    match bench_tier() {
+        TIER_PRODUCTION => run_production_tier(),
+        TIER_COST_MODEL => run_cost_model_tier(),
+        TIER_COMPARE => run_compare_tier(),
+        _ => run_smoke_tier(),
     }
+}
 
-    let (n_levels, k_levels, kinds) = matrix_for_tier(tier);
+/// Default tier. Catches functional regressions across the
+/// force-dispatched strategy matrix on a small corpus. N=1M, K ∈
+/// {100, 10K}, kinds = {PrimaryKey, LowFk}, both sort orders. Plus the
+/// multi-column AND-intersection panel that exercises cross-column
+/// seek behavior.
+fn run_smoke_tier() {
+    let (n_levels, k_levels, kinds) = smoke_matrix();
     let sorts = [Sort::Asc, Sort::None];
     let strategies = [
         Strat::Gallop,
         Strat::Linear,
         Strat::PostingDirect,
         Strat::BitsetFromPostings,
+        Strat::BitsetFromPostingsReal,
+        Strat::DirectBitset,
     ];
 
     let mut runner = BenchRunner::new();
@@ -440,12 +1118,12 @@ fn main() {
                     if (k as u64) > distinct {
                         continue;
                     }
-                    // Smoke trim: K=10K cells on the unsorted groups duplicate
-                    // information already in the corresponding asc groups
-                    // (linear/posting/bitset are sort-insensitive). Drop them
-                    // in smoke to keep wall-clock under 90s after the
-                    // and_intersect cells were added. Full tier still has them.
-                    if tier != "full" && sort == Sort::None && k == 10_000 {
+                    // K=10K on the unsorted groups duplicates information
+                    // already in the corresponding asc groups (linear,
+                    // posting, and bitset are sort-insensitive). Drop them
+                    // to keep smoke under a minute on top of the
+                    // and-intersect panel.
+                    if sort == Sort::None && k == 10_000 {
                         continue;
                     }
                     let terms = sample_terms(distinct, k, 7);
@@ -453,10 +1131,9 @@ fn main() {
                         if !applicable(sort, strat) {
                             continue;
                         }
-                        // Force-gallop requires K < N strictly; with K = N
-                        // the strict-less-than would still fail. Skip the
-                        // degenerate cell so timings aren't reported as
-                        // gallop misses.
+                        // Force-gallop requires K < N strictly; skip the
+                        // degenerate K=N cell so timings aren't reported
+                        // as gallop misses.
                         if strat == Strat::Gallop && (k as u64) >= n {
                             continue;
                         }
@@ -482,6 +1159,15 @@ fn main() {
                             Strat::BitsetFromPostings => black_box(
                                 run_bitset_from_postings_synthetic(&searcher, field, &terms_v),
                             ),
+                            Strat::BitsetFromPostingsReal => black_box(run_planner_path(
+                                &searcher,
+                                field,
+                                &terms_v,
+                                cfg_force_bitset_real(),
+                            )),
+                            Strat::DirectBitset => {
+                                black_box(run_direct_bitset(&searcher, field, &terms_v))
+                            }
                         });
                     }
                 }
@@ -490,80 +1176,22 @@ fn main() {
         }
     }
 
-    // Multi-column AND-intersection cells. Probes the smart-seek win on the
-    // linear-scan path: column A is sorted (gallop), column B is unsorted
-    // (linear) — BooleanQuery::Must of two FastFieldTermSetQueries. With the
-    // trait-default seek, column B's per-`seek(target)` walk dilutes
-    // column A's gallop selectivity; with the smart-seek override on
-    // TermSetDocSet, column B jumps directly to each target.
+    // Multi-column AND-intersection cells. Probes the smart-seek win
+    // on the linear-scan path: column A is sorted (gallop), column B
+    // is unsorted (linear) — BooleanQuery::Must of two
+    // FastFieldTermSetQueries. With the trait-default seek, column B's
+    // per-`seek(target)` walk dilutes column A's gallop selectivity;
+    // with the smart-seek override on TermSetDocSet, column B jumps
+    // directly to each target.
     //
-    // Two corpus shapes are exercised:
+    // Two corpus shapes:
     //   - dense FK (D ≈ 100): gallop output is ~1500 contiguous ranges of ~100 docs each. B's seeks
-    //     rarely cross range boundaries, so the smart-vs-default delta is bounded — the lower-bound
+    //     rarely cross range boundaries, so the smart-vs-default delta is bounded — lower-bound
     //     case.
     //   - sparse PK (D = 1): gallop output is 1500 *isolated* DocIds spread across the segment.
-    //     Every gallop emit forces B to skip a large gap, which is exactly where smart seek pays
-    //     off — the upper-bound case for typical hash-join build sides.
+    //     Every gallop emit forces B to skip a large gap — upper-bound case for typical hash-join
+    //     build sides.
     run_and_intersect_cells(&mut runner);
-}
-
-/// Targeted threshold-tier panel: closes the LowFk K/N ∈ (0.001, 0.01) gap
-/// the full-tier matrix skipped. Eight (K, N) cells × two strategies
-/// (gallop, linear), all on LowFk + sorted ASC. Reuses the existing
-/// build_corpus / sample_terms / cfg_force_* primitives so per-cell
-/// behavior is identical to the matrix cells — just different K values.
-fn run_threshold_tier() {
-    // (K, N) pairs spread log-uniformly through K/N ∈ (0.001, 0.01).
-    // Five at N=1M (K/N = 0.002, 0.003, 0.005, 0.007, 0.010) and three at
-    // N=10M (K/N = 0.003, 0.005, 0.007) so we can also check whether the
-    // crossover is N-dependent.
-    let cells: &[(usize, u64)] = &[
-        (2_000, 1_000_000),
-        (3_000, 1_000_000),
-        (5_000, 1_000_000),
-        (7_000, 1_000_000),
-        (10_000, 1_000_000),
-        (30_000, 10_000_000),
-        (50_000, 10_000_000),
-        (70_000, 10_000_000),
-    ];
-
-    // Build one corpus per N (LowFk distinct = N/100, comfortably above max
-    // K=70K at N=10M).
-    let mut runner = BenchRunner::new();
-    for &n in &[1_000_000u64, 10_000_000u64] {
-        let (searcher, field) = build_corpus(n, CorpusKind::LowFk, Sort::Asc);
-        let mut group = runner.new_group();
-        group.set_name(format!("threshold n={n} kind=lowfk sort=asc"));
-        group.set_input_size(n as usize);
-
-        let distinct = CorpusKind::LowFk.distinct_count(n);
-        for &(k, n_cell) in cells {
-            if n_cell != n {
-                continue;
-            }
-            assert!(
-                (k as u64) <= distinct,
-                "k={k} exceeds LowFk distinct={distinct} at n={n}",
-            );
-            let terms = sample_terms(distinct, k, 7);
-            for &strat in &[Strat::Gallop, Strat::Linear] {
-                let s = searcher.clone();
-                let terms_v = terms.clone();
-                let cell_name = format!("k={k} strat={}", strat.label());
-                group.register(cell_name, move |_| match strat {
-                    Strat::Gallop => {
-                        black_box(run_planner_path(&s, field, &terms_v, cfg_force_gallop()))
-                    }
-                    Strat::Linear => {
-                        black_box(run_planner_path(&s, field, &terms_v, cfg_force_linear()))
-                    }
-                    _ => unreachable!(),
-                });
-            }
-        }
-        group.run();
-    }
 }
 
 /// Build the (a sorted, b unsorted) two-column AND-intersection bench cells.

@@ -576,6 +576,45 @@ impl<TSSTable: SSTable> Dictionary<TSSTable> {
         Ok(None)
     }
 
+    /// Batched exact-key lookup over a sorted input slice.
+    ///
+    /// Returns an iterator yielding `Ok((input_index, value))` for each
+    /// `sorted_keys[input_index]` that exists in the dictionary, in input
+    /// order. Keys not present in the dictionary are silently skipped
+    /// (no iterator turn wasted). I/O errors during block decode
+    /// propagate via `Err(_)`; the iterator is fused on error (returns
+    /// `None` on every call after the first `Err`).
+    ///
+    /// The implementation walks the input forward, decoding each touched
+    /// SSTable block exactly once. For inputs where multiple query terms
+    /// fall in the same block, this amortises the zstd-decompression
+    /// cost that K independent [`get`](Self::get) calls would pay
+    /// repeatedly.
+    ///
+    /// # Precondition
+    ///
+    /// `sorted_keys` must be strictly ascending in byte order with no
+    /// duplicates. This is enforced at the type level by
+    /// [`SortedTermSlice`]; callers with unsorted input can use
+    /// [`sort_and_dedupe_terms`] first.
+    ///
+    /// # Complexity
+    ///
+    /// Best case (all query terms in one block): one block decode plus
+    /// one forward walk of that block. Worst case (each query term in
+    /// its own block): K block decodes — the same cost as K
+    /// [`get`](Self::get) calls. Always at most one decode per touched
+    /// block regardless of how many query terms map to it.
+    ///
+    /// [`SortedTermSlice`]: crate::SortedTermSlice
+    /// [`sort_and_dedupe_terms`]: crate::sort_and_dedupe_terms
+    pub fn batch_term_info_exact<'a, K: AsRef<[u8]>>(
+        &'a self,
+        sorted_keys: crate::batch::SortedTermSlice<'a, K>,
+    ) -> crate::batch::BatchedTermInfoIter<'a, K, TSSTable> {
+        crate::batch::BatchedTermInfoIter::new(self, sorted_keys)
+    }
+
     /// Lookups the value corresponding to the key.
     pub async fn get_async<K: AsRef<[u8]>>(&self, key: K) -> io::Result<Option<TSSTable::Value>> {
         if let Some(block_addr) = self.sstable_index.get_block_with_key(key.as_ref()) {

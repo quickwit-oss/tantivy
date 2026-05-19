@@ -63,23 +63,44 @@ impl DocSet for BitSetDocSet {
     }
 
     fn seek(&mut self, target: DocId) -> DocId {
+        // DocSet contract: seek targets are monotonically non-decreasing.
+        // If target is at or before our current doc, we're already past
+        // it — return as-is. Also covers the post-TERMINATED case, and
+        // the seek-to-current case that mask+advance below wouldn't:
+        // advance() has already popped self.doc's bit out of
+        // cursor_tinybitset, so masking with `>= target` would skip it.
+        if target <= self.doc {
+            return self.doc;
+        }
+
+        // Out-of-range target: nothing past `max_value` can match.
+        // Terminates and keeps the bucket math below within the
+        // tinysets array.
         if target >= self.docs.max_value() {
             self.doc = TERMINATED;
             return TERMINATED;
         }
+
+        // Jump to target_bucket if it's ahead of where we are. Past the
+        // guard above we know target > self.doc, so target_bucket is
+        // always >= cursor_bucket.
         let target_bucket = target / 64u32;
         if target_bucket > self.cursor_bucket {
             self.go_to_bucket(target_bucket);
-            let greater_filter: TinySet = TinySet::range_greater_or_equal(target);
-            self.cursor_tinybitset = self.cursor_tinybitset.intersect(greater_filter);
-            self.advance()
-        } else {
-            let mut doc = self.doc();
-            while doc < target {
-                doc = self.advance();
-            }
-            doc
         }
+
+        // Drop any bits in the current word that are below target. If
+        // we just jumped buckets, this masks the freshly loaded word.
+        // If we stayed in cursor_bucket, this masks against whatever
+        // advance() left of the word.
+        self.cursor_tinybitset = self
+            .cursor_tinybitset
+            .intersect(TinySet::range_greater_or_equal(target));
+
+        // advance() pops the next set bit via trailing_zeros, skips
+        // zero words via first_non_empty_bucket, and terminates
+        // cleanly when nothing remains.
+        self.advance()
     }
 
     /// Returns the current document
@@ -164,6 +185,38 @@ mod tests {
         test_go_through_sequential(&[1, 2, 3, 4, 5, 63, 64, 65]);
         test_go_through_sequential(&[63, 64, 65]);
         test_go_through_sequential(&[1, 2, 3, 4, 95, 96, 97, 98, 99]);
+    }
+
+    #[test]
+    fn test_docbitset_seek_same_bucket() {
+        // All three bits live in bucket 0 (positions 10, 30, 50), so
+        // every seek below stays inside the current cursor word —
+        // exercises the same-bucket path of the rewritten `seek`.
+        let mut docset = create_docbitset(&[10, 30, 50], 1_000);
+        assert_eq!(docset.doc(), 10);
+        // target > self.doc, target in same bucket, skips past 10.
+        assert_eq!(docset.seek(20), 30);
+        // target > self.doc again, same bucket, lands on the next bit.
+        assert_eq!(docset.seek(40), 50);
+        // target past the last bit in the bucket: mask empties the
+        // word, advance() finds no later non-empty bucket → terminate.
+        assert_eq!(docset.seek(60), TERMINATED);
+        // Idempotent after termination.
+        assert_eq!(docset.advance(), TERMINATED);
+    }
+
+    #[test]
+    fn test_docbitset_seek_to_current() {
+        // seek(target) where target == self.doc must return self.doc,
+        // not advance past it. After construction, advance() has
+        // already popped self.doc's bit out of the cursor word, so a
+        // mask-and-advance without the `target <= self.doc` guard
+        // would skip the current doc.
+        let mut docset = create_docbitset(&[10, 30], 1_000);
+        assert_eq!(docset.doc(), 10);
+        assert_eq!(docset.seek(10), 10);
+        assert_eq!(docset.doc(), 10);
+        assert_eq!(docset.advance(), 30);
     }
 
     #[test]
