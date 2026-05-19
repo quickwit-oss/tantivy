@@ -16,6 +16,7 @@ use crate::postings::{
 };
 use crate::schema::document::{Document, Value};
 use crate::schema::{FieldEntry, FieldType, Schema, DATE_TIME_PRECISION_INDEXED};
+use crate::spatial::writer::SpatialWriter;
 use crate::tokenizer::{FacetTokenizer, PreTokenizedStream, TextAnalyzer, Tokenizer};
 use crate::{DocId, Opstamp, TantivyError};
 
@@ -52,6 +53,7 @@ pub struct SegmentWriter {
     pub(crate) segment_serializer: SegmentSerializer,
     pub(crate) fast_field_writers: FastFieldsWriter,
     pub(crate) fieldnorms_writer: FieldNormsWriter,
+    pub(crate) spatial_writer: SpatialWriter,
     pub(crate) json_path_writer: JsonPathWriter,
     pub(crate) json_positions_per_path: IndexingPositionsPerPath,
     pub(crate) doc_opstamps: Vec<Opstamp>,
@@ -74,6 +76,7 @@ impl SegmentWriter {
         let schema = segment.schema();
         let tokenizer_manager = segment.index().tokenizers().clone();
         let tokenizer_manager_fast_field = segment.index().fast_field_tokenizer().clone();
+        let spatial_manager = segment.index().spatial_indices().clone();
         let table_size = compute_initial_table_size(memory_budget_in_bytes)?;
         let segment_serializer = SegmentSerializer::for_segment(segment)?;
         let per_field_postings_writers = PerFieldPostingsWriter::for_schema(&schema);
@@ -104,6 +107,15 @@ impl SegmentWriter {
             ctx: IndexingContext::new(table_size),
             per_field_postings_writers,
             fieldnorms_writer: FieldNormsWriter::for_schema(&schema),
+            spatial_writer: {
+                let mut sw = SpatialWriter::new(spatial_manager);
+                for (field, field_entry) in schema.fields() {
+                    if let FieldType::Spatial(ref opts) = field_entry.field_type() {
+                        sw.set_field_index(field, opts.spatial_index_name());
+                    }
+                }
+                sw
+            },
             json_path_writer: JsonPathWriter::default(),
             json_positions_per_path: IndexingPositionsPerPath::default(),
             segment_serializer,
@@ -130,6 +142,7 @@ impl SegmentWriter {
             self.ctx,
             self.fast_field_writers,
             &self.fieldnorms_writer,
+            &mut self.spatial_writer,
             self.segment_serializer,
         )?;
         Ok(self.doc_opstamps)
@@ -142,6 +155,7 @@ impl SegmentWriter {
             + self.fieldnorms_writer.mem_usage()
             + self.fast_field_writers.mem_usage()
             + self.segment_serializer.mem_usage()
+            + self.spatial_writer.mem_usage()
     }
 
     fn index_document<D: Document>(&mut self, doc: &D) -> crate::Result<()> {
@@ -157,6 +171,17 @@ impl SegmentWriter {
             let values = field_values.map(|el| el.1);
 
             let field_entry = self.schema.get_field_entry(field);
+
+            // Spatial fields have their own write path and do not participate in postings.
+            if let FieldType::Spatial(_) = field_entry.field_type() {
+                for value in values {
+                    if let Some(geometry) = value.as_geometry() {
+                        self.spatial_writer.add_geometry(doc_id, field, *geometry);
+                    }
+                }
+                continue;
+            }
+
             let make_schema_error = || {
                 TantivyError::SchemaError(format!(
                     "Expected a {:?} for field {:?}",
@@ -338,6 +363,10 @@ impl SegmentWriter {
                         self.fieldnorms_writer.record(doc_id, field, num_vals);
                     }
                 }
+                FieldType::Spatial(_) => {
+                    // Handled above, before the is_indexed gate.
+                    unreachable!();
+                }
             }
         }
         Ok(())
@@ -392,11 +421,15 @@ fn remap_and_write(
     ctx: IndexingContext,
     fast_field_writers: FastFieldsWriter,
     fieldnorms_writer: &FieldNormsWriter,
+    spatial_writer: &mut SpatialWriter,
     mut serializer: SegmentSerializer,
 ) -> crate::Result<()> {
     debug!("remap-and-write");
     if let Some(fieldnorms_serializer) = serializer.extract_fieldnorms_serializer() {
         fieldnorms_writer.serialize(fieldnorms_serializer)?;
+    }
+    if let Some(spatial_serializer) = serializer.extract_spatial_serializer() {
+        spatial_writer.serialize(spatial_serializer)?;
     }
     let fieldnorm_data = serializer
         .segment()

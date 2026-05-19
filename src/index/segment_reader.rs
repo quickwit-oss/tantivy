@@ -15,6 +15,7 @@ use crate::index::{InvertedIndexReader, Segment, SegmentComponent, SegmentId};
 use crate::json_utils::json_path_sep_to_dot;
 use crate::schema::{Field, IndexRecordOption, Schema, Type};
 use crate::space_usage::SegmentSpaceUsage;
+use crate::spatial::reader::SpatialReaders;
 use crate::store::StoreReader;
 use crate::termdict::TermDictionary;
 use crate::{DocId, Opstamp};
@@ -44,6 +45,7 @@ pub struct SegmentReader {
     positions_composite: CompositeFile,
     fast_fields_readers: FastFieldReaders,
     fieldnorm_readers: FieldNormReaders,
+    spatial_readers: SpatialReaders,
 
     store_file: FileSlice,
     alive_bitset_opt: Option<AliveBitSet>,
@@ -91,6 +93,11 @@ impl SegmentReader {
     /// May panic if the index is corrupted.
     pub fn fast_fields(&self) -> &FastFieldReaders {
         &self.fast_fields_readers
+    }
+
+    /// HUSH
+    pub fn spatial_fields(&self) -> &SpatialReaders {
+        &self.spatial_readers
     }
 
     /// Accessor to the `FacetReader` associated with a given `Field`.
@@ -172,6 +179,16 @@ impl SegmentReader {
         let fast_fields_readers = FastFieldReaders::open(fast_fields_data, schema.clone())?;
         let fieldnorm_data = segment.open_read(SegmentComponent::FieldNorms)?;
         let fieldnorm_readers = FieldNormReaders::open(fieldnorm_data)?;
+        let spatial_readers = if schema.contains_spatial_field() {
+            let cells_data = segment.open_read(SegmentComponent::SpatialCells)?;
+            let edges_data = segment.open_read(SegmentComponent::SpatialEdges)?;
+            let doc_ids_data = segment
+                .open_read(SegmentComponent::SpatialDocIds)
+                .unwrap_or_else(|_| FileSlice::empty());
+            SpatialReaders::open(cells_data, edges_data, doc_ids_data)?
+        } else {
+            SpatialReaders::empty()
+        };
 
         let original_bitset = if segment.meta().has_deletes() {
             let alive_doc_file_slice = segment.open_read(SegmentComponent::Delete)?;
@@ -197,6 +214,7 @@ impl SegmentReader {
             postings_composite,
             fast_fields_readers,
             fieldnorm_readers,
+            spatial_readers,
             segment_id: segment.id(),
             delete_opstamp: segment.meta().delete_opstamp(),
             store_file,
@@ -459,6 +477,7 @@ impl SegmentReader {
             self.positions_composite.space_usage(self.schema()),
             self.fast_fields_readers.space_usage()?,
             self.fieldnorm_readers.space_usage(self.schema()),
+            self.spatial_readers.space_usage(self.schema()),
             self.get_store_reader(0)?.space_usage(),
             self.alive_bitset_opt
                 .as_ref()
