@@ -8,7 +8,7 @@ repository = "https://github.com/quickwit-oss/tantivy"
 description = "term hashmap used for indexing"
 
 [dependencies]
-murmurhash32 = "0.3"
+murmurhash32 = "0.4"
 common = { version = "0.11", path = "../common/", package = "tantivy-common" }
 ahash = { version = "0.8.11", default-features = false, optional = true }
 
