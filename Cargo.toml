@@ -65,7 +65,7 @@ tantivy-bitpacker = { version = "0.10", path = "./bitpacker" }
 common = { version = "0.11", path = "./common/", package = "tantivy-common" }
 tokenizer-api = { version = "0.7", path = "./tokenizer-api", package = "tantivy-tokenizer-api" }
 sketches-ddsketch = { version = "0.4", features = ["use_serde"] }
-datasketches = { git = "https://github.com/fulmicoton-dd/datasketches-rust", rev = "7635fb8" }
+datasketches = { version = "0.3.0", features = ["hll"] }
 futures-util = { version = "0.3.28", optional = true }
 futures-channel = { version = "0.3.28", optional = true }
 fnv = "1.0.7"

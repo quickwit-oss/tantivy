@@ -166,8 +166,12 @@ impl CouponCache {
         let should_use_dense =
             highest_term_ord < 1_000_000u64 || highest_term_ord < num_terms as u64 * 3u64;
         if should_use_dense {
-            let mut coupon_map: Vec<Coupon> = vec![Coupon::EMPTY; highest_term_ord as usize + 1];
-            for (term_ord, coupon) in term_ords.into_iter().zip(coupons.into_iter()) {
+            // We don't really care about the value here. We will populate all the values we will
+            // read anyway.
+            let uninitialized_coupon = Coupon::from_hash(0);
+            let mut coupon_map: Vec<Coupon> =
+                vec![uninitialized_coupon; highest_term_ord as usize + 1];
+            for (term_ord, coupon) in term_ords.into_iter().zip(coupons) {
                 coupon_map[term_ord as usize] = coupon;
             }
             CouponCache::Dense {
@@ -821,7 +825,7 @@ impl<'de> Deserialize<'de> for CardinalityCollector {
 impl CardinalityCollector {
     fn new(salt: u8) -> Self {
         Self {
-            sketch: HllSketch::new(LG_K, HllType::Hll4),
+            sketch: HllSketch::new(LG_K, HllType::Hll8),
             salt,
         }
     }
@@ -852,7 +856,7 @@ impl CardinalityCollector {
         let mut union = HllUnion::new(LG_K);
         union.update(&self.sketch);
         union.update(&right.sketch);
-        self.sketch = union.to_sketch(HllType::Hll4);
+        self.sketch = union.to_sketch(HllType::Hll8);
         Ok(())
     }
 }
