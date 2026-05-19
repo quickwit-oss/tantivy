@@ -1303,4 +1303,28 @@ mod tests {
         let vals: Vec<i64> = column.values_for_doc(0u32).collect();
         assert_eq!(&vals, &[33]);
     }
+
+    #[test]
+    fn check_num_columnar_fields() -> crate::Result<()> {
+        let mut schema_builder = Schema::builder();
+        let id_field = schema_builder.add_text_field("id", FAST);
+        let index = Index::create_in_ram(schema_builder.build());
+        {
+            let mut index_writer = index.writer_with_num_threads(1, 20_000_000)?;
+            index_writer.set_merge_policy(Box::new(NoMergePolicy));
+            index_writer.add_document(doc!(
+                id_field => 1u64,
+            ))?;
+            index_writer.commit()?;
+        }
+
+        let reader = index.reader().unwrap();
+
+        let searcher = reader.searcher();
+        let ff_reader = searcher.segment_reader(0).fast_fields();
+        let fields = ff_reader.u64_lenient_for_type_all(None, "id").unwrap();
+        assert_eq!(fields.len(), 1);
+
+        Ok(())
+    }
 }
