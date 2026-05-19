@@ -262,8 +262,8 @@ The fieldnorm is therefore compressed. Values up to 40 are encoded unchanged.
 ## [tokenizer/](src/tokenizer): How should we process text?
 
 Text processing is key to a good search experience.
-Splits or normalize your text too much, and the search results will have a less precision and a higher recall.
-Do not normalize, or under split your text, you will end up with a higher precision and a lesser recall.
+Split or normalize your text too much, and the search results will have a less precision and a higher recall.
+Do not normalize, or undersplit your text, you will end up with a higher precision and a lesser recall.
 
 Text processing can be configured by selecting an off-the-shelf [`Tokenizer`](./src/tokenizer/tokenizer.rs) or implementing your own to first split the text into tokens, and then chain different [`TokenFilter`](src/tokenizer/tokenizer.rs)'s to it.
 
