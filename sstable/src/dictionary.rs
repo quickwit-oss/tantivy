@@ -500,7 +500,7 @@ impl<TSSTable: SSTable> Dictionary<TSSTable> {
         let mut current_sstable_delta_reader =
             self.sstable_delta_reader_block(current_block_addr.clone())?;
         let mut current_block_ordinal = current_block_addr.first_ordinal;
-        let mut current_block_bound = self
+        let mut current_block_end_bound = self
             .sstable_index
             .get_block(block_id + 1)
             .map(|block_addr| block_addr.first_ordinal)
@@ -533,7 +533,7 @@ impl<TSSTable: SSTable> Dictionary<TSSTable> {
                 }
             };
 
-            if next_ord >= current_block_bound {
+            if next_ord >= current_block_end_bound {
                 let (new_block_addr, block_id) =
                     self.sstable_index.get_and_locate_with_ord(next_ord);
                 current_block_addr = new_block_addr;
@@ -541,7 +541,7 @@ impl<TSSTable: SSTable> Dictionary<TSSTable> {
                 current_sstable_delta_reader =
                     self.sstable_delta_reader_block(current_block_addr.clone())?;
                 bytes.clear();
-                current_block_bound = self
+                current_block_end_bound = self
                     .sstable_index
                     .get_block(block_id + 1)
                     .map(|block_addr| block_addr.first_ordinal)
