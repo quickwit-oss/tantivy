@@ -17,15 +17,26 @@ use crate::index::SegmentReader;
 pub(crate) fn get_missing_val_as_u64_lenient(
     column_type: ColumnType,
     column_max_value: u64,
+    column_value_count: u64,
     missing: &Key,
     field_name: &str,
 ) -> crate::Result<Option<u64>> {
     let missing_val = match missing {
-        Key::Str(_) if column_type == ColumnType::Str => Some(column_max_value + 1),
-        // Allow fallback to number on text fields
-        Key::F64(_) if column_type == ColumnType::Str => Some(column_max_value + 1),
-        Key::U64(_) if column_type == ColumnType::Str => Some(column_max_value + 1),
-        Key::I64(_) if column_type == ColumnType::Str => Some(column_max_value + 1),
+        Key::Str(_) | Key::F64(_) | Key::U64(_) | Key::I64(_) if column_type == ColumnType::Str => {
+            // For strings, we use the max term ordinal + 1. If the column has >0 non-nil values,
+            // then we can get the correct max term ordinal from the max column value. However, when
+            // the column has no non-nil values, the max column value defaults to 0, which is
+            // actually the sentinel value we want to use, so we must specify that directly
+            if column_value_count > 0 {
+                Some(
+                    column_max_value
+                        .checked_add(1)
+                        .expect("This is a u64; we should never be anywhere close to overflowing"),
+                )
+            } else {
+                Some(0)
+            }
+        }
         Key::F64(val) if column_type.numerical_type().is_some() => {
             f64_to_fastfield_u64(*val, &column_type)
         }
