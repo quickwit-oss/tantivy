@@ -275,8 +275,38 @@ impl Recorder for TfAndPositionRecorder {
 mod tests {
 
     use common::write_u32_vint;
+    use stacker::MemoryArena;
 
-    use super::{BufferLender, VInt32Reader};
+    use super::{BufferLender, Recorder, TermFrequencyRecorder, VInt32Reader};
+
+    /// Records a small posting list and checks the recorder's externally
+    /// observable state. See #2285.
+    #[test]
+    fn test_term_frequency_recorder_basic() {
+        let mut arena = MemoryArena::default();
+        let mut recorder = TermFrequencyRecorder::default();
+
+        assert_eq!(recorder.current_doc(), 0);
+        assert_eq!(recorder.term_doc_freq(), Some(0));
+
+        // First document: doc 3, term occurs twice.
+        recorder.new_doc(3, &mut arena);
+        recorder.record_position(0, &mut arena);
+        recorder.record_position(5, &mut arena);
+        recorder.close_doc(&mut arena);
+        assert_eq!(recorder.current_doc(), 3);
+        assert_eq!(recorder.term_doc_freq(), Some(1));
+
+        // Second document: doc 7, term occurs once.
+        recorder.new_doc(7, &mut arena);
+        recorder.record_position(2, &mut arena);
+        recorder.close_doc(&mut arena);
+        assert_eq!(recorder.current_doc(), 7);
+        assert_eq!(recorder.term_doc_freq(), Some(2));
+
+        // TermFrequencyRecorder advertises that it records term frequency.
+        assert!(recorder.has_term_freq());
+    }
 
     #[test]
     fn test_buffer_lender() {
