@@ -1,6 +1,12 @@
 Tantivy 0.26.1
 ================================
 
+## Features/Improvements
+- Make BM25 scoring parameters (k1, b) configurable per-index via `IndexSettings` [#2924](https://github.com/quickwit-oss/tantivy/pull/2924)
+  - Add `Bm25Params` struct with `k1` (term frequency saturation) and `b` (length normalization) fields
+  - Default values remain `(k1=1.2, b=0.75)` for backward compatibility
+  - Parameters are persisted in `meta.json` and applied consistently across index operations
+
 ## Performance
 - Fix quadratic runtime in nested term and composite aggregations: memory accounting scanned all parent buckets on every collect instead of just the current parent (@PSeitz @fulmicoton)
 

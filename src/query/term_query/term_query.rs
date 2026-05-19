@@ -100,10 +100,15 @@ impl TermQuery {
         let bm25_weight = match enable_scoring {
             EnableScoring::Enabled {
                 statistics_provider,
-                ..
-            } => Bm25Weight::for_terms(statistics_provider, std::slice::from_ref(&self.term))?,
+                searcher,
+            } => {
+                let bm25_params = searcher.bm25_params();
+                Bm25Weight::for_terms(statistics_provider, std::slice::from_ref(&self.term), bm25_params)?
+            }
             EnableScoring::Disabled { .. } => {
-                Bm25Weight::new(Explanation::new("<no score>", 1.0f32), 1.0f32)
+                use crate::index::Bm25Params;
+                let default_params = Bm25Params::default();
+                Bm25Weight::new(Explanation::new("<no score>", 1.0f32), 1.0f32, &default_params)
             }
         };
         let scoring_enabled = enable_scoring.is_scoring_enabled();
