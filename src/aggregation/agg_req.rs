@@ -299,6 +299,12 @@ impl AggregationVariants {
             _ => None,
         }
     }
+    pub(crate) fn as_sum(&self) -> Option<&SumAggregation> {
+        match &self {
+            AggregationVariants::Sum(sum) => Some(sum),
+            _ => None,
+        }
+    }
 }
 
 #[cfg(test)]
