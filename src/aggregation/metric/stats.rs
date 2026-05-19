@@ -64,6 +64,8 @@ pub struct Stats {
     pub max: Option<f64>,
     /// The average of the fast field values. `None` if count equals zero.
     pub avg: Option<f64>,
+    /// The variance of the fast field values. `None` if count equals zero.
+    pub variance: Option<f64>,
 }
 
 impl Stats {
@@ -74,6 +76,7 @@ impl Stats {
             "min" => Ok(self.min),
             "max" => Ok(self.max),
             "avg" => Ok(self.avg),
+            "variance" => Ok(self.variance),
             _ => Err(TantivyError::InvalidArgument(format!(
                 "Unknown property {agg_property} on stats metric aggregation"
             ))),
@@ -151,6 +154,11 @@ impl IntermediateStats {
         } else {
             Some(self.sum / (self.count as f64))
         };
+        let variance = if self.count == 0 {
+            None
+        } else {
+            Some()
+        }
         Stats {
             count: self.count,
             sum: self.sum,
