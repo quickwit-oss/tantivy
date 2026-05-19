@@ -4,7 +4,7 @@ Tantivy 0.26.1
 ## Performance
 - Fix quadratic runtime in nested term and composite aggregations: memory accounting scanned all parent buckets on every collect instead of just the current parent (@PSeitz @fulmicoton)
 
-Tantivy 0.26 (Unreleased)
+Tantivy 0.26
 ================================
 
 ## Bugfixes
