@@ -14,11 +14,8 @@ use itertools::Itertools;
 use tantivy_fst::Automaton;
 use tantivy_fst::automaton::AlwaysMatch;
 
-use crate::sstable_index_v3::SSTableIndexV3Empty;
 use crate::streamer::{Streamer, StreamerBuilder};
-use crate::{
-    BlockAddr, DeltaReader, Reader, SSTable, SSTableIndex, SSTableIndexV3, TermOrdinal, VoidSSTable,
-};
+use crate::{BlockAddr, DeltaReader, Reader, SSTable, SSTableIndex, TermOrdinal, VoidSSTable};
 
 /// An SSTable is a sorted map that associates sorted `&[u8]` keys
 /// to any kind of typed values.
@@ -288,33 +285,7 @@ impl<TSSTable: SSTable> Dictionary<TSSTable> {
         let (sstable_slice, index_slice) = main_slice.split(index_offset as usize);
         let sstable_index_bytes = index_slice.read_bytes()?;
 
-        let sstable_index = match version {
-            2 => SSTableIndex::V2(
-                crate::sstable_index_v2::SSTableIndex::load(sstable_index_bytes).map_err(|_| {
-                    io::Error::new(io::ErrorKind::InvalidData, "SSTable corruption")
-                })?,
-            ),
-            3 => {
-                let (sstable_index_bytes, mut footerv3_len_bytes) = sstable_index_bytes.rsplit(8);
-                let store_offset = u64::deserialize(&mut footerv3_len_bytes)?;
-                if store_offset != 0 {
-                    SSTableIndex::V3(
-                        SSTableIndexV3::load(sstable_index_bytes, store_offset).map_err(|_| {
-                            io::Error::new(io::ErrorKind::InvalidData, "SSTable corruption")
-                        })?,
-                    )
-                } else {
-                    // if store_offset is zero, there is no index, so we build a pseudo-index
-                    // assuming a single block of sstable covering everything.
-                    SSTableIndex::V3Empty(SSTableIndexV3Empty::load(index_offset as usize))
-                }
-            }
-            _ => {
-                return Err(io::Error::other(format!(
-                    "Unsupported sstable version, expected one of [2, 3], found {version}"
-                )));
-            }
-        };
+        let sstable_index = SSTableIndex::open(version, index_offset, sstable_index_bytes)?;
 
         Ok(Dictionary {
             sstable_slice,
@@ -525,10 +496,15 @@ impl<TSSTable: SSTable> Dictionary<TSSTable> {
 
         // Open the block for the first ordinal.
         let mut bytes = Vec::new();
-        let mut current_block_addr = self.sstable_index.get_block_with_ord(ord);
+        let (mut current_block_addr, block_id) = self.sstable_index.get_and_locate_with_ord(ord);
         let mut current_sstable_delta_reader =
             self.sstable_delta_reader_block(current_block_addr.clone())?;
         let mut current_block_ordinal = current_block_addr.first_ordinal;
+        let mut current_block_end_bound = self
+            .sstable_index
+            .get_block(block_id + 1)
+            .map(|block_addr| block_addr.first_ordinal)
+            .unwrap_or(u64::MAX);
 
         loop {
             // move to the ord inside the current block
@@ -557,17 +533,19 @@ impl<TSSTable: SSTable> Dictionary<TSSTable> {
                 }
             };
 
-            // TODO optimization: it is silly to do a binary search to get the block every single
-            // time.
-            //
-            // Check if block changed for new term_ord
-            let new_block_addr = self.sstable_index.get_block_with_ord(next_ord);
-            if new_block_addr != current_block_addr {
+            if next_ord >= current_block_end_bound {
+                let (new_block_addr, block_id) =
+                    self.sstable_index.get_and_locate_with_ord(next_ord);
                 current_block_addr = new_block_addr;
                 current_block_ordinal = current_block_addr.first_ordinal;
                 current_sstable_delta_reader =
                     self.sstable_delta_reader_block(current_block_addr.clone())?;
                 bytes.clear();
+                current_block_end_bound = self
+                    .sstable_index
+                    .get_block(block_id + 1)
+                    .map(|block_addr| block_addr.first_ordinal)
+                    .unwrap_or(u64::MAX)
             }
             ord = next_ord;
         }
