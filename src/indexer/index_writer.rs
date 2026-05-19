@@ -349,6 +349,12 @@ impl<D: Document> IndexWriter<D> {
         &self.index
     }
 
+    /// Check if there are any merging threads
+    /// Does not block
+    pub fn has_merging_threads(&self) -> bool {
+        self.segment_updater.has_merging_threads()
+    }
+
     /// If there are some merging threads, blocks until they all finish their work and
     /// then drop the `IndexWriter`.
     pub fn wait_merging_threads(mut self) -> crate::Result<()> {
