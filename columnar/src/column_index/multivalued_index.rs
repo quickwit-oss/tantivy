@@ -13,6 +13,67 @@ use crate::column_values::{
 use crate::iterable::Iterable;
 use crate::{DocId, RowId, Version};
 
+/// Advances `start` forward to the smallest index `d` in `[start, max_idx]` with
+/// `col.get_val(d + 1) > pos`, using exponential search into binary search.
+///
+/// Precondition: `start <= max_idx` and `col.get_val(start + 1) <= pos`.
+fn exponential_search_first_end_gt(
+    col: &dyn ColumnValues<RowId>,
+    start: DocId,
+    pos: RowId,
+    max_idx: DocId,
+) -> DocId {
+    debug_assert!(start <= max_idx);
+    debug_assert!(cumulative_end_for_doc_idx(col, start) <= pos);
+    let mut lo = start;
+    let mut step = 1u32;
+    loop {
+        let next = lo.saturating_add(step).min(max_idx);
+        if cumulative_end_for_doc_idx(col, next) > pos {
+            if next == lo + 1 {
+                return next;
+            }
+            return binary_search_first_end_gt(col, lo, next, pos);
+        }
+        if next == max_idx {
+            return max_idx;
+        }
+        lo = next;
+        step = step.saturating_mul(2);
+    }
+}
+
+fn cumulative_end_for_doc_idx(col: &dyn ColumnValues<RowId>, doc_idx: DocId) -> RowId {
+    col.get_val(doc_idx + 1)
+}
+
+/// Smallest `idx` in `[lo + 1, hi]` with `col.get_val(idx + 1) > pos`.
+///
+/// Monotone **binary search** for the **first index where the predicate holds**.
+///
+/// Precondition: `col.get_val(lo + 1) <= pos` and `col.get_val(hi + 1) > pos`.
+fn binary_search_first_end_gt(
+    col: &dyn ColumnValues<RowId>,
+    lo: DocId,
+    hi: DocId,
+    pos: RowId,
+) -> DocId {
+    debug_assert!(lo < hi);
+    debug_assert!(cumulative_end_for_doc_idx(col, lo) <= pos);
+    debug_assert!(cumulative_end_for_doc_idx(col, hi) > pos);
+    let mut left = lo + 1;
+    let mut right = hi;
+    while left < right {
+        let mid = left + (right - left) / 2;
+        if cumulative_end_for_doc_idx(col, mid) > pos {
+            right = mid;
+        } else {
+            left = mid + 1;
+        }
+    }
+    left
+}
+
 pub struct SerializableMultivalueIndex<'a> {
     pub doc_ids_with_values: SerializableOptionalIndex<'a>,
     pub start_offsets: Box<dyn Iterable<u32> + 'a>,
@@ -107,38 +168,36 @@ impl MultiValueIndexV1 {
     }
 
     /// Converts a list of ranks (row ids of values) in a 1:n index to the corresponding list of
-    /// docids. Positions are converted inplace to docids.
+    /// document ids. `ranks` is updated in place.
     ///
-    /// Since there is no index for value pos -> docid, but docid -> value pos range, we scan the
-    /// index.
+    /// Correctness: positions need to be sorted; they must be monotonically increasing row ids.
     ///
-    /// Correctness: positions needs to be sorted. idx_reader needs to contain monotonically
-    /// increasing positions.
-    ///
-    /// TODO: Instead of a linear scan we can employ a exponential search into binary search to
-    /// match a docid to its value position.
+    /// Requires `start_index_column.num_vals >= 2` (`num_docs >= 1` here, since `num_docs =
+    /// num_vals - 1`). The previous linear scan had the same requirement because it also called
+    /// `get_val(d + 1)`.
     pub(crate) fn select_batch_in_place(&self, docid_start: DocId, ranks: &mut Vec<u32>) {
         if ranks.is_empty() {
             return;
         }
+        let col = self.start_index_column.as_ref();
+        debug_assert!(
+            col.num_vals() >= 2,
+            "multivalue cumulative column must have num_vals >= 2 (num_docs >= 1)"
+        );
         let mut cur_doc = docid_start;
         let mut last_doc = None;
 
-        assert!(self.start_index_column.get_val(docid_start) <= ranks[0]);
+        assert!(col.get_val(docid_start) <= ranks[0]);
 
         let mut write_doc_pos = 0;
         for i in 0..ranks.len() {
             let pos = ranks[i];
-            loop {
-                let end = self.start_index_column.get_val(cur_doc + 1);
-                if end > pos {
-                    ranks[write_doc_pos] = cur_doc;
-                    write_doc_pos += if last_doc == Some(cur_doc) { 0 } else { 1 };
-                    last_doc = Some(cur_doc);
-                    break;
-                }
-                cur_doc += 1;
+            if cumulative_end_for_doc_idx(col, cur_doc) <= pos {
+                cur_doc = exponential_search_first_end_gt(col, cur_doc, pos, self.num_docs().saturating_sub(1));
             }
+            ranks[write_doc_pos] = cur_doc;
+            write_doc_pos += if last_doc == Some(cur_doc) { 0 } else { 1 };
+            last_doc = Some(cur_doc);
         }
         ranks.truncate(write_doc_pos);
     }
@@ -244,14 +303,8 @@ impl MultiValueIndex {
     /// Converts a list of ranks (row ids of values) in a 1:n index to the corresponding list of
     /// docids. Positions are converted inplace to docids.
     ///
-    /// Since there is no index for value pos -> docid, but docid -> value pos range, we scan the
-    /// index.
-    ///
     /// Correctness: positions needs to be sorted. idx_reader needs to contain monotonically
     /// increasing positions.
-    ///
-    /// TODO: Instead of a linear scan we can employ a exponential search into binary search to
-    /// match a docid to its value position.
     pub(crate) fn select_batch_in_place(&self, docid_start: DocId, ranks: &mut Vec<u32>) {
         match self {
             MultiValueIndex::MultiValueIndexV1(idx) => {
@@ -283,20 +336,22 @@ impl MultiValueIndexV2 {
     }
 
     /// Converts a list of ranks (row ids of values) in a 1:n index to the corresponding list of
-    /// docids. Positions are converted inplace to docids.
+    /// document ids. `ranks` is updated in place.
     ///
-    /// Since there is no index for value pos -> docid, but docid -> value pos range, we scan the
-    /// index.
+    /// Correctness: positions need to be sorted; they must be monotonically increasing row ids.
     ///
-    /// Correctness: positions needs to be sorted. idx_reader needs to contain monotonically
-    /// increasing positions.
-    ///
-    /// TODO: Instead of a linear scan we can employ a exponential search into binary search to
-    /// match a docid to its value position.
+    /// The compact cumulative column must have `num_vals >= 2` to read `get_val(rank + 1)` (same as
+    /// the old linear scan).
     pub(crate) fn select_batch_in_place(&self, docid_start: DocId, ranks: &mut Vec<u32>) {
         if ranks.is_empty() {
             return;
         }
+        let col = self.start_index_column.as_ref();
+        debug_assert!(
+            col.num_vals() >= 2,
+            "multivalue cumulative column must have num_vals >= 2"
+        );
+        let max_rank = col.num_vals() - 2;
         let mut cur_pos_in_idx = self.optional_index.rank(docid_start);
         let mut last_doc = None;
 
@@ -305,8 +360,113 @@ impl MultiValueIndexV2 {
         let mut write_doc_pos = 0;
         for i in 0..ranks.len() {
             let pos = ranks[i];
+            if cumulative_end_for_doc_idx(col, cur_pos_in_idx) <= pos {
+                cur_pos_in_idx =
+                    exponential_search_first_end_gt(col, cur_pos_in_idx, pos, max_rank);
+            }
+            ranks[write_doc_pos] = cur_pos_in_idx;
+            write_doc_pos += if last_doc == Some(cur_pos_in_idx) {
+                0
+            } else {
+                1
+            };
+            last_doc = Some(cur_pos_in_idx);
+        }
+        ranks.truncate(write_doc_pos);
+
+        for rank in ranks.iter_mut() {
+            *rank = self.optional_index.select(*rank);
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::ops::Range;
+
+    use common::OwnedBytes;
+    use rand::rngs::StdRng;
+    use rand::{Rng, SeedableRng};
+
+    use super::{MultiValueIndex, MultiValueIndexV1, MultiValueIndexV2};
+    use crate::column_index::Set;
+    use crate::column_values::{
+        CodecType, load_u64_based_column_values, serialize_u64_based_column_values,
+    };
+    use crate::{ColumnarReader, DocId, DynamicColumn, RowId};
+
+    fn index_to_pos_helper(
+        index: &MultiValueIndex,
+        doc_id_range: Range<u32>,
+        positions: &[u32],
+    ) -> Vec<u32> {
+        let mut positions = positions.to_vec();
+        index.select_batch_in_place(doc_id_range.start, &mut positions);
+        positions
+    }
+
+    fn multivalue_v1_for_test(offsets: &[RowId]) -> MultiValueIndexV1 {
+        let mut buf = Vec::new();
+        let vals: Vec<RowId> = offsets.to_vec();
+        serialize_u64_based_column_values(
+            &&vals[..],
+            &[CodecType::Bitpacked, CodecType::Linear],
+            &mut buf,
+        )
+        .unwrap();
+        let col = load_u64_based_column_values(OwnedBytes::new(buf)).unwrap();
+        MultiValueIndexV1 {
+            start_index_column: col,
+        }
+    }
+
+    /// Reference: previous one-doc-at-a-time forward scan.
+    fn select_batch_v1_linear_scan(
+        idx: &MultiValueIndexV1,
+        docid_start: DocId,
+        ranks: &mut Vec<u32>,
+    ) {
+        if ranks.is_empty() {
+            return;
+        }
+        let col = idx.start_index_column.as_ref();
+        let mut cur_doc = docid_start;
+        let mut last_doc = None;
+        assert!(col.get_val(docid_start) <= ranks[0]);
+        let mut write_doc_pos = 0;
+        for i in 0..ranks.len() {
+            let pos = ranks[i];
             loop {
-                let end = self.start_index_column.get_val(cur_pos_in_idx + 1);
+                let end = col.get_val(cur_doc + 1);
+                if end > pos {
+                    ranks[write_doc_pos] = cur_doc;
+                    write_doc_pos += if last_doc == Some(cur_doc) { 0 } else { 1 };
+                    last_doc = Some(cur_doc);
+                    break;
+                }
+                cur_doc += 1;
+            }
+        }
+        ranks.truncate(write_doc_pos);
+    }
+
+    fn select_batch_v2_linear_scan(
+        idx: &MultiValueIndexV2,
+        docid_start: DocId,
+        ranks: &mut Vec<u32>,
+    ) {
+        if ranks.is_empty() {
+            return;
+        }
+        let col = idx.start_index_column.as_ref();
+        let mut cur_pos_in_idx = idx.optional_index.rank(docid_start);
+        let mut last_doc = None;
+        assert!(cur_pos_in_idx <= ranks[0]);
+        let mut write_doc_pos = 0;
+        for i in 0..ranks.len() {
+            let pos = ranks[i];
+            loop {
+                let end = col.get_val(cur_pos_in_idx + 1);
                 if end > pos {
                     ranks[write_doc_pos] = cur_pos_in_idx;
                     write_doc_pos += if last_doc == Some(cur_pos_in_idx) {
@@ -321,28 +481,9 @@ impl MultiValueIndexV2 {
             }
         }
         ranks.truncate(write_doc_pos);
-
         for rank in ranks.iter_mut() {
-            *rank = self.optional_index.select(*rank);
+            *rank = idx.optional_index.select(*rank);
         }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use std::ops::Range;
-
-    use super::MultiValueIndex;
-    use crate::{ColumnarReader, DynamicColumn};
-
-    fn index_to_pos_helper(
-        index: &MultiValueIndex,
-        doc_id_range: Range<u32>,
-        positions: &[u32],
-    ) -> Vec<u32> {
-        let mut positions = positions.to_vec();
-        index.select_batch_in_place(doc_id_range.start, &mut positions);
-        positions
     }
 
     #[test]
@@ -422,5 +563,76 @@ mod tests {
         // check(0..1, vec![]);
         // check(0..2, vec![1]);
         check(1..2, vec![1]);
+    }
+
+    #[test]
+    fn select_batch_matches_linear_scan_v1() {
+        let offsets = &[0u32, 0, 100, 150, 150, 200];
+        let idx = multivalue_v1_for_test(offsets);
+        let num_docs = offsets.len() as u32 - 1;
+        let rank_lists: &[&[u32]] = &[
+            &[0u32],
+            &[50, 99],
+            &[100, 101, 199],
+            &[0, 50, 100, 150, 199],
+        ];
+        for doc_start in 0..num_docs {
+            for ranks in rank_lists {
+                if idx.start_index_column.get_val(doc_start) > ranks[0] {
+                    continue;
+                }
+                let mut fast = ranks.to_vec();
+                let mut slow = ranks.to_vec();
+                idx.select_batch_in_place(doc_start, &mut fast);
+                select_batch_v1_linear_scan(&idx, doc_start, &mut slow);
+                assert_eq!(fast, slow, "doc_start={doc_start} ranks={ranks:?}");
+            }
+        }
+    }
+
+    #[test]
+    fn select_batch_matches_linear_scan_v2_random() {
+        let mut rng = StdRng::from_seed([7u8; 32]);
+        for num_docs in [20u32, 50, 200] {
+            let mut offs = vec![0u32];
+            let mut total = 0u32;
+            for _ in 0..num_docs {
+                total += rng.random_range(0u32..4u32);
+                offs.push(total);
+            }
+            let idx = MultiValueIndex::for_test(&offs);
+            let MultiValueIndex::MultiValueIndexV2(ref v2) = idx else {
+                panic!("for_test should produce V2");
+            };
+            for _ in 0..200 {
+                let doc_start = rng.random_range(0..num_docs);
+                let Some(&max_row) = offs.last() else {
+                    continue;
+                };
+                if max_row == 0 {
+                    continue;
+                }
+                let n_ranks = rng.random_range(1..30usize);
+                let mut ranks: Vec<u32> =
+                    (0..n_ranks).map(|_| rng.random_range(0..max_row)).collect();
+                ranks.sort_unstable();
+                ranks.dedup();
+                if ranks.is_empty() {
+                    continue;
+                }
+                let rank_start = v2.optional_index.rank(doc_start);
+                if rank_start > ranks[0] {
+                    continue;
+                }
+                let mut fast = ranks.clone();
+                let mut slow = ranks.clone();
+                idx.select_batch_in_place(doc_start, &mut fast);
+                select_batch_v2_linear_scan(v2, doc_start, &mut slow);
+                assert_eq!(
+                    fast, slow,
+                    "doc_start={doc_start} ranks={ranks:?} num_docs={num_docs}",
+                );
+            }
+        }
     }
 }
