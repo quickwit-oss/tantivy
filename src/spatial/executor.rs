@@ -275,7 +275,7 @@ fn evaluate(
 
                                 found = match relation {
                                     SpatialRelation::Near(r) => {
-                                        let probe = Distance::<Sphere>::new(
+                                        let probe = Distance::<Sphere>::any_within(
                                             outer_geometry.clone(),
                                             *r,
                                             CovererOptions::default(),

@@ -55,7 +55,8 @@ impl<'a> CellIndexReader<'a> {
     }
 
     /// Visit doc_ids for cells in the range [start, end). Calls the visitor for each doc_id.
-    pub fn visit_doc_ids(&self, start: u32, end: u32, mut visitor: impl FnMut(u32)) {
+    /// The visitor returns true to continue, false to stop.
+    pub fn visit_doc_ids(&self, start: u32, end: u32, mut visitor: impl FnMut(u32) -> bool) {
         if self.doc_ids_data.is_empty() || start >= end {
             return;
         }
@@ -71,7 +72,9 @@ impl<'a> CellIndexReader<'a> {
         let mut pos = start;
         while pos + 4 <= end {
             let doc_id = u32::from_le_bytes(self.doc_ids_data[pos..pos + 4].try_into().unwrap());
-            visitor(doc_id);
+            if !visitor(doc_id) {
+                return;
+            }
             pos += 4;
         }
     }

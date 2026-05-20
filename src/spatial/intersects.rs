@@ -124,6 +124,7 @@ impl<S: Surface> Intersects<S> {
                 if !reader.doc_ids_data.is_empty() && terms_filter.is_none() {
                     reader.visit_doc_ids(entry.index_start, entry.index_end, |doc_id| {
                         doc_ids.insert(doc_id);
+                        true
                     });
                 } else {
                     for pos in entry.index_start..entry.index_end {

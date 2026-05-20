@@ -63,6 +63,7 @@ pub struct Distance<S: Surface> {
     query_index: ShapeIndex,
     query_edges: QueryEdgeProvider<S>,
     max_distance: f64,
+    first_only: bool,
 }
 
 impl<S: Surface> Distance<S> {
@@ -76,7 +77,15 @@ impl<S: Surface> Distance<S> {
             query_index,
             query_edges,
             max_distance,
+            first_only: false,
         }
+    }
+
+    /// Build a boolean distance query that returns after the first hit.
+    pub fn any_within(set: GeometrySet<S>, max_distance: f64, options: CovererOptions) -> Self {
+        let mut q = Self::new(set, max_distance, options);
+        q.first_only = true;
+        q
     }
 
     /// Search one segment for geometries within max_distance of the query polygon.
@@ -113,6 +122,9 @@ impl<S: Surface> Distance<S> {
                     }
                     seen.insert(gid);
                     doc_ids.insert(located.doc_id);
+                    if self.first_only {
+                        return doc_ids;
+                    }
                 }
             }
         }
@@ -153,14 +165,33 @@ impl<S: Surface> Distance<S> {
             });
         }
 
+        let mut found = false;
+
         while let Some(entry) = heap.pop() {
+            if self.first_only && found {
+                break;
+            }
             if entry.query_edges.is_empty()
                 && entry.contains_center
                 && entry.first_index_level > entry.pcell.level()
             {
                 if !reader.doc_ids_data.is_empty() && terms_filter.is_none() {
+                    if self.first_only && entry.index_start < entry.index_end {
+                        found = true;
+                        continue;
+                    }
                     reader.visit_doc_ids(entry.index_start, entry.index_end, |doc_id| {
                         doc_ids.insert(doc_id);
+                        true
+                    });
+                } else if self.first_only && !reader.doc_ids_data.is_empty() {
+                    let filter = terms_filter.unwrap();
+                    reader.visit_doc_ids(entry.index_start, entry.index_end, |doc_id| {
+                        if filter.contains(doc_id) {
+                            found = true;
+                            return false;
+                        }
+                        true
                     });
                 } else {
                     for pos in entry.index_start..entry.index_end {
@@ -233,6 +264,9 @@ impl<S: Surface> Distance<S> {
                             ) {
                                 seen.insert(gid);
                                 doc_ids.insert(located.doc_id);
+                                if self.first_only {
+                                    return doc_ids;
+                                }
                                 continue;
                             }
                         }
@@ -258,12 +292,19 @@ impl<S: Surface> Distance<S> {
                                 if crossed {
                                     seen.insert(gid);
                                     doc_ids.insert(doc_id);
+                                    if self.first_only {
+                                        return doc_ids;
+                                    }
                                 }
                             }
                         }
                     }
                 }
             }
+        }
+
+        if self.first_only && found {
+            return doc_ids;
         }
 
         // Phase 2: flood fill for the distance band.
@@ -362,7 +403,11 @@ impl<S: Surface> Distance<S> {
         let query_vertices = &self.query_edges.get_edge_set((0, 0)).vertices;
 
         // Process the flood fill.
+        let mut flood_found = false;
         while let Some(sweep) = flood_heap.pop() {
+            if self.first_only && flood_found {
+                return;
+            }
             let sweep_cell = S2Cell::new(sweep.cell_id);
             let sweep_cap = sweep_cell.get_cap_bound();
             let sweep_radius = sweep_cap.radius().length2() as f64;
@@ -380,9 +425,28 @@ impl<S: Surface> Distance<S> {
                 reader.range_for_cell(sweep.cell_id, 0, reader.cell_count());
 
             if bulk_include {
+                if self.first_only {
+                    if terms_filter.is_none() && index_start < index_end {
+                        flood_found = true;
+                        continue;
+                    }
+                    if let Some(filter) = terms_filter {
+                        if !reader.doc_ids_data.is_empty() {
+                            reader.visit_doc_ids(index_start, index_end, |doc_id| {
+                                if filter.contains(doc_id) {
+                                    flood_found = true;
+                                    return false;
+                                }
+                                true
+                            });
+                            continue;
+                        }
+                    }
+                }
                 if !reader.doc_ids_data.is_empty() && terms_filter.is_none() {
                     reader.visit_doc_ids(index_start, index_end, |doc_id| {
                         doc_ids.insert(doc_id);
+                        true
                     });
                 } else {
                     for pos in index_start..index_end {
@@ -462,6 +526,9 @@ impl<S: Surface> Distance<S> {
                             if found {
                                 seen.insert(gid);
                                 doc_ids.insert(doc_id);
+                                if self.first_only {
+                                    return;
+                                }
                             }
                             continue;
                         }
@@ -508,6 +575,9 @@ impl<S: Surface> Distance<S> {
                         if found {
                             seen.insert(gid);
                             doc_ids.insert(doc_id);
+                            if self.first_only {
+                                return;
+                            }
                         }
                     }
                 }
