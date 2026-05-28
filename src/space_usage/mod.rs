@@ -407,11 +407,11 @@ mod test {
         let reader = index.reader()?;
         let searcher = reader.searcher();
         let searcher_space_usage = searcher.space_usage()?;
-        assert!(searcher_space_usage.total() > 0);
+        assert_gt!(searcher_space_usage.total(), 0);
         assert_eq!(1, searcher_space_usage.segments().len());
 
         let segment = &searcher_space_usage.segments()[0];
-        assert!(segment.total() > 0);
+        assert_gt!(segment.total(), 0);
 
         assert_eq!(4, segment.num_docs());
 
@@ -448,11 +448,11 @@ mod test {
         let reader = index.reader()?;
         let searcher = reader.searcher();
         let searcher_space_usage = searcher.space_usage()?;
-        assert!(searcher_space_usage.total() > 0);
+        assert_gt!(searcher_space_usage.total(), 0);
         assert_eq!(1, searcher_space_usage.segments().len());
 
         let segment = &searcher_space_usage.segments()[0];
-        assert!(segment.total() > 0);
+        assert_gt!(segment.total(), 0);
 
         assert_eq!(4, segment.num_docs());
 
@@ -487,11 +487,11 @@ mod test {
         let reader = index.reader()?;
         let searcher = reader.searcher();
         let searcher_space_usage = searcher.space_usage()?;
-        assert!(searcher_space_usage.total() > 0);
+        assert_gt!(searcher_space_usage.total(), 0);
         assert_eq!(1, searcher_space_usage.segments().len());
 
         let segment = &searcher_space_usage.segments()[0];
-        assert!(segment.total() > 0);
+        assert_gt!(segment.total(), 0);
 
         assert_eq!(4, segment.num_docs());
 
@@ -539,11 +539,11 @@ mod test {
         let reader = index.reader()?;
         let searcher = reader.searcher();
         let searcher_space_usage = searcher.space_usage()?;
-        assert!(searcher_space_usage.total() > 0);
+        assert_gt!(searcher_space_usage.total(), 0);
         assert_eq!(1, searcher_space_usage.segments().len());
 
         let segment_space_usage = &searcher_space_usage.segments()[0];
-        assert!(segment_space_usage.total() > 0);
+        assert_gt!(segment_space_usage.total(), 0);
 
         assert_eq!(2, segment_space_usage.num_docs());
 

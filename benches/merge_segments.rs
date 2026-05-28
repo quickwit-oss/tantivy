@@ -5,6 +5,7 @@
 // - Output is written to a `NullDirectory` that discards all files except
 //  fieldnorms (needed for merging).
 
+use assertables::assert_gt;
 use std::collections::HashMap;
 use std::io::{self, Write};
 use std::path::{Path, PathBuf};
@@ -153,7 +154,7 @@ fn build_index(
     let schema = schema_builder.build();
     let index = Index::create_in_ram(schema.clone());
 
-    assert!(vocab_size > 0);
+    assert_gt!(vocab_size, 0);
     let total_tokens = num_segments * docs_per_segment * tokens_per_doc;
     let use_unique_terms = vocab_size >= total_tokens;
     let mut rng = StdRng::from_seed([7u8; 32]);

@@ -305,7 +305,7 @@ fn test_merge_columnar_byte() {
 
     let get_bytes_for_row = |row_id| {
         let term_ords: Vec<u64> = vals.term_ords(row_id).collect();
-        assert!(term_ords.len() <= 1);
+        assert_le!(term_ords.len(), 1);
         let mut out = Vec::new();
         if term_ords.len() == 1 {
             vals.ord_to_bytes(term_ords[0], &mut out).unwrap();

@@ -17,9 +17,8 @@
 //!       column.
 //!     - [column_values]: Stores the values of a column in a dense format.
 
-#[cfg(test)]
 #[macro_use]
-extern crate more_asserts;
+extern crate assertables;
 
 use std::fmt::Display;
 use std::io;

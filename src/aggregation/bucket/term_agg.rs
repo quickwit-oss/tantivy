@@ -665,8 +665,8 @@ impl TermAggregationMap for VecTermBucketsNoAgg {
     #[inline(always)]
     fn term_entry(&mut self, term_id: u64, _bucket_id_provider: &mut BucketIdProvider) -> BucketId {
         let term_id_usize = term_id as usize;
-        debug_assert!(
-            term_id_usize < self.buckets.len(),
+        debug_assert_lt!(
+            term_id_usize, self.buckets.len(),
             "term_id {} out of bounds for VecTermBuckets (len={})",
             term_id,
             self.buckets.len()
@@ -722,8 +722,8 @@ impl TermAggregationMap for VecTermBuckets {
     #[inline(always)]
     fn term_entry(&mut self, term_id: u64, _bucket_id_provider: &mut BucketIdProvider) -> BucketId {
         let term_id_usize = term_id as usize;
-        debug_assert!(
-            term_id_usize < self.buckets.len(),
+        debug_assert_lt!(
+            term_id_usize, self.buckets.len(),
             "term_id {} out of bounds for VecTermBuckets (len={})",
             term_id,
             self.buckets.len()

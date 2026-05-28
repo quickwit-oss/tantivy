@@ -422,7 +422,7 @@ impl SerializedBlockMeta {
 
     #[inline]
     fn to_bytes(self) -> [u8; SERIALIZED_BLOCK_META_NUM_BYTES] {
-        assert!(self.num_non_null_rows > 0);
+        assert_gt!(self.num_non_null_rows, 0);
         let mut bytes = [0u8; SERIALIZED_BLOCK_META_NUM_BYTES];
         bytes[0..2].copy_from_slice(&self.block_id.to_le_bytes());
         // We don't store empty blocks, therefore we can subtract 1.

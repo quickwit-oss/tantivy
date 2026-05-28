@@ -35,7 +35,7 @@ fn test_empty_column_i64() {
         assert_eq!(col.min_value(), i64::MIN);
         assert_eq!(col.max_value(), i64::MIN);
     }
-    assert!(num_acceptable_codecs > 0);
+    assert_gt!(num_acceptable_codecs, 0);
 }
 
 #[test]
@@ -53,7 +53,7 @@ fn test_empty_column_u64() {
         assert_eq!(col.min_value(), u64::MIN);
         assert_eq!(col.max_value(), u64::MIN);
     }
-    assert!(num_acceptable_codecs > 0);
+    assert_gt!(num_acceptable_codecs, 0);
 }
 
 #[test]
@@ -72,7 +72,7 @@ fn test_empty_column_f64() {
         assert!(col.min_value().is_nan());
         assert!(col.max_value().is_nan());
     }
-    assert!(num_acceptable_codecs > 0);
+    assert_gt!(num_acceptable_codecs, 0);
 }
 
 pub(crate) fn create_and_validate<TColumnCodec: ColumnCodec>(
@@ -344,7 +344,7 @@ fn test_fastfield_gcd_i64_with_codec(codec_type: CodecType, num_vals: usize) -> 
         &mut buffer_without_gcd,
     )?;
     let buffer_without_gcd = OwnedBytes::new(buffer_without_gcd);
-    assert!(buffer_without_gcd.len() > buffer.len());
+    assert_len_gt!(buffer_without_gcd, buffer);
 
     Ok(())
 }
@@ -387,7 +387,7 @@ fn test_fastfield_gcd_u64_with_codec(codec_type: CodecType, num_vals: usize) -> 
         &mut buffer_without_gcd,
     )?;
     let buffer_without_gcd = OwnedBytes::new(buffer_without_gcd);
-    assert!(buffer_without_gcd.len() > buffer.len());
+    assert_len_gt!(buffer_without_gcd, buffer);
     Ok(())
 }
 

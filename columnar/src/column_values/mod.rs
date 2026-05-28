@@ -63,7 +63,7 @@ pub trait ColumnValues<T: PartialOrd = u64>: Send + Sync + DowncastSync {
     ///
     /// May panic if `idx` is greater than the column length.
     fn get_vals(&self, indexes: &[u32], output: &mut [T]) {
-        assert!(indexes.len() == output.len());
+        assert_eq!(indexes.len(), output.len());
         let out_and_idx_chunks = output.chunks_exact_mut(4).zip(indexes.chunks_exact(4));
         for (out_x4, idx_x4) in out_and_idx_chunks {
             out_x4[0] = self.get_val(idx_x4[0]);
@@ -91,7 +91,7 @@ pub trait ColumnValues<T: PartialOrd = u64>: Send + Sync + DowncastSync {
     ///
     /// May panic if `idx` is greater than the column length.
     fn get_vals_opt(&self, indexes: &[u32], output: &mut [Option<T>]) {
-        assert!(indexes.len() == output.len());
+        assert_eq!(indexes.len(), output.len());
         let out_and_idx_chunks = output.chunks_exact_mut(4).zip(indexes.chunks_exact(4));
         for (out_x4, idx_x4) in out_and_idx_chunks {
             out_x4[0] = Some(self.get_val(idx_x4[0]));

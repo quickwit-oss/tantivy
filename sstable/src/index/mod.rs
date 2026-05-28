@@ -211,7 +211,7 @@ impl FixedSize for BlockStartAddr {
 /// mutates `left into a shorter byte string left'` that
 /// matches `left <= left' < right`.
 fn find_shorter_str_in_between(left: &mut Vec<u8>, right: &[u8]) {
-    assert!(&left[..] < right);
+    assert_lt!(&left[..], right);
     let common_len = common_prefix_len(left, right);
     if left.len() == common_len {
         return;
@@ -290,9 +290,9 @@ mod tests {
     fn test_find_shorter_str_in_between_aux(left: &[u8], right: &[u8]) {
         let mut left_buf = left.to_vec();
         super::find_shorter_str_in_between(&mut left_buf, right);
-        assert!(left_buf.len() <= left.len());
-        assert!(left <= &left_buf);
-        assert!(&left_buf[..] < right);
+        assert_len_le!(left_buf, left);
+        assert_le!(left, &left_buf);
+        assert_lt!(&left_buf[..], right);
     }
 
     #[test]

@@ -49,10 +49,10 @@ mod tests {
 
     fn util_test_search_in_block(block: &[u32], target: u32) {
         let cursor = search_in_block_trivial_but_slow(block, target);
-        assert!(cursor < COMPRESSION_BLOCK_SIZE);
-        assert!(block[cursor] >= target);
+        assert_lt!(cursor, COMPRESSION_BLOCK_SIZE);
+        assert_ge!(block[cursor], target);
         if cursor > 0 {
-            assert!(block[cursor - 1] < target);
+            assert_lt!(block[cursor - 1], target);
         }
         assert_eq!(block.len(), COMPRESSION_BLOCK_SIZE);
         let mut output_buffer = [TERMINATED; COMPRESSION_BLOCK_SIZE];

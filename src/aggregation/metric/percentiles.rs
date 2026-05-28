@@ -338,7 +338,7 @@ impl SegmentAggregationCollector for SegmentPercentilesCollector {
 mod tests {
 
     use itertools::Itertools;
-    use more_asserts::{assert_ge, assert_le};
+    use assertables::{assert_ge, assert_le};
     use rand::rngs::StdRng;
     use rand::SeedableRng;
     use serde_json::Value;

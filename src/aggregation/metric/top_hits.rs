@@ -715,17 +715,17 @@ mod tests {
             order: Order::Asc,
         };
 
-        assert!(small < big);
-        assert!(none < small);
-        assert!(none < big);
+        assert_lt!(small, big);
+        assert_lt!(none, small);
+        assert_lt!(none, big);
 
         let small = invert_order(small);
         let big = invert_order(big);
         let none = invert_order(none);
 
-        assert!(small > big);
-        assert!(none < small);
-        assert!(none < big);
+        assert_gt!(small, big);
+        assert_lt!(none, small);
+        assert_lt!(none, big);
 
         Ok(())
     }
@@ -748,9 +748,9 @@ mod tests {
             doc_value_fields: Default::default(),
         };
 
-        assert!(features_1 < features_2);
+        assert_lt!(features_1, features_2);
 
-        assert!(invert_order_features(features_1.clone()) > invert_order_features(features_2));
+        assert_gt!(invert_order_features(features_1.clone()), invert_order_features(features_2));
 
         Ok(())
     }

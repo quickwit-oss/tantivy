@@ -603,7 +603,7 @@ mod tests {
             let mut hashset: HashSet<u32> = HashSet::new();
             let mut bitset = BitSet::with_max_value(max_value);
             for &el in els {
-                assert!(el < max_value);
+                assert_lt!(el, max_value);
                 hashset.insert(el);
                 bitset.insert(el);
             }

@@ -115,10 +115,10 @@ mod tests {
         let weight = query.weight(EnableScoring::enabled_from_searcher(&searcher))?;
         let mut scorer = weight.scorer(searcher.segment_reader(0), 1.0f32)?;
         assert_eq!(scorer.doc(), 0);
-        assert!((scorer.score() - 0.22920431).abs() < 0.001f32);
+        assert_lt!((scorer.score() - 0.22920431).abs(), 0.001f32);
         assert_eq!(scorer.advance(), 1);
         assert_eq!(scorer.doc(), 1);
-        assert!((scorer.score() - 0.22920431).abs() < 0.001f32);
+        assert_lt!((scorer.score() - 0.22920431).abs(), 0.001f32);
         assert_eq!(scorer.advance(), TERMINATED);
         Ok(())
     }
@@ -144,10 +144,10 @@ mod tests {
         let weight = query.weight(EnableScoring::enabled_from_searcher(&searcher))?;
         let mut scorer = weight.scorer(searcher.segment_reader(0), 1.0f32)?;
         assert_eq!(scorer.doc(), 0);
-        assert!((scorer.score() - 0.22920431).abs() < 0.001f32);
+        assert_lt!((scorer.score() - 0.22920431).abs(), 0.001f32);
         assert_eq!(scorer.advance(), 1);
         assert_eq!(scorer.doc(), 1);
-        assert!((scorer.score() - 0.15136132).abs() < 0.001f32);
+        assert_lt!((scorer.score() - 0.15136132).abs(), 0.001f32);
         assert_eq!(scorer.advance(), TERMINATED);
         Ok(())
     }

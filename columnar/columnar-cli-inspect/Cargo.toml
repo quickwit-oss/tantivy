@@ -8,6 +8,7 @@ license = "MIT"
 tantivy = {path="../..", package="tantivy"}
 columnar = {path="../", package="tantivy-columnar"}
 common = {path="../../common", package="tantivy-common"}
+assertables = "10.0.0"
 
 [workspace]
 members = []

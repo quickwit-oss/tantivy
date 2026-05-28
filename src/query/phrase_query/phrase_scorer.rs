@@ -522,7 +522,7 @@ impl<TPostings: Postings> DocSet for PhraseScorer<TPostings> {
     }
 
     fn seek(&mut self, target: DocId) -> DocId {
-        debug_assert!(target >= self.doc());
+        debug_assert_ge!(target, self.doc());
         let doc = self.intersection_docset.seek(target);
         if doc == TERMINATED || self.phrase_match() {
             return doc;
@@ -531,8 +531,8 @@ impl<TPostings: Postings> DocSet for PhraseScorer<TPostings> {
     }
 
     fn seek_danger(&mut self, target: DocId) -> SeekDangerResult {
-        debug_assert!(
-            target >= self.doc(),
+        debug_assert_ge!(
+            target, self.doc(),
             "target ({}) should be greater than or equal to doc ({})",
             target,
             self.doc()

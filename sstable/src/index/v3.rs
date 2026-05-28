@@ -268,7 +268,7 @@ impl BlockAddrBlockMetadata {
 // TODO move this function to tantivy_common?
 #[inline(always)]
 fn extract_bits(data: &[u8], addr_bits: usize, num_bits: u8) -> u64 {
-    assert!(num_bits <= 56);
+    assert_le!(num_bits, 56);
     let addr_byte = addr_bits / 8;
     let bit_shift = (addr_bits % 8) as u64;
     let val_unshifted_unmasked: u64 = if data.len() >= addr_byte + 8 {

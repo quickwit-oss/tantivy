@@ -1,5 +1,8 @@
 #![cfg_attr(all(feature = "unstable", test), feature(test))]
 
+#[macro_use]
+extern crate assertables;
+
 #[cfg(all(test, feature = "unstable"))]
 extern crate test;
 

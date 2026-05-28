@@ -149,8 +149,8 @@ impl ExpUnrolledLinkedList {
         let last_block_len = block_size.saturating_sub(self.remaining_cap as usize);
 
         // Safety check: if remaining_cap > block_size, the metadata is corrupted
-        assert!(
-            self.remaining_cap as usize <= block_size,
+        assert_lt!(
+            self.remaining_cap as usize, block_size,
             "ExpUnrolledLinkedList metadata corruption detected: remaining_cap ({}) > block_size \
              ({}). This indicates a serious bug, please report! (block_num={}, head={:?}, \
              tail={:?})",
@@ -328,8 +328,8 @@ mod tests {
         }
 
         // Verify we allocated many blocks (should be in the thousands)
-        assert!(
-            eull.block_num > 1000,
+        assert_gt!(
+            eull.block_num, 1000,
             "block_num ({}) should be > 1000 for this much data",
             eull.block_num
         );

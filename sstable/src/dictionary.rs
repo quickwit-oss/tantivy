@@ -528,7 +528,7 @@ impl<TSSTable: SSTable> Dictionary<TSSTable> {
                     cb(&bytes);
                 } else {
                     // we checked it was sorted beforehands
-                    debug_assert!(next_ord > ord);
+                    debug_assert_gt!(next_ord, ord);
                     break next_ord;
                 }
             };

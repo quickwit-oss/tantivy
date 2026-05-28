@@ -126,7 +126,7 @@ pub fn get_compact_space(
         compact_space_builder.add_blanks(blank_collector.drain().map(|blank| blank.blank_range()));
     }
 
-    assert!(amplitude_bits <= 32);
+    assert_le!(amplitude_bits, 32);
 
     // special case, when we don't collected any blanks because:
     // * the data is empty (early exit)
@@ -247,6 +247,6 @@ mod tests {
     fn test_worst_case_scenario() {
         let vals: BTreeSet<u128> = (0..8).map(|i| i * ((1u128 << 34) / 8)).collect();
         let compact_space = get_compact_space(&vals, vals.len() as u32, COST_PER_BLANK_IN_BITS);
-        assert!(compact_space.amplitude_compact_space() < u32::MAX as u128);
+        assert_lt!(compact_space.amplitude_compact_space(), u32::MAX as u128);
     }
 }

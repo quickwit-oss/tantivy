@@ -191,8 +191,8 @@ impl CompactSpaceCompressor {
             get_compact_space(&values_sorted, total_num_values, COST_PER_BLANK_IN_BITS);
         let amplitude_compact_space = compact_space.amplitude_compact_space();
 
-        assert!(
-            amplitude_compact_space <= u64::MAX as u128,
+        assert_le!(
+            amplitude_compact_space, u64::MAX as u128,
             "case unsupported."
         );
 
@@ -403,7 +403,7 @@ impl ColumnValues<u128> for CompactSpaceDecompressor {
         let position_range = position_range.start..position_range.end.min(self.num_vals());
         let from_value = *value_range.start();
         let to_value = *value_range.end();
-        assert!(to_value >= from_value);
+        assert_ge!(to_value, from_value);
         let compact_from = self.u128_to_compact(from_value);
         let compact_to = self.u128_to_compact(to_value);
 

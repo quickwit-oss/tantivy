@@ -2,6 +2,7 @@ use std::io;
 use std::ops::{Range, RangeInclusive};
 
 use bitpacking::{BitPacker as ExternalBitPackerTrait, BitPacker1x};
+use assertables::{assert_le, debug_assert_lt};
 
 pub struct BitPacker {
     mini_buffer: u64,
@@ -115,7 +116,7 @@ impl BitUnpacker {
         let mut bytes: [u8; 8] = [0u8; 8];
         let available_bytes = data.len() - addr;
         // This function is meant to only be called if we did not have 8 bytes to load.
-        debug_assert!(available_bytes < 8);
+        debug_assert_lt!(available_bytes, 8);
         bytes[..available_bytes].copy_from_slice(&data[addr..]);
         let val_unshifted_unmasked: u64 = u64::from_le_bytes(bytes);
         let val_shifted = val_unshifted_unmasked >> bit_shift;
@@ -129,8 +130,8 @@ impl BitUnpacker {
     //
     // This methods panics if `num_bits` is > 32.
     fn get_batch_u32s(&self, start_idx: u32, data: &[u8], output: &mut [u32]) {
-        assert!(
-            self.bit_width() <= 32,
+        assert_le!(
+            self.bit_width(), 32,
             "Bitwidth must be <= 32 to use this method."
         );
 
@@ -139,8 +140,8 @@ impl BitUnpacker {
         // We use `usize` here to avoid overflow issues.
         let end_bit_read = (end_idx as usize) * self.num_bits;
         let end_byte_read = end_bit_read.div_ceil(8);
-        assert!(
-            end_byte_read <= data.len(),
+        assert_le!(
+            end_byte_read, data.len(),
             "Requested index is out of bounds."
         );
 
@@ -312,7 +313,7 @@ mod test {
             (1u64 << num_bits) - 1
         };
         for (i, val) in vals.iter().copied().enumerate() {
-            assert!(val <= max_val);
+            assert_le!(val, max_val);
             assert_eq!(bitunpacker.get(i as u32, &buffer), val);
         }
     }

@@ -11,6 +11,7 @@ categories = ["database-implementations", "data-structures", "compression"]
 [dependencies]
 itertools = "0.14.0"
 fastdivide = "0.4.0"
+assertables = "10.0.0"
 
 stacker = { version= "0.7", path = "../stacker", package="tantivy-stacker"}
 sstable = { version= "0.7", path = "../sstable", package = "tantivy-sstable" }
@@ -20,8 +21,8 @@ serde = "1.0.152"
 downcast-rs = "2.0.1"
 
 [dev-dependencies]
+assertables = "10.0.0"
 proptest = "1"
-more-asserts = "0.3.1"
 rand = "0.9"
 binggan = "0.17.0"
 

@@ -1255,7 +1255,7 @@ mod tests {
 
         let bytes = collector.to_sketch_bytes();
         let deserialized = HllSketch::deserialize(&bytes).unwrap();
-        assert!((deserialized.estimate() - 3.0).abs() < 0.01);
+        assert_lt!((deserialized.estimate() - 3.0).abs(), 0.01);
     }
 
     /// Tests that the `missing` parameter correctly counts a single empty document

@@ -61,8 +61,8 @@ impl RegexPhraseQuery {
         mut terms: Vec<(usize, String)>,
         slop: u32,
     ) -> RegexPhraseQuery {
-        assert!(
-            terms.len() > 1,
+        assert_gt!(
+            terms.len(), 1,
             "A phrase query is required to have strictly more than one term."
         );
         terms.sort_by_key(|&(offset, _)| offset);

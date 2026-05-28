@@ -85,7 +85,7 @@ impl<TDocSet: DocSet> Intersection<TDocSet, TDocSet> {
         segment_num_docs: u32,
     ) -> Intersection<TDocSet, TDocSet> {
         let num_docsets = docsets.len();
-        assert!(num_docsets >= 2);
+        assert_ge!(num_docsets, 2);
         docsets.sort_by_key(|docset| docset.cost());
         go_to_first_doc(&mut docsets);
         let left = docsets.remove(0);
