@@ -694,6 +694,35 @@ mod tests {
         Ok(())
     }
 
+    /// An `AND` over an empty `TermSetDocSet` used to underflow inside
+    /// `size_hint` because `intersect_scorers` sorts sub-scorers by
+    /// `cost()`, and the docset's `doc_id` had already been parked on
+    /// `TERMINATED` (`u32::MAX`) by `advance()`. IP fields always route
+    /// to `TermSetDocSet` (no Gallop/Bitset/Automaton dispatch), so an
+    /// IP intersection is the easiest deterministic trigger.
+    #[test]
+    pub fn test_term_set_query_size_hint_no_match_in_intersection() -> crate::Result<()> {
+        use crate::query::BooleanQuery;
+        let index = create_test_index()?;
+        let reader = index.reader()?;
+        let searcher = reader.searcher();
+        let ip_field_fast = index.schema().get_field("ip_fast").unwrap();
+        let no_match: Box<dyn crate::query::Query> =
+            Box::new(FastFieldTermSetQuery::new(vec![Term::from_field_ip_addr(
+                ip_field_fast,
+                IpAddr::from_str("10.0.0.1").unwrap().into_ipv6_addr(),
+            )]));
+        let some_match: Box<dyn crate::query::Query> =
+            Box::new(FastFieldTermSetQuery::new(vec![Term::from_field_ip_addr(
+                ip_field_fast,
+                IpAddr::from_str("127.0.0.1").unwrap().into_ipv6_addr(),
+            )]));
+        let intersection = BooleanQuery::intersection(vec![no_match, some_match]);
+        let count = searcher.search(&intersection, &Count)?;
+        assert_eq!(count, 0);
+        Ok(())
+    }
+
     #[test]
     pub fn test_term_set_query_fast_field_empty() -> crate::Result<()> {
         let index = create_test_index()?;
@@ -807,6 +836,10 @@ impl<T: Copy + Eq + std::hash::Hash + PartialOrd + std::fmt::Debug + Send + Sync
     }
 
     fn size_hint(&self) -> u32 {
-        self.max_doc - self.doc_id.saturating_add(1)
+        // `advance()` parks `doc_id` on `TERMINATED` (`u32::MAX`) once it
+        // exhausts the column. The plain subtraction here used to underflow
+        // because `TERMINATED.saturating_add(1)` is still `u32::MAX`, and
+        // `cost()` reaches for this hint while sorting `intersect_scorers`.
+        self.max_doc.saturating_sub(self.doc_id.saturating_add(1))
     }
 }
