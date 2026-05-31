@@ -66,17 +66,16 @@ fn refill<TScorer: Scorer, TScoreCombiner: ScoreCombiner>(
         loop {
             let doc = scorer.doc();
             if doc >= horizon {
-                return false;
+                break;
             }
             // add this document
             let delta = doc - min_doc;
             bitsets[(delta / 64) as usize].insert_mut(delta % 64u32);
             score_combiner[delta as usize].update(scorer);
-            if scorer.advance() == TERMINATED {
-                // remove the docset, it has been entirely consumed.
-                return true;
-            }
+            scorer.advance();
         }
+        // remove the docset if it has been entirely consumed.
+        scorer.doc() == TERMINATED
     });
 }
 
