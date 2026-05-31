@@ -242,20 +242,20 @@ impl BlockSegmentPostings {
 
     pub(crate) fn copy_docs_and_term_freqs(
         &self,
-        start: usize,
+        block_offset: usize,
         horizon: DocId,
         docs: &mut [DocId],
         term_freqs: &mut [u32],
     ) -> usize {
         debug_assert_eq!(docs.len(), term_freqs.len());
         let block_docs = self.docs();
-        let available = block_docs.len().saturating_sub(start);
-        let max_len = available.min(docs.len());
+        let remaining_docs_in_block = block_docs.len().saturating_sub(block_offset);
+        let max_len = remaining_docs_in_block.min(docs.len());
         if max_len == 0 {
             return 0;
         }
 
-        let source_docs = &block_docs[start..start + max_len];
+        let source_docs = &block_docs[block_offset..block_offset + max_len];
         let len = if source_docs[max_len - 1] < horizon {
             max_len
         } else {
@@ -268,8 +268,8 @@ impl BlockSegmentPostings {
         docs[..len].copy_from_slice(&source_docs[..len]);
 
         let block_freqs = self.freq_output_array();
-        if block_freqs.len() >= start + len {
-            term_freqs[..len].copy_from_slice(&block_freqs[start..start + len]);
+        if block_freqs.len() >= block_offset + len {
+            term_freqs[..len].copy_from_slice(&block_freqs[block_offset..block_offset + len]);
         } else {
             term_freqs[..len].fill(1);
         }

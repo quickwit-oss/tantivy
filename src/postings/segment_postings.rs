@@ -158,18 +158,18 @@ impl SegmentPostings {
         docs: &mut [DocId; COLLECT_BLOCK_BUFFER_LEN],
         term_freqs: &mut [u32; COLLECT_BLOCK_BUFFER_LEN],
     ) -> usize {
-        let mut filled = 0;
-        while filled < COLLECT_BLOCK_BUFFER_LEN && self.doc() < horizon {
+        let mut num_elems = 0;
+        while num_elems < COLLECT_BLOCK_BUFFER_LEN && self.doc() < horizon {
             let copied = self.block_cursor.copy_docs_and_term_freqs(
                 self.cur,
                 horizon,
-                &mut docs[filled..],
-                &mut term_freqs[filled..],
+                &mut docs[num_elems..],
+                &mut term_freqs[num_elems..],
             );
             if copied == 0 {
                 break;
             }
-            filled += copied;
+            num_elems += copied;
             self.cur += copied;
 
             if self.cur == COMPRESSION_BLOCK_SIZE {
@@ -177,7 +177,7 @@ impl SegmentPostings {
                 self.block_cursor.advance();
             }
         }
-        filled
+        num_elems
     }
 }
 
