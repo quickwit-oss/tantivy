@@ -111,7 +111,6 @@ where
     fn score(&mut self) -> Score {
         self.underlying_docset.score()
     }
-
 }
 
 #[cfg(test)]

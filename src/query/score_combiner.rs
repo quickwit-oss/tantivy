@@ -51,6 +51,11 @@ pub trait ScoreCombiner: Default + Clone + Send + Copy + 'static {
         self.update(&mut scorer);
     }
 
+    /// Returns true if this combiner needs scorer scores to compute its state.
+    fn requires_scoring() -> bool {
+        true
+    }
+
     /// Clears the score combiner state back to its initial state.
     fn clear(&mut self);
 
@@ -69,6 +74,10 @@ impl ScoreCombiner for DoNothingCombiner {
     fn update<TScorer: Scorer>(&mut self, _scorer: &mut TScorer) {}
 
     fn update_score(&mut self, _doc: DocId, _score: Score) {}
+
+    fn requires_scoring() -> bool {
+        false
+    }
 
     fn clear(&mut self) {}
 

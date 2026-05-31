@@ -253,7 +253,8 @@ impl<TScorer: Scorer, TScoreCombiner: ScoreCombiner> BufferedUnionScorer<TScorer
         score_combiner_fn: impl FnOnce() -> TScoreCombiner,
         num_docs: u32,
     ) -> BufferedUnionScorer<TScorer, TScoreCombiner> {
-        let use_score_doc_refill = docsets.iter().all(Scorer::can_score_doc);
+        let use_score_doc_refill =
+            TScoreCombiner::requires_scoring() && docsets.iter().all(Scorer::can_score_doc);
         let non_empty_docsets: Vec<TScorer> = docsets
             .into_iter()
             .filter(|docset| docset.doc() != TERMINATED)
