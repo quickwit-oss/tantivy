@@ -10,6 +10,7 @@ use crate::{DocId, Score};
 // of upcoming document IDs (the "horizon").
 const HORIZON_NUM_TINYBITSETS: usize = HORIZON as usize / 64;
 const HORIZON: u32 = 64u32 * 64u32;
+const GROUPED_INSERT_MAX_BUCKET_SPAN: u32 = 2;
 
 /// Creates a `DocSet` that iterate through the union of two or more `DocSet`s.
 pub struct BufferedUnionScorer<TScorer, TScoreCombiner = DoNothingCombiner> {
@@ -36,9 +37,168 @@ pub struct BufferedUnionScorer<TScorer, TScoreCombiner = DoNothingCombiner> {
     score: Score,
     /// Number of documents in the segment.
     num_docs: u32,
+    /// Scratch buffer for block-based refill.
+    refill_docs: [DocId; COLLECT_BLOCK_BUFFER_LEN],
+    /// Scratch buffer for term frequencies matching `refill_docs`.
+    refill_term_freqs: [u32; COLLECT_BLOCK_BUFFER_LEN],
+    /// Whether all children support scoring buffered docs after advancing.
+    use_score_doc_refill: bool,
 }
 
-fn refill_scorer<TScorer: Scorer, TScoreCombiner: ScoreCombiner>(
+#[inline]
+fn union_bucket(
+    bitsets: &mut [TinySet; HORIZON_NUM_TINYBITSETS],
+    bucket_pos: u32,
+    tinyset: TinySet,
+) {
+    debug_assert!((bucket_pos as usize) < HORIZON_NUM_TINYBITSETS);
+    // `bucket` comes from a doc delta below `HORIZON`; there are exactly
+    // `HORIZON / 64` buckets in the refill window.
+    bitsets[bucket_pos as usize] = bitsets[bucket_pos as usize].union(tinyset);
+}
+
+#[inline]
+fn insert_delta(bitsets: &mut [TinySet; HORIZON_NUM_TINYBITSETS], delta: DocId) {
+    debug_assert!(delta < HORIZON);
+    // `delta < HORIZON`, so `delta / 64` is in the bitset array. The bit
+    // offset is reduced modulo 64 before being inserted in the TinySet.
+    bitsets[delta as usize / 64].insert_mut(delta % 64u32);
+}
+
+fn insert_and_score_full_buffer<TScorer: Scorer, TScoreCombiner: ScoreCombiner>(
+    scorer: &mut TScorer,
+    docs: &[DocId; COLLECT_BLOCK_BUFFER_LEN],
+    term_freqs: &[u32; COLLECT_BLOCK_BUFFER_LEN],
+    bitsets: &mut [TinySet; HORIZON_NUM_TINYBITSETS],
+    score_combiner: &mut [TScoreCombiner; HORIZON as usize],
+    min_doc: DocId,
+) {
+    debug_assert!(docs.windows(2).all(|pair| pair[0] < pair[1]));
+    debug_assert!(docs[COLLECT_BLOCK_BUFFER_LEN - 1] - min_doc < HORIZON);
+
+    let first_delta = docs[0] - min_doc;
+    let last_delta = docs[COLLECT_BLOCK_BUFFER_LEN - 1] - min_doc;
+    let first_bucket = first_delta / 64;
+    let last_bucket = last_delta / 64;
+
+    // Common for very dense scorers: 64 distinct doc ids in one 64-doc bucket
+    // means all bits in that bucket are present.
+    if first_bucket == last_bucket {
+        union_bucket(bitsets, first_bucket, TinySet::full());
+        score_full_buffer(scorer, docs, term_freqs, score_combiner, min_doc);
+        return;
+    }
+
+    // 64 sorted distinct integers spanning exactly 64 values are consecutive.
+    // If they cross a TinySet boundary, this is just the suffix of the first
+    // bucket plus the prefix of the second bucket.
+    if last_delta - first_delta == COLLECT_BLOCK_BUFFER_LEN as u32 - 1 {
+        union_bucket(
+            bitsets,
+            first_bucket,
+            TinySet::range_greater_or_equal(first_delta % 64u32),
+        );
+        union_bucket(
+            bitsets,
+            last_bucket,
+            TinySet::range_lower((last_delta + 1) % 64u32),
+        );
+        score_full_buffer(scorer, docs, term_freqs, score_combiner, min_doc);
+        return;
+    }
+
+    // Grouping wins only for very dense buffers that hit the same TinySet many
+    // times. Once the 64 docs are spread farther, a straight pass is cheaper.
+    if last_bucket - first_bucket <= GROUPED_INSERT_MAX_BUCKET_SPAN {
+        let mut bucket = first_bucket;
+        let mut tinyset = TinySet::empty();
+        for (&doc, &term_freq) in docs.iter().zip(term_freqs.iter()) {
+            let delta = doc - min_doc;
+            let delta_bucket = delta / 64;
+            if delta_bucket != bucket {
+                union_bucket(bitsets, bucket, tinyset);
+                bucket = delta_bucket;
+                tinyset = TinySet::empty();
+            }
+            tinyset.insert_mut(delta % 64u32);
+            let score = scorer.score_doc(doc, term_freq);
+            update_score_combiner(score_combiner, delta, doc, score);
+        }
+        union_bucket(bitsets, bucket, tinyset);
+    } else {
+        for (&doc, &term_freq) in docs.iter().zip(term_freqs.iter()) {
+            let delta = doc - min_doc;
+            insert_delta(bitsets, delta);
+            // TODO: score_doc access the field_norm reader for each _term_, instead of once per doc.
+            // We could optimize this by caching the field norm for the doc, and reusing it for all
+            // terms in the doc.
+            let score = scorer.score_doc(doc, term_freq);
+            update_score_combiner(score_combiner, delta, doc, score);
+        }
+    }
+}
+
+#[inline]
+fn update_score_combiner<TScoreCombiner: ScoreCombiner>(
+    score_combiner: &mut [TScoreCombiner; HORIZON as usize],
+    delta: DocId,
+    doc: DocId,
+    score: Score,
+) {
+    debug_assert!(delta < HORIZON);
+    // Full and partial refill only buffer docs below `horizon`, so their
+    // deltas are always in the score-combiner window.
+    score_combiner[delta as usize].update_score(doc, score);
+}
+
+fn score_full_buffer<TScorer: Scorer, TScoreCombiner: ScoreCombiner>(
+    scorer: &mut TScorer,
+    docs: &[DocId; COLLECT_BLOCK_BUFFER_LEN],
+    term_freqs: &[u32; COLLECT_BLOCK_BUFFER_LEN],
+    score_combiner: &mut [TScoreCombiner; HORIZON as usize],
+    min_doc: DocId,
+) {
+    for (&doc, &term_freq) in docs.iter().zip(term_freqs.iter()) {
+        let score = scorer.score_doc(doc, term_freq);
+        update_score_combiner(score_combiner, doc - min_doc, doc, score);
+    }
+}
+
+fn refill_scorer_with_score_docs<TScorer: Scorer, TScoreCombiner: ScoreCombiner>(
+    scorer: &mut TScorer,
+    bitsets: &mut [TinySet; HORIZON_NUM_TINYBITSETS],
+    score_combiner: &mut [TScoreCombiner; HORIZON as usize],
+    docs: &mut [DocId; COLLECT_BLOCK_BUFFER_LEN],
+    term_freqs: &mut [u32; COLLECT_BLOCK_BUFFER_LEN],
+    min_doc: DocId,
+    horizon: DocId,
+) {
+    loop {
+        let len = scorer.fill_buffer_up_to_with_term_freqs(horizon, docs, term_freqs);
+        if len == COLLECT_BLOCK_BUFFER_LEN {
+            debug_assert!(docs[COLLECT_BLOCK_BUFFER_LEN - 1] != TERMINATED);
+            debug_assert!(docs[COLLECT_BLOCK_BUFFER_LEN - 1] < horizon);
+            insert_and_score_full_buffer(
+                scorer,
+                docs,
+                term_freqs,
+                bitsets,
+                score_combiner,
+                min_doc,
+            );
+        } else {
+            for (&doc, &term_freq) in docs[..len].iter().zip(term_freqs[..len].iter()) {
+                let delta = doc - min_doc;
+                insert_delta(bitsets, delta);
+                let score = scorer.score_doc(doc, term_freq);
+                update_score_combiner(score_combiner, delta, doc, score);
+            }
+            break;
+        }
+    }
+}
+
+fn refill_scorer_from_current_doc<TScorer: Scorer, TScoreCombiner: ScoreCombiner>(
     scorer: &mut TScorer,
     bitsets: &mut [TinySet; HORIZON_NUM_TINYBITSETS],
     score_combiner: &mut [TScoreCombiner; HORIZON as usize],
@@ -50,9 +210,9 @@ fn refill_scorer<TScorer: Scorer, TScoreCombiner: ScoreCombiner>(
         if doc >= horizon {
             break;
         }
-        // add this document
         let delta = doc - min_doc;
-        bitsets[(delta / 64) as usize].insert_mut(delta % 64u32);
+        insert_delta(bitsets, delta);
+        debug_assert!(delta < HORIZON);
         score_combiner[delta as usize].update(scorer);
         scorer.advance();
     }
@@ -62,11 +222,26 @@ fn refill<TScorer: Scorer, TScoreCombiner: ScoreCombiner>(
     scorers: &mut Vec<TScorer>,
     bitsets: &mut [TinySet; HORIZON_NUM_TINYBITSETS],
     score_combiner: &mut [TScoreCombiner; HORIZON as usize],
+    docs: &mut [DocId; COLLECT_BLOCK_BUFFER_LEN],
+    term_freqs: &mut [u32; COLLECT_BLOCK_BUFFER_LEN],
     min_doc: DocId,
+    use_score_doc_refill: bool,
 ) {
     let horizon = min_doc + HORIZON;
     for scorer in scorers.iter_mut() {
-        refill_scorer(scorer, bitsets, score_combiner, min_doc, horizon);
+        if use_score_doc_refill {
+            refill_scorer_with_score_docs(
+                scorer,
+                bitsets,
+                score_combiner,
+                docs,
+                term_freqs,
+                min_doc,
+                horizon,
+            );
+        } else {
+            refill_scorer_from_current_doc(scorer, bitsets, score_combiner, min_doc, horizon);
+        }
     }
     scorers.retain(|scorer| scorer.doc() != TERMINATED);
 }
@@ -78,6 +253,7 @@ impl<TScorer: Scorer, TScoreCombiner: ScoreCombiner> BufferedUnionScorer<TScorer
         score_combiner_fn: impl FnOnce() -> TScoreCombiner,
         num_docs: u32,
     ) -> BufferedUnionScorer<TScorer, TScoreCombiner> {
+        let use_score_doc_refill = docsets.iter().all(Scorer::can_score_doc);
         let non_empty_docsets: Vec<TScorer> = docsets
             .into_iter()
             .filter(|docset| docset.doc() != TERMINATED)
@@ -91,6 +267,9 @@ impl<TScorer: Scorer, TScoreCombiner: ScoreCombiner> BufferedUnionScorer<TScorer
             doc: 0,
             score: 0.0,
             num_docs,
+            refill_docs: [TERMINATED; COLLECT_BLOCK_BUFFER_LEN],
+            refill_term_freqs: [1u32; COLLECT_BLOCK_BUFFER_LEN],
+            use_score_doc_refill,
         };
         if union.refill() {
             union.advance();
@@ -111,7 +290,10 @@ impl<TScorer: Scorer, TScoreCombiner: ScoreCombiner> BufferedUnionScorer<TScorer
                 &mut self.docsets,
                 &mut self.bitsets,
                 &mut self.scores,
+                &mut self.refill_docs,
+                &mut self.refill_term_freqs,
                 min_doc,
+                self.use_score_doc_refill,
             );
             true
         } else {

@@ -91,10 +91,14 @@ fn into_box_scorer<TScoreCombiner: ScoreCombiner>(
     num_docs: u32,
 ) -> Box<dyn Scorer> {
     match scorer {
-        SpecializedScorer::TermUnion(term_scorers) => {
-            let union_scorer =
-                BufferedUnionScorer::build(term_scorers, score_combiner_fn, num_docs);
-            Box::new(union_scorer)
+        SpecializedScorer::TermUnion(mut term_scorers) => {
+            if term_scorers.len() == 1 {
+                Box::new(term_scorers.pop().unwrap())
+            } else {
+                let union_scorer =
+                    BufferedUnionScorer::build(term_scorers, score_combiner_fn, num_docs);
+                Box::new(union_scorer)
+            }
         }
         SpecializedScorer::TermIntersection(term_scorers) => {
             let boxed_scorers: Vec<Box<dyn Scorer>> = term_scorers
