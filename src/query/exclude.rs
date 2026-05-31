@@ -112,15 +112,6 @@ where
         self.underlying_docset.score()
     }
 
-    #[inline]
-    fn can_score_doc(&self) -> bool {
-        self.underlying_docset.can_score_doc()
-    }
-
-    #[inline]
-    fn score_doc(&mut self, doc: DocId, term_freq: u32) -> Score {
-        self.underlying_docset.score_doc(doc, term_freq)
-    }
 }
 
 #[cfg(test)]

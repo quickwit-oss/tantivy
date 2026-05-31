@@ -14,27 +14,34 @@ pub trait Scorer: downcast_rs::Downcast + DocSet + 'static {
     /// This method will perform a bit of computation and is not cached.
     fn score(&mut self) -> Score;
 
-    /// Returns true if [`Scorer::score_doc`] can score arbitrary buffered docs without
+    /// Returns true if [`Scorer::score_doc`] can score buffered docs without
     /// repositioning the scorer.
+    ///
+    /// Scorers whose [`Scorer::score_doc`] needs term frequencies must also override
+    /// [`Scorer::fill_buffer_up_to_with_term_freqs`].
     fn can_score_doc(&self) -> bool {
         false
     }
 
     /// Returns the score for `doc` with its term frequency.
     fn score_doc(&mut self, _doc: DocId, _term_freq: u32) -> Score {
-        panic!("score_doc is not supported by this scorer. You need check can_score_doc() before calling this method.")
+        panic!(
+            "score_doc is not supported by this scorer. You need check can_score_doc() before \
+             calling this method."
+        )
     }
 
-    /// Fills docs and term frequencies up to `horizon`.
+    /// Fills docs up to `horizon`.
+    ///
+    /// The default implementation does not fill `term_freqs`. Scorers whose
+    /// [`Scorer::score_doc`] reads term frequencies must override this method.
     fn fill_buffer_up_to_with_term_freqs(
         &mut self,
         horizon: DocId,
         docs: &mut [DocId; COLLECT_BLOCK_BUFFER_LEN],
-        term_freqs: &mut [u32; COLLECT_BLOCK_BUFFER_LEN],
+        _term_freqs: &mut [u32; COLLECT_BLOCK_BUFFER_LEN],
     ) -> usize {
-        let len = DocSet::fill_buffer_up_to(self, horizon, docs);
-        term_freqs[..len].fill(1);
-        len
+        DocSet::fill_buffer_up_to(self, horizon, docs)
     }
 }
 

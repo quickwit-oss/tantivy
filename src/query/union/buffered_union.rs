@@ -129,9 +129,9 @@ fn insert_and_score_full_buffer<TScorer: Scorer, TScoreCombiner: ScoreCombiner>(
         for (&doc, &term_freq) in docs.iter().zip(term_freqs.iter()) {
             let delta = doc - min_doc;
             insert_delta(bitsets, delta);
-            // TODO: score_doc access the field_norm reader for each _term_, instead of once per doc.
-            // We could optimize this by caching the field norm for the doc, and reusing it for all
-            // terms in the doc.
+            // TODO: score_doc access the field_norm reader for each _term_, instead of once per
+            // doc. We could optimize this by caching the field norm for the doc, and
+            // reusing it for all terms in the doc.
             let score = scorer.score_doc(doc, term_freq);
             update_score_combiner(score_combiner, delta, doc, score);
         }

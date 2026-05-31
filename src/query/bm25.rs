@@ -83,8 +83,8 @@ thread_local! {
 /// The cache is shared across all [Bm25Weight] with the same average fieldnorm on the same thread.
 /// It is stored in a thread local LRU cache.
 ///
-/// On one query all terms on the same field will share the same average fieldnorm, and thus the same cache.
-/// This will lower cache pressure.
+/// On one query all terms on the same field will share the same average fieldnorm, and thus the
+/// same cache. This will lower cache pressure.
 ///
 /// Even between queries (on the same thread), the cache will be reused, which allows the cache to
 /// better learn the memory address of the cache and access patterns.
