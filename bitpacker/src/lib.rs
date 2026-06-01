@@ -1,9 +1,3 @@
-// SVE/SVE2 intrinsics require nightly; only unlock when build.rs detects a nightly compiler.
-#![cfg_attr(
-    all(target_arch = "aarch64", not(target_vendor = "apple"), nightly),
-    feature(stdarch_aarch64_sve)
-)]
-
 mod bitpacker;
 mod blocked_bitpacker;
 mod filter_vec;

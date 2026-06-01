@@ -74,7 +74,12 @@ fn bench_filter_vec() {
     let (unpacker, data) = create_packed_data();
     let positions = RefCell::new(Vec::with_capacity(N));
     runner.bench_function("filter_vec_dense", move |_| {
-        unpacker.get_ids_for_value_range(250..=750, 0..N as u32, &data, &mut positions.borrow_mut());
+        unpacker.get_ids_for_value_range(
+            250..=750,
+            0..N as u32,
+            &data,
+            &mut positions.borrow_mut(),
+        );
         black_box(positions.borrow().len());
     });
 
@@ -88,7 +93,12 @@ fn bench_filter_vec() {
     let (unpacker, data) = create_packed_data();
     let positions = RefCell::new(Vec::with_capacity(N));
     runner.bench_function("filter_vec_full", move |_| {
-        unpacker.get_ids_for_value_range(0..=MAX_VAL, 0..N as u32, &data, &mut positions.borrow_mut());
+        unpacker.get_ids_for_value_range(
+            0..=MAX_VAL,
+            0..N as u32,
+            &data,
+            &mut positions.borrow_mut(),
+        );
         black_box(positions.borrow().len());
     });
 }

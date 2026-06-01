@@ -1,4 +1,4 @@
-#[cfg(all(target_arch = "aarch64", not(target_vendor = "apple"), nightly))]
+#[cfg(all(target_arch = "aarch64", not(target_vendor = "apple")))]
 use std::arch::is_aarch64_feature_detected;
 use std::ops::RangeInclusive;
 
@@ -8,8 +8,8 @@ mod avx2;
 #[cfg(target_arch = "aarch64")]
 mod neon;
 
-// SVE intrinsics are nightly-only and not exposed on aarch64-apple-darwin.
-#[cfg(all(target_arch = "aarch64", not(target_vendor = "apple"), nightly))]
+// SVE intrinsics are not exposed on aarch64-apple-darwin.
+#[cfg(all(target_arch = "aarch64", not(target_vendor = "apple")))]
 mod sve;
 
 mod scalar;
@@ -19,7 +19,7 @@ mod scalar;
 enum FilterImplPerInstructionSet {
     #[cfg(target_arch = "x86_64")]
     AVX2 = 0u8,
-    #[cfg(all(target_arch = "aarch64", not(target_vendor = "apple"), nightly))]
+    #[cfg(all(target_arch = "aarch64", not(target_vendor = "apple")))]
     Sve = 3u8,
     #[cfg(target_arch = "aarch64")]
     Neon = 2u8,
@@ -32,7 +32,7 @@ impl FilterImplPerInstructionSet {
         match *self {
             #[cfg(target_arch = "x86_64")]
             FilterImplPerInstructionSet::AVX2 => is_x86_feature_detected!("avx2"),
-            #[cfg(all(target_arch = "aarch64", not(target_vendor = "apple"), nightly))]
+            #[cfg(all(target_arch = "aarch64", not(target_vendor = "apple")))]
             FilterImplPerInstructionSet::Sve => is_aarch64_feature_detected!("sve"),
             // TIL Neon is required on aarch 64.
             #[cfg(target_arch = "aarch64")]
@@ -49,17 +49,10 @@ const IMPLS: [FilterImplPerInstructionSet; 2] = [
     FilterImplPerInstructionSet::Scalar,
 ];
 
-// Non-Apple aarch64 with nightly: try SVE, NEON, Scalar.
-#[cfg(all(target_arch = "aarch64", not(target_vendor = "apple"), nightly))]
+// Non-Apple aarch64: try SVE, NEON, Scalar.
+#[cfg(all(target_arch = "aarch64", not(target_vendor = "apple")))]
 const IMPLS: [FilterImplPerInstructionSet; 3] = [
     FilterImplPerInstructionSet::Sve,
-    FilterImplPerInstructionSet::Neon,
-    FilterImplPerInstructionSet::Scalar,
-];
-
-// Non-Apple aarch64 without nightly: SVE unavailable; use NEON or Scalar.
-#[cfg(all(target_arch = "aarch64", not(target_vendor = "apple"), not(nightly)))]
-const IMPLS: [FilterImplPerInstructionSet; 2] = [
     FilterImplPerInstructionSet::Neon,
     FilterImplPerInstructionSet::Scalar,
 ];
@@ -82,7 +75,7 @@ impl FilterImplPerInstructionSet {
         if code == FilterImplPerInstructionSet::AVX2 as u8 {
             return FilterImplPerInstructionSet::AVX2;
         }
-        #[cfg(all(target_arch = "aarch64", not(target_vendor = "apple"), nightly))]
+        #[cfg(all(target_arch = "aarch64", not(target_vendor = "apple")))]
         if code == FilterImplPerInstructionSet::Sve as u8 {
             return FilterImplPerInstructionSet::Sve;
         }
@@ -98,7 +91,7 @@ impl FilterImplPerInstructionSet {
         match self {
             #[cfg(target_arch = "x86_64")]
             FilterImplPerInstructionSet::AVX2 => avx2::filter_vec_in_place(range, offset, output),
-            #[cfg(all(target_arch = "aarch64", not(target_vendor = "apple"), nightly))]
+            #[cfg(all(target_arch = "aarch64", not(target_vendor = "apple")))]
             FilterImplPerInstructionSet::Sve => sve::filter_vec_in_place(range, offset, output),
             #[cfg(target_arch = "aarch64")]
             FilterImplPerInstructionSet::Neon => neon::filter_vec_in_place(range, offset, output),
@@ -151,23 +144,11 @@ mod tests {
         }
     }
 
-    #[cfg(all(target_arch = "aarch64", not(target_vendor = "apple"), nightly))]
+    #[cfg(all(target_arch = "aarch64", not(target_vendor = "apple")))]
     #[test]
     fn test_instruction_set_to_code_from_code() {
         for instruction_set in [
             FilterImplPerInstructionSet::Sve,
-            FilterImplPerInstructionSet::Neon,
-            FilterImplPerInstructionSet::Scalar,
-        ] {
-            let code = instruction_set as u8;
-            assert_eq!(instruction_set, FilterImplPerInstructionSet::from(code));
-        }
-    }
-
-    #[cfg(all(target_arch = "aarch64", not(target_vendor = "apple"), not(nightly)))]
-    #[test]
-    fn test_instruction_set_to_code_from_code() {
-        for instruction_set in [
             FilterImplPerInstructionSet::Neon,
             FilterImplPerInstructionSet::Scalar,
         ] {
@@ -237,7 +218,7 @@ mod tests {
     }
 
     #[test]
-    #[cfg(all(target_arch = "aarch64", not(target_vendor = "apple"), nightly))]
+    #[cfg(all(target_arch = "aarch64", not(target_vendor = "apple")))]
     fn test_filter_implementation_sve() {
         if FilterImplPerInstructionSet::Sve.is_available() {
             test_filter_impl_test_suite(FilterImplPerInstructionSet::Sve);
