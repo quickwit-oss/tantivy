@@ -121,7 +121,7 @@ pub struct FileSlice {
 
 impl fmt::Debug for FileSlice {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "FileSlice({:?}, {:?})", &self.data, self.range)
+        write!(f, "FileSlice({:?}, {:?})", self.data, self.range)
     }
 }
 

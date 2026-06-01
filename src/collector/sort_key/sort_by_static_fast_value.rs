@@ -52,7 +52,7 @@ impl<T: FastValue> SortKeyComputer for SortByStaticFastValue<T> {
         if schema_type != T::to_type() {
             return Err(crate::TantivyError::SchemaError(format!(
                 "Field `{}` is of type {schema_type:?}, not of the type {:?}.",
-                &self.field,
+                self.field,
                 T::to_type()
             )));
         }
