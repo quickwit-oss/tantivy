@@ -17,18 +17,56 @@ pub(crate) fn for_each_scorer<TScorer: Scorer + ?Sized>(
     }
 }
 
-/// Iterates through all of the documents matched by the DocSet
-/// `DocSet`.
+/// Number of `COLLECT_BLOCK_BUFFER_LEN`-sized windows accumulated into the large
+/// buffer before it is flushed to the collector via `collect_block`.
+const NUM_WINDOWS_PER_BLOCK: usize = 32;
+/// Size of the buffer accumulated before invoking the callback (2_048 = 32 * 64).
+/// `fill_buffer` keeps writing `COLLECT_BLOCK_BUFFER_LEN`-sized windows; this only
+/// changes how much we accumulate before flushing.
+const LARGE_COLLECT_BUFFER_LEN: usize = COLLECT_BLOCK_BUFFER_LEN * NUM_WINDOWS_PER_BLOCK;
+
+/// Iterates through all of the documents matched by the `DocSet`, flushing
+/// blocks of up to `LARGE_COLLECT_BUFFER_LEN` doc ids to `callback`.
+///
+/// `fill_buffer` only ever writes `COLLECT_BLOCK_BUFFER_LEN` doc ids at a time,
+/// so we accumulate several such windows into a single larger buffer before
+/// handing it to the collector. This amortizes the per-`collect_block` overhead
+/// (virtual dispatch, aggregation setup) over more documents.
 #[inline]
 pub(crate) fn for_each_docset_buffered<T: DocSet + ?Sized>(
     docset: &mut T,
-    buffer: &mut [DocId; COLLECT_BLOCK_BUFFER_LEN],
     mut callback: impl FnMut(&[DocId]),
 ) {
+    // Heap-allocated once per call (i.e. once per segment in the no-score path).
+    // `new_zeroed_slice` zeroes directly on the heap, avoiding a 2_048-element
+    // stack temporary.
+    // SAFETY: an all-zero bit pattern is a valid value for every `DocId` (u32),
+    // so the zeroed slice is fully initialized.
+    let mut buffer: Box<[DocId]> =
+        unsafe { Box::new_zeroed_slice(LARGE_COLLECT_BUFFER_LEN).assume_init() };
     loop {
-        let num_items = docset.fill_buffer(buffer);
-        callback(&buffer[..num_items]);
-        if num_items != buffer.len() {
+        let mut filled = 0;
+        let mut reached_end = false;
+        // Fill the large buffer one `COLLECT_BLOCK_BUFFER_LEN` window at a time.
+        // `chunks_exact_mut` yields windows of exactly `COLLECT_BLOCK_BUFFER_LEN`
+        // because `LARGE_COLLECT_BUFFER_LEN` is a multiple of it (empty remainder).
+        // The windows are contiguous and filled in order, so the doc ids always
+        // occupy the contiguous prefix `buffer[..filled]`.
+        for window in buffer.chunks_exact_mut(COLLECT_BLOCK_BUFFER_LEN) {
+            // SAFETY: each `window` is a slice of exactly `COLLECT_BLOCK_BUFFER_LEN`
+            // elements, so reinterpreting its start pointer as a fixed-size array
+            // reference of that length is valid.
+            let window: &mut [DocId; COLLECT_BLOCK_BUFFER_LEN] =
+                unsafe { &mut *window.as_mut_ptr().cast::<[DocId; COLLECT_BLOCK_BUFFER_LEN]>() };
+            let num_items = docset.fill_buffer(window);
+            filled += num_items;
+            if num_items != COLLECT_BLOCK_BUFFER_LEN {
+                reached_end = true;
+                break;
+            }
+        }
+        callback(&buffer[..filled]);
+        if reached_end {
             break;
         }
     }
@@ -104,9 +142,7 @@ pub trait Weight: Send + Sync + 'static {
         callback: &mut dyn FnMut(&[DocId]),
     ) -> crate::Result<()> {
         let mut docset = self.scorer(reader, 1.0)?;
-
-        let mut buffer = [0u32; COLLECT_BLOCK_BUFFER_LEN];
-        for_each_docset_buffered(&mut docset, &mut buffer, callback);
+        for_each_docset_buffered(&mut docset, callback);
         Ok(())
     }
 

@@ -11,9 +11,14 @@ use crate::DocId;
 /// to compare `[u32; 4]`.
 pub const TERMINATED: DocId = i32::MAX as u32;
 
-/// The collect_block method on `SegmentCollector` uses a buffer of this size.
-/// Passed results to `collect_block` will not exceed this size and will be
-/// exactly this size as long as we can fill the buffer.
+/// Window size used by [`DocSet::fill_buffer`]: a single `fill_buffer` call
+/// writes at most this many doc ids, and exactly this many as long as the
+/// `DocSet` is not exhausted.
+///
+/// Note that this is *not* the maximum length of the slice passed to
+/// `SegmentCollector::collect_block`: the collection loop accumulates several
+/// such windows into a larger buffer before flushing it, so `collect_block`
+/// may receive a block larger than `COLLECT_BLOCK_BUFFER_LEN`.
 pub const COLLECT_BLOCK_BUFFER_LEN: usize = 64;
 
 /// Number of `TinySet` (64-bit) buckets in a block used by [`DocSet::fill_bitset_block`].
