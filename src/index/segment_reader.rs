@@ -322,7 +322,7 @@ impl SegmentReader {
                             // Without expand dots enabled dots need to be escaped.
                             let escaped_json_path = json_path.replace('.', "\\.");
                             let full_path = format!("{field_name}.{escaped_json_path}");
-                            let full_path_unescaped = format!("{}.{}", field_name, &json_path);
+                            let full_path_unescaped = format!("{}.{}", field_name, json_path);
                             map_to_canonical.insert(full_path_unescaped, full_path.to_string());
                             full_path
                         } else {
