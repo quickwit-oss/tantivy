@@ -91,6 +91,12 @@ postcard = { version = "1.0.4", features = [
     "use-std",
 ], default-features = false }
 
+alyze = "0.1.3"
+unicode-segmentation = "1"
+parquet = "57"
+ureq = "3"
+tempfile = "3"
+
 [target.'cfg(not(windows))'.dev-dependencies]
 criterion = { version = "0.5", default-features = false }
 
@@ -200,4 +206,8 @@ harness = false
 
 [[bench]]
 name = "regex_all_terms"
+harness = false
+
+[[bench]]
+name = "tokenizer_compare"
 harness = false
