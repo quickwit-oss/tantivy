@@ -102,16 +102,20 @@ impl FilterImplPerInstructionSet {
     }
 }
 
+fn available_impls() -> impl Iterator<Item = FilterImplPerInstructionSet> {
+    IMPLS
+        .into_iter()
+        .filter(FilterImplPerInstructionSet::is_available)
+}
+
 #[inline]
 fn get_best_available_instruction_set() -> FilterImplPerInstructionSet {
     use std::sync::atomic::{AtomicU8, Ordering};
     static INSTRUCTION_SET_BYTE: AtomicU8 = AtomicU8::new(u8::MAX);
     let instruction_set_byte: u8 = INSTRUCTION_SET_BYTE.load(Ordering::Relaxed);
     if instruction_set_byte == u8::MAX {
-        let instruction_set = IMPLS
-            .into_iter()
-            .find(FilterImplPerInstructionSet::is_available)
-            .unwrap();
+        // Let's initialize the instruction set and cache it.
+        let instruction_set = available_impls().next().unwrap();
         INSTRUCTION_SET_BYTE.store(instruction_set as u8, Ordering::Relaxed);
         return instruction_set;
     }
@@ -124,6 +128,8 @@ pub fn filter_vec_in_place(range: RangeInclusive<u32>, offset: u32, output: &mut
 
 #[cfg(test)]
 mod tests {
+    use proptest::strategy::Strategy;
+
     use super::*;
 
     #[test]
@@ -236,35 +242,40 @@ mod tests {
         test_filter_impl_test_suite(FilterImplPerInstructionSet::Scalar);
     }
 
-    #[cfg(target_arch = "x86_64")]
-    proptest::proptest! {
-        #[test]
-        fn test_filter_compare_scalar_and_avx2_impl_proptest(
-            start in proptest::prelude::any::<u32>(),
-            end in proptest::prelude::any::<u32>(),
-            offset in 0u32..2u32,
-            mut vals in proptest::collection::vec(0..u32::MAX, 0..30)) {
-            if FilterImplPerInstructionSet::AVX2.is_available() {
-                let mut vals_clone = vals.clone();
-                FilterImplPerInstructionSet::AVX2.filter_vec_in_place(start..=end, offset, &mut vals);
-                FilterImplPerInstructionSet::Scalar.filter_vec_in_place(start..=end, offset, &mut vals_clone);
-                assert_eq!(&vals, &vals_clone);
-            }
-       }
+    fn max_val_strategy() -> impl proptest::strategy::Strategy<Value = u32> {
+        proptest::prop_oneof![
+            0u32..10u32,
+            255u32..258u32,
+            proptest::prelude::Just(1u32 << 25),
+            proptest::prelude::Just(u32::MAX - 1),
+            proptest::prelude::Just(u32::MAX),
+        ]
     }
 
-    #[cfg(target_arch = "aarch64")]
+    fn vals_strategy() -> impl proptest::strategy::Strategy<Value = Vec<u32>> {
+        proptest::prop_oneof![
+            proptest::collection::vec(proptest::prelude::any::<u32>(), 0..300),
+            max_val_strategy()
+                .prop_flat_map(|max_val| { proptest::collection::vec(0..=max_val, 0..300) })
+        ]
+    }
+
     proptest::proptest! {
         #[test]
-        fn test_filter_compare_scalar_and_neon_impl_proptest(
-            start in proptest::prelude::any::<u32>(),
-            end in proptest::prelude::any::<u32>(),
+        fn test_filter_compare_scalar_and_impls_impl_proptest(
+            start in 0u32..400u32,
+            end in 0u32..400u32,
             offset in 0u32..2u32,
-            mut vals in proptest::collection::vec(0..u32::MAX, 0..30)) {
-            let mut vals_clone = vals.clone();
-            FilterImplPerInstructionSet::Neon.filter_vec_in_place(start..=end, offset, &mut vals);
-            FilterImplPerInstructionSet::Scalar.filter_vec_in_place(start..=end, offset, &mut vals_clone);
-            assert_eq!(&vals, &vals_clone);
+            mut vals in vals_strategy()) {
+                for implementation in available_impls() {
+                    if implementation == FilterImplPerInstructionSet::Scalar {
+                        continue;
+                    }
+                    let mut vals_clone = vals.clone();
+                    implementation.filter_vec_in_place(start..=end, offset, &mut vals);
+                    FilterImplPerInstructionSet::Scalar.filter_vec_in_place(start..=end, offset, &mut vals_clone);
+                    assert_eq!(&vals, &vals_clone);
+                }
        }
     }
 }
