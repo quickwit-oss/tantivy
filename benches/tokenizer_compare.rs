@@ -4,14 +4,17 @@
 //! - UnicodeSegmenterTokenizer: `unicode_segmentation::unicode_word_indices()` + tantivy filter chain
 //! - alyze: custom DFA with ASCII fast-path + ICU for non-ASCII + ReusableBuffer
 //!
-//! Corpus: 64 MiB of English Wikipedia (same methodology as alyze's own benchmark).
-//! First run downloads parquet shards from HuggingFace and caches them under benches/.cache/.
+//! Corpora:
+//! - Wikipedia: 64 MiB of English Wikipedia (same methodology as alyze's own benchmark)
+//! - Loghub: up to 64 MiB of real-world logs (Apache, Zookeeper, Linux, Mac, SSH)
+//!
+//! First run downloads data and caches it under benches/.cache/.
 //!
 //! Run with: cargo bench --bench tokenizer_compare
 
 use std::{
     fs::File,
-    io::Write as _,
+    io::{BufRead as _, BufReader, Write as _},
     path::{Path, PathBuf},
 };
 
@@ -145,16 +148,90 @@ fn load_corpus() -> Vec<String> {
     texts
 }
 
+// ── Loghub corpus ─────────────────────────────────────────────────────────────
+
+const LOGHUB_DATASETS: &[(&str, &str)] = &[
+    ("Apache.tar.gz",   "https://zenodo.org/records/8196385/files/Apache.tar.gz"),
+    ("Zookeeper.tar.gz","https://zenodo.org/records/8196385/files/Zookeeper.tar.gz"),
+    ("Linux.tar.gz",    "https://zenodo.org/records/8196385/files/Linux.tar.gz"),
+    ("Mac.tar.gz",      "https://zenodo.org/records/8196385/files/Mac.tar.gz"),
+    ("SSH.tar.gz",      "https://zenodo.org/records/8196385/files/SSH.tar.gz"),
+];
+
+fn loghub_cache_dir() -> PathBuf {
+    let dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(".cache/loghub");
+    std::fs::create_dir_all(&dir).expect("failed to create loghub cache dir");
+    dir
+}
+
+fn load_loghub_corpus() -> Vec<String> {
+    let dir = loghub_cache_dir();
+    let mut lines: Vec<String> = Vec::new();
+    let mut total: u64 = 0;
+
+    'outer: for (file_name, url) in LOGHUB_DATASETS {
+        let archive = download_and_cache(file_name, url, &dir);
+        let gz = flate2::read::GzDecoder::new(archive);
+        let mut tar = tar::Archive::new(gz);
+
+        for entry in tar.entries().expect("failed to read tar") {
+            let mut entry = entry.expect("bad tar entry");
+            let is_log = entry
+                .path()
+                .map(|p| p.extension().and_then(|e| e.to_str()) == Some("log"))
+                .unwrap_or(false);
+            if !is_log {
+                continue;
+            }
+            let mut reader = BufReader::new(&mut entry);
+            let mut buf = Vec::new();
+            loop {
+                buf.clear();
+                let n = reader.read_until(b'\n', &mut buf).expect("read failed");
+                if n == 0 {
+                    break;
+                }
+                let line = match std::str::from_utf8(&buf) {
+                    Ok(s) => s.trim_end_matches(['\n', '\r']),
+                    Err(_) => continue, // skip non-UTF-8 lines
+                };
+                if line.is_empty() {
+                    continue;
+                }
+                total += line.len() as u64;
+                lines.push(line.to_owned());
+                if total >= TARGET_BYTES {
+                    break 'outer;
+                }
+            }
+        }
+    }
+
+    eprintln!(
+        "loghub corpus: {} lines, {:.1} MiB",
+        lines.len(),
+        total as f64 / (1u64 << 20) as f64,
+    );
+    lines
+}
+
 // ── Benchmarks ────────────────────────────────────────────────────────────────
 
-fn bench_unicode_seg(c: &mut Criterion, texts: &[String]) {
+fn to_ascii_corpus(texts: &[String]) -> Vec<String> {
+    texts
+        .iter()
+        .map(|t| t.chars().filter(|c| c.is_ascii()).collect())
+        .collect()
+}
+
+fn bench_unicode_seg(c: &mut Criterion, label: &str, texts: &[String]) {
     let bytes: u64 = texts.iter().map(|t| t.len() as u64).sum();
     let mut analyzer = TextAnalyzer::builder(UnicodeSegmenterTokenizer)
         .filter(LowerCaser)
         .filter(RemoveLongFilter::limit(MAX_TOKEN_LEN))
         .build();
 
-    let mut group = c.benchmark_group("unicode_seg");
+    let mut group = c.benchmark_group(format!("unicode_seg{label}"));
     group.throughput(Throughput::Bytes(bytes));
     group.sample_size(16);
 
@@ -188,7 +265,7 @@ fn bench_unicode_seg(c: &mut Criterion, texts: &[String]) {
     group.finish();
 }
 
-fn bench_alyze(c: &mut Criterion, texts: &[String]) {
+fn bench_alyze(c: &mut Criterion, label: &str, texts: &[String]) {
     let bytes: u64 = texts.iter().map(|t| t.len() as u64).sum();
 
     let base = AnalysisOptions {
@@ -206,7 +283,7 @@ fn bench_alyze(c: &mut Criterion, texts: &[String]) {
     });
     let mut buffer = ReusableBuffer::new();
 
-    let mut group = c.benchmark_group("alyze");
+    let mut group = c.benchmark_group(format!("alyze{label}"));
     group.throughput(Throughput::Bytes(bytes));
     group.sample_size(16);
 
@@ -246,13 +323,22 @@ fn bench_alyze(c: &mut Criterion, texts: &[String]) {
 fn tokenizer_compare(c: &mut Criterion) {
     let texts = load_corpus();
     let bytes: u64 = texts.iter().map(|t| t.len() as u64).sum();
+    let ascii_texts = to_ascii_corpus(&texts);
+    let ascii_bytes: u64 = ascii_texts.iter().map(|t| t.len() as u64).sum();
     eprintln!(
-        "corpus: {} articles, {:.1} MiB",
+        "wikipedia corpus: {} articles, {:.1} MiB ({:.1} MiB ascii-only)",
         texts.len(),
-        bytes as f64 / (1u64 << 20) as f64
+        bytes as f64 / (1u64 << 20) as f64,
+        ascii_bytes as f64 / (1u64 << 20) as f64,
     );
-    bench_unicode_seg(c, &texts);
-    bench_alyze(c, &texts);
+    bench_unicode_seg(c, "", &texts);
+    bench_alyze(c, "", &texts);
+    bench_unicode_seg(c, "_ascii", &ascii_texts);
+    bench_alyze(c, "_ascii", &ascii_texts);
+
+    let log_texts = load_loghub_corpus();
+    bench_unicode_seg(c, "_loghub", &log_texts);
+    bench_alyze(c, "_loghub", &log_texts);
 }
 
 criterion_group!(benches, tokenizer_compare);
