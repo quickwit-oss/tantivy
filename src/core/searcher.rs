@@ -4,7 +4,7 @@ use std::{fmt, io};
 
 use crate::collector::Collector;
 use crate::core::Executor;
-use crate::index::{SegmentId, SegmentReader};
+use crate::index::{Bm25Params, SegmentId, SegmentReader};
 use crate::query::{Bm25StatisticsProvider, EnableScoring, Query};
 use crate::schema::document::DocumentDeserialize;
 use crate::schema::{Schema, Term};
@@ -161,6 +161,13 @@ impl Searcher {
     /// Returns the segment_reader associated with the given segment_ord
     pub fn segment_reader(&self, segment_ord: u32) -> &SegmentReader {
         &self.inner.segment_readers[segment_ord as usize]
+    }
+
+    /// Returns the BM25 parameters used for scoring.
+    ///
+    /// If not explicitly configured, returns default parameters (k1=1.2, b=0.75).
+    pub fn bm25_params(&self) -> &Bm25Params {
+        self.inner.index.bm25_params()
     }
 
     /// Runs a query on the segment readers wrapped by the searcher.

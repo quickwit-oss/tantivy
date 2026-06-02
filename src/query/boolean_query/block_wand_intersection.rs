@@ -185,6 +185,7 @@ mod tests {
 
     use proptest::prelude::*;
 
+    use crate::index::Bm25Params;
     use crate::query::term_query::TermScorer;
     use crate::query::{Bm25Weight, Scorer};
     use crate::{DocId, DocSet, Score, TERMINATED};
@@ -362,6 +363,7 @@ mod tests {
         let average_fieldnorm = (total_fieldnorms as Score) / (fieldnorms_expanded.len() as Score);
         let max_doc = fieldnorms_expanded.len();
 
+        let bm25_params = Bm25Params::default();
         let make_scorers = || -> Vec<TermScorer> {
             postings_lists_expanded
                 .iter()
@@ -370,6 +372,7 @@ mod tests {
                         postings.len() as u64,
                         max_doc as u64,
                         average_fieldnorm,
+                        &bm25_params,
                     );
                     TermScorer::create_for_test(postings, &fieldnorms_expanded[..], bm25_weight)
                 })
@@ -422,18 +425,19 @@ mod tests {
         // Two posting lists with no overlap — intersection is empty.
         let fieldnorms: Vec<u32> = vec![10; 200];
         let average_fieldnorm = 10.0;
+        let bm25_params = Bm25Params::default();
         let postings_a: Vec<(DocId, u32)> = (0..100).map(|d| (d, 1)).collect();
         let postings_b: Vec<(DocId, u32)> = (100..200).map(|d| (d, 1)).collect();
 
         let scorer_a = TermScorer::create_for_test(
             &postings_a,
             &fieldnorms,
-            Bm25Weight::for_one_term(100, 200, average_fieldnorm),
+            Bm25Weight::for_one_term(100, 200, average_fieldnorm, &bm25_params),
         );
         let scorer_b = TermScorer::create_for_test(
             &postings_b,
             &fieldnorms,
-            Bm25Weight::for_one_term(100, 200, average_fieldnorm),
+            Bm25Weight::for_one_term(100, 200, average_fieldnorm, &bm25_params),
         );
 
         let checkpoints = compute_checkpoints_block_wand_intersection(vec![scorer_a, scorer_b], 10);
@@ -445,13 +449,14 @@ mod tests {
         // Two posting lists with full overlap.
         let fieldnorms: Vec<u32> = vec![10; 50];
         let average_fieldnorm = 10.0;
+        let bm25_params = Bm25Params::default();
         let postings: Vec<(DocId, u32)> = (0..50).map(|d| (d, 3)).collect();
 
         let make_scorer = || {
             TermScorer::create_for_test(
                 &postings,
                 &fieldnorms,
-                Bm25Weight::for_one_term(50, 50, average_fieldnorm),
+                Bm25Weight::for_one_term(50, 50, average_fieldnorm, &bm25_params),
             )
         };
 
