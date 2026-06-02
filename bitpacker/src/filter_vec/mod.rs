@@ -20,7 +20,7 @@ enum FilterImplPerInstructionSet {
     #[cfg(target_arch = "x86_64")]
     AVX2 = 0u8,
     #[cfg(all(target_arch = "aarch64", not(target_vendor = "apple")))]
-    Sve = 3u8,
+    SVE = 3u8,
     #[cfg(target_arch = "aarch64")]
     Neon = 2u8,
     Scalar = 1u8,
@@ -33,7 +33,7 @@ impl FilterImplPerInstructionSet {
             #[cfg(target_arch = "x86_64")]
             FilterImplPerInstructionSet::AVX2 => is_x86_feature_detected!("avx2"),
             #[cfg(all(target_arch = "aarch64", not(target_vendor = "apple")))]
-            FilterImplPerInstructionSet::Sve => is_aarch64_feature_detected!("sve"),
+            FilterImplPerInstructionSet::SVE => is_aarch64_feature_detected!("sve"),
             // TIL Neon is required on aarch 64.
             #[cfg(target_arch = "aarch64")]
             FilterImplPerInstructionSet::Neon => true,
@@ -52,7 +52,7 @@ const IMPLS: [FilterImplPerInstructionSet; 2] = [
 // Non-Apple aarch64: try SVE, NEON, Scalar.
 #[cfg(all(target_arch = "aarch64", not(target_vendor = "apple")))]
 const IMPLS: [FilterImplPerInstructionSet; 3] = [
-    FilterImplPerInstructionSet::Sve,
+    FilterImplPerInstructionSet::SVE,
     FilterImplPerInstructionSet::Neon,
     FilterImplPerInstructionSet::Scalar,
 ];
@@ -76,8 +76,8 @@ impl FilterImplPerInstructionSet {
             return FilterImplPerInstructionSet::AVX2;
         }
         #[cfg(all(target_arch = "aarch64", not(target_vendor = "apple")))]
-        if code == FilterImplPerInstructionSet::Sve as u8 {
-            return FilterImplPerInstructionSet::Sve;
+        if code == FilterImplPerInstructionSet::SVE as u8 {
+            return FilterImplPerInstructionSet::SVE;
         }
         #[cfg(target_arch = "aarch64")]
         if code == FilterImplPerInstructionSet::Neon as u8 {
@@ -92,7 +92,7 @@ impl FilterImplPerInstructionSet {
             #[cfg(target_arch = "x86_64")]
             FilterImplPerInstructionSet::AVX2 => avx2::filter_vec_in_place(range, offset, output),
             #[cfg(all(target_arch = "aarch64", not(target_vendor = "apple")))]
-            FilterImplPerInstructionSet::Sve => sve::filter_vec_in_place(range, offset, output),
+            FilterImplPerInstructionSet::SVE => sve::filter_vec_in_place(range, offset, output),
             #[cfg(target_arch = "aarch64")]
             FilterImplPerInstructionSet::Neon => neon::filter_vec_in_place(range, offset, output),
             FilterImplPerInstructionSet::Scalar => {
@@ -154,7 +154,7 @@ mod tests {
     #[test]
     fn test_instruction_set_to_code_from_code() {
         for instruction_set in [
-            FilterImplPerInstructionSet::Sve,
+            FilterImplPerInstructionSet::SVE,
             FilterImplPerInstructionSet::Neon,
             FilterImplPerInstructionSet::Scalar,
         ] {
@@ -226,8 +226,8 @@ mod tests {
     #[test]
     #[cfg(all(target_arch = "aarch64", not(target_vendor = "apple")))]
     fn test_filter_implementation_sve() {
-        if FilterImplPerInstructionSet::Sve.is_available() {
-            test_filter_impl_test_suite(FilterImplPerInstructionSet::Sve);
+        if FilterImplPerInstructionSet::SVE.is_available() {
+            test_filter_impl_test_suite(FilterImplPerInstructionSet::SVE);
         }
     }
 
