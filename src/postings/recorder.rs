@@ -275,8 +275,9 @@ impl Recorder for TfAndPositionRecorder {
 mod tests {
 
     use common::write_u32_vint;
+    use stacker::MemoryArena;
 
-    use super::{BufferLender, VInt32Reader};
+    use super::{BufferLender, Recorder, TermFrequencyRecorder, VInt32Reader};
 
     #[test]
     fn test_buffer_lender() {
@@ -313,5 +314,99 @@ mod tests {
         assert_eq!(buffer.len(), 1 + 1 + 5 + 5);
         let res: Vec<u32> = VInt32Reader::new(&buffer[..]).collect();
         assert_eq!(&res[..], &vals[..]);
+    }
+
+    // ── TermFrequencyRecorder ─────────────────────────────────────────────────
+
+    #[test]
+    fn term_frequency_recorder_has_term_freq() {
+        let rec = TermFrequencyRecorder::default();
+        assert!(
+            rec.has_term_freq(),
+            "TermFrequencyRecorder must advertise term-frequency support"
+        );
+    }
+
+    #[test]
+    fn term_frequency_recorder_term_doc_freq_single_doc() {
+        let mut arena = MemoryArena::default();
+        let mut rec = TermFrequencyRecorder::default();
+
+        // Record one document with two term occurrences.
+        rec.new_doc(0, &mut arena);
+        rec.record_position(0, &mut arena);
+        rec.record_position(1, &mut arena);
+        rec.close_doc(&mut arena);
+
+        assert_eq!(
+            rec.term_doc_freq(),
+            Some(1),
+            "term_doc_freq should be 1 after recording one document"
+        );
+    }
+
+    #[test]
+    fn term_frequency_recorder_term_doc_freq_multiple_docs() {
+        let mut arena = MemoryArena::default();
+        let mut rec = TermFrequencyRecorder::default();
+
+        // Three documents with 1, 3, and 2 occurrences respectively.
+        for (doc, tf) in [(0u32, 1u32), (5, 3), (10, 2)] {
+            rec.new_doc(doc, &mut arena);
+            for pos in 0..tf {
+                rec.record_position(pos, &mut arena);
+            }
+            rec.close_doc(&mut arena);
+        }
+
+        assert_eq!(
+            rec.term_doc_freq(),
+            Some(3),
+            "term_doc_freq should equal the number of documents recorded"
+        );
+    }
+
+    #[test]
+    fn term_frequency_recorder_zero_docs() {
+        let rec = TermFrequencyRecorder::default();
+        assert_eq!(
+            rec.term_doc_freq(),
+            Some(0),
+            "term_doc_freq should be 0 before any document is recorded"
+        );
+    }
+
+    #[test]
+    fn term_frequency_recorder_single_occurrence_per_doc() {
+        let mut arena = MemoryArena::default();
+        let mut rec = TermFrequencyRecorder::default();
+
+        // Each document has exactly one occurrence — the minimum non-trivial case.
+        for doc in [1u32, 2, 100] {
+            rec.new_doc(doc, &mut arena);
+            rec.record_position(0, &mut arena);
+            rec.close_doc(&mut arena);
+        }
+
+        assert_eq!(rec.term_doc_freq(), Some(3));
+    }
+
+    #[test]
+    fn term_frequency_recorder_high_frequency_doc() {
+        let mut arena = MemoryArena::default();
+        let mut rec = TermFrequencyRecorder::default();
+
+        // A document where the term appears many times.
+        rec.new_doc(42, &mut arena);
+        for pos in 0..1000 {
+            rec.record_position(pos, &mut arena);
+        }
+        rec.close_doc(&mut arena);
+
+        assert_eq!(
+            rec.term_doc_freq(),
+            Some(1),
+            "term_doc_freq counts documents, not occurrences"
+        );
     }
 }
