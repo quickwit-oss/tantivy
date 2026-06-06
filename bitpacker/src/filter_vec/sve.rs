@@ -15,7 +15,9 @@ unsafe fn num_lanes() -> usize {
     vl
 }
 
-pub fn filter_vec_in_place(range: RangeInclusive<u32>, offset: u32, output: &mut Vec<u32>) {
+// SAFETY: caller must ensure SVE is available (checked via is_aarch64_feature_detected!("sve")).
+// Unlike NEON, SVE is optional on aarch64 and not guaranteed by the target architecture.
+pub unsafe fn filter_vec_in_place(range: RangeInclusive<u32>, offset: u32, output: &mut Vec<u32>) {
     if range.start() > range.end() {
         output.clear();
         return;
