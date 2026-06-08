@@ -13,6 +13,8 @@ use crate::collector::sort_key_top_collector::TopBySortKeyCollector;
 use crate::collector::top_collector::ComparableDoc;
 use crate::collector::{SegmentSortKeyComputer, SortKeyComputer};
 use crate::fastfield::FastValue;
+use crate::schema::Field;
+use crate::vector::{TopDocsByVectorSimilarity, VectorElement};
 use crate::{DocAddress, DocId, Order, Score, SegmentOrdinal, SegmentReader};
 
 /// The `TopDocs` collector keeps track of the top `K` documents
@@ -327,6 +329,39 @@ impl TopDocs {
         TSortKey: 'static + Clone + Send + Sync + std::fmt::Debug,
     {
         TopBySortKeyCollector::new(sort_key_computer, self.doc_range())
+    }
+
+    /// Ranks documents by similarity to a query vector against a
+    /// [`FieldType::Vector`](crate::schema::FieldType::Vector) field.
+    ///
+    /// The metric is read from the field's
+    /// [`VectorOptions`](crate::schema::VectorOptions) at query time —
+    /// callers don't pick a metric here. All metrics are presented in
+    /// "higher is better" form (L2 is internally negated), so this is
+    /// always a descending sort: the closest docs come first.
+    ///
+    /// Only documents that have a vector for `field` are returned —
+    /// filter-matching docs without a vector are dropped. This differs
+    /// from `order_by_fast_field`'s `None`-trailing convention; the
+    /// constraint comes from IVF, which can't see vectorless docs.
+    ///
+    /// Generic over `T: VectorElement` — `T` is typically `f32` and is
+    /// inferred from the `query` argument; it must match the schema's
+    /// declared dtype.
+    ///
+    /// The driving query (passed to `searcher.search`) decides which docs
+    /// are candidates. For brute-force scan over every doc, pair this with
+    /// [`AllQuery`](crate::query::AllQuery); pair with a filter query to
+    /// restrict candidates.
+    pub fn order_by_similarity<T>(
+        self,
+        field: Field,
+        query: Vec<T>,
+    ) -> TopDocsByVectorSimilarity<T>
+    where
+        T: VectorElement,
+    {
+        TopDocsByVectorSimilarity::new(field, query, self.limit).and_offset(self.offset)
     }
 
     /// Helper function to tweak the similarity score of documents using a function.
@@ -675,6 +710,26 @@ where
         self.append_doc(doc, sort_key);
     }
 
+    /// Like [`push`](Self::push), but doesn't require pushes to arrive
+    /// in ascending `DocId`/`DocAddress` order.
+    ///
+    /// The default `push` short-circuits below-threshold candidates with
+    /// a strict `> threshold` test. That's only safe under ascending-D
+    /// pushes — equal-sort-key future pushes are guaranteed to have a
+    /// larger D and thus lose the tie-break, so they can be skipped.
+    /// Out-of-order callers (eg a vector IVF format which visits cluster
+    /// by cluster) can't make that guarantee, so this path relaxes the
+    /// skip to strictly less than the threshold.
+    #[inline]
+    pub fn push_unordered(&mut self, sort_key: TSortKey, doc: D) {
+        if let Some((last_median, _thresh_ord)) = &self.threshold {
+            if self.comparator.compare(&sort_key, last_median) == std::cmp::Ordering::Less {
+                return;
+            }
+        }
+        self.append_doc(doc, sort_key);
+    }
+
     // Append a document to the top n.
     //
     // At this point, we need to have established that the doc is above the threshold.
@@ -870,6 +925,62 @@ mod tests {
                 ComparableDoc {
                     sort_key: 1u32,
                     doc: 2u32,
+                }
+            ]
+        );
+    }
+
+    #[test]
+    fn test_topn_computer_push_unordered() {
+        // Same inputs as test_topn_computer, but pushed in a non-ascending
+        // DocId order — push_unordered should still produce the right top-K
+        // and (where ties exist) the smallest-DocId tie-break.
+        let mut computer: TopNComputer<u32, u32, NaturalComparator> =
+            TopNComputer::new_with_comparator(2, NaturalComparator);
+
+        computer.push_unordered(3u32, 3u32);
+        computer.push_unordered(1u32, 5u32);
+        computer.push_unordered(2u32, 2u32);
+        computer.push_unordered(2u32, 4u32);
+        computer.push_unordered(1u32, 1u32);
+        assert_eq!(
+            computer.into_sorted_vec(),
+            &[
+                ComparableDoc {
+                    sort_key: 3u32,
+                    doc: 3u32,
+                },
+                ComparableDoc {
+                    sort_key: 2u32,
+                    doc: 2u32,
+                }
+            ]
+        );
+    }
+
+    #[test]
+    fn test_topn_computer_push_unordered_tiebreak_on_equal_sort_key() {
+        // Tied sort keys must still resolve to the smallest DocId, even when
+        // doc ids arrive out of order (and even when the smaller-DocId
+        // candidate arrives *after* the larger-DocId one).
+        let mut computer: TopNComputer<u32, u32, NaturalComparator> =
+            TopNComputer::new_with_comparator(2, NaturalComparator);
+
+        computer.push_unordered(1u32, 100u32);
+        computer.push_unordered(1u32, 50u32);
+        computer.push_unordered(1u32, 200u32);
+        computer.push_unordered(1u32, 25u32);
+        computer.push_unordered(1u32, 175u32);
+        assert_eq!(
+            computer.into_sorted_vec(),
+            &[
+                ComparableDoc {
+                    sort_key: 1u32,
+                    doc: 25u32,
+                },
+                ComparableDoc {
+                    sort_key: 1u32,
+                    doc: 50u32,
                 }
             ]
         );

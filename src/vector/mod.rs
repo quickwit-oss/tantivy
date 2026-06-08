@@ -1,6 +1,30 @@
+//! Distance kernels, the vector element trait, and the per-segment storage plugin.
+//!
+//! The schema-level field configuration ([`VectorOptions`](crate::schema::VectorOptions),
+//! [`Metric`](crate::schema::Metric), [`VectorDType`]) lives in the schema module; the
+//! element trait [`VectorElement`] and the distance kernels live here. The on-disk format
+//! lives in the [`flat`] submodule (dense full-precision layout), owned by the
+//! [`VectorPlugin`]. Top-N vector queries dispatch over it via [`VectorBackend`].
+
 use std::io;
 
 use crate::schema::VectorDType;
+
+mod backend;
+mod collector;
+mod distance;
+mod meta;
+mod plugin;
+mod reader;
+
+pub mod flat;
+
+pub use backend::VectorBackend;
+pub use collector::TopDocsByVectorSimilarity;
+pub use distance::{cosine, cosine_bytes, dot, dot_bytes, l2_squared, l2_squared_bytes};
+pub use flat::{FlatVecReader, FlatVecWriter, FlatVectorColumn};
+pub use plugin::VectorPlugin;
+pub use reader::{VectorColumn, VectorColumnReader, VectorReader};
 
 /// A vector element type with the primitives needed by the storage
 /// layer and the distance kernels.
