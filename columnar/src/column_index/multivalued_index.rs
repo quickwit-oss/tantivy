@@ -193,7 +193,12 @@ impl MultiValueIndexV1 {
         for i in 0..ranks.len() {
             let pos = ranks[i];
             if cumulative_end_for_doc_idx(col, cur_doc) <= pos {
-                cur_doc = exponential_search_first_end_gt(col, cur_doc, pos, self.num_docs().saturating_sub(1));
+                cur_doc = exponential_search_first_end_gt(
+                    col,
+                    cur_doc,
+                    pos,
+                    self.num_docs().saturating_sub(1),
+                );
             }
             ranks[write_doc_pos] = cur_doc;
             write_doc_pos += if last_doc == Some(cur_doc) { 0 } else { 1 };
