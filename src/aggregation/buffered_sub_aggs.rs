@@ -138,6 +138,7 @@ impl SubAggBuffer for HighCardSubAggBuffer {
         }
     }
 
+    #[inline]
     fn push(&mut self, bucket_id: BucketId, doc_id: DocId) {
         let idx = bucket_id % NUM_PARTITIONS as u32;
         let slot = &mut self.partitions[idx as usize];
@@ -196,6 +197,7 @@ impl SubAggBuffer for LowCardSubAggBuffer {
         }
     }
 
+    #[inline]
     fn push(&mut self, bucket_id: BucketId, doc_id: DocId) {
         let idx = bucket_id as usize;
         if self.per_bucket_docs.len() <= idx {
