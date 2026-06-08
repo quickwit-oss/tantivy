@@ -324,7 +324,7 @@ impl<TDocSet: DocSet + ?Sized> DocSet for Box<TDocSet> {
         min_doc: DocId,
         mask: &mut [TinySet; BLOCK_NUM_TINYBITSETS],
     ) -> DocId {
-        let unboxed: &mut TDocSet = self.borrow_mut();
+        let unboxed: &mut TDocSet = &mut **self;
         unboxed.fill_bitset_block(min_doc, mask)
     }
 

@@ -71,17 +71,16 @@ pub trait PostingsCodec: Send + Sync + 'static {
 /// A serializer is created once and recycled for all postings.
 ///
 /// Clients should use PostingsSerializer as follows.
-/// ```rust,no_run
+/// ```text
 /// // First postings list
 /// serializer.new_term(2, true);
 /// serializer.write_doc(2, 1);
 /// serializer.write_doc(6, 2);
-/// serializer.close_term(3);
-/// serializer.clear();
+/// serializer.close_term(3, &mut wrt)?;
 /// // Second postings list
 /// serializer.new_term(1, true);
 /// serializer.write_doc(3, 1);
-/// serializer.close_term(3);
+/// serializer.close_term(1, &mut wrt)?;
 /// ```
 pub trait PostingsSerializer {
     /// The term_doc_freq here is the number of documents

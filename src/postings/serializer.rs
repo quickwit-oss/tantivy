@@ -83,12 +83,8 @@ impl<C: Codec> InvertedIndexSerializer<C> {
         let term_dictionary_write = self.terms_write.for_field(field);
         let postings_write = self.postings_write.for_field(field);
         let positions_write = self.positions_write.for_field(field);
-        let index_record_option = field_entry
-            .field_type()
-            .index_record_option()
-            .unwrap_or(IndexRecordOption::Basic);
         FieldSerializer::create(
-            index_record_option,
+            field_entry.field_type(),
             total_num_tokens,
             term_dictionary_write,
             postings_write,
@@ -129,6 +125,9 @@ impl<'a, C: Codec> FieldSerializer<'a, C> {
         fieldnorm_reader: Option<FieldNormReader>,
         codec: &C,
     ) -> io::Result<FieldSerializer<'a, C>> {
+        let index_record_option = field_type
+            .index_record_option()
+            .unwrap_or(IndexRecordOption::Basic);
         total_num_tokens.serialize(postings_write)?;
         let term_dictionary_builder = TermDictionaryBuilder::create(term_dictionary_write)?;
         let average_fieldnorm = fieldnorm_reader
