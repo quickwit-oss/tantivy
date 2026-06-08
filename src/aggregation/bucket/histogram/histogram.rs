@@ -338,24 +338,41 @@ impl SegmentAggregationCollector for SegmentHistogramCollector {
         agg_data
             .column_block_accessor
             .fetch_block(docs, &req.accessor);
-        for (doc, val) in agg_data
-            .column_block_accessor
-            .iter_docid_vals(docs, &req.accessor)
-        {
-            let val = f64_from_fastfield_u64(val, req.field_type);
-            let bucket_pos = get_bucket_pos(val);
-            if bounds.contains(val) {
-                let bucket = buckets.entry(bucket_pos).or_insert_with(|| {
-                    let key = get_bucket_key_from_pos(bucket_pos as f64, interval, offset);
-                    SegmentHistogramBucketEntry {
-                        key,
-                        doc_count: 0,
-                        bucket_id: self.bucket_id_provider.next_bucket_id(),
-                    }
-                });
-                bucket.doc_count += 1;
-                if let Some(sub_agg) = &mut self.sub_agg {
+        // special path for nested buckets
+        if let Some(sub_agg) = &mut self.sub_agg {
+            for (doc, val) in agg_data
+                .column_block_accessor
+                .iter_docid_vals(docs, &req.accessor)
+            {
+                let val = f64_from_fastfield_u64(val, req.field_type);
+                let bucket_pos = get_bucket_pos(val);
+                if bounds.contains(val) {
+                    let bucket = buckets.entry(bucket_pos).or_insert_with(|| {
+                        let key = get_bucket_key_from_pos(bucket_pos as f64, interval, offset);
+                        SegmentHistogramBucketEntry {
+                            key,
+                            doc_count: 0,
+                            bucket_id: self.bucket_id_provider.next_bucket_id(),
+                        }
+                    });
+                    bucket.doc_count += 1;
                     sub_agg.push(bucket.bucket_id, doc);
+                }
+            }
+        } else {
+            for val in agg_data.column_block_accessor.iter_vals() {
+                let val = f64_from_fastfield_u64(val, req.field_type);
+                let bucket_pos = get_bucket_pos(val);
+                if bounds.contains(val) {
+                    let bucket = buckets.entry(bucket_pos).or_insert_with(|| {
+                        let key = get_bucket_key_from_pos(bucket_pos as f64, interval, offset);
+                        SegmentHistogramBucketEntry {
+                            key,
+                            doc_count: 0,
+                            bucket_id: self.bucket_id_provider.next_bucket_id(),
+                        }
+                    });
+                    bucket.doc_count += 1;
                 }
             }
         }
