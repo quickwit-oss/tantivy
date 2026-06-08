@@ -66,6 +66,8 @@ fn bench_agg(mut group: InputGroup<Index>) {
     register!(group, terms_status_with_terms_zipf_1000_sub_agg);
     register!(group, terms_zipf_1000_with_terms_status_sub_agg);
     register!(group, terms_status_with_histogram);
+    register!(group, terms_status_with_date_histogram);
+    register!(group, terms_status_with_date_histogram_and_sibling_terms);
     register!(group, terms_zipf_1000);
     register!(group, terms_zipf_1000_with_histogram);
     register!(group, terms_zipf_1000_with_avg_sub_agg);
@@ -386,6 +388,34 @@ fn terms_status_with_histogram(index: &Index) {
                 "histo": {"histogram": { "field": "score_f64", "interval": 10 }}
             }
         }
+    });
+    execute_agg(index, agg_req);
+}
+
+fn terms_status_with_date_histogram(index: &Index) {
+    let agg_req = json!({
+        "my_texts": {
+            "terms": { "field": "text_few_terms_status" },
+            "aggs": {
+                "over_time": { "date_histogram": { "field": "timestamp", "fixed_interval": "1h" } }
+            }
+        }
+    });
+    execute_agg(index, agg_req);
+}
+
+/// Same fused terms × date_histogram, but with a sibling terms aggregation next to it. The fused
+/// fast path should still trigger for `my_texts` (sibling aggregations are independent top-level
+/// aggregations, so they don't change its eligibility).
+fn terms_status_with_date_histogram_and_sibling_terms(index: &Index) {
+    let agg_req = json!({
+        "my_texts": {
+            "terms": { "field": "text_few_terms_status" },
+            "aggs": {
+                "over_time": { "date_histogram": { "field": "timestamp", "fixed_interval": "1h" } }
+            }
+        },
+        "other_texts": { "terms": { "field": "text_few_terms" } }
     });
     execute_agg(index, agg_req);
 }
@@ -783,7 +813,9 @@ fn get_test_index_bench(cardinality: Cardinality) -> tantivy::Result<Index> {
             doc_with_value /= 20;
         }
         let _val_max = 1_000_000.0;
-        for _ in 0..doc_with_value {
+        const SPAN_MS: i64 = 120 * 3600 * 1000; // 120 hours in ms
+        const NOISE_MS: i64 = 2 * 3600 * 1000; // ±2h noise
+        for i in 0..doc_with_value {
             let val: f64 = rng.random_range(0.0..1_000_000.0);
             let json = if rng.random_bool(0.1) {
                 // 10% are numeric values
@@ -791,6 +823,9 @@ fn get_test_index_bench(cardinality: Cardinality) -> tantivy::Result<Index> {
             } else {
                 json!({"mixed_type": many_terms_data.choose(&mut rng).unwrap().to_string()})
             };
+            let base_ms = (i as i64 * SPAN_MS) / doc_with_value as i64;
+            let noise_ms = rng.random_range(-NOISE_MS..NOISE_MS);
+            let ts_ms = (base_ms + noise_ms).clamp(0, SPAN_MS);
             index_writer.add_document(doc!(
                 single_term => "single_term",
                 text_field => "cool",
@@ -803,7 +838,7 @@ fn get_test_index_bench(cardinality: Cardinality) -> tantivy::Result<Index> {
                 score_field => val as u64,
                 score_field_f64 => lg_norm.sample(&mut rng),
                 score_field_i64 => val as i64,
-                date_field => DateTime::from_timestamp_millis((val * 1_000_000.) as i64),
+                date_field => DateTime::from_timestamp_millis(ts_ms),
             ))?;
             if cardinality == Cardinality::OptionalSparse {
                 for _ in 0..20 {
