@@ -119,8 +119,18 @@ pub trait ColumnValues<T: PartialOrd = u64>: Send + Sync + DowncastSync {
     /// the segment's `maxdoc`.
     #[inline(always)]
     fn get_range(&self, start: u64, output: &mut [T]) {
-        for (out, idx) in output.iter_mut().zip(start..) {
+        let mut out_chunks = output.chunks_exact_mut(4);
+        let mut idx = start;
+        for out_x4 in out_chunks.by_ref() {
+            out_x4[0] = self.get_val(idx as u32);
+            out_x4[1] = self.get_val((idx + 1) as u32);
+            out_x4[2] = self.get_val((idx + 2) as u32);
+            out_x4[3] = self.get_val((idx + 3) as u32);
+            idx += 4;
+        }
+        for out in out_chunks.into_remainder() {
             *out = self.get_val(idx as u32);
+            idx += 1;
         }
     }
 
