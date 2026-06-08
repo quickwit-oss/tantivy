@@ -92,7 +92,10 @@ impl FilterImplPerInstructionSet {
             #[cfg(target_arch = "x86_64")]
             FilterImplPerInstructionSet::AVX2 => avx2::filter_vec_in_place(range, offset, output),
             #[cfg(all(target_arch = "aarch64", not(target_vendor = "apple")))]
-            FilterImplPerInstructionSet::SVE => sve::filter_vec_in_place(range, offset, output),
+            // SAFETY: SVE availability was verified by is_available() before selecting this impl.
+            FilterImplPerInstructionSet::SVE => unsafe {
+                sve::filter_vec_in_place(range, offset, output)
+            },
             #[cfg(target_arch = "aarch64")]
             FilterImplPerInstructionSet::Neon => neon::filter_vec_in_place(range, offset, output),
             FilterImplPerInstructionSet::Scalar => {
@@ -266,15 +269,16 @@ mod tests {
             start in 0u32..400u32,
             end in 0u32..400u32,
             offset in 0u32..2u32,
-            mut vals in vals_strategy()) {
+            vals in vals_strategy()) {
                 for implementation in available_impls() {
                     if implementation == FilterImplPerInstructionSet::Scalar {
                         continue;
                     }
-                    let mut vals_clone = vals.clone();
-                    implementation.filter_vec_in_place(start..=end, offset, &mut vals);
-                    FilterImplPerInstructionSet::Scalar.filter_vec_in_place(start..=end, offset, &mut vals_clone);
-                    assert_eq!(&vals, &vals_clone);
+                    let mut impl_output = vals.clone();
+                    let mut scalar_output = vals.clone();
+                    implementation.filter_vec_in_place(start..=end, offset, &mut impl_output);
+                    FilterImplPerInstructionSet::Scalar.filter_vec_in_place(start..=end, offset, &mut scalar_output);
+                    assert_eq!(&impl_output, &scalar_output);
                 }
        }
     }
