@@ -171,6 +171,7 @@ impl CouponCache {
             let uninitialized_coupon = Coupon::from_hash(0);
             let mut coupon_map: Vec<Coupon> =
                 vec![uninitialized_coupon; highest_term_ord as usize + 1];
+
             for (term_ord, coupon) in term_ords.into_iter().zip(coupons) {
                 coupon_map[term_ord as usize] = coupon;
             }
