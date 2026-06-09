@@ -10,11 +10,11 @@ use crate::aggregation::accessor_helpers::{
 };
 use crate::aggregation::agg_req::{Aggregation, AggregationVariants, Aggregations};
 use crate::aggregation::bucket::{
-    build_segment_filter_collector, build_segment_range_collector, CompositeAggReqData,
-    CompositeAggregation, CompositeSourceAccessors, FilterAggReqData, HistogramAggReqData,
-    HistogramBounds, IncludeExcludeParam, MissingTermAggReqData, RangeAggReqData,
-    SegmentHistogramCollector, TermMissingAgg, TermsAggReqData, TermsAggregation,
-    TermsAggregationInternal,
+    build_segment_filter_collector, build_segment_histogram_collector,
+    build_segment_range_collector, CompositeAggReqData, CompositeAggregation,
+    CompositeSourceAccessors, FilterAggReqData, HistogramAggReqData, HistogramBounds,
+    IncludeExcludeParam, MissingTermAggReqData, RangeAggReqData, TermMissingAgg, TermsAggReqData,
+    TermsAggregation, TermsAggregationInternal,
 };
 use crate::aggregation::metric::{
     build_segment_stats_collector, AverageAggregation, CardinalityAggReqData,
@@ -338,12 +338,8 @@ pub(crate) fn build_segment_agg_collector(
                 req_data.segment_ordinal,
             )))
         }
-        AggKind::Histogram => Ok(Box::new(SegmentHistogramCollector::from_req_and_validate(
-            req, node,
-        )?)),
-        AggKind::DateHistogram => Ok(Box::new(SegmentHistogramCollector::from_req_and_validate(
-            req, node,
-        )?)),
+        AggKind::Histogram => build_segment_histogram_collector(req, node),
+        AggKind::DateHistogram => build_segment_histogram_collector(req, node),
         AggKind::Range => Ok(build_segment_range_collector(req, node)?),
         AggKind::Filter => build_segment_filter_collector(req, node),
         AggKind::Composite => Ok(Box::new(
