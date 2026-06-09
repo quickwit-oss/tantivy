@@ -1,4 +1,5 @@
 mod order;
+pub mod shared_threshold;
 mod sort_by_bytes;
 mod sort_by_erased_type;
 mod sort_by_score;
@@ -7,6 +8,9 @@ mod sort_by_string;
 mod sort_key_computer;
 
 pub use order::*;
+pub use shared_threshold::{
+    AtomicSharedThreshold, SharedThreshold, SharedThresholdArc, SharedThresholdArcOpt,
+};
 pub use sort_by_bytes::SortByBytes;
 pub use sort_by_erased_type::SortByErasedType;
 pub use sort_by_score::SortBySimilarityScore;
@@ -276,7 +280,8 @@ pub(crate) mod tests {
             let searcher = index.reader()?.searcher();
             let ids = id_mapping(&searcher);
 
-            let top_collector = TopDocs::with_limit(4).order_by((SortBySimilarityScore, order));
+            let top_collector =
+                TopDocs::with_limit(4).order_by((SortBySimilarityScore::new(), order));
             let field = index.schema().get_field("catchphrase").unwrap();
             let query_parser = QueryParser::for_index(index, vec![field]);
             let text_query = query_parser.parse_query("glow")?;
@@ -316,7 +321,7 @@ pub(crate) mod tests {
             let ids = id_mapping(&searcher);
 
             let top_collector = TopDocs::with_limit(4).order_by((
-                (SortBySimilarityScore, score_order),
+                (SortBySimilarityScore::new(), score_order),
                 (SortByString::for_field("city"), city_order),
             ));
             let results: Vec<((Score, Option<String>), DocAddress)> =
@@ -361,7 +366,7 @@ pub(crate) mod tests {
             let ids = id_mapping(&searcher);
 
             let top_collector = TopDocs::with_limit(4).order_by::<(Score, OwnedValue)>((
-                (SortBySimilarityScore, score_order),
+                (SortBySimilarityScore::new(), score_order),
                 (SortByErasedType::for_field("city"), city_order),
             ));
             let results: Vec<((Score, OwnedValue), DocAddress)> =

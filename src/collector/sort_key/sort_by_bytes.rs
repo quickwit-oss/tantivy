@@ -1,5 +1,6 @@
 use columnar::BytesColumn;
 
+use crate::collector::sort_key::shared_threshold::SharedThresholdArcOpt;
 use crate::collector::sort_key::NaturalComparator;
 use crate::collector::{SegmentSortKeyComputer, SortKeyComputer};
 use crate::termdict::TermOrdinal;
@@ -11,9 +12,17 @@ use crate::{DocId, Score};
 ///
 /// Documents that do not have this value are still considered.
 /// Their sort key will simply be `None`.
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct SortByBytes {
     column_name: String,
+}
+
+impl std::fmt::Debug for SortByBytes {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("SortByBytes")
+            .field("column_name", &self.column_name)
+            .finish()
+    }
 }
 
 impl SortByBytes {
@@ -29,6 +38,18 @@ impl SortKeyComputer for SortByBytes {
     type SortKey = Option<Vec<u8>>;
     type Child = ByBytesColumnSegmentSortKeyComputer;
     type Comparator = NaturalComparator;
+
+    fn shared_threshold(
+        &self,
+    ) -> SharedThresholdArcOpt<
+        <<Self as SortKeyComputer>::Child as SegmentSortKeyComputer>::SegmentSortKey,
+    > {
+        // NB: Sharing a threshold for a String or Bytes column is harder than it looks!
+        // `TermOrdinals` are not comparable across segments, and so must be resolved via their
+        // `TermDictionary` into a string (an expensive process!) before publishing or consumption
+        // in the SharedThreshold.
+        None
+    }
 
     fn segment_sort_key_computer(
         &self,

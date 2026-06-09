@@ -335,6 +335,11 @@ impl DocAddress {
 ///
 /// The id used for the segment is actually an ordinal
 /// in the list of `Segment`s held by a `Searcher`.
+///
+/// In case of a tie on the sort key during search, `DocAddress` is used as a tie-breaker.
+/// This behavior is consistent with the pruning logic in
+/// [`SharedThreshold`](crate::collector::SharedThreshold), which also favors lower segment
+/// ordinals.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub struct DocAddress {
     /// The segment ordinal id that identifies the segment

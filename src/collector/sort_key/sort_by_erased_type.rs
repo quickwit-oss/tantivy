@@ -1,5 +1,6 @@
 use columnar::{ColumnType, MonotonicallyMappableToU64};
 
+use crate::collector::sort_key::shared_threshold::SharedThresholdArcOpt;
 use crate::collector::sort_key::{
     NaturalComparator, SortByBytes, SortBySimilarityScore, SortByStaticFastValue, SortByString,
 };
@@ -13,8 +14,22 @@ use crate::{DateTime, DocId, Score};
 /// Using the OwnedValue representation allows for type erasure, and can be useful when sort orders
 /// are not known until runtime. But it comes with a performance cost: wherever possible, prefer to
 /// use a SortKeyComputer implementation with a known-type at compile time.
+#[derive(Clone)]
+pub struct SortByErasedType {
+    inner: SortByErasedTypeInner,
+    shared_threshold: SharedThresholdArcOpt<Option<u64>>,
+}
+
+impl std::fmt::Debug for SortByErasedType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("SortByErasedType")
+            .field("inner", &self.inner)
+            .finish()
+    }
+}
+
 #[derive(Debug, Clone)]
-pub enum SortByErasedType {
+enum SortByErasedTypeInner {
     /// Sort by a fast field
     Field(String),
     /// Sort by score
@@ -25,12 +40,27 @@ impl SortByErasedType {
     /// Creates a new sort key computer which will sort by the given fast field column, with type
     /// erasure.
     pub fn for_field(column_name: impl ToString) -> Self {
-        Self::Field(column_name.to_string())
+        Self {
+            inner: SortByErasedTypeInner::Field(column_name.to_string()),
+            shared_threshold: None,
+        }
     }
 
     /// Creates a new sort key computer which will sort by score, with type erasure.
     pub fn for_score() -> Self {
-        Self::Score
+        Self {
+            inner: SortByErasedTypeInner::Score,
+            shared_threshold: None,
+        }
+    }
+
+    /// Configures a shared threshold to be used by this sort key computer.
+    pub fn with_shared_threshold(
+        mut self,
+        shared_threshold: SharedThresholdArcOpt<Option<u64>>,
+    ) -> Self {
+        self.shared_threshold = shared_threshold;
+        self
     }
 }
 
@@ -81,15 +111,23 @@ impl SortKeyComputer for SortByErasedType {
     type Comparator = NaturalComparator;
 
     fn requires_scoring(&self) -> bool {
-        matches!(self, Self::Score)
+        matches!(self.inner, SortByErasedTypeInner::Score)
+    }
+
+    fn shared_threshold(
+        &self,
+    ) -> SharedThresholdArcOpt<
+        <<Self as SortKeyComputer>::Child as SegmentSortKeyComputer>::SegmentSortKey,
+    > {
+        self.shared_threshold.clone()
     }
 
     fn segment_sort_key_computer(
         &self,
         segment_reader: &crate::SegmentReader,
     ) -> crate::Result<Self::Child> {
-        let inner: Box<dyn ErasedSegmentSortKeyComputer> = match self {
-            Self::Field(column_name) => {
+        let inner: Box<dyn ErasedSegmentSortKeyComputer> = match &self.inner {
+            SortByErasedTypeInner::Field(column_name) => {
                 let fast_fields = segment_reader.fast_fields();
                 // TODO: We currently double-open the column to avoid relying on the implementation
                 // details of `SortByString` or `SortByStaticFastValue`. Once
@@ -183,8 +221,8 @@ impl SortKeyComputer for SortByErasedType {
                     }
                 }
             }
-            Self::Score => Box::new(ScoreSegmentSortKeyComputer {
-                segment_computer: SortBySimilarityScore,
+            SortByErasedTypeInner::Score => Box::new(ScoreSegmentSortKeyComputer {
+                segment_computer: SortBySimilarityScore::new(),
             }),
         };
         Ok(ErasedColumnSegmentSortKeyComputer { inner })

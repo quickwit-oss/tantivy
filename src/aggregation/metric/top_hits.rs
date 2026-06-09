@@ -419,7 +419,7 @@ impl PartialEq for DocValueAndOrder {
 
 impl Eq for DocValueAndOrder {}
 
-#[derive(Clone, Serialize, Deserialize, Debug)]
+#[derive(Clone, Serialize, Deserialize, Debug, Default)]
 struct DocSortValuesAndFields {
     sorts: Vec<DocValueAndOrder>,
 

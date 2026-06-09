@@ -10,7 +10,7 @@ use crate::schema::document::DocumentDeserialize;
 use crate::schema::{Schema, Term};
 use crate::space_usage::SearcherSpaceUsage;
 use crate::store::{CacheStats, StoreReader};
-use crate::{DocAddress, Index, Opstamp, TrackedObject};
+use crate::{DocAddress, Index, Opstamp, SegmentOrdinal, TrackedObject};
 
 /// Identifies the searcher generation accessed by a [`Searcher`].
 ///
@@ -158,8 +158,8 @@ impl Searcher {
         &self.inner.segment_readers
     }
 
-    /// Returns the segment_reader associated with the given segment_ord
-    pub fn segment_reader(&self, segment_ord: u32) -> &SegmentReader {
+    /// Returns the segment reader associated with the given segment ordinal.
+    pub fn segment_reader(&self, segment_ord: SegmentOrdinal) -> &SegmentReader {
         &self.inner.segment_readers[segment_ord as usize]
     }
 

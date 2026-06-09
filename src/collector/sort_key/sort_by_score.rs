@@ -1,10 +1,44 @@
-use crate::collector::sort_key::NaturalComparator;
-use crate::collector::{SegmentSortKeyComputer, SortKeyComputer, TopNComputer};
-use crate::{DocAddress, DocId, Score};
+use std::sync::Arc;
 
-/// Sort by similarity score.
-#[derive(Clone, Debug, Copy)]
-pub struct SortBySimilarityScore;
+use super::shared_threshold::{AtomicSharedThreshold, SharedThresholdArcOpt};
+use crate::collector::sort_key::NaturalComparator;
+use crate::collector::sort_key_top_collector::TopBySortKeySegmentCollector;
+use crate::collector::{SegmentSortKeyComputer, SortKeyComputer};
+use crate::{DocId, Score, SegmentOrdinal};
+
+#[derive(Clone)]
+pub struct SortBySimilarityScore {
+    shared_threshold: SharedThresholdArcOpt<Score>,
+}
+
+impl std::fmt::Debug for SortBySimilarityScore {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("SortBySimilarityScore")
+            .field(
+                "threshold",
+                &self.shared_threshold.as_ref().and_then(|s| s.load()),
+            )
+            .finish()
+    }
+}
+
+impl Default for SortBySimilarityScore {
+    fn default() -> Self {
+        Self {
+            shared_threshold: Some(Arc::new(AtomicSharedThreshold::default())),
+        }
+    }
+}
+
+impl SortBySimilarityScore {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn with_shared_threshold(shared_threshold: SharedThresholdArcOpt<Score>) -> Self {
+        Self { shared_threshold }
+    }
+}
 
 impl SortKeyComputer for SortBySimilarityScore {
     type SortKey = Score;
@@ -17,47 +51,55 @@ impl SortKeyComputer for SortBySimilarityScore {
         true
     }
 
+    fn shared_threshold(
+        &self,
+    ) -> SharedThresholdArcOpt<
+        <<Self as SortKeyComputer>::Child as SegmentSortKeyComputer>::SegmentSortKey,
+    > {
+        self.shared_threshold.clone()
+    }
+
     fn segment_sort_key_computer(
         &self,
         _segment_reader: &crate::SegmentReader,
     ) -> crate::Result<Self::Child> {
-        Ok(SortBySimilarityScore)
+        Ok(self.clone())
     }
 
-    // Sorting by score is special in that it allows for the Block-Wand optimization.
     fn collect_segment_top_k(
         &self,
-        k: usize,
         weight: &dyn crate::query::Weight,
         reader: &crate::SegmentReader,
-        segment_ord: u32,
-    ) -> crate::Result<Vec<(Self::SortKey, DocAddress)>> {
-        let mut top_n: TopNComputer<Score, DocId, Self::Comparator> =
-            TopNComputer::new_with_comparator(k, self.comparator());
+        segment_collector: &mut TopBySortKeySegmentCollector<Self::Child, Self::Comparator>,
+    ) -> crate::Result<()> {
+        let top_n = &mut segment_collector.topn_computer;
+
+        let (initial_score, initial_ord) = top_n
+            .shared_threshold
+            .as_ref()
+            .and_then(|s| s.load())
+            .unwrap_or((Score::MIN, SegmentOrdinal::MAX));
+
+        top_n.set_threshold((initial_score, initial_ord));
+
+        let pruning_threshold = top_n.pruning_threshold.unwrap_or(Score::MIN);
 
         if let Some(alive_bitset) = reader.alive_bitset() {
-            let mut threshold = Score::MIN;
-            top_n.threshold = Some(threshold);
-            weight.for_each_pruning(Score::MIN, reader, &mut |doc, score| {
+            weight.for_each_pruning(pruning_threshold, reader, &mut |doc, score| {
                 if alive_bitset.is_deleted(doc) {
-                    return threshold;
+                    return top_n.pruning_threshold.unwrap_or(Score::MIN);
                 }
                 top_n.push(score, doc);
-                threshold = top_n.threshold.unwrap_or(Score::MIN);
-                threshold
+                top_n.pruning_threshold.unwrap_or(Score::MIN)
             })?;
         } else {
-            weight.for_each_pruning(Score::MIN, reader, &mut |doc, score| {
+            weight.for_each_pruning(pruning_threshold, reader, &mut |doc, score| {
                 top_n.push(score, doc);
-                top_n.threshold.unwrap_or(Score::MIN)
+                top_n.pruning_threshold.unwrap_or(Score::MIN)
             })?;
         }
 
-        Ok(top_n
-            .into_vec()
-            .into_iter()
-            .map(|cid| (cid.sort_key, DocAddress::new(segment_ord, cid.doc)))
-            .collect())
+        Ok(())
     }
 }
 

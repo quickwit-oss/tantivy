@@ -105,7 +105,10 @@ mod top_score_collector;
 pub use self::top_score_collector::{TopDocs, TopNComputer};
 
 mod sort_key_top_collector;
-pub use self::sort_key::{SegmentSortKeyComputer, SortKeyComputer};
+pub use self::sort_key::{
+    AtomicSharedThreshold, SegmentSortKeyComputer, SharedThreshold, SharedThresholdArc,
+    SharedThresholdArcOpt, SortKeyComputer,
+};
 mod facet_collector;
 pub use self::facet_collector::{FacetCollector, FacetCounts};
 use crate::query::Weight;
@@ -173,7 +176,7 @@ pub trait Collector: Sync + Send {
     fn collect_segment(
         &self,
         weight: &dyn Weight,
-        segment_ord: u32,
+        segment_ord: SegmentOrdinal,
         reader: &SegmentReader,
     ) -> crate::Result<<Self::Child as SegmentCollector>::Fruit> {
         let with_scoring = self.requires_scoring();

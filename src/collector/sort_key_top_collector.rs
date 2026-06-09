@@ -1,21 +1,31 @@
 use std::ops::Range;
 
+use crate::collector::sort_key::shared_threshold::SharedThresholdArcOpt;
 use crate::collector::sort_key::{Comparator, SegmentSortKeyComputer, SortKeyComputer};
 use crate::collector::{Collector, SegmentCollector, TopNComputer};
 use crate::query::Weight;
 use crate::schema::Schema;
-use crate::{DocAddress, DocId, Result, Score, SegmentReader};
+use crate::{DocAddress, DocId, Result, Score, SegmentOrdinal, SegmentReader};
 
-pub(crate) struct TopBySortKeyCollector<TSortKeyComputer> {
+pub(crate) struct TopBySortKeyCollector<TSortKeyComputer>
+where TSortKeyComputer: SortKeyComputer
+{
     sort_key_computer: TSortKeyComputer,
     doc_range: Range<usize>,
+    shared_threshold: SharedThresholdArcOpt<
+        <<TSortKeyComputer as SortKeyComputer>::Child as SegmentSortKeyComputer>::SegmentSortKey,
+    >,
 }
 
-impl<TSortKeyComputer> TopBySortKeyCollector<TSortKeyComputer> {
+impl<TSortKeyComputer> TopBySortKeyCollector<TSortKeyComputer>
+where TSortKeyComputer: SortKeyComputer
+{
     pub fn new(sort_key_computer: TSortKeyComputer, doc_range: Range<usize>) -> Self {
+        let shared_threshold = sort_key_computer.shared_threshold();
         TopBySortKeyCollector {
             sort_key_computer,
             doc_range,
+            shared_threshold,
         }
     }
 }
@@ -32,14 +42,21 @@ where TSortKeyComputer: SortKeyComputer + Send + Sync + 'static
         self.sort_key_computer.check_schema(schema)
     }
 
-    fn for_segment(&self, segment_ord: u32, segment_reader: &SegmentReader) -> Result<Self::Child> {
+    fn for_segment(
+        &self,
+        segment_ord: SegmentOrdinal,
+        segment_reader: &SegmentReader,
+    ) -> Result<Self::Child> {
         let segment_sort_key_computer = self
             .sort_key_computer
             .segment_sort_key_computer(segment_reader)?;
-        let topn_computer = TopNComputer::new_with_comparator(
+        let mut topn_computer = TopNComputer::new_with_comparator(
             self.doc_range.end,
             self.sort_key_computer.comparator(),
         );
+        topn_computer.segment_ord = segment_ord;
+        topn_computer.shared_threshold = self.shared_threshold.clone();
+
         Ok(TopBySortKeySegmentCollector {
             topn_computer,
             segment_ord,
@@ -62,14 +79,13 @@ where TSortKeyComputer: SortKeyComputer + Send + Sync + 'static
     fn collect_segment(
         &self,
         weight: &dyn Weight,
-        segment_ord: u32,
+        segment_ord: SegmentOrdinal,
         reader: &SegmentReader,
     ) -> crate::Result<Vec<(TSortKeyComputer::SortKey, DocAddress)>> {
-        let k = self.doc_range.end;
-        let docs = self
-            .sort_key_computer
-            .collect_segment_top_k(k, weight, reader, segment_ord)?;
-        Ok(docs)
+        let mut segment_collector = self.for_segment(segment_ord, reader)?;
+        self.sort_key_computer
+            .collect_segment_top_k(weight, reader, &mut segment_collector)?;
+        Ok(segment_collector.harvest())
     }
 }
 
@@ -100,7 +116,7 @@ where
     C: Comparator<TSegmentSortKeyComputer::SegmentSortKey>,
 {
     pub(crate) topn_computer: TopNComputer<TSegmentSortKeyComputer::SegmentSortKey, DocId, C>,
-    pub(crate) segment_ord: u32,
+    pub(crate) segment_ord: SegmentOrdinal,
     pub(crate) segment_sort_key_computer: TSegmentSortKeyComputer,
 }
 

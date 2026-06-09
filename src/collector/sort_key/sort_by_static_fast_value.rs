@@ -1,11 +1,15 @@
 use std::marker::PhantomData;
+use std::sync::Arc;
 
 use columnar::Column;
 
-use crate::collector::sort_key::NaturalComparator;
+use crate::collector::sort_key::shared_threshold::{
+    RwLockSharedThresholdOptionU64, SharedThresholdArcOpt,
+};
+use crate::collector::sort_key::ComparatorEnum;
 use crate::collector::{SegmentSortKeyComputer, SortKeyComputer};
 use crate::fastfield::{FastFieldNotAvailableError, FastValue};
-use crate::{DocId, Score, SegmentReader};
+use crate::{DocId, Order, Score, SegmentReader};
 
 /// Sorts by a fast value (u64, i64, f64, bool).
 ///
@@ -16,10 +20,19 @@ use crate::{DocId, Score, SegmentReader};
 ///
 /// Documents that do not have this value are still considered.
 /// Their sort key will simply be `None`.
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct SortByStaticFastValue<T: FastValue> {
     field: String,
+    shared_threshold: SharedThresholdArcOpt<Option<u64>>,
     typ: PhantomData<T>,
+}
+
+impl<T: FastValue> std::fmt::Debug for SortByStaticFastValue<T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("SortByStaticFastValue")
+            .field("field", &self.field)
+            .finish()
+    }
 }
 
 impl<T: FastValue> SortByStaticFastValue<T> {
@@ -27,15 +40,33 @@ impl<T: FastValue> SortByStaticFastValue<T> {
     pub fn for_field(column_name: impl ToString) -> SortByStaticFastValue<T> {
         Self {
             field: column_name.to_string(),
+            shared_threshold: Some(Arc::new(RwLockSharedThresholdOptionU64::new())),
             typ: PhantomData,
         }
+    }
+
+    /// Configures a shared threshold to be used by this sort key computer.
+    pub fn with_shared_threshold(
+        mut self,
+        shared_threshold: SharedThresholdArcOpt<Option<u64>>,
+    ) -> Self {
+        self.shared_threshold = shared_threshold;
+        self
     }
 }
 
 impl<T: FastValue> SortKeyComputer for SortByStaticFastValue<T> {
     type Child = SortByFastValueSegmentSortKeyComputer<T>;
     type SortKey = Option<T>;
-    type Comparator = NaturalComparator;
+    type Comparator = ComparatorEnum;
+
+    fn shared_threshold(
+        &self,
+    ) -> SharedThresholdArcOpt<
+        <<Self as SortKeyComputer>::Child as SegmentSortKeyComputer>::SegmentSortKey,
+    > {
+        self.shared_threshold.clone()
+    }
 
     fn check_schema(&self, schema: &crate::schema::Schema) -> crate::Result<()> {
         // At the segment sort key computer level, we rely on the u64 representation.
@@ -57,6 +88,10 @@ impl<T: FastValue> SortKeyComputer for SortByStaticFastValue<T> {
             )));
         }
         Ok(())
+    }
+
+    fn comparator(&self) -> Self::Comparator {
+        Order::Asc.into()
     }
 
     fn segment_sort_key_computer(
@@ -83,7 +118,11 @@ pub struct SortByFastValueSegmentSortKeyComputer<T> {
 impl<T: FastValue> SegmentSortKeyComputer for SortByFastValueSegmentSortKeyComputer<T> {
     type SortKey = Option<T>;
     type SegmentSortKey = Option<u64>;
-    type SegmentComparator = NaturalComparator;
+    type SegmentComparator = ComparatorEnum;
+
+    fn segment_comparator(&self) -> Self::SegmentComparator {
+        Order::Asc.into()
+    }
 
     #[inline(always)]
     fn segment_sort_key(&mut self, doc: DocId, _score: Score) -> Self::SegmentSortKey {

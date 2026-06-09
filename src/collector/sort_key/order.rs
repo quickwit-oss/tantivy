@@ -3,6 +3,7 @@ use std::cmp::Ordering;
 use columnar::MonotonicallyMappableToU64;
 use serde::{Deserialize, Serialize};
 
+use crate::collector::sort_key::shared_threshold::SharedThresholdArcOpt;
 use crate::collector::{SegmentSortKeyComputer, SortKeyComputer};
 use crate::schema::{OwnedValue, Schema};
 use crate::{DocId, Order, Score};
@@ -510,6 +511,14 @@ where
         self.1
     }
 
+    fn shared_threshold(
+        &self,
+    ) -> SharedThresholdArcOpt<
+        <<Self as SortKeyComputer>::Child as SegmentSortKeyComputer>::SegmentSortKey,
+    > {
+        self.0.shared_threshold()
+    }
+
     fn segment_sort_key_computer(
         &self,
         segment_reader: &crate::SegmentReader,
@@ -546,6 +555,14 @@ where
 
     fn comparator(&self) -> Self::Comparator {
         self.1.into()
+    }
+
+    fn shared_threshold(
+        &self,
+    ) -> SharedThresholdArcOpt<
+        <<Self as SortKeyComputer>::Child as SegmentSortKeyComputer>::SegmentSortKey,
+    > {
+        self.0.shared_threshold()
     }
 
     fn segment_sort_key_computer(

@@ -1,10 +1,11 @@
 use std::cmp::Ordering;
 
+use crate::collector::sort_key::shared_threshold::SharedThresholdArcOpt;
 use crate::collector::sort_key::{Comparator, NaturalComparator};
 use crate::collector::sort_key_top_collector::TopBySortKeySegmentCollector;
-use crate::collector::{default_collect_segment_impl, SegmentCollector as _, TopNComputer};
+use crate::collector::{default_collect_segment_impl, TopNComputer};
 use crate::schema::Schema;
-use crate::{DocAddress, DocId, Result, Score, SegmentReader};
+use crate::{DocId, Result, Score, SegmentReader};
 
 /// A `SegmentSortKeyComputer` makes it possible to modify the default score
 /// for a given document belonging to a specific segment.
@@ -114,24 +115,30 @@ pub trait SortKeyComputer: Sync {
         false
     }
 
+    /// Returns a shared threshold that can be used to synchronize the worst score across multiple
+    /// threads or segments.
+    ///
+    /// This is used to prune documents early during search when multiple segments are searched in
+    /// parallel.
+    /// By default, returns `None`.
+    fn shared_threshold(
+        &self,
+    ) -> SharedThresholdArcOpt<
+        <<Self as SortKeyComputer>::Child as SegmentSortKeyComputer>::SegmentSortKey,
+    > {
+        None
+    }
+
     /// Sorting by score has a overriding implementation for BM25 scores, using Block-WAND.
     fn collect_segment_top_k(
         &self,
-        k: usize,
         weight: &dyn crate::query::Weight,
         reader: &crate::SegmentReader,
-        segment_ord: u32,
-    ) -> crate::Result<Vec<(Self::SortKey, DocAddress)>> {
+        segment_collector: &mut TopBySortKeySegmentCollector<Self::Child, Self::Comparator>,
+    ) -> crate::Result<()> {
         let with_scoring = self.requires_scoring();
-        let segment_sort_key_computer = self.segment_sort_key_computer(reader)?;
-        let topn_computer = TopNComputer::new_with_comparator(k, self.comparator());
-        let mut segment_top_key_collector = TopBySortKeySegmentCollector {
-            topn_computer,
-            segment_ord,
-            segment_sort_key_computer,
-        };
-        default_collect_segment_impl(&mut segment_top_key_collector, weight, reader, with_scoring)?;
-        Ok(segment_top_key_collector.harvest())
+        default_collect_segment_impl(segment_collector, weight, reader, with_scoring)?;
+        Ok(())
     }
 
     /// Builds a child sort key computer for a specific segment.
@@ -221,7 +228,7 @@ where
         top_n_computer: &mut TopNComputer<Self::SegmentSortKey, DocId, C>,
     ) {
         let sort_key: Self::SegmentSortKey;
-        if let Some(threshold) = &top_n_computer.threshold {
+        if let Some((threshold, _ord)) = &top_n_computer.threshold {
             if let Some((_cmp, lazy_sort_key)) = self.accept_sort_key_lazy(doc, score, threshold) {
                 sort_key = lazy_sort_key;
             } else {

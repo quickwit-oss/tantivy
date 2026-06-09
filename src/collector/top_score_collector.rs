@@ -1,10 +1,10 @@
-use std::cmp::Ordering;
 use std::fmt;
 use std::ops::Range;
 
 use serde::{Deserialize, Serialize};
 
 use super::Collector;
+use crate::collector::sort_key::shared_threshold::SharedThresholdArcOpt;
 use crate::collector::sort_key::{
     Comparator, ComparatorEnum, NaturalComparator, ReverseComparator, SortBySimilarityScore,
     SortByStaticFastValue, SortByString,
@@ -13,7 +13,7 @@ use crate::collector::sort_key_top_collector::TopBySortKeyCollector;
 use crate::collector::top_collector::ComparableDoc;
 use crate::collector::{SegmentSortKeyComputer, SortKeyComputer};
 use crate::fastfield::FastValue;
-use crate::{DocAddress, DocId, Order, Score, SegmentReader};
+use crate::{DocAddress, DocId, Order, Score, SegmentOrdinal, SegmentReader};
 
 /// The `TopDocs` collector keeps track of the top `K` documents
 /// sorted by their score.
@@ -224,7 +224,7 @@ impl TopDocs {
 
     /// Order docs by decreasing BM25 similarity score.
     pub fn order_by_score(self) -> impl Collector<Fruit = Vec<(Score, DocAddress)>> {
-        TopBySortKeyCollector::new(SortBySimilarityScore, self.doc_range())
+        TopBySortKeyCollector::new(SortBySimilarityScore::new(), self.doc_range())
     }
 
     /// Set top-K to rank documents by a given fast field.
@@ -515,8 +515,13 @@ pub struct TopNComputer<Score, D, C> {
     top_n: usize,
     /// The current threshold for pruning. Documents with scores at or below
     /// this value are skipped by `push()`. Updated when the buffer is truncated.
-    pub threshold: Option<Score>,
+    pub(crate) threshold: Option<(Score, SegmentOrdinal)>,
     comparator: C,
+    #[serde(skip)]
+    pub(crate) shared_threshold: SharedThresholdArcOpt<Score>,
+    pub(crate) segment_ord: SegmentOrdinal,
+    #[serde(skip)]
+    pub(crate) pruning_threshold: Option<Score>,
 }
 
 // Intermediate struct for TopNComputer for deserialization, to keep vec capacity
@@ -524,8 +529,10 @@ pub struct TopNComputer<Score, D, C> {
 struct TopNComputerDeser<Score, D, C> {
     buffer: Vec<ComparableDoc<Score, D>>,
     top_n: usize,
-    threshold: Option<Score>,
+    threshold: Option<(Score, SegmentOrdinal)>,
     comparator: C,
+    #[serde(default)]
+    segment_ord: SegmentOrdinal,
 }
 
 impl<Score, D, C> From<TopNComputerDeser<Score, D, C>> for TopNComputer<Score, D, C> {
@@ -543,6 +550,9 @@ impl<Score, D, C> From<TopNComputerDeser<Score, D, C>> for TopNComputer<Score, D
             top_n: value.top_n,
             threshold: value.threshold,
             comparator: value.comparator,
+            shared_threshold: None,
+            segment_ord: value.segment_ord,
+            pruning_threshold: None,
         }
     }
 }
@@ -570,6 +580,9 @@ impl<Score: Clone, D: Clone, C: Clone> Clone for TopNComputer<Score, D, C> {
             top_n: self.top_n,
             threshold: self.threshold.clone(),
             comparator: self.comparator.clone(),
+            shared_threshold: self.shared_threshold.clone(),
+            segment_ord: self.segment_ord,
+            pruning_threshold: self.pruning_threshold.clone(),
         }
     }
 }
@@ -614,6 +627,26 @@ where
             top_n,
             threshold: None,
             comparator,
+            shared_threshold: None,
+            segment_ord: 0,
+            pruning_threshold: None,
+        }
+    }
+
+    /// Sets the current threshold.
+    pub fn set_threshold(&mut self, threshold: (TSortKey, SegmentOrdinal)) {
+        self.threshold = Some(threshold);
+        self.update_pruning_threshold();
+    }
+
+    pub(crate) fn update_pruning_threshold(&mut self) {
+        if let Some((val, ord)) = &self.threshold {
+            if let Some(shared) = &self.shared_threshold {
+                self.pruning_threshold =
+                    Some(shared.competitive_threshold(val.clone(), *ord, self.segment_ord));
+            } else {
+                self.pruning_threshold = Some(val.clone());
+            }
         }
     }
 
@@ -623,9 +656,19 @@ where
     /// NOTE: `push` must be called in ascending `DocId`/`DocAddress` order.
     #[inline]
     pub fn push(&mut self, sort_key: TSortKey, doc: D) {
-        if let Some(last_median) = &self.threshold {
-            // See the struct docs for an explanation of why this comparison is strict.
-            if self.comparator.compare(&sort_key, last_median) != Ordering::Greater {
+        if let Some((last_median, thresh_ord)) = &self.threshold {
+            let cmp = self.comparator.compare(&sort_key, last_median);
+            if cmp == std::cmp::Ordering::Less {
+                return;
+            }
+            if cmp == std::cmp::Ordering::Equal && self.segment_ord >= *thresh_ord {
+                // If it is a global threshold tie, but we have a lower global tie-breaker priority
+                // (a higher segment_ord means we appear later globally, therefore our document
+                // would have a higher `DocAddress`, meaning it should lose the
+                // tie-breaker). Or if `self.segment_ord == *thresh_ord`, it's a
+                // purely local tie. Since we iterate docs in ascending order within
+                // a segment, our doc has a higher `DocId` and must lose the local
+                // tie-breaker.
                 return;
             }
         }
@@ -638,8 +681,7 @@ where
     #[inline(always)]
     pub(crate) fn append_doc(&mut self, doc: D, sort_key: TSortKey) {
         if self.buffer.len() == self.buffer.capacity() {
-            let median = self.truncate_top_n();
-            self.threshold = Some(median);
+            self.truncate_top_n();
         }
         // This cannot panic, because we truncate_median will at least remove one element, since
         // the min capacity is 2.
@@ -648,17 +690,51 @@ where
     }
 
     #[inline(never)]
-    fn truncate_top_n(&mut self) -> TSortKey {
+    fn truncate_top_n(&mut self) {
         // Use select_nth_unstable to find the top nth score
         let (_, median_el, _) = self.buffer.select_nth_unstable_by(self.top_n, |lhs, rhs| {
             compare_for_top_k(&self.comparator, lhs, rhs)
         });
 
-        let median_score = median_el.sort_key.clone();
+        let median = median_el.sort_key.clone();
         // Remove all elements below the top_n
         self.buffer.truncate(self.top_n);
 
-        median_score
+        if let Some(shared) = &self.shared_threshold {
+            // We use a Compare-And-Swap (CAS) loop to update the global threshold.
+            // By doing the comparison here, we can use static dispatch for the comparator,
+            // which enables optimal codegen inside the tight pruning loop.
+            let mut current = shared.load();
+            loop {
+                let is_better = if let Some(ref curr) = current {
+                    let cmp = self.comparator.compare(&median, &curr.0);
+                    match cmp {
+                        std::cmp::Ordering::Greater => true,
+                        std::cmp::Ordering::Less => false,
+                        std::cmp::Ordering::Equal => self.segment_ord < curr.1,
+                    }
+                } else {
+                    true
+                };
+
+                if !is_better {
+                    self.threshold = current;
+                    break;
+                }
+                match shared.try_update(&current, (median.clone(), self.segment_ord)) {
+                    Ok(()) => {
+                        self.threshold = Some((median.clone(), self.segment_ord));
+                        break;
+                    }
+                    Err(actual) => {
+                        current = actual;
+                    }
+                }
+            }
+        } else {
+            self.threshold = Some((median, self.segment_ord));
+        }
+        self.update_pruning_threshold();
     }
 
     /// Returns the top n elements in sorted order.
@@ -848,8 +924,8 @@ mod tests {
         assert_results_equals(
             &score_docs,
             &[
-                (0.81221175, DocAddress::new(0u32, 1)),
-                (0.5376842, DocAddress::new(0u32, 2)),
+                (0.81221175, DocAddress::new(0, 1)),
+                (0.5376842, DocAddress::new(0, 2)),
                 (0.48527452, DocAddress::new(0, 0)),
             ],
         );
@@ -889,8 +965,8 @@ mod tests {
         assert_results_equals(
             &score_docs,
             &[
-                (0.81221175, DocAddress::new(0u32, 1)),
-                (0.5376842, DocAddress::new(0u32, 2)),
+                (0.81221175, DocAddress::new(0, 1)),
+                (0.5376842, DocAddress::new(0, 2)),
             ],
         );
     }
@@ -913,7 +989,7 @@ mod tests {
         assert_results_equals(
             &score_docs[..],
             &[
-                (0.5376842, DocAddress::new(0u32, 2)),
+                (0.5376842, DocAddress::new(0, 2)),
                 (0.48527452, DocAddress::new(0, 0)),
             ],
         );
@@ -1484,7 +1560,7 @@ mod tests {
         });
         let searcher = index.reader().unwrap().searcher();
         let top_collector = TopDocs::with_limit(4).order_by_u64_field("missing_field", Order::Desc);
-        let segment_reader = searcher.segment_reader(0u32);
+        let segment_reader = searcher.segment_reader(0);
         top_collector
             .for_segment(0, segment_reader)
             .expect("should panic");
