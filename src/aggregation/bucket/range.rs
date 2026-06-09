@@ -559,12 +559,12 @@ mod tests {
     };
 
     pub fn build_test_buckets(
-        ranges: Vec<RangeAggregationRange>,
+        ranges: &[RangeAggregationRange],
         field_type: ColumnType,
     ) -> Vec<SegmentRangeAndBucketEntry> {
         let req = RangeAggregation {
             field: "dummy".to_string(),
-            ranges,
+            ranges: ranges.to_vec(),
             ..Default::default()
         };
         extend_validate_ranges(&req.ranges, &field_type)
@@ -841,8 +841,8 @@ mod tests {
 
     #[test]
     fn bucket_test_extend_range_hole() {
-        let buckets = vec![(10f64..20f64).into(), (30f64..40f64).into()];
-        let parent_buckets = vec![build_test_buckets(buckets, ColumnType::F64)];
+        let buckets = [(10f64..20f64).into(), (30f64..40f64).into()];
+        let parent_buckets = [build_test_buckets(&buckets, ColumnType::F64)];
 
         let buckets = parent_buckets[0].clone();
         assert_eq!(buckets[0].range.start, u64::MIN);
@@ -860,12 +860,12 @@ mod tests {
     fn bucket_test_range_conversion_special_case() {
         // the monotonic conversion between f64 and u64, does not map f64::MIN.to_u64() ==
         // u64::MIN, but the into trait converts f64::MIN/MAX to None
-        let buckets = vec![
+        let buckets = [
             (f64::MIN..10f64).into(),
             (10f64..20f64).into(),
             (20f64..f64::MAX).into(),
         ];
-        let parent_buckets = vec![build_test_buckets(buckets, ColumnType::F64)];
+        let parent_buckets = [build_test_buckets(&buckets, ColumnType::F64)];
 
         let buckets = parent_buckets[0].clone();
         assert_eq!(buckets[0].range.start, u64::MIN);
@@ -879,8 +879,8 @@ mod tests {
 
     #[test]
     fn bucket_range_test_negative_vals() {
-        let buckets = vec![(-10f64..-1f64).into()];
-        let parent_buckets = vec![build_test_buckets(buckets, ColumnType::F64)];
+        let buckets = [(-10f64..-1f64).into()];
+        let parent_buckets = [build_test_buckets(&buckets, ColumnType::F64)];
 
         let buckets = parent_buckets[0].clone();
         assert_eq!(&buckets[0].bucket.key.to_string(), "*--10");
@@ -888,8 +888,8 @@ mod tests {
     }
     #[test]
     fn bucket_range_test_positive_vals() {
-        let buckets = vec![(0f64..10f64).into()];
-        let parent_buckets = vec![build_test_buckets(buckets, ColumnType::F64)];
+        let buckets = [(0f64..10f64).into()];
+        let parent_buckets = [build_test_buckets(&buckets, ColumnType::F64)];
 
         let buckets = parent_buckets[0].clone();
         assert_eq!(&buckets[0].bucket.key.to_string(), "*-0");
@@ -898,8 +898,8 @@ mod tests {
 
     #[test]
     fn range_binary_search_test_u64() {
-        let check_ranges = |ranges: Vec<RangeAggregationRange>| {
-            let parent_buckets = vec![build_test_buckets(ranges, ColumnType::U64)];
+        let check_ranges = |ranges: &[RangeAggregationRange]| {
+            let parent_buckets = [build_test_buckets(ranges, ColumnType::U64)];
             let search = |val: u64| get_bucket_pos(val, &parent_buckets[0]);
 
             assert_eq!(search(u64::MIN), 0);
@@ -913,7 +913,7 @@ mod tests {
         };
 
         let ranges = vec![(10.0..100.0).into()];
-        check_ranges(ranges);
+        check_ranges(&ranges);
 
         let ranges = vec![
             RangeAggregationRange {
@@ -923,7 +923,7 @@ mod tests {
             },
             (10.0..100.0).into(),
         ];
-        check_ranges(ranges);
+        check_ranges(&ranges);
 
         let ranges = vec![
             RangeAggregationRange {
@@ -938,14 +938,14 @@ mod tests {
                 from: Some(100.0),
             },
         ];
-        check_ranges(ranges);
+        check_ranges(&ranges);
     }
 
     #[test]
     fn range_binary_search_test_f64() {
-        let ranges = vec![(10.0..100.0).into()];
+        let ranges = [(10.0..100.0).into()];
 
-        let parent_buckets = vec![build_test_buckets(ranges, ColumnType::F64)];
+        let parent_buckets = [build_test_buckets(&ranges, ColumnType::F64)];
         let search = |val: u64| get_bucket_pos(val, &parent_buckets[0]);
 
         assert_eq!(search(u64::MIN), 0);
