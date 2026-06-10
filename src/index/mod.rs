@@ -10,6 +10,7 @@ mod segment_component;
 mod segment_id;
 mod segment_reader;
 
+pub(crate) use self::index::{builtin_plugins, list_segment_files, PluginCheckedIndex};
 pub use self::index::{Index, IndexBuilder};
 pub(crate) use self::index_meta::SegmentMetaInventory;
 pub use self::index_meta::{IndexMeta, IndexSettings, IndexSortByField, Order, SegmentMeta};

@@ -1,4 +1,3 @@
-use std::collections::HashSet;
 use std::fmt;
 use std::path::PathBuf;
 use std::sync::atomic::AtomicBool;
@@ -103,28 +102,10 @@ impl SegmentMeta {
             .unwrap_or(0u32)
     }
 
-    /// Returns the list of files that
-    /// are required for the segment meta.
-    /// Note: Some of the returned files may not exist depending on the state of the segment.
-    ///
-    /// This is useful as the way tantivy removes files
-    /// is by removing all files that have been created by tantivy
-    /// and are not used by any segment anymore.
-    pub fn list_files(&self) -> HashSet<PathBuf> {
-        if self
-            .tracked
+    pub(crate) fn include_temp_store(&self) -> bool {
+        self.tracked
             .include_temp_doc_store
             .load(std::sync::atomic::Ordering::Relaxed)
-        {
-            SegmentComponent::iterator()
-                .map(|component| self.relative_path(*component))
-                .collect::<HashSet<PathBuf>>()
-        } else {
-            SegmentComponent::iterator()
-                .filter(|comp| *comp != &SegmentComponent::TempStore)
-                .map(|component| self.relative_path(*component))
-                .collect::<HashSet<PathBuf>>()
-        }
     }
 
     /// Returns the relative path of a component of our segment.
@@ -142,6 +123,7 @@ impl SegmentMeta {
             SegmentComponent::FastFields => ".fast".to_string(),
             SegmentComponent::FieldNorms => ".fieldnorm".to_string(),
             SegmentComponent::Delete => format!(".{}.del", self.delete_opstamp().unwrap_or(0)),
+            SegmentComponent::Custom(ext) => format!(".{ext}"),
         });
         PathBuf::from(path)
     }
@@ -324,6 +306,16 @@ pub struct IndexMeta {
     /// `IndexSettings` to configure index options.
     #[serde(default)]
     pub index_settings: IndexSettings,
+    /// Custom (non-built-in) plugin extensions this index was created with.
+    ///
+    /// Fixed at index creation. This is the single source of truth for which
+    /// custom plugins the index requires: garbage collection keeps their files,
+    /// and the writer/merger fails closed if an owning plugin is not registered.
+    /// An index created before this field existed deserializes to empty, i.e.
+    /// built-in plugins only.
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub persisted_custom_extensions: Vec<String>,
     /// List of `SegmentMeta` information associated with each finalized segment of the index.
     pub segments: Vec<SegmentMeta>,
     /// Index `Schema`
@@ -344,6 +336,8 @@ struct UntrackedIndexMeta {
     pub segments: Vec<InnerSegmentMeta>,
     #[serde(default)]
     pub index_settings: IndexSettings,
+    #[serde(default)]
+    pub persisted_custom_extensions: Vec<String>,
     pub schema: Schema,
     pub opstamp: Opstamp,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -354,6 +348,7 @@ impl UntrackedIndexMeta {
     pub fn track(self, inventory: &SegmentMetaInventory) -> IndexMeta {
         IndexMeta {
             index_settings: self.index_settings,
+            persisted_custom_extensions: self.persisted_custom_extensions,
             segments: self
                 .segments
                 .into_iter()
@@ -375,6 +370,7 @@ impl IndexMeta {
     pub fn with_schema(schema: Schema) -> IndexMeta {
         IndexMeta {
             index_settings: IndexSettings::default(),
+            persisted_custom_extensions: Vec::new(),
             segments: vec![],
             schema,
             opstamp: 0u64,
@@ -429,6 +425,7 @@ mod tests {
                 }),
                 ..Default::default()
             },
+            persisted_custom_extensions: Vec::new(),
             segments: Vec::new(),
             schema,
             opstamp: 0u64,
@@ -466,6 +463,7 @@ mod tests {
                 docstore_blocksize: 1_000_000,
                 docstore_compress_dedicated_thread: true,
             },
+            persisted_custom_extensions: Vec::new(),
             segments: Vec::new(),
             schema,
             opstamp: 0u64,
