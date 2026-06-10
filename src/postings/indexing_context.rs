@@ -7,13 +7,14 @@ use crate::indexer::path_to_unordered_id::PathToUnorderedId;
 
 /// IndexingContext contains all of the transient memory arenas
 /// required for building the inverted index.
-pub(crate) struct IndexingContext {
+#[doc(hidden)]
+pub struct IndexingContext {
     /// The term index is an adhoc hashmap,
     /// itself backed by a dedicated memory arena.
-    pub term_index: ArenaHashMap,
+    pub(crate) term_index: ArenaHashMap,
     /// Arena is a memory arena that stores posting lists / term frequencies / positions.
-    pub arena: MemoryArena,
-    pub path_to_unordered_id: PathToUnorderedId,
+    pub(crate) arena: MemoryArena,
+    pub(crate) path_to_unordered_id: PathToUnorderedId,
     /// Optional codec-specific payload attached to a term, keyed by the value
     /// `Addr` of the term's recorder in `term_index`.
     ///
@@ -22,7 +23,7 @@ pub(crate) struct IndexingContext {
     /// `subscribe` updates the recorder in place). The payload is therefore
     /// looked up by `Addr` at serialization time and fed to the codec's
     /// postings serializer at the beginning of the term.
-    pub codec_term_payloads: FnvHashMap<Addr, Box<dyn Any + Send>>,
+    pub(crate) codec_term_payloads: FnvHashMap<Addr, Box<dyn Any + Send>>,
 }
 
 impl IndexingContext {

@@ -99,7 +99,8 @@ pub(crate) fn serialize_postings<C: Codec>(
 }
 
 #[derive(Default, Debug)]
-pub(crate) struct IndexingPosition {
+#[doc(hidden)]
+pub struct IndexingPosition {
     pub num_tokens: u32,
     pub end_position: u32,
 }
@@ -150,6 +151,34 @@ impl From<JsonPostingsWriter<TfAndPositionRecorder>> for PostingsWriterEnum {
         doc_id_tf_and_positions_recorder_writer: JsonPostingsWriter<TfAndPositionRecorder>,
     ) -> Self {
         PostingsWriterEnum::JsonDocTfAndPosition(doc_id_tf_and_positions_recorder_writer)
+    }
+}
+
+impl PostingsWriterEnum {
+    /// Public, codec-agnostic entry point that tokenizes `token_stream` and
+    /// records every token for `doc_id`, mirroring what `SegmentWriter` does
+    /// for a text field.
+    ///
+    /// `indexing_position.end_position` offsets the token positions (set it to
+    /// shift the tokens, e.g. to place a placeholder's tokens after the static
+    /// tokens that precede it) and is advanced as tokens are consumed.
+    #[doc(hidden)]
+    pub fn index_text(
+        &mut self,
+        doc_id: DocId,
+        token_stream: &mut dyn TokenStream,
+        term_buffer: &mut IndexingTerm,
+        ctx: &mut IndexingContext,
+        indexing_position: &mut IndexingPosition,
+    ) {
+        <Self as PostingsWriter>::index_text(
+            self,
+            doc_id,
+            token_stream,
+            term_buffer,
+            ctx,
+            indexing_position,
+        )
     }
 }
 
@@ -329,7 +358,7 @@ pub(crate) trait PostingsWriter: Send + Sync {
 /// The `SpecializedPostingsWriter` is just here to remove dynamic
 /// dispatch to the recorder information.
 #[derive(Default)]
-pub(crate) struct SpecializedPostingsWriter<Rec: Recorder> {
+pub struct SpecializedPostingsWriter<Rec: Recorder> {
     total_num_tokens: u64,
     _recorder_type: PhantomData<Rec>,
 }

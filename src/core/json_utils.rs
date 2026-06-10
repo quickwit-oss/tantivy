@@ -52,7 +52,8 @@ use crate::{DateTime, DocId, Term};
 /// We can therefore afford working with a map that is not imperfect. It is fine if several
 /// path map to the same index position as long as the probability is relatively low.
 #[derive(Default)]
-pub(crate) struct IndexingPositionsPerPath {
+#[doc(hidden)]
+pub struct IndexingPositionsPerPath {
     positions_per_path: FxHashMap<u32, IndexingPosition>,
 }
 
@@ -104,7 +105,8 @@ fn index_json_object<'a, V: Value<'a>>(
 }
 
 #[expect(clippy::too_many_arguments)]
-pub(crate) fn index_json_value<'a, V: Value<'a>>(
+#[doc(hidden)]
+pub fn index_json_value<'a, V: Value<'a>>(
     doc: DocId,
     json_value: V,
     text_analyzer: &mut TextAnalyzer,

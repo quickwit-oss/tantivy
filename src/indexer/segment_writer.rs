@@ -58,9 +58,9 @@ pub struct SegmentWriter<Codec: crate::codec::Codec> {
     pub(crate) json_path_writer: JsonPathWriter,
     pub(crate) json_positions_per_path: IndexingPositionsPerPath,
     pub(crate) doc_opstamps: Vec<Opstamp>,
+    schema: Schema,
     per_field_text_analyzers: Vec<TextAnalyzer>,
     term_buffer: IndexingTerm,
-    schema: Schema,
 }
 
 impl<Codec: crate::codec::Codec> SegmentWriter<Codec> {
@@ -209,6 +209,31 @@ impl<Codec: crate::codec::Codec> SegmentWriter<Codec> {
         let previous_payload = self.ctx.codec_term_payloads.remove(&addr);
         let new_payload = updater(previous_payload);
         self.ctx.codec_term_payloads.insert(addr, new_payload);
+    }
+
+    /// Returns disjoint mutable borrows of the pieces needed to index field
+    /// values outside of `index_document` (e.g. moshiki's placeholder
+    /// routines): the per-field postings writers, the indexing context
+    /// (memory arena + term hashmap), the shared term buffer, and the
+    /// per-field text analyzers (indexed by `Field::field_id`).
+    ///
+    /// The text analyzers are exactly the ones `index_document` uses, so
+    /// indexing a value through them yields identical postings.
+    #[doc(hidden)]
+    pub fn indexing_parts(
+        &mut self,
+    ) -> (
+        &mut PerFieldPostingsWriter,
+        &mut IndexingContext,
+        &mut IndexingTerm,
+        &mut [TextAnalyzer],
+    ) {
+        (
+            &mut self.per_field_postings_writers,
+            &mut self.ctx,
+            &mut self.term_buffer,
+            &mut self.per_field_text_analyzers,
+        )
     }
 
     fn index_document<D: Document>(&mut self, doc: &D) -> crate::Result<()> {

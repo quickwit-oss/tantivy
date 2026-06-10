@@ -7,7 +7,7 @@ use crate::indexer::operation::AddOperation;
 use crate::indexer::segment_updater::save_metas;
 use crate::indexer::SegmentWriter;
 use crate::schema::document::Document;
-use crate::schema::Field;
+use crate::schema::{Field, Schema};
 use crate::{Directory, Index, IndexMeta, Opstamp, Segment, TantivyDocument};
 
 #[doc(hidden)]
@@ -42,6 +42,10 @@ impl<Codec: crate::codec::Codec, D: Document> SingleSegmentIndexWriter<Codec, D>
         self.opstamp += 1;
         self.segment_writer
             .add_document(AddOperation { opstamp, document })
+    }
+
+    pub fn schema(&self) -> Schema {
+        self.segment.schema()
     }
 
     /// Attaches or updates a codec-specific payload on a term of a regular

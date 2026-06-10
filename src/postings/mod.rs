@@ -20,12 +20,17 @@ pub(crate) use loaded_postings::LoadedPostings;
 pub use postings::DocFreq;
 pub(crate) use stacker::compute_table_memory_size;
 
-pub(crate) use self::indexing_context::IndexingContext;
+#[doc(hidden)]
+pub use self::indexing_context::IndexingContext;
 #[doc(hidden)]
 pub use self::per_field_postings_writer::PerFieldPostingsWriter;
 pub use self::postings::Postings;
-pub(crate) use self::postings_writer::{
-    serialize_postings, IndexingPosition, PostingsWriter, PostingsWriterEnum,
+#[doc(hidden)]
+pub use self::postings_writer::IndexingPosition;
+pub use self::postings_writer::PostingsWriterEnum;
+pub(crate) use self::postings_writer::{serialize_postings, PostingsWriter};
+pub use self::recorder::{
+    BufferLender, DocIdRecorder, Recorder, TermFrequencyRecorder, TfAndPositionRecorder,
 };
 pub use self::serializer::{FieldSerializer, InvertedIndexSerializer};
 pub use self::term_info::TermInfo;

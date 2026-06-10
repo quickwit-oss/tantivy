@@ -18,7 +18,7 @@ use crate::DocId;
 /// `subscribe` is called directly to index non-text tokens, while
 /// `index_text` is used to index text.
 #[derive(Default)]
-pub(crate) struct JsonPostingsWriter<Rec: Recorder> {
+pub struct JsonPostingsWriter<Rec: Recorder> {
     str_posting_writer: SpecializedPostingsWriter<Rec>,
     non_str_posting_writer: SpecializedPostingsWriter<DocIdRecorder>,
 }

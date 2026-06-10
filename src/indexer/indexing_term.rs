@@ -13,7 +13,8 @@ use crate::schema::Field;
 /// We serialize the field, because we index everything in a single
 /// global term dictionary during indexing.
 #[derive(Clone)]
-pub(crate) struct IndexingTerm<B = Vec<u8>>(B)
+#[doc(hidden)]
+pub struct IndexingTerm<B = Vec<u8>>(B)
 where B: AsRef<[u8]>;
 
 /// The number of bytes used as metadata by `Term`.
@@ -42,7 +43,7 @@ impl IndexingTerm {
     }
 
     /// Removes the value_bytes and set the field
-    pub(crate) fn clear_with_field(&mut self, field: Field) {
+    pub fn clear_with_field(&mut self, field: Field) {
         self.truncate_value_bytes(0);
         self.set_field(field);
     }

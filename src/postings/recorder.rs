@@ -8,7 +8,7 @@ use crate::DocId;
 const POSITION_END: u32 = 0;
 
 #[derive(Default)]
-pub(crate) struct BufferLender {
+pub struct BufferLender {
     buffer_u8: Vec<u8>,
     buffer_u32: Vec<u32>,
 }
@@ -56,7 +56,7 @@ impl Iterator for VInt32Reader<'_> {
 ///   * the document id
 ///   * the term frequency
 ///   * the term positions
-pub(crate) trait Recorder: Copy + Default + Send + Sync + 'static {
+pub trait Recorder: Copy + Default + Send + Sync + 'static {
     /// Returns the current document
     fn current_doc(&self) -> u32;
     /// Starts recording information about a new document
