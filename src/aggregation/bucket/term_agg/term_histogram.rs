@@ -59,6 +59,16 @@ pub(crate) struct SegmentTermHistogramCollector {
     /// `collect` independent of `agg_data`.
     term_block: ColumnBlockAccessor<u64>,
     hist_block: ColumnBlockAccessor<u64>,
+    /// When true, `term_counts` is left untouched during `collect` and derived from the grid
+    /// row-sums at result time. Valid only when there are no hard bounds: then every doc lands in
+    /// the dense range, so the per-term total equals the sum over its histogram buckets, and we
+    /// can drop both the per-doc `term_counts` increment and the (always-true) bounds check.
+    ///
+    /// This is a real hot-loop win (~17% on `terms_status_with_(date_)histogram`): with low term
+    /// cardinality, `term_counts[term_id] += 1` repeatedly hits the same few addresses, so the
+    /// read-modify-write serializes across iterations on store-to-load forwarding latency. Summing
+    /// the grid once at the end avoids that loop-carried dependency entirely.
+    derive_term_counts_from_histogram: bool,
 }
 
 impl SegmentAggregationCollector for SegmentTermHistogramCollector {
@@ -74,6 +84,15 @@ impl SegmentAggregationCollector for SegmentTermHistogramCollector {
         );
         // Expand the flat grid back into the regular structures and reuse the shared builders, so
         // ordering/cut-off/dict handling and cross-segment merging match the general path exactly.
+        if self.derive_term_counts_from_histogram {
+            // `collect` skipped the per-doc total; recover it as the grid row-sum (every doc landed
+            // in a bucket, since there are no hard bounds).
+            let nb = self.num_time_buckets;
+            let counts = &self.counts;
+            for (t, slot) in self.term_counts.iter_mut().enumerate() {
+                *slot = counts[t * nb..(t + 1) * nb].iter().sum();
+            }
+        }
         let mut bucket_id_provider = BucketIdProvider::default();
         let term_buckets = VecTermBuckets {
             buckets: self
@@ -131,21 +150,37 @@ impl SegmentAggregationCollector for SegmentTermHistogramCollector {
         let term_counts = &mut self.term_counts;
         let counts = &mut self.counts;
 
-        // Single fused pass: both columns are full (checked at construction), so their values align
-        // with `docs` positionally and we zip them. `term_id` is a dense `Vec` index here, and the
-        // histogram bucket is guaranteed inside `[0, num_time_buckets)` because the dense range is
-        // derived from the column min/max that bounds every value.
-        for (term_id, hist_raw) in self.term_block.iter_vals().zip(self.hist_block.iter_vals()) {
-            let term_id = term_id as usize;
-            term_counts[term_id] += 1;
-            let val = f64_from_fastfield_u64(hist_raw, field_type);
-            if bounds.contains(val) {
+        // Both columns are full (checked at construction), so values align with `docs` positionally
+        // and are read together in one pass.
+        if self.derive_term_counts_from_histogram {
+            // No hard bounds: every doc lands in a bucket, so we skip the per-doc `term_counts`
+            // increment (derived from the grid at flush) and the always-true bounds check.
+            for (term_id, hist_raw) in self.term_block.iter_vals().zip(self.hist_block.iter_vals())
+            {
+                let term_id = term_id as usize;
+                let val = f64_from_fastfield_u64(hist_raw, field_type);
                 let bucket = (get_bucket_pos_f64(val, interval, offset) as i64 - base_pos) as usize;
                 debug_assert!(
                     bucket < num_time_buckets,
                     "histogram bucket outside dense range"
                 );
                 counts[term_id * num_time_buckets + bucket] += 1;
+            }
+        } else {
+            for (term_id, hist_raw) in self.term_block.iter_vals().zip(self.hist_block.iter_vals())
+            {
+                let term_id = term_id as usize;
+                term_counts[term_id] += 1;
+                let val = f64_from_fastfield_u64(hist_raw, field_type);
+                if bounds.contains(val) {
+                    let bucket =
+                        (get_bucket_pos_f64(val, interval, offset) as i64 - base_pos) as usize;
+                    debug_assert!(
+                        bucket < num_time_buckets,
+                        "histogram bucket outside dense range"
+                    );
+                    counts[term_id * num_time_buckets + bucket] += 1;
+                }
             }
         }
         Ok(())
@@ -231,6 +266,10 @@ pub(super) fn maybe_build_collector(
         .context
         .limits
         .add_memory_consumed((counts.len() * std::mem::size_of::<u32>()) as u64)?;
+    // With no hard bounds every doc lands in the dense range, so the per-term totals can be derived
+    // from the grid at result time instead of incremented per doc.
+    let derive_term_counts_from_histogram =
+        hist_req_data.bounds.min == f64::MIN && hist_req_data.bounds.max == f64::MAX;
     Ok(Some(Box::new(SegmentTermHistogramCollector {
         term_counts: vec![0u32; num_terms],
         counts,
@@ -240,6 +279,7 @@ pub(super) fn maybe_build_collector(
         hist_req_data,
         term_block: ColumnBlockAccessor::default(),
         hist_block: ColumnBlockAccessor::default(),
+        derive_term_counts_from_histogram,
     })))
 }
 
@@ -376,6 +416,62 @@ mod tests {
                 bucket["histo"]["buckets"][0]["doc_count"],
                 docs_per_term as u64
             );
+        }
+
+        Ok(())
+    }
+
+    /// `hard_bounds` exercises the non-derived `term_counts` branch: a term's `doc_count` must
+    /// count *every* doc with that term, including docs whose histogram value is outside the
+    /// bounds (those are excluded from the histogram buckets but still counted for the term). This
+    /// is the case where the per-doc `term_counts` increment cannot be replaced by the grid
+    /// row-sum.
+    #[test]
+    fn fused_term_histogram_with_hard_bounds() -> crate::Result<()> {
+        // 300 docs: term = {a, b, c} by i % 3, value = i % 20. Per term: 100 docs, each value in
+        // 0..=19 occurring 5 times.
+        let docs: Vec<(f64, String)> = (0..300u64)
+            .map(|i| {
+                (
+                    (i % 20) as f64,
+                    ["a", "b", "c"][(i % 3) as usize].to_string(),
+                )
+            })
+            .collect();
+        let index = get_test_index_from_values_and_terms(true, &[docs])?;
+
+        // hard_bounds [5, 14] (inclusive) keeps only values 5..=14 in the histogram (10 buckets);
+        // values 0..=4 and 15..=19 are out of bounds.
+        let agg_req: Aggregations = serde_json::from_value(serde_json::json!({
+            "by_term": {
+                "terms": { "field": "string_id", "order": { "_key": "asc" } },
+                "aggs": {
+                    "histo": {
+                        "histogram": {
+                            "field": "score_f64",
+                            "interval": 1.0,
+                            "hard_bounds": { "min": 5.0, "max": 14.0 }
+                        }
+                    }
+                }
+            }
+        }))
+        .unwrap();
+
+        let res = exec_request(agg_req, &index)?;
+
+        for (term_idx, term) in ["a", "b", "c"].iter().enumerate() {
+            assert_eq!(res["by_term"]["buckets"][term_idx]["key"], *term);
+            // doc_count includes the 50 per-term docs whose value is outside [5, 14].
+            assert_eq!(res["by_term"]["buckets"][term_idx]["doc_count"], 100);
+            let histo = &res["by_term"]["buckets"][term_idx]["histo"]["buckets"];
+            for b in 0..10usize {
+                let key = 5 + b;
+                assert_eq!(histo[b]["key"], key as f64, "term {term} bucket key {key}");
+                assert_eq!(histo[b]["doc_count"], 5, "term {term} bucket {key}");
+            }
+            // Only the 10 in-bounds buckets exist.
+            assert_eq!(histo[10], serde_json::Value::Null);
         }
 
         Ok(())
