@@ -93,6 +93,19 @@ pub trait PostingsSerializer {
     /// blockwand is disabled), the term_doc_freq passed will be set 0.
     fn new_term(&mut self, term_doc_freq: u32, record_term_freq: bool);
 
+    /// Codec-specific per-term payload.
+    ///
+    /// It is supplied right after `new_term` and before any `write_doc`, so the
+    /// codec can let it influence how the postings list is encoded.
+    ///
+    /// Hidden contract: `new_term` MUST reset any per-term payload state to its
+    /// default. This method is only called for terms that actually have a
+    /// payload registered, so a codec cannot rely on it being called for every
+    /// term.
+    ///
+    /// The default implementation ignores the payload.
+    fn set_term_payload(&mut self, _payload: &dyn std::any::Any) {}
+
     /// Records a new document id for the current term.
     /// The serializer may ignore it.
     fn write_doc(&mut self, doc_id: DocId, term_freq: u32);

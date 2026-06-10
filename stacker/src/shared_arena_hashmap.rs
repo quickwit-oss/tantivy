@@ -347,6 +347,67 @@ impl SharedArenaHashMap {
             kv = self.table[bucket];
         }
     }
+
+    /// Returns the address of the value associated to `key`.
+    ///
+    /// If the key is not present yet, a new entry is created with the value
+    /// returned by `make_default()`. If the key is already present, the stored
+    /// value is left untouched and its address is returned.
+    ///
+    /// The returned `Addr` is the value address, i.e. the same address yielded
+    /// by [`Self::iter`] and consumed by [`MemoryArena::read`]. It remains valid
+    /// for the lifetime of the arena: arena allocations only ever append, and a
+    /// table resize relocates buckets, not the arena-backed key/value data.
+    ///
+    /// The key will be truncated to `u16::MAX` bytes.
+    #[inline]
+    pub fn get_or_create_value_addr<V>(
+        &mut self,
+        key: &[u8],
+        memory_arena: &mut MemoryArena,
+        make_default: impl FnOnce() -> V,
+    ) -> Addr
+    where
+        V: Copy + 'static,
+    {
+        if self.is_saturated() {
+            self.resize();
+        }
+        // Limit the key size to u16::MAX
+        let key = &key[..std::cmp::min(key.len(), u16::MAX as usize)];
+        let hash = self.get_hash(key);
+        let mut probe = self.probe(hash);
+        let mut bucket = probe.next_probe();
+        let mut kv: KeyValue = self.table[bucket];
+        loop {
+            if kv.is_empty() {
+                // The key does not exist yet: create it with the default value.
+                let val = make_default();
+                let num_bytes = std::mem::size_of::<u16>() + key.len() + std::mem::size_of::<V>();
+                let key_addr = memory_arena.allocate_space(num_bytes);
+                {
+                    let data = memory_arena.slice_mut(key_addr, num_bytes);
+                    let key_len_bytes: [u8; 2] = (key.len() as u16).to_le_bytes();
+                    data[..2].copy_from_slice(&key_len_bytes);
+                    let stop = 2 + key.len();
+                    fast_short_slice_copy(key, &mut data[2..stop]);
+                    store(&mut data[stop..], val);
+                }
+                self.set_bucket(hash, key_addr, bucket);
+                return key_addr.offset(2 + key.len() as u32);
+            }
+            if kv.hash == hash
+                && let Some(val_addr) =
+                    self.get_value_addr_if_key_match(key, kv.key_value_addr, memory_arena)
+            {
+                // The key already exists: leave its value untouched.
+                return val_addr;
+            }
+            // This allows fetching the next bucket before the loop jmp
+            bucket = probe.next_probe();
+            kv = self.table[bucket];
+        }
+    }
 }
 
 #[cfg(test)]

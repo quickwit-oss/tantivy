@@ -36,7 +36,7 @@ const PAGE_SIZE: usize = 1 << NUM_BITS_PAGE_ADDR; // pages are 1 MB large
 /// page of memory.
 ///
 /// The last 20 bits are an address within this page of memory.
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
 pub struct Addr(u32);
 
 impl Addr {

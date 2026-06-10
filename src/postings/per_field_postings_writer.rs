@@ -3,7 +3,7 @@ use crate::postings::postings_writer::{PostingsWriterEnum, SpecializedPostingsWr
 use crate::postings::recorder::{DocIdRecorder, TermFrequencyRecorder, TfAndPositionRecorder};
 use crate::schema::{Field, FieldEntry, FieldType, IndexRecordOption, Schema};
 
-pub(crate) struct PerFieldPostingsWriter {
+pub struct PerFieldPostingsWriter {
     per_field_postings_writers: Vec<PostingsWriterEnum>,
 }
 
@@ -22,7 +22,7 @@ impl PerFieldPostingsWriter {
         &self.per_field_postings_writers[field.field_id() as usize]
     }
 
-    pub(crate) fn get_for_field_mut(&mut self, field: Field) -> &mut PostingsWriterEnum {
+    pub fn get_for_field_mut(&mut self, field: Field) -> &mut PostingsWriterEnum {
         &mut self.per_field_postings_writers[field.field_id() as usize]
     }
 }

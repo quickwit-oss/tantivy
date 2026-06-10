@@ -83,6 +83,28 @@ impl ArenaHashMap {
         self.shared_arena_hashmap
             .mutate_or_create(key, &mut self.memory_arena, updater);
     }
+
+    /// Returns the address of the value associated to `key`, creating an entry
+    /// with `make_default()` if the key is not present yet (an existing value
+    /// is left untouched).
+    ///
+    /// See [`SharedArenaHashMap::get_or_create_value_addr`] for the address
+    /// stability guarantees.
+    #[inline]
+    pub fn get_or_create_value_addr<V>(
+        &mut self,
+        key: &[u8],
+        make_default: impl FnOnce() -> V,
+    ) -> Addr
+    where
+        V: Copy + 'static,
+    {
+        self.shared_arena_hashmap.get_or_create_value_addr(
+            key,
+            &mut self.memory_arena,
+            make_default,
+        )
+    }
 }
 
 #[cfg(test)]
@@ -119,6 +141,28 @@ mod tests {
     fn test_empty_hashmap() {
         let hash_map: ArenaHashMap = ArenaHashMap::default();
         assert_eq!(hash_map.get::<u32>(b"abc"), None);
+    }
+
+    #[test]
+    fn test_get_or_create_value_addr() {
+        let mut hash_map: ArenaHashMap = ArenaHashMap::default();
+        // Creates the entry with the default value.
+        let addr_abc = hash_map.get_or_create_value_addr(b"abc", || 7u32);
+        assert_eq!(hash_map.read::<u32>(addr_abc), 7u32);
+        // Returns the same address and does NOT overwrite an existing value.
+        let addr_abc_again = hash_map.get_or_create_value_addr(b"abc", || 99u32);
+        assert_eq!(addr_abc_again, addr_abc);
+        assert_eq!(hash_map.read::<u32>(addr_abc), 7u32);
+        // A different key gets its own entry.
+        let addr_def = hash_map.get_or_create_value_addr(b"def", || 5u32);
+        assert_ne!(addr_def, addr_abc);
+        assert_eq!(hash_map.read::<u32>(addr_def), 5u32);
+        // The address matches the one yielded by `iter`.
+        for (key, addr) in hash_map.iter() {
+            if key == b"abc" {
+                assert_eq!(addr, addr_abc);
+            }
+        }
     }
 
     #[test]

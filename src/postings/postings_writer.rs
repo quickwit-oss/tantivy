@@ -196,6 +196,21 @@ impl PostingsWriter for PostingsWriterEnum {
         }
     }
 
+    fn ensure_term(&self, serialized_term: &[u8], ctx: &mut IndexingContext) -> Addr {
+        match self {
+            PostingsWriterEnum::DocId(writer) => writer.ensure_term(serialized_term, ctx),
+            PostingsWriterEnum::DocIdTf(writer) => writer.ensure_term(serialized_term, ctx),
+            PostingsWriterEnum::DocTfAndPosition(writer) => {
+                writer.ensure_term(serialized_term, ctx)
+            }
+            PostingsWriterEnum::JsonDocId(writer) => writer.ensure_term(serialized_term, ctx),
+            PostingsWriterEnum::JsonDocIdTf(writer) => writer.ensure_term(serialized_term, ctx),
+            PostingsWriterEnum::JsonDocTfAndPosition(writer) => {
+                writer.ensure_term(serialized_term, ctx)
+            }
+        }
+    }
+
     /// Tokenize a text and subscribe all of its token.
     fn index_text(
         &mut self,
@@ -263,6 +278,15 @@ pub(crate) trait PostingsWriter: Send + Sync {
         serializer: &mut FieldSerializer<C>,
     ) -> io::Result<()>;
 
+    /// Ensures `serialized_term` has an entry in the term index, creating an
+    /// empty recorder (matching this writer's indexing option) if the term is
+    /// not present yet, and returns the value `Addr` of its recorder.
+    ///
+    /// An existing recorder is never overwritten, so the term keeps any
+    /// posting data already recorded for it. This is used to attach a
+    /// codec-specific payload to a term that may belong to no document.
+    fn ensure_term(&self, serialized_term: &[u8], ctx: &mut IndexingContext) -> Addr;
+
     /// Tokenize a text and subscribe all of its token.
     fn index_text(
         &mut self,
@@ -322,6 +346,10 @@ impl<Rec: Recorder> SpecializedPostingsWriter<Rec> {
         let recorder: Rec = ctx.term_index.read(addr);
         let term_doc_freq = recorder.term_doc_freq().unwrap_or(0u32);
         serializer.new_term(term, term_doc_freq, recorder.has_term_freq())?;
+        if let Some(payload) = ctx.codec_term_payloads.get(&addr) {
+            // `&(dyn Any + Send)` upcasts to `&dyn Any`.
+            serializer.set_term_payload(payload.as_ref());
+        }
         recorder.serialize(&ctx.arena, serializer, buffer_lender);
         serializer.close_term()?;
         Ok(())
@@ -370,6 +398,11 @@ impl<Rec: Recorder> PostingsWriter for SpecializedPostingsWriter<Rec> {
             Self::serialize_one_term(term, *addr, &mut buffer_lender, ctx, serializer)?;
         }
         Ok(())
+    }
+
+    fn ensure_term(&self, serialized_term: &[u8], ctx: &mut IndexingContext) -> Addr {
+        ctx.term_index
+            .get_or_create_value_addr::<Rec>(serialized_term, Rec::default)
     }
 
     fn total_num_tokens(&self) -> u64 {

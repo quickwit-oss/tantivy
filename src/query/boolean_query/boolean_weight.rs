@@ -279,7 +279,6 @@ impl<TScoreCombiner: ScoreCombiner> BooleanWeight<TScoreCombiner> {
             Some(exclude_scorers_union)
         };
 
-
         let include_scorer = match (should_scorers, must_scorers) {
             (ShouldScorersCombinationMethod::Ignored, must_scorers) => {
                 // No SHOULD clauses (or they were absorbed into MUST).

@@ -1,8 +1,6 @@
 use std::ops::{Deref as _, DerefMut as _};
 
-use common::BitSet;
-
-use common::TinySet;
+use common::{BitSet, TinySet};
 
 use crate::fastfield::AliveBitSet;
 use crate::DocId;

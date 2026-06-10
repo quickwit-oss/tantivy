@@ -96,6 +96,20 @@ impl<Rec: Recorder> PostingsWriter for JsonPostingsWriter<Rec> {
         Ok(())
     }
 
+    fn ensure_term(&self, serialized_term: &[u8], ctx: &mut IndexingContext) -> Addr {
+        // JSON term key layout: `[field:4][unordered_path_id:4][type code][value]`.
+        // Str values are recorded with `Rec`, all other types with `DocIdRecorder`
+        // (mirroring the dispatch in `serialize`).
+        let typ = Type::from_code(serialized_term[8]).expect("Invalid type code in JSON term");
+        if typ == Type::Str {
+            ctx.term_index
+                .get_or_create_value_addr::<Rec>(serialized_term, Rec::default)
+        } else {
+            ctx.term_index
+                .get_or_create_value_addr::<DocIdRecorder>(serialized_term, DocIdRecorder::default)
+        }
+    }
+
     fn total_num_tokens(&self) -> u64 {
         self.str_posting_writer.total_num_tokens() + self.non_str_posting_writer.total_num_tokens()
     }

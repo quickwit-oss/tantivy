@@ -1,7 +1,6 @@
 mod boolean_query;
 mod boolean_weight;
 
-
 pub use self::boolean_query::BooleanQuery;
 pub use self::boolean_weight::BooleanWeight;
 

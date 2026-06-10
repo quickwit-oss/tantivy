@@ -1,3 +1,5 @@
+use std::any::Any;
+
 use columnar::MonotonicallyMappableToU64;
 use common::JsonPathWriter;
 use itertools::Itertools;
@@ -16,7 +18,7 @@ use crate::postings::{
     PerFieldPostingsWriter, PostingsWriter, PostingsWriterEnum,
 };
 use crate::schema::document::{Document, Value};
-use crate::schema::{FieldEntry, FieldType, Schema, DATE_TIME_PRECISION_INDEXED};
+use crate::schema::{Field, FieldEntry, FieldType, Schema, DATE_TIME_PRECISION_INDEXED};
 use crate::tokenizer::{FacetTokenizer, PreTokenizedStream, TextAnalyzer, Tokenizer};
 use crate::{DocId, Opstamp, TantivyError};
 
@@ -49,7 +51,7 @@ fn compute_initial_table_size(per_thread_memory_budget: usize) -> crate::Result<
 pub struct SegmentWriter<Codec: crate::codec::Codec> {
     pub(crate) max_doc: DocId,
     pub(crate) ctx: IndexingContext,
-    pub(crate) per_field_postings_writers: PerFieldPostingsWriter,
+    pub per_field_postings_writers: PerFieldPostingsWriter,
     pub(crate) segment_serializer: SegmentSerializer<Codec>,
     pub(crate) fast_field_writers: FastFieldsWriter,
     pub(crate) fieldnorms_writer: FieldNormsWriter,
@@ -146,6 +148,67 @@ impl<Codec: crate::codec::Codec> SegmentWriter<Codec> {
             + self.fieldnorms_writer.mem_usage()
             + self.fast_field_writers.mem_usage()
             + self.segment_serializer.mem_usage()
+    }
+
+    /// Attaches or updates a codec-specific payload on a term of a regular
+    /// (non-JSON) field.
+    ///
+    /// `value_bytes` is the serialized term value, i.e. exactly what would be
+    /// appended after the field id (the raw text bytes for a str field, or the
+    /// big-endian bytes for a numeric field).
+    ///
+    /// If the term does not exist yet, it is inserted with an empty recorder so
+    /// that it still gets serialized even though it belongs to no document.
+    /// `updater` receives the previously registered payload (`None` if absent)
+    /// and returns the payload to store. The payload is handed to the codec's
+    /// postings serializer (via `set_term_payload`) at the beginning of the
+    /// term during serialization.
+    pub(crate) fn update_term_payload(
+        &mut self,
+        field: Field,
+        value_bytes: &[u8],
+        updater: impl FnOnce(Option<Box<dyn Any + Send>>) -> Box<dyn Any + Send>,
+    ) {
+        let mut term = IndexingTerm::with_capacity(value_bytes.len());
+        term.set_field(field);
+        term.append_bytes(value_bytes);
+        self.update_term_payload_for_serialized_term(field, term.serialized_term(), updater);
+    }
+
+    /// Same as [`Self::update_term_payload`] for a JSON field.
+    ///
+    /// `value_bytes` must be the type-tagged value (`[type code][value]`), the
+    /// representation that follows the path within a JSON term.
+    pub(crate) fn update_json_term_payload(
+        &mut self,
+        field: Field,
+        json_path: &str,
+        value_bytes: &[u8],
+        updater: impl FnOnce(Option<Box<dyn Any + Send>>) -> Box<dyn Any + Send>,
+    ) {
+        let unordered_id = self
+            .ctx
+            .path_to_unordered_id
+            .get_or_allocate_unordered_id(json_path);
+        // JSON term key layout: `[field:4][unordered_path_id:4][type code][value]`.
+        let mut serialized_term = Vec::with_capacity(8 + value_bytes.len());
+        serialized_term.extend_from_slice(&field.field_id().to_be_bytes());
+        serialized_term.extend_from_slice(&unordered_id.to_be_bytes());
+        serialized_term.extend_from_slice(value_bytes);
+        self.update_term_payload_for_serialized_term(field, &serialized_term, updater);
+    }
+
+    fn update_term_payload_for_serialized_term(
+        &mut self,
+        field: Field,
+        serialized_term: &[u8],
+        updater: impl FnOnce(Option<Box<dyn Any + Send>>) -> Box<dyn Any + Send>,
+    ) {
+        let postings_writer = self.per_field_postings_writers.get_for_field(field);
+        let addr = postings_writer.ensure_term(serialized_term, &mut self.ctx);
+        let previous_payload = self.ctx.codec_term_payloads.remove(&addr);
+        let new_payload = updater(previous_payload);
+        self.ctx.codec_term_payloads.insert(addr, new_payload);
     }
 
     fn index_document<D: Document>(&mut self, doc: &D) -> crate::Result<()> {

@@ -203,6 +203,13 @@ impl<'a, C: Codec> FieldSerializer<'a, C> {
         self.new_term(term, 0, false)
     }
 
+    /// Forwards a codec-specific per-term payload to the postings serializer.
+    ///
+    /// Must be called after `new_term` and before any `write_doc`.
+    pub fn set_term_payload(&mut self, payload: &dyn std::any::Any) {
+        self.postings_serializer.set_term_payload(payload);
+    }
+
     /// Serialize the information that a document contains for the current term:
     /// its term frequency, and the position deltas.
     ///
