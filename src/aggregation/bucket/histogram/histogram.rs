@@ -244,7 +244,7 @@ impl Display for HistogramBounds {
 }
 
 impl HistogramBounds {
-    fn contains(&self, val: f64) -> bool {
+    pub(crate) fn contains(&self, val: f64) -> bool {
         val >= self.min && val <= self.max
     }
 }
@@ -317,11 +317,11 @@ impl<B: BucketIdSlot> SegmentHistogramBucketEntry<B> {
 /// the histogram bounds). Buckets in `[base_pos, base_pos + len)` can be stored in a flat `Vec`
 /// indexed by `bucket_pos - base_pos`, avoiding the hash map on the hot path.
 #[derive(Clone, Copy, Debug)]
-struct DenseRange {
+pub(crate) struct DenseRange {
     /// `bucket_pos` mapped to index 0 of the dense `Vec`.
-    base_pos: i64,
+    pub(crate) base_pos: i64,
     /// Number of bucket positions in the range.
-    len: usize,
+    pub(crate) len: usize,
 }
 
 /// Storage for the histogram buckets of a single parent bucket.
@@ -444,8 +444,6 @@ pub struct SegmentHistogramCollector<B> {
     /// Theoretical bucket range derived from the column min/max, if dense `Vec` storage is
     /// viable. `None` keeps every parent bucket in the sparse hash map.
     dense_range: Option<DenseRange>,
-
-    small_column_block_accessor: columnar::ColumnBlockAccessor<u32>,
 }
 
 impl<B: BucketIdSlot> SegmentAggregationCollector for SegmentHistogramCollector<B> {
@@ -601,15 +599,7 @@ impl<B: BucketIdSlot> SegmentHistogramCollector<B> {
             None
         };
         let mut req_data = agg_data.per_request.histogram_req_data[node.idx_in_req_data].clone();
-        req_data.req.validate()?;
-        if req_data.field_type == ColumnType::DateTime && !req_data.is_date_histogram {
-            req_data.req.normalize_date_time();
-        }
-        req_data.bounds = req_data.req.hard_bounds.unwrap_or(HistogramBounds {
-            min: f64::MIN,
-            max: f64::MAX,
-        });
-        req_data.offset = req_data.req.offset.unwrap_or(0.0);
+        normalize_histogram_req(&mut req_data)?;
         agg_data
             .context
             .limits
@@ -629,9 +619,89 @@ impl<B: BucketIdSlot> SegmentHistogramCollector<B> {
             req_data,
             bucket_id_provider: BucketIdProvider::default(),
             dense_range,
-            small_column_block_accessor: columnar::ColumnBlockAccessor::default(),
         })
     }
+}
+
+impl SegmentHistogramCollector<()> {
+    /// Builds a histogram collector whose parent `t` is a dense histogram filled from
+    /// `counts[t * num_time_buckets .. (t + 1) * num_time_buckets]` (row-major). Used by the fused
+    /// terms×histogram collector to turn its flat 2D counters into the regular intermediate result,
+    /// so cross-segment merging is shared with the general path.
+    pub(crate) fn from_dense_rows(
+        req_data: HistogramAggReqData,
+        base_pos: i64,
+        num_time_buckets: usize,
+        counts: &[u32],
+    ) -> Self {
+        let interval = req_data.req.interval;
+        let offset = req_data.offset;
+        let num_parents = if num_time_buckets == 0 {
+            0
+        } else {
+            counts.len() / num_time_buckets
+        };
+        let parent_buckets = (0..num_parents)
+            .map(|t| {
+                let row = &counts[t * num_time_buckets..(t + 1) * num_time_buckets];
+                let buckets = row
+                    .iter()
+                    .enumerate()
+                    .map(|(b, &doc_count)| SegmentHistogramBucketEntry {
+                        key: get_bucket_key_from_pos(
+                            (base_pos + b as i64) as f64,
+                            interval,
+                            offset,
+                        ),
+                        doc_count: doc_count as u64,
+                        bucket_id: (),
+                    })
+                    .collect();
+                HistogramBuckets::Dense { base_pos, buckets }
+            })
+            .collect();
+        Self {
+            parent_buckets,
+            sub_agg: None,
+            req_data,
+            bucket_id_provider: BucketIdProvider::default(),
+            dense_range: None,
+        }
+    }
+}
+
+/// Validates and normalizes a histogram request in place: applies date ns-normalization (for a
+/// `histogram` on a date column) and resolves `bounds`/`offset` from the request.
+fn normalize_histogram_req(req_data: &mut HistogramAggReqData) -> crate::Result<()> {
+    req_data.req.validate()?;
+    if req_data.field_type == ColumnType::DateTime && !req_data.is_date_histogram {
+        req_data.req.normalize_date_time();
+    }
+    req_data.bounds = req_data.req.hard_bounds.unwrap_or(HistogramBounds {
+        min: f64::MIN,
+        max: f64::MAX,
+    });
+    req_data.offset = req_data.req.offset.unwrap_or(0.0);
+    Ok(())
+}
+
+/// Clones and normalizes (resolving interval/offset/bounds) the histogram request at `node`, and
+/// returns it together with its dense bucket range — or `None` if the column has no usable range.
+/// Used by the fused terms×histogram collector, which then owns the normalized request.
+pub(crate) fn prepare_histogram_dense_range(
+    agg_data: &AggregationsSegmentCtx,
+    node: &AggRefNode,
+) -> crate::Result<Option<(HistogramAggReqData, DenseRange)>> {
+    let mut req_data = agg_data.per_request.histogram_req_data[node.idx_in_req_data].clone();
+    normalize_histogram_req(&mut req_data)?;
+    let dense_range = compute_dense_range(
+        &req_data.accessor,
+        req_data.field_type,
+        req_data.req.interval,
+        req_data.offset,
+        req_data.bounds,
+    );
+    Ok(dense_range.map(|range| (req_data, range)))
 }
 
 /// Builds a boxed histogram (or date histogram) segment collector, picking the bucket-id storage
@@ -653,7 +723,7 @@ pub(crate) fn build_segment_histogram_collector(
 }
 
 #[inline]
-fn get_bucket_pos_f64(val: f64, interval: f64, offset: f64) -> f64 {
+pub(crate) fn get_bucket_pos_f64(val: f64, interval: f64, offset: f64) -> f64 {
     ((val - offset) / interval).floor()
 }
 
