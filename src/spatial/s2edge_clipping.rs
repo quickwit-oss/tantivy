@@ -274,6 +274,32 @@ pub fn clip_edge_bound(a: [f64; 2], b: [f64; 2], clip: &R2Rect, bound: &mut R2Re
     )
 }
 
+/// Interpolates a value along a line segment.
+///
+/// This function makes the following guarantees:
+///  - If x == a, then result == a1 (exactly).
+///  - If x == b, then result == b1 (exactly).
+///  - If a <= x <= b and a1 <= b1, then a1 <= result <= b1.
+///  - More generally, if x is between a and b, then result is between a1 and b1.
+///
+/// Port of S2::InterpolateDouble from s2edge_clipping.h.
+#[inline(always)]
+pub(crate) fn interpolate_double(x: f64, a: f64, b: f64, a1: f64, b1: f64) -> f64 {
+    // If A == B == X all we can return is the single point.
+    if a == b {
+        assert!(x == a && a1 == b1);
+        return a1;
+    }
+
+    // To get results that are accurate near both A and B, we interpolate
+    // starting from the closer of the two points.
+    if (a - x).abs() <= (b - x).abs() {
+        a1 + (b1 - a1) * ((x - a) / (b - a))
+    } else {
+        b1 + (a1 - b1) * ((x - b) / (a - b))
+    }
+}
+
 /// Helper for clip_edge_bound: clips along one axis.
 #[allow(clippy::too_many_arguments)]
 fn clip_bound_axis(
@@ -291,7 +317,7 @@ fn clip_bound_axis(
             return false;
         }
         *bound0 = R1Interval::new(clip0.lo(), bound0.hi());
-        if !update_endpoint(bound1, diag, interpolate(clip0.lo(), a0, b0, a1, b1)) {
+        if !update_endpoint(bound1, diag, interpolate_double(clip0.lo(), a0, b0, a1, b1)) {
             return false;
         }
     }
@@ -300,7 +326,11 @@ fn clip_bound_axis(
             return false;
         }
         *bound0 = R1Interval::new(bound0.lo(), clip0.hi());
-        if !update_endpoint(bound1, 1 - diag, interpolate(clip0.hi(), a0, b0, a1, b1)) {
+        if !update_endpoint(
+            bound1,
+            1 - diag,
+            interpolate_double(clip0.hi(), a0, b0, a1, b1),
+        ) {
             return false;
         }
     }
@@ -327,16 +357,26 @@ fn update_endpoint(bound: &mut R1Interval, end: usize, value: f64) -> bool {
     true
 }
 
-/// Interpolates a value along the line from (a0,a1) to (b0,b1).
-fn interpolate(x: f64, a: f64, b: f64, a1: f64, b1: f64) -> f64 {
-    if a == b {
-        assert!(x == a && a1 == b1);
-        return a1;
+#[cfg(test)]
+mod tests {
+    use super::interpolate_double;
+
+    #[test]
+    fn test_interpolate_double_endpoints_exact() {
+        assert_eq!(interpolate_double(2.0, 2.0, 10.0, 5.0, 9.0), 5.0);
+        assert_eq!(interpolate_double(10.0, 2.0, 10.0, 5.0, 9.0), 9.0);
+        assert_eq!(interpolate_double(2.0, 2.0, 2.0, 5.0, 5.0), 5.0);
     }
-    // Interpolate from the closer endpoint for better accuracy.
-    if (a - x).abs() <= (b - x).abs() {
-        a1 + (b1 - a1) * ((x - a) / (b - a))
-    } else {
-        b1 + (a1 - b1) * ((x - b) / (a - b))
+
+    #[test]
+    fn test_interpolate_double_between() {
+        let y = interpolate_double(4.0, 2.0, 10.0, 5.0, 9.0);
+        assert!((5.0..=9.0).contains(&y));
+
+        let y = interpolate_double(4.0, 10.0, 2.0, 9.0, 5.0);
+        assert!((5.0..=9.0).contains(&y));
+
+        let y = interpolate_double(4.0, 2.0, 10.0, 9.0, 5.0);
+        assert!((5.0..=9.0).contains(&y));
     }
 }

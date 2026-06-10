@@ -11,7 +11,7 @@ use super::edge_cache::EdgeCache;
 use super::edge_crosser::EdgeCrosser;
 use super::r2rect::R2Rect;
 use super::s2cell_id::S2CellId;
-use super::s2edge_clipping::clip_edge_bound;
+use super::s2edge_clipping::{clip_edge_bound, interpolate_double};
 use super::s2padded_cell::S2PaddedCell;
 use super::surface::Surface;
 use crate::spatial::clip_options::ClipOptions;
@@ -716,18 +716,6 @@ fn clip_v_bound<S: Surface>(
     MergeClippedEdge {
         edge_index: clipped_edge.edge_index,
         bound: R2Rect::new(u_interval, v_interval),
-    }
-}
-
-fn interpolate_double(x: f64, x0: f64, x1: f64, y0: f64, y1: f64) -> f64 {
-    if x0 == x1 {
-        assert!(x == x0 && y0 == y1);
-        return y0;
-    }
-    if (x0 - x).abs() <= (x1 - x).abs() {
-        y0 + (y1 - y0) * ((x - x0) / (x1 - x0))
-    } else {
-        y1 + (y0 - y1) * ((x - x1) / (x0 - x1))
     }
 }
 

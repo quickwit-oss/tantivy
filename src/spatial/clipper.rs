@@ -9,7 +9,9 @@ use super::geometry_set::GeometrySet;
 use super::r1interval::R1Interval;
 use super::r2rect::R2Rect;
 use super::s2cell_id::S2CellId;
-use super::s2edge_clipping::{EDGE_CLIP_ERROR_UV_COORD, FACE_CLIP_ERROR_UV_COORD};
+use super::s2edge_clipping::{
+    interpolate_double, EDGE_CLIP_ERROR_UV_COORD, FACE_CLIP_ERROR_UV_COORD,
+};
 use super::s2padded_cell::S2PaddedCell;
 use super::surface::Surface;
 use crate::spatial::shape_index::{ShapeCell, ShapeIndex};
@@ -37,17 +39,34 @@ pub(crate) fn get_level_for_max_value(value: f64) -> i32 {
     // This code is equivalent to computing a floating-point "level" value and rounding up. ilogb()
     // returns the exponent corresponding to a fraction in the range [1,2).
     let ratio = value / K_AVG_EDGE_DERIV;
-    let level = ratio.log2().floor() as i32;
+    let level = ilogb(ratio);
     // For dim=1, (level >> (dim - 1)) == (level >> 0) == level
-    (-level).clamp(0, S2CellId::MAX_LEVEL)
+    level.saturating_neg().clamp(0, S2CellId::MAX_LEVEL)
+}
+
+fn ilogb(value: f64) -> i32 {
+    let bits = value.to_bits();
+    let exponent = ((bits >> 52) & 0x7ff) as i32;
+    if exponent == 0x7ff {
+        return i32::MAX;
+    }
+    if exponent != 0 {
+        return exponent - 1023;
+    }
+
+    let mantissa = bits & ((1u64 << 52) - 1);
+    if mantissa == 0 {
+        return i32::MIN;
+    }
+    let highest_bit = 63 - mantissa.leading_zeros() as i32;
+    highest_bit - 1074
 }
 
 /// Computes the maximum level at which an edge is "short" relative to the cell size. Above this
 /// level the edge is "long" and doesn't count toward the subdivision threshold. Port of
 /// MutableS2ShapeIndex::GetEdgeMaxLevel.
-pub(crate) fn get_edge_max_level(v0: &[f64; 3], v1: &[f64; 3]) -> i32 {
-    let length =
-        ((v0[0] - v1[0]).powi(2) + (v0[1] - v1[1]).powi(2) + (v0[2] - v1[2]).powi(2)).sqrt();
+pub(crate) fn get_edge_max_level<S: Surface>(v0: &S::Point, v1: &S::Point) -> i32 {
+    let length = S::edge_length(v0, v1);
     let max_cell_edge = length * CELL_SIZE_TO_LONG_EDGE_RATIO;
     get_level_for_max_value(max_cell_edge)
 }
@@ -243,7 +262,7 @@ impl<S: Surface> Clipper<S> {
                     if ring_len < 2 {
                         if ring_len == 1 {
                             let v = vertices[ring_start];
-                            let max_level = self.get_edge_max_level(&v, &v);
+                            let max_level = get_edge_max_level::<S>(&v, &v);
                             self.add_face_edge(
                                 gid,
                                 edge_index,
@@ -262,7 +281,7 @@ impl<S: Surface> Clipper<S> {
                     for i in 0..edge_count {
                         let v0 = vertices[ring_start + i];
                         let v1 = vertices[ring_start + i + 1];
-                        let max_level = self.get_edge_max_level(&v0, &v1);
+                        let max_level = get_edge_max_level::<S>(&v0, &v1);
                         self.add_face_edge(
                             gid,
                             edge_index,
@@ -291,12 +310,6 @@ impl<S: Surface> Clipper<S> {
         self.cells.sort_by_key(|c| c.cell_id);
 
         ShapeIndex { cells: self.cells }
-    }
-
-    fn get_edge_max_level(&self, v0: &S::Point, v1: &S::Point) -> i32 {
-        let length = S::edge_length(v0, v1);
-        let max_cell_edge = length * CELL_SIZE_TO_LONG_EDGE_RATIO;
-        get_level_for_max_value(max_cell_edge)
     }
 
     /// Clips an edge to all cube faces.
@@ -735,34 +748,6 @@ impl<S: Surface> Clipper<S> {
     }
 }
 
-/// Interpolates a value along a line segment. Given points (x0, y0) and (x1, y1), returns the
-/// y-value at the given x.
-///
-/// This function makes the following guarantees:
-///  - If x == x0, then result == y0 (exactly).
-///  - If x == x1, then result == y1 (exactly).
-///  - If x0 <= x <= x1 and y0 <= y1, then y0 <= result <= y1.
-///  - More generally, if x is between x0 and x1, then result is between y0 and y1.
-///
-/// Port of S2::InterpolateDouble from s2edge_clipping.h.
-#[inline]
-fn interpolate_double(x: f64, x0: f64, x1: f64, y0: f64, y1: f64) -> f64 {
-    // If x0 == x1 == x all we can return is the single point.
-    if x0 == x1 {
-        // C++ asserts: x == x0 && y0 == y1
-        assert!(x == x0 && y0 == y1);
-        return y0;
-    }
-
-    // To get results that are accurate near both endpoints, we interpolate
-    // starting from the closer of the two points.
-    if (x0 - x).abs() <= (x1 - x).abs() {
-        y0 + (y1 - y0) * ((x - x0) / (x1 - x0))
-    } else {
-        y1 + (y0 - y1) * ((x - x1) / (x0 - x1))
-    }
-}
-
 fn cell_union_from_range(begin: S2CellId, end: S2CellId) -> Vec<S2CellId> {
     let mut result = Vec::new();
     let mut id = begin;
@@ -788,4 +773,49 @@ fn cell_union_from_range(begin: S2CellId, end: S2CellId) -> Vec<S2CellId> {
     }
 
     result
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{get_level_for_max_value, ilogb, K_AVG_EDGE_DERIV};
+    use crate::spatial::s2cell_id::S2CellId;
+
+    #[test]
+    fn test_ilogb_normal_values() {
+        assert_eq!(ilogb(1.0), 0);
+        assert_eq!(ilogb(2.0), 1);
+        assert_eq!(ilogb(0.5), -1);
+        assert_eq!(ilogb(f64::INFINITY), i32::MAX);
+    }
+
+    #[test]
+    fn test_ilogb_subnormal_values() {
+        assert_eq!(ilogb(f64::from_bits(1)), -1074);
+        assert_eq!(ilogb(f64::from_bits(0x0008_0000_0000_0000)), -1023);
+    }
+
+    #[test]
+    fn test_get_level_for_max_value_special_values() {
+        assert_eq!(get_level_for_max_value(0.0), S2CellId::MAX_LEVEL);
+        assert_eq!(get_level_for_max_value(-1.0), S2CellId::MAX_LEVEL);
+        assert_eq!(get_level_for_max_value(f64::NAN), S2CellId::MAX_LEVEL);
+        assert_eq!(get_level_for_max_value(f64::INFINITY), 0);
+    }
+
+    #[test]
+    fn test_get_level_for_max_value_exact_powers() {
+        assert_eq!(get_level_for_max_value(K_AVG_EDGE_DERIV), 0);
+        assert_eq!(get_level_for_max_value(K_AVG_EDGE_DERIV * 0.5), 1);
+        assert_eq!(get_level_for_max_value(K_AVG_EDGE_DERIV * 0.25), 2);
+    }
+
+    #[test]
+    fn test_get_level_for_max_value_subnormal() {
+        let ratio = f64::from_bits(0x0008_0000_0000_0000);
+        assert!(ratio.is_subnormal());
+        assert_eq!(
+            get_level_for_max_value(ratio * K_AVG_EDGE_DERIV),
+            S2CellId::MAX_LEVEL
+        );
+    }
 }

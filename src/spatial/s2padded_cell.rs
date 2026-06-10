@@ -11,7 +11,7 @@ use super::s2coords::{
     ij_to_pos, ij_to_st_min, pos_to_ij, pos_to_orientation, si_ti_to_st, st_to_ij, INVERT_MASK,
     MAX_CELL_LEVEL, SWAP_MASK,
 };
-use super::surface::Surface;
+use super::surface::{cell_center_from_padded_ij, Surface};
 
 /// An S2Cell whose (u,v)-range has been expanded on all sides by a given amount of "padding".
 ///
@@ -158,14 +158,7 @@ impl<S: Surface> S2PaddedCell<S> {
 
     /// Returns the center of the cell as a point on this surface.
     pub fn get_center(&self) -> S::Point {
-        let ij_size = S2CellId::size_ij_for_level(self.level);
-        let si = (2 * self.ij_lo[0] + ij_size) as u32;
-        let ti = (2 * self.ij_lo[1] + ij_size) as u32;
-        S::face_uv_to_point(
-            self.id.face(),
-            S::st_to_uv(si_ti_to_st(si)),
-            S::st_to_uv(si_ti_to_st(ti)),
-        )
+        cell_center_from_padded_ij::<S>(self.id)
     }
 
     /// Returns the vertex where the Hilbert curve enters this cell.

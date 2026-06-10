@@ -105,7 +105,7 @@ impl<'a, I: Iterator<Item = ShapeCell>> Collapse<'a, I> {
 
             for &edge_index in &shape.edge_indices {
                 let (v0, v1) = entry.edge(edge_index);
-                let max_level = get_edge_max_level(&v0, &v1);
+                let max_level = get_edge_max_level::<Sphere>(&v0, &v1);
                 level_geometry.edges.push(LeveledEdge {
                     edge_index,
                     max_level,

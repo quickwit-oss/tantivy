@@ -77,13 +77,84 @@ pub trait Surface {
     fn cell_id_from_point(point: &Self::Point) -> S2CellId;
 
     /// Returns the center of a cell as a point on this surface.
-    fn cell_center(cell_id: S2CellId) -> Self::Point {
-        let (face, si, ti) = cell_id.get_center_si_ti();
-        let u = Self::st_to_uv(si_ti_to_st(si));
-        let v = Self::st_to_uv(si_ti_to_st(ti));
-        Self::face_uv_to_point(face, u, v)
+    fn cell_center(cell_id: S2CellId) -> Self::Point
+    where
+        Self: Sized,
+    {
+        cell_center_from_padded_ij::<Self>(cell_id)
     }
 
     /// Whether the point is inside the closed ring.
     fn contains_point(point: &Self::Point, ring: &[Self::Point], origin_inside: bool) -> bool;
+}
+
+/// Returns the center of a cell using the same ij midpoint computation as S2PaddedCell.
+pub(crate) fn cell_center_from_padded_ij<S: Surface>(cell_id: S2CellId) -> S::Point {
+    let level = cell_id.level();
+    let ij_size = S2CellId::size_ij_for_level(level);
+    let ij_lo = if cell_id.is_face() {
+        [0, 0]
+    } else {
+        let (_, i, j, _) = cell_id.to_face_ij_orientation();
+        [i & -ij_size, j & -ij_size]
+    };
+    let si = (2 * ij_lo[0] + ij_size) as u32;
+    let ti = (2 * ij_lo[1] + ij_size) as u32;
+    S::face_uv_to_point(
+        cell_id.face(),
+        S::st_to_uv(si_ti_to_st(si)),
+        S::st_to_uv(si_ti_to_st(ti)),
+    )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{cell_center_from_padded_ij, Surface};
+    use crate::spatial::plane::Plane;
+    use crate::spatial::s2cell_id::S2CellId;
+    use crate::spatial::s2padded_cell::S2PaddedCell;
+    use crate::spatial::sphere::Sphere;
+
+    fn sample_cells(face_count: i32) -> Vec<S2CellId> {
+        let mut cells = Vec::new();
+        for face in 0..face_count {
+            let face_id = S2CellId::from_face(face);
+            cells.push(face_id);
+            for level in [1, 2, 10, 20, S2CellId::MAX_LEVEL] {
+                let size = S2CellId::size_ij_for_level(level);
+                let i = (1 << 29) + size / 2;
+                let j = (1 << 28) + size / 2;
+                cells.push(S2CellId::from_face_ij(face, i, j).parent(level));
+            }
+        }
+        cells
+    }
+
+    #[test]
+    fn test_cell_center_matches_padded_cell_sphere() {
+        for cell_id in sample_cells(Sphere::FACE_COUNT) {
+            assert_eq!(
+                cell_center_from_padded_ij::<Sphere>(cell_id),
+                S2PaddedCell::<Sphere>::new(cell_id, Sphere::CELL_PADDING).get_center()
+            );
+            assert_eq!(
+                Sphere::cell_center(cell_id),
+                S2PaddedCell::<Sphere>::new(cell_id, Sphere::CELL_PADDING).get_center()
+            );
+        }
+    }
+
+    #[test]
+    fn test_cell_center_matches_padded_cell_plane() {
+        for cell_id in sample_cells(Plane::FACE_COUNT) {
+            assert_eq!(
+                cell_center_from_padded_ij::<Plane>(cell_id),
+                S2PaddedCell::<Plane>::new(cell_id, Plane::CELL_PADDING).get_center()
+            );
+            assert_eq!(
+                Plane::cell_center(cell_id),
+                S2PaddedCell::<Plane>::new(cell_id, Plane::CELL_PADDING).get_center()
+            );
+        }
+    }
 }
