@@ -102,14 +102,15 @@ impl<S: Surface> Distance<S> {
         let mut containment_tested = BitSet::with_max_value(geometry_count);
         let mut boundary_entries: Vec<(S2CellId, Vec<u32>)> = Vec::new();
 
-        // We perform intersection since it is equivalent to within dinstance accordint to
+        // We perform intersection since it is equivalent to within distance according to
         // ST_DWithin.
-        let query_vertex = &self.query_edges.get_edge_set((0, 0)).vertices[0];
-        let query_point_cell_id = S::cell_id_from_point(query_vertex);
-        if let Some(qpc) = reader.find(query_point_cell_id) {
-            for shape in &qpc.shapes {
-                let gid = shape.geometry_id.1;
-                if shape.contains_center && shape.edge_indices.is_empty() {
+        for query_edge_set in &self.query_edges.set.members {
+            let query_vertex = &query_edge_set.vertices[0];
+            let query_point_cell_id = S::cell_id_from_point(query_vertex);
+            if let Some(qpc) = reader.find(query_point_cell_id) {
+                let cell_center = S::cell_center(qpc.cell_id);
+                for shape in &qpc.shapes {
+                    let gid = shape.geometry_id.1;
                     let located = edge_cache.locate(shape.geometry_id);
                     if !located.closed {
                         continue;
@@ -119,6 +120,19 @@ impl<S: Surface> Distance<S> {
                             seen.insert(gid);
                             continue;
                         }
+                    }
+                    let mut inside = shape.contains_center;
+                    if !shape.edge_indices.is_empty() {
+                        let mut crosser = S::EdgeCrosser::new(&cell_center, query_vertex);
+                        for &edge_idx in &shape.edge_indices {
+                            let (v0, v1) = located.edge(edge_idx);
+                            if crosser.edge_or_vertex_crossing_two(&v0, &v1) {
+                                inside = !inside;
+                            }
+                        }
+                    }
+                    if !inside {
+                        continue;
                     }
                     seen.insert(gid);
                     doc_ids.insert(located.doc_id);

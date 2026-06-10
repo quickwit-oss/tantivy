@@ -58,12 +58,16 @@ impl<S: Surface> Intersects<S> {
         let mut doc_ids = BitSet::with_max_value(max_doc);
         let mut containment_tested = BitSet::with_max_value(geometry_count);
 
-        let query_vertex = &self.query_edges.get_edge_set((0, 0)).vertices[0];
-        let query_point_cell_id = S::cell_id_from_point(query_vertex);
-        if let Some(qpc) = reader.find(query_point_cell_id) {
-            for shape in &qpc.shapes {
-                let gid = shape.geometry_id.1;
-                if shape.contains_center && shape.edge_indices.is_empty() {
+        // Cheap query-point-in-candidate path. The segment cell containing each query member's
+        // first vertex already tells us whether each indexed polygon contains the cell center; the
+        // cell's clipped edges tell us whether the query vertex is on the same side.
+        for query_edge_set in &self.query_edges.set.members {
+            let query_vertex = &query_edge_set.vertices[0];
+            let query_point_cell_id = S::cell_id_from_point(query_vertex);
+            if let Some(qpc) = reader.find(query_point_cell_id) {
+                let cell_center = S::cell_center(qpc.cell_id);
+                for shape in &qpc.shapes {
+                    let gid = shape.geometry_id.1;
                     let located = edge_cache.locate(shape.geometry_id);
                     if !located.closed {
                         continue;
@@ -73,6 +77,19 @@ impl<S: Surface> Intersects<S> {
                             seen.insert(gid);
                             continue;
                         }
+                    }
+                    let mut inside = shape.contains_center;
+                    if !shape.edge_indices.is_empty() {
+                        let mut crosser = S::EdgeCrosser::new(&cell_center, query_vertex);
+                        for &edge_idx in &shape.edge_indices {
+                            let (v0, v1) = located.edge(edge_idx);
+                            if crosser.edge_or_vertex_crossing_two(&v0, &v1) {
+                                inside = !inside;
+                            }
+                        }
+                    }
+                    if !inside {
+                        continue;
                     }
                     seen.insert(gid);
                     doc_ids.insert(located.doc_id);
