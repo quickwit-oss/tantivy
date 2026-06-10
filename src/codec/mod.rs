@@ -1,6 +1,9 @@
 /// Codec specific to postings data.
 pub mod postings;
 
+/// Codec specific to positions data.
+pub mod positions;
+
 /// Standard tantivy codec. This is the codec you use by default.
 pub mod standard;
 
@@ -8,6 +11,7 @@ use std::io;
 
 pub use standard::StandardCodec;
 
+use crate::codec::positions::PositionsCodec;
 use crate::codec::postings::PostingsCodec;
 use crate::fieldnorm::FieldNormReader;
 use crate::postings::{Postings, TermInfo};
@@ -18,11 +22,12 @@ use crate::schema::IndexRecordOption;
 use crate::{DocId, InvertedIndexReader, Score};
 
 /// Codecs describes how data is layed out on disk.
-///
-/// For the moment, only postings codec can be custom.
 pub trait Codec: Clone + std::fmt::Debug + Send + Sync + 'static {
-    /// The specific postings type used by this codec.
+    /// The specific postings codec used by this codec.
     type PostingsCodec: PostingsCodec;
+
+    /// The specific positions codec used by this codec.
+    type PositionsCodec: PositionsCodec;
 
     /// ID of the codec. It should be unique to your codec.
     /// Make it human-readable, descriptive, short and unique.
@@ -36,6 +41,9 @@ pub trait Codec: Clone + std::fmt::Debug + Send + Sync + 'static {
 
     /// Returns the postings codec.
     fn postings_codec(&self) -> &Self::PostingsCodec;
+
+    /// Returns the positions codec.
+    fn positions_codec(&self) -> &Self::PositionsCodec;
 }
 
 /// Object-safe codec is a Codec that can be used in a trait object.

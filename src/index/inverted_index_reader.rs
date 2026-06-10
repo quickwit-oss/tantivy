@@ -2,7 +2,7 @@ use std::io;
 use std::sync::Arc;
 
 use common::json_path_writer::JSON_END_OF_PATH;
-use common::{BinarySerializable, ByteCount, OwnedBytes};
+use common::{BinarySerializable, ByteCount};
 #[cfg(feature = "quickwit")]
 use futures_util::{FutureExt, StreamExt, TryStreamExt};
 #[cfg(feature = "quickwit")]
@@ -10,6 +10,7 @@ use itertools::Itertools;
 #[cfg(feature = "quickwit")]
 use tantivy_fst::automaton::{AlwaysMatch, Automaton};
 
+use crate::codec::positions::PositionsCodec;
 use crate::codec::postings::PostingsCodec;
 use crate::codec::{Codec, ObjectSafeCodec, StandardCodec};
 use crate::directory::FileSlice;
@@ -243,12 +244,13 @@ impl InvertedIndexReader {
             .postings_file_slice
             .slice(term_info.postings_range.clone())
             .read_bytes()?;
-        let positions_data: Option<OwnedBytes> = if option.has_positions() {
+        let position_reader = if option.has_positions() {
             let positions_data = self
                 .positions_file_slice
                 .slice(term_info.positions_range.clone())
                 .read_bytes()?;
-            Some(positions_data)
+            let reader = codec.positions_codec().open_reader(positions_data)?;
+            Some(Box::new(reader) as Box<dyn crate::codec::positions::PositionsReader>)
         } else {
             None
         };
@@ -258,7 +260,7 @@ impl InvertedIndexReader {
                 postings_data,
                 self.record_option,
                 option,
-                positions_data,
+                position_reader,
             )?;
         Ok(postings)
     }

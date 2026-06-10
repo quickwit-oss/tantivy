@@ -111,7 +111,9 @@ mod tests {
     use std::io;
 
     use super::SingleSegmentIndexWriter;
+    use crate::codec::positions::PositionsReader;
     use crate::codec::postings::{PostingsCodec, PostingsSerializer};
+    use crate::codec::standard::positions::StandardPositionsCodec;
     use crate::codec::standard::postings::{
         SegmentPostings, StandardPostingsCodec, StandardPostingsSerializer,
     };
@@ -188,14 +190,14 @@ mod tests {
             postings_data: common::OwnedBytes,
             record_option: IndexRecordOption,
             requested_option: IndexRecordOption,
-            positions_data: Option<common::OwnedBytes>,
+            position_reader: Option<Box<dyn PositionsReader>>,
         ) -> io::Result<Self::Postings> {
             StandardPostingsCodec.load_postings(
                 doc_freq,
                 postings_data,
                 record_option,
                 requested_option,
-                positions_data,
+                position_reader,
             )
         }
     }
@@ -205,6 +207,7 @@ mod tests {
 
     impl Codec for CapturingCodec {
         type PostingsCodec = CapturingPostingsCodec;
+        type PositionsCodec = StandardPositionsCodec;
 
         const ID: &'static str = "test-capturing-codec";
 
@@ -218,6 +221,10 @@ mod tests {
 
         fn postings_codec(&self) -> &Self::PostingsCodec {
             &CapturingPostingsCodec
+        }
+
+        fn positions_codec(&self) -> &Self::PositionsCodec {
+            &StandardPositionsCodec
         }
     }
 

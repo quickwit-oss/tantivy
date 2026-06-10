@@ -4,6 +4,7 @@ use std::io;
 pub mod block_wand;
 use common::OwnedBytes;
 
+use crate::codec::positions::PositionsReader;
 use crate::fieldnorm::FieldNormReader;
 use crate::postings::Postings;
 use crate::query::{Bm25Weight, Scorer};
@@ -35,13 +36,16 @@ pub trait PostingsCodec: Send + Sync + 'static {
     /// If record option does not support the requested option,
     /// this method does NOT return an error and will in fact restrict
     /// requested_option to what is available.
+    ///
+    /// `position_reader` is `Some` iff `requested_option` includes positions.
+    /// It is already opened by the caller via the codec's `PositionsCodec`.
     fn load_postings(
         &self,
         doc_freq: u32,
         postings_data: OwnedBytes,
         record_option: IndexRecordOption,
         requested_option: IndexRecordOption,
-        positions_data: Option<OwnedBytes>,
+        position_reader: Option<Box<dyn PositionsReader>>,
     ) -> io::Result<Self::Postings>;
 
     /// If your codec supports different ways to accelerate `for_each_pruning` that's

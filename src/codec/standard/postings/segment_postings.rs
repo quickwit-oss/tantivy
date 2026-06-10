@@ -1,10 +1,10 @@
 use common::BitSet;
 
 use super::BlockSegmentPostings;
+use crate::codec::positions::PositionsReader;
 use crate::codec::postings::PostingsWithBlockMax;
 use crate::docset::DocSet;
 use crate::fieldnorm::FieldNormReader;
-use crate::positions::PositionReader;
 use crate::postings::compression::COMPRESSION_BLOCK_SIZE;
 use crate::postings::{DocFreq, Postings};
 use crate::query::Bm25Weight;
@@ -15,11 +15,20 @@ use crate::{DocId, Score};
 ///
 /// As we iterate through the `SegmentPostings`, the frequencies are optionally decoded.
 /// Positions on the other hand, are optionally entirely decoded upfront.
-#[derive(Clone)]
 pub struct SegmentPostings {
     pub(crate) block_cursor: BlockSegmentPostings,
     cur: usize,
-    position_reader: Option<PositionReader>,
+    position_reader: Option<Box<dyn PositionsReader>>,
+}
+
+impl Clone for SegmentPostings {
+    fn clone(&self) -> Self {
+        SegmentPostings {
+            block_cursor: self.block_cursor.clone(),
+            cur: self.cur,
+            position_reader: self.position_reader.as_ref().map(|r| r.clone_box()),
+        }
+    }
 }
 
 impl SegmentPostings {
@@ -129,7 +138,7 @@ impl SegmentPostings {
     /// * `freq_handler` - the freq handler is in charge of decoding frequencies and/or positions
     pub(crate) fn from_block_postings(
         segment_block_postings: BlockSegmentPostings,
-        position_reader: Option<PositionReader>,
+        position_reader: Option<Box<dyn PositionsReader>>,
     ) -> SegmentPostings {
         SegmentPostings {
             block_cursor: segment_block_postings,

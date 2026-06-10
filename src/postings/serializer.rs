@@ -3,12 +3,12 @@ use std::io::{self, Write};
 use common::{BinarySerializable, CountingWriter};
 
 use super::TermInfo;
+use crate::codec::positions::{PositionsCodec, PositionsSerializer};
 use crate::codec::postings::PostingsSerializer;
 use crate::codec::Codec;
 use crate::directory::{CompositeWrite, WritePtr};
 use crate::fieldnorm::FieldNormReader;
 use crate::index::Segment;
-use crate::positions::PositionSerializer;
 use crate::schema::{Field, FieldEntry, FieldType, IndexRecordOption, Schema};
 use crate::termdict::TermDictionaryBuilder;
 use crate::{DocId, Score};
@@ -108,7 +108,8 @@ impl<C: Codec> InvertedIndexSerializer<C> {
 pub struct FieldSerializer<'a, C: Codec> {
     term_dictionary_builder: TermDictionaryBuilder<&'a mut CountingWriter<WritePtr>>,
     postings_serializer: <C::PostingsCodec as PostingsCodec>::PostingsSerializer,
-    positions_serializer_opt: Option<PositionSerializer<&'a mut CountingWriter<WritePtr>>>,
+    positions_serializer_opt:
+        Option<<C::PositionsCodec as PositionsCodec>::Serializer<&'a mut CountingWriter<WritePtr>>>,
     current_term_info: TermInfo,
     term_open: bool,
     postings_write: &'a mut CountingWriter<WritePtr>,
@@ -140,7 +141,7 @@ impl<'a, C: Codec> FieldSerializer<'a, C> {
             fieldnorm_reader,
         );
         let positions_serializer_opt = if index_record_option.has_positions() {
-            Some(PositionSerializer::new(positions_write))
+            Some(codec.positions_codec().new_serializer(positions_write))
         } else {
             None
         };

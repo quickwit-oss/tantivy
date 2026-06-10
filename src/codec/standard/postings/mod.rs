@@ -1,11 +1,11 @@
 use std::io;
 
+use crate::codec::positions::PositionsReader;
 use crate::codec::postings::block_wand::{block_wand, block_wand_single_scorer};
 use crate::codec::postings::PostingsCodec;
 use crate::codec::standard::postings::block_segment_postings::BlockSegmentPostings;
 pub use crate::codec::standard::postings::segment_postings::SegmentPostings;
 use crate::fieldnorm::FieldNormReader;
-use crate::positions::PositionReader;
 use crate::query::term_query::TermScorer;
 use crate::query::{BufferedUnionScorer, Scorer, SumCombiner};
 use crate::schema::IndexRecordOption;
@@ -50,13 +50,12 @@ impl PostingsCodec for StandardPostingsCodec {
         postings_data: common::OwnedBytes,
         record_option: IndexRecordOption,
         requested_option: IndexRecordOption,
-        positions_data_opt: Option<common::OwnedBytes>,
+        position_reader: Option<Box<dyn PositionsReader>>,
     ) -> io::Result<Self::Postings> {
         // Rationalize record_option/requested_option.
         let requested_option = requested_option.downgrade(record_option);
         let block_segment_postings =
             BlockSegmentPostings::open(doc_freq, postings_data, record_option, requested_option)?;
-        let position_reader = positions_data_opt.map(PositionReader::open).transpose()?;
         Ok(SegmentPostings::from_block_postings(
             block_segment_postings,
             position_reader,

@@ -1,10 +1,14 @@
 use serde::{Deserialize, Serialize};
 
+use crate::codec::standard::positions::StandardPositionsCodec;
 use crate::codec::standard::postings::StandardPostingsCodec;
 use crate::codec::Codec;
 
 /// Tantivy's default postings codec.
 pub mod postings;
+
+/// Tantivy's default positions codec.
+pub mod positions;
 
 /// Tantivy's default codec.
 #[derive(Debug, Default, Clone, Serialize, Deserialize)]
@@ -12,6 +16,7 @@ pub struct StandardCodec;
 
 impl Codec for StandardCodec {
     type PostingsCodec = StandardPostingsCodec;
+    type PositionsCodec = StandardPositionsCodec;
 
     const ID: &'static str = "tantivy-default";
 
@@ -31,5 +36,9 @@ impl Codec for StandardCodec {
 
     fn postings_codec(&self) -> &Self::PostingsCodec {
         &StandardPostingsCodec
+    }
+
+    fn positions_codec(&self) -> &Self::PositionsCodec {
+        &StandardPositionsCodec
     }
 }
