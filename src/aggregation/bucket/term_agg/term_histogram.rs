@@ -22,7 +22,9 @@ use crate::aggregation::{f64_from_fastfield_u64, BucketId};
 /// Maximum number of cells (`num_terms × num_time_buckets`) in the fused flat 2D grid. Above this
 /// the grid would be too large/cache-unfriendly, so we fall back to the general buffered path.
 /// `1 << 14` cells = 128 KB of `u64` counters, comfortably L2-resident.
-const MAX_FUSED_GRID_BUCKETS: usize = 1 << 14;
+///
+/// Since we are only at the top-level, this won't be multiplied by any parent buckets.
+const MAX_FUSED_GRID_BUCKETS: usize = 16384;
 
 /// Fused collector for `terms` (low cardinality) × a single `histogram`/`date_histogram` leaf with
 /// nothing nested below it, when the resulting `num_terms × num_time_buckets` grid is small (see
@@ -87,10 +89,11 @@ impl SegmentAggregationCollector for SegmentTermHistogramCollector {
         if self.derive_term_counts_from_histogram {
             // `collect` skipped the per-doc total; recover it as the grid row-sum (every doc landed
             // in a bucket, since there are no hard bounds).
-            let nb = self.num_time_buckets;
-            let counts = &self.counts;
-            for (t, slot) in self.term_counts.iter_mut().enumerate() {
-                *slot = counts[t * nb..(t + 1) * nb].iter().sum();
+            for (term_id, term_count) in self.term_counts.iter_mut().enumerate() {
+                *term_count = self.counts
+                    [term_id * self.num_time_buckets..(term_id + 1) * self.num_time_buckets]
+                    .iter()
+                    .sum();
             }
         }
         let mut bucket_id_provider = BucketIdProvider::default();
@@ -141,6 +144,11 @@ impl SegmentAggregationCollector for SegmentTermHistogramCollector {
         self.hist_block
             .fetch_block(docs, &self.hist_req_data.accessor);
 
+        // Hoist the loop-invariant fields into locals: the optimizer can't prove the
+        // `self.counts`/`self.term_counts` writes don't alias these `self` fields, so it can't keep
+        // them in registers and re-reads them from memory every iteration — ~15% slower on
+        // `terms_status_with_date_histogram` when read straight from `self`.
+        // Note: check which are actually relevant.
         let field_type = self.hist_req_data.field_type;
         let bounds = self.hist_req_data.bounds;
         let interval = self.hist_req_data.req.interval;
@@ -155,10 +163,10 @@ impl SegmentAggregationCollector for SegmentTermHistogramCollector {
         if self.derive_term_counts_from_histogram {
             // No hard bounds: every doc lands in a bucket, so we skip the per-doc `term_counts`
             // increment (derived from the grid at flush) and the always-true bounds check.
-            for (term_id, hist_raw) in self.term_block.iter_vals().zip(self.hist_block.iter_vals())
+            for (term_id, hist_val) in self.term_block.iter_vals().zip(self.hist_block.iter_vals())
             {
                 let term_id = term_id as usize;
-                let val = f64_from_fastfield_u64(hist_raw, field_type);
+                let val = f64_from_fastfield_u64(hist_val, field_type);
                 let bucket = (get_bucket_pos_f64(val, interval, offset) as i64 - base_pos) as usize;
                 debug_assert!(
                     bucket < num_time_buckets,
@@ -233,9 +241,10 @@ pub(super) fn maybe_build_collector(
     let fuseable = is_top_level
         && terms_req_data.allowed_term_ids.is_none()
         && terms_req_data.accessor.get_cardinality().is_full()
-        // The flat counters are `u32`; a per-segment count can't exceed the doc count, so this
-        // guarantees no overflow (essentially always true, as `DocId` is `u32`).
-        && terms_req_data.accessor.num_docs() < u32::MAX
+        // The flat counters are `u32`, bumped once per value, so no count can exceed the column's
+        // value count. (Essentially always true here: the column is full, so its value count
+        // equals the doc count, and `DocId` is `u32`.)
+        && terms_req_data.accessor.values.num_vals() < u32::MAX
         && node.children.len() == 1
         && matches!(
             node.children[0].kind,
@@ -472,6 +481,58 @@ mod tests {
             }
             // Only the 10 in-bounds buckets exist.
             assert_eq!(histo[10], serde_json::Value::Null);
+        }
+
+        Ok(())
+    }
+
+    /// Non-binding `hard_bounds` (wider than the data, with mid-interval edges) must still produce
+    /// exact results via the derive-from-grid path: since no doc is out of bounds, normalization
+    /// drops the bound, every doc lands in the dense range, and each term's total equals its
+    /// histogram row-sum. This is the case that previously fell back to the per-doc counter only
+    /// because `bounds != [MIN, MAX]`.
+    #[test]
+    fn fused_term_histogram_with_non_binding_hard_bounds() -> crate::Result<()> {
+        // 300 docs: term = {a, b, c} by i % 3, value = i % 20. Data values span [0, 19].
+        let docs: Vec<(f64, String)> = (0..300u64)
+            .map(|i| {
+                (
+                    (i % 20) as f64,
+                    ["a", "b", "c"][(i % 3) as usize].to_string(),
+                )
+            })
+            .collect();
+        let index = get_test_index_from_values_and_terms(true, &[docs])?;
+
+        // Bounds wider than [0, 19], with mid-interval edges -> they exclude nothing.
+        let agg_req: Aggregations = serde_json::from_value(serde_json::json!({
+            "by_term": {
+                "terms": { "field": "string_id", "order": { "_key": "asc" } },
+                "aggs": {
+                    "histo": {
+                        "histogram": {
+                            "field": "score_f64",
+                            "interval": 1.0,
+                            "hard_bounds": { "min": -0.5, "max": 19.5 }
+                        }
+                    }
+                }
+            }
+        }))
+        .unwrap();
+
+        let res = exec_request(agg_req, &index)?;
+
+        for (term_idx, term) in ["a", "b", "c"].iter().enumerate() {
+            assert_eq!(res["by_term"]["buckets"][term_idx]["key"], *term);
+            // Every doc is in-bounds, so the per-term total is the full 100 (as without bounds).
+            assert_eq!(res["by_term"]["buckets"][term_idx]["doc_count"], 100);
+            let histo = &res["by_term"]["buckets"][term_idx]["histo"]["buckets"];
+            for b in 0..20usize {
+                assert_eq!(histo[b]["key"], b as f64, "term {term} bucket {b}");
+                assert_eq!(histo[b]["doc_count"], 5, "term {term} bucket {b}");
+            }
+            assert_eq!(histo[20], serde_json::Value::Null);
         }
 
         Ok(())
