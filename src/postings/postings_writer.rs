@@ -11,6 +11,7 @@ use crate::indexer::path_to_unordered_id::OrderedPathId;
 use crate::postings::json_postings_writer::JsonPostingsWriter;
 use crate::postings::recorder::{
     BufferLender, DocIdRecorder, Recorder, TermFrequencyRecorder, TfAndPositionRecorder,
+    UNINITIALIZED_DOC,
 };
 use crate::postings::{
     FieldSerializer, IndexingContext, InvertedIndexSerializer, PerFieldPostingsWriter,
@@ -398,20 +399,22 @@ impl<Rec: Recorder> PostingsWriter for SpecializedPostingsWriter<Rec> {
         self.total_num_tokens += 1;
         let (term_index, arena) = (&mut ctx.term_index, &mut ctx.arena);
         term_index.mutate_or_create(term.serialized_term(), |opt_recorder: Option<Rec>| {
-            if let Some(mut recorder) = opt_recorder {
-                let current_doc = recorder.current_doc();
-                if current_doc != doc {
+            // A recorder may already exist without having started any document: the codec
+            // payload mechanism (`ensure_term`) pre-creates one to attach a payload to a
+            // term (e.g. a static template token in the moshiki codec). Such a recorder has
+            // `current_doc == UNINITIALIZED_DOC`. We must NOT `close_doc` it on the first
+            // real occurrence — that would emit a spurious doc terminator and desync the
+            // posting/position stream. `new_doc` writes the first doc id as an absolute delta.
+            let mut recorder = opt_recorder.unwrap_or_default();
+            let current_doc = recorder.current_doc();
+            if current_doc != doc {
+                if current_doc != UNINITIALIZED_DOC {
                     recorder.close_doc(arena);
-                    recorder.new_doc(doc, arena);
                 }
-                recorder.record_position(position, arena);
-                recorder
-            } else {
-                let mut recorder = Rec::default();
                 recorder.new_doc(doc, arena);
-                recorder.record_position(position, arena);
-                recorder
             }
+            recorder.record_position(position, arena);
+            recorder
         });
     }
 

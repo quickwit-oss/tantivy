@@ -251,7 +251,7 @@ impl StoreReader {
     /// decompressing a compressed block. The store utilizes a LRU cache,
     /// so accessing docs from the same compressed block should be faster.
     /// For that reason a store reader should be kept and reused.
-    pub fn get_document_bytes(&self, doc_id: DocId) -> crate::Result<OwnedBytes> {
+    fn get_document_bytes(&self, doc_id: DocId) -> crate::Result<OwnedBytes> {
         let checkpoint = self.block_checkpoint(doc_id)?;
         let block = self.read_block(&checkpoint)?;
         Self::get_document_bytes_from_block(block, doc_id, &checkpoint)

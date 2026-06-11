@@ -236,6 +236,25 @@ impl<Codec: crate::codec::Codec> SegmentWriter<Codec> {
         )
     }
 
+    /// Indexes the fast fields of one document from its `(field, value)` pairs, and
+    /// advances `max_doc` by one.
+    ///
+    /// This is for callers (e.g. moshiki) that drive the postings/positions through
+    /// [`indexing_parts`](Self::indexing_parts) with explicit doc ids and need a matching
+    /// fast-field + doc-count pass. It is the document-creating step: it keeps the
+    /// fast-field writer's `num_docs` and `max_doc` in lockstep, so it must be called
+    /// exactly once per document, in doc order.
+    #[doc(hidden)]
+    pub fn add_fast_field_document<'a, V: Value<'a>>(
+        &mut self,
+        fields_and_values: impl Iterator<Item = (Field, V)>,
+    ) -> crate::Result<()> {
+        self.fast_field_writers
+            .add_document_from_values(fields_and_values)?;
+        self.max_doc += 1;
+        Ok(())
+    }
+
     fn index_document<D: Document>(&mut self, doc: &D) -> crate::Result<()> {
         let doc_id = self.max_doc;
 

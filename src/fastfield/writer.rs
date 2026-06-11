@@ -117,6 +117,24 @@ impl FastFieldsWriter {
         Ok(())
     }
 
+    /// Indexes the fast fields of a new document from its `(field, value)` pairs directly.
+    ///
+    /// This is like [`add_document`](Self::add_document), but for documents that cannot
+    /// satisfy the `Document` trait's `'static` bound (e.g. a value borrowing from a batch
+    /// being indexed). The caller supplies the document's field/value pairs; like
+    /// `add_document` it advances `num_docs` by exactly one.
+    pub fn add_document_from_values<'a, V: Value<'a>>(
+        &mut self,
+        fields_and_values: impl Iterator<Item = (Field, V)>,
+    ) -> crate::Result<()> {
+        let doc_id = self.num_docs;
+        for (field, value) in fields_and_values {
+            self.add_doc_value(doc_id, field, value)?;
+        }
+        self.num_docs += 1;
+        Ok(())
+    }
+
     fn add_doc_value<'a, V: Value<'a>>(
         &mut self,
         doc_id: DocId,

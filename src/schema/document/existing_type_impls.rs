@@ -24,13 +24,24 @@ use crate::tokenizer::PreTokenizedString;
 
 // Serde compatibility support.
 pub fn can_be_rfc3339_date_time(text: &str) -> bool {
-    if let Some(&first_byte) = text.as_bytes().first() {
-        if first_byte.is_ascii_digit() {
-            return true;
-        }
-    }
+    // DISABLED: JSON string values that look like RFC3339 dates are NOT coerced to
+    // `Date` during document parsing — they are kept as plain strings. This keeps the
+    // standard-codec index consistent with the moshiki path (which never coerces) and
+    // avoids collapsing distinct date strings into second-truncated `Date` terms.
+    // Restore the original heuristic below to re-enable date detection.
+    let _ = text;
+    return false;
 
-    false
+    #[allow(unreachable_code)]
+    {
+        if let Some(&first_byte) = text.as_bytes().first() {
+            if first_byte.is_ascii_digit() {
+                return true;
+            }
+        }
+
+        false
+    }
 }
 
 impl<'a> Value<'a> for &'a serde_json::Value {

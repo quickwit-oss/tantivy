@@ -7,6 +7,29 @@ use crate::DocId;
 
 const POSITION_END: u32 = 0;
 
+/// Sentinel `current_doc` for a recorder that has not yet started any document.
+///
+/// A recorder can exist before its first `new_doc` because the codec payload
+/// mechanism (`ensure_term`) pre-creates a recorder to attach a payload to a term
+/// — e.g. a static template token in the moshiki codec. `DocId::MAX` is never a
+/// real document id (it is `TERMINATED`), so it unambiguously marks "no document
+/// started yet": `subscribe` uses it to skip the spurious `close_doc` that would
+/// otherwise desync the position stream, and `new_doc` uses it to write the first
+/// doc id as an absolute delta.
+pub(crate) const UNINITIALIZED_DOC: DocId = DocId::MAX;
+
+/// Doc-id delta to vint-encode in `new_doc`. The first document of a term is stored
+/// as an absolute id (the recorder's `current_doc` is still `UNINITIALIZED_DOC`),
+/// matching the decoder which seeds `prev_doc = 0`.
+#[inline]
+fn doc_delta(current_doc: DocId, doc: DocId) -> u32 {
+    if current_doc == UNINITIALIZED_DOC {
+        doc
+    } else {
+        doc - current_doc
+    }
+}
+
 #[derive(Default)]
 pub struct BufferLender {
     buffer_u8: Vec<u8>,
@@ -86,10 +109,19 @@ pub trait Recorder: Copy + Default + Send + Sync + 'static {
 }
 
 /// Only records the doc ids
-#[derive(Clone, Copy, Default)]
+#[derive(Clone, Copy)]
 pub struct DocIdRecorder {
     stack: ExpUnrolledLinkedList,
     current_doc: DocId,
+}
+
+impl Default for DocIdRecorder {
+    fn default() -> Self {
+        DocIdRecorder {
+            stack: ExpUnrolledLinkedList::default(),
+            current_doc: UNINITIALIZED_DOC,
+        }
+    }
 }
 
 impl Recorder for DocIdRecorder {
@@ -100,7 +132,7 @@ impl Recorder for DocIdRecorder {
 
     #[inline]
     fn new_doc(&mut self, doc: DocId, arena: &mut MemoryArena) {
-        let delta = doc - self.current_doc;
+        let delta = doc_delta(self.current_doc, doc);
         self.current_doc = doc;
         self.stack.writer(arena).write_u32_vint(delta);
     }
@@ -145,12 +177,23 @@ fn get_sum_reader(iter: impl Iterator<Item = u32>) -> impl Iterator<Item = u32> 
 }
 
 /// Recorder encoding document ids, and term frequencies
-#[derive(Clone, Copy, Default)]
+#[derive(Clone, Copy)]
 pub struct TermFrequencyRecorder {
     stack: ExpUnrolledLinkedList,
     current_doc: DocId,
     current_tf: u32,
     term_doc_freq: u32,
+}
+
+impl Default for TermFrequencyRecorder {
+    fn default() -> Self {
+        TermFrequencyRecorder {
+            stack: ExpUnrolledLinkedList::default(),
+            current_doc: UNINITIALIZED_DOC,
+            current_tf: 0,
+            term_doc_freq: 0,
+        }
+    }
 }
 
 impl Recorder for TermFrequencyRecorder {
@@ -161,7 +204,7 @@ impl Recorder for TermFrequencyRecorder {
 
     #[inline]
     fn new_doc(&mut self, doc: DocId, arena: &mut MemoryArena) {
-        let delta = doc - self.current_doc;
+        let delta = doc_delta(self.current_doc, doc);
         self.term_doc_freq += 1;
         self.current_doc = doc;
         self.stack.writer(arena).write_u32_vint(delta);
@@ -203,11 +246,21 @@ impl Recorder for TermFrequencyRecorder {
 }
 
 /// Recorder encoding term frequencies as well as positions.
-#[derive(Clone, Copy, Default)]
+#[derive(Clone, Copy)]
 pub struct TfAndPositionRecorder {
     stack: ExpUnrolledLinkedList,
     current_doc: DocId,
     term_doc_freq: u32,
+}
+
+impl Default for TfAndPositionRecorder {
+    fn default() -> Self {
+        TfAndPositionRecorder {
+            stack: ExpUnrolledLinkedList::default(),
+            current_doc: UNINITIALIZED_DOC,
+            term_doc_freq: 0,
+        }
+    }
 }
 
 impl Recorder for TfAndPositionRecorder {
@@ -218,7 +271,7 @@ impl Recorder for TfAndPositionRecorder {
 
     #[inline]
     fn new_doc(&mut self, doc: DocId, arena: &mut MemoryArena) {
-        let delta = doc - self.current_doc;
+        let delta = doc_delta(self.current_doc, doc);
         self.current_doc = doc;
         self.term_doc_freq += 1u32;
         self.stack.writer(arena).write_u32_vint(delta);
@@ -257,6 +310,11 @@ impl Recorder for TfAndPositionRecorder {
                         break;
                     }
                     Some(position_plus_one) => {
+                        debug_assert!(
+                            position_plus_one >= prev_position_plus_one,
+                            "positions for a (term, doc) must be recorded non-decreasing (got \
+                             {position_plus_one} after {prev_position_plus_one})",
+                        );
                         let delta_position = position_plus_one - prev_position_plus_one;
                         buffer_positions.push(delta_position);
                         prev_position_plus_one = position_plus_one;
