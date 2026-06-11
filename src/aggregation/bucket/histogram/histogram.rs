@@ -682,6 +682,22 @@ fn normalize_histogram_req(req_data: &mut HistogramAggReqData) -> crate::Result<
         max: f64::MAX,
     });
     req_data.offset = req_data.req.offset.unwrap_or(0.0);
+    // Drop `hard_bounds` that can't exclude any value (the column's range already sits inside
+    // them): the per-doc `bounds.contains` check is then a no-op, so collapsing to the unbounded
+    // sentinel lets the histogram hot loop skip it and the fused term×histogram path derive
+    // per-term counts from the grid. Only this collect-time filter is touched — empty-bucket
+    // emission reads `req.hard_bounds` directly (see `get_req_min_max`), and `hard_bounds` only
+    // ever clips that range, so a wider-than-data bound leaves the result unchanged.
+    if req_data.req.hard_bounds.is_some() {
+        let col_min = f64_from_fastfield_u64(req_data.accessor.min_value(), req_data.field_type);
+        let col_max = f64_from_fastfield_u64(req_data.accessor.max_value(), req_data.field_type);
+        if col_min >= req_data.bounds.min && col_max <= req_data.bounds.max {
+            req_data.bounds = HistogramBounds {
+                min: f64::MIN,
+                max: f64::MAX,
+            };
+        }
+    }
     Ok(())
 }
 
@@ -1405,6 +1421,55 @@ mod tests {
             "An invalid argument was passed: 'extended_bounds have to be inside hard_bounds, \
              extended_bounds: [1,12], hard_bounds [2,12]'"
         );
+
+        Ok(())
+    }
+
+    #[test]
+    fn histogram_non_binding_hard_bounds_test_multi_segment() -> crate::Result<()> {
+        histogram_non_binding_hard_bounds_test_with_opt(false)
+    }
+    #[test]
+    fn histogram_non_binding_hard_bounds_test_single_segment() -> crate::Result<()> {
+        histogram_non_binding_hard_bounds_test_with_opt(true)
+    }
+    /// `hard_bounds` wider than the data (here with mid-interval edges, to cover the "bound cuts a
+    /// bucket" case) can't exclude any value, so the result must be identical to the same request
+    /// without bounds. Guards the normalization that collapses such bounds to the unbounded
+    /// sentinel so the hot loop / fused path can skip the per-doc bounds check.
+    fn histogram_non_binding_hard_bounds_test_with_opt(merge_segments: bool) -> crate::Result<()> {
+        let values = vec![10.0, 12.0, 14.0, 16.0, 10.0, 13.0, 10.0, 12.0];
+        let index = get_test_index_from_values(merge_segments, &values)?;
+
+        // Mid-interval edges, but wider than the data range [10, 16] -> they exclude nothing.
+        let with_bounds: Aggregations = serde_json::from_value(json!({
+            "histogram": {
+                "histogram": {
+                    "field": "score_f64",
+                    "interval": 1.0,
+                    "hard_bounds": { "min": 9.5, "max": 16.5 }
+                }
+            }
+        }))
+        .unwrap();
+        let no_bounds: Aggregations = serde_json::from_value(json!({
+            "histogram": {
+                "histogram": { "field": "score_f64", "interval": 1.0 }
+            }
+        }))
+        .unwrap();
+
+        let res_bounds = exec_request(with_bounds, &index)?;
+        let res_plain = exec_request(no_bounds, &index)?;
+        // Dropping a non-binding bound must not change anything.
+        assert_eq!(res_bounds, res_plain);
+
+        // Sanity: buckets span the data range with gaps filled (min_doc_count defaults to 0).
+        assert_eq!(res_bounds["histogram"]["buckets"][0]["key"], 10.0);
+        assert_eq!(res_bounds["histogram"]["buckets"][0]["doc_count"], 3);
+        assert_eq!(res_bounds["histogram"]["buckets"][6]["key"], 16.0);
+        assert_eq!(res_bounds["histogram"]["buckets"][6]["doc_count"], 1);
+        assert_eq!(res_bounds["histogram"]["buckets"][7], Value::Null);
 
         Ok(())
     }
