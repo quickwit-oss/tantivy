@@ -536,7 +536,6 @@ mod tests {
     use super::*;
     use crate::column_values::u128_based::U128Header;
     use crate::column_values::{open_u128_mapped, serialize_column_values_u128};
-    use common::file_slice::FileSlice;
 
     #[test]
     fn compact_space_test() {

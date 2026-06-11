@@ -11,8 +11,8 @@ use crate::core::MANAGED_FILEPATH;
 use crate::directory::error::{DeleteError, LockError, OpenReadError, OpenWriteError};
 use crate::directory::footer::{Footer, FooterProxy, FOOTER_LEN};
 use crate::directory::{
-    DirectoryLock, DirectoryPanicHandler, FileHandle, FileSlice, GarbageCollectionResult, Lock,
-    WatchCallback, WatchHandle, MANAGED_LOCK, META_LOCK, InnerWritePtr
+    DirectoryLock, DirectoryPanicHandler, FileHandle, FileSlice, GarbageCollectionResult,
+    InnerWritePtr, Lock, WatchCallback, WatchHandle, MANAGED_LOCK, META_LOCK,
 };
 use crate::error::DataCorruption;
 use crate::index::SegmentMetaInventory;
@@ -310,10 +310,7 @@ impl Directory for ManagedDirectory {
         Ok(reader)
     }
 
-    fn open_write_inner(
-        &self,
-        path: &Path,
-    ) -> result::Result<InnerWritePtr, OpenWriteError> {
+    fn open_write_inner(&self, path: &Path) -> result::Result<InnerWritePtr, OpenWriteError> {
         self.register_file_as_managed(path)
             .map_err(|io_error| OpenWriteError::wrap_io_error(io_error, path.to_path_buf()))?;
         Ok(Box::new(FooterProxy::new(

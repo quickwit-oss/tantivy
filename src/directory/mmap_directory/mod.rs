@@ -22,8 +22,8 @@ use crate::directory::error::{
     DeleteError, LockError, OpenDirectoryError, OpenReadError, OpenWriteError,
 };
 use crate::directory::{
-    AntiCallToken, Directory, DirectoryLock, FileHandle, Lock, OwnedBytes, TerminatingWrite,
-    WatchCallback, WatchHandle, InnerWritePtr
+    AntiCallToken, Directory, DirectoryLock, FileHandle, InnerWritePtr, Lock, OwnedBytes,
+    TerminatingWrite, WatchCallback, WatchHandle,
 };
 
 pub type ArcBytes = Arc<dyn Deref<Target = [u8]> + Send + Sync + 'static>;

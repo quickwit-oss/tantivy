@@ -100,7 +100,10 @@ impl Directory for NullDirectory {
         Ok(true)
     }
 
-    fn open_write(&self, path: &Path) -> Result<WritePtr, OpenWriteError> {
+    fn open_write_inner(
+        &self,
+        path: &Path,
+    ) -> Result<Box<dyn TerminatingWrite + Send + Sync>, OpenWriteError> {
         let path_buf = path.to_path_buf();
         if path.to_string_lossy().ends_with(".fieldnorm") {
             let writer = InMemoryWriter {
@@ -108,9 +111,9 @@ impl Directory for NullDirectory {
                 buffer: Vec::new(),
                 blobs: Arc::clone(&self.blobs),
             };
-            Ok(io::BufWriter::new(Box::new(writer)))
+            Ok(Box::new(writer))
         } else {
-            Ok(io::BufWriter::new(Box::new(NullWriter)))
+            Ok(Box::new(NullWriter))
         }
     }
 
