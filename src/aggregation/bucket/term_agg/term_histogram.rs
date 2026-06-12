@@ -41,13 +41,16 @@ const MAX_FUSED_GRID_BUCKETS: usize = 16384;
 /// general path.
 #[derive(Debug)]
 pub(crate) struct SegmentTermHistogramCollector {
-    /// `[num_terms]` total doc count per term bucket (independent of the histogram bounds).
-    /// `u32` is enough: a per-segment count can't exceed the segment's doc count (`DocId` is
-    /// `u32`); the fused path is only taken when `num_docs < u32::MAX` (see
-    /// `maybe_build_collector`).
+    /// The counts, indexed by term id.
+    ///
+    /// Only used when we can't derive the term counts from `counts`.
     term_counts: Vec<u32>,
-    /// Flat row-major `[num_terms * num_time_buckets]` histogram counters (`u32`, see
+    /// Flattened `[num_terms * num_time_buckets]` histogram counters (`u32`, see
     /// `term_counts`).
+    ///
+    /// Each term id get its own contiguous slice of `num_time_buckets` histogram counter.
+    /// When we count all docs (#nofilter), we can derive the per-term total as the sum over that
+    /// term's slice.
     counts: Vec<u32>,
     /// Histogram buckets per term (the dense time-range length).
     num_time_buckets: usize,
