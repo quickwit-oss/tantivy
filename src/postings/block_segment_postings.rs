@@ -287,6 +287,33 @@ impl BlockSegmentPostings {
         doc
     }
 
+    /// Returns the number of documents with a doc id strictly smaller than `target`
+    /// (i.e. the *rank* of `target` in this posting list).
+    ///
+    /// This jumps to the block that may contain `target` through the skip list, so no
+    /// skipped block is decoded; a single block is then decoded to locate `target`
+    /// within it. The cost is therefore `O(number_of_skip_list_entries)` plus one block
+    /// decode, rather than `O(doc_freq)`.
+    ///
+    /// Like [`Self::seek`], the underlying cursor only ever moves forward. This method
+    /// must be called with **non-decreasing** `target` values (galloping); calling it
+    /// with a `target` smaller than a previous one yields an incorrect result. `target`
+    /// must be a valid doc id (i.e. `target <= TERMINATED`), exactly as for `seek`.
+    ///
+    /// Edge cases: returns `0` when `target` is smaller than every doc id, and
+    /// `doc_freq()` when `target` is larger than every doc id.
+    pub fn rank(&mut self, target: DocId) -> u32 {
+        if self.doc_freq == 0 {
+            return 0;
+        }
+        // `within` = number of docs in the landed block with a doc id < target.
+        let within = self.seek(target);
+        // `remaining_docs` counts the landed block and everything after it, so the
+        // difference is the number of docs in all blocks strictly before it.
+        let docs_before_block = self.doc_freq - self.skip_reader.remaining_docs();
+        docs_before_block + within as u32
+    }
+
     pub(crate) fn position_offset(&self) -> u64 {
         self.skip_reader.position_offset()
     }
@@ -566,6 +593,40 @@ mod tests {
             inverted_index.reset_block_postings_from_terminfo(&term_info, &mut block_segments)?;
         }
         assert_eq!(block_segments.docs(), &[1, 3, 5]);
+        Ok(())
+    }
+
+    #[test]
+    fn test_block_segment_postings_rank() -> crate::Result<()> {
+        // ~8 blocks worth of docs so the skip list is actually exercised.
+        let docs: Vec<DocId> = (0..1000u32).map(|i| i * 3).collect();
+        let mut block_postings = build_block_postings(&docs[..])?;
+        let doc_freq = block_postings.doc_freq();
+
+        // rank(target) must equal the number of docs strictly below target.
+        // Targets are queried in non-decreasing order, as the API requires.
+        // `target` values must be a valid doc id (<= TERMINATED) and non-decreasing.
+        let targets = [
+            0u32, 1, 2, 3, 4, 299, 300, 301, 1500, 2996, 2997, 3000, 10_000,
+        ];
+        for &target in &targets {
+            let expected = docs.iter().filter(|&&d| d < target).count() as u32;
+            assert_eq!(
+                block_postings.rank(target),
+                expected,
+                "rank({target}) mismatch"
+            );
+        }
+
+        // Edge cases: below the first doc -> 0, above the last doc -> doc_freq.
+        let mut fresh = build_block_postings(&docs[..])?;
+        assert_eq!(fresh.rank(0), 0);
+        let mut fresh = build_block_postings(&docs[..])?;
+        assert_eq!(fresh.rank(1_000_000), doc_freq);
+
+        // Empty postings: rank is always 0.
+        let mut empty = BlockSegmentPostings::empty();
+        assert_eq!(empty.rank(42), 0);
         Ok(())
     }
 }
