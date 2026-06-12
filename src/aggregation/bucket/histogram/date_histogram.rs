@@ -117,7 +117,7 @@ pub struct DateHistogramAggregationReq {
 }
 
 impl DateHistogramAggregationReq {
-    pub(crate) fn to_histogram_req(&self) -> crate::Result<HistogramAggregation> {
+    pub fn to_histogram_req(&self) -> crate::Result<HistogramAggregation> {
         self.validate()?;
         Ok(HistogramAggregation {
             field: self.field.to_string(),
