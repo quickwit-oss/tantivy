@@ -8,7 +8,7 @@ use crate::codec::positions::PositionsReader;
 use crate::fieldnorm::FieldNormReader;
 use crate::postings::Postings;
 use crate::query::{Bm25Weight, Scorer};
-use crate::schema::IndexRecordOption;
+use crate::schema::{Field, IndexRecordOption};
 use crate::{DocId, Score};
 
 /// Postings codec.
@@ -41,6 +41,7 @@ pub trait PostingsCodec: Send + Sync + 'static {
     /// It is already opened by the caller via the codec's `PositionsCodec`.
     fn load_postings(
         &self,
+        field: Field,
         doc_freq: u32,
         postings_data: OwnedBytes,
         record_option: IndexRecordOption,

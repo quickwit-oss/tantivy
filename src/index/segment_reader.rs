@@ -252,7 +252,7 @@ impl SegmentReader {
             //
             // Returns an empty inverted index.
             let record_option = record_option_opt.unwrap_or(IndexRecordOption::Basic);
-            return Ok(Arc::new(InvertedIndexReader::empty(record_option)));
+            return Ok(Arc::new(InvertedIndexReader::empty(field, record_option)));
         }
 
         let record_option = record_option_opt.unwrap();
@@ -277,6 +277,7 @@ impl SegmentReader {
         })?;
 
         let inv_idx_reader = Arc::new(InvertedIndexReader::new(
+            field,
             TermDictionary::open(termdict_file)?,
             postings_file,
             positions_file,

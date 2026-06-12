@@ -18,7 +18,7 @@ use crate::postings::{Postings, TermInfo};
 use crate::query::score_combiner::DoNothingCombiner;
 use crate::query::term_query::TermScorer;
 use crate::query::{box_scorer, Bm25Weight, BufferedUnionScorer, Scorer, SumCombiner};
-use crate::schema::IndexRecordOption;
+use crate::schema::{Field, IndexRecordOption};
 use crate::{DocId, InvertedIndexReader, Score};
 
 /// Codecs describes how data is layed out on disk.
@@ -44,6 +44,18 @@ pub trait Codec: Clone + std::fmt::Debug + Send + Sync + 'static {
 
     /// Returns the positions codec.
     fn positions_codec(&self) -> &Self::PositionsCodec;
+
+    /// Encodes per-document position deltas before they are written to the positions
+    /// file. The default leaves positions unchanged.
+    fn encode_position_deltas(
+        &self,
+        _field: Field,
+        _doc_id: DocId,
+        position_deltas: &[u32],
+        output: &mut Vec<u32>,
+    ) {
+        output.extend_from_slice(position_deltas);
+    }
 }
 
 /// Object-safe codec is a Codec that can be used in a trait object.

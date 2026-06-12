@@ -84,6 +84,7 @@ impl<C: Codec> InvertedIndexSerializer<C> {
         let postings_write = self.postings_write.for_field(field);
         let positions_write = self.positions_write.for_field(field);
         FieldSerializer::create(
+            field,
             field_entry.field_type(),
             total_num_tokens,
             term_dictionary_write,
@@ -106,10 +107,13 @@ impl<C: Codec> InvertedIndexSerializer<C> {
 /// The field serializer is in charge of
 /// the serialization of a specific field.
 pub struct FieldSerializer<'a, C: Codec> {
+    field: Field,
     term_dictionary_builder: TermDictionaryBuilder<&'a mut CountingWriter<WritePtr>>,
     postings_serializer: <C::PostingsCodec as PostingsCodec>::PostingsSerializer,
     positions_serializer_opt:
         Option<<C::PositionsCodec as PositionsCodec>::Serializer<&'a mut CountingWriter<WritePtr>>>,
+    codec: &'a C,
+    position_delta_buffer: Vec<u32>,
     current_term_info: TermInfo,
     term_open: bool,
     postings_write: &'a mut CountingWriter<WritePtr>,
@@ -118,13 +122,14 @@ pub struct FieldSerializer<'a, C: Codec> {
 
 impl<'a, C: Codec> FieldSerializer<'a, C> {
     fn create(
+        field: Field,
         field_type: &FieldType,
         total_num_tokens: u64,
         term_dictionary_write: &'a mut CountingWriter<WritePtr>,
         postings_write: &'a mut CountingWriter<WritePtr>,
         positions_write: &'a mut CountingWriter<WritePtr>,
         fieldnorm_reader: Option<FieldNormReader>,
-        codec: &C,
+        codec: &'a C,
     ) -> io::Result<FieldSerializer<'a, C>> {
         let index_record_option = field_type
             .index_record_option()
@@ -148,9 +153,12 @@ impl<'a, C: Codec> FieldSerializer<'a, C> {
 
         let postings_start_offset = postings_write.written_bytes();
         Ok(FieldSerializer {
+            field,
             term_dictionary_builder,
             postings_serializer,
             positions_serializer_opt,
+            codec,
+            position_delta_buffer: Vec::new(),
             current_term_info: TermInfo::default(),
             term_open: false,
             postings_write,
@@ -225,7 +233,15 @@ impl<'a, C: Codec> FieldSerializer<'a, C> {
         self.postings_serializer.write_doc(doc_id, term_freq);
         if let Some(ref mut positions_serializer) = self.positions_serializer_opt.as_mut() {
             assert_eq!(term_freq as usize, position_deltas.len());
-            positions_serializer.write_positions_delta(position_deltas);
+            self.position_delta_buffer.clear();
+            self.codec.encode_position_deltas(
+                self.field,
+                doc_id,
+                position_deltas,
+                &mut self.position_delta_buffer,
+            );
+            assert_eq!(term_freq as usize, self.position_delta_buffer.len());
+            positions_serializer.write_positions_delta(&self.position_delta_buffer);
         }
     }
 

@@ -18,7 +18,7 @@ use crate::fieldnorm::FieldNormReader;
 use crate::postings::{Postings, TermInfo};
 use crate::query::term_query::TermScorer;
 use crate::query::{Bm25Weight, PhraseScorer, Scorer};
-use crate::schema::{IndexRecordOption, Term, Type};
+use crate::schema::{Field, IndexRecordOption, Term, Type};
 use crate::termdict::TermDictionary;
 
 /// The inverted index reader is in charge of accessing
@@ -34,6 +34,7 @@ use crate::termdict::TermDictionary;
 /// `InvertedIndexReader` are created by calling
 /// [`SegmentReader::inverted_index()`](crate::SegmentReader::inverted_index).
 pub struct InvertedIndexReader {
+    field: Field,
     termdict: TermDictionary,
     postings_file_slice: FileSlice,
     positions_file_slice: FileSlice,
@@ -71,6 +72,7 @@ impl InvertedIndexFieldSpace {
 
 impl InvertedIndexReader {
     pub(crate) fn new(
+        field: Field,
         termdict: TermDictionary,
         postings_file_slice: FileSlice,
         positions_file_slice: FileSlice,
@@ -80,6 +82,7 @@ impl InvertedIndexReader {
         let (total_num_tokens_slice, postings_body) = postings_file_slice.split(8);
         let total_num_tokens = u64::deserialize(&mut total_num_tokens_slice.read_bytes()?)?;
         Ok(InvertedIndexReader {
+            field,
             termdict,
             postings_file_slice: postings_body,
             positions_file_slice,
@@ -91,8 +94,9 @@ impl InvertedIndexReader {
 
     /// Creates an empty `InvertedIndexReader` object, which
     /// contains no terms at all.
-    pub fn empty(record_option: IndexRecordOption) -> InvertedIndexReader {
+    pub fn empty(field: Field, record_option: IndexRecordOption) -> InvertedIndexReader {
         InvertedIndexReader {
+            field,
             termdict: TermDictionary::empty(),
             postings_file_slice: FileSlice::empty(),
             positions_file_slice: FileSlice::empty(),
@@ -256,6 +260,7 @@ impl InvertedIndexReader {
         };
         let postings: <<C as Codec>::PostingsCodec as PostingsCodec>::Postings =
             codec.postings_codec().load_postings(
+                self.field,
                 term_info.doc_freq,
                 postings_data,
                 self.record_option,

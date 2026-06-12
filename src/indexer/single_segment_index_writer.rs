@@ -119,7 +119,7 @@ mod tests {
     };
     use crate::codec::Codec;
     use crate::fieldnorm::FieldNormReader;
-    use crate::schema::{IndexRecordOption, Schema, Type, STRING};
+    use crate::schema::{Field, IndexRecordOption, Schema, Type, STRING};
     use crate::{DocId, Score, Term};
 
     // The codec is round-tripped through `from_json_props` when the index is
@@ -186,6 +186,7 @@ mod tests {
 
         fn load_postings(
             &self,
+            field: Field,
             doc_freq: u32,
             postings_data: common::OwnedBytes,
             record_option: IndexRecordOption,
@@ -193,6 +194,7 @@ mod tests {
             position_reader: Option<Box<dyn PositionsReader>>,
         ) -> io::Result<Self::Postings> {
             StandardPostingsCodec.load_postings(
+                field,
                 doc_freq,
                 postings_data,
                 record_option,

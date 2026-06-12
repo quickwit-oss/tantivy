@@ -8,7 +8,7 @@ pub use crate::codec::standard::postings::segment_postings::SegmentPostings;
 use crate::fieldnorm::FieldNormReader;
 use crate::query::term_query::TermScorer;
 use crate::query::{BufferedUnionScorer, Scorer, SumCombiner};
-use crate::schema::IndexRecordOption;
+use crate::schema::{Field, IndexRecordOption};
 use crate::{DocSet as _, Score, TERMINATED};
 
 mod block;
@@ -46,6 +46,7 @@ impl PostingsCodec for StandardPostingsCodec {
 
     fn load_postings(
         &self,
+        _field: Field,
         doc_freq: u32,
         postings_data: common::OwnedBytes,
         record_option: IndexRecordOption,
@@ -126,6 +127,7 @@ mod tests {
             .unwrap();
         StandardPostingsCodec
             .load_postings(
+                Field::from_field_id(0),
                 num_docs,
                 OwnedBytes::new(buffer),
                 IndexRecordOption::WithFreqs,
