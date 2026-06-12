@@ -187,6 +187,12 @@ impl SkipReader {
         self.last_doc_in_block
     }
 
+    /// Number of docs from the start of the current block to the end of the postings
+    /// (i.e. the current block plus every block after it).
+    pub(crate) fn remaining_docs(&self) -> u32 {
+        self.remaining_docs
+    }
+
     pub fn position_offset(&self) -> u64 {
         self.position_offset
     }
