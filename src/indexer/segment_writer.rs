@@ -74,6 +74,7 @@ pub struct SegmentWriter {
     per_field_text_analyzers: Vec<TextAnalyzer>,
     term_buffer: IndexingTerm,
     schema: Schema,
+    ignore_store: bool,
 }
 
 impl SegmentWriter {
@@ -86,12 +87,17 @@ impl SegmentWriter {
     ///   behavior as a memory limit.
     /// - segment: The segment being written
     /// - schema
-    pub fn for_segment(memory_budget_in_bytes: usize, segment: Segment) -> crate::Result<Self> {
+    pub fn for_segment(
+        memory_budget_in_bytes: usize,
+        segment: Segment,
+        ignore_store: bool,
+    ) -> crate::Result<Self> {
         let schema = segment.schema();
         let tokenizer_manager = segment.index().tokenizers().clone();
         let table_size = compute_initial_table_size(memory_budget_in_bytes)?;
         let ctx = PluginWriterContext {
             segment: &segment,
+            ignore_store,
         };
         let plugin_writers = segment
             .index()
@@ -133,6 +139,7 @@ impl SegmentWriter {
             per_field_text_analyzers,
             term_buffer: IndexingTerm::with_capacity(16),
             schema,
+            ignore_store,
         })
     }
 

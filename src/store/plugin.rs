@@ -28,7 +28,7 @@ impl SegmentPlugin for StorePlugin {
     fn create_writer(&self, ctx: &PluginWriterContext) -> crate::Result<Box<dyn PluginWriter>> {
         let settings = ctx.segment.index().settings();
         let directory = ctx.segment.index().directory();
-        let remapping_required = settings.sort_by_field.is_some();
+        let remapping_required = !ctx.ignore_store && settings.sort_by_field.is_some();
 
         let store_writer = if remapping_required {
             let path = ctx.segment.relative_path(SegmentComponent::TempStore);
@@ -56,6 +56,7 @@ impl SegmentPlugin for StorePlugin {
         Ok(Box::new(StorePluginWriter {
             store_writer: Some(store_writer),
             remapping_required,
+            ignore_store: ctx.ignore_store,
         }))
     }
 
@@ -149,6 +150,7 @@ impl SegmentPlugin for StorePlugin {
 pub struct StorePluginWriter {
     store_writer: Option<StoreWriter>,
     remapping_required: bool,
+    ignore_store: bool,
 }
 
 impl StorePluginWriter {
@@ -178,6 +180,9 @@ impl PluginWriter for StorePluginWriter {
         doc: &TantivyDocument,
         schema: &Schema,
     ) -> crate::Result<()> {
+        if self.ignore_store {
+            return Ok(());
+        }
         self.store(doc, schema)
     }
 

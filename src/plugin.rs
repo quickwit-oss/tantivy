@@ -123,6 +123,8 @@ pub trait PluginWriter: Send + Any {
 pub struct PluginWriterContext<'a> {
     /// The segment being written to.
     pub segment: &'a Segment,
+    /// Whether the document store should be ignored for this segment.
+    pub ignore_store: bool,
 }
 
 /// Context provided to [`SegmentPlugin::merge`].
