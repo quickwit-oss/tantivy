@@ -17,7 +17,6 @@ use rand::SeedableRng;
 use tantivy::directory::error::{DeleteError, OpenReadError, OpenWriteError};
 use tantivy::directory::{
     AntiCallToken, Directory, FileHandle, OwnedBytes, TerminatingWrite, WatchCallback, WatchHandle,
-    WritePtr,
 };
 use tantivy::indexer::{merge_filtered_segments, NoMergePolicy};
 use tantivy::schema::{Schema, TEXT};
@@ -216,9 +215,14 @@ fn main() {
         group.register("merge", move |_| {
             let output_dir = NullDirectory::default();
             let filter_doc_ids = vec![None; segments.len()];
-            let merged_index =
-                merge_filtered_segments(&segments, settings.clone(), filter_doc_ids, output_dir)
-                    .unwrap();
+            let merged_index = merge_filtered_segments(
+                &segments,
+                settings.clone(),
+                filter_doc_ids,
+                output_dir,
+                Box::new(|| false),
+            )
+            .unwrap();
             black_box(merged_index);
         });
 

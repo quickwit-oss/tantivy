@@ -1053,6 +1053,7 @@ mod bench_sorted_index_merge {
 
     use crate::index::Index;
     use crate::indexer::merger::IndexMerger;
+    use crate::indexer::segment_updater::CancelSentinel;
     use crate::schema::{NumericOptions, Schema};
     use crate::{IndexSettings, IndexSortByField, IndexWriter, Order};
     fn create_index(sort_by_field: Option<IndexSortByField>) -> Index {
@@ -1121,6 +1122,19 @@ mod bench_sorted_index_merge {
     // Ok(())
     //}
 
+    #[derive(Clone)]
+    struct DummyCancelSentinel;
+
+    impl CancelSentinel for DummyCancelSentinel {
+        fn box_clone(&self) -> Box<dyn CancelSentinel> {
+            Box::new(DummyCancelSentinel)
+        }
+
+        fn wants_cancel(&self) -> bool {
+            false
+        }
+    }
+
     #[bench]
     fn create_sorted_index_create_doc_id_mapping(b: &mut Bencher) -> crate::Result<()> {
         let sort_by_field = IndexSortByField {
@@ -1130,8 +1144,13 @@ mod bench_sorted_index_merge {
         let index = create_index(Some(sort_by_field.clone()));
         // let field = index.schema().get_field("intval").unwrap();
         let segments = index.searchable_segments().unwrap();
-        let merger: IndexMerger =
-            IndexMerger::open(index.schema(), index.settings().clone(), &segments[..])?;
+        let merger: IndexMerger = IndexMerger::open(
+            index.schema(),
+            index.settings().clone(),
+            &segments[..],
+            Box::new(DummyCancelSentinel),
+            true,
+        )?;
         b.iter(|| {
             merger
                 .generate_doc_id_mapping_with_sort_by_field(&sort_by_field)
