@@ -6,7 +6,7 @@ use crate::aggregation::bucket::MAX_NUM_TERMS_FOR_VEC;
 use crate::aggregation::BucketId;
 use crate::DocId;
 
-/// A cache for sub-aggregations, storing doc ids per bucket id.
+/// A buffer for sub-aggregations, storing doc ids per bucket id.
 /// Depending on the cardinality of the parent aggregation, we use different
 /// storage strategies.
 ///
@@ -24,21 +24,21 @@ use crate::DocId;
 /// aggregations.
 /// What this datastructure does in general is to group docs by bucket id.
 #[derive(Debug)]
-pub(crate) struct CachedSubAggs<C: SubAggCache> {
-    cache: C,
+pub(crate) struct BufferedSubAggs<B: SubAggBuffer> {
+    buffer: B,
     sub_agg_collector: Box<dyn SegmentAggregationCollector>,
     num_docs: usize,
 }
 
-pub type LowCardCachedSubAggs = CachedSubAggs<LowCardSubAggCache>;
-pub type HighCardCachedSubAggs = CachedSubAggs<HighCardSubAggCache>;
+pub type LowCardBufferedSubAggs = BufferedSubAggs<LowCardSubAggBuffer>;
+pub type HighCardBufferedSubAggs = BufferedSubAggs<HighCardSubAggBuffer>;
 
 const FLUSH_THRESHOLD: usize = 2048;
 
-/// A trait for caching sub-aggregation doc ids per bucket id.
+/// A trait for buffering sub-aggregation doc ids per bucket id.
 /// Different implementations can be used depending on the cardinality
 /// of the parent aggregation.
-pub trait SubAggCache: Debug {
+pub trait SubAggBuffer: Debug {
     fn new() -> Self;
     fn push(&mut self, bucket_id: BucketId, doc_id: DocId);
     fn flush_local(
@@ -49,22 +49,22 @@ pub trait SubAggCache: Debug {
     ) -> crate::Result<()>;
 }
 
-impl<Backend: SubAggCache + Debug> CachedSubAggs<Backend> {
+impl<Backend: SubAggBuffer + Debug> BufferedSubAggs<Backend> {
     pub fn new(sub_agg: Box<dyn SegmentAggregationCollector>) -> Self {
         Self {
-            cache: Backend::new(),
+            buffer: Backend::new(),
             sub_agg_collector: sub_agg,
             num_docs: 0,
         }
     }
 
-    pub fn get_sub_agg_collector(&mut self) -> &mut Box<dyn SegmentAggregationCollector> {
-        &mut self.sub_agg_collector
+    pub fn get_sub_agg_collector(&mut self) -> &mut dyn SegmentAggregationCollector {
+        &mut *self.sub_agg_collector
     }
 
     #[inline]
     pub fn push(&mut self, bucket_id: BucketId, doc_id: DocId) {
-        self.cache.push(bucket_id, doc_id);
+        self.buffer.push(bucket_id, doc_id);
         self.num_docs += 1;
     }
 
@@ -75,7 +75,7 @@ impl<Backend: SubAggCache + Debug> CachedSubAggs<Backend> {
         agg_data: &mut AggregationsSegmentCtx,
     ) -> crate::Result<()> {
         if self.num_docs >= FLUSH_THRESHOLD {
-            self.cache
+            self.buffer
                 .flush_local(&mut self.sub_agg_collector, agg_data, false)?;
             self.num_docs = 0;
         }
@@ -85,7 +85,7 @@ impl<Backend: SubAggCache + Debug> CachedSubAggs<Backend> {
     /// Note: this _does_ flush the sub aggregations.
     pub fn flush(&mut self, agg_data: &mut AggregationsSegmentCtx) -> crate::Result<()> {
         if self.num_docs != 0 {
-            self.cache
+            self.buffer
                 .flush_local(&mut self.sub_agg_collector, agg_data, true)?;
             self.num_docs = 0;
         }
@@ -94,11 +94,11 @@ impl<Backend: SubAggCache + Debug> CachedSubAggs<Backend> {
     }
 }
 
-/// Number of partitions for high cardinality sub-aggregation cache.
+/// Number of partitions for high cardinality sub-aggregation buffer.
 const NUM_PARTITIONS: usize = 16;
 
 #[derive(Debug)]
-pub(crate) struct HighCardSubAggCache {
+pub(crate) struct HighCardSubAggBuffer {
     /// This weird partitioning is used to do some cheap grouping on the bucket ids.
     /// bucket ids are dense, e.g. when we don't detect the cardinality as low cardinality,
     /// but there are just 16 bucket ids, each bucket id will go to its own partition.
@@ -108,7 +108,7 @@ pub(crate) struct HighCardSubAggCache {
     partitions: Box<[PartitionEntry; NUM_PARTITIONS]>,
 }
 
-impl HighCardSubAggCache {
+impl HighCardSubAggBuffer {
     #[inline]
     fn clear(&mut self) {
         for partition in self.partitions.iter_mut() {
@@ -131,7 +131,7 @@ impl PartitionEntry {
     }
 }
 
-impl SubAggCache for HighCardSubAggCache {
+impl SubAggBuffer for HighCardSubAggBuffer {
     fn new() -> Self {
         Self {
             partitions: Box::new(core::array::from_fn(|_| PartitionEntry::default())),
@@ -173,14 +173,14 @@ impl SubAggCache for HighCardSubAggCache {
 }
 
 #[derive(Debug)]
-pub(crate) struct LowCardSubAggCache {
-    /// Cache doc ids per bucket for sub-aggregations.
+pub(crate) struct LowCardSubAggBuffer {
+    /// Buffer doc ids per bucket for sub-aggregations.
     ///
     /// The outer Vec is indexed by BucketId.
     per_bucket_docs: Vec<Vec<DocId>>,
 }
 
-impl LowCardSubAggCache {
+impl LowCardSubAggBuffer {
     #[inline]
     fn clear(&mut self) {
         for v in &mut self.per_bucket_docs {
@@ -189,7 +189,7 @@ impl LowCardSubAggCache {
     }
 }
 
-impl SubAggCache for LowCardSubAggCache {
+impl SubAggBuffer for LowCardSubAggBuffer {
     fn new() -> Self {
         Self {
             per_bucket_docs: Vec::new(),

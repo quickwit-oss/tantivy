@@ -399,6 +399,26 @@ impl SegmentAggregationCollector for SegmentExtendedStatsCollector {
         }
         Ok(())
     }
+
+    fn compute_metric_value(
+        &self,
+        bucket_id: BucketId,
+        sub_agg_name: &str,
+        sub_agg_property: &str,
+        _agg_data: &AggregationsSegmentCtx,
+    ) -> Option<f64> {
+        if self.name != sub_agg_name {
+            return None;
+        }
+        let extended = self.buckets.get(bucket_id as usize)?;
+        // Finalize is a pure read of accumulators — calling it here for the cutoff sort
+        // doesn't disturb the eventual intermediate result.
+        extended
+            .finalize()
+            .get_value(sub_agg_property)
+            .ok()
+            .flatten()
+    }
 }
 
 #[cfg(test)]

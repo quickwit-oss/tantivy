@@ -1,4 +1,5 @@
 use std::fmt::Debug;
+use std::rc::Rc;
 
 use common::BitSet;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
@@ -6,8 +7,8 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use crate::aggregation::agg_data::{
     build_segment_agg_collectors, AggRefNode, AggregationsSegmentCtx,
 };
-use crate::aggregation::cached_sub_aggs::{
-    CachedSubAggs, HighCardSubAggCache, LowCardSubAggCache, SubAggCache,
+use crate::aggregation::buffered_sub_aggs::{
+    BufferedSubAggs, HighCardSubAggBuffer, LowCardSubAggBuffer, SubAggBuffer,
 };
 use crate::aggregation::intermediate_agg_result::{
     IntermediateAggregationResult, IntermediateAggregationResults, IntermediateBucketResult,
@@ -396,6 +397,7 @@ impl PartialEq for FilterAggregation {
 
 /// Request data for filter aggregation
 /// This struct holds the per-segment data needed to execute a filter aggregation
+#[derive(Clone)]
 pub struct FilterAggReqData {
     /// The name of the filter aggregation
     pub name: String,
@@ -403,22 +405,20 @@ pub struct FilterAggReqData {
     pub req: FilterAggregation,
     /// The segment reader
     pub segment_reader: SegmentReader,
-    /// Document evaluator for the filter query (precomputed BitSet)
-    /// This is built once when the request data is created
-    pub evaluator: DocumentQueryEvaluator,
-    /// Reusable buffer for matching documents to minimize allocations during collection
-    pub matching_docs_buffer: Vec<DocId>,
+    /// Document evaluator for the filter query (precomputed BitSet).
+    /// Wrapped in `Rc` so cloning the request data does not duplicate the (potentially large)
+    /// underlying BitSet.
+    pub evaluator: Rc<DocumentQueryEvaluator>,
     /// True if this filter aggregation is at the top level of the aggregation tree (not nested).
     pub is_top_level: bool,
 }
 
 impl FilterAggReqData {
     pub(crate) fn get_memory_consumption(&self) -> usize {
-        // Estimate: name + segment reader reference + bitset + buffer capacity
+        // Estimate: name + segment reader reference + bitset
         self.name.len()
         + std::mem::size_of::<SegmentReader>()
         + self.evaluator.bitset.len() / 8 // BitSet memory (bits to bytes)
-        + self.matching_docs_buffer.capacity() * std::mem::size_of::<DocId>()
         + std::mem::size_of::<bool>()
     }
 }
@@ -503,21 +503,24 @@ struct DocCount {
 }
 
 /// Segment collector for filter aggregation
-pub struct SegmentFilterCollector<C: SubAggCache> {
+pub struct SegmentFilterCollector<B: SubAggBuffer> {
     /// Document counts per parent bucket
     parent_buckets: Vec<DocCount>,
     /// Sub-aggregation collectors
-    sub_aggregations: Option<CachedSubAggs<C>>,
+    sub_aggregations: Option<BufferedSubAggs<B>>,
     bucket_id_provider: BucketIdProvider,
-    /// Accessor index for this filter aggregation (to access FilterAggReqData)
-    accessor_idx: usize,
+    /// Per-segment filter request data, owned by this collector.
+    req_data: FilterAggReqData,
+    /// Reusable buffer for matching documents to minimize allocations during collection.
+    matching_docs_buffer: Vec<DocId>,
 }
 
-impl<C: SubAggCache> SegmentFilterCollector<C> {
+impl<B: SubAggBuffer> SegmentFilterCollector<B> {
     /// Create a new filter segment collector following the new agg_data pattern
     pub(crate) fn from_req_and_validate(
         req: &mut AggregationsSegmentCtx,
         node: &AggRefNode,
+        req_data: FilterAggReqData,
     ) -> crate::Result<Self> {
         // Build sub-aggregation collectors if any
         let sub_agg_collector = if !node.children.is_empty() {
@@ -525,13 +528,17 @@ impl<C: SubAggCache> SegmentFilterCollector<C> {
         } else {
             None
         };
-        let sub_agg_collector = sub_agg_collector.map(CachedSubAggs::new);
+        let sub_agg_collector = sub_agg_collector.map(BufferedSubAggs::new);
+
+        let max_doc = req_data.segment_reader.max_doc();
+        let buffer_capacity = crate::docset::COLLECT_BLOCK_BUFFER_LEN.min(max_doc as usize);
 
         Ok(SegmentFilterCollector {
             parent_buckets: Vec::new(),
             sub_aggregations: sub_agg_collector,
-            accessor_idx: node.idx_in_req_data,
+            req_data,
             bucket_id_provider: BucketIdProvider::default(),
+            matching_docs_buffer: Vec::with_capacity(buffer_capacity),
         })
     }
 }
@@ -540,33 +547,38 @@ pub(crate) fn build_segment_filter_collector(
     req: &mut AggregationsSegmentCtx,
     node: &AggRefNode,
 ) -> crate::Result<Box<dyn SegmentAggregationCollector>> {
-    let is_top_level = req.per_request.filter_req_data[node.idx_in_req_data]
-        .as_ref()
-        .expect("filter_req_data slot is empty")
-        .is_top_level;
+    let req_data = req.per_request.filter_req_data[node.idx_in_req_data].clone();
+    req.context
+        .limits
+        .add_memory_consumed(req_data.get_memory_consumption() as u64)?;
+    let is_top_level = req_data.is_top_level;
 
     if is_top_level {
         Ok(Box::new(
-            SegmentFilterCollector::<LowCardSubAggCache>::from_req_and_validate(req, node)?,
+            SegmentFilterCollector::<LowCardSubAggBuffer>::from_req_and_validate(
+                req, node, req_data,
+            )?,
         ))
     } else {
         Ok(Box::new(
-            SegmentFilterCollector::<HighCardSubAggCache>::from_req_and_validate(req, node)?,
+            SegmentFilterCollector::<HighCardSubAggBuffer>::from_req_and_validate(
+                req, node, req_data,
+            )?,
         ))
     }
 }
 
-impl<C: SubAggCache> Debug for SegmentFilterCollector<C> {
+impl<B: SubAggBuffer> Debug for SegmentFilterCollector<B> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("SegmentFilterCollector")
             .field("buckets", &self.parent_buckets)
             .field("has_sub_aggs", &self.sub_aggregations.is_some())
-            .field("accessor_idx", &self.accessor_idx)
+            .field("name", &self.req_data.name)
             .finish()
     }
 }
 
-impl<C: SubAggCache> SegmentAggregationCollector for SegmentFilterCollector<C> {
+impl<B: SubAggBuffer> SegmentAggregationCollector for SegmentFilterCollector<B> {
     fn add_intermediate_aggregation_result(
         &mut self,
         agg_data: &AggregationsSegmentCtx,
@@ -598,11 +610,7 @@ impl<C: SubAggCache> SegmentAggregationCollector for SegmentFilterCollector<C> {
         };
 
         // Get the name of this filter aggregation
-        let name = agg_data.per_request.filter_req_data[self.accessor_idx]
-            .as_ref()
-            .expect("filter_req_data slot is empty")
-            .name
-            .clone();
+        let name = self.req_data.name.clone();
 
         results.push(
             name,
@@ -623,27 +631,24 @@ impl<C: SubAggCache> SegmentAggregationCollector for SegmentFilterCollector<C> {
         }
 
         let mut bucket = self.parent_buckets[parent_bucket_id as usize];
-        // Take the request data to avoid borrow checker issues with sub-aggregations
-        let mut req = agg_data.take_filter_req_data(self.accessor_idx);
 
         // Use batch filtering with O(1) BitSet lookups
-        req.matching_docs_buffer.clear();
-        req.evaluator
-            .filter_batch(docs, &mut req.matching_docs_buffer);
+        self.matching_docs_buffer.clear();
+        self.req_data
+            .evaluator
+            .filter_batch(docs, &mut self.matching_docs_buffer);
 
-        bucket.doc_count += req.matching_docs_buffer.len() as u64;
+        bucket.doc_count += self.matching_docs_buffer.len() as u64;
 
         // Batch process sub-aggregations if we have matches
-        if !req.matching_docs_buffer.is_empty() {
+        if !self.matching_docs_buffer.is_empty() {
             if let Some(sub_aggs) = &mut self.sub_aggregations {
-                for &doc_id in &req.matching_docs_buffer {
+                for &doc_id in &self.matching_docs_buffer {
                     sub_aggs.push(bucket.bucket_id, doc_id);
                 }
             }
         }
 
-        // Put the request data back
-        agg_data.put_back_filter_req_data(self.accessor_idx, req);
         if let Some(sub_aggs) = &mut self.sub_aggregations {
             sub_aggs.check_flush_local(agg_data)?;
         }
@@ -673,6 +678,17 @@ impl<C: SubAggCache> SegmentAggregationCollector for SegmentFilterCollector<C> {
             });
         }
         Ok(())
+    }
+
+    fn compute_metric_value(
+        &self,
+        _bucket_id: BucketId,
+        _sub_agg_name: &str,
+        _sub_agg_property: &str,
+        _agg_data: &AggregationsSegmentCtx,
+    ) -> Option<f64> {
+        // TODO: forward into the inner `sub_agg` for nested order paths (`filter.metric`).
+        None
     }
 }
 

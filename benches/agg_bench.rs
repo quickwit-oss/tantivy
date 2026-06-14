@@ -63,6 +63,8 @@ fn bench_agg(mut group: InputGroup<Index>) {
     register!(group, terms_all_unique_with_avg_sub_agg);
     register!(group, terms_many_with_avg_sub_agg);
     register!(group, terms_status_with_avg_sub_agg);
+    register!(group, terms_status_with_terms_zipf_1000_sub_agg);
+    register!(group, terms_zipf_1000_with_terms_status_sub_agg);
     register!(group, terms_status_with_histogram);
     register!(group, terms_zipf_1000);
     register!(group, terms_zipf_1000_with_histogram);
@@ -77,7 +79,12 @@ fn bench_agg(mut group: InputGroup<Index>) {
     register!(group, composite_histogram_calendar);
 
     register!(group, cardinality_agg);
+    register!(group, cardinality_agg_high_card);
+    register!(group, cardinality_agg_low_card);
     register!(group, terms_status_with_cardinality_agg);
+    register!(group, terms_100_buckets_with_cardinality_agg);
+    register!(group, terms_many_with_single_term_order_by_card);
+    register!(group, terms_many_with_single_term_2_order_by_card);
 
     register!(group, range_agg);
     register!(group, range_agg_with_avg_sub_agg);
@@ -165,10 +172,52 @@ fn cardinality_agg(index: &Index) {
     });
     execute_agg(index, agg_req);
 }
+// Full-scan cardinality on a near-1M-cardinality string field.
+// Hits the dense (PagedBitset) path: every doc has a unique term,
+// so the bucket promotes from FxHashSet shortly into the scan.
+fn cardinality_agg_high_card(index: &Index) {
+    let agg_req = json!({
+        "cardinality": {
+            "cardinality": {
+                "field": "text_all_unique_terms"
+            },
+        }
+    });
+    execute_agg(index, agg_req);
+}
+// Full-scan cardinality on a tiny-cardinality string field (7 distinct
+// values). Stays on the FxHashSet path — the promotion threshold is
+// never crossed. Validates no regression on the sparse path.
+fn cardinality_agg_low_card(index: &Index) {
+    let agg_req = json!({
+        "cardinality": {
+            "cardinality": {
+                "field": "text_few_terms_status"
+            },
+        }
+    });
+    execute_agg(index, agg_req);
+}
 fn terms_status_with_cardinality_agg(index: &Index) {
     let agg_req = json!({
         "my_texts": {
             "terms": { "field": "text_few_terms_status" },
+            "aggs": {
+                "cardinality": {
+                    "cardinality": {
+                        "field": "text_few_terms_status"
+                    },
+                }
+            }
+        },
+    });
+    execute_agg(index, agg_req);
+}
+
+fn terms_100_buckets_with_cardinality_agg(index: &Index) {
+    let agg_req = json!({
+        "my_texts": {
+            "terms": { "field": "text_1000_terms_zipf", "size": 100 },
             "aggs": {
                 "cardinality": {
                     "cardinality": {
@@ -177,6 +226,58 @@ fn terms_status_with_cardinality_agg(index: &Index) {
                 }
             }
         },
+    });
+    execute_agg(index, agg_req);
+}
+
+fn terms_many_with_single_term_order_by_card(index: &Index) {
+    let agg_req = json!({
+        "my_texts": {
+            "terms": { "field": "text_many_terms" },
+            "aggs": {
+                "nested_terms": {
+                    "terms": {
+                        "field": "single_term",
+                        "order": { "cardinality": "desc" }
+                    },
+                    "aggs": {
+                        "cardinality": {
+                            "cardinality": { "field": "text_few_terms" }
+                        }
+                    }
+                }
+            }
+        },
+    });
+    execute_agg(index, agg_req);
+}
+
+// Two-level terms ordered by cardinality at each level: a high-card outer terms
+// (text_many_terms) ordered by a cardinality sub-agg, with a nested low-card terms
+// (text_few_terms_status) also ordered by a cardinality sub-agg, plus an avg.
+fn terms_many_with_single_term_2_order_by_card(index: &Index) {
+    let agg_req = json!({
+        "by_ip": {
+            "terms": {
+                "field": "text_many_terms",
+                "order": { "card_few_terms": "desc" }
+            },
+            "aggs": {
+                "card_few_terms": {
+                    "cardinality": { "field": "text_few_terms" }
+                },
+                "nested_terms": {
+                    "terms": {
+                        "field": " single_term",
+                        "order": { "distinct_path2": "desc" }
+                    },
+                    "aggs": {
+                        "avg_botscore": { "avg": { "field": "score" } },
+                        "distinct_path2": { "cardinality": { "field": "text_few_terms" } }
+                    }
+                }
+            }
+        }
     });
     execute_agg(index, agg_req);
 }
@@ -253,6 +354,30 @@ fn terms_all_unique_with_avg_sub_agg(index: &Index) {
     });
     execute_agg(index, agg_req);
 }
+fn terms_status_with_terms_zipf_1000_sub_agg(index: &Index) {
+    let agg_req = json!({
+        "my_texts": {
+            "terms": { "field": "text_few_terms_status" },
+            "aggs": {
+                "nested_terms": { "terms": { "field": "text_1000_terms_zipf" } }
+            }
+        }
+    });
+    execute_agg(index, agg_req);
+}
+
+fn terms_zipf_1000_with_terms_status_sub_agg(index: &Index) {
+    let agg_req = json!({
+        "my_texts": {
+            "terms": { "field": "text_1000_terms_zipf" },
+            "aggs": {
+                "nested_terms": { "terms": { "field": "text_few_terms_status" } }
+            }
+        }
+    });
+    execute_agg(index, agg_req);
+}
+
 fn terms_status_with_histogram(index: &Index) {
     let agg_req = json!({
         "my_texts": {
@@ -566,7 +691,8 @@ fn get_test_index_bench(cardinality: Cardinality) -> tantivy::Result<Index> {
             TextFieldIndexing::default().set_index_option(IndexRecordOption::WithFreqs),
         )
         .set_stored();
-    let text_field = schema_builder.add_text_field("text", text_fieldtype);
+    let text_field = schema_builder.add_text_field("text", text_fieldtype.clone());
+    let single_term = schema_builder.add_text_field("single_term", FAST);
     let json_field = schema_builder.add_json_field("json", FAST);
     let text_field_all_unique_terms =
         schema_builder.add_text_field("text_all_unique_terms", STRING | FAST);
@@ -630,6 +756,8 @@ fn get_test_index_bench(cardinality: Cardinality) -> tantivy::Result<Index> {
             index_writer.add_document(doc!(
                 json_field => json!({"mixed_type": 10.0}),
                 json_field => json!({"mixed_type": 10.0}),
+                single_term => "single_term",
+                single_term => "single_term",
                 text_field => "cool",
                 text_field => "cool",
                 text_field_all_unique_terms => "cool",
@@ -664,6 +792,7 @@ fn get_test_index_bench(cardinality: Cardinality) -> tantivy::Result<Index> {
                 json!({"mixed_type": many_terms_data.choose(&mut rng).unwrap().to_string()})
             };
             index_writer.add_document(doc!(
+                single_term => "single_term",
                 text_field => "cool",
                 json_field => json,
                 text_field_all_unique_terms => format!("unique_term_{}", rng.random::<u64>()),

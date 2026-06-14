@@ -249,6 +249,12 @@ impl BlockSegmentPostings {
 
     /// Returns the length of the current block.
     ///
+    /// Returns the decoded term-frequency buffer for the current block.
+    #[inline]
+    pub(crate) fn freq_output_array(&self) -> &[u32] {
+        self.freq_decoder.output_array()
+    }
+
     /// All blocks have a length of `NUM_DOCS_PER_BLOCK`,
     /// except the last block that may have a length
     /// of any number between 1 and `NUM_DOCS_PER_BLOCK - 1`
@@ -296,6 +302,11 @@ impl BlockSegmentPostings {
             self.block_max_score_cache = None;
             self.block_loaded = false;
         }
+    }
+
+    #[inline]
+    pub(crate) fn has_remaining_docs(&self) -> bool {
+        self.skip_reader.has_remaining_docs()
     }
 
     pub(crate) fn block_is_loaded(&self) -> bool {

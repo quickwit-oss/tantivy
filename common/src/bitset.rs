@@ -47,6 +47,9 @@ impl TinySet {
         TinySet(val)
     }
 
+    /// An empty `TinySet` constant.
+    pub const EMPTY: TinySet = TinySet(0u64);
+
     /// Returns an empty `TinySet`.
     #[inline]
     pub fn empty() -> TinySet {
