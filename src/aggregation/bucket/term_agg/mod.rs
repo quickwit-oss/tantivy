@@ -376,7 +376,7 @@ pub(crate) fn build_segment_term_collector(
     // Let's see if we can use a vec to aggregate our data
     // instead of a hashmap.
     let col_max_value = terms_req_data.accessor.max_value();
-    let max_term_id: u64 =
+    let max_column_val: u64 =
         col_max_value.max(terms_req_data.missing_value_for_accessor.unwrap_or(0u64));
 
     // Fused fast path: low-cardinality terms × a single `histogram`/`date_histogram` leaf over full
@@ -385,7 +385,7 @@ pub(crate) fn build_segment_term_collector(
         req_data,
         node,
         &terms_req_data,
-        max_term_id,
+        max_column_val,
         is_top_level,
     )? {
         return Ok(collector);
@@ -399,30 +399,30 @@ pub(crate) fn build_segment_term_collector(
 
     let mut bucket_id_provider = BucketIdProvider::default();
     // Decide which bucket storage is best suited for this aggregation.
-    if is_top_level && max_term_id < MAX_NUM_TERMS_FOR_VEC && !has_sub_aggregations {
-        let term_buckets = VecTermBucketsNoAgg::new(max_term_id + 1, &mut bucket_id_provider);
+    if is_top_level && max_column_val < MAX_NUM_TERMS_FOR_VEC && !has_sub_aggregations {
+        let term_buckets = VecTermBucketsNoAgg::new(max_column_val + 1, &mut bucket_id_provider);
         let collector: SegmentTermCollector<_, HighCardSubAggBuffer> = SegmentTermCollector {
             parent_buckets: vec![term_buckets],
             sub_agg: None,
             bucket_id_provider,
-            max_term_id,
+            max_term_id: max_column_val,
             terms_req_data,
         };
         Ok(Box::new(collector))
-    } else if is_top_level && max_term_id < MAX_NUM_TERMS_FOR_VEC {
-        let term_buckets = VecTermBuckets::new(max_term_id + 1, &mut bucket_id_provider);
+    } else if is_top_level && max_column_val < MAX_NUM_TERMS_FOR_VEC {
+        let term_buckets = VecTermBuckets::new(max_column_val + 1, &mut bucket_id_provider);
         let sub_agg = sub_agg_collector.map(LowCardBufferedSubAggs::new);
         let collector: SegmentTermCollector<_, LowCardSubAggBuffer> = SegmentTermCollector {
             parent_buckets: vec![term_buckets],
             sub_agg,
             bucket_id_provider,
-            max_term_id,
+            max_term_id: max_column_val,
             terms_req_data,
         };
         Ok(Box::new(collector))
-    } else if max_term_id < 8_000_000 && is_top_level {
+    } else if max_column_val < 8_000_000 && is_top_level {
         let term_buckets: PagedTermMap =
-            PagedTermMap::new(max_term_id + 1, &mut bucket_id_provider);
+            PagedTermMap::new(max_column_val + 1, &mut bucket_id_provider);
         // Build sub-aggregation blueprint (flat pairs)
         let sub_agg = sub_agg_collector.map(BufferedSubAggs::new);
         let collector: SegmentTermCollector<PagedTermMap, HighCardSubAggBuffer> =
@@ -430,7 +430,7 @@ pub(crate) fn build_segment_term_collector(
                 parent_buckets: vec![term_buckets],
                 sub_agg,
                 bucket_id_provider,
-                max_term_id,
+                max_term_id: max_column_val,
                 terms_req_data,
             };
         Ok(Box::new(collector))
@@ -443,7 +443,7 @@ pub(crate) fn build_segment_term_collector(
                 parent_buckets: vec![term_buckets],
                 sub_agg,
                 bucket_id_provider,
-                max_term_id,
+                max_term_id: max_column_val,
                 terms_req_data,
             };
         Ok(Box::new(collector))

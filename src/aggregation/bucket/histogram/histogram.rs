@@ -636,11 +636,7 @@ impl SegmentHistogramCollector<()> {
     ) -> Self {
         let interval = req_data.req.interval;
         let offset = req_data.offset;
-        let num_parents = if num_time_buckets == 0 {
-            0
-        } else {
-            counts.len() / num_time_buckets
-        };
+        let num_parents = counts.len().checked_div(num_time_buckets).unwrap_or(0);
         let parent_buckets = (0..num_parents)
             .map(|t| {
                 let row = &counts[t * num_time_buckets..(t + 1) * num_time_buckets];
