@@ -387,12 +387,12 @@ impl IntermediateMetricResult {
                     .and_then(|sum| sum.none_if_no_match)
                     .unwrap_or(false);
                 let value = intermediate_sum.finalize();
-                let coerced = if none_if_no_match {
-                    value
+                if none_if_no_match {
+                    MetricResult::Sum(value.into())
                 } else {
-                    Some(value.unwrap_or(0.0))
-                };
-                MetricResult::Sum(coerced.into())
+                    let value = Some(value.unwrap_or(0.0));
+                    MetricResult::Sum(value.into())
+                }
             }
             IntermediateMetricResult::Percentiles(percentiles) => MetricResult::Percentiles(
                 percentiles
