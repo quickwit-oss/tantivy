@@ -327,7 +327,9 @@ fn exists(inp: &str) -> IResult<&str, UserInputLeaf> {
             peek(alt((
                 value(
                     "",
-                    satisfy(|c: char| c.is_whitespace() || ESCAPE_IN_WORD.contains(&c)),
+                    satisfy(|c: char| {
+                        c.is_whitespace() || (ESCAPE_IN_WORD.contains(&c) && c != '\\')
+                    }),
                 ),
                 eof,
             ))),
@@ -345,7 +347,9 @@ fn exists_precond(inp: &str) -> IResult<&str, (), ()> {
             peek(alt((
                 value(
                     "",
-                    satisfy(|c: char| c.is_whitespace() || ESCAPE_IN_WORD.contains(&c)),
+                    satisfy(|c: char| {
+                        c.is_whitespace() || (ESCAPE_IN_WORD.contains(&c) && c != '\\')
+                    }),
                 ),
                 eof,
             ))), // we need to check this isn't a wildcard query
@@ -707,6 +711,7 @@ fn regex(inp: &str) -> IResult<&str, UserInputLeaf> {
             peek(alt((
                 value((), multispace1),
                 value((), char(')')),
+                value((), char('^')),
                 value((), eof),
             ))),
         ),
@@ -728,9 +733,10 @@ fn regex_infallible(inp: &str) -> JResult<&str, UserInputLeaf> {
             peek(alt((
                 value((), multispace1),
                 value((), char(')')),
+                value((), char('^')),
                 value((), eof),
             ))),
-            "expected whitespace, closing parenthesis, or end of input",
+            "expected whitespace, closing parenthesis, boost, or end of input",
         ),
     )(inp)
     {
@@ -773,6 +779,10 @@ fn leaf(inp: &str) -> IResult<&str, UserInputAst> {
                     value((), multispace1),
                     value((), char(')')),
                     value((), eof),
+                    value(
+                        (),
+                        satisfy(|c: char| ESCAPE_IN_WORD.contains(&c) && c != '\\'),
+                    ),
                 ))),
             ),
             |_| UserInputAst::from(UserInputLeaf::All),
@@ -805,6 +815,10 @@ fn leaf_infallible(inp: &str) -> JResult<&str, Option<UserInputAst>> {
                             value((), multispace1),
                             value((), char(')')),
                             value((), eof),
+                            value(
+                                (),
+                                satisfy(|c: char| ESCAPE_IN_WORD.contains(&c) && c != '\\'),
+                            ),
                         ))),
                     ),
                 ),
@@ -1751,6 +1765,8 @@ mod test {
         test_parse_query_to_ast_helper("*", "*");
         test_parse_query_to_ast_helper("(*)", "*");
         test_parse_query_to_ast_helper("(* )", "*");
+        // All query with boost
+        test_parse_query_to_ast_helper("*^2", "(*)^2");
     }
 
     #[test]
@@ -1813,6 +1829,7 @@ mod test {
         test_parse_query_to_ast_helper("a:b*", "\"a\":b*");
         test_parse_query_to_ast_helper("a:*b", "\"a\":*b");
         test_parse_query_to_ast_helper(r#"a:*def*"#, "\"a\":*def*");
+        test_parse_query_to_ast_helper("a:*\\:foo", "\"a\":*:foo");
     }
 
     #[test]
@@ -1877,6 +1894,8 @@ mod test {
             },
             _ => panic!("Expected a leaf"),
         }
+        // Regex followed by `^boost`
+        test_parse_query_to_ast_helper(r#"foo:/bar/^2"#, r#"("foo":/bar/)^2"#);
     }
 
     #[test]
