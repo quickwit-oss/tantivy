@@ -232,7 +232,7 @@ pub(super) fn maybe_build_collector(
     agg_data: &mut AggregationsSegmentCtx,
     node: &AggRefNode,
     terms_req_data: &TermsAggReqData,
-    max_term_id: u64,
+    col_max_val: u64,
     is_top_level: bool,
 ) -> crate::Result<Option<Box<dyn SegmentAggregationCollector>>> {
     // Both columns must be full (one value per doc) so their values align positionally with `docs`
@@ -268,7 +268,7 @@ pub(super) fn maybe_build_collector(
     else {
         return Ok(None);
     };
-    let num_terms = (max_term_id + 1) as usize;
+    let num_terms = col_max_val.saturating_add(1) as usize;
     if num_terms.saturating_mul(range.len) > MAX_FUSED_GRID_BUCKETS {
         return Ok(None);
     }
