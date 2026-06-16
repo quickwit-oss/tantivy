@@ -217,6 +217,11 @@ pub(super) fn maybe_build_collector(
     //
     // We don't cap the term cardinality here: the flat grid is bounded by the total cell count
     // (`num_terms * num_time_buckets <= MAX_FUSED_GRID_BUCKETS`) checked below, which subsumes it.
+    //
+    // We only allow this at the top-level, since we don't know how many buckets are created. We
+    // are less likely to get enough docs for the preallocation to be worth and there's a risk of
+    // using too much memory. We could check the maximum theoretical buckets up-front and pass
+    // them down.
     let fuseable = is_top_level
         && terms_req_data.allowed_term_ids.is_none()
         && terms_req_data.accessor.get_cardinality().is_full()
