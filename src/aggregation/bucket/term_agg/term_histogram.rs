@@ -41,9 +41,8 @@ const MAX_FUSED_GRID_BUCKETS: usize = 16384;
 /// general path.
 #[derive(Debug)]
 pub(crate) struct SegmentTermHistogramCollector {
-    /// The counts, indexed by term id.
-    ///
-    /// Only used when we can't derive the term counts from `counts`.
+    /// Per-term count of docs *outside* `hard_bounds` (still in `doc_count`, but in no bucket).
+    /// Per-term total = this + the term's `counts` row-sum; all-zero when there are no bounds.
     term_counts: Vec<u32>,
     /// Flattened `[num_terms * num_time_buckets]` histogram counters (`u32`, see
     /// `term_counts`).
@@ -64,16 +63,8 @@ pub(crate) struct SegmentTermHistogramCollector {
     /// `collect` independent of `agg_data`.
     term_block: ColumnBlockAccessor<u64>,
     hist_block: ColumnBlockAccessor<u64>,
-    /// When true, `term_counts` is left untouched during `collect` and derived from the grid
-    /// row-sums at result time. Valid only when there are no hard bounds: then every doc lands in
-    /// the dense range, so the per-term total equals the sum over its histogram buckets, and we
-    /// can drop both the per-doc `term_counts` increment and the (always-true) bounds check.
-    ///
-    /// This is a real hot-loop win (~17% on `terms_status_with_(date_)histogram`): with low term
-    /// cardinality, `term_counts[term_id] += 1` repeatedly hits the same few addresses, so the
-    /// read-modify-write serializes across iterations on store-to-load forwarding latency. Summing
-    /// the grid once at the end avoids that loop-carried dependency entirely.
-    derive_term_counts_from_histogram: bool,
+    /// No hard bounds, so every doc is in-bounds.
+    all_docs_in_bounds: bool,
 }
 
 impl SegmentAggregationCollector for SegmentTermHistogramCollector {
@@ -89,24 +80,22 @@ impl SegmentAggregationCollector for SegmentTermHistogramCollector {
         );
         // Expand the flat grid back into the regular structures and reuse the shared builders, so
         // ordering/cut-off/dict handling and cross-segment merging match the general path exactly.
-        if self.derive_term_counts_from_histogram {
-            // `collect` skipped the per-doc total; recover it as the grid row-sum (every doc landed
-            // in a bucket, since there are no hard bounds).
-            for (term_id, term_count) in self.term_counts.iter_mut().enumerate() {
-                *term_count = self.counts
-                    [term_id * self.num_time_buckets..(term_id + 1) * self.num_time_buckets]
-                    .iter()
-                    .sum();
-            }
-        }
         let mut bucket_id_provider = BucketIdProvider::default();
+        // Per-term total = histogram row-sum (in-bounds) + `term_counts` (out-of-bounds remainder).
         let term_buckets = VecTermBuckets {
             buckets: self
                 .term_counts
                 .iter()
-                .map(|&count| Bucket {
-                    count,
-                    bucket_id: bucket_id_provider.next_bucket_id(),
+                .enumerate()
+                .map(|(term_id, &out_of_bounds)| {
+                    let in_bounds: u32 = self.counts
+                        [term_id * self.num_time_buckets..(term_id + 1) * self.num_time_buckets]
+                        .iter()
+                        .sum();
+                    Bucket {
+                        count: in_bounds + out_of_bounds,
+                        bucket_id: bucket_id_provider.next_bucket_id(),
+                    }
                 })
                 .collect(),
         };
@@ -158,40 +147,27 @@ impl SegmentAggregationCollector for SegmentTermHistogramCollector {
         let offset = self.hist_req_data.offset;
         let base_pos = self.base_pos;
         let num_time_buckets = self.num_time_buckets;
+        let all_docs_in_bounds = self.all_docs_in_bounds;
         let term_counts = &mut self.term_counts;
         let counts = &mut self.counts;
 
         // Both columns are full (checked at construction), so values align with `docs` positionally
         // and are read together in one pass.
-        if self.derive_term_counts_from_histogram {
-            // No hard bounds: every doc lands in a bucket, so we skip the per-doc `term_counts`
-            // increment (derived from the grid at flush) and the always-true bounds check.
-            for (term_id, hist_val) in self.term_block.iter_vals().zip(self.hist_block.iter_vals())
-            {
-                let term_id = term_id as usize;
-                let val = f64_from_fastfield_u64(hist_val, field_type);
+        // In-bounds docs bump the `counts` grid, out-of-bounds bump `term_counts`; deriving the
+        // total at flush avoids a per-doc `term_counts` RMW that serializes on
+        // store-to-load forwarding.
+        for (term_id, hist_raw) in self.term_block.iter_vals().zip(self.hist_block.iter_vals()) {
+            let term_id = term_id as usize;
+            let val = f64_from_fastfield_u64(hist_raw, field_type);
+            if all_docs_in_bounds || bounds.contains(val) {
                 let bucket = (get_bucket_pos_f64(val, interval, offset) as i64 - base_pos) as usize;
                 debug_assert!(
                     bucket < num_time_buckets,
                     "histogram bucket outside dense range"
                 );
                 counts[term_id * num_time_buckets + bucket] += 1;
-            }
-        } else {
-            for (term_id, hist_raw) in self.term_block.iter_vals().zip(self.hist_block.iter_vals())
-            {
-                let term_id = term_id as usize;
+            } else {
                 term_counts[term_id] += 1;
-                let val = f64_from_fastfield_u64(hist_raw, field_type);
-                if bounds.contains(val) {
-                    let bucket =
-                        (get_bucket_pos_f64(val, interval, offset) as i64 - base_pos) as usize;
-                    debug_assert!(
-                        bucket < num_time_buckets,
-                        "histogram bucket outside dense range"
-                    );
-                    counts[term_id * num_time_buckets + bucket] += 1;
-                }
             }
         }
         Ok(())
@@ -278,9 +254,9 @@ pub(super) fn maybe_build_collector(
         .context
         .limits
         .add_memory_consumed((counts.len() * std::mem::size_of::<u32>()) as u64)?;
-    // With no hard bounds every doc lands in the dense range, so the per-term totals can be derived
-    // from the grid at result time instead of incremented per doc.
-    let derive_term_counts_from_histogram =
+    // No hard bounds means every doc is in-bounds, letting `collect` short-circuit the bounds
+    // check.
+    let all_docs_in_bounds =
         hist_req_data.bounds.min == f64::MIN && hist_req_data.bounds.max == f64::MAX;
     Ok(Some(Box::new(SegmentTermHistogramCollector {
         term_counts: vec![0u32; num_terms],
@@ -291,7 +267,7 @@ pub(super) fn maybe_build_collector(
         hist_req_data,
         term_block: ColumnBlockAccessor::default(),
         hist_block: ColumnBlockAccessor::default(),
-        derive_term_counts_from_histogram,
+        all_docs_in_bounds,
     })))
 }
 
