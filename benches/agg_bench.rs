@@ -67,6 +67,7 @@ fn bench_agg(mut group: InputGroup<Index>) {
     register!(group, terms_zipf_1000_with_terms_status_sub_agg);
     register!(group, terms_status_with_histogram);
     register!(group, terms_status_with_date_histogram);
+    register!(group, terms_status_with_date_histogram_hard_bounds);
     register!(group, terms_status_with_date_histogram_and_sibling_terms);
     register!(group, terms_zipf_1000);
     register!(group, terms_zipf_1000_with_histogram);
@@ -398,6 +399,29 @@ fn terms_status_with_date_histogram(index: &Index) {
             "terms": { "field": "text_few_terms_status" },
             "aggs": {
                 "over_time": { "date_histogram": { "field": "timestamp", "fixed_interval": "1h" } }
+            }
+        }
+    });
+    execute_agg(index, agg_req);
+}
+
+/// Same fused terms × date_histogram, but with `hard_bounds`. The timestamps span 0..120h; the
+/// bounds drop only the first and last hour (ms: 1h=3_600_000, 119h=428_400_000), so almost every
+/// doc is in-bounds. This exercises the collector's hard-bounds path: `bounds.contains` runs per
+/// doc (the `all_docs_in_bounds` short-circuit is off) and the rare out-of-bounds doc takes the
+/// `term_counts` branch.
+fn terms_status_with_date_histogram_hard_bounds(index: &Index) {
+    let agg_req = json!({
+        "my_texts": {
+            "terms": { "field": "text_few_terms_status" },
+            "aggs": {
+                "over_time": {
+                    "date_histogram": {
+                        "field": "timestamp",
+                        "fixed_interval": "1h",
+                        "hard_bounds": { "min": 3_600_000, "max": 428_400_000 }
+                    }
+                }
             }
         }
     });
