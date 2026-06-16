@@ -65,6 +65,9 @@ pub(crate) struct SegmentTermHistogramCollector {
     hist_block: ColumnBlockAccessor<u64>,
     /// No hard bounds, so every doc is in-bounds.
     all_docs_in_bounds: bool,
+    /// Both columns are full (fused-path precondition); cached so `collect` skips the per-block
+    /// cardinality lookup in `fetch_block`.
+    is_full: bool,
 }
 
 impl SegmentAggregationCollector for SegmentTermHistogramCollector {
@@ -132,9 +135,9 @@ impl SegmentAggregationCollector for SegmentTermHistogramCollector {
         // single `agg_data` scratch accessor). The collector owns all its inputs, so `collect`
         // doesn't touch `agg_data`.
         self.term_block
-            .fetch_block(docs, &self.terms_req_data.accessor);
+            .fetch_block_with_is_full(docs, &self.terms_req_data.accessor, self.is_full);
         self.hist_block
-            .fetch_block(docs, &self.hist_req_data.accessor);
+            .fetch_block_with_is_full(docs, &self.hist_req_data.accessor, self.is_full);
 
         // Hoist the loop-invariant fields into locals: the optimizer can't prove the
         // `self.counts`/`self.term_counts` writes don't alias these `self` fields, so it can't keep
@@ -223,6 +226,7 @@ pub(super) fn maybe_build_collector(
     // using too much memory. We could check the maximum theoretical buckets up-front and pass
     // them down.
     let fuseable = is_top_level
+        // TODO: We can easily support this
         && terms_req_data.allowed_term_ids.is_none()
         && terms_req_data.accessor.get_cardinality().is_full()
         // The flat counters are `u32`, bumped once per value, so no count can exceed the column's
@@ -273,6 +277,7 @@ pub(super) fn maybe_build_collector(
         term_block: ColumnBlockAccessor::default(),
         hist_block: ColumnBlockAccessor::default(),
         all_docs_in_bounds,
+        is_full: terms_req_data.accessor.get_cardinality().is_full(),
     })))
 }
 

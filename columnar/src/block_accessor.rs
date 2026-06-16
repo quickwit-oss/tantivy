@@ -15,8 +15,25 @@ impl<T: PartialOrd + Copy + std::fmt::Debug + Send + Sync + 'static + Default>
 {
     #[inline]
     pub fn fetch_block<'a>(&'a mut self, docs: &'a [u32], accessor: &Column<T>) {
-        if accessor.index.get_cardinality().is_full() {
-            self.val_cache.resize(docs.len(), T::default());
+        self.fetch_block_with_is_full(docs, accessor, accessor.index.get_cardinality().is_full());
+    }
+
+    /// Like [`Self::fetch_block`] but takes the column's fullness instead of querying
+    /// `accessor.index.get_cardinality()` each call — for callers that know it up front (e.g.
+    /// checked once at construction). `is_full` must equal
+    /// `accessor.index.get_cardinality().is_full()`.
+    #[inline]
+    pub fn fetch_block_with_is_full<'a>(
+        &'a mut self,
+        docs: &'a [u32],
+        accessor: &Column<T>,
+        is_full: bool,
+    ) {
+        if is_full {
+            // Skip the resize when already the right length (common case: fixed-size blocks).
+            if self.val_cache.len() != docs.len() {
+                self.val_cache.resize(docs.len(), T::default());
+            }
             // When the docs form a contiguous ascending run we can fetch the values
             // as a single range. This lets codecs (e.g. bitpacked) bulk-decode the
             // slice instead of gathering value-by-value, and avoids per-value dynamic
