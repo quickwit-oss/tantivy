@@ -77,8 +77,8 @@ fn short_copy(src: &[u8], dst: &mut [u8]) {
 
 #[inline(always)]
 fn double_copy_trick<const SIZE: usize>(src: &[u8], dst: &mut [u8]) {
-    debug_assert!(src.len() >= SIZE);
-    debug_assert!(dst.len() >= SIZE);
+    debug_assert_ge!(src.len(), SIZE);
+    debug_assert_ge!(dst.len(), SIZE);
     dst[0..SIZE].copy_from_slice(&src[0..SIZE]);
     dst[src.len() - SIZE..].copy_from_slice(&src[src.len() - SIZE..]);
 }

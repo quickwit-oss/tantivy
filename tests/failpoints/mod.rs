@@ -122,3 +122,4 @@ fn test_fail_on_commit_segment() -> tantivy::Result<()> {
     assert!(index_writer.commit().is_err());
     Ok(())
 }
+

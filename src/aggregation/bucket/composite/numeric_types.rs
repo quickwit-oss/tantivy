@@ -415,8 +415,8 @@ mod num_proj_tests {
         assert_eq!(large_i64 as f64, closest_f64);
         if let ProjectedNumber::Next(val) = num_proj::i64_to_f64(large_i64) {
             // Verify that the returned float is different from the direct cast
-            assert!(val > closest_f64);
-            assert!(val - closest_f64 < 2. * f64::EPSILON * closest_f64);
+            assert_gt!(val, closest_f64);
+            assert_lt!(val - closest_f64, 2. * f64::EPSILON * closest_f64);
         } else {
             panic!("Expected ProjectedNumber::Next for large_i64");
         }
@@ -451,8 +451,8 @@ mod num_proj_tests {
         assert_eq!(large_u64 as f64, closest_f64);
         if let ProjectedNumber::Next(val) = num_proj::u64_to_f64(large_u64) {
             // Verify that the returned float is different from the direct cast
-            assert!(val > closest_f64);
-            assert!(val - closest_f64 < 2. * f64::EPSILON * closest_f64);
+            assert_gt!(val, closest_f64);
+            assert_lt!(val - closest_f64, 2. * f64::EPSILON * closest_f64);
         } else {
             panic!("Expected ProjectedNumber::Next for large_u64");
         }

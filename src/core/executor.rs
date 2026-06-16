@@ -223,8 +223,8 @@ mod tests {
 
         let counter_val = counter.load(Ordering::SeqCst);
         let other_counter_val = other_counter.load(Ordering::SeqCst);
-        assert!(counter_val >= 30);
-        assert!(other_counter_val >= 30);
+        assert_ge!(counter_val, 30);
+        assert_ge!(other_counter_val, 30);
 
         drop(other_futures);
 
@@ -234,9 +234,9 @@ mod tests {
         }
 
         let counter_val2 = counter.load(Ordering::SeqCst);
-        assert!(counter_val2 >= counter_val + 100 - 6);
+        assert_ge!(counter_val2, counter_val + 100 - 6);
 
         let other_counter_val2 = other_counter.load(Ordering::SeqCst);
-        assert!(other_counter_val2 <= other_counter_val + 6);
+        assert_le!(other_counter_val2, other_counter_val + 6);
     }
 }

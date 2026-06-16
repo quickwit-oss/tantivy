@@ -428,7 +428,7 @@ pub(crate) mod tests {
                 .unwrap();
 
             for i in 0..num_docs / 2 - 1 {
-                assert!(segment_postings.seek(i * 2 + 1) > i * 2);
+                assert_gt!(segment_postings.seek(i * 2 + 1), i * 2);
                 assert_eq!(segment_postings.doc(), (i + 1) * 2);
             }
         }
@@ -550,7 +550,7 @@ pub(crate) mod tests {
                 skip_result_unopt, skip_result_opt,
                 "Failed while skipping to {target}"
             );
-            assert!(skip_result_opt >= target);
+            assert_ge!(skip_result_opt, target);
             assert_eq!(skip_result_opt, postings_opt.doc());
             if skip_result_opt == TERMINATED {
                 return;

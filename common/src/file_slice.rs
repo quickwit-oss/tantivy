@@ -4,6 +4,7 @@ use std::path::Path;
 use std::sync::Arc;
 use std::{fmt, io};
 
+use assertables::{assert_ge, assert_le};
 use async_trait::async_trait;
 use ownedbytes::{OwnedBytes, StableDeref};
 
@@ -166,14 +167,14 @@ fn combine_ranges<R: RangeBounds<usize>>(orig_range: Range<usize>, rel_range: R)
             std::ops::Bound::Excluded(rel_start) => rel_start + 1,
             std::ops::Bound::Unbounded => 0,
         };
-    assert!(start <= orig_range.end);
+    assert_le!(start, orig_range.end);
     let end: usize = match rel_range.end_bound().cloned() {
         std::ops::Bound::Included(rel_end) => orig_range.start + rel_end + 1,
         std::ops::Bound::Excluded(rel_end) => orig_range.start + rel_end,
         std::ops::Bound::Unbounded => orig_range.end,
     };
-    assert!(end >= start);
-    assert!(end <= orig_range.end);
+    assert_ge!(end, start);
+    assert_le!(end, orig_range.end);
     start..end
 }
 
@@ -239,8 +240,8 @@ impl FileSlice {
     ///
     /// This is equivalent to running `file_slice.slice(from, to).read_bytes()`.
     pub fn read_bytes_slice(&self, range: Range<usize>) -> io::Result<OwnedBytes> {
-        assert!(
-            range.end <= self.len(),
+        assert_le!(
+            range.end, self.len(),
             "end of requested range exceeds the fileslice length ({} > {})",
             range.end,
             self.len()
@@ -251,8 +252,8 @@ impl FileSlice {
 
     #[doc(hidden)]
     pub async fn read_bytes_slice_async(&self, byte_range: Range<usize>) -> io::Result<OwnedBytes> {
-        assert!(
-            self.range.start + byte_range.end <= self.range.end,
+        assert_le!(
+            self.range.start + byte_range.end, self.range.end,
             "`to` exceeds the fileslice length"
         );
         self.data

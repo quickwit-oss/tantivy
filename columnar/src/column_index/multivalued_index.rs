@@ -124,7 +124,7 @@ impl MultiValueIndexV1 {
         let mut cur_doc = docid_start;
         let mut last_doc = None;
 
-        assert!(self.start_index_column.get_val(docid_start) <= ranks[0]);
+        assert_le!(self.start_index_column.get_val(docid_start), ranks[0]);
 
         let mut write_doc_pos = 0;
         for i in 0..ranks.len() {

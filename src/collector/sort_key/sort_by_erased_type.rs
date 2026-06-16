@@ -407,7 +407,7 @@ mod tests {
             .collect();
 
         assert_eq!(values.len(), 2);
-        assert!(values[0] > values[1]);
+        assert_gt!(values[0], values[1]);
 
         // Sort by score ascending (ReverseNoneLower)
         let collector = TopDocs::with_limit(10).order_by((
@@ -425,6 +425,6 @@ mod tests {
             .collect();
 
         assert_eq!(values.len(), 2);
-        assert!(values[0] < values[1]);
+        assert_lt!(values[0], values[1]);
     }
 }

@@ -9,8 +9,8 @@ const fn compute_mask(num_bits: u8) -> u8 {
 #[inline(always)]
 #[must_use]
 pub(crate) fn select_bits<const START: u8, const END: u8>(code: u8) -> u8 {
-    assert!(START <= END);
-    assert!(END <= 8);
+    assert_le!(START, END);
+    assert_le!(END, 8);
     let num_bits: u8 = END - START;
     let mask: u8 = compute_mask(num_bits);
     (code >> START) & mask
@@ -19,11 +19,11 @@ pub(crate) fn select_bits<const START: u8, const END: u8>(code: u8) -> u8 {
 #[inline(always)]
 #[must_use]
 pub(crate) fn place_bits<const START: u8, const END: u8>(code: u8) -> u8 {
-    assert!(START <= END);
-    assert!(END <= 8);
+    assert_le!(START, END);
+    assert_le!(END, 8);
     let num_bits: u8 = END - START;
     let mask: u8 = compute_mask(num_bits);
-    assert!(code <= mask);
+    assert_le!(code, mask);
     code << START
 }
 

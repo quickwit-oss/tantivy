@@ -1,3 +1,4 @@
+use assertables::assert_lt;
 use columnar::ColumnarReader;
 use common::file_slice::{FileSlice, WrapFile};
 use std::io;
@@ -36,7 +37,7 @@ pub fn validate_columnar_reader(reader: &ColumnarReader) {
                 let max_ord = str_column.ords().values.iter().max().unwrap_or_default();
                 println!("{col_name:35}  num_vals {num_vals:10} \t num_terms_dict {num_terms_dict:8} max_ord: {max_ord:8}",);
                 for ord in str_column.ords().values.iter() {
-                    assert!(ord < num_terms_dict);
+                    assert_lt!(ord, num_terms_dict);
                 }
             }
         }

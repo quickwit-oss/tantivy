@@ -166,7 +166,7 @@ pub fn block_wand(
     {
         debug_assert!(scorers.iter().map(|scorer| scorer.doc()).is_sorted());
         debug_assert_ne!(pivot_doc, TERMINATED);
-        debug_assert!(before_pivot_len < pivot_len);
+        debug_assert_lt!(before_pivot_len, pivot_len);
 
         let block_max_score_upperbound: Score = scorers[..pivot_len]
             .iter_mut()

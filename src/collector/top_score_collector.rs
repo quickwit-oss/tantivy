@@ -688,7 +688,7 @@ where
 #[inline(always)]
 fn push_assuming_capacity<T>(el: T, buf: &mut Vec<T>) {
     let prev_len = buf.len();
-    assert!(prev_len < buf.capacity());
+    assert_lt!(prev_len, buf.capacity());
     // This is mimicking the current (non-stabilized) implementation in std.
     // SAFETY: we just checked we have enough capacity.
     unsafe {

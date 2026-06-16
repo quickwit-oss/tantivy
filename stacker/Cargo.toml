@@ -11,6 +11,7 @@ description = "term hashmap used for indexing"
 murmurhash32 = "0.4"
 common = { version = "0.11", path = "../common/", package = "tantivy-common" }
 ahash = { version = "0.8.11", default-features = false, optional = true }
+assertables = "10.0.0"
 
 
 [[bench]]

@@ -265,7 +265,7 @@ mod tests {
         assert_eq!(decode_zig_zag(encoded), val);
         if let Some(abs_val) = val.checked_abs() {
             let abs_val = abs_val as u64;
-            assert!(encoded <= abs_val * 2);
+            assert_le!(encoded, abs_val * 2);
         }
     }
 

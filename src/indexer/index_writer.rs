@@ -209,7 +209,7 @@ fn index_documents<D: Document>(
 
     // this is ensured by the call to peek before starting
     // the worker thread.
-    assert!(max_doc > 0);
+    assert_gt!(max_doc, 0);
 
     let doc_opstamps: Vec<Opstamp> = segment_writer.finalize()?;
 
@@ -1174,7 +1174,7 @@ mod tests {
         index_writer.wait_merging_threads()?;
         reader.reload()?;
         assert_eq!(num_docs_containing("a"), 200);
-        assert!(index.searchable_segments()?.len() < 8);
+        assert_lt!(index.searchable_segments()?.len(), 8);
         Ok(())
     }
 
@@ -1295,7 +1295,7 @@ mod tests {
         let first_commit = index_writer.commit();
         assert!(first_commit.is_ok());
         let first_commit_tstamp = first_commit.unwrap();
-        assert!(first_commit_tstamp > add_tstamp);
+        assert_gt!(first_commit_tstamp, add_tstamp);
 
         // delete_all_documents the index
         let clear_tstamp = index_writer.delete_all_documents().unwrap();

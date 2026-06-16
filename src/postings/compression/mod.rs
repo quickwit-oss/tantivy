@@ -363,7 +363,7 @@ pub(crate) mod tests {
         let input: Vec<u32> = (0u32..123u32).map(|i| 4 + i * 7 / 2).collect();
         for offset in &[0u32, 1u32, 2u32] {
             let encoded_data = encoder.compress_vint_sorted(&input, *offset);
-            assert!(encoded_data.len() <= expected_length);
+            assert_lt!(encoded_data.len(), expected_length);
             let mut decoder = BlockDecoder::default();
             let consumed_num_bytes =
                 decoder.uncompress_vint_sorted(encoded_data, *offset, input.len(), PADDING_VALUE);

@@ -268,8 +268,8 @@ fn garbage_collect_works_as_intended() -> crate::Result<()> {
     let searcher = reader.searcher();
     assert_eq!(searcher.segment_readers().len(), 1);
     assert_eq!(searcher.num_docs(), 8_000);
-    assert!(
-        mem_right_after_merge_finished < mem_right_after_commit,
+    assert_lt!(
+        mem_right_after_merge_finished, mem_right_after_commit,
         "(mem after merge){mem_right_after_merge_finished} is expected < (mem before \
          merge){mem_right_after_commit}"
     );

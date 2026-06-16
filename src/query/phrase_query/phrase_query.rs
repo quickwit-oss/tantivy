@@ -46,8 +46,8 @@ impl PhraseQuery {
 
     /// Creates a new `PhraseQuery` given a list of terms, their offsets and a slop
     pub fn new_with_offset_and_slop(mut terms: Vec<(usize, Term)>, slop: u32) -> PhraseQuery {
-        assert!(
-            terms.len() > 1,
+        assert_gt!(
+            terms.len(), 1,
             "A phrase query is required to have strictly more than one term."
         );
         terms.sort_by_key(|&(offset, _)| offset);

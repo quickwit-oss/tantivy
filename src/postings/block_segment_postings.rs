@@ -552,8 +552,8 @@ mod tests {
         for i in &[0, 424, 10000] {
             block_postings.seek(*i);
             let docs = block_postings.docs();
-            assert!(docs[0] <= *i);
-            assert!(docs.last().cloned().unwrap_or(0u32) >= *i);
+            assert_le!(docs[0], *i);
+            assert_ge!(docs.last().cloned().unwrap_or(0u32), *i);
         }
         block_postings.seek(100_000);
         assert_eq!(block_postings.doc(COMPRESSION_BLOCK_SIZE - 1), TERMINATED);

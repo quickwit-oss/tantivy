@@ -38,6 +38,9 @@
 use std::io::{self, Write};
 use std::ops::Range;
 
+#[macro_use]
+extern crate assertables;
+
 use merge::ValueMerger;
 
 mod block_match_automaton;

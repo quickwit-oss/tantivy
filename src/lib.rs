@@ -157,6 +157,9 @@ extern crate log;
 #[macro_use]
 extern crate thiserror;
 
+#[macro_use]
+extern crate assertables;
+
 #[cfg(all(test, feature = "unstable"))]
 extern crate test;
 

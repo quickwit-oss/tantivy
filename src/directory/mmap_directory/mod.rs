@@ -674,7 +674,7 @@ mod tests {
 
             reader.reload().unwrap();
             let num_segments = reader.searcher().segment_readers().len();
-            assert!(num_segments <= 4);
+            assert_le!(num_segments, 4);
             let num_components_except_deletes_and_tempstore =
                 crate::index::SegmentComponent::iterator().len() - 1;
             let max_num_mmapped = num_components_except_deletes_and_tempstore * num_segments;

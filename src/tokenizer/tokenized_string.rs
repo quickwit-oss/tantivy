@@ -73,16 +73,16 @@ impl TokenStream for PreTokenizedStream {
     }
 
     fn token(&self) -> &Token {
-        assert!(
-            self.current_token >= 0,
+        assert_ge!(
+            self.current_token, 0,
             "TokenStream not initialized. You should call advance() at least once."
         );
         &self.tokenized_string.tokens[self.current_token as usize]
     }
 
     fn token_mut(&mut self) -> &mut Token {
-        assert!(
-            self.current_token >= 0,
+        assert_ge!(
+            self.current_token, 0,
             "TokenStream not initialized. You should call advance() at least once."
         );
         &mut self.tokenized_string.tokens[self.current_token as usize]
