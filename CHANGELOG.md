@@ -8,6 +8,7 @@ Tantivy 0.26 (Unreleased)
 ================================
 
 ## Bugfixes
+- Fix `MoreLikeThis` panic on indexes with deleted documents [#2964](https://github.com/quickwit-oss/tantivy/pull/2964)(@stumpylog)
 - Align float query coercion during search with the columnar coercion rules [#2692](https://github.com/quickwit-oss/tantivy/pull/2692)(@fulmicoton)
 - Fix lenient elastic range queries with trailing closing parentheses [#2816](https://github.com/quickwit-oss/tantivy/pull/2816)(@evance-br)
 - Fix intersection `seek()` advancing below current doc id [#2812](https://github.com/quickwit-oss/tantivy/pull/2812)(@fulmicoton)

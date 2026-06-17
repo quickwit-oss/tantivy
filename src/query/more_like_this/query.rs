@@ -190,8 +190,9 @@ impl MoreLikeThisQueryBuilder {
 mod tests {
     use super::{MoreLikeThisQuery, TargetDocument};
     use crate::collector::TopDocs;
+    use crate::indexer::NoMergePolicy;
     use crate::schema::{Schema, STORED, TEXT};
-    use crate::{DocAddress, Index, IndexWriter};
+    use crate::{DocAddress, Index, IndexWriter, Term};
 
     fn create_test_index() -> crate::Result<Index> {
         let mut schema_builder = Schema::builder();
@@ -289,6 +290,62 @@ mod tests {
 
         assert_eq!(doc_ids.len(), 2);
         assert_eq!(doc_ids, vec![3, 4]);
+        Ok(())
+    }
+
+    #[test]
+    fn test_more_like_this_query_with_deleted_documents() -> crate::Result<()> {
+        // Regression test: a More Like This query must not panic when the
+        // index contains soft-deleted documents.
+        //
+        // Tantivy deletes are soft: a term's `doc_freq` (read from the term
+        // dictionary) keeps counting deleted documents until a merge expunges
+        // them, but `SegmentReader::num_docs()` only counts alive documents.
+        // `create_score_term` previously used the alive-only count as the idf
+        // denominator while `doc_freq` still included deleted docs, so
+        // `doc_freq > num_docs` could hold and trip the `doc_count >= doc_freq`
+        // assertion inside `idf()`.
+        let mut schema_builder = Schema::builder();
+        let title = schema_builder.add_text_field("title", TEXT | STORED);
+        let body = schema_builder.add_text_field("body", TEXT | STORED);
+        let schema = schema_builder.build();
+        let index = Index::create_in_ram(schema);
+        let mut index_writer: IndexWriter = index.writer_for_tests()?;
+        // Keep every document in a single, never-merged segment so the deleted
+        // documents' postings (and thus their contribution to doc_freq) stick
+        // around.
+        index_writer.set_merge_policy(Box::new(NoMergePolicy));
+
+        // Six documents share the same body terms, so each body term has a
+        // doc_freq of 6. Each has a unique title term so they can be deleted
+        // individually.
+        for i in 0..6 {
+            index_writer
+                .add_document(doc!(title => format!("doc{i}"), body => "shared body content"))?;
+        }
+        index_writer.commit()?;
+
+        // Delete two documents. Alive count drops to 4, but the body terms'
+        // doc_freq stays 6 until a merge.
+        index_writer.delete_term(Term::from_field_text(title, "doc0"));
+        index_writer.delete_term(Term::from_field_text(title, "doc1"));
+        index_writer.commit()?;
+
+        let reader = index.reader()?;
+        let searcher = reader.searcher();
+        assert_eq!(searcher.num_docs(), 4);
+
+        // Run More Like This against a surviving document. This used to panic.
+        let query = MoreLikeThisQuery::builder()
+            .with_min_doc_frequency(1)
+            .with_min_term_frequency(1)
+            .with_document(DocAddress::new(0, 2));
+        let top_docs = searcher.search(&query, &TopDocs::with_limit(10).order_by_score())?;
+        let mut doc_ids: Vec<_> = top_docs.iter().map(|item| item.1.doc_id).collect();
+        doc_ids.sort_unstable();
+
+        // Only the four surviving documents should be returned.
+        assert_eq!(doc_ids, vec![2, 3, 4, 5]);
         Ok(())
     }
 }
