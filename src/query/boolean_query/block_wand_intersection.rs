@@ -273,6 +273,10 @@ mod tests {
             }
 
             if all_match {
+                // Accumulate in the same left-to-right order as the WAND implementation
+                // (leader first, then each secondary in turn).  Float addition is not
+                // associative, so `leader + secondaries.sum()` gives a different bit
+                // pattern and can cause spurious nearly_equals failures.
                 let mut score: Score = leader.score();
                 for secondary in secondaries.iter_mut() {
                     score += secondary.score();
