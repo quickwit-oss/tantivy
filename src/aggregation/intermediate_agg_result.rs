@@ -930,7 +930,7 @@ impl IntermediateRangeBucketEntry {
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct IntermediateTermBucketEntry {
     /// The number of documents in the bucket.
-    pub doc_count: u32,
+    pub doc_count: u64,
     /// The sub_aggregation in this bucket.
     pub sub_aggregation: IntermediateAggregationResults,
 }
@@ -1238,6 +1238,24 @@ mod tests {
         ]);
 
         assert_eq!(tree_left, tree_expected);
+    }
+
+    #[test]
+    fn test_term_bucket_doc_count_no_u32_overflow() {
+        // Two segments each contributing (u32::MAX - 100) docs to the same term. Summing them
+        // overflowed when doc_count was u32.
+        let per_segment = u32::MAX as u64 - 100;
+        let mut entry = IntermediateTermBucketEntry {
+            doc_count: per_segment,
+            sub_aggregation: Default::default(),
+        };
+        entry
+            .merge_fruits(IntermediateTermBucketEntry {
+                doc_count: per_segment,
+                sub_aggregation: Default::default(),
+            })
+            .unwrap();
+        assert_eq!(entry.doc_count, per_segment * 2);
     }
 
     #[test]
