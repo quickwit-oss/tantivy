@@ -957,7 +957,7 @@ fn into_intermediate_bucket_entry(
         )?;
     }
     Ok(IntermediateTermBucketEntry {
-        doc_count: bucket.count,
+        doc_count: bucket.count as u64,
         sub_aggregation: sub_aggregation_res,
     })
 }

@@ -275,7 +275,7 @@ impl SegmentCompositeCollector {
             dict.insert(
                 key,
                 IntermediateCompositeBucketEntry {
-                    doc_count: agg.count,
+                    doc_count: agg.count as u64,
                     sub_aggregation: sub_aggregation_res,
                 },
             );
