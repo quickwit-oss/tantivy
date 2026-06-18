@@ -273,4 +273,5 @@ pub(crate) mod type_codes {
 
     // Extended type codes
     pub const TOK_STR_EXT_CODE: u8 = 0;
+    pub const GEO_EXT_CODE: u8 = 1;
 }

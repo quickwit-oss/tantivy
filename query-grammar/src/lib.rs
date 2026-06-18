@@ -11,7 +11,7 @@ pub use crate::infallible::LenientError;
 pub use crate::occur::Occur;
 use crate::query_grammar::{parse_to_ast, parse_to_ast_lenient};
 pub use crate::user_input_ast::{
-    Delimiter, UserInputAst, UserInputBound, UserInputLeaf, UserInputLiteral,
+    Delimiter, SpatialPredicateKind, UserInputAst, UserInputBound, UserInputLeaf, UserInputLiteral,
 };
 
 #[derive(Debug, Serialize)]
@@ -56,6 +56,26 @@ mod tests {
     #[test]
     fn test_parse_query_wrong_query() {
         assert!(parse_query("title:").is_err());
+    }
+
+    #[test]
+    fn test_spatial_intersects() {
+        // Test simple case first.
+        let ast = parse_query(r#"geo:$intersects(1.0 2.0, 3.0 4.0, 5.0 6.0)"#).unwrap();
+        let debug = format!("{ast:?}");
+        assert!(debug.contains("$intersects"), "got: {debug}");
+    }
+
+    #[test]
+    fn test_spatial_contains() {
+        let ast = parse_query(r#"geo:$contains(1.0 2.0, 3.0 4.0, 5.0 6.0)"#).unwrap();
+        let debug = format!("{ast:?}");
+        assert!(debug.contains("$contains"), "got: {debug}");
+    }
+
+    #[test]
+    fn test_spatial_too_few_coords() {
+        assert!(parse_query(r#"geo:$intersects(1.0 2.0, 3.0 4.0)"#).is_err());
     }
 
     #[test]
