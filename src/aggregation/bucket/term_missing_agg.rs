@@ -98,7 +98,7 @@ impl SegmentAggregationCollector for TermMissingAgg {
 
         let missing_count = &self.missing_count_per_bucket[parent_bucket_id as usize];
         let mut missing_entry = IntermediateTermBucketEntry {
-            doc_count: missing_count.missing_count,
+            doc_count: missing_count.missing_count as u64,
             sub_aggregation: Default::default(),
         };
         if let Some(sub_agg) = &mut self.sub_agg {

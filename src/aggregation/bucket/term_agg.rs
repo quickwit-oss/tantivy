@@ -977,12 +977,12 @@ where
                             bucket.bucket_id,
                         )?;
                     Ok(IntermediateTermBucketEntry {
-                        doc_count: bucket.count,
+                        doc_count: bucket.count as u64,
                         sub_aggregation: sub_aggregation_res,
                     })
                 } else {
                     Ok(IntermediateTermBucketEntry {
-                        doc_count: bucket.count,
+                        doc_count: bucket.count as u64,
                         sub_aggregation: Default::default(),
                     })
                 }
