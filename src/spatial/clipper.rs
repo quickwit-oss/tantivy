@@ -367,7 +367,8 @@ impl<S: Surface> Clipper<S> {
     }
 
     fn update_face_edges(&mut self, face: i32, face_edges: &[FaceEdge<S>]) {
-        if face_edges.is_empty() {
+        let num_edges = face_edges.len();
+        if num_edges == 0 && self.tracker.shape_ids().is_empty() {
             return;
         }
 
@@ -387,23 +388,31 @@ impl<S: Surface> Clipper<S> {
         let face_id = S2CellId::from_face(face);
         let pcell = S2PaddedCell::new(face_id, S::CELL_PADDING);
 
-        // shrink_to_fit skips empty levels of the hierarchy. If all edges on this face are
-        // clustered in a small region the recursion can start at level 10 instead of level 0. The
-        // edge bounds are not tightened to the shrunk cell. They keep their full from_point_pair
-        // extent. A wide bound means clip_to_children over-includes an edge in children it barely
-        // touches. Deeper levels filter out the extras. Over-inclusion is safe. Under-inclusion
-        // loses edges.
-        let shrunk_id = pcell.shrink_to_fit(&bound);
-        if shrunk_id != face_id {
-            self.skip_cell_range(face_id.range_min(), shrunk_id.range_min());
+        if num_edges > 0 {
+            // shrink_to_fit skips empty levels of the hierarchy. If all edges on this face are
+            // clustered in a small region the recursion can start at level 10 instead of level 0.
+            // The edge bounds are not tightened to the shrunk cell. They keep their full
+            // from_point_pair extent. A wide bound means clip_to_children over-includes an edge in
+            // children it barely touches. Deeper levels filter out the extras. Over-inclusion is
+            // safe. Under-inclusion loses edges.
+            let shrunk_id = pcell.shrink_to_fit(&bound);
+            if shrunk_id != face_id {
+                // All the edges are contained by some descendant of the face cell. We can save a
+                // lot of work by starting directly with that cell, but if we are in the interior of
+                // at least one shape then we need to create index entries for the cells we are
+                // skipping over.
+                self.skip_cell_range(face_id.range_min(), shrunk_id.range_min());
 
-            let pcell = S2PaddedCell::new(shrunk_id, S::CELL_PADDING);
-            self.update_edges(&pcell, &mut clipped, face_edges);
+                let pcell = S2PaddedCell::new(shrunk_id, S::CELL_PADDING);
+                self.update_edges(&pcell, &mut clipped, face_edges);
 
-            self.skip_cell_range(shrunk_id.range_max().next(), face_id.range_max().next());
-        } else {
-            self.update_edges(&pcell, &mut clipped, face_edges);
+                self.skip_cell_range(shrunk_id.range_max().next(), face_id.range_max().next());
+                return;
+            }
         }
+
+        // Otherwise (no edges, or no shrinking is possible), subdivide normally.
+        self.update_edges(&pcell, &mut clipped, face_edges);
     }
 
     fn skip_cell_range(&mut self, begin: S2CellId, end: S2CellId) {
@@ -778,7 +787,14 @@ fn cell_union_from_range(begin: S2CellId, end: S2CellId) -> Vec<S2CellId> {
 #[cfg(test)]
 mod tests {
     use super::{get_level_for_max_value, ilogb, K_AVG_EDGE_DERIV};
+    use crate::spatial::edge_provider::EdgeProvider;
+    use crate::spatial::geometry_set::{EdgeSet, GeometrySet};
+    use crate::spatial::query_edge_provider::QueryEdgeProvider;
+    use crate::spatial::s2cell::S2Cell;
     use crate::spatial::s2cell_id::S2CellId;
+    use crate::spatial::shape_index_region::{get_intersecting_shapes, index_contains_point};
+    use crate::spatial::sphere::Sphere;
+    use crate::spatial::surface::Surface;
 
     #[test]
     fn test_ilogb_normal_values() {
@@ -817,5 +833,61 @@ mod tests {
             get_level_for_max_value(ratio * K_AVG_EDGE_DERIV),
             S2CellId::MAX_LEVEL
         );
+    }
+
+    #[test]
+    fn test_full_face_interior_without_face_edges() {
+        let ring = vec![
+            Sphere::face_uv_to_point(3, -0.1, -0.1),
+            Sphere::face_uv_to_point(3, 0.1, -0.1),
+            Sphere::face_uv_to_point(3, 0.1, 0.1),
+            Sphere::face_uv_to_point(3, -0.1, 0.1),
+            Sphere::face_uv_to_point(3, -0.1, -0.1),
+        ];
+        let set = GeometrySet {
+            members: vec![EdgeSet {
+                vertices: ring,
+                closed: true,
+                contains_hilbert_start: true,
+                ring_offsets: vec![0, 5],
+            }],
+            doc_id: 0,
+        };
+
+        let index = super::Clipper::<Sphere>::new(super::ClipOptions::default())
+            .build(std::slice::from_ref(&set));
+        let edge_provider = QueryEdgeProvider { set };
+        let face_center = Sphere::face_uv_to_point(0, 0.0, 0.0);
+        let face_center_cell = Sphere::cell_id_from_point(&face_center);
+        let indexed_cell = index
+            .find_cell(face_center_cell)
+            .expect("covered face should have an interior cell");
+        assert_eq!(indexed_cell.cell_id, S2CellId::from_face(0));
+        let clipped = indexed_cell
+            .find_shape((0, 0))
+            .expect("covered face cell should contain the geometry");
+        assert!(clipped.contains_center);
+        assert!(clipped.edge_indices.is_empty());
+
+        assert!(index_contains_point::<Sphere, QueryEdgeProvider<Sphere>>(
+            &index,
+            &edge_provider,
+            (0, 0),
+            &face_center,
+        ));
+
+        let target = S2Cell::new(face_center_cell.parent(10));
+        let hits = get_intersecting_shapes::<Sphere, QueryEdgeProvider<Sphere>>(
+            &index,
+            &edge_provider,
+            &target,
+        );
+        assert_eq!(hits, vec![((0, 0), true)]);
+
+        let edge_faces: Vec<_> = (0..4)
+            .map(|idx| edge_provider.get_edge((0, 0), idx).0)
+            .map(|p| Sphere::get_face(&p))
+            .collect();
+        assert!(!edge_faces.contains(&0));
     }
 }
