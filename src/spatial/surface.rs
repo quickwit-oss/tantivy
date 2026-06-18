@@ -78,9 +78,7 @@ pub trait Surface {
 
     /// Returns the center of a cell as a point on this surface.
     fn cell_center(cell_id: S2CellId) -> Self::Point
-    where
-        Self: Sized,
-    {
+    where Self: Sized {
         cell_center_from_padded_ij::<Self>(cell_id)
     }
 

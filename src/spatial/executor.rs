@@ -187,7 +187,8 @@ fn evaluate(
         } => {
             let filter_output = evaluate(filter, searcher, segments)?;
 
-            let query = Distance::<Sphere>::new(geometry.clone(), *radius, CovererOptions::default());
+            let query =
+                Distance::<Sphere>::new(geometry.clone(), *radius, CovererOptions::default());
 
             let mut results = HashMap::new();
             for reader in segments {
