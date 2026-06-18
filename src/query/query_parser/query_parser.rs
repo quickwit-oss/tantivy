@@ -602,6 +602,8 @@ impl QueryParser {
                 field,
                 json_path,
                 phrase,
+                slop,
+                prefix,
                 &self.tokenizer_manager,
                 json_options,
             ),
@@ -995,11 +997,14 @@ fn generate_literals_for_str(
     }))
 }
 
+#[expect(clippy::too_many_arguments)]
 fn generate_literals_for_json_object(
     field_name: &str,
     field: Field,
     json_path: &str,
     phrase: &str,
+    slop: u32,
+    prefix: bool,
     tokenizer_manager: &TokenizerManager,
     json_options: &JsonObjectOptions,
 ) -> Result<Vec<LogicalLiteral>, QueryParserError> {
@@ -1036,6 +1041,12 @@ fn generate_literals_for_json_object(
     });
 
     if positions_and_terms.len() <= 1 {
+        if prefix {
+            return Err(QueryParserError::PhrasePrefixRequiresAtLeastTwoTerms {
+                phrase: phrase.to_owned(),
+                tokenizer: text_options.tokenizer().to_owned(),
+            });
+        }
         for (_, term) in positions_and_terms {
             logical_literals.push(LogicalLiteral::Term(term));
         }
@@ -1048,8 +1059,8 @@ fn generate_literals_for_json_object(
     }
     logical_literals.push(LogicalLiteral::Phrase {
         terms: positions_and_terms,
-        slop: 0,
-        prefix: false,
+        slop,
+        prefix,
     });
     Ok(logical_literals)
 }
@@ -1960,6 +1971,42 @@ mod test {
                 phrase: "".to_owned(),
                 tokenizer: "default".to_owned()
             }
+        );
+    }
+
+    #[test]
+    pub fn test_phrase_prefix_on_json_field() {
+        let query_parser = make_query_parser();
+        let query = query_parser
+            .parse_query("json.attr:\"big bad wo\"*")
+            .unwrap();
+        assert_eq!(
+            format!("{query:?}"),
+            "PhrasePrefixQuery { field: Field(14), phrase_terms: [(0, Term(field=14, type=Json, \
+             path=attr, type=Str, \"big\")), (1, Term(field=14, type=Json, path=attr, type=Str, \
+             \"bad\"))], prefix: (2, Term(field=14, type=Json, path=attr, type=Str, \"wo\")), \
+             max_expansions: 50 }"
+        );
+    }
+
+    #[test]
+    pub fn test_phrase_prefix_too_short_on_json_field() {
+        let err = parse_query_to_logical_ast("json.attr:\"wo\"*", true).unwrap_err();
+        assert_eq!(
+            err,
+            QueryParserError::PhrasePrefixRequiresAtLeastTwoTerms {
+                phrase: "wo".to_owned(),
+                tokenizer: "default".to_owned()
+            }
+        );
+    }
+
+    #[test]
+    pub fn test_phrase_slop_on_json_field() {
+        test_parse_query_to_logical_ast_helper(
+            "json.attr:\"a b\"~2",
+            r#""[(0, Term(field=14, type=Json, path=attr, type=Str, "a")), (1, Term(field=14, type=Json, path=attr, type=Str, "b"))]"~2"#,
+            false,
         );
     }
 
