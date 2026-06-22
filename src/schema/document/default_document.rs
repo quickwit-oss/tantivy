@@ -14,6 +14,7 @@ use crate::schema::document::{
 use crate::schema::field_type::ValueParsingError;
 use crate::schema::{Facet, Field, NamedFieldDocument, OwnedValue, Schema};
 use crate::tokenizer::PreTokenizedString;
+use crate::vector::VectorElement;
 
 #[repr(C, packed)]
 #[derive(Debug, Clone)]
@@ -116,6 +117,22 @@ impl CompactDoc {
     /// Add a bytes field
     pub fn add_bytes(&mut self, field: Field, value: &[u8]) {
         self.add_leaf_field_value(field, value);
+    }
+
+    /// Add a vector value.
+    ///
+    /// Each element is encoded as little-endian bytes and stored as a
+    /// bytes value on the document. The field must be declared as a
+    /// [`FieldType::Vector`](crate::schema::FieldType::Vector); callers
+    /// must ensure the vector's length matches the declared `dim` and that
+    /// `T::DTYPE` matches the schema's dtype (not yet validated here).
+    pub fn add_vector<T: VectorElement>(&mut self, field: Field, value: &[T]) {
+        let mut bytes = Vec::with_capacity(value.len() * T::SIZE_BYTES);
+        for v in value {
+            v.encode_le(&mut bytes)
+                .expect("writing to a Vec is infallible");
+        }
+        self.add_bytes(field, &bytes);
     }
 
     /// Add a dynamic object field
