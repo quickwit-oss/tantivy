@@ -204,6 +204,7 @@ pub mod schema;
 pub mod space_usage;
 pub mod store;
 pub mod termdict;
+pub mod vector;
 
 mod docset;
 mod reader;
