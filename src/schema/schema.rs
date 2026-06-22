@@ -194,6 +194,12 @@ impl SchemaBuilder {
         self.add_field(field_entry)
     }
 
+    /// Adds a vector field to the schema.
+    pub fn add_vector_field(&mut self, field_name: &str, vector_options: VectorOptions) -> Field {
+        let field_entry = FieldEntry::new_vector(field_name.to_string(), vector_options);
+        self.add_field(field_entry)
+    }
+
     /// Adds a field entry to the schema in build.
     pub fn add_field(&mut self, field_entry: FieldEntry) -> Field {
         let field = Field::from_field_id(self.fields.len() as u32);

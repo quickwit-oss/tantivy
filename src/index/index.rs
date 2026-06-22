@@ -30,6 +30,7 @@ use crate::schema::document::Document;
 use crate::schema::{Field, FieldType, Schema, Type};
 use crate::store::StorePlugin;
 use crate::tokenizer::{TextAnalyzer, TokenizerManager};
+use crate::vector::{IvfClusterer, VectorPlugin};
 use crate::SegmentReader;
 
 fn load_metas(
@@ -69,6 +70,7 @@ pub(crate) fn builtin_plugins() -> Vec<Arc<dyn SegmentPlugin>> {
         Arc::new(PostingsPlugin),
         Arc::new(FastFieldsPlugin),
         Arc::new(StorePlugin),
+        Arc::new(VectorPlugin),
     ]
 }
 
@@ -170,6 +172,7 @@ pub struct IndexBuilder {
     tokenizer_manager: TokenizerManager,
     fast_field_tokenizer_manager: TokenizerManager,
     custom_plugins: Vec<Arc<dyn SegmentPlugin>>,
+    ivf_clusterer: Option<Arc<dyn IvfClusterer>>,
 }
 impl Default for IndexBuilder {
     fn default() -> Self {
@@ -185,6 +188,7 @@ impl IndexBuilder {
             tokenizer_manager: TokenizerManager::default(),
             fast_field_tokenizer_manager: TokenizerManager::default(),
             custom_plugins: Vec::new(),
+            ivf_clusterer: None,
         }
     }
 
@@ -217,6 +221,13 @@ impl IndexBuilder {
     #[must_use]
     pub fn register_plugin(mut self, plugin: Arc<dyn SegmentPlugin>) -> Self {
         self.custom_plugins.push(plugin);
+        self
+    }
+
+    /// Configure the clusterer used when vector merges cross the IVF threshold.
+    #[must_use]
+    pub fn ivf_clusterer(mut self, clusterer: Arc<dyn IvfClusterer>) -> Self {
+        self.ivf_clusterer = Some(clusterer);
         self
     }
 
@@ -295,6 +306,9 @@ impl IndexBuilder {
         index.set_tokenizers(self.tokenizer_manager.clone());
         if index.schema() == self.get_expect_schema()? {
             index.custom_plugins.extend(self.custom_plugins);
+            if let Some(clusterer) = self.ivf_clusterer {
+                index.set_ivf_clusterer(clusterer);
+            }
             Ok(index)
         } else {
             Err(TantivyError::SchemaError(
@@ -363,6 +377,9 @@ impl IndexBuilder {
         index.set_tokenizers(self.tokenizer_manager);
         index.set_fast_field_tokenizers(self.fast_field_tokenizer_manager);
         index.custom_plugins.extend(self.custom_plugins);
+        if let Some(clusterer) = self.ivf_clusterer {
+            index.set_ivf_clusterer(clusterer);
+        }
         Ok(index)
     }
 }
@@ -451,6 +468,7 @@ pub struct Index {
     fast_field_tokenizers: TokenizerManager,
     inventory: SegmentMetaInventory,
     custom_plugins: Vec<Arc<dyn SegmentPlugin>>,
+    ivf_clusterer: Option<Arc<dyn IvfClusterer>>,
 }
 
 impl Index {
@@ -571,6 +589,7 @@ impl Index {
             executor: Executor::single_thread(),
             inventory,
             custom_plugins: Vec::new(),
+            ivf_clusterer: None,
         }
     }
 
@@ -843,6 +862,15 @@ impl Index {
     /// Accessor to the index settings
     pub fn settings_mut(&mut self) -> &mut IndexSettings {
         &mut self.settings
+    }
+
+    /// Configure the clusterer used when vector merges cross the IVF threshold.
+    pub fn set_ivf_clusterer(&mut self, clusterer: Arc<dyn IvfClusterer>) {
+        self.ivf_clusterer = Some(clusterer);
+    }
+
+    pub(crate) fn ivf_clusterer(&self) -> Option<&dyn IvfClusterer> {
+        self.ivf_clusterer.as_deref()
     }
 
     /// Accessor to the index schema

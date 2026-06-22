@@ -63,11 +63,14 @@ pub trait SegmentPlugin: Send + Sync + 'static {
     ) -> crate::Result<BTreeMap<String, ComponentSpaceUsage>> {
         let mut usage = BTreeMap::new();
         for &ext in self.extensions() {
-            let file = segment_reader.open_read(SegmentComponent::Custom(ext.to_string()))?;
-            usage.insert(
-                ext.to_string(),
-                ComponentSpaceUsage::Basic(file.len().into()),
-            );
+            // A plugin's per-segment file may be absent (e.g. a vector segment with no
+            // vector-typed fields), so skip extensions with no file rather than erroring.
+            if let Ok(file) = segment_reader.open_read(SegmentComponent::Custom(ext.to_string())) {
+                usage.insert(
+                    ext.to_string(),
+                    ComponentSpaceUsage::Basic(file.len().into()),
+                );
+            }
         }
         Ok(usage)
     }

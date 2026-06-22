@@ -129,6 +129,7 @@ mod json_object_options;
 mod named_field_document;
 mod numeric_options;
 mod text_options;
+mod vector_options;
 
 use columnar::ColumnType;
 
@@ -150,6 +151,7 @@ pub use self::numeric_options::NumericOptions;
 pub use self::schema::{Schema, SchemaBuilder};
 pub use self::term::{Term, ValueBytes};
 pub use self::text_options::{TextFieldIndexing, TextOptions, STRING, TEXT};
+pub use self::vector_options::{Metric, VectorDType, VectorOptions};
 
 /// Validator for a potential `field_name`.
 /// Returns true if the name can be use for a field name.
@@ -172,6 +174,7 @@ pub(crate) fn value_type_to_column_type(typ: Type) -> Option<ColumnType> {
         Type::Bytes => Some(ColumnType::Bytes),
         Type::IpAddr => Some(ColumnType::IpAddr),
         Type::Json => None,
+        Type::Vector => None,
     }
 }
 

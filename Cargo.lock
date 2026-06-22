@@ -1833,6 +1833,7 @@ dependencies = [
  "downcast-rs",
  "fail",
  "fastdivide",
+ "fastrand",
  "fnv",
  "fs4",
  "futures",

@@ -19,6 +19,7 @@ oneshot = "0.1.13"
 base64 = "0.22.0"
 byteorder = "1.4.3"
 crc32fast = "1.3.2"
+fastrand = "2"
 once_cell = "1.10.0"
 regex = { version = "1.5.5", default-features = false, features = [
   "std",
@@ -220,4 +221,12 @@ harness = false
 
 [[bench]]
 name = "term_set_queries"
+harness = false
+
+[[bench]]
+name = "distance"
+harness = false
+
+[[bench]]
+name = "graph"
 harness = false

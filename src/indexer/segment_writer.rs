@@ -238,6 +238,7 @@ impl SegmentWriter {
                     field_entry.name()
                 ))
             };
+
             if !field_entry.is_indexed() {
                 continue;
             }
@@ -421,6 +422,9 @@ impl SegmentWriter {
                         self.plugin_writer_mut::<FieldNormsPluginWriter>()
                             .record(doc_id, field, num_vals);
                     }
+                }
+                FieldType::Vector(_) => {
+                    unreachable!("is_indexed is not supposed to be true for vector fields")
                 }
             }
         }

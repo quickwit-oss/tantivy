@@ -37,6 +37,14 @@ impl Executor {
         Ok(Executor::ThreadPool(Arc::new(pool)))
     }
 
+    /// Returns the (current) number of threads in the thread pool.
+    pub fn num_threads(&self) -> usize {
+        match self {
+            Executor::SingleThread => 1,
+            Executor::ThreadPool(thread_pool) => thread_pool.current_num_threads(),
+        }
+    }
+
     /// Perform a map in the thread pool.
     ///
     /// Regardless of the executor (`SingleThread` or `ThreadPool`), panics in the task

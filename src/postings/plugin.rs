@@ -17,6 +17,7 @@ use crate::directory::CompositeFile;
 use crate::docset::{DocSet, TERMINATED};
 use crate::error::DataCorruption;
 use crate::fieldnorm::{FieldNormReader, FieldNormReaders};
+use crate::index::merge_optimized_inverted_index_reader::MergeOptimizedInvertedIndexReader;
 use crate::index::{Segment, SegmentComponent, SegmentReader};
 use crate::indexer::doc_id_mapping::{DocIdMapping, SegmentDocIdMapping};
 use crate::indexer::segment_updater::CancelSentinel;
@@ -27,7 +28,6 @@ use crate::postings::{
 };
 use crate::schema::{Field, Schema};
 use crate::space_usage::{ComponentSpaceUsage, POSITIONS, POSTINGS, TERMDICT};
-use crate::index::merge_optimized_inverted_index_reader::MergeOptimizedInvertedIndexReader;
 use crate::termdict::{TermMerger, TermOrdinal};
 use crate::DocId;
 

@@ -305,6 +305,16 @@ pub struct IndexSettings {
     #[serde(default = "default_codec_types")]
     #[serde(skip_serializing_if = "is_default_codec_types")]
     pub codec_types: Vec<columnar::CodecType>,
+    /// Doc-count boundary for choosing the vector-storage format on merge.
+    ///
+    /// A merge whose target segment has strictly fewer than this many
+    /// docs writes `.flatvec`; at or above this many docs writes
+    /// `.ivfvec` (clustered). Exactly one format is written per merge —
+    /// `FlatVecPlugin` and `IvfVecPlugin` short-circuit symmetrically
+    /// off this threshold.
+    #[serde(default = "default_vector_clustering_threshold")]
+    #[serde(skip_serializing_if = "is_default_vector_clustering_threshold")]
+    pub vector_clustering_threshold: usize,
 }
 
 /// Must be a function to be compatible with serde defaults
@@ -320,6 +330,14 @@ fn is_default_codec_types(types: &[columnar::CodecType]) -> bool {
     types == columnar::DEFAULT_CODEC_TYPES
 }
 
+fn default_vector_clustering_threshold() -> usize {
+    10_000
+}
+
+fn is_default_vector_clustering_threshold(threshold: &usize) -> bool {
+    *threshold == default_vector_clustering_threshold()
+}
+
 impl Default for IndexSettings {
     fn default() -> Self {
         Self {
@@ -328,6 +346,7 @@ impl Default for IndexSettings {
             docstore_blocksize: default_docstore_blocksize(),
             docstore_compress_dedicated_thread: true,
             codec_types: default_codec_types(),
+            vector_clustering_threshold: default_vector_clustering_threshold(),
         }
     }
 }
@@ -336,6 +355,12 @@ impl IndexSettings {
     /// Returns the codec types to use for u64-based column serialization.
     pub fn columnar_codec_types(&self) -> &[columnar::CodecType] {
         &self.codec_types
+    }
+
+    /// Returns the doc-count boundary at which merges switch from flat
+    /// to IVF storage. See [`IndexSettings::vector_clustering_threshold`].
+    pub fn vector_clustering_threshold(&self) -> usize {
+        self.vector_clustering_threshold
     }
 }
 
@@ -609,6 +634,7 @@ mod tests {
                 docstore_compress_dedicated_thread: true,
                 docstore_blocksize: 16_384,
                 codec_types: columnar::DEFAULT_CODEC_TYPES.to_vec(),
+                vector_clustering_threshold: 10_000,
             }
         );
         {

@@ -320,7 +320,8 @@ pub fn merge_filtered_segments<T: Into<Box<dyn Directory>>>(
     );
 
     let index_meta = IndexMeta {
-        index_settings: target_settings.clone(), // index_settings of all segments should be the same
+        index_settings: target_settings.clone(), /* index_settings of all segments should be the
+                                                  * same */
         persisted_custom_extensions: persisted_custom_extensions.clone(),
         segments: vec![segment_meta],
         schema: target_schema.clone(),
