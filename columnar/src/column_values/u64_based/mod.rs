@@ -235,7 +235,6 @@ pub fn load_u64_based_column_values<T: MonotonicallyMappableToU64>(
 }
 
 /// Helper function to serialize a column (autodetect from all codecs) and then open it
-#[cfg(test)]
 pub fn serialize_and_load_u64_based_column_values<T: MonotonicallyMappableToU64>(
     vals: &dyn Iterable,
     codec_types: &[CodecType],
