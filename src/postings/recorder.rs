@@ -1,6 +1,7 @@
 use common::read_u32_vint;
 use stacker::{ExpUnrolledLinkedList, MemoryArena};
 
+use crate::indexer::doc_id_mapping::DocIdMapping;
 use crate::postings::FieldSerializer;
 use crate::DocId;
 
@@ -8,8 +9,11 @@ const POSITION_END: u32 = 0;
 
 #[derive(Default)]
 pub(crate) struct BufferLender {
-    buffer_u8: Vec<u8>,
-    buffer_u32: Vec<u32>,
+    pub buffer_u8: Vec<u8>,
+    pub buffer_u32: Vec<u32>,
+    pub doc_id_and_tf: Vec<(u32, u32)>,
+    pub buffer_positions_flat: Vec<u32>,
+    pub doc_id_and_offsets: Vec<(u32, u32, u32)>,
 }
 
 impl BufferLender {
@@ -70,6 +74,7 @@ pub(crate) trait Recorder: Copy + Default + Send + Sync + 'static {
     fn serialize(
         &self,
         arena: &MemoryArena,
+        doc_id_map: Option<&DocIdMapping>,
         serializer: &mut FieldSerializer<'_>,
         buffer_lender: &mut BufferLender,
     );
@@ -113,15 +118,26 @@ impl Recorder for DocIdRecorder {
     fn serialize(
         &self,
         arena: &MemoryArena,
+        doc_id_map: Option<&DocIdMapping>,
         serializer: &mut FieldSerializer<'_>,
         buffer_lender: &mut BufferLender,
     ) {
-        let buffer = buffer_lender.lend_u8();
+        let (buffer, doc_ids) = buffer_lender.lend_all();
         // TODO avoid reading twice.
         self.stack.read_to_end(arena, buffer);
-        let iter = get_sum_reader(VInt32Reader::new(&buffer[..]));
-        for doc_id in iter {
-            serializer.write_doc(doc_id, 0u32, &[][..]);
+        if let Some(doc_id_map) = doc_id_map {
+            let iter = get_sum_reader(VInt32Reader::new(&buffer[..]));
+            doc_ids.extend(iter.map(|old_doc_id| doc_id_map.get_new_doc_id(old_doc_id)));
+            doc_ids.sort_unstable();
+
+            for doc in doc_ids {
+                serializer.write_doc(*doc, 0u32, &[][..]);
+            }
+        } else {
+            let iter = get_sum_reader(VInt32Reader::new(&buffer[..]));
+            for doc_id in iter {
+                serializer.write_doc(doc_id, 0u32, &[][..]);
+            }
         }
     }
 
@@ -181,18 +197,41 @@ impl Recorder for TermFrequencyRecorder {
     fn serialize(
         &self,
         arena: &MemoryArena,
+        doc_id_map: Option<&DocIdMapping>,
         serializer: &mut FieldSerializer<'_>,
         buffer_lender: &mut BufferLender,
     ) {
-        let buffer = buffer_lender.lend_u8();
-        self.stack.read_to_end(arena, buffer);
-        let mut u32_it = VInt32Reader::new(&buffer[..]);
-        let mut prev_doc = 0;
-        while let Some(delta_doc_id) = u32_it.next() {
-            let doc_id = prev_doc + delta_doc_id;
-            prev_doc = doc_id;
-            let term_freq = u32_it.next().unwrap_or(self.current_tf);
-            serializer.write_doc(doc_id, term_freq, &[][..]);
+        if let Some(doc_id_map) = doc_id_map {
+            buffer_lender.buffer_u8.clear();
+            buffer_lender.doc_id_and_tf.clear();
+            let buffer = &mut buffer_lender.buffer_u8;
+            self.stack.read_to_end(arena, buffer);
+            let mut u32_it = VInt32Reader::new(&buffer[..]);
+
+            let doc_id_and_tf = &mut buffer_lender.doc_id_and_tf;
+            let mut prev_doc = 0;
+            while let Some(delta_doc_id) = u32_it.next() {
+                let doc_id = prev_doc + delta_doc_id;
+                prev_doc = doc_id;
+                let term_freq = u32_it.next().unwrap_or(self.current_tf);
+                doc_id_and_tf.push((doc_id_map.get_new_doc_id(doc_id), term_freq));
+            }
+            doc_id_and_tf.sort_unstable_by_key(|&(doc_id, _)| doc_id);
+
+            for &(doc_id, tf) in doc_id_and_tf.iter() {
+                serializer.write_doc(doc_id, tf, &[][..]);
+            }
+        } else {
+            let buffer = buffer_lender.lend_u8();
+            self.stack.read_to_end(arena, buffer);
+            let mut u32_it = VInt32Reader::new(&buffer[..]);
+            let mut prev_doc = 0;
+            while let Some(delta_doc_id) = u32_it.next() {
+                let doc_id = prev_doc + delta_doc_id;
+                prev_doc = doc_id;
+                let term_freq = u32_it.next().unwrap_or(self.current_tf);
+                serializer.write_doc(doc_id, term_freq, &[][..]);
+            }
         }
     }
 
@@ -238,31 +277,81 @@ impl Recorder for TfAndPositionRecorder {
     fn serialize(
         &self,
         arena: &MemoryArena,
+        doc_id_map: Option<&DocIdMapping>,
         serializer: &mut FieldSerializer<'_>,
         buffer_lender: &mut BufferLender,
     ) {
-        let (buffer_u8, buffer_positions) = buffer_lender.lend_all();
-        self.stack.read_to_end(arena, buffer_u8);
-        let mut u32_it = VInt32Reader::new(&buffer_u8[..]);
-        let mut prev_doc = 0;
-        while let Some(delta_doc_id) = u32_it.next() {
-            let doc_id = prev_doc + delta_doc_id;
-            prev_doc = doc_id;
-            let mut prev_position_plus_one = 1u32;
-            buffer_positions.clear();
-            loop {
-                match u32_it.next() {
-                    Some(POSITION_END) | None => {
-                        break;
-                    }
-                    Some(position_plus_one) => {
-                        let delta_position = position_plus_one - prev_position_plus_one;
-                        buffer_positions.push(delta_position);
-                        prev_position_plus_one = position_plus_one;
+        if let Some(doc_id_map) = doc_id_map {
+            buffer_lender.buffer_u8.clear();
+            buffer_lender.buffer_positions_flat.clear();
+            buffer_lender.doc_id_and_offsets.clear();
+
+            let buffer_u8 = &mut buffer_lender.buffer_u8;
+            self.stack.read_to_end(arena, buffer_u8);
+            let mut u32_it = VInt32Reader::new(&buffer_u8[..]);
+
+            let buffer_positions_flat = &mut buffer_lender.buffer_positions_flat;
+            let doc_id_and_offsets = &mut buffer_lender.doc_id_and_offsets;
+
+            let mut prev_doc = 0;
+            while let Some(delta_doc_id) = u32_it.next() {
+                let doc_id = prev_doc + delta_doc_id;
+                prev_doc = doc_id;
+
+                let start_offset = buffer_positions_flat.len() as u32;
+                let mut prev_position_plus_one = 1u32;
+
+                loop {
+                    match u32_it.next() {
+                        Some(POSITION_END) | None => {
+                            break;
+                        }
+                        Some(position_plus_one) => {
+                            let delta_position = position_plus_one - prev_position_plus_one;
+                            buffer_positions_flat.push(delta_position);
+                            prev_position_plus_one = position_plus_one;
+                        }
                     }
                 }
+
+                let end_offset = buffer_positions_flat.len() as u32;
+                doc_id_and_offsets.push((
+                    doc_id_map.get_new_doc_id(doc_id),
+                    start_offset,
+                    end_offset,
+                ));
             }
-            serializer.write_doc(doc_id, buffer_positions.len() as u32, buffer_positions);
+
+            doc_id_and_offsets.sort_unstable_by_key(|&(doc_id, _, _)| doc_id);
+            for &(doc_id, start_offset, end_offset) in doc_id_and_offsets.iter() {
+                let positions =
+                    &buffer_positions_flat[(start_offset as usize)..(end_offset as usize)];
+                serializer.write_doc(doc_id, positions.len() as u32, positions);
+            }
+        } else {
+            let (buffer_u8, buffer_positions) = buffer_lender.lend_all();
+            self.stack.read_to_end(arena, buffer_u8);
+            let mut u32_it = VInt32Reader::new(&buffer_u8[..]);
+            let mut prev_doc = 0;
+            while let Some(delta_doc_id) = u32_it.next() {
+                let doc_id = prev_doc + delta_doc_id;
+                prev_doc = doc_id;
+                let mut prev_position_plus_one = 1u32;
+                buffer_positions.clear();
+                loop {
+                    match u32_it.next() {
+                        Some(POSITION_END) | None => {
+                            break;
+                        }
+                        Some(position_plus_one) => {
+                            let delta_position = position_plus_one - prev_position_plus_one;
+                            buffer_positions.push(delta_position);
+                            prev_position_plus_one = position_plus_one;
+                        }
+                    }
+                }
+                serializer.write_doc(doc_id, buffer_positions.len() as u32, buffer_positions);
+            }
         }
     }
 
