@@ -8,7 +8,7 @@
 pub(crate) mod delete_queue;
 pub(crate) mod path_to_unordered_id;
 
-pub(crate) mod doc_id_mapping;
+pub mod doc_id_mapping;
 mod doc_opstamp_mapping;
 mod flat_map_with_buffer;
 pub(crate) mod index_writer;
@@ -24,7 +24,6 @@ pub(crate) mod prepared_commit;
 mod segment_entry;
 mod segment_manager;
 mod segment_register;
-pub(crate) mod segment_serializer;
 pub(crate) mod segment_updater;
 pub(crate) mod segment_writer;
 pub(crate) mod single_segment_index_writer;
@@ -40,7 +39,6 @@ pub use self::merge_policy::{MergeCandidate, MergePolicy, NoMergePolicy};
 pub use self::operation::{AddOperation, DeleteOperation, UserOperation};
 pub use self::prepared_commit::PreparedCommit;
 pub use self::segment_entry::SegmentEntry;
-pub(crate) use self::segment_serializer::SegmentSerializer;
 pub use self::segment_updater::{merge_filtered_segments, merge_indices};
 pub use self::segment_writer::SegmentWriter;
 pub use self::single_segment_index_writer::SingleSegmentIndexWriter;

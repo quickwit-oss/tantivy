@@ -671,6 +671,10 @@ impl Document for CompactDoc {
             container: self,
         }
     }
+
+    fn into_tantivy_document(self) -> TantivyDocument {
+        self
+    }
 }
 
 /// A helper wrapper for creating an iterator over the field values

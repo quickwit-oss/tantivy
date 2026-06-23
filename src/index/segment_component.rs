@@ -1,11 +1,11 @@
-use std::slice;
+use std::fmt::{Display, Formatter};
 
 /// Enum describing each component of a tantivy segment.
 ///
 /// Each component is stored in its own file,
 /// using the pattern `segment_uuid`.`component_extension`,
 /// except the delete component that takes an `segment_uuid`.`delete_opstamp`.`component_extension`
-#[derive(Copy, Clone, Eq, PartialEq)]
+#[derive(Debug, Clone, Hash, Eq, PartialEq)]
 pub enum SegmentComponent {
     /// Postings (or inverted list). Sorted lists of document ids, associated with terms
     Postings,
@@ -28,21 +28,41 @@ pub enum SegmentComponent {
     /// Bitset describing which document of the segment is alive.
     /// (It was representing deleted docs but changed to represent alive docs from v0.17)
     Delete,
+    /// A custom component defined by a [`SegmentPlugin`](crate::SegmentPlugin).
+    /// The string is the file extension for this component.
+    Custom(String),
 }
 
-impl SegmentComponent {
-    /// Iterates through the components.
-    pub fn iterator() -> slice::Iter<'static, SegmentComponent> {
-        static SEGMENT_COMPONENTS: [SegmentComponent; 8] = [
-            SegmentComponent::Postings,
-            SegmentComponent::Positions,
-            SegmentComponent::FastFields,
-            SegmentComponent::FieldNorms,
-            SegmentComponent::Terms,
-            SegmentComponent::Store,
-            SegmentComponent::TempStore,
-            SegmentComponent::Delete,
-        ];
-        SEGMENT_COMPONENTS.iter()
+impl TryFrom<&str> for SegmentComponent {
+    type Error = String;
+
+    fn try_from(value: &str) -> Result<Self, Self::Error> {
+        match value {
+            "idx" => Ok(SegmentComponent::Postings),
+            "pos" => Ok(SegmentComponent::Positions),
+            "term" => Ok(SegmentComponent::Terms),
+            "store" => Ok(SegmentComponent::Store),
+            "temp" => Ok(SegmentComponent::TempStore),
+            "fast" => Ok(SegmentComponent::FastFields),
+            "fieldnorm" => Ok(SegmentComponent::FieldNorms),
+            "del" => Ok(SegmentComponent::Delete),
+            other => Ok(SegmentComponent::Custom(other.to_string())),
+        }
+    }
+}
+
+impl Display for SegmentComponent {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            SegmentComponent::Postings => write!(f, "idx"),
+            SegmentComponent::Positions => write!(f, "pos"),
+            SegmentComponent::FastFields => write!(f, "fast"),
+            SegmentComponent::FieldNorms => write!(f, "fieldnorm"),
+            SegmentComponent::Terms => write!(f, "term"),
+            SegmentComponent::Store => write!(f, "store"),
+            SegmentComponent::TempStore => write!(f, "temp"),
+            SegmentComponent::Delete => write!(f, "del"),
+            SegmentComponent::Custom(ext) => write!(f, "{ext}"),
+        }
     }
 }

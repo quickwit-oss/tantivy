@@ -17,11 +17,13 @@
 //!
 //! This trick is used by the Bm25 similarity.
 mod code;
+pub mod plugin;
 mod reader;
 mod serializer;
 mod writer;
 
 use self::code::{fieldnorm_to_id, id_to_fieldnorm};
+pub use self::plugin::{FieldNormsPlugin, FieldNormsPluginWriter};
 pub use self::reader::{FieldNormReader, FieldNormReaders};
 pub use self::serializer::FieldNormsSerializer;
 pub use self::writer::FieldNormsWriter;

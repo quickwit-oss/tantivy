@@ -13,7 +13,9 @@ use super::segment_manager::SegmentManager;
 use crate::core::META_FILEPATH;
 use crate::directory::{Directory, DirectoryClone, GarbageCollectionResult};
 use crate::fastfield::AliveBitSet;
-use crate::index::{Index, IndexMeta, IndexSettings, Segment, SegmentId, SegmentMeta};
+use crate::index::{
+    list_segment_files, Index, IndexMeta, IndexSettings, Segment, SegmentId, SegmentMeta,
+};
 use crate::indexer::delete_queue::DeleteCursor;
 use crate::indexer::index_writer::advance_deletes;
 use crate::indexer::merge_operation::MergeOperationInventory;
@@ -22,7 +24,6 @@ use crate::indexer::segment_manager::SegmentsStatus;
 use crate::indexer::stamper::Stamper;
 use crate::indexer::{
     DefaultMergePolicy, MergeCandidate, MergeOperation, MergePolicy, SegmentEntry,
-    SegmentSerializer,
 };
 use crate::{FutureResult, Opstamp, TantivyError};
 
@@ -118,9 +119,7 @@ fn merge(
         IndexMerger::open(index.schema(), index.settings().clone(), &segments[..])?;
 
     // ... we just serialize this index merger in our new segment to merge the segments.
-    let segment_serializer = SegmentSerializer::for_segment(merged_segment.clone(), true)?;
-
-    let num_docs = merger.write(segment_serializer)?;
+    let num_docs = merger.write(&merged_segment)?;
 
     let merged_segment_id = merged_segment.id();
 
@@ -139,6 +138,11 @@ fn merge(
 /// This function does NOT check or take the `IndexWriter` is running. It is not
 /// meant to work if you have an `IndexWriter` running for the origin indices, or
 /// the destination `Index`.
+///
+/// It is the caller's responsibility to ensure every custom
+/// [`SegmentPlugin`](crate::SegmentPlugin) is registered on the source indices and that
+/// the indices share the same plugin set. A source segment whose custom extension has no
+/// registered plugin has that component's data silently dropped from the merge.
 #[doc(hidden)]
 pub fn merge_indices<T: Into<Box<dyn Directory>>>(
     indices: &[Index],
@@ -185,6 +189,11 @@ pub fn merge_indices<T: Into<Box<dyn Directory>>>(
 /// This function does NOT check or take the `IndexWriter` is running. It is not
 /// meant to work if you have an `IndexWriter` running for the origin indices, or
 /// the destination `Index`.
+///
+/// It is the caller's responsibility to ensure every custom
+/// [`SegmentPlugin`](crate::SegmentPlugin) is registered on the segments' source indices.
+/// A source segment whose custom extension has no registered plugin has that component's
+/// data silently dropped from the merge.
 #[doc(hidden)]
 pub fn merge_filtered_segments<T: Into<Box<dyn Directory>>>(
     segments: &[Segment],
@@ -212,21 +221,33 @@ pub fn merge_filtered_segments<T: Into<Box<dyn Directory>>>(
         ));
     }
 
+    // The source index's writer was already validated against its recorded plugin
+    // set (else `MissingPlugin`); the merger reuses those registered plugins.
+    let merger = IndexMerger::open_with_custom_alive_set(
+        target_schema.clone(),
+        target_settings.clone(),
+        segments,
+        filter_doc_ids,
+    )?;
+
     let mut merged_index = Index::create(
         output_directory,
         target_schema.clone(),
         target_settings.clone(),
     )?;
+
+    // Carry the merger's custom plugins onto the merged index (built-ins come for free) and
+    // record their extensions as the merged index's required set; without this the first GC
+    // drops the merged files.
+    let mut persisted_custom_extensions: Vec<String> = Vec::new();
+    for plugin in merger.custom_plugins() {
+        persisted_custom_extensions.extend(plugin.extensions().iter().map(|ext| ext.to_string()));
+        merged_index.register_plugin(plugin.clone());
+    }
+
     let merged_segment = merged_index.new_segment();
     let merged_segment_id = merged_segment.id();
-    let merger: IndexMerger = IndexMerger::open_with_custom_alive_set(
-        merged_index.schema(),
-        merged_index.settings().clone(),
-        segments,
-        filter_doc_ids,
-    )?;
-    let segment_serializer = SegmentSerializer::for_segment(merged_segment, true)?;
-    let num_docs = merger.write(segment_serializer)?;
+    let num_docs = merger.write(&merged_segment)?;
 
     let segment_meta = merged_index.new_segment_meta(merged_segment_id, num_docs);
 
@@ -243,6 +264,7 @@ pub fn merge_filtered_segments<T: Into<Box<dyn Directory>>>(
 
     let index_meta = IndexMeta {
         index_settings: target_settings, // index_settings of all segments should be the same
+        persisted_custom_extensions,
         segments: vec![segment_meta],
         schema: target_schema,
         opstamp: 0u64,
@@ -412,6 +434,8 @@ impl SegmentUpdater {
                 .sort_by_key(|segment_meta| std::cmp::Reverse(segment_meta.max_doc()));
             let index_meta = IndexMeta {
                 index_settings: index.settings().clone(),
+                // The required plugin set is fixed at index creation; carry it forward.
+                persisted_custom_extensions: self.load_meta().persisted_custom_extensions.clone(),
                 segments: committed_segment_metas,
                 schema: index.schema(),
                 opstamp,
@@ -434,12 +458,13 @@ impl SegmentUpdater {
     /// This does not include lock files, or files that are obsolete
     /// but have not yet been deleted by the garbage collector.
     fn list_files(&self) -> HashSet<PathBuf> {
-        let mut files: HashSet<PathBuf> = self
-            .index
-            .list_all_segment_metas()
-            .into_iter()
-            .flat_map(|segment_meta| segment_meta.list_files())
-            .collect();
+        // All tracked segments (including in-flight ones), so GC keeps files for segments
+        // not yet in the committed meta. Custom extensions come from the persisted record
+        // (not the live registry), so GC is correct even before a plugin is re-registered.
+        let mut files = list_segment_files(
+            &self.index.list_all_segment_metas(),
+            &self.load_meta().persisted_custom_extensions,
+        );
         files.insert(META_FILEPATH.to_path_buf());
         files
     }
