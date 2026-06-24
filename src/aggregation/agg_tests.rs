@@ -583,7 +583,7 @@ fn test_aggregation_flushing(
         searcher.search(&AllQuery, &collector).unwrap()
     };
 
-    let res: Value = serde_json::from_str(&serde_json::to_string(&agg_res)?)?;
+    let res: Value = serde_json::to_value(&agg_res)?;
 
     assert_eq!(res["bucketsL1"]["buckets"][0]["doc_count"], 3);
     assert_eq!(
@@ -698,7 +698,7 @@ fn test_aggregation_level1_simple() -> crate::Result<()> {
     let searcher = reader.searcher();
     let agg_res: AggregationResults = searcher.search(&term_query, &collector).unwrap();
 
-    let res: Value = serde_json::from_str(&serde_json::to_string(&agg_res)?)?;
+    let res: Value = serde_json::to_value(&agg_res)?;
     assert_eq!(res["average"]["value"], 12.142857142857142);
     assert_eq!(
         res["range"]["buckets"],
@@ -730,6 +730,29 @@ fn test_aggregation_level1_simple() -> crate::Result<()> {
     );
 
     Ok(())
+}
+
+#[test]
+fn test_aggregation_term_truncate_sum_other_doc_count() {
+    let index = get_test_index_2_segments(true).unwrap();
+    let reader = index.reader().unwrap();
+    let count_per_text: Aggregation = serde_json::from_value(json!({ "terms": { "field": "text", "size": 1 } })).unwrap();
+    let aggs: Aggregations = vec![("group_by_term_truncate".to_string(),  count_per_text)]
+        .into_iter()
+        .collect();
+
+    let collector = get_collector(aggs);
+    let searcher = reader.searcher();
+    let agg_res: AggregationResults = searcher.search(&AllQuery, &collector).unwrap();
+
+    let res: Value = serde_json::to_value(&agg_res).unwrap();
+    assert_eq!(res, serde_json::json!({
+        "group_by_term_truncate": {
+             "buckets": [{ "doc_count": 7, "key": "cool" }],
+             "doc_count_error_upper_bound": 0,
+             "sum_other_doc_count": 2,
+         },
+    }));
 }
 
 #[test]
@@ -770,7 +793,7 @@ fn test_aggregation_level1() -> crate::Result<()> {
     let searcher = reader.searcher();
     let agg_res: AggregationResults = searcher.search(&term_query, &collector).unwrap();
 
-    let res: Value = serde_json::from_str(&serde_json::to_string(&agg_res)?)?;
+    let res: Value = serde_json::to_value(&agg_res)?;
     assert_eq!(res["average"]["value"], 12.142857142857142);
     assert_eq!(res["average_f64"]["value"], 12.214285714285714);
     assert_eq!(res["average_i64"]["value"], 12.142857142857142);
@@ -825,7 +848,7 @@ fn test_aggregation_level2(
         IndexRecordOption::Basic,
     );
 
-    let elasticsearch_compatible_json_req = r#"
+    let elasticsearch_compatible_json_req = serde_json::json!(
 {
   "rangef64": {
     "range": {
@@ -878,9 +901,8 @@ fn test_aggregation_level2(
       "term_agg": { "terms": { "field": "text" } }
     }
   }
-}
-"#;
-    let agg_req: Aggregations = serde_json::from_str(elasticsearch_compatible_json_req).unwrap();
+});
+    let agg_req: Aggregations = serde_json::from_value(elasticsearch_compatible_json_req).unwrap();
 
     let agg_res: AggregationResults = if use_distributed_collector {
         let collector =
@@ -897,7 +919,7 @@ fn test_aggregation_level2(
         searcher.search(&term_query, &collector).unwrap()
     };
 
-    let res: Value = serde_json::from_str(&serde_json::to_string(&agg_res)?)?;
+    let res: Value = serde_json::to_value(agg_res)?;
 
     assert_eq!(res["range"]["buckets"][1]["key"], "3-7");
     assert_eq!(res["range"]["buckets"][1]["doc_count"], 2u64);
