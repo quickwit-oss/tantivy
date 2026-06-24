@@ -301,11 +301,14 @@ pub trait SegmentCollector: 'static {
     /// The query pushes the scored document to the collector via this method.
     fn collect(&mut self, doc: DocId, score: Score);
 
-    /// The query pushes the scored document to the collector via this method.
+    /// The query pushes the matched documents to the collector via this method.
     /// This method is used when the collector does not require scoring.
     ///
-    /// See [`COLLECT_BLOCK_BUFFER_LEN`](crate::COLLECT_BLOCK_BUFFER_LEN) for the
-    /// buffer size passed to the collector.
+    /// `docs` is a block of matched doc ids. Doc ids are produced in increasing
+    /// order, in windows of [`COLLECT_BLOCK_BUFFER_LEN`](crate::COLLECT_BLOCK_BUFFER_LEN),
+    /// but several windows are accumulated before being flushed here, so the
+    /// block may be larger than `COLLECT_BLOCK_BUFFER_LEN`. Implementations must
+    /// not assume any particular maximum length.
     fn collect_block(&mut self, docs: &[DocId]) {
         for doc in docs {
             self.collect(*doc, 0.0);

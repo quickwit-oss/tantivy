@@ -1,5 +1,5 @@
 use super::term_scorer::TermScorer;
-use crate::docset::{DocSet, COLLECT_BLOCK_BUFFER_LEN};
+use crate::docset::DocSet;
 use crate::fieldnorm::FieldNormReader;
 use crate::index::SegmentReader;
 use crate::postings::SegmentPostings;
@@ -92,13 +92,11 @@ impl Weight for TermWeight {
     ) -> crate::Result<()> {
         match self.specialized_scorer(reader, 1.0)? {
             TermOrEmptyOrAllScorer::TermScorer(mut term_scorer) => {
-                let mut buffer = [0u32; COLLECT_BLOCK_BUFFER_LEN];
-                for_each_docset_buffered(&mut term_scorer, &mut buffer, callback);
+                for_each_docset_buffered(&mut term_scorer, callback);
             }
             TermOrEmptyOrAllScorer::Empty => {}
             TermOrEmptyOrAllScorer::AllMatch(mut all_scorer) => {
-                let mut buffer = [0u32; COLLECT_BLOCK_BUFFER_LEN];
-                for_each_docset_buffered(&mut all_scorer, &mut buffer, callback);
+                for_each_docset_buffered(&mut all_scorer, callback);
             }
         };
 

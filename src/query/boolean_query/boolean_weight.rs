@@ -1,6 +1,5 @@
 use std::collections::HashMap;
 
-use crate::docset::COLLECT_BLOCK_BUFFER_LEN;
 use crate::index::SegmentReader;
 use crate::postings::FreqReadingOption;
 use crate::query::disjunction::Disjunction;
@@ -531,13 +530,12 @@ impl<TScoreCombiner: ScoreCombiner + Sync> Weight for BooleanWeight<TScoreCombin
     ) -> crate::Result<()> {
         let scorer = self.complex_scorer(reader, 1.0, || DoNothingCombiner)?;
         let num_docs = reader.num_docs();
-        let mut buffer = [0u32; COLLECT_BLOCK_BUFFER_LEN];
 
         match scorer {
             SpecializedScorer::TermUnion(term_scorers) => {
                 let mut union_scorer =
                     BufferedUnionScorer::build(term_scorers, &self.score_combiner_fn, num_docs);
-                for_each_docset_buffered(&mut union_scorer, &mut buffer, callback);
+                for_each_docset_buffered(&mut union_scorer, callback);
             }
             SpecializedScorer::TermIntersection(term_scorers) => {
                 let boxed_scorers: Vec<Box<dyn Scorer>> = term_scorers
@@ -545,10 +543,10 @@ impl<TScoreCombiner: ScoreCombiner + Sync> Weight for BooleanWeight<TScoreCombin
                     .map(|term_scorer| Box::new(term_scorer) as Box<dyn Scorer>)
                     .collect();
                 let mut intersection = intersect_scorers(boxed_scorers, num_docs);
-                for_each_docset_buffered(intersection.as_mut(), &mut buffer, callback);
+                for_each_docset_buffered(intersection.as_mut(), callback);
             }
             SpecializedScorer::Other(mut scorer) => {
-                for_each_docset_buffered(scorer.as_mut(), &mut buffer, callback);
+                for_each_docset_buffered(scorer.as_mut(), callback);
             }
         }
         Ok(())
