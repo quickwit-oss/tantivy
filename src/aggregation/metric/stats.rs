@@ -300,11 +300,11 @@ impl<const COLUMN_TYPE_ID: u8> SegmentAggregationCollector
             &self.accessor,
             self.missing_u64,
         );
-        collect_stats::<COLUMN_TYPE_ID>(
+        collect_stats_slice::<COLUMN_TYPE_ID>(
             &mut self.buckets[parent_bucket_id as usize],
-            agg_data.column_block_accessor.iter_vals(),
+            agg_data.column_block_accessor.vals(),
             self.is_number_or_date_type,
-        )?;
+        );
 
         Ok(())
     }
@@ -354,6 +354,72 @@ impl<const COLUMN_TYPE_ID: u8> SegmentAggregationCollector
             "avg" if stats.count > 0 => Some(stats.sum / stats.count as f64),
             _ => None,
         }
+    }
+}
+
+/// Reduces a contiguous block of raw column values into `stats`.
+///
+/// Uses `LANES` independent (sum, delta) Kahan accumulators and `LANES` min/max
+/// accumulators so the per-element dependency chain of the serial Kahan sum is broken,
+/// letting the CPU pipeline the additions and auto-vectorize the min/max. The lanes are
+/// merged back into `stats` with the same compensated-sum combination used by
+/// [`IntermediateStats::merge_fruits`], so accuracy is preserved (the summation order
+/// differs, exactly as it already does across segment merges).
+#[inline]
+fn collect_stats_slice<const COLUMN_TYPE_ID: u8>(
+    stats: &mut IntermediateStats,
+    vals: &[u64],
+    is_number_or_date_type: bool,
+) {
+    if !is_number_or_date_type {
+        // Non-numeric: only the presence of a value matters (preserve existing behavior).
+        for _ in 0..vals.len() {
+            stats.collect(0.0);
+        }
+        return;
+    }
+
+    const LANES: usize = 4;
+    let mut sum = [0f64; LANES];
+    let mut delta = [0f64; LANES];
+    let mut min = [f64::MAX; LANES];
+    let mut max = [f64::MIN; LANES];
+
+    let mut chunks = vals.chunks_exact(LANES);
+    for chunk in chunks.by_ref() {
+        for lane in 0..LANES {
+            let val = convert_to_f64::<COLUMN_TYPE_ID>(chunk[lane]);
+            // Per-lane Kahan summation.
+            let y = val - delta[lane];
+            let t = sum[lane] + y;
+            delta[lane] = (t - sum[lane]) - y;
+            sum[lane] = t;
+            min[lane] = min[lane].min(val);
+            max[lane] = max[lane].max(val);
+        }
+    }
+
+    stats.count += vals.len() as u64;
+
+    // Merge the lanes into `stats`.
+    for lane in 0..LANES {
+        let y = sum[lane] - (stats.delta + delta[lane]);
+        let t = stats.sum + y;
+        stats.delta = (t - stats.sum) - y;
+        stats.sum = t;
+        stats.min = stats.min.min(min[lane]);
+        stats.max = stats.max.max(max[lane]);
+    }
+
+    // Tail (fewer than LANES values) — fold directly into `stats` (count already added).
+    for &raw in chunks.remainder() {
+        let val = convert_to_f64::<COLUMN_TYPE_ID>(raw);
+        let y = val - stats.delta;
+        let t = stats.sum + y;
+        stats.delta = (t - stats.sum) - y;
+        stats.sum = t;
+        stats.min = stats.min.min(val);
+        stats.max = stats.max.max(val);
     }
 }
 
