@@ -7,16 +7,20 @@ use super::SegmentWriter;
 use crate::schema::{Field, Schema};
 use crate::{DocAddress, DocId, IndexSortByField, TantivyError};
 
+/// Describes how the document ID mapping was produced during a merge.
 #[derive(Copy, Clone, Eq, PartialEq)]
 pub enum MappingType {
+    /// Segments are concatenated in order with no deletes; doc IDs are contiguous ranges.
     Stacked,
+    /// Segments are concatenated in order but some documents have been deleted and are skipped.
     StackedWithDeletes,
+    /// Documents have been reordered, for instance by a sort field or by caller-provided order.
     Shuffled,
 }
 
 /// Struct to provide mapping from new doc_id to old doc_id and segment.
 #[derive(Clone)]
-pub(crate) struct SegmentDocIdMapping {
+pub struct SegmentDocIdMapping {
     pub(crate) new_doc_id_to_old_doc_addr: Vec<DocAddress>,
     pub(crate) alive_bitsets: Vec<Option<ReadOnlyBitSet>>,
     mapping_type: MappingType,
@@ -35,6 +39,24 @@ impl SegmentDocIdMapping {
         }
     }
 
+    /// Build a `Shuffled` mapping from an explicit permutation of [`DocAddress`]es.
+    ///
+    /// `new_doc_id_to_old_doc_addr[new_id]` gives the source segment and doc id for
+    /// the document that should appear at position `new_id` in the merged segment.
+    /// `alive_bitsets` must contain one entry per source segment, in the same order
+    /// as the segments passed to [`IndexMerger::open_with_custom_alive_set`].
+    pub fn new_shuffled(
+        new_doc_id_to_old_doc_addr: Vec<DocAddress>,
+        alive_bitsets: Vec<Option<ReadOnlyBitSet>>,
+    ) -> Self {
+        Self {
+            new_doc_id_to_old_doc_addr,
+            alive_bitsets,
+            mapping_type: MappingType::Shuffled,
+        }
+    }
+
+    /// Returns the [`MappingType`] that describes how this mapping was constructed.
     pub fn mapping_type(&self) -> MappingType {
         self.mapping_type
     }
@@ -71,6 +93,7 @@ pub struct DocIdMapping {
 }
 
 impl DocIdMapping {
+    /// Constructs a [`DocIdMapping`] from a vector mapping each new doc ID to its old doc ID.
     pub fn from_new_id_to_old_id(new_doc_id_to_old: Vec<DocId>) -> Self {
         let max_doc = new_doc_id_to_old.len();
         let old_max_doc = new_doc_id_to_old
@@ -102,6 +125,7 @@ impl DocIdMapping {
         self.new_doc_id_to_old.iter().cloned()
     }
 
+    /// Returns a slice mapping each old doc ID to its corresponding new doc ID.
     pub fn old_to_new_ids(&self) -> &[DocId] {
         &self.old_doc_id_to_new[..]
     }
@@ -113,9 +137,11 @@ impl DocIdMapping {
             .map(|old_doc| els[*old_doc as usize])
             .collect()
     }
+    /// Returns the number of new doc IDs in this mapping.
     pub fn num_new_doc_ids(&self) -> usize {
         self.new_doc_id_to_old.len()
     }
+    /// Returns the number of old doc IDs covered by this mapping.
     pub fn num_old_doc_ids(&self) -> usize {
         self.old_doc_id_to_new.len()
     }

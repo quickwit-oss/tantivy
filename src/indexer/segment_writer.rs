@@ -18,7 +18,9 @@ use crate::postings::{
 use crate::schema::document::{Document, Value};
 use crate::schema::{FieldEntry, FieldType, Schema, DATE_TIME_PRECISION_INDEXED};
 use crate::store::{StoreReader, StoreWriter};
-use crate::tokenizer::{FacetTokenizer, PreTokenizedStream, TextAnalyzer, Tokenizer};
+use crate::tokenizer::{
+    FacetTokenizer, PreTokenizedStream, TextAnalyzer, Tokenizer, TokenizerManager,
+};
 use crate::{DocId, Opstamp, TantivyError};
 
 /// Computes the initial size of the hash table.
@@ -90,8 +92,42 @@ impl SegmentWriter {
         let schema = segment.schema();
         let tokenizer_manager = segment.index().tokenizers().clone();
         let tokenizer_manager_fast_field = segment.index().fast_field_tokenizer().clone();
-        let table_size = compute_initial_table_size(memory_budget_in_bytes)?;
         let segment_serializer = SegmentSerializer::for_segment(segment, false)?;
+        Self::for_segment_serializer(
+            memory_budget_in_bytes,
+            schema,
+            tokenizer_manager,
+            tokenizer_manager_fast_field,
+            segment_serializer,
+        )
+    }
+
+    pub(crate) fn for_segment_with_provided_doc_id_mapping(
+        memory_budget_in_bytes: usize,
+        segment: Segment,
+    ) -> crate::Result<Self> {
+        let schema = segment.schema();
+        let tokenizer_manager = segment.index().tokenizers().clone();
+        let tokenizer_manager_fast_field = segment.index().fast_field_tokenizer().clone();
+        let segment_serializer =
+            SegmentSerializer::for_segment_with_remapping_required(segment, true)?;
+        Self::for_segment_serializer(
+            memory_budget_in_bytes,
+            schema,
+            tokenizer_manager,
+            tokenizer_manager_fast_field,
+            segment_serializer,
+        )
+    }
+
+    fn for_segment_serializer(
+        memory_budget_in_bytes: usize,
+        schema: Schema,
+        tokenizer_manager: TokenizerManager,
+        tokenizer_manager_fast_field: TokenizerManager,
+        segment_serializer: SegmentSerializer,
+    ) -> crate::Result<Self> {
+        let table_size = compute_initial_table_size(memory_budget_in_bytes)?;
         let per_field_postings_writers = PerFieldPostingsWriter::for_schema(&schema);
         let per_field_text_analyzers = schema
             .fields()
@@ -149,6 +185,31 @@ impl SegmentWriter {
             .clone()
             .map(|sort_by_field| get_doc_id_mapping_from_field(sort_by_field, &self))
             .transpose()?;
+        self.finalize_with_mapping(mapping.as_ref())
+    }
+
+    /// Lay on disk the current content of the `SegmentWriter`, using a caller-provided document
+    /// order.
+    ///
+    /// `new_doc_id_to_old_doc_id[new_id]` is the old document id of the document that should be
+    /// serialized at `new_id`.
+    pub fn finalize_with_doc_id_mapping(
+        mut self,
+        new_doc_id_to_old_doc_id: Vec<DocId>,
+    ) -> crate::Result<Vec<u64>> {
+        if new_doc_id_to_old_doc_id.len() != self.max_doc as usize {
+            return Err(crate::TantivyError::InvalidArgument(format!(
+                "provided doc id mapping length {} does not match segment max_doc {}",
+                new_doc_id_to_old_doc_id.len(),
+                self.max_doc
+            )));
+        }
+        self.fieldnorms_writer.fill_up_to_max_doc(self.max_doc);
+        let mapping = DocIdMapping::from_new_id_to_old_id(new_doc_id_to_old_doc_id);
+        self.finalize_with_mapping(Some(&mapping))
+    }
+
+    fn finalize_with_mapping(self, mapping: Option<&DocIdMapping>) -> crate::Result<Vec<u64>> {
         remap_and_write(
             self.schema,
             &self.per_field_postings_writers,
@@ -156,9 +217,10 @@ impl SegmentWriter {
             self.fast_field_writers,
             &self.fieldnorms_writer,
             self.segment_serializer,
-            mapping.as_ref(),
+            self.max_doc,
+            mapping,
         )?;
-        let doc_opstamps = remap_doc_opstamps(self.doc_opstamps, mapping.as_ref());
+        let doc_opstamps = remap_doc_opstamps(self.doc_opstamps, mapping);
         Ok(doc_opstamps)
     }
 
@@ -420,6 +482,7 @@ fn remap_and_write(
     fast_field_writers: FastFieldsWriter,
     fieldnorms_writer: &FieldNormsWriter,
     mut serializer: SegmentSerializer,
+    max_doc: DocId,
     doc_id_map: Option<&DocIdMapping>,
 ) -> crate::Result<()> {
     debug!("remap-and-write");
@@ -441,9 +504,10 @@ fn remap_and_write(
     debug!("fastfield-serialize");
     fast_field_writers.serialize(serializer.get_fast_field_write(), doc_id_map)?;
 
-    // finalize temp docstore and create version, which reflects the doc_id_map
-    if let Some(doc_id_map) = doc_id_map {
-        debug!("resort-docstore");
+    // Finalize the temp docstore and create the final store. With a mapping, the final store
+    // reflects the new doc id order; without one, it preserves the insertion order.
+    if serializer.store_is_temp() {
+        debug!("rewrite-docstore");
         let store_write = serializer
             .segment_mut()
             .open_write(SegmentComponent::Store)?;
@@ -463,7 +527,10 @@ fn remap_and_write(
             1, /* The docstore is configured to have one doc per block, and each doc is
                 * accessed only once: we don't need caching. */
         )?;
-        for old_doc_id in doc_id_map.iter_old_doc_ids() {
+        let old_doc_ids = doc_id_map
+            .map(|doc_id_map| doc_id_map.iter_old_doc_ids().collect::<Vec<_>>())
+            .unwrap_or_else(|| (0..max_doc).collect::<Vec<_>>());
+        for old_doc_id in old_doc_ids {
             let doc_bytes = store_read.get_document_bytes(old_doc_id)?;
             serializer.get_store_writer().store_bytes(&doc_bytes)?;
         }

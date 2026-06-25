@@ -113,6 +113,7 @@ fn estimate_total_num_tokens(readers: &[SegmentReader], field: Field) -> crate::
     Ok(total_num_tokens)
 }
 
+/// Merges multiple index segments into one segment.
 pub struct IndexMerger {
     index_settings: IndexSettings,
     schema: Schema,
@@ -218,6 +219,7 @@ impl IndexMerger {
             .any(|doc_id| col.first(doc_id).is_none())
     }
 
+    /// Opens an [`IndexMerger`] over the given segments using their existing delete sets.
     pub fn open(
         schema: Schema,
         index_settings: IndexSettings,
@@ -239,6 +241,9 @@ impl IndexMerger {
     // This can be used to merge but also apply an additional filter.
     // One use case is demux, which is basically taking a list of
     // segments and partitions them e.g. by a value in a field.
+    /// Opens an [`IndexMerger`] with a custom alive set per segment.
+    ///
+    /// Each entry in `alive_bitset_opt` corresponds to the segment at the same ordinal.
     pub fn open_with_custom_alive_set(
         schema: Schema,
         index_settings: IndexSettings,
@@ -947,7 +952,7 @@ impl IndexMerger {
     ///
     /// # Returns
     /// The number of documents in the resulting segment.
-    pub fn write(&self, mut serializer: SegmentSerializer) -> crate::Result<u32> {
+    pub fn write(&self, serializer: SegmentSerializer) -> crate::Result<u32> {
         let doc_id_mapping = if let Some(sort_by_field) = self.index_settings.sort_by_field.as_ref()
         {
             if self.is_disjunct_and_sorted_on_sort_property(sort_by_field)? {
@@ -958,6 +963,27 @@ impl IndexMerger {
         } else {
             self.get_doc_id_from_concatenated_data()?
         };
+        self.write_with_mapping(serializer, doc_id_mapping)
+    }
+
+    /// Like [`IndexMerger::write`], but uses the caller-supplied `doc_id_mapping` instead of
+    /// deriving one from an index sort field.
+    ///
+    /// The mapping must cover all live documents across every segment passed to
+    /// [`IndexMerger::open_with_custom_alive_set`].
+    pub fn write_with_doc_id_mapping(
+        &self,
+        serializer: SegmentSerializer,
+        doc_id_mapping: SegmentDocIdMapping,
+    ) -> crate::Result<u32> {
+        self.write_with_mapping(serializer, doc_id_mapping)
+    }
+
+    fn write_with_mapping(
+        &self,
+        mut serializer: SegmentSerializer,
+        doc_id_mapping: SegmentDocIdMapping,
+    ) -> crate::Result<u32> {
         debug!("write-fieldnorms");
         if let Some(fieldnorms_serializer) = serializer.extract_fieldnorms_serializer() {
             self.write_fieldnorms(fieldnorms_serializer, &doc_id_mapping)?;

@@ -229,7 +229,10 @@ pub use crate::index::{
     Index, IndexBuilder, IndexMeta, IndexSettings, IndexSortByField, InvertedIndexReader, Order,
     Segment, SegmentMeta, SegmentReader,
 };
-pub use crate::indexer::{IndexWriter, SingleSegmentIndexWriter};
+pub use crate::indexer::{
+    merge_segments_with_doc_id_mapping, IndexMerger, IndexWriter, SegmentDocIdMapping,
+    SingleSegmentIndexWriter,
+};
 pub use crate::schema::{Document, TantivyDocument, Term};
 
 /// Index format version.

@@ -11,6 +11,7 @@ use crate::store::StoreWriter;
 pub struct SegmentSerializer {
     segment: Segment,
     pub(crate) store_writer: StoreWriter,
+    store_is_temp: bool,
     fast_field_write: WritePtr,
     fieldnorms_serializer: Option<FieldNormsSerializer>,
     postings_serializer: InvertedIndexSerializer,
@@ -18,14 +19,19 @@ pub struct SegmentSerializer {
 
 impl SegmentSerializer {
     /// Creates a new `SegmentSerializer`.
-    pub fn for_segment(
-        mut segment: Segment,
-        is_in_merge: bool,
-    ) -> crate::Result<SegmentSerializer> {
+    pub fn for_segment(segment: Segment, is_in_merge: bool) -> crate::Result<SegmentSerializer> {
         // If the segment is going to be sorted, we stream the docs first to a temporary file.
         // In the merge case this is not necessary because we can kmerge the already sorted
         // segments
         let remapping_required = segment.index().settings().sort_by_field.is_some() && !is_in_merge;
+        Self::for_segment_with_remapping_required(segment, remapping_required)
+    }
+
+    /// Creates a new `SegmentSerializer` with an explicit remapping requirement.
+    pub fn for_segment_with_remapping_required(
+        mut segment: Segment,
+        remapping_required: bool,
+    ) -> crate::Result<SegmentSerializer> {
         let settings = segment.index().settings().clone();
         let store_writer = if remapping_required {
             let store_write = segment.open_write(SegmentComponent::TempStore)?;
@@ -57,6 +63,7 @@ impl SegmentSerializer {
         Ok(SegmentSerializer {
             segment,
             store_writer,
+            store_is_temp: remapping_required,
             fast_field_write,
             fieldnorms_serializer: Some(fieldnorms_serializer),
             postings_serializer,
@@ -74,6 +81,10 @@ impl SegmentSerializer {
 
     pub fn segment_mut(&mut self) -> &mut Segment {
         &mut self.segment
+    }
+
+    pub fn store_is_temp(&self) -> bool {
+        self.store_is_temp
     }
 
     /// Accessor to the `PostingsSerializer`.

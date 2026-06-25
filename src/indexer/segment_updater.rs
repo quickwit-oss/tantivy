@@ -15,6 +15,7 @@ use crate::directory::{Directory, DirectoryClone, GarbageCollectionResult};
 use crate::fastfield::AliveBitSet;
 use crate::index::{Index, IndexMeta, IndexSettings, Segment, SegmentId, SegmentMeta};
 use crate::indexer::delete_queue::DeleteCursor;
+use crate::indexer::doc_id_mapping::SegmentDocIdMapping;
 use crate::indexer::index_writer::advance_deletes;
 use crate::indexer::merge_operation::MergeOperationInventory;
 use crate::indexer::merger::IndexMerger;
@@ -250,6 +251,81 @@ pub fn merge_filtered_segments<T: Into<Box<dyn Directory>>>(
     };
 
     // save the meta.json
+    save_metas(&index_meta, merged_index.directory_mut())?;
+
+    Ok(merged_index)
+}
+
+/// Like [`merge_filtered_segments`], but uses a caller-supplied [`SegmentDocIdMapping`]
+/// to control the final document order.
+///
+/// The mapping should be built from the same segments, in the same order, passed here.
+///
+/// # Warning
+/// Same caveats as [`merge_filtered_segments`]: no live `IndexWriter` is allowed.
+#[doc(hidden)]
+pub fn merge_segments_with_doc_id_mapping<T: Into<Box<dyn Directory>>>(
+    segments: &[Segment],
+    target_settings: IndexSettings,
+    filter_doc_ids: Vec<Option<AliveBitSet>>,
+    doc_id_mapping: SegmentDocIdMapping,
+    output_directory: T,
+) -> crate::Result<Index> {
+    if segments.is_empty() {
+        return Err(crate::TantivyError::InvalidArgument(
+            "No segments given to merge".to_string(),
+        ));
+    }
+
+    let target_schema = segments[0].schema();
+
+    if segments
+        .iter()
+        .skip(1)
+        .any(|segment| segment.schema() != target_schema)
+    {
+        return Err(crate::TantivyError::InvalidArgument(
+            "Attempt to merge different schema indices".to_string(),
+        ));
+    }
+
+    let mut merged_index = Index::create(
+        output_directory,
+        target_schema.clone(),
+        target_settings.clone(),
+    )?;
+    let merged_segment = merged_index.new_segment();
+    let merged_segment_id = merged_segment.id();
+    let merger = IndexMerger::open_with_custom_alive_set(
+        merged_index.schema(),
+        merged_index.settings().clone(),
+        segments,
+        filter_doc_ids,
+    )?;
+    let segment_serializer = SegmentSerializer::for_segment(merged_segment, true)?;
+    let num_docs = merger.write_with_doc_id_mapping(segment_serializer, doc_id_mapping)?;
+
+    let segment_meta = merged_index.new_segment_meta(merged_segment_id, num_docs);
+
+    let stats = format!(
+        "Segments Merge (external reordering): [{}]",
+        segments
+            .iter()
+            .fold(String::new(), |sum, current| format!(
+                "{sum}{} ",
+                current.meta().id().uuid_string()
+            ))
+            .trim_end()
+    );
+
+    let index_meta = IndexMeta {
+        index_settings: target_settings,
+        segments: vec![segment_meta],
+        schema: target_schema,
+        opstamp: 0u64,
+        payload: Some(stats),
+    };
+
     save_metas(&index_meta, merged_index.directory_mut())?;
 
     Ok(merged_index)

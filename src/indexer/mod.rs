@@ -8,7 +8,7 @@
 pub(crate) mod delete_queue;
 pub(crate) mod path_to_unordered_id;
 
-pub(crate) mod doc_id_mapping;
+pub mod doc_id_mapping;
 mod doc_opstamp_mapping;
 mod flat_map_with_buffer;
 pub(crate) mod index_writer;
@@ -17,7 +17,8 @@ pub(crate) mod indexing_term;
 mod log_merge_policy;
 mod merge_operation;
 pub(crate) mod merge_policy;
-pub(crate) mod merger;
+/// Segment merger APIs for combining multiple existing segments.
+pub mod merger;
 mod merger_sorted_index_test;
 pub(crate) mod operation;
 pub(crate) mod prepared_commit;
@@ -33,15 +34,19 @@ mod stamper;
 use crossbeam_channel as channel;
 use smallvec::SmallVec;
 
+pub use self::doc_id_mapping::SegmentDocIdMapping;
 pub use self::index_writer::{advance_deletes, IndexWriter, IndexWriterOptions};
 pub use self::log_merge_policy::LogMergePolicy;
 pub use self::merge_operation::MergeOperation;
 pub use self::merge_policy::{MergeCandidate, MergePolicy, NoMergePolicy};
+pub use self::merger::IndexMerger;
 pub use self::operation::{AddOperation, DeleteOperation, UserOperation};
 pub use self::prepared_commit::PreparedCommit;
 pub use self::segment_entry::SegmentEntry;
 pub(crate) use self::segment_serializer::SegmentSerializer;
-pub use self::segment_updater::{merge_filtered_segments, merge_indices};
+pub use self::segment_updater::{
+    merge_filtered_segments, merge_indices, merge_segments_with_doc_id_mapping,
+};
 pub use self::segment_writer::SegmentWriter;
 pub use self::single_segment_index_writer::SingleSegmentIndexWriter;
 
