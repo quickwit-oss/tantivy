@@ -283,7 +283,8 @@ impl InvertedIndexReader {
 
 #[cfg(feature = "quickwit")]
 impl InvertedIndexReader {
-    pub(crate) async fn get_term_info_async(&self, term: &Term) -> io::Result<Option<TermInfo>> {
+    /// Resolves a `Term` to its [`TermInfo`] asynchronously, if present in the dictionary.
+    pub async fn get_term_info_async(&self, term: &Term) -> io::Result<Option<TermInfo>> {
         self.termdict.get_async(term.serialized_value_bytes()).await
     }
 
@@ -336,21 +337,36 @@ impl InvertedIndexReader {
     pub async fn warm_postings(&self, term: &Term, with_positions: bool) -> io::Result<bool> {
         let term_info_opt: Option<TermInfo> = self.get_term_info_async(term).await?;
         if let Some(term_info) = term_info_opt {
-            let postings = self
-                .postings_file_slice
-                .read_bytes_slice_async(term_info.postings_range.clone());
-            if with_positions {
-                let positions = self
-                    .positions_file_slice
-                    .read_bytes_slice_async(term_info.positions_range.clone());
-                futures_util::future::try_join(postings, positions).await?;
-            } else {
-                postings.await?;
-            }
+            self.warm_postings_from_term_info(&term_info, with_positions)
+                .await?;
             Ok(true)
         } else {
             Ok(false)
         }
+    }
+
+    /// Warmup a block postings given a `TermInfo`.
+    /// This method is for an advanced usage only.
+    ///
+    /// Use this when the [`TermInfo`] is already known (e.g. resolved via
+    /// [`Self::get_term_info_async`]) to avoid a redundant dictionary lookup.
+    pub async fn warm_postings_from_term_info(
+        &self,
+        term_info: &TermInfo,
+        with_positions: bool,
+    ) -> io::Result<()> {
+        let postings = self
+            .postings_file_slice
+            .read_bytes_slice_async(term_info.postings_range.clone());
+        if with_positions {
+            let positions = self
+                .positions_file_slice
+                .read_bytes_slice_async(term_info.positions_range.clone());
+            futures_util::future::try_join(postings, positions).await?;
+        } else {
+            postings.await?;
+        }
+        Ok(())
     }
 
     /// Warmup a block postings given a range of `Term`s.
