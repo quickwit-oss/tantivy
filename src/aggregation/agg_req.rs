@@ -33,7 +33,7 @@ use serde::{Deserialize, Serialize};
 
 use super::bucket::{
     CompositeAggregation, DateHistogramAggregationReq, FilterAggregation, HistogramAggregation,
-    RangeAggregation, TermsAggregation,
+    MultiTermsAggregation, RangeAggregation, TermsAggregation,
 };
 use super::metric::{
     AverageAggregation, CardinalityAggregationReq, CountAggregation, ExtendedStatsAggregation,
@@ -202,6 +202,9 @@ pub enum AggregationVariants {
     /// Multi-dimensional, paginable bucket aggregation.
     #[serde(rename = "composite")]
     Composite(CompositeAggregation),
+    /// Bucket aggregation over unique combinations of values across multiple term fields.
+    #[serde(rename = "multi_terms")]
+    MultiTerms(MultiTermsAggregation),
 
     // Metric aggregation types
     /// Computes the average of the extracted values.
@@ -253,6 +256,9 @@ impl AggregationVariants {
                 .iter()
                 .map(|source| source.field())
                 .collect(),
+            AggregationVariants::MultiTerms(mt) => {
+                mt.terms.iter().map(|t| t.field.as_str()).collect()
+            }
             AggregationVariants::Average(avg) => vec![avg.field_name()],
             AggregationVariants::Count(count) => vec![count.field_name()],
             AggregationVariants::Max(max) => vec![max.field_name()],
@@ -290,6 +296,12 @@ impl AggregationVariants {
     pub(crate) fn as_composite(&self) -> Option<&CompositeAggregation> {
         match &self {
             AggregationVariants::Composite(composite) => Some(composite),
+            _ => None,
+        }
+    }
+    pub(crate) fn as_multi_terms(&self) -> Option<&MultiTermsAggregation> {
+        match &self {
+            AggregationVariants::MultiTerms(mt) => Some(mt),
             _ => None,
         }
     }
