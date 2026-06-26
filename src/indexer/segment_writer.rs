@@ -17,7 +17,7 @@ use crate::postings::{
 };
 use crate::schema::document::{Document, Value};
 use crate::schema::{FieldEntry, FieldType, Schema, DATE_TIME_PRECISION_INDEXED};
-use crate::store::{Compressor, StoreReader, StoreWriter};
+use crate::store::{StoreReader, StoreWriter};
 use crate::tokenizer::{FacetTokenizer, PreTokenizedStream, TextAnalyzer, Tokenizer};
 use crate::{DocId, Opstamp, TantivyError};
 
@@ -87,31 +87,11 @@ impl SegmentWriter {
     /// - segment: The segment being written
     /// - schema
     pub fn for_segment(memory_budget_in_bytes: usize, segment: Segment) -> crate::Result<Self> {
-        Self::for_segment_inner(memory_budget_in_bytes, segment, |segment| {
-            SegmentSerializer::for_segment(segment, false)
-        })
-    }
-
-    /// Creates a new `SegmentWriter` for a segment that will be remapped during finalization.
-    pub fn for_segment_with_doc_id_mapping(
-        memory_budget_in_bytes: usize,
-        segment: Segment,
-    ) -> crate::Result<Self> {
-        Self::for_segment_inner(memory_budget_in_bytes, segment, |segment| {
-            SegmentSerializer::for_segment_with_doc_id_mapping(segment)
-        })
-    }
-
-    fn for_segment_inner(
-        memory_budget_in_bytes: usize,
-        segment: Segment,
-        segment_serializer: impl Fn(Segment) -> crate::Result<SegmentSerializer>,
-    ) -> crate::Result<Self> {
         let schema = segment.schema();
         let tokenizer_manager = segment.index().tokenizers().clone();
         let tokenizer_manager_fast_field = segment.index().fast_field_tokenizer().clone();
-        let table_size: usize = compute_initial_table_size(memory_budget_in_bytes)?;
-        let segment_serializer = segment_serializer(segment)?;
+        let table_size = compute_initial_table_size(memory_budget_in_bytes)?;
+        let segment_serializer = SegmentSerializer::for_segment(segment, false)?;
         let per_field_postings_writers = PerFieldPostingsWriter::for_schema(&schema);
         let per_field_text_analyzers = schema
             .fields()
@@ -178,10 +158,15 @@ impl SegmentWriter {
     /// Finalize consumes the `SegmentWriter`, so that it cannot be used afterwards.
     pub fn finalize_with_doc_id_mapping(self, mapping: &DocIdMapping) -> crate::Result<Vec<u64>> {
         // Ensure the segment writer was created in remap mode so the docstore can be reordered.
-        if self.segment_serializer.store_writer.compressor() != Compressor::None {
+        if !self
+            .segment_serializer
+            .segment()
+            .index()
+            .settings()
+            .manual_doc_id_mapping
+        {
             return Err(TantivyError::InvalidArgument(
-                "SegmentWriter was not created by for_segment_with_doc_id_mapping function"
-                    .to_string(),
+                "IndexSettings::manual_doc_id_mapping must be set to true".to_string(),
             ));
         }
 
@@ -1212,13 +1197,13 @@ mod tests {
         schema_builder.add_u64_field("order", FAST | STORED);
         schema_builder.add_text_field("text", TEXT);
         let schema = schema_builder.build();
-        let index = Index::create_in_ram(schema);
+        let mut index = Index::create_in_ram(schema);
+        index.settings_mut().manual_doc_id_mapping = true;
         let segment = index.new_segment();
         let order = index.schema().get_field("order").unwrap();
         let text = index.schema().get_field("text").unwrap();
         let mut segment_writer =
-            super::SegmentWriter::for_segment_with_doc_id_mapping(15_000_000, segment.clone())
-                .unwrap();
+            super::SegmentWriter::for_segment(15_000_000, segment.clone()).unwrap();
         for (opstamp, text_opt) in texts.iter().enumerate() {
             let mut doc = TantivyDocument::default();
             doc.add_u64(order, opstamp as u64);

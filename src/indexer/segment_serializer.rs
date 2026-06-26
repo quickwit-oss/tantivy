@@ -5,7 +5,6 @@ use crate::fieldnorm::FieldNormsSerializer;
 use crate::index::{Segment, SegmentComponent};
 use crate::postings::InvertedIndexSerializer;
 use crate::store::{Compressor, StoreWriter};
-use crate::IndexSettings;
 
 /// Segment serializer is in charge of laying out on disk
 /// the data accumulated and sorted by the `SegmentWriter`.
@@ -26,10 +25,20 @@ impl SegmentSerializer {
         // If the segment is going to be sorted, we stream the docs first to a temporary file.
         // In the merge case this is not necessary because we can kmerge the already sorted
         // segments
-        let remapping_required = segment.index().settings().sort_by_field.is_some() && !is_in_merge;
         let settings = segment.index().settings().clone();
+        let remapping_required =
+            (settings.sort_by_field.is_some() || settings.manual_doc_id_mapping) && !is_in_merge;
         let store_writer = if remapping_required {
-            Self::create_temp_store_writer(&mut segment, &settings)?
+            let store_write = segment.open_write(SegmentComponent::TempStore)?;
+            StoreWriter::new(
+                store_write,
+                Compressor::None,
+                // We want fast random access on the docs, so we choose a small block size.
+                // If this is zero, the skip index will contain too many checkpoints and
+                // therefore will be relatively slow.
+                16_000,
+                settings.docstore_compress_dedicated_thread,
+            )?
         } else {
             let store_write = segment.open_write(SegmentComponent::Store)?;
             StoreWriter::new(
@@ -40,38 +49,6 @@ impl SegmentSerializer {
             )?
         };
 
-        Self::for_segment_inner(segment, store_writer)
-    }
-
-    pub(crate) fn for_segment_with_doc_id_mapping(
-        mut segment: Segment,
-    ) -> crate::Result<SegmentSerializer> {
-        let settings = segment.index().settings().clone();
-        let store_writer = Self::create_temp_store_writer(&mut segment, &settings)?;
-        Self::for_segment_inner(segment, store_writer)
-    }
-
-    fn create_temp_store_writer(
-        segment: &mut Segment,
-        settings: &IndexSettings,
-    ) -> crate::Result<StoreWriter> {
-        let store_write = segment.open_write(SegmentComponent::TempStore)?;
-        let store_writer = StoreWriter::new(
-            store_write,
-            Compressor::None,
-            // We want fast random access on the docs, so we choose a small block size.
-            // If this is zero, the skip index will contain too many checkpoints and
-            // therefore will be relatively slow.
-            16_000,
-            settings.docstore_compress_dedicated_thread,
-        )?;
-        Ok(store_writer)
-    }
-
-    fn for_segment_inner(
-        mut segment: Segment,
-        store_writer: StoreWriter,
-    ) -> crate::Result<SegmentSerializer> {
         let fast_field_write = segment.open_write(SegmentComponent::FastFields)?;
 
         let fieldnorms_write = segment.open_write(SegmentComponent::FieldNorms)?;
