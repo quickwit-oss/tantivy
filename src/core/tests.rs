@@ -306,8 +306,11 @@ fn test_single_segment_index_writer_with_doc_id_mapping() -> crate::Result<()> {
     let text_field = schema_builder.add_text_field("text", TEXT | STORED);
     let schema = schema_builder.build();
     let directory = RamDirectory::default();
+    let mut settings = IndexSettings::default();
+    settings.manual_doc_id_mapping = true;
     let mut single_segment_index_writer = Index::builder()
         .schema(schema)
+        .settings(settings)
         .single_segment_index_writer(directory, 15_000_000)?;
 
     single_segment_index_writer.add_document(doc!(text_field=>"alpha beta"))?;
