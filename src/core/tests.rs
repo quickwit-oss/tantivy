@@ -1,14 +1,14 @@
 use crate::collector::Count;
 use crate::directory::{RamDirectory, WatchCallback};
 use crate::index::SegmentId;
-use crate::indexer::{LogMergePolicy, NoMergePolicy};
+use crate::indexer::{DocIdMapping, LogMergePolicy, NoMergePolicy};
 use crate::postings::Postings;
 use crate::query::TermQuery;
-use crate::schema::{Field, IndexRecordOption, Schema, INDEXED, STRING, TEXT};
+use crate::schema::{Field, IndexRecordOption, Schema, Value, INDEXED, STORED, STRING, TEXT};
 use crate::tokenizer::TokenizerManager;
 use crate::{
-    Directory, DocSet, Index, IndexBuilder, IndexReader, IndexSettings, IndexWriter, ReloadPolicy,
-    TantivyDocument, Term,
+    Directory, DocAddress, DocSet, Index, IndexBuilder, IndexReader, IndexSettings, IndexWriter,
+    ReloadPolicy, TantivyDocument, Term,
 };
 
 #[test]
@@ -297,6 +297,46 @@ fn test_single_segment_index_writer() -> crate::Result<()> {
     );
     let count = searcher.search(&term_query, &Count)?;
     assert_eq!(count, 10);
+    Ok(())
+}
+
+#[test]
+fn test_single_segment_index_writer_with_doc_id_mapping() -> crate::Result<()> {
+    let mut schema_builder = Schema::builder();
+    let text_field = schema_builder.add_text_field("text", TEXT | STORED);
+    let schema = schema_builder.build();
+    let directory = RamDirectory::default();
+    let mut single_segment_index_writer = Index::builder()
+        .schema(schema)
+        .single_segment_index_writer(directory, 15_000_000)?;
+
+    single_segment_index_writer.add_document(doc!(text_field=>"alpha beta"))?;
+    single_segment_index_writer.add_document(doc!())?;
+    single_segment_index_writer.add_document(doc!(text_field=>"gamma"))?;
+
+    let mapping = DocIdMapping::from_new_id_to_old_id(vec![2, 1, 0]);
+    let index = single_segment_index_writer.finalize_with_doc_id_mapping(&mapping)?;
+
+    let searcher = index.reader()?.searcher();
+    let segment_reader = searcher.segment_reader(0);
+    let fieldnorm_reader = segment_reader.get_fieldnorms_reader(text_field)?;
+
+    assert_eq!(fieldnorm_reader.fieldnorm(0), 1);
+    assert_eq!(fieldnorm_reader.fieldnorm(1), 0);
+    assert_eq!(fieldnorm_reader.fieldnorm(2), 2);
+
+    let doc_0 = searcher.doc::<TantivyDocument>(DocAddress::new(0, 0))?;
+    assert_eq!(
+        doc_0.get_first(text_field).and_then(|val| val.as_str()),
+        Some("gamma")
+    );
+    let doc_1 = searcher.doc::<TantivyDocument>(DocAddress::new(0, 1))?;
+    assert!(doc_1.get_first(text_field).is_none());
+    let doc_2 = searcher.doc::<TantivyDocument>(DocAddress::new(0, 2))?;
+    assert_eq!(
+        doc_2.get_first(text_field).and_then(|val| val.as_str()),
+        Some("alpha beta")
+    );
     Ok(())
 }
 

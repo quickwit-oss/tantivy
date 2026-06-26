@@ -2,7 +2,7 @@ use std::marker::PhantomData;
 
 use crate::indexer::operation::AddOperation;
 use crate::indexer::segment_updater::save_metas;
-use crate::indexer::SegmentWriter;
+use crate::indexer::{DocIdMapping, SegmentWriter};
 use crate::schema::document::Document;
 use crate::{Directory, Index, IndexMeta, Opstamp, Segment, TantivyDocument};
 
@@ -38,9 +38,29 @@ impl<D: Document> SingleSegmentIndexWriter<D> {
     }
 
     pub fn finalize(self) -> crate::Result<Index> {
-        let max_doc = self.segment_writer.max_doc();
-        self.segment_writer.finalize()?;
-        let segment: Segment = self.segment.with_max_doc(max_doc);
+        let Self {
+            segment,
+            segment_writer,
+            ..
+        } = self;
+        let max_doc = segment_writer.max_doc();
+        segment_writer.finalize()?;
+        Self::finalize_inner(segment, max_doc)
+    }
+
+    pub fn finalize_with_doc_id_mapping(self, mapping: &DocIdMapping) -> crate::Result<Index> {
+        let Self {
+            segment,
+            segment_writer,
+            ..
+        } = self;
+        let max_doc = segment_writer.max_doc();
+        segment_writer.finalize_with_doc_id_mapping(mapping)?;
+        Self::finalize_inner(segment, max_doc)
+    }
+
+    fn finalize_inner(segment: Segment, max_doc: u32) -> crate::Result<Index> {
+        let segment: Segment = segment.with_max_doc(max_doc);
         let index = segment.index();
         let index_meta = IndexMeta {
             index_settings: index.settings().clone(),
@@ -51,6 +71,6 @@ impl<D: Document> SingleSegmentIndexWriter<D> {
         };
         save_metas(&index_meta, index.directory())?;
         index.directory().sync_directory()?;
-        Ok(segment.index().clone())
+        Ok(index.clone())
     }
 }
