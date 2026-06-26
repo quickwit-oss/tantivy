@@ -465,6 +465,7 @@ mod tests {
                     field: "text".to_string(),
                     order: Order::Asc,
                 }),
+                manual_doc_id_mapping: false,
                 docstore_compression: crate::store::Compressor::Zstd(ZstdCompressor {
                     compression_level: Some(4),
                 }),
