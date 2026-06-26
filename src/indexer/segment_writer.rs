@@ -1,5 +1,5 @@
 use columnar::MonotonicallyMappableToU64;
-use common::JsonPathWriter;
+use common::{BitSet, JsonPathWriter};
 use itertools::Itertools;
 use tokenizer_api::BoxTokenStream;
 
@@ -136,10 +136,8 @@ impl SegmentWriter {
 
     /// Lay on disk the current content of the `SegmentWriter`
     ///
-    /// Finalize consumes the `SegmentWriter`, so that it cannot
-    /// be used afterwards.
-    pub fn finalize(mut self) -> crate::Result<Vec<u64>> {
-        self.fieldnorms_writer.fill_up_to_max_doc(self.max_doc);
+    /// Finalize consumes the `SegmentWriter`, so that it cannot be used afterwards.
+    pub fn finalize(self) -> crate::Result<Vec<u64>> {
         let mapping: Option<DocIdMapping> = self
             .segment_serializer
             .segment()
@@ -149,6 +147,41 @@ impl SegmentWriter {
             .clone()
             .map(|sort_by_field| get_doc_id_mapping_from_field(sort_by_field, &self))
             .transpose()?;
+        self.finalize_inner(mapping.as_ref())
+    }
+
+    /// Lay on disk the current content of the `SegmentWriter` using the given doc id mapping.
+    ///
+    /// The mapping must cover all documents in this segment and maps the segment's original doc ids
+    /// to the doc ids that should be written on disk.
+    ///
+    /// Finalize consumes the `SegmentWriter`, so that it cannot be used afterwards.
+    pub fn finalize_with_doc_id_mapping(self, mapping: &DocIdMapping) -> crate::Result<Vec<u64>> {
+        // Check that the mapping eventually covers all documents in the segment.
+        if mapping.len() != self.max_doc as usize {
+            return Err(TantivyError::InvalidArgument(format!(
+                "Mapping must cover all documents in this segment. Expected {} documents, got {}",
+                self.max_doc,
+                mapping.len()
+            )));
+        }
+
+        // Check that the mapping is a permutation of the segment doc ids.
+        let mut seen_doc_ids = BitSet::with_max_value(self.max_doc);
+        for old_doc_id in mapping.iter_old_doc_ids() {
+            if old_doc_id >= self.max_doc || !seen_doc_ids.insert(old_doc_id) {
+                return Err(TantivyError::InvalidArgument(
+                    "Mapping must be a permutation of the segment doc ids".to_string(),
+                ));
+            }
+        }
+
+        self.finalize_inner(Some(mapping))
+    }
+
+    fn finalize_inner(mut self, mapping: Option<&DocIdMapping>) -> crate::Result<Vec<u64>> {
+        // Pad before remapping; the mapping indexes fieldnorms by old doc id.
+        self.fieldnorms_writer.fill_up_to_max_doc(self.max_doc);
         remap_and_write(
             self.schema,
             &self.per_field_postings_writers,
@@ -156,9 +189,9 @@ impl SegmentWriter {
             self.fast_field_writers,
             &self.fieldnorms_writer,
             self.segment_serializer,
-            mapping.as_ref(),
+            mapping,
         )?;
-        let doc_opstamps = remap_doc_opstamps(self.doc_opstamps, mapping.as_ref());
+        let doc_opstamps = remap_doc_opstamps(self.doc_opstamps, mapping);
         Ok(doc_opstamps)
     }
 

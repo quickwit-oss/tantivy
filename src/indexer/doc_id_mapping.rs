@@ -71,6 +71,10 @@ pub struct DocIdMapping {
 }
 
 impl DocIdMapping {
+    /// Creates a `DocIdMapping` from a mapping of new doc ids to old doc ids.
+    ///
+    /// The caller MUST ensure that `new_doc_id_to_old` is a permutation of the
+    /// segment's old doc ids, with every old doc id appearing exactly once.
     pub fn from_new_id_to_old_id(new_doc_id_to_old: Vec<DocId>) -> Self {
         let max_doc = new_doc_id_to_old.len();
         let old_max_doc = new_doc_id_to_old
@@ -90,34 +94,39 @@ impl DocIdMapping {
     }
 
     /// returns the new doc_id for the old doc_id
-    pub fn get_new_doc_id(&self, doc_id: DocId) -> DocId {
+    pub(crate) fn get_new_doc_id(&self, doc_id: DocId) -> DocId {
         self.old_doc_id_to_new[doc_id as usize]
     }
-    /// returns the old doc_id for the new doc_id
-    pub fn get_old_doc_id(&self, doc_id: DocId) -> DocId {
-        self.new_doc_id_to_old[doc_id as usize]
-    }
+
     /// iterate over old doc_ids in order of the new doc_ids
-    pub fn iter_old_doc_ids(&self) -> impl Iterator<Item = DocId> + Clone + '_ {
+    pub(crate) fn iter_old_doc_ids(&self) -> impl Iterator<Item = DocId> + Clone + '_ {
         self.new_doc_id_to_old.iter().cloned()
     }
 
-    pub fn old_to_new_ids(&self) -> &[DocId] {
+    /// returns the new doc_ids in order of the old doc_ids
+    pub(crate) fn old_to_new_ids(&self) -> &[DocId] {
         &self.old_doc_id_to_new[..]
     }
 
     /// Remaps a given array to the new doc ids.
-    pub fn remap<T: Copy>(&self, els: &[T]) -> Vec<T> {
+    pub(crate) fn remap<T: Copy>(&self, els: &[T]) -> Vec<T> {
         self.new_doc_id_to_old
             .iter()
             .map(|old_doc| els[*old_doc as usize])
             .collect()
     }
-    pub fn num_new_doc_ids(&self) -> usize {
+
+    /// returns the number of new doc_ids
+    pub(crate) fn len(&self) -> usize {
         self.new_doc_id_to_old.len()
     }
-    pub fn num_old_doc_ids(&self) -> usize {
-        self.old_doc_id_to_new.len()
+}
+
+#[cfg(test)]
+impl DocIdMapping {
+    /// returns the old doc_id for the new doc_id
+    fn get_old_doc_id(&self, doc_id: DocId) -> DocId {
+        self.new_doc_id_to_old[doc_id as usize]
     }
 }
 
