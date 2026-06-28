@@ -158,7 +158,7 @@ impl BlockDecoder {
     /// Uses the padded buffer to enable branchless search.
     #[inline]
     pub(crate) fn seek_within_block(&self, target: u32) -> usize {
-        crate::postings::branchless_binary_search(&self.output, target)
+        crate::postings::search_block(&self.output, target)
     }
 
     #[inline]
