@@ -1,4 +1,4 @@
-use std::io::Write;
+use std::io::{Read, Write};
 use std::{fmt, io};
 
 use ownedbytes::OwnedBytes;
@@ -221,6 +221,28 @@ impl BitSet {
         }
         writer.flush()?;
         Ok(())
+    }
+
+    pub fn deserialize<T: Read>(reader: &mut T) -> io::Result<BitSet> {
+        let mut max_value_buf = [0u8; 4];
+        reader.read_exact(&mut max_value_buf)?;
+        let max_value = u32::from_le_bytes(max_value_buf);
+
+        let num_buckets = num_buckets(max_value) as usize;
+        let mut tinysets = Vec::with_capacity(num_buckets);
+        let mut len = 0u64;
+        let mut tinyset_buf = [0u8; 8];
+        for _ in 0..num_buckets {
+            reader.read_exact(&mut tinyset_buf)?;
+            let tinyset = TinySet::deserialize(tinyset_buf);
+            len += u64::from(tinyset.len());
+            tinysets.push(tinyset);
+        }
+        Ok(BitSet {
+            tinysets: tinysets.into_boxed_slice(),
+            len,
+            max_value,
+        })
     }
 
     /// Create a new `BitSet` that may contain elements
@@ -449,6 +471,24 @@ mod tests {
 
             let bitset = ReadOnlyBitSet::open(OwnedBytes::new(out));
             assert_eq!(bitset.len(), i as usize);
+        }
+    }
+
+    #[test]
+    fn test_bitset_serialize_deserialize_roundtrip() {
+        let mut bitset = BitSet::with_max_value(1_000);
+        for el in [3u32, 5, 63, 64, 127, 999] {
+            bitset.insert(el);
+        }
+
+        let mut out = vec![];
+        bitset.serialize(&mut out).unwrap();
+
+        let deserialized = BitSet::deserialize(&mut &out[..]).unwrap();
+        assert_eq!(deserialized.max_value(), bitset.max_value());
+        assert_eq!(deserialized.len(), bitset.len());
+        for el in 0..1_000u32 {
+            assert_eq!(deserialized.contains(el), bitset.contains(el));
         }
     }
 
