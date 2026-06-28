@@ -6,8 +6,8 @@ use std::net::Ipv6Addr;
 use std::ops::{Bound, RangeInclusive};
 
 use columnar::{
-    Cardinality, Column, ColumnType, MonotonicallyMappableToU128, MonotonicallyMappableToU64,
-    NumericalType, StrColumn,
+    BytesColumn, Cardinality, Column, ColumnType, MonotonicallyMappableToU128,
+    MonotonicallyMappableToU64, NumericalType, StrColumn,
 };
 use common::bounds::{BoundsRange, TransformBound};
 
@@ -162,6 +162,25 @@ impl Weight for FastFieldRangeWeight {
                 return Ok(Box::new(EmptyScorer));
             };
             let dict = str_dict_column.dictionary();
+
+            let bounds = self.bounds.map_bound(get_value_bytes);
+            // Get term ids for terms
+            let (lower_bound, upper_bound) =
+                dict.term_bounds_to_ord(bounds.lower_bound, bounds.upper_bound)?;
+            let fast_field_reader = reader.fast_fields();
+            let Some((column, _col_type)) =
+                fast_field_reader.u64_lenient_for_type(None, &field_name)?
+            else {
+                return Ok(Box::new(EmptyScorer));
+            };
+            search_on_u64_ff(column, boost, BoundsRange::new(lower_bound, upper_bound))
+        } else if field_type.is_bytes() {
+            let Some(bytes_column): Option<BytesColumn> =
+                reader.fast_fields().bytes(&field_name)?
+            else {
+                return Ok(Box::new(EmptyScorer));
+            };
+            let dict = bytes_column.dictionary();
 
             let bounds = self.bounds.map_bound(get_value_bytes);
             // Get term ids for terms
@@ -1399,6 +1418,66 @@ mod tests {
         if samples.len() > 2 {
             test_sample(vec![samples[1].clone(), samples[2].clone()]);
         }
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_bytes_field_ff_range_query() -> crate::Result<()> {
+        use crate::schema::BytesOptions;
+
+        let mut schema_builder = Schema::builder();
+        let bytes_field = schema_builder
+            .add_bytes_field("data", BytesOptions::default().set_fast().set_indexed());
+        let schema = schema_builder.build();
+        let index = Index::create_in_ram(schema.clone());
+        let mut index_writer: IndexWriter = index.writer_for_tests()?;
+
+        // Insert documents with lexicographically sortable byte values
+        // Using simple byte sequences that have clear ordering
+        let values: Vec<Vec<u8>> = vec![
+            vec![0x00, 0x10],
+            vec![0x00, 0x20],
+            vec![0x00, 0x30],
+            vec![0x01, 0x00],
+            vec![0x01, 0x10],
+            vec![0x02, 0x00],
+        ];
+
+        for value in &values {
+            let mut doc = TantivyDocument::new();
+            doc.add_bytes(bytes_field, value);
+            index_writer.add_document(doc)?;
+        }
+        index_writer.commit()?;
+
+        let reader = index.reader()?;
+        let searcher = reader.searcher();
+
+        // Test: Range query [0x00, 0x20] to [0x01, 0x00] (inclusive)
+        // Should match: [0x00, 0x20], [0x00, 0x30], [0x01, 0x00]
+        let lower = Term::from_field_bytes(bytes_field, &[0x00, 0x20]);
+        let upper = Term::from_field_bytes(bytes_field, &[0x01, 0x00]);
+        let range_query = RangeQuery::new(Bound::Included(lower), Bound::Included(upper));
+        let count = searcher.search(&range_query, &Count)?;
+        assert_eq!(
+            count, 3,
+            "Expected 3 documents in range [0x00,0x20] to [0x01,0x00]"
+        );
+
+        // Test: Range query > [0x01, 0x00] (exclusive lower bound)
+        // Should match: [0x01, 0x10], [0x02, 0x00]
+        let lower = Term::from_field_bytes(bytes_field, &[0x01, 0x00]);
+        let range_query = RangeQuery::new(Bound::Excluded(lower), Bound::Unbounded);
+        let count = searcher.search(&range_query, &Count)?;
+        assert_eq!(count, 2, "Expected 2 documents > [0x01,0x00]");
+
+        // Test: Range query < [0x00, 0x30] (exclusive upper bound)
+        // Should match: [0x00, 0x10], [0x00, 0x20]
+        let upper = Term::from_field_bytes(bytes_field, &[0x00, 0x30]);
+        let range_query = RangeQuery::new(Bound::Unbounded, Bound::Excluded(upper));
+        let count = searcher.search(&range_query, &Count)?;
+        assert_eq!(count, 2, "Expected 2 documents < [0x00,0x30]");
 
         Ok(())
     }

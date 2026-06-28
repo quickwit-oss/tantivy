@@ -7,7 +7,7 @@ mod compact_space;
 
 use common::{BinarySerializable, OwnedBytes, VInt};
 pub use compact_space::{
-    CompactSpaceCompressor, CompactSpaceDecompressor, CompactSpaceU64Accessor,
+    CompactHit, CompactSpaceCompressor, CompactSpaceDecompressor, CompactSpaceU64Accessor,
 };
 
 use crate::column_values::monotonic_map_column;

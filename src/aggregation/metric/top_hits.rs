@@ -644,6 +644,17 @@ impl SegmentAggregationCollector for TopHitsSegmentCollector {
         );
         Ok(())
     }
+
+    fn compute_metric_value(
+        &self,
+        _bucket_id: BucketId,
+        _sub_agg_name: &str,
+        _sub_agg_property: &str,
+        _agg_data: &AggregationsSegmentCtx,
+    ) -> Option<f64> {
+        // top_hits is not a numeric metric and cannot be used as an order target.
+        None
+    }
 }
 
 #[cfg(test)]

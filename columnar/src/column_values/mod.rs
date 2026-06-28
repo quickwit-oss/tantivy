@@ -31,7 +31,7 @@ pub use u64_based::{
     serialize_and_load_u64_based_column_values, serialize_u64_based_column_values,
 };
 pub use u128_based::{
-    CompactSpaceU64Accessor, open_u128_as_compact_u64, open_u128_mapped,
+    CompactHit, CompactSpaceU64Accessor, open_u128_as_compact_u64, open_u128_mapped,
     serialize_column_values_u128,
 };
 pub use vec_column::VecColumn;
@@ -119,8 +119,18 @@ pub trait ColumnValues<T: PartialOrd = u64>: Send + Sync + DowncastSync {
     /// the segment's `maxdoc`.
     #[inline(always)]
     fn get_range(&self, start: u64, output: &mut [T]) {
-        for (out, idx) in output.iter_mut().zip(start..) {
+        let mut out_chunks = output.chunks_exact_mut(4);
+        let mut idx = start;
+        for out_x4 in out_chunks.by_ref() {
+            out_x4[0] = self.get_val(idx as u32);
+            out_x4[1] = self.get_val((idx + 1) as u32);
+            out_x4[2] = self.get_val((idx + 2) as u32);
+            out_x4[3] = self.get_val((idx + 3) as u32);
+            idx += 4;
+        }
+        for out in out_chunks.into_remainder() {
             *out = self.get_val(idx as u32);
+            idx += 1;
         }
     }
 

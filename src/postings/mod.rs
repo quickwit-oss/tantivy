@@ -14,7 +14,8 @@ mod postings;
 mod postings_writer;
 mod recorder;
 mod segment_postings;
-mod serializer;
+/// Serializer module for the inverted index
+pub mod serializer;
 mod skip;
 mod term_info;
 

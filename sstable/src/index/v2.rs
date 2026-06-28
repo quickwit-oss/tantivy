@@ -77,6 +77,13 @@ impl SSTableIndex {
         self.get_block(self.locate_with_ord(ord)).unwrap()
     }
 
+    pub(crate) fn get_and_locate_with_ord(&self, ord: TermOrdinal) -> (BlockAddr, u64) {
+        let location = self.locate_with_ord(ord);
+        // locate_with_ord always returns an index within range
+        let block_addr = self.get_block(location).unwrap();
+        (block_addr, location as u64)
+    }
+
     pub(crate) fn get_block_for_automaton<'a>(
         &'a self,
         automaton: &'a impl Automaton,

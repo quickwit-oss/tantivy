@@ -5,7 +5,7 @@ use crate::aggregation::agg_data::{
     build_segment_agg_collectors, AggRefNode, AggregationsSegmentCtx,
 };
 use crate::aggregation::bucket::term_agg::TermsAggregation;
-use crate::aggregation::cached_sub_aggs::{CachedSubAggs, HighCardCachedSubAggs};
+use crate::aggregation::buffered_sub_aggs::{BufferedSubAggs, HighCardBufferedSubAggs};
 use crate::aggregation::intermediate_agg_result::{
     IntermediateAggregationResult, IntermediateAggregationResults, IntermediateBucketResult,
     IntermediateKey, IntermediateTermBucketEntry, IntermediateTermBucketResult,
@@ -47,7 +47,7 @@ struct MissingCount {
 #[derive(Default, Debug)]
 pub struct TermMissingAgg {
     accessor_idx: usize,
-    sub_agg: Option<HighCardCachedSubAggs>,
+    sub_agg: Option<HighCardBufferedSubAggs>,
     /// Idx = parent bucket id, Value = missing count for that bucket
     missing_count_per_bucket: Vec<MissingCount>,
     bucket_id_provider: BucketIdProvider,
@@ -66,7 +66,7 @@ impl TermMissingAgg {
             None
         };
 
-        let sub_agg = sub_agg.map(CachedSubAggs::new);
+        let sub_agg = sub_agg.map(BufferedSubAggs::new);
         let bucket_id_provider = BucketIdProvider::default();
 
         Ok(Self {
@@ -98,7 +98,7 @@ impl SegmentAggregationCollector for TermMissingAgg {
 
         let missing_count = &self.missing_count_per_bucket[parent_bucket_id as usize];
         let mut missing_entry = IntermediateTermBucketEntry {
-            doc_count: missing_count.missing_count,
+            doc_count: missing_count.missing_count as u64,
             sub_aggregation: Default::default(),
         };
         if let Some(sub_agg) = &mut self.sub_agg {
@@ -176,6 +176,17 @@ impl SegmentAggregationCollector for TermMissingAgg {
             sub_agg.flush(agg_data)?;
         }
         Ok(())
+    }
+
+    fn compute_metric_value(
+        &self,
+        _bucket_id: BucketId,
+        _sub_agg_name: &str,
+        _sub_agg_property: &str,
+        _agg_data: &AggregationsSegmentCtx,
+    ) -> Option<f64> {
+        // TODO: forward to `sub_agg` for nested order paths (`missing_agg>metric`).
+        None
     }
 }
 

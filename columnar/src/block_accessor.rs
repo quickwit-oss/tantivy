@@ -15,9 +15,37 @@ impl<T: PartialOrd + Copy + std::fmt::Debug + Send + Sync + 'static + Default>
 {
     #[inline]
     pub fn fetch_block<'a>(&'a mut self, docs: &'a [u32], accessor: &Column<T>) {
-        if accessor.index.get_cardinality().is_full() {
-            self.val_cache.resize(docs.len(), T::default());
-            accessor.values.get_vals(docs, &mut self.val_cache);
+        self.fetch_block_with_is_full(docs, accessor, accessor.index.get_cardinality().is_full());
+    }
+
+    /// Like [`Self::fetch_block`] but takes the column's fullness instead of querying
+    /// `accessor.index.get_cardinality()` each call — for callers that know it up front (e.g.
+    /// checked once at construction). `is_full` must equal
+    /// `accessor.index.get_cardinality().is_full()`.
+    #[inline]
+    pub fn fetch_block_with_is_full<'a>(
+        &'a mut self,
+        docs: &'a [u32],
+        accessor: &Column<T>,
+        is_full: bool,
+    ) {
+        if is_full {
+            // Skip the resize when already the right length (common case: fixed-size blocks).
+            if self.val_cache.len() != docs.len() {
+                self.val_cache.resize(docs.len(), T::default());
+            }
+            // When the docs form a contiguous ascending run we can fetch the values
+            // as a single range. This lets codecs (e.g. bitpacked) bulk-decode the
+            // slice instead of gathering value-by-value, and avoids per-value dynamic
+            // dispatch. `docs` is always sorted ascending and free of duplicates here,
+            // so comparing the endpoints is enough to detect contiguity.
+            if is_contiguous(docs) {
+                accessor
+                    .values
+                    .get_range(docs[0] as u64, &mut self.val_cache);
+            } else {
+                accessor.values.get_vals(docs, &mut self.val_cache);
+            }
         } else {
             self.docid_cache.clear();
             self.row_id_cache.clear();
@@ -33,14 +61,14 @@ impl<T: PartialOrd + Copy + std::fmt::Debug + Send + Sync + 'static + Default>
         &mut self,
         docs: &[u32],
         accessor: &Column<T>,
-        missing: Option<T>,
+        missing_opt: Option<T>,
     ) {
         self.fetch_block(docs, accessor);
         // no missing values
         if accessor.index.get_cardinality().is_full() {
             return;
         }
-        let Some(missing) = missing else {
+        let Some(missing) = missing_opt else {
             return;
         };
 
@@ -56,6 +84,78 @@ impl<T: PartialOrd + Copy + std::fmt::Debug + Send + Sync + 'static + Default>
             self.docid_cache
                 .extend_from_slice(&self.missing_docids_cache);
         }
+    }
+
+    /// Like `fetch_block_with_missing`, but deduplicates (doc_id, value) pairs
+    /// so that each unique value per document is returned only once.
+    ///
+    /// This is necessary for correct document counting in aggregations,
+    /// where multi-valued fields can produce duplicate entries that inflate counts.
+    #[inline]
+    pub fn fetch_block_with_missing_unique_per_doc(
+        &mut self,
+        docs: &[u32],
+        accessor: &Column<T>,
+        missing: Option<T>,
+    ) where
+        T: Ord,
+    {
+        self.fetch_block_with_missing(docs, accessor, missing);
+        if accessor.index.get_cardinality().is_multivalue() {
+            self.dedup_docid_val_pairs();
+        }
+    }
+
+    /// Removes duplicate (doc_id, value) pairs from the caches.
+    ///
+    /// After `fetch_block`, entries are sorted by doc_id, but values within
+    /// the same doc may not be sorted (e.g. `(0,1), (0,2), (0,1)`).
+    /// We group consecutive entries by doc_id, sort values within each group
+    /// if it has more than 2 elements, then deduplicate adjacent pairs.
+    ///
+    /// Skips entirely if no doc_id appears more than once in the block.
+    fn dedup_docid_val_pairs(&mut self)
+    where T: Ord {
+        if self.docid_cache.len() <= 1 {
+            return;
+        }
+
+        // Quick check: if no consecutive doc_ids are equal, no dedup needed.
+        let has_multivalue = self.docid_cache.windows(2).any(|w| w[0] == w[1]);
+        if !has_multivalue {
+            return;
+        }
+
+        // Sort values within each doc_id group so duplicates become adjacent.
+        let mut start = 0;
+        while start < self.docid_cache.len() {
+            let doc = self.docid_cache[start];
+            let mut end = start + 1;
+            while end < self.docid_cache.len() && self.docid_cache[end] == doc {
+                end += 1;
+            }
+            if end - start > 2 {
+                self.val_cache[start..end].sort();
+            }
+            start = end;
+        }
+
+        // Now duplicates are adjacent — deduplicate in place.
+        let mut write = 0;
+        for read in 1..self.docid_cache.len() {
+            if self.docid_cache[read] != self.docid_cache[write]
+                || self.val_cache[read] != self.val_cache[write]
+            {
+                write += 1;
+                if write != read {
+                    self.docid_cache[write] = self.docid_cache[read];
+                    self.val_cache[write] = self.val_cache[read];
+                }
+            }
+        }
+        let new_len = write + 1;
+        self.docid_cache.truncate(new_len);
+        self.val_cache.truncate(new_len);
     }
 
     #[inline]
@@ -84,6 +184,22 @@ impl<T: PartialOrd + Copy + std::fmt::Debug + Send + Sync + 'static + Default>
                 .zip(self.val_cache.iter().cloned())
         }
     }
+}
+
+/// Returns true if `docs` is a contiguous ascending run `[d, d + 1, ..., d + n - 1]`.
+///
+/// Assumes `docs` is sorted ascending and free of duplicates (the invariant for the
+/// doc blocks passed to `fetch_block`), so comparing the endpoints is sufficient.
+#[inline]
+fn is_contiguous(docs: &[u32]) -> bool {
+    let (Some(&first), Some(&last)) = (docs.first(), docs.last()) else {
+        return false;
+    };
+    debug_assert!(
+        docs.windows(2).all(|w| w[0] < w[1]),
+        "fetch_block requires docs sorted ascending without duplicates"
+    );
+    (last - first) as usize + 1 == docs.len()
 }
 
 /// Given two sorted lists of docids `docs` and `hits`, hits is a subset of `docs`.
@@ -119,6 +235,7 @@ where F: FnMut(u32) {
 }
 
 #[cfg(test)]
+#[allow(clippy::field_reassign_with_default)]
 mod tests {
     use super::*;
 
@@ -162,5 +279,99 @@ mod tests {
         });
 
         assert_eq!(missing_docs, vec![1, 2, 3, 4, 5]);
+    }
+
+    #[test]
+    fn test_dedup_docid_val_pairs_consecutive() {
+        let mut accessor = ColumnBlockAccessor::<u64>::default();
+        accessor.docid_cache = vec![0, 0, 2, 3];
+        accessor.val_cache = vec![10, 10, 10, 10];
+        accessor.dedup_docid_val_pairs();
+        assert_eq!(accessor.docid_cache, vec![0, 2, 3]);
+        assert_eq!(accessor.val_cache, vec![10, 10, 10]);
+    }
+
+    #[test]
+    fn test_dedup_docid_val_pairs_non_consecutive() {
+        // (0,1), (0,2), (0,1) — duplicate value not adjacent
+        let mut accessor = ColumnBlockAccessor::<u64>::default();
+        accessor.docid_cache = vec![0, 0, 0];
+        accessor.val_cache = vec![1, 2, 1];
+        accessor.dedup_docid_val_pairs();
+        assert_eq!(accessor.docid_cache, vec![0, 0]);
+        assert_eq!(accessor.val_cache, vec![1, 2]);
+    }
+
+    #[test]
+    fn test_dedup_docid_val_pairs_multi_doc() {
+        // doc 0: values [3, 1, 3], doc 1: values [5, 5]
+        let mut accessor = ColumnBlockAccessor::<u64>::default();
+        accessor.docid_cache = vec![0, 0, 0, 1, 1];
+        accessor.val_cache = vec![3, 1, 3, 5, 5];
+        accessor.dedup_docid_val_pairs();
+        assert_eq!(accessor.docid_cache, vec![0, 0, 1]);
+        assert_eq!(accessor.val_cache, vec![1, 3, 5]);
+    }
+
+    #[test]
+    fn test_dedup_docid_val_pairs_no_duplicates() {
+        let mut accessor = ColumnBlockAccessor::<u64>::default();
+        accessor.docid_cache = vec![0, 0, 1];
+        accessor.val_cache = vec![1, 2, 3];
+        accessor.dedup_docid_val_pairs();
+        assert_eq!(accessor.docid_cache, vec![0, 0, 1]);
+        assert_eq!(accessor.val_cache, vec![1, 2, 3]);
+    }
+
+    #[test]
+    fn test_dedup_docid_val_pairs_single_element() {
+        let mut accessor = ColumnBlockAccessor::<u64>::default();
+        accessor.docid_cache = vec![0];
+        accessor.val_cache = vec![1];
+        accessor.dedup_docid_val_pairs();
+        assert_eq!(accessor.docid_cache, vec![0]);
+        assert_eq!(accessor.val_cache, vec![1]);
+    }
+
+    #[test]
+    fn test_is_contiguous() {
+        assert!(!is_contiguous(&[]));
+        assert!(is_contiguous(&[5]));
+        assert!(is_contiguous(&[5, 6, 7, 8]));
+        assert!(is_contiguous(&[0, 1, 2]));
+        assert!(!is_contiguous(&[5, 7, 8]));
+        assert!(!is_contiguous(&[0, 1, 3]));
+    }
+
+    #[test]
+    fn test_fetch_block_contiguous_and_gather_match() {
+        use crate::column_index::ColumnIndex;
+        use crate::column_values::{
+            ALL_U64_CODEC_TYPES, serialize_and_load_u64_based_column_values,
+        };
+
+        let vals: Vec<u64> = (0..200u64).map(|i| i * 7 + 3).collect();
+        let values =
+            serialize_and_load_u64_based_column_values::<u64>(&&vals[..], &ALL_U64_CODEC_TYPES);
+        let column = Column {
+            index: ColumnIndex::Full,
+            values,
+        };
+
+        let check = |accessor: &mut ColumnBlockAccessor<u64>, docs: &[u32]| {
+            accessor.fetch_block(docs, &column);
+            let got: Vec<(u32, u64)> = accessor.iter_docid_vals(docs, &column).collect();
+            let expected: Vec<(u32, u64)> = docs.iter().map(|&d| (d, vals[d as usize])).collect();
+            assert_eq!(got, expected);
+        };
+
+        let mut accessor = ColumnBlockAccessor::<u64>::default();
+        // Contiguous block -> get_range fast path.
+        check(&mut accessor, &(10..74).collect::<Vec<u32>>());
+        // Non-contiguous block -> get_vals gather path.
+        check(&mut accessor, &[0, 5, 9, 100, 199]);
+        // Single doc and full span.
+        check(&mut accessor, &[42]);
+        check(&mut accessor, &(0..200).collect::<Vec<u32>>());
     }
 }

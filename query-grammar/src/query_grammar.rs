@@ -327,7 +327,9 @@ fn exists(inp: &str) -> IResult<&str, UserInputLeaf> {
             peek(alt((
                 value(
                     "",
-                    satisfy(|c: char| c.is_whitespace() || ESCAPE_IN_WORD.contains(&c)),
+                    satisfy(|c: char| {
+                        c.is_whitespace() || (ESCAPE_IN_WORD.contains(&c) && c != '\\')
+                    }),
                 ),
                 eof,
             ))),
@@ -345,7 +347,9 @@ fn exists_precond(inp: &str) -> IResult<&str, (), ()> {
             peek(alt((
                 value(
                     "",
-                    satisfy(|c: char| c.is_whitespace() || ESCAPE_IN_WORD.contains(&c)),
+                    satisfy(|c: char| {
+                        c.is_whitespace() || (ESCAPE_IN_WORD.contains(&c) && c != '\\')
+                    }),
                 ),
                 eof,
             ))), // we need to check this isn't a wildcard query
@@ -704,7 +708,12 @@ fn regex(inp: &str) -> IResult<&str, UserInputLeaf> {
                 many1(alt((preceded(char('\\'), char('/')), none_of("/")))),
                 char('/'),
             ),
-            peek(alt((multispace1, eof))),
+            peek(alt((
+                value((), multispace1),
+                value((), char(')')),
+                value((), char('^')),
+                value((), eof),
+            ))),
         ),
         |elements| UserInputLeaf::Regex {
             field: None,
@@ -721,8 +730,13 @@ fn regex_infallible(inp: &str) -> JResult<&str, UserInputLeaf> {
             opt_i_err(char('/'), "missing delimiter /"),
         ),
         opt_i_err(
-            peek(alt((multispace1, eof))),
-            "expected whitespace or end of input",
+            peek(alt((
+                value((), multispace1),
+                value((), char(')')),
+                value((), char('^')),
+                value((), eof),
+            ))),
+            "expected whitespace, closing parenthesis, boost, or end of input",
         ),
     )(inp)
     {
@@ -765,6 +779,10 @@ fn leaf(inp: &str) -> IResult<&str, UserInputAst> {
                     value((), multispace1),
                     value((), char(')')),
                     value((), eof),
+                    value(
+                        (),
+                        satisfy(|c: char| ESCAPE_IN_WORD.contains(&c) && c != '\\'),
+                    ),
                 ))),
             ),
             |_| UserInputAst::from(UserInputLeaf::All),
@@ -797,6 +815,10 @@ fn leaf_infallible(inp: &str) -> JResult<&str, Option<UserInputAst>> {
                             value((), multispace1),
                             value((), char(')')),
                             value((), eof),
+                            value(
+                                (),
+                                satisfy(|c: char| ESCAPE_IN_WORD.contains(&c) && c != '\\'),
+                            ),
                         ))),
                     ),
                 ),
@@ -1037,18 +1059,43 @@ fn operand_leaf(inp: &str) -> IResult<&str, (Option<BinaryOperand>, Option<Occur
 }
 
 fn ast(inp: &str) -> IResult<&str, UserInputAst> {
-    let boolean_expr = map_res(
-        separated_pair(occur_leaf, multispace1, many1(operand_leaf)),
-        |(left, right)| aggregate_binary_expressions(left, right),
-    );
-    let single_leaf = map(occur_leaf, |(occur, ast)| {
-        if occur == Some(Occur::MustNot) {
-            ast.unary(Occur::MustNot)
-        } else {
-            ast
-        }
-    });
-    delimited(multispace0, alt((boolean_expr, single_leaf)), multispace0)(inp)
+    // Parse `occur_leaf` once, then conditionally extend into a boolean
+    // expression. The previous implementation used `alt((boolean_expr,
+    // single_leaf))` which, when the input was a single leaf with no
+    // following operand, would parse `occur_leaf` once for `boolean_expr`,
+    // fail at `multispace1`, backtrack, then re-parse `occur_leaf` for
+    // `single_leaf`. With recursively-nested groups like `(+(+(+a)))`, that
+    // doubling at every level produced O(2^n) parse time. Parsing once and
+    // peeking ahead for the operand keeps it O(n).
+    delimited(
+        multispace0,
+        |inp| {
+            let (rest, first) = occur_leaf(inp)?;
+            // Only fall back on `Err::Error` (recoverable), mirroring
+            // `alt`'s behaviour. `Err::Failure` and `Err::Incomplete`
+            // must propagate so cut points and streaming needs are not
+            // accidentally swallowed if they are ever introduced in the
+            // operand parsers.
+            match preceded(multispace1, many1(operand_leaf))(rest) {
+                Ok((rest, more)) => {
+                    let combined = aggregate_binary_expressions(first, more)
+                        .map_err(|_| nom::Err::Error(Error::new(inp, ErrorKind::MapRes)))?;
+                    Ok((rest, combined))
+                }
+                Err(nom::Err::Error(_)) => {
+                    let (occur, ast) = first;
+                    let single = if occur == Some(Occur::MustNot) {
+                        ast.unary(Occur::MustNot)
+                    } else {
+                        ast
+                    };
+                    Ok((rest, single))
+                }
+                Err(e) => Err(e),
+            }
+        },
+        multispace0,
+    )(inp)
 }
 
 fn ast_infallible(inp: &str) -> JResult<&str, UserInputAst> {
@@ -1707,6 +1754,10 @@ mod test {
         test_parse_query_to_ast_helper("foo:(A OR B)", "(?\"foo\":A ?\"foo\":B)");
         test_parse_query_to_ast_helper("foo:(A* OR B*)", "(?\"foo\":A* ?\"foo\":B*)");
         test_parse_query_to_ast_helper("foo:(*A OR *B)", "(?\"foo\":*A ?\"foo\":*B)");
+
+        // Regexes between parentheses
+        test_parse_query_to_ast_helper("foo:(/A.*/)", "\"foo\":/A.*/");
+        test_parse_query_to_ast_helper("foo:(/A.*/ OR /B.*/)", "(?\"foo\":/A.*/ ?\"foo\":/B.*/)");
     }
 
     #[test]
@@ -1714,6 +1765,8 @@ mod test {
         test_parse_query_to_ast_helper("*", "*");
         test_parse_query_to_ast_helper("(*)", "*");
         test_parse_query_to_ast_helper("(* )", "*");
+        // All query with boost
+        test_parse_query_to_ast_helper("*^2", "(*)^2");
     }
 
     #[test]
@@ -1776,6 +1829,7 @@ mod test {
         test_parse_query_to_ast_helper("a:b*", "\"a\":b*");
         test_parse_query_to_ast_helper("a:*b", "\"a\":*b");
         test_parse_query_to_ast_helper(r#"a:*def*"#, "\"a\":*def*");
+        test_parse_query_to_ast_helper("a:*\\:foo", "\"a\":*:foo");
     }
 
     #[test]
@@ -1840,6 +1894,8 @@ mod test {
             },
             _ => panic!("Expected a leaf"),
         }
+        // Regex followed by `^boost`
+        test_parse_query_to_ast_helper(r#"foo:/bar/^2"#, r#"("foo":/bar/)^2"#);
     }
 
     #[test]
@@ -1878,5 +1934,24 @@ mod test {
             "field : 'happy tax payer' AND other_field  : 1",
             r#"(+"field":'happy tax payer' +"other_field":1)"#,
         );
+    }
+
+    // Regression test for https://github.com/quickwit-oss/tantivy/issues/2498:
+    // deeply nested parenthesized queries used to take O(2^n) time because the
+    // top-level `ast()` parser tried `boolean_expr` first and re-parsed the
+    // inner `occur_leaf` when it backtracked to `single_leaf`. Depth 60 would
+    // take ~10^18 operations under the regression; with the fix it parses
+    // instantly. We use `test_parse_query_to_ast_helper` so this test would
+    // never finish if the regression returned.
+    #[test]
+    fn test_parse_deeply_nested_query() {
+        let depth = 60;
+        let leading: String = "(".repeat(depth);
+        let trailing: String = ")".repeat(depth);
+        let query = format!("{leading}title:test{trailing}");
+        test_parse_query_to_ast_helper(&query, r#""title":test"#);
+
+        let query_with_plus = format!("+{leading}title:test{trailing}");
+        test_parse_query_to_ast_helper(&query_with_plus, r#""title":test"#);
     }
 }

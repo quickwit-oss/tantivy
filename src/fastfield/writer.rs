@@ -4,6 +4,7 @@ use columnar::{ColumnarWriter, NumericalValue};
 use common::{DateTimePrecision, JsonPathWriter};
 use tokenizer_api::Token;
 
+use crate::indexer::doc_id_mapping::DocIdMapping;
 use crate::schema::document::{Document, ReferenceValue, ReferenceValueLeaf, Value};
 use crate::schema::{value_type_to_column_type, Field, FieldType, Schema, Type};
 use crate::tokenizer::{TextAnalyzer, TokenizerManager};
@@ -103,6 +104,16 @@ impl FastFieldsWriter {
     /// The memory used (inclusive childs)
     pub fn mem_usage(&self) -> usize {
         self.columnar_writer.mem_usage()
+    }
+
+    pub(crate) fn sort_order(
+        &self,
+        sort_field: &str,
+        num_docs: DocId,
+        reversed: bool,
+    ) -> Vec<DocId> {
+        self.columnar_writer
+            .sort_order(sort_field, num_docs, reversed)
     }
 
     /// Indexes all of the fastfields of a new document.
@@ -222,9 +233,16 @@ impl FastFieldsWriter {
 
     /// Serializes all of the `FastFieldWriter`s by pushing them in
     /// order to the fast field serializer.
-    pub fn serialize(mut self, wrt: &mut dyn io::Write) -> io::Result<()> {
+    pub fn serialize(
+        mut self,
+        wrt: &mut dyn io::Write,
+        doc_id_map_opt: Option<&DocIdMapping>,
+    ) -> io::Result<()> {
         let num_docs = self.num_docs;
-        self.columnar_writer.serialize(num_docs, wrt)?;
+        let old_to_new_row_ids =
+            doc_id_map_opt.map(|doc_id_mapping| doc_id_mapping.old_to_new_ids());
+        self.columnar_writer
+            .serialize(num_docs, old_to_new_row_ids, wrt)?;
         Ok(())
     }
 }
@@ -374,7 +392,7 @@ mod tests {
         }
         let mut buffer = Vec::new();
         columnar_writer
-            .serialize(json_docs.len() as DocId, &mut buffer)
+            .serialize(json_docs.len() as DocId, None, &mut buffer)
             .unwrap();
         ColumnarReader::open(buffer).unwrap()
     }

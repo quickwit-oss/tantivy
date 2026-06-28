@@ -9,8 +9,9 @@ use crate::aggregation::agg_data::{
     build_segment_agg_collectors, AggRefNode, AggregationsSegmentCtx,
 };
 use crate::aggregation::agg_limits::AggregationLimitsGuard;
-use crate::aggregation::cached_sub_aggs::{
-    CachedSubAggs, HighCardSubAggCache, LowCardCachedSubAggs, LowCardSubAggCache, SubAggCache,
+use crate::aggregation::buffered_sub_aggs::{
+    BufferedSubAggs, HighCardSubAggBuffer, LowCardBufferedSubAggs, LowCardSubAggBuffer,
+    SubAggBuffer,
 };
 use crate::aggregation::intermediate_agg_result::{
     IntermediateAggregationResult, IntermediateAggregationResults, IntermediateBucketResult,
@@ -22,6 +23,7 @@ use crate::TantivyError;
 
 /// Contains all information required by the SegmentRangeCollector to perform the
 /// range aggregation on a segment.
+#[derive(Debug, Clone)]
 pub struct RangeAggReqData {
     /// The column accessor to access the fast field values.
     pub accessor: Column<u64>,
@@ -155,13 +157,13 @@ pub(crate) struct SegmentRangeAndBucketEntry {
 
 /// The collector puts values from the fast field into the correct buckets and does a conversion to
 /// the correct datatype.
-pub struct SegmentRangeCollector<C: SubAggCache> {
+pub struct SegmentRangeCollector<B: SubAggBuffer> {
     /// The buckets containing the aggregation data.
     /// One for each ParentBucketId
     parent_buckets: Vec<Vec<SegmentRangeAndBucketEntry>>,
     column_type: ColumnType,
-    pub(crate) accessor_idx: usize,
-    sub_agg: Option<CachedSubAggs<C>>,
+    pub(crate) req_data: RangeAggReqData,
+    sub_agg: Option<BufferedSubAggs<B>>,
     /// Here things get a bit weird. We need to assign unique bucket ids across all
     /// parent buckets. So we keep track of the next available bucket id here.
     /// This allows a kind of flattening of the bucket ids across all parent buckets.
@@ -178,12 +180,12 @@ pub struct SegmentRangeCollector<C: SubAggCache> {
     limits: AggregationLimitsGuard,
 }
 
-impl<C: SubAggCache> Debug for SegmentRangeCollector<C> {
+impl<B: SubAggBuffer> Debug for SegmentRangeCollector<B> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("SegmentRangeCollector")
             .field("parent_buckets_len", &self.parent_buckets.len())
             .field("column_type", &self.column_type)
-            .field("accessor_idx", &self.accessor_idx)
+            .field("name", &self.req_data.name)
             .field("has_sub_agg", &self.sub_agg.is_some())
             .finish()
     }
@@ -229,7 +231,7 @@ impl SegmentRangeBucketEntry {
     }
 }
 
-impl<C: SubAggCache> SegmentAggregationCollector for SegmentRangeCollector<C> {
+impl<B: SubAggBuffer> SegmentAggregationCollector for SegmentRangeCollector<B> {
     fn add_intermediate_aggregation_result(
         &mut self,
         agg_data: &AggregationsSegmentCtx,
@@ -238,10 +240,7 @@ impl<C: SubAggCache> SegmentAggregationCollector for SegmentRangeCollector<C> {
     ) -> crate::Result<()> {
         self.prepare_max_bucket(parent_bucket_id, agg_data)?;
         let field_type = self.column_type;
-        let name = agg_data
-            .get_range_req_data(self.accessor_idx)
-            .name
-            .to_string();
+        let name = self.req_data.name.to_string();
 
         let buckets = std::mem::take(&mut self.parent_buckets[parent_bucket_id as usize]);
 
@@ -280,17 +279,15 @@ impl<C: SubAggCache> SegmentAggregationCollector for SegmentRangeCollector<C> {
         docs: &[crate::DocId],
         agg_data: &mut AggregationsSegmentCtx,
     ) -> crate::Result<()> {
-        let req = agg_data.take_range_req_data(self.accessor_idx);
-
         agg_data
             .column_block_accessor
-            .fetch_block(docs, &req.accessor);
+            .fetch_block(docs, &self.req_data.accessor);
 
         let buckets = &mut self.parent_buckets[parent_bucket_id as usize];
 
         for (doc, val) in agg_data
             .column_block_accessor
-            .iter_docid_vals(docs, &req.accessor)
+            .iter_docid_vals(docs, &self.req_data.accessor)
         {
             let bucket_pos = get_bucket_pos(val, buckets);
             let bucket = &mut buckets[bucket_pos];
@@ -300,7 +297,6 @@ impl<C: SubAggCache> SegmentAggregationCollector for SegmentRangeCollector<C> {
             }
         }
 
-        agg_data.put_back_range_req_data(self.accessor_idx, req);
         if let Some(sub_agg) = self.sub_agg.as_mut() {
             sub_agg.check_flush_local(agg_data)?;
         }
@@ -318,14 +314,25 @@ impl<C: SubAggCache> SegmentAggregationCollector for SegmentRangeCollector<C> {
     fn prepare_max_bucket(
         &mut self,
         max_bucket: BucketId,
-        agg_data: &AggregationsSegmentCtx,
+        _agg_data: &AggregationsSegmentCtx,
     ) -> crate::Result<()> {
         while self.parent_buckets.len() <= max_bucket as usize {
-            let new_buckets = self.create_new_buckets(agg_data)?;
+            let new_buckets = self.create_new_buckets()?;
             self.parent_buckets.push(new_buckets);
         }
 
         Ok(())
+    }
+
+    fn compute_metric_value(
+        &self,
+        _bucket_id: BucketId,
+        _sub_agg_name: &str,
+        _sub_agg_property: &str,
+        _agg_data: &AggregationsSegmentCtx,
+    ) -> Option<f64> {
+        // Range is a multi-bucket agg with no single value to extract.
+        None
     }
 }
 /// Build a concrete `SegmentRangeCollector` with either a Vec- or HashMap-backed
@@ -334,8 +341,11 @@ pub(crate) fn build_segment_range_collector(
     agg_data: &mut AggregationsSegmentCtx,
     node: &AggRefNode,
 ) -> crate::Result<Box<dyn SegmentAggregationCollector>> {
-    let accessor_idx = node.idx_in_req_data;
-    let req_data = agg_data.get_range_req_data(node.idx_in_req_data);
+    let req_data = agg_data.per_request.range_req_data[node.idx_in_req_data].clone();
+    agg_data
+        .context
+        .limits
+        .add_memory_consumed(req_data.get_memory_consumption() as u64)?;
     let field_type = req_data.field_type;
 
     // TODO: A better metric instead of is_top_level would be the number of buckets expected.
@@ -350,19 +360,19 @@ pub(crate) fn build_segment_range_collector(
     };
 
     if is_low_card {
-        Ok(Box::new(SegmentRangeCollector::<LowCardSubAggCache> {
-            sub_agg: sub_agg.map(LowCardCachedSubAggs::new),
+        Ok(Box::new(SegmentRangeCollector::<LowCardSubAggBuffer> {
+            sub_agg: sub_agg.map(LowCardBufferedSubAggs::new),
             column_type: field_type,
-            accessor_idx,
+            req_data,
             parent_buckets: Vec::new(),
             bucket_id_provider: BucketIdProvider::default(),
             limits: agg_data.context.limits.clone(),
         }))
     } else {
-        Ok(Box::new(SegmentRangeCollector::<HighCardSubAggCache> {
-            sub_agg: sub_agg.map(CachedSubAggs::new),
+        Ok(Box::new(SegmentRangeCollector::<HighCardSubAggBuffer> {
+            sub_agg: sub_agg.map(BufferedSubAggs::new),
             column_type: field_type,
-            accessor_idx,
+            req_data,
             parent_buckets: Vec::new(),
             bucket_id_provider: BucketIdProvider::default(),
             limits: agg_data.context.limits.clone(),
@@ -370,13 +380,10 @@ pub(crate) fn build_segment_range_collector(
     }
 }
 
-impl<C: SubAggCache> SegmentRangeCollector<C> {
-    pub(crate) fn create_new_buckets(
-        &mut self,
-        agg_data: &AggregationsSegmentCtx,
-    ) -> crate::Result<Vec<SegmentRangeAndBucketEntry>> {
+impl<B: SubAggBuffer> SegmentRangeCollector<B> {
+    pub(crate) fn create_new_buckets(&mut self) -> crate::Result<Vec<SegmentRangeAndBucketEntry>> {
         let field_type = self.column_type;
-        let req_data = agg_data.get_range_req_data(self.accessor_idx);
+        let req_data = &self.req_data;
         // The range input on the request is f64.
         // We need to convert to u64 ranges, because we read the values as u64.
         // The mapping from the conversion is monotonic so ordering is preserved.
@@ -551,17 +558,16 @@ mod tests {
         get_test_index_with_num_docs,
     };
 
-    pub fn get_collector_from_ranges(
-        ranges: Vec<RangeAggregationRange>,
+    pub fn build_test_buckets(
+        ranges: &[RangeAggregationRange],
         field_type: ColumnType,
-    ) -> SegmentRangeCollector<HighCardSubAggCache> {
+    ) -> Vec<SegmentRangeAndBucketEntry> {
         let req = RangeAggregation {
             field: "dummy".to_string(),
-            ranges,
+            ranges: ranges.to_vec(),
             ..Default::default()
         };
-        // Build buckets directly as in from_req_and_validate without AggregationsData
-        let buckets: Vec<_> = extend_validate_ranges(&req.ranges, &field_type)
+        extend_validate_ranges(&req.ranges, &field_type)
             .expect("unexpected error in extend_validate_ranges")
             .iter()
             .map(|range| {
@@ -592,16 +598,7 @@ mod tests {
                     },
                 }
             })
-            .collect();
-
-        SegmentRangeCollector {
-            parent_buckets: vec![buckets],
-            column_type: field_type,
-            accessor_idx: 0,
-            sub_agg: None,
-            bucket_id_provider: Default::default(),
-            limits: AggregationLimitsGuard::default(),
-        }
+            .collect()
     }
 
     #[test]
@@ -844,10 +841,10 @@ mod tests {
 
     #[test]
     fn bucket_test_extend_range_hole() {
-        let buckets = vec![(10f64..20f64).into(), (30f64..40f64).into()];
-        let collector = get_collector_from_ranges(buckets, ColumnType::F64);
+        let buckets = [(10f64..20f64).into(), (30f64..40f64).into()];
+        let parent_buckets = [build_test_buckets(&buckets, ColumnType::F64)];
 
-        let buckets = collector.parent_buckets[0].clone();
+        let buckets = parent_buckets[0].clone();
         assert_eq!(buckets[0].range.start, u64::MIN);
         assert_eq!(buckets[0].range.end, 10f64.to_u64());
         assert_eq!(buckets[1].range.start, 10f64.to_u64());
@@ -863,14 +860,14 @@ mod tests {
     fn bucket_test_range_conversion_special_case() {
         // the monotonic conversion between f64 and u64, does not map f64::MIN.to_u64() ==
         // u64::MIN, but the into trait converts f64::MIN/MAX to None
-        let buckets = vec![
+        let buckets = [
             (f64::MIN..10f64).into(),
             (10f64..20f64).into(),
             (20f64..f64::MAX).into(),
         ];
-        let collector = get_collector_from_ranges(buckets, ColumnType::F64);
+        let parent_buckets = [build_test_buckets(&buckets, ColumnType::F64)];
 
-        let buckets = collector.parent_buckets[0].clone();
+        let buckets = parent_buckets[0].clone();
         assert_eq!(buckets[0].range.start, u64::MIN);
         assert_eq!(buckets[0].range.end, 10f64.to_u64());
         assert_eq!(buckets[1].range.start, 10f64.to_u64());
@@ -882,28 +879,28 @@ mod tests {
 
     #[test]
     fn bucket_range_test_negative_vals() {
-        let buckets = vec![(-10f64..-1f64).into()];
-        let collector = get_collector_from_ranges(buckets, ColumnType::F64);
+        let buckets = [(-10f64..-1f64).into()];
+        let parent_buckets = [build_test_buckets(&buckets, ColumnType::F64)];
 
-        let buckets = collector.parent_buckets[0].clone();
+        let buckets = parent_buckets[0].clone();
         assert_eq!(&buckets[0].bucket.key.to_string(), "*--10");
         assert_eq!(&buckets[buckets.len() - 1].bucket.key.to_string(), "-1-*");
     }
     #[test]
     fn bucket_range_test_positive_vals() {
-        let buckets = vec![(0f64..10f64).into()];
-        let collector = get_collector_from_ranges(buckets, ColumnType::F64);
+        let buckets = [(0f64..10f64).into()];
+        let parent_buckets = [build_test_buckets(&buckets, ColumnType::F64)];
 
-        let buckets = collector.parent_buckets[0].clone();
+        let buckets = parent_buckets[0].clone();
         assert_eq!(&buckets[0].bucket.key.to_string(), "*-0");
         assert_eq!(&buckets[buckets.len() - 1].bucket.key.to_string(), "10-*");
     }
 
     #[test]
     fn range_binary_search_test_u64() {
-        let check_ranges = |ranges: Vec<RangeAggregationRange>| {
-            let collector = get_collector_from_ranges(ranges, ColumnType::U64);
-            let search = |val: u64| get_bucket_pos(val, &collector.parent_buckets[0]);
+        let check_ranges = |ranges: &[RangeAggregationRange]| {
+            let parent_buckets = [build_test_buckets(ranges, ColumnType::U64)];
+            let search = |val: u64| get_bucket_pos(val, &parent_buckets[0]);
 
             assert_eq!(search(u64::MIN), 0);
             assert_eq!(search(9), 0);
@@ -916,7 +913,7 @@ mod tests {
         };
 
         let ranges = vec![(10.0..100.0).into()];
-        check_ranges(ranges);
+        check_ranges(&ranges);
 
         let ranges = vec![
             RangeAggregationRange {
@@ -926,7 +923,7 @@ mod tests {
             },
             (10.0..100.0).into(),
         ];
-        check_ranges(ranges);
+        check_ranges(&ranges);
 
         let ranges = vec![
             RangeAggregationRange {
@@ -941,15 +938,15 @@ mod tests {
                 from: Some(100.0),
             },
         ];
-        check_ranges(ranges);
+        check_ranges(&ranges);
     }
 
     #[test]
     fn range_binary_search_test_f64() {
-        let ranges = vec![(10.0..100.0).into()];
+        let ranges = [(10.0..100.0).into()];
 
-        let collector = get_collector_from_ranges(ranges, ColumnType::F64);
-        let search = |val: u64| get_bucket_pos(val, &collector.parent_buckets[0]);
+        let parent_buckets = [build_test_buckets(&ranges, ColumnType::F64)];
+        let search = |val: u64| get_bucket_pos(val, &parent_buckets[0]);
 
         assert_eq!(search(u64::MIN), 0);
         assert_eq!(search(9f64.to_u64()), 0);

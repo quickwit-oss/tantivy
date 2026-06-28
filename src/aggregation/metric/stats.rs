@@ -110,6 +110,16 @@ impl Default for IntermediateStats {
 }
 
 impl IntermediateStats {
+    /// Returns the number of values collected.
+    pub fn count(&self) -> u64 {
+        self.count
+    }
+
+    /// Returns the sum of all values collected.
+    pub fn sum(&self) -> f64 {
+        self.sum
+    }
+
     /// Merges the other stats intermediate result into self.
     pub fn merge_fruits(&mut self, other: IntermediateStats) {
         self.count += other.count;
@@ -310,6 +320,40 @@ impl<const COLUMN_TYPE_ID: u8> SegmentAggregationCollector
                 .resize_with(required_buckets, IntermediateStats::default);
         }
         Ok(())
+    }
+
+    fn compute_metric_value(
+        &self,
+        bucket_id: BucketId,
+        sub_agg_name: &str,
+        sub_agg_property: &str,
+        _agg_data: &AggregationsSegmentCtx,
+    ) -> Option<f64> {
+        if self.name != sub_agg_name {
+            return None;
+        }
+        let stats = self.buckets.get(bucket_id as usize)?;
+        // The property depends on what we're collecting:
+        //   - StatsType::Stats exposes count/sum/min/max/avg via dotted property.
+        //   - Single-value kinds (Sum/Count/Min/Max/Average) expect an empty property and return
+        //     the value they were configured to collect.
+        let prop = match self.collecting_for {
+            StatsType::Stats if !sub_agg_property.is_empty() => sub_agg_property,
+            StatsType::Sum if sub_agg_property.is_empty() => "sum",
+            StatsType::Count if sub_agg_property.is_empty() => "count",
+            StatsType::Max if sub_agg_property.is_empty() => "max",
+            StatsType::Min if sub_agg_property.is_empty() => "min",
+            StatsType::Average if sub_agg_property.is_empty() => "avg",
+            _ => return None,
+        };
+        match prop {
+            "count" => Some(stats.count as f64),
+            "sum" => Some(stats.sum),
+            "min" if stats.count > 0 => Some(stats.min),
+            "max" if stats.count > 0 => Some(stats.max),
+            "avg" if stats.count > 0 => Some(stats.sum / stats.count as f64),
+            _ => None,
+        }
     }
 }
 

@@ -10,7 +10,7 @@ use crate::aggregation::agg_data::{
 };
 use crate::aggregation::agg_req::Aggregations;
 use crate::aggregation::agg_result::BucketEntry;
-use crate::aggregation::cached_sub_aggs::{CachedSubAggs, HighCardCachedSubAggs};
+use crate::aggregation::buffered_sub_aggs::{BufferedSubAggs, HighCardBufferedSubAggs};
 use crate::aggregation::intermediate_agg_result::{
     IntermediateAggregationResult, IntermediateAggregationResults, IntermediateBucketResult,
     IntermediateHistogramBucketEntry,
@@ -21,6 +21,7 @@ use crate::TantivyError;
 
 /// Contains all information required by the SegmentHistogramCollector to perform the
 /// histogram or date_histogram aggregation on a segment.
+#[derive(Debug, Clone)]
 pub struct HistogramAggReqData {
     /// The column accessor to access the fast field values.
     pub accessor: Column<u64>,
@@ -243,22 +244,55 @@ impl Display for HistogramBounds {
 }
 
 impl HistogramBounds {
-    fn contains(&self, val: f64) -> bool {
+    pub(crate) fn contains(&self, val: f64) -> bool {
         val >= self.min && val <= self.max
     }
 }
 
-#[derive(Default, Clone, Debug, PartialEq)]
-pub(crate) struct SegmentHistogramBucketEntry {
-    pub key: f64,
-    pub doc_count: u64,
-    pub bucket_id: BucketId,
+/// The per-bucket identifier stored in a [`SegmentHistogramBucketEntry`].
+///
+/// It is [`BucketId`] when the histogram has sub aggregations (which key their state by it), and
+/// the zero-sized `()` when it does not. Without sub aggregations the id is never read, so storing
+/// `()` drops 8 bytes per bucket (24 -> 16) and turns id assignment into a no-op.
+pub trait BucketIdSlot: Copy + Default + std::fmt::Debug + PartialEq {
+    /// Assigns the next id from the provider, called once when a bucket is first filled.
+    fn assign(provider: &mut BucketIdProvider) -> Self;
+    /// Resolves to the `BucketId` for sub-aggregation bookkeeping.
+    ///
+    /// Only ever called for the [`BucketId`] slot: the `()` slot is used exactly when there are no
+    /// sub aggregations, so every call site is guarded by `sub_agg.is_some()` and is dead for `()`.
+    fn to_bucket_id(self) -> BucketId;
+}
+impl BucketIdSlot for BucketId {
+    #[inline(always)]
+    fn assign(provider: &mut BucketIdProvider) -> Self {
+        provider.next_bucket_id()
+    }
+    #[inline(always)]
+    fn to_bucket_id(self) -> BucketId {
+        self
+    }
+}
+impl BucketIdSlot for () {
+    #[inline(always)]
+    fn assign(_provider: &mut BucketIdProvider) -> Self {}
+    #[inline(always)]
+    fn to_bucket_id(self) -> BucketId {
+        unreachable!("bucket ids are only resolved when sub aggregations are present")
+    }
 }
 
-impl SegmentHistogramBucketEntry {
+#[derive(Default, Clone, Debug, PartialEq)]
+pub(crate) struct SegmentHistogramBucketEntry<B> {
+    pub key: f64,
+    pub doc_count: u64,
+    pub bucket_id: B,
+}
+
+impl<B: BucketIdSlot> SegmentHistogramBucketEntry<B> {
     pub(crate) fn into_intermediate_bucket_entry(
         self,
-        sub_aggregation: &mut Option<HighCardCachedSubAggs>,
+        sub_aggregation: &mut Option<HighCardBufferedSubAggs>,
         agg_data: &AggregationsSegmentCtx,
     ) -> crate::Result<IntermediateHistogramBucketEntry> {
         let mut sub_aggregation_res = IntermediateAggregationResults::default();
@@ -268,7 +302,7 @@ impl SegmentHistogramBucketEntry {
                 .add_intermediate_aggregation_result(
                     agg_data,
                     &mut sub_aggregation_res,
-                    self.bucket_id,
+                    self.bucket_id.to_bucket_id(),
                 )?;
         }
         Ok(IntermediateHistogramBucketEntry {
@@ -279,34 +313,147 @@ impl SegmentHistogramBucketEntry {
     }
 }
 
-#[derive(Clone, Debug, Default)]
-struct HistogramBuckets {
-    pub buckets: FxHashMap<i64, SegmentHistogramBucketEntry>,
+/// The contiguous bucket range a histogram can span, derived from the column min/max (clamped to
+/// the histogram bounds). Buckets in `[base_pos, base_pos + len)` can be stored in a flat `Vec`
+/// indexed by `bucket_pos - base_pos`, avoiding the hash map on the hot path.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct DenseRange {
+    /// `bucket_pos` mapped to index 0 of the dense `Vec`.
+    pub(crate) base_pos: i64,
+    /// Number of bucket positions in the range.
+    pub(crate) len: usize,
+}
+
+/// Storage for the histogram buckets of a single parent bucket.
+///
+/// Starts out sparse (a hash map keyed by `bucket_pos`). Once enough distinct buckets have been
+/// filled that we are clearly going to cover most of the column's theoretical range, it switches
+/// to a dense `Vec` indexed by `bucket_pos - base_pos`, which removes hashing from the hot loop.
+#[derive(Clone, Debug)]
+enum HistogramBuckets<B> {
+    Sparse(FxHashMap<i64, SegmentHistogramBucketEntry<B>>),
+    Dense {
+        base_pos: i64,
+        /// One slot per bucket position; a slot with `doc_count == 0` has not been hit yet.
+        buckets: Vec<SegmentHistogramBucketEntry<B>>,
+    },
+}
+impl<B> Default for HistogramBuckets<B> {
+    fn default() -> Self {
+        HistogramBuckets::Sparse(FxHashMap::default())
+    }
+}
+impl<B: BucketIdSlot> HistogramBuckets<B> {
+    fn memory_consumption(&self) -> u64 {
+        let num_slots = match self {
+            HistogramBuckets::Sparse(map) => map.capacity(),
+            HistogramBuckets::Dense { buckets, .. } => buckets.capacity(),
+        };
+        num_slots as u64 * std::mem::size_of::<SegmentHistogramBucketEntry<B>>() as u64
+    }
+
+    /// Switches from sparse to dense storage once the dense `Vec` would use no more memory than the
+    /// hash map does now, so the switch never increases memory. Called at block boundaries.
+    ///
+    /// The `Vec` holds one `Entry` per bucket position in the range. The map additionally stores
+    /// the key and a control byte per slot, at a load factor of 7/16..7/8, so for a dense histogram
+    /// its footprint grows past the `Vec` well before full coverage. And since the `Vec` never
+    /// grows afterwards while the map would keep growing, dense only gets relatively cheaper — so
+    /// no upper bound on the range is needed: a large but sparse range simply never crosses over.
+    #[inline]
+    fn maybe_densify(&mut self, dense_range: Option<DenseRange>) {
+        let Some(range) = dense_range else { return };
+        let HistogramBuckets::Sparse(map) = self else {
+            return;
+        };
+        let dense_bytes = range
+            .len
+            .saturating_mul(std::mem::size_of::<SegmentHistogramBucketEntry<B>>());
+        let sparse_bytes = map
+            .capacity()
+            .saturating_mul(std::mem::size_of::<(i64, SegmentHistogramBucketEntry<B>)>() + 1);
+        if dense_bytes > sparse_bytes {
+            return;
+        }
+        let map = std::mem::take(map);
+        let mut buckets = vec![SegmentHistogramBucketEntry::<B>::default(); range.len];
+        for (bucket_pos, entry) in map {
+            buckets[(bucket_pos - range.base_pos) as usize] = entry;
+        }
+        *self = HistogramBuckets::Dense {
+            base_pos: range.base_pos,
+            buckets,
+        };
+    }
+
+    /// Returns the bucket entry for `bucket_pos`, setting its key (and `bucket_id`, when `B` is
+    /// [`BucketId`]) on first use.
+    ///
+    /// For the dense variant `bucket_pos` is guaranteed to be inside the range, since it is
+    /// derived from the column min/max that bounds every value (see [`compute_dense_range`]).
+    #[inline]
+    fn get_or_create(
+        &mut self,
+        bucket_pos: i64,
+        bucket_id_provider: &mut BucketIdProvider,
+        key_from_pos: impl FnOnce(i64) -> f64,
+    ) -> &mut SegmentHistogramBucketEntry<B> {
+        match self {
+            HistogramBuckets::Sparse(map) => {
+                map.entry(bucket_pos)
+                    .or_insert_with(|| SegmentHistogramBucketEntry {
+                        key: key_from_pos(bucket_pos),
+                        doc_count: 0,
+                        bucket_id: B::assign(bucket_id_provider),
+                    })
+            }
+            HistogramBuckets::Dense { base_pos, buckets } => {
+                let idx = (bucket_pos - *base_pos) as usize;
+                debug_assert!(idx < buckets.len(), "bucket_pos outside the dense range");
+                let entry = &mut buckets[idx];
+                if entry.doc_count == 0 {
+                    entry.key = key_from_pos(bucket_pos);
+                    entry.bucket_id = B::assign(bucket_id_provider);
+                }
+                entry
+            }
+        }
+    }
+
+    /// Consumes the storage, yielding all non-empty bucket entries.
+    fn into_filled_entries(self) -> Vec<SegmentHistogramBucketEntry<B>> {
+        match self {
+            HistogramBuckets::Sparse(map) => map.into_values().collect(),
+            HistogramBuckets::Dense { buckets, .. } => {
+                buckets.into_iter().filter(|b| b.doc_count > 0).collect()
+            }
+        }
+    }
 }
 
 /// The collector puts values from the fast field into the correct buckets and does a conversion to
 /// the correct datatype.
 #[derive(Debug)]
-pub struct SegmentHistogramCollector {
+pub struct SegmentHistogramCollector<B> {
     /// The buckets containing the aggregation data.
     /// One Histogram bucket per parent bucket id.
-    parent_buckets: Vec<HistogramBuckets>,
-    sub_agg: Option<HighCardCachedSubAggs>,
-    accessor_idx: usize,
+    parent_buckets: Vec<HistogramBuckets<B>>,
+    sub_agg: Option<HighCardBufferedSubAggs>,
+    req_data: HistogramAggReqData,
     bucket_id_provider: BucketIdProvider,
+    /// Theoretical bucket range derived from the column min/max, if dense `Vec` storage is
+    /// viable. `None` keeps every parent bucket in the sparse hash map.
+    dense_range: Option<DenseRange>,
 }
 
-impl SegmentAggregationCollector for SegmentHistogramCollector {
+impl<B: BucketIdSlot> SegmentAggregationCollector for SegmentHistogramCollector<B> {
     fn add_intermediate_aggregation_result(
         &mut self,
         agg_data: &AggregationsSegmentCtx,
         results: &mut IntermediateAggregationResults,
         parent_bucket_id: BucketId,
     ) -> crate::Result<()> {
-        let name = agg_data
-            .get_histogram_req_data(self.accessor_idx)
-            .name
-            .clone();
+        let name = self.req_data.name.clone();
         // TODO: avoid prepare_max_bucket here and handle empty buckets.
         self.prepare_max_bucket(parent_bucket_id, agg_data)?;
         let histogram = std::mem::take(&mut self.parent_buckets[parent_bucket_id as usize]);
@@ -323,10 +470,13 @@ impl SegmentAggregationCollector for SegmentHistogramCollector {
         docs: &[crate::DocId],
         agg_data: &mut AggregationsSegmentCtx,
     ) -> crate::Result<()> {
-        let req = agg_data.take_histogram_req_data(self.accessor_idx);
-        let mem_pre = self.get_memory_consumption();
-        let buckets = &mut self.parent_buckets[parent_bucket_id as usize].buckets;
+        let mem_pre = self.get_memory_consumption(parent_bucket_id);
+        let dense_range = self.dense_range;
+        let store = &mut self.parent_buckets[parent_bucket_id as usize];
+        // Upgrade to dense storage before processing the block if the buckets are dense enough.
+        store.maybe_densify(dense_range);
 
+        let req = &self.req_data;
         let bounds = req.bounds;
         let interval = req.req.interval;
         let offset = req.offset;
@@ -335,35 +485,43 @@ impl SegmentAggregationCollector for SegmentHistogramCollector {
         agg_data
             .column_block_accessor
             .fetch_block(docs, &req.accessor);
-        for (doc, val) in agg_data
-            .column_block_accessor
-            .iter_docid_vals(docs, &req.accessor)
-        {
-            let val = f64_from_fastfield_u64(val, req.field_type);
-            let bucket_pos = get_bucket_pos(val);
-            if bounds.contains(val) {
-                let bucket = buckets.entry(bucket_pos).or_insert_with(|| {
-                    let key = get_bucket_key_from_pos(bucket_pos as f64, interval, offset);
-                    SegmentHistogramBucketEntry {
-                        key,
-                        doc_count: 0,
-                        bucket_id: self.bucket_id_provider.next_bucket_id(),
-                    }
-                });
-                bucket.doc_count += 1;
-                if let Some(sub_agg) = &mut self.sub_agg {
-                    sub_agg.push(bucket.bucket_id, doc);
+        // special path for nested buckets
+        if let Some(sub_agg) = &mut self.sub_agg {
+            for (doc, val) in agg_data
+                .column_block_accessor
+                .iter_docid_vals(docs, &req.accessor)
+            {
+                let val = f64_from_fastfield_u64(val, req.field_type);
+                if bounds.contains(val) {
+                    let bucket = store.get_or_create(
+                        get_bucket_pos(val),
+                        &mut self.bucket_id_provider,
+                        |pos| get_bucket_key_from_pos(pos as f64, interval, offset),
+                    );
+                    bucket.doc_count += 1;
+                    sub_agg.push(bucket.bucket_id.to_bucket_id(), doc);
+                }
+            }
+        } else {
+            for val in agg_data.column_block_accessor.iter_vals() {
+                let val = f64_from_fastfield_u64(val, req.field_type);
+                if bounds.contains(val) {
+                    let bucket = store.get_or_create(
+                        get_bucket_pos(val),
+                        &mut self.bucket_id_provider,
+                        |pos| get_bucket_key_from_pos(pos as f64, interval, offset),
+                    );
+                    bucket.doc_count += 1;
                 }
             }
         }
-        agg_data.put_back_histogram_req_data(self.accessor_idx, req);
 
-        let mem_delta = self.get_memory_consumption() - mem_pre;
-        if mem_delta > 0 {
-            agg_data
-                .context
-                .limits
-                .add_memory_consumed(mem_delta as u64)?;
+        // `checked_sub` is `None` when densifying shrank the accounted memory; only account growth.
+        if let Some(mem_delta) = self
+            .get_memory_consumption(parent_bucket_id)
+            .checked_sub(mem_pre)
+        {
+            agg_data.context.limits.add_memory_consumed(mem_delta)?;
         }
 
         if let Some(sub_agg) = &mut self.sub_agg {
@@ -386,39 +544,45 @@ impl SegmentAggregationCollector for SegmentHistogramCollector {
         _agg_data: &AggregationsSegmentCtx,
     ) -> crate::Result<()> {
         while self.parent_buckets.len() <= max_bucket as usize {
-            self.parent_buckets.push(HistogramBuckets {
-                buckets: FxHashMap::default(),
-            });
+            self.parent_buckets.push(HistogramBuckets::default());
         }
         Ok(())
     }
+
+    fn compute_metric_value(
+        &self,
+        _bucket_id: BucketId,
+        _sub_agg_name: &str,
+        _sub_agg_property: &str,
+        _agg_data: &AggregationsSegmentCtx,
+    ) -> Option<f64> {
+        // Histogram is a multi-bucket agg with no single value to extract.
+        None
+    }
 }
 
-impl SegmentHistogramCollector {
-    fn get_memory_consumption(&self) -> usize {
-        let self_mem = std::mem::size_of::<Self>();
-        let buckets_mem = self.parent_buckets.len() * std::mem::size_of::<HistogramBuckets>();
-        self_mem + buckets_mem
+impl<B: BucketIdSlot> SegmentHistogramCollector<B> {
+    fn get_memory_consumption(&self, parent_bucket_id: BucketId) -> u64 {
+        self.parent_buckets[parent_bucket_id as usize].memory_consumption()
     }
+
     /// Converts the collector result into a intermediate bucket result.
     fn add_intermediate_bucket_result(
         &mut self,
         agg_data: &AggregationsSegmentCtx,
-        histogram: HistogramBuckets,
+        histogram: HistogramBuckets<B>,
     ) -> crate::Result<IntermediateBucketResult> {
-        let mut buckets = Vec::with_capacity(histogram.buckets.len());
+        let filled = histogram.into_filled_entries();
+        let mut buckets = Vec::with_capacity(filled.len());
 
-        for bucket in histogram.buckets.into_values() {
+        for bucket in filled {
             let bucket_res = bucket.into_intermediate_bucket_entry(&mut self.sub_agg, agg_data);
 
             buckets.push(bucket_res?);
         }
         buckets.sort_unstable_by(|b1, b2| b1.key.total_cmp(&b2.key));
 
-        let is_date_agg = agg_data
-            .get_histogram_req_data(self.accessor_idx)
-            .field_type
-            == ColumnType::DateTime;
+        let is_date_agg = self.req_data.field_type == ColumnType::DateTime;
         Ok(IntermediateBucketResult::Histogram {
             buckets,
             is_date_agg,
@@ -434,30 +598,173 @@ impl SegmentHistogramCollector {
         } else {
             None
         };
-        let req_data = agg_data.get_histogram_req_data_mut(node.idx_in_req_data);
-        req_data.req.validate()?;
-        if req_data.field_type == ColumnType::DateTime && !req_data.is_date_histogram {
-            req_data.req.normalize_date_time();
-        }
-        req_data.bounds = req_data.req.hard_bounds.unwrap_or(HistogramBounds {
-            min: f64::MIN,
-            max: f64::MAX,
-        });
-        req_data.offset = req_data.req.offset.unwrap_or(0.0);
-        let sub_agg = sub_agg.map(CachedSubAggs::new);
+        let mut req_data = agg_data.per_request.histogram_req_data[node.idx_in_req_data].clone();
+        normalize_histogram_req(&mut req_data)?;
+        agg_data
+            .context
+            .limits
+            .add_memory_consumed(req_data.get_memory_consumption() as u64)?;
+        let dense_range = compute_dense_range(
+            &req_data.accessor,
+            req_data.field_type,
+            req_data.req.interval,
+            req_data.offset,
+            req_data.bounds,
+        );
+        let sub_agg = sub_agg.map(BufferedSubAggs::new);
 
         Ok(Self {
             parent_buckets: Default::default(),
             sub_agg,
-            accessor_idx: node.idx_in_req_data,
+            req_data,
             bucket_id_provider: BucketIdProvider::default(),
+            dense_range,
         })
     }
 }
 
+impl SegmentHistogramCollector<()> {
+    /// Builds a histogram collector whose parent `t` is a dense histogram filled from
+    /// `counts[t * num_time_buckets .. (t + 1) * num_time_buckets]` (row-major). Used by the fused
+    /// terms×histogram collector to turn its flat 2D counters into the regular intermediate result,
+    /// so cross-segment merging is shared with the general path.
+    pub(crate) fn from_dense_rows(
+        req_data: HistogramAggReqData,
+        base_pos: i64,
+        num_time_buckets: usize,
+        counts: &[u32],
+    ) -> Self {
+        let interval = req_data.req.interval;
+        let offset = req_data.offset;
+        let num_parents = counts.len().checked_div(num_time_buckets).unwrap_or(0);
+        let parent_buckets = (0..num_parents)
+            .map(|t| {
+                let row = &counts[t * num_time_buckets..(t + 1) * num_time_buckets];
+                let buckets = row
+                    .iter()
+                    .enumerate()
+                    .map(|(b, &doc_count)| SegmentHistogramBucketEntry {
+                        key: get_bucket_key_from_pos(
+                            (base_pos + b as i64) as f64,
+                            interval,
+                            offset,
+                        ),
+                        doc_count: doc_count as u64,
+                        bucket_id: (),
+                    })
+                    .collect();
+                HistogramBuckets::Dense { base_pos, buckets }
+            })
+            .collect();
+        Self {
+            parent_buckets,
+            sub_agg: None,
+            req_data,
+            bucket_id_provider: BucketIdProvider::default(),
+            dense_range: None,
+        }
+    }
+}
+
+/// Validates and normalizes a histogram request in place: applies date ns-normalization (for a
+/// `histogram` on a date column) and resolves `bounds`/`offset` from the request.
+fn normalize_histogram_req(req_data: &mut HistogramAggReqData) -> crate::Result<()> {
+    req_data.req.validate()?;
+    if req_data.field_type == ColumnType::DateTime && !req_data.is_date_histogram {
+        req_data.req.normalize_date_time();
+    }
+    req_data.bounds = req_data.req.hard_bounds.unwrap_or(HistogramBounds {
+        min: f64::MIN,
+        max: f64::MAX,
+    });
+    req_data.offset = req_data.req.offset.unwrap_or(0.0);
+    // Drop `hard_bounds` that can't exclude any value (the column's range already sits inside
+    // them): the per-doc `bounds.contains` check is then a no-op, so collapsing to the unbounded
+    // sentinel lets the histogram hot loop skip it and the fused term×histogram path derive
+    // per-term counts from the grid. Only this collect-time filter is touched — empty-bucket
+    // emission reads `req.hard_bounds` directly (see `get_req_min_max`), and `hard_bounds` only
+    // ever clips that range, so a wider-than-data bound leaves the result unchanged.
+    if req_data.req.hard_bounds.is_some() {
+        let col_min = f64_from_fastfield_u64(req_data.accessor.min_value(), req_data.field_type);
+        let col_max = f64_from_fastfield_u64(req_data.accessor.max_value(), req_data.field_type);
+        if col_min >= req_data.bounds.min && col_max <= req_data.bounds.max {
+            req_data.bounds = HistogramBounds {
+                min: f64::MIN,
+                max: f64::MAX,
+            };
+        }
+    }
+    Ok(())
+}
+
+/// Clones and normalizes (resolving interval/offset/bounds) the histogram request at `node`, and
+/// returns it together with its dense bucket range — or `None` if the column has no usable range.
+/// Used by the fused terms×histogram collector, which then owns the normalized request.
+pub(crate) fn prepare_histogram_dense_range(
+    agg_data: &AggregationsSegmentCtx,
+    node: &AggRefNode,
+) -> crate::Result<Option<(HistogramAggReqData, DenseRange)>> {
+    let mut req_data = agg_data.per_request.histogram_req_data[node.idx_in_req_data].clone();
+    normalize_histogram_req(&mut req_data)?;
+    let dense_range = compute_dense_range(
+        &req_data.accessor,
+        req_data.field_type,
+        req_data.req.interval,
+        req_data.offset,
+        req_data.bounds,
+    );
+    Ok(dense_range.map(|range| (req_data, range)))
+}
+
+/// Builds a boxed histogram (or date histogram) segment collector, picking the bucket-id storage
+/// based on whether there are sub aggregations: `()` (no id stored) when there are none, otherwise
+/// [`BucketId`].
+pub(crate) fn build_segment_histogram_collector(
+    agg_data: &mut AggregationsSegmentCtx,
+    node: &AggRefNode,
+) -> crate::Result<Box<dyn SegmentAggregationCollector>> {
+    if node.children.is_empty() {
+        Ok(Box::new(
+            SegmentHistogramCollector::<()>::from_req_and_validate(agg_data, node)?,
+        ))
+    } else {
+        Ok(Box::new(
+            SegmentHistogramCollector::<BucketId>::from_req_and_validate(agg_data, node)?,
+        ))
+    }
+}
+
 #[inline]
-fn get_bucket_pos_f64(val: f64, interval: f64, offset: f64) -> f64 {
+pub(crate) fn get_bucket_pos_f64(val: f64, interval: f64, offset: f64) -> f64 {
     ((val - offset) / interval).floor()
+}
+
+/// Computes the dense bucket range for a column from its min/max value (clamped to the histogram
+/// bounds), or `None` if there are no values within bounds (or the range overflows `usize`).
+///
+/// There is no upper bound on the range: whether dense storage is actually used is decided later,
+/// per parent bucket, by [`HistogramBuckets::maybe_densify`] based on the memory it would save.
+///
+/// The column min/max bound every value the collector can see, so a `Vec` sized to this range can
+/// be indexed by `bucket_pos - base_pos` without any out-of-bounds check on the hot path.
+fn compute_dense_range(
+    accessor: &Column<u64>,
+    field_type: ColumnType,
+    interval: f64,
+    offset: f64,
+    bounds: HistogramBounds,
+) -> Option<DenseRange> {
+    let col_min = f64_from_fastfield_u64(accessor.min_value(), field_type);
+    let col_max = f64_from_fastfield_u64(accessor.max_value(), field_type);
+    let lo = col_min.max(bounds.min);
+    let hi = col_max.min(bounds.max);
+    if lo > hi {
+        return None;
+    }
+    let base_pos = get_bucket_pos_f64(lo, interval, offset) as i64;
+    let top_pos = get_bucket_pos_f64(hi, interval, offset) as i64;
+    let len = usize::try_from(top_pos.checked_sub(base_pos)?.checked_add(1)?).ok()?;
+    (len > 0).then_some(DenseRange { base_pos, len })
 }
 
 #[inline]
@@ -765,6 +1072,62 @@ mod tests {
     }
 
     #[test]
+    fn histogram_dense_storage_test() -> crate::Result<()> {
+        histogram_dense_storage_test_with_opt(false)?;
+        histogram_dense_storage_test_with_opt(true)?;
+        Ok(())
+    }
+
+    /// Exercises the switch from sparse hash map to dense `Vec` storage. The switch happens at a
+    /// block boundary (a block is `COLLECT_BLOCK_BUFFER_LEN` = 64 docs), so we need many docs in a
+    /// single segment, densely covering the bucket range. `with_sub_agg` toggles the `iter_vals`
+    /// fast path vs. the `iter_docid_vals` path used when there is a sub aggregation.
+    fn histogram_dense_storage_test_with_opt(with_sub_agg: bool) -> crate::Result<()> {
+        let num_buckets = 50usize;
+        let docs_per_bucket = 10usize;
+        // Value `k` repeated `docs_per_bucket` times for each bucket `k`, so every value in bucket
+        // `k` equals `k` and the per-bucket average is exactly `k`.
+        let values: Vec<f64> = (0..num_buckets * docs_per_bucket)
+            .map(|i| (i % num_buckets) as f64)
+            .collect();
+        // `merge_segments = true` collapses the per-value segments into a single segment with all
+        // the docs, which is collected in 64-doc blocks and therefore switches to dense storage.
+        let index = get_test_index_from_values(true, &values)?;
+
+        let agg_req: Aggregations = serde_json::from_value(if with_sub_agg {
+            json!({
+                "histogram": {
+                    "histogram": { "field": "score_f64", "interval": 1.0 },
+                    "aggs": { "avg": { "avg": { "field": "score_f64" } } }
+                }
+            })
+        } else {
+            json!({
+                "histogram": {
+                    "histogram": { "field": "score_f64", "interval": 1.0 }
+                }
+            })
+        })
+        .unwrap();
+
+        let res = exec_request(agg_req, &index)?;
+
+        for k in 0..num_buckets {
+            assert_eq!(res["histogram"]["buckets"][k]["key"], k as f64);
+            assert_eq!(
+                res["histogram"]["buckets"][k]["doc_count"],
+                docs_per_bucket as u64
+            );
+            if with_sub_agg {
+                assert_eq!(res["histogram"]["buckets"][k]["avg"]["value"], k as f64);
+            }
+        }
+        assert_eq!(res["histogram"]["buckets"][num_buckets], Value::Null);
+
+        Ok(())
+    }
+
+    #[test]
     fn histogram_memory_limit() -> crate::Result<()> {
         let index = get_test_index_with_num_docs(true, 100)?;
 
@@ -1054,6 +1417,55 @@ mod tests {
             "An invalid argument was passed: 'extended_bounds have to be inside hard_bounds, \
              extended_bounds: [1,12], hard_bounds [2,12]'"
         );
+
+        Ok(())
+    }
+
+    #[test]
+    fn histogram_non_binding_hard_bounds_test_multi_segment() -> crate::Result<()> {
+        histogram_non_binding_hard_bounds_test_with_opt(false)
+    }
+    #[test]
+    fn histogram_non_binding_hard_bounds_test_single_segment() -> crate::Result<()> {
+        histogram_non_binding_hard_bounds_test_with_opt(true)
+    }
+    /// `hard_bounds` wider than the data (here with mid-interval edges, to cover the "bound cuts a
+    /// bucket" case) can't exclude any value, so the result must be identical to the same request
+    /// without bounds. Guards the normalization that collapses such bounds to the unbounded
+    /// sentinel so the hot loop / fused path can skip the per-doc bounds check.
+    fn histogram_non_binding_hard_bounds_test_with_opt(merge_segments: bool) -> crate::Result<()> {
+        let values = vec![10.0, 12.0, 14.0, 16.0, 10.0, 13.0, 10.0, 12.0];
+        let index = get_test_index_from_values(merge_segments, &values)?;
+
+        // Mid-interval edges, but wider than the data range [10, 16] -> they exclude nothing.
+        let with_bounds: Aggregations = serde_json::from_value(json!({
+            "histogram": {
+                "histogram": {
+                    "field": "score_f64",
+                    "interval": 1.0,
+                    "hard_bounds": { "min": 9.5, "max": 16.5 }
+                }
+            }
+        }))
+        .unwrap();
+        let no_bounds: Aggregations = serde_json::from_value(json!({
+            "histogram": {
+                "histogram": { "field": "score_f64", "interval": 1.0 }
+            }
+        }))
+        .unwrap();
+
+        let res_bounds = exec_request(with_bounds, &index)?;
+        let res_plain = exec_request(no_bounds, &index)?;
+        // Dropping a non-binding bound must not change anything.
+        assert_eq!(res_bounds, res_plain);
+
+        // Sanity: buckets span the data range with gaps filled (min_doc_count defaults to 0).
+        assert_eq!(res_bounds["histogram"]["buckets"][0]["key"], 10.0);
+        assert_eq!(res_bounds["histogram"]["buckets"][0]["doc_count"], 3);
+        assert_eq!(res_bounds["histogram"]["buckets"][6]["key"], 16.0);
+        assert_eq!(res_bounds["histogram"]["buckets"][6]["doc_count"], 1);
+        assert_eq!(res_bounds["histogram"]["buckets"][7], Value::Null);
 
         Ok(())
     }

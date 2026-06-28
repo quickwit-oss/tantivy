@@ -15,7 +15,9 @@ fn test_optional_index_with_num_docs(num_docs: u32) {
     let mut dataframe_writer = ColumnarWriter::default();
     dataframe_writer.record_numerical(100, "score", 80i64);
     let mut buffer: Vec<u8> = Vec::new();
-    dataframe_writer.serialize(num_docs, &mut buffer).unwrap();
+    dataframe_writer
+        .serialize(num_docs, None, &mut buffer)
+        .unwrap();
     let columnar = ColumnarReader::open(buffer).unwrap();
     assert_eq!(columnar.num_columns(), 1);
     let cols: Vec<DynamicColumnHandle> = columnar.read_columns("score").unwrap();

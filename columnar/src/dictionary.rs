@@ -51,6 +51,16 @@ impl DictionaryBuilder {
         UnorderedId(unordered_id)
     }
 
+    fn build_sorted_terms<'a>(&'a self, arena: &'a MemoryArena) -> Vec<(&'a [u8], UnorderedId)> {
+        let mut terms: Vec<(&[u8], UnorderedId)> = self
+            .dict
+            .iter(arena)
+            .map(|(k, v)| (k, arena.read(v)))
+            .collect();
+        terms.sort_unstable_by_key(|(key, _)| *key);
+        terms
+    }
+
     /// Serialize the dictionary into an fst, and returns the
     /// `UnorderedId -> TermOrdinal` map.
     pub fn serialize<'a, W: io::Write + 'a>(
@@ -58,12 +68,7 @@ impl DictionaryBuilder {
         arena: &MemoryArena,
         wrt: &mut W,
     ) -> io::Result<TermIdMapping> {
-        let mut terms: Vec<(&[u8], UnorderedId)> = self
-            .dict
-            .iter(arena)
-            .map(|(k, v)| (k, arena.read(v)))
-            .collect();
-        terms.sort_unstable_by_key(|(key, _)| *key);
+        let terms = self.build_sorted_terms(arena);
         // TODO Remove the allocation.
         let mut unordered_to_ord: Vec<OrderedId> = vec![OrderedId(0u32); terms.len()];
         let mut sstable_builder = sstable::VoidSSTable::writer(wrt);
@@ -74,6 +79,16 @@ impl DictionaryBuilder {
         }
         sstable_builder.finish()?;
         Ok(TermIdMapping { unordered_to_ord })
+    }
+
+    /// Build the `UnorderedId -> OrderedId` mapping in memory without serializing.
+    pub fn build_term_id_mapping(&self, arena: &MemoryArena) -> TermIdMapping {
+        let terms = self.build_sorted_terms(arena);
+        let mut unordered_to_ord: Vec<OrderedId> = vec![OrderedId(0u32); terms.len()];
+        for (ord, (_key, unordered_id)) in terms.into_iter().enumerate() {
+            unordered_to_ord[unordered_id.0 as usize] = OrderedId(ord as u32);
+        }
+        TermIdMapping { unordered_to_ord }
     }
 
     pub(crate) fn mem_usage(&self) -> usize {

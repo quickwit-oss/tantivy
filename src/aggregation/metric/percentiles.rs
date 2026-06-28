@@ -222,6 +222,12 @@ impl PercentilesCollector {
         self.sketch.add(val);
     }
 
+    /// Encode the underlying DDSketch to Java-compatible binary format
+    /// for cross-language serialization with Java consumers.
+    pub fn to_sketch_bytes(&self) -> Vec<u8> {
+        self.sketch.to_java_bytes()
+    }
+
     pub(crate) fn merge_fruits(&mut self, right: PercentilesCollector) -> crate::Result<()> {
         self.sketch.merge(&right.sketch).map_err(|err| {
             TantivyError::AggregationError(AggregationError::InternalError(format!(
@@ -306,6 +312,26 @@ impl SegmentAggregationCollector for SegmentPercentilesCollector {
         }
         Ok(())
     }
+
+    fn compute_metric_value(
+        &self,
+        bucket_id: BucketId,
+        sub_agg_name: &str,
+        sub_agg_property: &str,
+        agg_data: &AggregationsSegmentCtx,
+    ) -> Option<f64> {
+        if agg_data.get_metric_req_data(self.accessor_idx).name != sub_agg_name {
+            return None;
+        }
+        let percentile: f64 = sub_agg_property.parse().ok()?;
+        if !(0.0..=100.0).contains(&percentile) {
+            return None;
+        }
+        let bucket = self.buckets.get(bucket_id as usize)?;
+        // DDSketch.quantile is a pure read; calling it here for the cutoff sort does
+        // not affect the intermediate state used for the final result.
+        bucket.sketch.quantile(percentile / 100.0).ok().flatten()
+    }
 }
 
 #[cfg(test)]
@@ -325,7 +351,7 @@ mod tests {
     use crate::aggregation::AggregationCollector;
     use crate::query::AllQuery;
     use crate::schema::{Schema, FAST};
-    use crate::Index;
+    use crate::{assert_nearly_equals, Index};
 
     #[test]
     fn test_aggregation_percentiles_empty_index() -> crate::Result<()> {
@@ -608,12 +634,16 @@ mod tests {
         let res = exec_request_with_query(agg_req, &index, None)?;
         assert_eq!(res["range_with_stats"]["buckets"][0]["doc_count"], 3);
 
-        assert_eq!(
-            res["range_with_stats"]["buckets"][0]["percentiles"]["values"]["1.0"],
+        assert_nearly_equals!(
+            res["range_with_stats"]["buckets"][0]["percentiles"]["values"]["1.0"]
+                .as_f64()
+                .unwrap(),
             5.0028295751107414
         );
-        assert_eq!(
-            res["range_with_stats"]["buckets"][0]["percentiles"]["values"]["99.0"],
+        assert_nearly_equals!(
+            res["range_with_stats"]["buckets"][0]["percentiles"]["values"]["99.0"]
+                .as_f64()
+                .unwrap(),
             10.07469668951144
         );
 
@@ -659,8 +689,14 @@ mod tests {
 
         let res = exec_request_with_query(agg_req, &index, None)?;
 
-        assert_eq!(res["percentiles"]["values"]["1.0"], 5.0028295751107414);
-        assert_eq!(res["percentiles"]["values"]["99.0"], 10.07469668951144);
+        assert_nearly_equals!(
+            res["percentiles"]["values"]["1.0"].as_f64().unwrap(),
+            5.0028295751107414
+        );
+        assert_nearly_equals!(
+            res["percentiles"]["values"]["99.0"].as_f64().unwrap(),
+            10.07469668951144
+        );
 
         Ok(())
     }

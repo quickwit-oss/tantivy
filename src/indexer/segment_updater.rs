@@ -114,10 +114,11 @@ fn merge(
         .collect();
 
     // An IndexMerger is like a "view" of our merged segments.
-    let merger: IndexMerger = IndexMerger::open(index.schema(), &segments[..])?;
+    let merger: IndexMerger =
+        IndexMerger::open(index.schema(), index.settings().clone(), &segments[..])?;
 
     // ... we just serialize this index merger in our new segment to merge the segments.
-    let segment_serializer = SegmentSerializer::for_segment(merged_segment.clone())?;
+    let segment_serializer = SegmentSerializer::for_segment(merged_segment.clone(), true)?;
 
     let num_docs = merger.write(segment_serializer)?;
 
@@ -218,9 +219,13 @@ pub fn merge_filtered_segments<T: Into<Box<dyn Directory>>>(
     )?;
     let merged_segment = merged_index.new_segment();
     let merged_segment_id = merged_segment.id();
-    let merger: IndexMerger =
-        IndexMerger::open_with_custom_alive_set(merged_index.schema(), segments, filter_doc_ids)?;
-    let segment_serializer = SegmentSerializer::for_segment(merged_segment)?;
+    let merger: IndexMerger = IndexMerger::open_with_custom_alive_set(
+        merged_index.schema(),
+        merged_index.settings().clone(),
+        segments,
+        filter_doc_ids,
+    )?;
+    let segment_serializer = SegmentSerializer::for_segment(merged_segment, true)?;
     let num_docs = merger.write(segment_serializer)?;
 
     let segment_meta = merged_index.new_segment_meta(merged_segment_id, num_docs);
@@ -403,7 +408,8 @@ impl SegmentUpdater {
             // from the different drives.
             //
             // Segment 1 from disk 1, Segment 1 from disk 2, etc.
-            committed_segment_metas.sort_by_key(|segment_meta| -(segment_meta.max_doc() as i32));
+            committed_segment_metas
+                .sort_by_key(|segment_meta| std::cmp::Reverse(segment_meta.max_doc()));
             let index_meta = IndexMeta {
                 index_settings: index.settings().clone(),
                 segments: committed_segment_metas,
@@ -648,9 +654,6 @@ impl SegmentUpdater {
                                     merge_operation.segment_ids(),
                                     advance_deletes_err
                                 );
-                                assert!(!cfg!(test), "Merge failed.");
-
-                                // ... cancel merge
                                 // `merge_operations` are tracked. As it is dropped, the
                                 // the segment_ids will be available again for merge.
                                 return Err(advance_deletes_err);
@@ -705,12 +708,29 @@ mod tests {
     use crate::collector::TopDocs;
     use crate::directory::RamDirectory;
     use crate::fastfield::AliveBitSet;
+    use crate::index::{SegmentId, SegmentMetaInventory};
     use crate::indexer::merge_policy::tests::MergeWheneverPossible;
     use crate::indexer::merger::IndexMerger;
     use crate::indexer::segment_updater::merge_filtered_segments;
     use crate::query::QueryParser;
     use crate::schema::*;
     use crate::{Directory, DocAddress, Index, Segment};
+
+    #[test]
+    fn test_segment_sort_large_max_doc() {
+        // Regression test: -(max_doc as i32) overflows for max_doc >= 2^31.
+        // Using std::cmp::Reverse avoids this.
+        let inventory = SegmentMetaInventory::default();
+        let mut metas = [
+            inventory.new_segment_meta(SegmentId::generate_random(), 100),
+            inventory.new_segment_meta(SegmentId::generate_random(), (1u32 << 31) - 1),
+            inventory.new_segment_meta(SegmentId::generate_random(), 50_000),
+        ];
+        metas.sort_by_key(|m| std::cmp::Reverse(m.max_doc()));
+        assert_eq!(metas[0].max_doc(), (1u32 << 31) - 1);
+        assert_eq!(metas[1].max_doc(), 50_000);
+        assert_eq!(metas[2].max_doc(), 100);
+    }
 
     #[test]
     fn test_delete_during_merge() -> crate::Result<()> {
@@ -1100,6 +1120,7 @@ mod tests {
             )?;
             let merger: IndexMerger = IndexMerger::open_with_custom_alive_set(
                 merged_index.schema(),
+                merged_index.settings().clone(),
                 &segments[..],
                 filter_segments,
             )?;
@@ -1115,6 +1136,7 @@ mod tests {
                 Index::create(RamDirectory::default(), target_schema, target_settings)?;
             let merger: IndexMerger = IndexMerger::open_with_custom_alive_set(
                 merged_index.schema(),
+                merged_index.settings().clone(),
                 &segments[..],
                 filter_segments,
             )?;

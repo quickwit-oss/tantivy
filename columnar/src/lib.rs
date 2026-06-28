@@ -43,7 +43,8 @@ pub use column_values::{
 };
 pub use columnar::{
     CURRENT_VERSION, ColumnType, ColumnarReader, ColumnarWriter, HasAssociatedColumnType,
-    MergeRowOrder, ShuffleMergeOrder, StackMergeOrder, Version, merge_columnar,
+    MergeRowOrder, ShuffleMergeOrder, StackMergeOrder, Version, compute_merged_term_ord_mapping,
+    merge_columnar,
 };
 use sstable::VoidSSTable;
 pub use value::{NumericalType, NumericalValue};
@@ -59,7 +60,7 @@ pub struct RowAddr {
     pub row_id: RowId,
 }
 
-pub use sstable::Dictionary;
+pub use sstable::{Dictionary, TermOrdHit};
 pub type Streamer<'a> = sstable::Streamer<'a, VoidSSTable>;
 
 pub use common::DateTime;

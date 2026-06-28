@@ -1,12 +1,13 @@
-use std::collections::hash_map::DefaultHasher;
-use std::hash::{BuildHasher, Hasher};
+use std::fmt::Debug;
+use std::hash::Hash;
+use std::io;
 
 use columnar::column_values::CompactSpaceU64Accessor;
 use columnar::{Column, ColumnType, Dictionary, StrColumn};
-use common::f64_to_u64;
-use hyperloglogplus::{HyperLogLog, HyperLogLogPlus};
-use rustc_hash::FxHashSet;
-use serde::{Deserialize, Serialize};
+use common::{BitSet, TinySet};
+use datasketches::hll::{Coupon, HllSketch, HllType, HllUnion};
+use rustc_hash::{FxBuildHasher, FxHashMap, FxHashSet};
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 use crate::aggregation::agg_data::AggregationsSegmentCtx;
 use crate::aggregation::intermediate_agg_result::{
@@ -16,29 +17,23 @@ use crate::aggregation::segment_agg_result::SegmentAggregationCollector;
 use crate::aggregation::*;
 use crate::TantivyError;
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
-struct BuildSaltedHasher {
-    salt: u8,
-}
+/// Log2 of the number of registers for the HLL sketch.
+/// 2^11 = 2048 registers, giving ~2.3% relative error and ~1KB per sketch (Hll4).
+const LG_K: u8 = 11;
 
-impl BuildHasher for BuildSaltedHasher {
-    type Hasher = DefaultHasher;
-
-    fn build_hasher(&self) -> Self::Hasher {
-        let mut hasher = DefaultHasher::new();
-        hasher.write_u8(self.salt);
-
-        hasher
-    }
-}
+/// Promote FxHashSet<u64> -> PagedBitset at ~3% density (`len * 32 >
+/// dict_num_terms`). Past this point the bitset (~`dict_num_terms / 7.5`
+/// bytes) is smaller than the hashset (~10 B/entry minimum) and avoids
+/// the per-insert hash.
+const PROMOTION_RATIO: u64 = 32;
 
 /// # Cardinality
 ///
 /// The cardinality aggregation allows for computing an estimate
 /// of the number of different values in a data set based on the
-/// HyperLogLog++ algorithm. This is particularly useful for understanding the
-/// uniqueness of values in a large dataset where counting each unique value
-/// individually would be computationally expensive.
+/// Apache DataSketches HyperLogLog algorithm. This is particularly useful for
+/// understanding the uniqueness of values in a large dataset where counting
+/// each unique value individually would be computationally expensive.
 ///
 /// For example, you might use a cardinality aggregation to estimate the number
 /// of unique visitors to a website by aggregating on a field that contains
@@ -133,9 +128,324 @@ impl CardinalityAggregationReq {
     }
 }
 
-#[derive(Clone, Debug)]
-pub(crate) struct SegmentCardinalityCollector {
-    buckets: Vec<SegmentCardinalityCollectorBucket>,
+/// A CouponCache is here to cache the mapping term ordinal -> coupon (see above).
+/// The idea is that we do not want to fetch terms associated to several term ordinals,
+/// several times due to the fact that we have several buckets.
+enum CouponCache {
+    Dense {
+        coupon_map: Vec<Coupon>,
+        missing_coupon_opt: Option<Coupon>,
+    },
+    Sparse {
+        coupon_map: FxHashMap<u64, Coupon>,
+        missing_coupon_opt: Option<Coupon>,
+    },
+}
+
+impl CouponCache {
+    fn new(
+        term_ords: Vec<u64>,
+        coupons: Vec<Coupon>,
+        missing_coupon_opt: Option<Coupon>,
+    ) -> CouponCache {
+        let num_terms = term_ords.len();
+        assert_eq!(num_terms, coupons.len());
+        if term_ords.is_empty() {
+            return CouponCache::Dense {
+                coupon_map: Vec::new(),
+                missing_coupon_opt,
+            };
+        }
+        let highest_term_ord = term_ords.last().copied().unwrap_or(0u64);
+        // We prefer the dense implementation, if it is not too wasteful.
+        // There are two cases for which we can use it.
+        // 1- if the data is small.
+        // 2- if the data is not necessarily small, but due to a high occupancy ratio, the RAM usage
+        // is not that much bigger than if we had used a HashSet. (occupancy ratio + extra
+        // metadata ~ x2.25)
+        let should_use_dense =
+            highest_term_ord < 1_000_000u64 || highest_term_ord < num_terms as u64 * 3u64;
+        if should_use_dense {
+            // We don't really care about the value here. We will populate all the values we will
+            // read anyway.
+            let uninitialized_coupon = Coupon::from_hash(0);
+            let mut coupon_map: Vec<Coupon> =
+                vec![uninitialized_coupon; highest_term_ord as usize + 1];
+
+            for (term_ord, coupon) in term_ords.into_iter().zip(coupons) {
+                coupon_map[term_ord as usize] = coupon;
+            }
+            CouponCache::Dense {
+                coupon_map,
+                missing_coupon_opt,
+            }
+        } else {
+            let coupon_map: FxHashMap<u64, Coupon> = term_ords.into_iter().zip(coupons).collect();
+            CouponCache::Sparse {
+                coupon_map,
+                missing_coupon_opt,
+            }
+        }
+    }
+}
+
+// =================================================================
+// PagedBitset: a sparse bitset indexed by term_ord.
+//
+// Used as the dense alternative to FxHashSet<u64> once a string
+// cardinality bucket has accumulated enough unique term ordinals.
+// Memory is bounded to (touched pages) * (page bytes), not
+// (max_term_ord / 8).
+//
+// Page geometry mirrors `PagedTermMap` in `term_agg.rs`: 1024 ords
+// per page, lazy `Vec<Option<Box<Page>>>` directory.
+// =================================================================
+const BITSET_PAGE_SHIFT: u32 = 10;
+const BITSET_PAGE_BITS: u64 = 1u64 << BITSET_PAGE_SHIFT; // 1024
+const BITSET_PAGE_MASK: u64 = BITSET_PAGE_BITS - 1;
+const BITSET_WORDS_PER_PAGE: usize = (BITSET_PAGE_BITS / 64) as usize; // 16
+
+#[derive(Clone)]
+struct PagedBitsetPage {
+    words: [TinySet; BITSET_WORDS_PER_PAGE],
+}
+
+impl PagedBitsetPage {
+    fn new() -> Self {
+        Self {
+            words: [TinySet::empty(); BITSET_WORDS_PER_PAGE],
+        }
+    }
+}
+
+pub(crate) struct PagedBitset {
+    pages: Vec<Option<Box<PagedBitsetPage>>>,
+    /// Cached number of set bits, maintained on insert.
+    count: u64,
+}
+
+impl PagedBitset {
+    /// Allocates a directory big enough to hold ords up to and including
+    /// `max_term_ord`. Pages are allocated lazily on first set.
+    fn with_max_term_ord(max_term_ord: u64) -> Self {
+        let max_page_idx = (max_term_ord >> BITSET_PAGE_SHIFT) as usize;
+        let num_pages = max_page_idx + 1;
+        Self {
+            pages: vec![None; num_pages],
+            count: 0,
+        }
+    }
+
+    #[inline]
+    fn insert(&mut self, term_ord: u64) {
+        let page_idx = (term_ord >> BITSET_PAGE_SHIFT) as usize;
+        let intra = term_ord & BITSET_PAGE_MASK;
+        let word_idx = (intra >> 6) as usize;
+        let bit_idx = (intra & 63) as u32;
+
+        let page = match &mut self.pages[page_idx] {
+            Some(p) => p,
+            None => {
+                self.pages[page_idx] = Some(Box::new(PagedBitsetPage::new()));
+                self.pages[page_idx].as_mut().unwrap()
+            }
+        };
+        if page.words[word_idx].insert_mut(bit_idx) {
+            self.count += 1;
+        }
+    }
+
+    /// Number of set bits. O(1).
+    #[inline]
+    fn len(&self) -> u64 {
+        self.count
+    }
+
+    /// Iterate set ords in ascending order.
+    fn iter_sorted(&self) -> impl Iterator<Item = u64> + '_ {
+        self.pages
+            .iter()
+            .enumerate()
+            .filter_map(|(page_idx, page_opt)| page_opt.as_ref().map(|p| (page_idx, p)))
+            .flat_map(|(page_idx, page)| {
+                let page_base_ord = (page_idx as u64) << BITSET_PAGE_SHIFT;
+                page.words
+                    .iter()
+                    .enumerate()
+                    .flat_map(move |(word_idx, &word)| {
+                        let word_base_ord = page_base_ord + (word_idx as u64) * 64;
+                        word.into_iter()
+                            .map(move |bit| word_base_ord + u64::from(bit))
+                    })
+            })
+    }
+}
+
+/// Threshold below which we use `BitSet` instead of `TermOrdSet`.
+///
+/// Both `BitSet` and `FxHashSet<u64>` have the same 32-byte struct, so the comparison is heap only:
+///   * `BitSet` at T=256: 5 `TinySet` words covering 258 bits (with the missing-value sentinel) =
+///     40 bytes.
+///   * `FxHashSet<u64>` after one insert: 4-bucket hashbrown table ≈ 56 bytes
+pub(crate) const BITSET_MAX_TERM_ORD: u64 = 256;
+
+// =================================================================
+// TermOrdAccumulator: per-bucket abstraction over the entries set.
+//
+// Implementations:
+//   - `BitSet` (from `common`): used when `column.max_value()` is small (< BITSET_MAX_TERM_ORD).
+//     Pre-allocated, no promotion.
+//   - `TermOrdSet`: adaptive, starts as FxHashSet and promotes to a paged bitset when occupancy
+//     crosses the density threshold (only if promotion is enabled — typically gated on top-level
+//     aggregation).
+//
+// The trait lets `SegmentCardinalityCollector` be generic over the choice
+// so the hot collect() loop monomorphizes to a direct call (no enum
+// dispatch per insert).
+// =================================================================
+pub(crate) trait TermOrdAccumulator: Sized {
+    /// Construct an empty accumulator.
+    /// `max_term_ord_inclusive` is the largest term_ord that may be
+    /// inserted (used to size pre-allocated bitsets and the dense bitset
+    /// on promotion).
+    fn new(max_term_ord_inclusive: u64) -> Self;
+    fn insert(&mut self, term_ord: u64);
+    /// Bulk insert. Implementations may override to hoist any inner
+    /// dispatch outside the loop. Default loops `insert`.
+    #[inline]
+    fn extend_from_iter<I: IntoIterator<Item = u64>>(&mut self, ords: I) {
+        for ord in ords {
+            self.insert(ord);
+        }
+    }
+    /// Hook called once per ingested block. Adaptive impls use this to
+    /// decide on sparse->dense promotion.
+    fn maybe_compact(&mut self) {}
+    fn len(&self) -> usize;
+    fn iter_ords(&self) -> impl Iterator<Item = u64> + '_;
+}
+
+impl TermOrdAccumulator for BitSet {
+    #[inline]
+    fn new(max_term_ord_inclusive: u64) -> Self {
+        // `BitSet::with_max_value(M)` accepts ords in [0, M).
+        // We need ords up to and including `max_term_ord_inclusive`, plus
+        // the missing-value sentinel `column.max_value() + 1`.
+        BitSet::with_max_value((max_term_ord_inclusive + 2) as u32)
+    }
+    #[inline]
+    fn insert(&mut self, term_ord: u64) {
+        BitSet::insert(self, term_ord as u32);
+    }
+    #[inline]
+    fn len(&self) -> usize {
+        BitSet::len(self)
+    }
+    fn iter_ords(&self) -> impl Iterator<Item = u64> + '_ {
+        // `BitSet` itself doesn't expose iteration, but
+        // `BitSet::tinyset(bucket)` does. Walk per-bucket and yield each
+        // set bit. The capacity is `max_value()`; iterating to
+        // `div_ceil(64)` covers every possible ord exactly once.
+        let num_buckets = self.max_value().div_ceil(64);
+        (0..num_buckets).flat_map(move |bucket| {
+            let chunk_base = u64::from(bucket) * 64;
+            self.tinyset(bucket)
+                .into_iter()
+                .map(move |bit| chunk_base + u64::from(bit))
+        })
+    }
+}
+
+// =================================================================
+// TermOrdSet: adaptive sparse->dense accumulator.
+//
+// Starts as an FxHashSet (cheap when few ords are seen). When occupancy
+// crosses `len * PROMOTION_RATIO > max_term_ord_inclusive`, drains into
+// a `PagedBitset` and continues dense. Promotion is one-way.
+// =================================================================
+pub(crate) struct TermOrdSet {
+    inner: TermOrdSetInner,
+    /// Largest term_ord that may be inserted. Used for both sizing the
+    /// dense bitset on promotion and as the promotion-threshold reference.
+    max_term_ord_inclusive: u64,
+}
+
+enum TermOrdSetInner {
+    Sparse(FxHashSet<u64>),
+    Dense(PagedBitset),
+}
+
+impl TermOrdAccumulator for TermOrdSet {
+    fn new(max_term_ord_inclusive: u64) -> Self {
+        Self {
+            inner: TermOrdSetInner::Sparse(FxHashSet::default()),
+            max_term_ord_inclusive,
+        }
+    }
+
+    #[inline]
+    fn insert(&mut self, term_ord: u64) {
+        match &mut self.inner {
+            TermOrdSetInner::Sparse(set) => {
+                set.insert(term_ord);
+            }
+            TermOrdSetInner::Dense(bitset) => bitset.insert(term_ord),
+        }
+    }
+
+    /// Hoist the Sparse/Dense match outside the per-ord loop so that a
+    /// block of inserts dispatches once.
+    fn extend_from_iter<I: IntoIterator<Item = u64>>(&mut self, ords: I) {
+        match &mut self.inner {
+            TermOrdSetInner::Sparse(set) => {
+                for ord in ords {
+                    set.insert(ord);
+                }
+            }
+            TermOrdSetInner::Dense(bitset) => {
+                for ord in ords {
+                    bitset.insert(ord);
+                }
+            }
+        }
+    }
+
+    fn maybe_compact(&mut self) {
+        let TermOrdSetInner::Sparse(set) = &mut self.inner else {
+            return;
+        };
+        if set.len() as u64 * PROMOTION_RATIO <= self.max_term_ord_inclusive {
+            return;
+        }
+        // Size for ord <= max_term_ord_inclusive plus the missing sentinel
+        // (column.max_value() + 1, which may equal max_term_ord_inclusive
+        // when the column references every dictionary term).
+        let mut bitset = PagedBitset::with_max_term_ord(self.max_term_ord_inclusive + 1);
+        let set = std::mem::take(set);
+        for ord in set {
+            bitset.insert(ord);
+        }
+        self.inner = TermOrdSetInner::Dense(bitset);
+    }
+
+    fn len(&self) -> usize {
+        match &self.inner {
+            TermOrdSetInner::Sparse(set) => set.len(),
+            TermOrdSetInner::Dense(bitset) => bitset.len() as usize,
+        }
+    }
+
+    fn iter_ords(&self) -> impl Iterator<Item = u64> + '_ {
+        match &self.inner {
+            TermOrdSetInner::Sparse(set) => itertools::Either::Left(set.iter().copied()),
+            TermOrdSetInner::Dense(bitset) => itertools::Either::Right(bitset.iter_sorted()),
+        }
+    }
+}
+
+pub(crate) struct SegmentCardinalityCollector<S: TermOrdAccumulator> {
+    /// Buckets are Some(_) until they get consumed by into_intermediate_results().
+    buckets: Vec<Option<SegmentCardinalityCollectorBucket<S>>>,
     accessor_idx: usize,
     /// The column accessor to access the fast field values.
     accessor: Column<u64>,
@@ -143,91 +453,181 @@ pub(crate) struct SegmentCardinalityCollector {
     column_type: ColumnType,
     /// The missing value normalized to the internal u64 representation of the field type.
     missing_value_for_accessor: Option<u64>,
+    coupon_cache: Option<CouponCache>,
+    /// Largest term_ord that may be inserted into a bucket. For str columns
+    /// this is `accessor.max_value()`; for non-str columns this is unused
+    /// (no inserts go into `entries`) and set to 0.
+    max_term_ord_inclusive: u64,
 }
 
-#[derive(Clone, Debug, PartialEq, Default)]
-pub(crate) struct SegmentCardinalityCollectorBucket {
-    cardinality: CardinalityCollector,
-    entries: FxHashSet<u64>,
+impl<S: TermOrdAccumulator> Debug for SegmentCardinalityCollector<S> {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        f.debug_struct("SegmentCardinalityCollector")
+            .field("column_type", &self.column_type)
+            .field(
+                "missing_value_for_accessor",
+                &self.missing_value_for_accessor,
+            )
+            .finish()
+    }
 }
-impl SegmentCardinalityCollectorBucket {
-    pub fn new(column_type: ColumnType) -> Self {
-        Self {
-            cardinality: CardinalityCollector::new(column_type as u8),
-            entries: FxHashSet::default(),
+
+/// Per-bucket state. Shape depends on column kind: str columns dedup
+/// term ords and only build the HLL sketch at finalization (saves the
+/// ~96 B `CardinalityCollector` per bucket during collect); numeric/IpAddr
+/// columns feed the sketch directly during collect.
+pub(crate) enum SegmentCardinalityCollectorBucket<S: TermOrdAccumulator> {
+    Str(S),
+    Numeric(CardinalityCollector),
+}
+impl<S: TermOrdAccumulator> SegmentCardinalityCollectorBucket<S> {
+    #[inline(always)]
+    pub fn new(column_type: ColumnType, max_term_ord_inclusive: u64) -> Self {
+        if column_type == ColumnType::Str {
+            Self::Str(S::new(max_term_ord_inclusive))
+        } else {
+            Self::Numeric(CardinalityCollector::new(column_type as u8))
         }
     }
+
+    // Returns a intermediate metric result.
+    //
+    // If the column is not str, the values have been added to the
+    // sketch during collection.
+    //
+    // If the column is str, then the values are dictionary encoded
+    // and have not been added to the sketch yet.
+    // We need to resolves the term ords accumulated in the str entries
+    // with the coupon cache, and append the results to a fresh sketch.
     fn into_intermediate_metric_result(
-        mut self,
-        req_data: &CardinalityAggReqData,
+        self,
+        coupon_cache_opt: Option<&CouponCache>,
     ) -> crate::Result<IntermediateMetricResult> {
-        if req_data.column_type == ColumnType::Str {
-            let fallback_dict = Dictionary::empty();
-            let dict = req_data
-                .str_dict_column
-                .as_ref()
-                .map(|el| el.dictionary())
-                .unwrap_or_else(|| &fallback_dict);
-            let mut has_missing = false;
-
-            // TODO: replace FxHashSet with something that allows iterating in order
-            // (e.g. sparse bitvec)
-            let mut term_ids = Vec::new();
-            for term_ord in self.entries.into_iter() {
-                if term_ord == u64::MAX {
-                    has_missing = true;
-                } else {
-                    // we can reasonably exclude values above u32::MAX
-                    term_ids.push(term_ord as u32);
+        let cardinality = match self {
+            Self::Str(entries) => {
+                let mut cardinality = CardinalityCollector::new(ColumnType::Str as u8);
+                if let Some(coupon_cache) = coupon_cache_opt {
+                    // Sketch must be empty for str columns: coupons are appended here
+                    // from the term_ord set (and not directly during collection).
+                    assert!(cardinality.sketch.is_empty());
+                    append_to_sketch(&entries, coupon_cache, &mut cardinality);
                 }
+                cardinality
             }
-
-            term_ids.sort_unstable();
-            dict.sorted_ords_to_term_cb(term_ids.iter().map(|term| *term as u64), |term| {
-                self.cardinality.sketch.insert_any(&term);
-                Ok(())
-            })?;
-            if has_missing {
-                // Replace missing with the actual value provided
-                let missing_key =
-                    req_data.req.missing.as_ref().expect(
-                        "Found sentinel value u64::MAX for term_ord but `missing` is not set",
-                    );
-                match missing_key {
-                    Key::Str(missing) => {
-                        self.cardinality.sketch.insert_any(&missing);
-                    }
-                    Key::F64(val) => {
-                        let val = f64_to_u64(*val);
-                        self.cardinality.sketch.insert_any(&val);
-                    }
-                    Key::U64(val) => {
-                        self.cardinality.sketch.insert_any(&val);
-                    }
-                    Key::I64(val) => {
-                        self.cardinality.sketch.insert_any(&val);
-                    }
-                }
-            }
-        }
-
-        Ok(IntermediateMetricResult::Cardinality(self.cardinality))
+            Self::Numeric(cardinality) => cardinality,
+        };
+        Ok(IntermediateMetricResult::Cardinality(cardinality))
     }
 }
 
-impl SegmentCardinalityCollector {
+/// Builds a coupon cache from the given buckets, dictionary, and optional missing value.
+/// Returns a mapping from term_ord to the hash (coupon) of the associated term.
+fn build_coupon_cache<S: TermOrdAccumulator>(
+    buckets: &[Option<SegmentCardinalityCollectorBucket<S>>],
+    dictionary: &Dictionary,
+    missing_value_opt: Option<&Key>,
+) -> io::Result<CouponCache> {
+    // Caller restricts this to str cardinality collectors, so every
+    // present bucket must be the `Str` variant. Pass 1 validates and
+    // computes the capacity hint; pass 2 inserts.
+    let mut max_bucket_len = 0usize;
+    for bucket in buckets.iter().flatten() {
+        match bucket {
+            SegmentCardinalityCollectorBucket::Str(entries) => {
+                max_bucket_len = max_bucket_len.max(entries.len());
+            }
+            SegmentCardinalityCollectorBucket::Numeric(_) => {
+                return Err(io::Error::other(
+                    "build_coupon_cache invoked with a non-str bucket",
+                ));
+            }
+        }
+    }
+    let mut term_ords_set = FxHashSet::with_capacity_and_hasher(max_bucket_len * 2, FxBuildHasher);
+    for bucket in buckets.iter().flatten() {
+        if let SegmentCardinalityCollectorBucket::Str(entries) = bucket {
+            term_ords_set.extend(entries.iter_ords());
+        }
+    }
+    let mut term_ords: Vec<u64> = term_ords_set.into_iter().collect();
+    term_ords.sort_unstable();
+
+    term_ords.pop_if(|highest_term_ord| *highest_term_ord >= dictionary.num_terms() as u64);
+
+    let mut coupons: Vec<Coupon> = Vec::with_capacity(term_ords.len());
+    let all_term_ords_found: bool =
+        dictionary.sorted_ords_to_term_cb(&term_ords, |term_bytes| {
+            let coupon: Coupon = Coupon::from_hash(term_bytes);
+            coupons.push(coupon);
+        })?;
+    assert!(all_term_ords_found);
+
+    // Regardless of whether or not there is effectively a missing value in one of the buckets,
+    // we populate the cache with the missing key too (if any).
+    let missing_coupon_opt: Option<Coupon> = missing_value_opt.map(|missing_key| {
+        if let Key::Str(missing_value_str) = missing_key {
+            Coupon::from_hash(missing_value_str.as_bytes())
+        } else {
+            // See https://github.com/quickwit-oss/tantivy/issues/2891
+            // A missing key with a type different from Str will not work as intended
+            // for the moment.
+            //
+            // Right now this is just a partial workaround.
+            Coupon::from_hash("__tantivy_missing_non_str__".as_bytes())
+        }
+    });
+    Ok(CouponCache::new(term_ords, coupons, missing_coupon_opt))
+}
+
+fn append_to_sketch<S: TermOrdAccumulator>(
+    term_ords: &S,
+    coupon_cache: &CouponCache,
+    sketch: &mut CardinalityCollector,
+) {
+    match coupon_cache {
+        CouponCache::Dense {
+            coupon_map,
+            missing_coupon_opt,
+        } => {
+            for term_ord in term_ords.iter_ords() {
+                if let Some(coupon) = coupon_map
+                    .get(term_ord as usize)
+                    .copied()
+                    .or(*missing_coupon_opt)
+                {
+                    sketch.insert_coupon(coupon);
+                }
+            }
+        }
+        CouponCache::Sparse {
+            coupon_map,
+            missing_coupon_opt,
+        } => {
+            for term_ord in term_ords.iter_ords() {
+                if let Some(coupon) = coupon_map.get(&term_ord).copied().or(*missing_coupon_opt) {
+                    sketch.insert_coupon(coupon);
+                }
+            }
+        }
+    }
+}
+
+impl<S: TermOrdAccumulator> SegmentCardinalityCollector<S> {
     pub fn from_req(
         column_type: ColumnType,
         accessor_idx: usize,
         accessor: Column<u64>,
         missing_value_for_accessor: Option<u64>,
+        max_term_ord_inclusive: u64,
     ) -> Self {
         Self {
-            buckets: vec![SegmentCardinalityCollectorBucket::new(column_type); 1],
+            buckets: Vec::new(),
             column_type,
             accessor_idx,
             accessor,
             missing_value_for_accessor,
+            coupon_cache: None,
+            max_term_ord_inclusive,
         }
     }
 
@@ -244,20 +644,42 @@ impl SegmentCardinalityCollector {
     }
 }
 
-impl SegmentAggregationCollector for SegmentCardinalityCollector {
+impl<S: TermOrdAccumulator + 'static> SegmentAggregationCollector
+    for SegmentCardinalityCollector<S>
+{
     fn add_intermediate_aggregation_result(
         &mut self,
         agg_data: &AggregationsSegmentCtx,
         results: &mut IntermediateAggregationResults,
-        parent_bucket_id: BucketId,
+        bucket_id: BucketId,
     ) -> crate::Result<()> {
-        self.prepare_max_bucket(parent_bucket_id, agg_data)?;
+        self.prepare_max_bucket(bucket_id, agg_data)?;
         let req_data = &agg_data.get_cardinality_req_data(self.accessor_idx);
+        // Strings are dictionary encoded. Fetching the terms associated to strings
+        // is expensive. For this reason, we do that once for all buckets and cache the results
+        // here.
+        if let Some(str_dict_column) = &req_data.str_dict_column {
+            // Ensure the coupon cache is populated.
+            // A mapping from term_ord to the hash of the associated term.
+            // The missing value sentinel will be associated to the hash of the missing value if
+            // any.
+            if self.coupon_cache.is_none() {
+                self.coupon_cache = Some(build_coupon_cache(
+                    &self.buckets,
+                    str_dict_column.dictionary(),
+                    req_data.req.missing.as_ref(),
+                )?);
+            }
+        }
         let name = req_data.name.to_string();
         // take the bucket in buckets and replace it with a new empty one
-        let bucket = std::mem::take(&mut self.buckets[parent_bucket_id as usize]);
-
-        let intermediate_result = bucket.into_intermediate_metric_result(req_data)?;
+        let Some(bucket) = self.buckets[bucket_id as usize].take() else {
+            return Err(crate::TantivyError::InternalError(
+                "the same bucket should not be finalized twice.".to_string(),
+            ));
+        };
+        let intermediate_result =
+            bucket.into_intermediate_metric_result(self.coupon_cache.as_ref())?;
         results.push(
             name,
             IntermediateAggregationResult::Metric(intermediate_result),
@@ -273,34 +695,47 @@ impl SegmentAggregationCollector for SegmentCardinalityCollector {
         agg_data: &mut AggregationsSegmentCtx,
     ) -> crate::Result<()> {
         self.fetch_block_with_field(docs, agg_data);
-        let bucket = &mut self.buckets[parent_bucket_id as usize];
-
+        let Some(bucket) = &mut self.buckets[parent_bucket_id as usize].as_mut() else {
+            return Err(crate::TantivyError::InternalError(
+                "collection should not happen after finalization".to_string(),
+            ));
+        };
         let col_block_accessor = &agg_data.column_block_accessor;
-        if self.column_type == ColumnType::Str {
-            for term_ord in col_block_accessor.iter_vals() {
-                bucket.entries.insert(term_ord);
+        match bucket {
+            SegmentCardinalityCollectorBucket::Str(entries) => {
+                // Promotion check runs on the pre-block state: the first call
+                // sees an empty set (no-op), and the last block of inserts
+                // doesn't trigger a promotion of a set we won't grow further.
+                // The trait dispatches once per block (via `extend_from_iter`)
+                // for adaptive variants and inlines to a tight loop for the
+                // BitSet path.
+                entries.maybe_compact();
+                entries.extend_from_iter(col_block_accessor.iter_vals());
             }
-        } else if self.column_type == ColumnType::IpAddr {
-            let compact_space_accessor = self
-                .accessor
-                .values
-                .clone()
-                .downcast_arc::<CompactSpaceU64Accessor>()
-                .map_err(|_| {
-                    TantivyError::AggregationError(
-                        crate::aggregation::AggregationError::InternalError(
-                            "Type mismatch: Could not downcast to CompactSpaceU64Accessor"
-                                .to_string(),
-                        ),
-                    )
-                })?;
-            for val in col_block_accessor.iter_vals() {
-                let val: u128 = compact_space_accessor.compact_to_u128(val as u32);
-                bucket.cardinality.sketch.insert_any(&val);
-            }
-        } else {
-            for val in col_block_accessor.iter_vals() {
-                bucket.cardinality.sketch.insert_any(&val);
+            SegmentCardinalityCollectorBucket::Numeric(cardinality) => {
+                if self.column_type == ColumnType::IpAddr {
+                    let compact_space_accessor = self
+                        .accessor
+                        .values
+                        .clone()
+                        .downcast_arc::<CompactSpaceU64Accessor>()
+                        .map_err(|_| {
+                            TantivyError::AggregationError(
+                                crate::aggregation::AggregationError::InternalError(
+                                    "Type mismatch: Could not downcast to CompactSpaceU64Accessor"
+                                        .to_string(),
+                                ),
+                            )
+                        })?;
+                    for val in col_block_accessor.iter_vals() {
+                        let val: u128 = compact_space_accessor.compact_to_u128(val as u32);
+                        cardinality.insert(val);
+                    }
+                } else {
+                    for val in col_block_accessor.iter_vals() {
+                        cardinality.insert(val);
+                    }
+                }
             }
         }
 
@@ -313,19 +748,54 @@ impl SegmentAggregationCollector for SegmentCardinalityCollector {
         _agg_data: &AggregationsSegmentCtx,
     ) -> crate::Result<()> {
         if max_bucket as usize >= self.buckets.len() {
+            let column_type = self.column_type;
+            let max_term_ord_inclusive = self.max_term_ord_inclusive;
             self.buckets.resize_with(max_bucket as usize + 1, || {
-                SegmentCardinalityCollectorBucket::new(self.column_type)
+                Some(SegmentCardinalityCollectorBucket::<S>::new(
+                    column_type,
+                    max_term_ord_inclusive,
+                ))
             });
         }
         Ok(())
     }
+
+    fn compute_metric_value(
+        &self,
+        bucket_id: BucketId,
+        sub_agg_name: &str,
+        sub_agg_property: &str,
+        agg_data: &AggregationsSegmentCtx,
+    ) -> Option<f64> {
+        let req_data = &agg_data.get_cardinality_req_data(self.accessor_idx);
+        if req_data.name != sub_agg_name || !sub_agg_property.is_empty() {
+            return None;
+        }
+        let bucket = self.buckets.get(bucket_id as usize)?.as_ref()?;
+        // For string columns the sketch isn't built until finalization; the
+        // term_ord set's len is the exact distinct count. For numeric columns
+        // the sketch is populated during collect.
+        match bucket {
+            SegmentCardinalityCollectorBucket::Str(entries) => Some(entries.len() as f64),
+            SegmentCardinalityCollectorBucket::Numeric(cardinality) => {
+                Some(cardinality.sketch.estimate().trunc())
+            }
+        }
+    }
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
-/// The percentiles collector used during segment collection and for merging results.
+#[derive(Clone, Debug)]
+/// The cardinality collector used during segment collection and for merging results.
+/// Uses Apache DataSketches HLL (lg_k=11, Hll4) for compact binary serialization
+/// and cross-language compatibility (e.g. Java `datasketches` library).
 pub struct CardinalityCollector {
-    sketch: HyperLogLogPlus<u64, BuildSaltedHasher>,
+    sketch: HllSketch,
+    /// Salt derived from `ColumnType`, used to differentiate values of different column types
+    /// that map to the same u64 (e.g. bool `false` = 0 vs i64 `0`).
+    /// Not serialized — only needed during insertion, not after sketch registers are populated.
+    salt: u8,
 }
+
 impl Default for CardinalityCollector {
     fn default() -> Self {
         Self::new(0)
@@ -338,25 +808,56 @@ impl PartialEq for CardinalityCollector {
     }
 }
 
-impl CardinalityCollector {
-    /// Compute the final cardinality estimate.
-    pub fn finalize(self) -> Option<f64> {
-        Some(self.sketch.clone().count().trunc())
+impl Serialize for CardinalityCollector {
+    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        let bytes = self.sketch.serialize();
+        serializer.serialize_bytes(&bytes)
     }
+}
 
+impl<'de> Deserialize<'de> for CardinalityCollector {
+    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        let bytes: Vec<u8> = Deserialize::deserialize(deserializer)?;
+        let sketch = HllSketch::deserialize(&bytes).map_err(serde::de::Error::custom)?;
+        Ok(Self { sketch, salt: 0 })
+    }
+}
+
+impl CardinalityCollector {
     fn new(salt: u8) -> Self {
         Self {
-            sketch: HyperLogLogPlus::new(16, BuildSaltedHasher { salt }).unwrap(),
+            sketch: HllSketch::new(LG_K, HllType::Hll8),
+            salt,
         }
     }
 
-    pub(crate) fn merge_fruits(&mut self, right: CardinalityCollector) -> crate::Result<()> {
-        self.sketch.merge(&right.sketch).map_err(|err| {
-            TantivyError::AggregationError(AggregationError::InternalError(format!(
-                "Error while merging cardinality {err:?}"
-            )))
-        })?;
+    /// Insert a value into the HLL sketch, salted by the column type.
+    /// The salt ensures that identical u64 values from different column types
+    /// (e.g. bool `false` vs i64 `0`) are counted as distinct.
+    fn insert<T: Hash>(&mut self, value: T) {
+        self.sketch.update((self.salt, value));
+    }
 
+    fn insert_coupon(&mut self, coupon: Coupon) {
+        self.sketch.update_with_coupon(coupon);
+    }
+
+    /// Compute the final cardinality estimate.
+    pub fn finalize(self) -> Option<f64> {
+        Some(self.sketch.estimate().trunc())
+    }
+
+    /// Serialize the HLL sketch to its compact binary representation.
+    /// The format is cross-language compatible with Apache DataSketches (Java, C++, Python).
+    pub fn to_sketch_bytes(&self) -> Vec<u8> {
+        self.sketch.serialize()
+    }
+
+    pub(crate) fn merge_fruits(&mut self, right: CardinalityCollector) -> crate::Result<()> {
+        let mut union = HllUnion::new(LG_K);
+        union.update(&self.sketch);
+        union.update(&right.sketch);
+        self.sketch = union.to_sketch(HllType::Hll8);
         Ok(())
     }
 }
@@ -371,7 +872,7 @@ mod tests {
 
     use crate::aggregation::agg_req::Aggregations;
     use crate::aggregation::tests::{exec_request, get_test_index_from_terms};
-    use crate::schema::{IntoIpv6Addr, Schema, FAST};
+    use crate::schema::{IntoIpv6Addr, Schema, FAST, STRING};
     use crate::Index;
 
     #[test]
@@ -426,6 +927,134 @@ mod tests {
         assert_eq!(res["cardinality"]["value"], 3.0);
 
         Ok(())
+    }
+
+    /// Build a single-segment string-cardinality index with 32 unique terms.
+    /// `column.max_value() = 31` is well below `BITSET_MAX_TERM_ORD`,
+    /// so the bucket exercises the `BitSet` path end to end.
+    #[test]
+    fn cardinality_aggregation_test_str_bitset() -> crate::Result<()> {
+        let terms: Vec<String> = (0..32).map(|i| format!("term_{i}")).collect();
+        let term_refs: Vec<Vec<&str>> = terms.iter().map(|t| vec![t.as_str()]).collect::<Vec<_>>();
+        // single segment so we have a single dictionary of 32 terms.
+        let index = get_test_index_from_terms(true, &term_refs)?;
+
+        let agg_req: Aggregations = serde_json::from_value(json!({
+            "cardinality": {
+                "cardinality": { "field": "string_id" }
+            },
+        }))
+        .unwrap();
+
+        let res = exec_request(agg_req, &index)?;
+        assert_eq!(res["cardinality"]["value"], 32.0);
+        Ok(())
+    }
+
+    /// `BitSet` path with a `missing` parameter: the column-level missing
+    /// sentinel (`column.max_value() + 1`) flows into the bitset, the
+    /// dict lookup filter at finalization drops it, and the missing
+    /// coupon is applied separately.
+    #[test]
+    fn cardinality_aggregation_test_str_bitset_with_missing() {
+        let mut schema_builder = Schema::builder();
+        let name_field = schema_builder.add_text_field("name", STRING | FAST);
+        let index = Index::create_in_ram(schema_builder.build());
+        let mut writer = index.writer_for_tests().unwrap();
+        for i in 0..16 {
+            let term = format!("t{i:02}");
+            writer.add_document(doc!(name_field => term)).unwrap();
+        }
+        // One empty doc, exercising the missing sentinel.
+        writer.add_document(doc!()).unwrap();
+        writer.commit().unwrap();
+
+        let agg_req: Aggregations = serde_json::from_value(json!({
+            "cardinality": {
+                "cardinality": {
+                    "field": "name",
+                    "missing": "MISSING_SENTINEL_KEY",
+                }
+            },
+        }))
+        .unwrap();
+
+        let res = exec_request(agg_req, &index).unwrap();
+        // 16 distinct real terms + 1 distinct "missing" value = 17.
+        assert_eq!(res["cardinality"]["value"], 17.0);
+    }
+
+    /// Unit-test the PagedBitset itself: cross-page inserts produce sorted
+    /// iteration, len() matches the inserted set, and duplicates are
+    /// idempotent.
+    #[test]
+    fn paged_bitset_basic() {
+        use super::PagedBitset;
+        // Span several pages: BITSET_PAGE_BITS = 1024, so ords > 1024 land
+        // on the second page, > 2048 on the third, etc.
+        let ords = [0u64, 1, 63, 64, 1023, 1024, 1025, 4096, 4097, 9999, 10_000];
+        let max_ord = *ords.iter().max().unwrap();
+        let mut bitset = PagedBitset::with_max_term_ord(max_ord);
+        for &ord in &ords {
+            bitset.insert(ord);
+            // Idempotent: inserting again must not increase count.
+            bitset.insert(ord);
+        }
+        assert_eq!(bitset.len(), ords.len() as u64);
+        let collected: Vec<u64> = bitset.iter_sorted().collect();
+        let mut expected: Vec<u64> = ords.to_vec();
+        expected.sort_unstable();
+        assert_eq!(collected, expected);
+    }
+
+    /// Unit-test `TermOrdSet`: starts Sparse, promotes to Dense on
+    /// `maybe_compact` once the density threshold is crossed, and
+    /// `iter_ords()` yields the same set in either state. Ords spanning
+    /// multiple paged-bitset pages exercise the Dense iter ordering.
+    #[test]
+    fn term_ord_set_promotes_on_maybe_compact() {
+        use super::{TermOrdAccumulator, TermOrdSet, PROMOTION_RATIO};
+        // Pick max so promotion needs few inserts: len * RATIO > max with
+        // RATIO=32 and max=64 trips at len=3 (3*32=96 > 64).
+        let max_term_ord = 64u64;
+        let mut set = <TermOrdSet as TermOrdAccumulator>::new(max_term_ord);
+        // Two inserts: should stay Sparse after maybe_compact (2 * RATIO = 64, not > 64).
+        set.insert(0);
+        set.insert(7);
+        set.maybe_compact();
+        assert_eq!(set.len(), 2);
+
+        // Third insert promotes on next maybe_compact.
+        set.insert(20);
+        assert_eq!(set.len(), 3);
+        // Sanity check: at len=3, 3 * PROMOTION_RATIO = 96 > 64.
+        assert!(3u64 * PROMOTION_RATIO > max_term_ord);
+        set.maybe_compact();
+
+        // Post-promotion: extending continues to work.
+        set.insert(15);
+        set.insert(15); // dup
+        assert_eq!(set.len(), 4);
+
+        let mut collected: Vec<u64> = set.iter_ords().collect();
+        collected.sort_unstable();
+        assert_eq!(collected, vec![0, 7, 15, 20]);
+    }
+
+    /// Unit-test the `BitSet` impl of `TermOrdAccumulator`: insert,
+    /// dedup, and iter_ords order.
+    #[test]
+    fn bitset_accumulator_basic() {
+        use common::BitSet;
+
+        use super::TermOrdAccumulator;
+        let mut set = <BitSet as TermOrdAccumulator>::new(255);
+        for ord in [0u64, 1, 63, 64, 65, 128, 200, 200, 0] {
+            <BitSet as TermOrdAccumulator>::insert(&mut set, ord);
+        }
+        assert_eq!(<BitSet as TermOrdAccumulator>::len(&set), 7);
+        let collected: Vec<u64> = set.iter_ords().collect();
+        assert_eq!(collected, vec![0, 1, 63, 64, 65, 128, 200]);
     }
 
     #[test]
@@ -517,5 +1146,228 @@ mod tests {
         assert_eq!(res["cardinality"]["value"], 4.0);
 
         Ok(())
+    }
+
+    /// A JSON path that resolves to both a Str column and a numeric column
+    /// produces two collector instances per segment — one with `Str` buckets
+    /// and one with `Numeric` buckets. Their `IntermediateMetricResult`s must
+    /// merge into the union cardinality.
+    #[test]
+    fn cardinality_aggregation_json_str_and_numeric() -> crate::Result<()> {
+        let mut schema_builder = Schema::builder();
+        let field = schema_builder.add_json_field("json", FAST);
+        let index = Index::create_in_ram(schema_builder.build());
+        {
+            let mut writer = index.writer_for_tests()?;
+            writer.add_document(doc!(field => json!({"value": "hello"})))?;
+            writer.add_document(doc!(field => json!({"value": "world"})))?;
+            writer.add_document(doc!(field => json!({"value": "hello"})))?; // dup str
+            writer.add_document(doc!(field => json!({"value": i64::from_u64(7u64)})))?;
+            writer.add_document(doc!(field => json!({"value": i64::from_u64(42u64)})))?;
+            writer.add_document(doc!(field => json!({"value": i64::from_u64(7u64)})))?; // dup num
+            writer.commit()?;
+        }
+
+        let agg_req: Aggregations = serde_json::from_value(json!({
+            "cardinality": {
+                "cardinality": {
+                    "field": "json.value"
+                },
+            }
+        }))
+        .unwrap();
+
+        let res = exec_request(agg_req, &index)?;
+        // 4 distinct values: "hello", "world", 7, 42.
+        assert_eq!(res["cardinality"]["value"], 4.0);
+
+        Ok(())
+    }
+
+    #[test]
+    fn cardinality_collector_serde_roundtrip() {
+        use super::CardinalityCollector;
+
+        let mut collector = CardinalityCollector::default();
+        collector.insert("hello");
+        collector.insert("world");
+        collector.insert("hello"); // duplicate
+
+        let serialized = serde_json::to_vec(&collector).unwrap();
+        let deserialized: CardinalityCollector = serde_json::from_slice(&serialized).unwrap();
+
+        let original_estimate = collector.finalize().unwrap();
+        let roundtrip_estimate = deserialized.finalize().unwrap();
+        assert_eq!(original_estimate, roundtrip_estimate);
+        assert_eq!(original_estimate, 2.0);
+    }
+
+    #[test]
+    fn cardinality_collector_merge() {
+        use super::CardinalityCollector;
+
+        let mut left = CardinalityCollector::default();
+        left.insert("a");
+        left.insert("b");
+
+        let mut right = CardinalityCollector::default();
+        right.insert("b");
+        right.insert("c");
+
+        left.merge_fruits(right).unwrap();
+        let estimate = left.finalize().unwrap();
+        assert_eq!(estimate, 3.0);
+    }
+
+    /// Verifies that merging two small sketches (both in List/Set coupon mode)
+    /// produces an exact result — i.e. the HllUnion does not unnecessarily
+    /// promote to the full HLL array when the combined cardinality is small.
+    #[test]
+    fn cardinality_collector_merge_stays_exact_for_small_sets() {
+        use super::CardinalityCollector;
+
+        let mut left = CardinalityCollector::default();
+        for i in 0u64..50 {
+            left.insert(i);
+        }
+
+        let mut right = CardinalityCollector::default();
+        for i in 30u64..100 {
+            right.insert(i);
+        }
+
+        left.merge_fruits(right).unwrap();
+        let estimate = left.finalize().unwrap();
+        // 100 distinct values (0..100). Both sketches are in Set mode (< 192 coupons),
+        // so the union should stay in coupon mode and give an exact count.
+        assert_eq!(estimate, 100.0);
+    }
+
+    #[test]
+    fn cardinality_collector_serialize_deserialize_binary() {
+        use datasketches::hll::HllSketch;
+
+        use super::CardinalityCollector;
+
+        let mut collector = CardinalityCollector::default();
+        collector.insert("apple");
+        collector.insert("banana");
+        collector.insert("cherry");
+
+        let bytes = collector.to_sketch_bytes();
+        let deserialized = HllSketch::deserialize(&bytes).unwrap();
+        assert!((deserialized.estimate() - 3.0).abs() < 0.01);
+    }
+
+    /// Tests that the `missing` parameter correctly counts a single empty document
+    /// for both u64 and str columns.
+    #[test]
+    fn cardinality_aggregation_missing_value_single_empty_doc() {
+        let mut schema_builder = Schema::builder();
+        let id_field = schema_builder.add_u64_field("id", FAST);
+        let name_field = schema_builder.add_text_field("name", STRING | FAST);
+        let index = Index::create_in_ram(schema_builder.build());
+        let mut writer = index.writer_for_tests().unwrap();
+        writer
+            .add_document(doc!(id_field=>1u64,name_field=>"some_name"))
+            .unwrap();
+        writer.add_document(doc!()).unwrap();
+        writer.commit().unwrap();
+
+        {
+            // int colum with missing value non redundant
+            let agg_req: Aggregations = serde_json::from_value(json!({
+                "cardinality": {
+                    "cardinality": {
+                        "field": "id",
+                        "missing": 42u64
+                    },
+                }
+            }))
+            .unwrap();
+            let res = exec_request(agg_req, &index).unwrap();
+            assert_eq!(res["cardinality"]["value"], 2.0);
+        }
+
+        {
+            // int colum with missing value redundant
+            let agg_req: Aggregations = serde_json::from_value(json!({
+                "cardinality": {
+                    "cardinality": {
+                        "field": "id",
+                        "missing": 1u64
+                    },
+                }
+            }))
+            .unwrap();
+            let res = exec_request(agg_req, &index).unwrap();
+            assert_eq!(res["cardinality"]["value"], 1.0);
+        }
+
+        {
+            // str colum with missing value non redundant
+            // With more than one segment, this is not well handled.
+            let agg_req: Aggregations = serde_json::from_value(json!({
+                "cardinality": {
+                    "cardinality": {
+                        "field": "name",
+                        "missing": "other_name"
+                    },
+                }
+            }))
+            .unwrap();
+            let res = exec_request(agg_req, &index).unwrap();
+            assert_eq!(res["cardinality"]["value"], 2.0);
+        }
+
+        {
+            // str colum with missing value redundant
+            let agg_req: Aggregations = serde_json::from_value(json!({
+                "cardinality": {
+                    "cardinality": {
+                        "field": "name",
+                        "missing": "some_name"
+                    },
+                }
+            }))
+            .unwrap();
+            let res = exec_request(agg_req, &index).unwrap();
+            assert_eq!(res["cardinality"]["value"], 1.0);
+        }
+
+        {
+            // str column with missing value with a number type.
+            let agg_req: Aggregations = serde_json::from_value(json!({
+                "cardinality": {
+                    "cardinality": {
+                        "field": "name",
+                        "missing": 3,
+                    },
+                }
+            }))
+            .unwrap();
+            let res = exec_request(agg_req, &index).unwrap();
+            assert_eq!(res["cardinality"]["value"], 2.0);
+        }
+    }
+
+    #[test]
+    fn cardinality_collector_salt_differentiates_types() {
+        use super::CardinalityCollector;
+
+        // Without salt, same u64 value from different column types would collide
+        let mut collector_bool = CardinalityCollector::new(5); // e.g. ColumnType::Bool
+        collector_bool.insert(0u64); // false
+        collector_bool.insert(1u64); // true
+
+        let mut collector_i64 = CardinalityCollector::new(2); // e.g. ColumnType::I64
+        collector_i64.insert(0u64);
+        collector_i64.insert(1u64);
+
+        // Merge them
+        collector_bool.merge_fruits(collector_i64).unwrap();
+        let estimate = collector_bool.finalize().unwrap();
+        // Should be 4 because salt makes (5, 0) != (2, 0) and (5, 1) != (2, 1)
+        assert_eq!(estimate, 4.0);
     }
 }

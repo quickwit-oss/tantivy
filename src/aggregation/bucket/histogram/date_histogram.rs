@@ -207,7 +207,7 @@ fn parse_offset_into_milliseconds(input: &str) -> Result<i64, AggregationError> 
     }
 }
 
-fn parse_into_milliseconds(input: &str) -> Result<i64, AggregationError> {
+pub(crate) fn parse_into_milliseconds(input: &str) -> Result<i64, AggregationError> {
     let split_boundary = input
         .as_bytes()
         .iter()
