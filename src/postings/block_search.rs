@@ -20,16 +20,26 @@ use crate::postings::compression::COMPRESSION_BLOCK_SIZE;
 ///
 /// `K` is the branching factor. Each reduction probes `K - 1` segment-end
 /// pivots, keeps the matching segment, and finally linearly scans the remaining
-/// range. `K` must be one of `2`, `4`, `8`, `16`, `32`, or `64`.
+/// range. `K` must be one of `2`, `4`, `8`, `16`, or `32`.
 ///
-/// The core idea vs a traditional binary search is that we can very cheaply scan blocks of
-/// numbers, since they are already in the CPU cache line.
+/// This is the "k-ary search on a sorted array" variant of Schlegel, Gemulla & Lehner,
+/// "k-Ary Search on Modern Processors", DaMoN 2009 (<https://dl.acm.org/doi/10.1145/1565694.1565705>),
+/// specialized to a lower-bound (no equality early-exit) with a linear scan over the final
+/// `< K` elements. We do not use their linearized-tree (`k-ary-lt`) layout, which would require
+/// reordering the block.
+///
+/// The core idea vs a traditional binary search is that we can check multiple numbers in parallel,
+/// which better utilizes the CPU's instruction-level parallelism.
+///
+/// `kary_search::<8>` reduces in three steps: 128 -> 16 -> 2, then a 2-element scan. It could be
+/// done in only two steps (128 -> 16, then scanning all 16 contiguous elements). For that
+/// we need popcount for that to be fast though (TODO).
 #[inline(always)]
 pub fn kary_search<const K: usize>(arr: &[u32; COMPRESSION_BLOCK_SIZE], target: u32) -> usize {
     const {
         assert!(
-            matches!(K, 2 | 4 | 8 | 16 | 32 | 64),
-            "K must be one of 2, 4, 8, 16, 32, or 64"
+            matches!(K, 2 | 4 | 8 | 16 | 32),
+            "K must be one of 2, 4, 8, 16, or 32"
         );
     };
 
@@ -45,7 +55,7 @@ pub fn kary_search<const K: usize>(arr: &[u32; COMPRESSION_BLOCK_SIZE], target: 
         // Count how many segment-end pivots are < target (branchless, unrolled).
         let mut count = 0usize;
         for i in 1..K {
-            count += (unsafe { *arr.get_unchecked(base + i * step - 1) } < target) as usize;
+            count += (arr[base + i * step - 1] < target) as usize;
         }
         base += count * step;
         range = step;
@@ -54,7 +64,7 @@ pub fn kary_search<const K: usize>(arr: &[u32; COMPRESSION_BLOCK_SIZE], target: 
     // Linear scan over the ≤K remaining elements.
     let mut count = 0usize;
     for i in 0..range {
-        count += (unsafe { *arr.get_unchecked(base + i) } < target) as usize;
+        count += (arr[base + i] < target) as usize;
     }
     base + count
 }
@@ -147,7 +157,6 @@ mod tests {
             assert_eq!(kary_search::<8>(&block, target), expected);
             assert_eq!(kary_search::<16>(&block, target), expected);
             assert_eq!(kary_search::<32>(&block, target), expected);
-            assert_eq!(kary_search::<64>(&block, target), expected);
         }
     }
 
