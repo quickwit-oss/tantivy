@@ -16,8 +16,8 @@ use crate::index::Index;
 use crate::json_utils::convert_to_fast_value_and_append_to_json_term;
 use crate::query::range_query::{is_type_valid_for_fastfield_range_query, RangeQuery};
 use crate::query::{
-    AllQuery, BooleanQuery, BoostQuery, EmptyQuery, FuzzyTermQuery, Occur, PhrasePrefixQuery,
-    PhraseQuery, Query, RegexQuery, TermQuery, TermSetQuery,
+    AllQuery, BooleanQuery, BoostQuery, EmptyQuery, ExistsQuery, FuzzyTermQuery, Occur,
+    PhrasePrefixQuery, PhraseQuery, Query, RegexQuery, TermQuery, TermSetQuery,
 };
 use crate::schema::{
     Facet, FacetParseError, Field, FieldType, IndexRecordOption, IntoIpv6Addr, JsonObjectOptions,
@@ -856,11 +856,9 @@ impl QueryParser {
                 let logical_ast = LogicalAst::Leaf(Box::new(LogicalLiteral::Set { elements }));
                 (Some(logical_ast), errors)
             }
-            UserInputLeaf::Exists { .. } => (
-                None,
-                vec![QueryParserError::UnsupportedQuery(
-                    "Range query need to target a specific field.".to_string(),
-                )],
+            UserInputLeaf::Exists { field } => (
+                Some(LogicalAst::Leaf(Box::new(LogicalLiteral::Exists { field }))),
+                Vec::new(),
             ),
             UserInputLeaf::Regex { field, pattern } => {
                 if !self.regexes_allowed {
@@ -952,6 +950,7 @@ fn convert_literal_to_query(
         LogicalLiteral::Regex { pattern, field } => {
             Box::new(RegexQuery::from_regex(pattern, field))
         }
+        LogicalLiteral::Exists { field } => Box::new(ExistsQuery::new(field, true)),
     }
 }
 
@@ -2120,5 +2119,10 @@ mod test {
             err.to_string(),
             "Unsupported query: Regex queries are not allowed."
         );
+    }
+
+    #[test]
+    pub fn test_exists() {
+        test_parse_query_to_logical_ast_helper("title:*", "Exists(title)", false);
     }
 }
