@@ -81,6 +81,11 @@ fn bench_agg(mut group: InputGroup<Index>) {
     register!(group, composite_histogram);
     register!(group, composite_histogram_calendar);
 
+    // multi_terms aggregation benchmarks
+    register!(group, multi_terms_status_with_zipf_1000);
+    register!(group, multi_terms_zipf_1000_with_status);
+    register!(group, multi_terms_status_with_zipf_1000_sub_agg);
+
     register!(group, cardinality_agg);
     register!(group, cardinality_agg_high_card);
     register!(group, cardinality_agg_low_card);
@@ -564,6 +569,58 @@ fn composite_histogram_calendar(index: &Index) {
                 "size": 1000
             }
         },
+    });
+    execute_agg(index, agg_req);
+}
+
+/// multi_terms equivalent of terms_status_with_terms_zipf_1000_sub_agg:
+/// flat GroupBy(status, zipf_1000) vs nested terms(status) -> terms(zipf_1000)
+fn multi_terms_status_with_zipf_1000(index: &Index) {
+    let agg_req = json!({
+        "mt": {
+            "multi_terms": {
+                "terms": [
+                    {"field": "text_few_terms_status"},
+                    {"field": "text_1000_terms_zipf"}
+                ],
+                "size": 10
+            }
+        }
+    });
+    execute_agg(index, agg_req);
+}
+
+/// multi_terms equivalent of terms_zipf_1000_with_terms_status_sub_agg:
+/// flat GroupBy(zipf_1000, status) vs nested terms(zipf_1000) -> terms(status)
+fn multi_terms_zipf_1000_with_status(index: &Index) {
+    let agg_req = json!({
+        "mt": {
+            "multi_terms": {
+                "terms": [
+                    {"field": "text_1000_terms_zipf"},
+                    {"field": "text_few_terms_status"}
+                ],
+                "size": 100
+            }
+        }
+    });
+    execute_agg(index, agg_req);
+}
+
+/// multi_terms on the same field pair as the nested benchmarks, with an avg sub-aggregation
+fn multi_terms_status_with_zipf_1000_sub_agg(index: &Index) {
+    let agg_req = json!({
+        "mt": {
+            "multi_terms": {
+                "terms": [
+                    {"field": "text_few_terms_status"},
+                    {"field": "text_1000_terms_zipf"}
+                ]
+            },
+            "aggs": {
+                "average_f64": { "avg": { "field": "score_f64" } }
+            }
+        }
     });
     execute_agg(index, agg_req);
 }
