@@ -694,6 +694,21 @@ pub struct IntermediateMultiTermsBucketResult {
 }
 
 impl IntermediateMultiTermsBucketResult {
+    /// Returns a reference to the map of bucket entries keyed by composite `Vec<IntermediateKey>`.
+    pub fn entries(&self) -> &FxHashMap<Vec<IntermediateKey>, IntermediateTermBucketEntry> {
+        &self.entries
+    }
+
+    /// Returns the count of documents not included in the returned buckets.
+    pub fn sum_other_doc_count(&self) -> u64 {
+        self.sum_other_doc_count
+    }
+
+    /// Returns the upper bound of the error on document counts in the returned buckets.
+    pub fn doc_count_error_upper_bound(&self) -> u64 {
+        self.doc_count_error_upper_bound
+    }
+
     pub(crate) fn into_final_result(
         self,
         req: &MultiTermsAggregation,
