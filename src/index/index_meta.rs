@@ -251,6 +251,7 @@ pub struct IndexSettings {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub sort_by_field: Option<IndexSortByField>,
     /// If true, enables caller-provided doc id mappings at segment finalization time.
+    /// Always skip serializing this field since it's only used at segment finalization time.
     #[doc(hidden)]
     #[serde(skip)]
     pub manual_doc_id_mapping: bool,
