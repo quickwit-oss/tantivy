@@ -150,10 +150,7 @@ impl SegmentWriter {
         self.finalize_inner(mapping.as_ref())
     }
 
-    /// Lay on disk the current content of the `SegmentWriter` using the given doc id mapping.
-    ///
-    /// The mapping must cover all documents in this segment and maps the segment's original doc ids
-    /// to the doc ids that should be written on disk.
+    /// Lay on disk the current content of the `SegmentWriter` using the provided doc id mapping.
     ///
     /// Finalize consumes the `SegmentWriter`, so that it cannot be used afterwards.
     pub fn finalize_with_doc_id_mapping(self, mapping: &DocIdMapping) -> crate::Result<Vec<u64>> {
@@ -1215,38 +1212,7 @@ mod tests {
         let (_index, _segment, segment_writer) =
             build_segment_writer_with_doc_id_mapping(&[Some("a"), Some("b"), Some("c")]);
         // Mapping only covers 2 of the 3 documents.
-        let mapping = DocIdMapping::from_new_id_to_old_id(vec![1, 0]);
-        let err = segment_writer
-            .finalize_with_doc_id_mapping(&mapping)
-            .unwrap_err();
-        assert!(
-            matches!(err, TantivyError::InvalidArgument(_)),
-            "unexpected error: {err:?}"
-        );
-    }
-
-    #[test]
-    fn test_finalize_with_doc_id_mapping_rejects_out_of_range() {
-        let (_index, _segment, segment_writer) =
-            build_segment_writer_with_doc_id_mapping(&[Some("a"), Some("b")]);
-        // Doc id 5 does not exist in this segment.
-        let mapping = DocIdMapping::from_new_id_to_old_id(vec![5, 0]);
-        let err = segment_writer
-            .finalize_with_doc_id_mapping(&mapping)
-            .unwrap_err();
-        assert!(
-            matches!(err, TantivyError::InvalidArgument(_)),
-            "unexpected error: {err:?}"
-        );
-    }
-
-    #[test]
-    fn test_finalize_with_doc_id_mapping_rejects_duplicates() {
-        let (_index, _segment, segment_writer) =
-            build_segment_writer_with_doc_id_mapping(&[Some("a"), Some("b"), Some("c")]);
-        // Old doc id 0 appears twice while doc id 2 is missing. The length still matches
-        // `max_doc`, so this must be caught by the permutation check.
-        let mapping = DocIdMapping::from_new_id_to_old_id(vec![0, 1, 0]);
+        let mapping = DocIdMapping::new_permutation(vec![1, 0]).unwrap();
         let err = segment_writer
             .finalize_with_doc_id_mapping(&mapping)
             .unwrap_err();
@@ -1271,7 +1237,7 @@ mod tests {
         let max_doc = segment_writer.max_doc();
 
         // Reverse the documents. New doc id i maps to old doc id (3 - i).
-        let mapping = DocIdMapping::from_new_id_to_old_id(vec![3, 2, 1, 0]);
+        let mapping = DocIdMapping::new_permutation(vec![3, 2, 1, 0])?;
         segment_writer.finalize_with_doc_id_mapping(&mapping)?;
 
         let segment = segment.with_max_doc(max_doc);

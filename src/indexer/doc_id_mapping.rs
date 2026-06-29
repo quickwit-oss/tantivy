@@ -71,20 +71,28 @@ pub struct DocIdMapping {
 
 impl DocIdMapping {
     /// Creates a `DocIdMapping` from a mapping of new doc ids to old doc ids, with permutation validation.
-    /// I.e. every new doc id must appear exactly once in the mapping, and no new doc id may be greater than the length of the mapping.
+    /// The mapping is validated by checking that every old doc id appears exactly once in the mapping.
+    /// I.e., doc ids must be consecutive from `0` to `new_doc_id_to_old.len() - 1`, inclusive.
     pub fn new_permutation(new_doc_id_to_old: Vec<DocId>) -> crate::Result<Self> {
         // Check that the mapping is a permutation of the segment doc ids.
         let max_doc = new_doc_id_to_old.len() as DocId;
+        let mut old_doc_id_to_new = vec![0; max_doc as usize];
+
         let mut seen_doc_ids = BitSet::with_max_value(max_doc);
-        for new_doc_id in new_doc_id_to_old.iter().copied() {
-            if new_doc_id >= max_doc || !seen_doc_ids.insert(new_doc_id) {
+        for (i, old_doc_id) in new_doc_id_to_old.iter().copied().enumerate() {
+            if old_doc_id >= max_doc || !seen_doc_ids.insert(old_doc_id) {
                 return Err(TantivyError::InvalidArgument(
                     "Mapping must be a permutation of the segment doc ids".to_string(),
                 ));
             }
+            old_doc_id_to_new[new_doc_id_to_old[i] as usize] = i as DocId;
         }
 
-        Ok(Self::from_new_id_to_old_id(new_doc_id_to_old))
+        let doc_id_mapping = DocIdMapping {
+            new_doc_id_to_old,
+            old_doc_id_to_new,
+        };
+        Ok(doc_id_mapping)
     }
 
     /// Creates a `DocIdMapping` from a mapping of new doc ids to old doc ids.
@@ -106,17 +114,17 @@ impl DocIdMapping {
         }
     }
 
-    /// returns the new doc_id for the old doc_id
+    /// Returns the new doc_id for the old doc_id
     pub(crate) fn get_new_doc_id(&self, doc_id: DocId) -> DocId {
         self.old_doc_id_to_new[doc_id as usize]
     }
 
-    /// iterate over old doc_ids in order of the new doc_ids
+    /// Iiterate over old doc_ids in order of the new doc_ids
     pub(crate) fn iter_old_doc_ids(&self) -> impl Iterator<Item = DocId> + '_ {
         self.new_doc_id_to_old.iter().copied()
     }
 
-    /// returns the new doc_ids in order of the old doc_ids
+    /// Returns the new doc_ids in order of the old doc_ids
     pub(crate) fn old_to_new_ids(&self) -> &[DocId] {
         &self.old_doc_id_to_new[..]
     }
@@ -129,8 +137,9 @@ impl DocIdMapping {
             .collect()
     }
 
-    /// returns the number of new doc_ids
+    /// Returns the number of documents in the mapping.
     pub(crate) fn len(&self) -> usize {
+        // new_doc_id_to_old and old_doc_id_to_new have the same length by construction.
         self.new_doc_id_to_old.len()
     }
 }
@@ -180,7 +189,7 @@ mod tests_indexsorting {
     use crate::indexer::doc_id_mapping::DocIdMapping;
     use crate::indexer::NoMergePolicy;
     use crate::query::QueryParser;
-    use crate::schema::*;
+    use crate::{schema::*, TantivyError};
     use crate::{DocAddress, Index, IndexBuilder, IndexSettings, IndexSortByField, Order};
 
     fn create_test_index(
@@ -570,6 +579,18 @@ mod tests_indexsorting {
         assert_eq!(doc_mapping.get_new_doc_id(3), 0);
         assert_eq!(doc_mapping.get_new_doc_id(4), 0);
         assert_eq!(doc_mapping.get_new_doc_id(5), 2);
+    }
+
+    #[test]
+    fn test_doc_mapping_new_permutation_rejects_out_of_range() {
+        let result = DocIdMapping::new_permutation(vec![5, 0]);
+        assert!(matches!(result, Err(TantivyError::InvalidArgument(_)),));
+    }
+
+    #[test]
+    fn test_doc_mapping_new_permutation_rejects_duplicates() {
+        let result = DocIdMapping::new_permutation(vec![0, 1, 0]);
+        assert!(matches!(result, Err(TantivyError::InvalidArgument(_)),));
     }
 
     #[test]

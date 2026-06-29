@@ -319,7 +319,7 @@ fn test_single_segment_index_writer_with_doc_id_mapping() -> crate::Result<()> {
     single_segment_index_writer.add_document(doc!())?;
     single_segment_index_writer.add_document(doc!(text_field=>"gamma"))?;
 
-    let mapping = DocIdMapping::from_new_id_to_old_id(vec![2, 1, 0]);
+    let mapping = DocIdMapping::new_permutation(vec![2, 1, 0])?;
     let index = single_segment_index_writer.finalize_with_doc_id_mapping(&mapping)?;
 
     let searcher = index.reader()?.searcher();
