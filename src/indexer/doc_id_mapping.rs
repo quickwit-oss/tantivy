@@ -120,7 +120,7 @@ impl DocIdMapping {
     }
 
     /// Iiterate over old doc_ids in order of the new doc_ids
-    pub(crate) fn iter_old_doc_ids(&self) -> impl Iterator<Item = DocId> + '_ {
+    pub(crate) fn iter_old_doc_ids(&self) -> impl Iterator<Item = DocId> + Clone + '_ {
         self.new_doc_id_to_old.iter().copied()
     }
 
