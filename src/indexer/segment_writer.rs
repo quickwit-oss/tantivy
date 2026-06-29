@@ -1,5 +1,5 @@
 use columnar::MonotonicallyMappableToU64;
-use common::{BitSet, JsonPathWriter};
+use common::JsonPathWriter;
 use itertools::Itertools;
 use tokenizer_api::BoxTokenStream;
 
@@ -177,16 +177,6 @@ impl SegmentWriter {
                 self.max_doc,
                 mapping.len()
             )));
-        }
-
-        // Check that the mapping is a permutation of the segment doc ids.
-        let mut seen_doc_ids = BitSet::with_max_value(self.max_doc);
-        for old_doc_id in mapping.iter_old_doc_ids() {
-            if old_doc_id >= self.max_doc || !seen_doc_ids.insert(old_doc_id) {
-                return Err(TantivyError::InvalidArgument(
-                    "Mapping must be a permutation of the segment doc ids".to_string(),
-                ));
-            }
         }
 
         self.finalize_inner(Some(mapping))

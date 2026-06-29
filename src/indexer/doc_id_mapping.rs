@@ -1,7 +1,6 @@
 //! This module is used when sorting the index by a property, e.g.
 //! to get mappings from old doc_id to new doc_id and vice versa, after sorting
-
-use common::ReadOnlyBitSet;
+use common::{BitSet, ReadOnlyBitSet};
 
 use super::SegmentWriter;
 use crate::schema::{Field, Schema};
@@ -71,11 +70,25 @@ pub struct DocIdMapping {
 }
 
 impl DocIdMapping {
+    /// Creates a `DocIdMapping` from a mapping of new doc ids to old doc ids, with permutation validation.
+    /// I.e. every new doc id must appear exactly once in the mapping, and no new doc id may be greater than the length of the mapping.
+    pub fn new_permutation(new_doc_id_to_old: Vec<DocId>) -> crate::Result<Self> {
+        // Check that the mapping is a permutation of the segment doc ids.
+        let max_doc = new_doc_id_to_old.len() as DocId;
+        let mut seen_doc_ids = BitSet::with_max_value(max_doc);
+        for new_doc_id in new_doc_id_to_old.iter().copied() {
+            if new_doc_id >= max_doc || !seen_doc_ids.insert(new_doc_id) {
+                return Err(TantivyError::InvalidArgument(
+                    "Mapping must be a permutation of the segment doc ids".to_string(),
+                ));
+            }
+        }
+
+        Ok(Self::from_new_id_to_old_id(new_doc_id_to_old))
+    }
+
     /// Creates a `DocIdMapping` from a mapping of new doc ids to old doc ids.
-    ///
-    /// The caller MUST ensure that `new_doc_id_to_old` is a permutation of the
-    /// segment's old doc ids, with every old doc id appearing exactly once.
-    pub fn from_new_id_to_old_id(new_doc_id_to_old: Vec<DocId>) -> Self {
+    pub(crate) fn from_new_id_to_old_id(new_doc_id_to_old: Vec<DocId>) -> Self {
         let max_doc = new_doc_id_to_old.len();
         let old_max_doc = new_doc_id_to_old
             .iter()
@@ -99,8 +112,8 @@ impl DocIdMapping {
     }
 
     /// iterate over old doc_ids in order of the new doc_ids
-    pub(crate) fn iter_old_doc_ids(&self) -> impl Iterator<Item = DocId> + Clone + '_ {
-        self.new_doc_id_to_old.iter().cloned()
+    pub(crate) fn iter_old_doc_ids(&self) -> impl Iterator<Item = DocId> + '_ {
+        self.new_doc_id_to_old.iter().copied()
     }
 
     /// returns the new doc_ids in order of the old doc_ids
