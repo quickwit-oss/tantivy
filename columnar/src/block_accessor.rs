@@ -163,6 +163,15 @@ impl<T: PartialOrd + Copy + std::fmt::Debug + Send + Sync + 'static + Default>
         self.val_cache.iter().cloned()
     }
 
+    /// Returns the fetched values of the current block as a contiguous slice.
+    ///
+    /// This lets reducers (sum/min/max/stats) process the block with a tight, vectorizable
+    /// loop instead of going through the `iter_vals` iterator.
+    #[inline]
+    pub fn vals(&self) -> &[T] {
+        &self.val_cache
+    }
+
     #[inline]
     /// Returns an iterator over the docids and values
     /// The passed in `docs` slice needs to be the same slice that was passed to `fetch_block` or
