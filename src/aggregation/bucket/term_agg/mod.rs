@@ -339,6 +339,11 @@ impl TermsAggregationInternal {
 /// TODO: Benchmark to validate the threshold
 pub const MAX_NUM_TERMS_FOR_VEC: u64 = 100;
 
+/// Average docs-per-bucket below which term counts cluster too tightly (mostly 1s and 2s) for
+/// `select_nth_unstable` to beat `sort_unstable`'s adaptive paths, so we fall back to a full sort.
+/// This is very low on purpose, and meant to catch unique or mostly unique terms.
+const DOCS_PER_BUCKET_QUICKSELECT_THRESHOLD: u32 = 2;
+
 /// Build a concrete `SegmentTermCollector` with either a Vec- or HashMap-backed
 /// bucket storage, depending on the column type and aggregation level.
 pub(crate) fn build_segment_term_collector(
@@ -468,6 +473,9 @@ impl Bucket {
 
 /// Abstraction over the storage used for term buckets (counts only).
 trait TermAggregationMap: Clone + Debug + 'static {
+    /// Whether `into_vec` returns entries already sorted by term ord, ascending.
+    const SORTED_BY_ORD: bool;
+
     /// Create a new instance with a strict upper bound on term ids.
     fn new(max_term_id: u64, bucket_id_provider: &mut BucketIdProvider) -> Self;
 
@@ -567,6 +575,8 @@ struct PagedTermMap {
 impl PagedTermMap {}
 
 impl TermAggregationMap for PagedTermMap {
+    const SORTED_BY_ORD: bool = true;
+
     #[inline]
     fn get_memory_consumption(&self) -> usize {
         self.mem_usage + std::mem::size_of::<Self>()
@@ -635,6 +645,8 @@ impl TermAggregationMap for PagedTermMap {
 }
 
 impl TermAggregationMap for HashMapTermBuckets {
+    const SORTED_BY_ORD: bool = false;
+
     #[inline]
     fn get_memory_consumption(&self) -> usize {
         self.bucket_map.memory_consumption()
@@ -667,6 +679,8 @@ struct VecTermBucketsNoAgg {
 }
 
 impl TermAggregationMap for VecTermBucketsNoAgg {
+    const SORTED_BY_ORD: bool = true;
+
     /// Estimate the memory consumption of this struct in bytes.
     fn get_memory_consumption(&self) -> usize {
         // We do not include `std::mem::size_of::<Self>()`
@@ -723,6 +737,8 @@ struct VecTermBuckets {
 }
 
 impl TermAggregationMap for VecTermBuckets {
+    const SORTED_BY_ORD: bool = true;
+
     /// Estimate the memory consumption of this struct in bytes.
     fn get_memory_consumption(&self) -> usize {
         // We do not include `std::mem::size_of::<Self>()`
@@ -986,12 +1002,21 @@ where
         // select_nth_unstable_by_key(segment_size, ...) places the (k+1)-th element at
         // entries[segment_size] and guarantees entries[0..segment_size] are the top-k,
         // unordered. We need this to properly compute term_doc_count_before_cutoff.
+        // In some cases (already sorted entries), we are faster sorting everything and
+        // going through sort_unstable's fast path.
         match &term_req.req.order.target {
             OrderTarget::Key => {
                 // We rely on the fact, that term ordinals match the order of the strings
                 // TODO: We could have a special collector, that keeps only TOP n results at any
                 // time.
-                if entries.len() > segment_size {
+                if TermMap::SORTED_BY_ORD {
+                    // `into_vec` already returned entries sorted by ord ascending, we can just
+                    // revert if we want descending.
+                    if term_req.req.order.order == Order::Desc {
+                        entries.reverse();
+                    }
+                } else if entries.len() > segment_size {
+                    // Unsorted source: use select_nth
                     if term_req.req.order.order == Order::Desc {
                         entries
                             .select_nth_unstable_by_key(segment_size, |b| std::cmp::Reverse(b.0));
@@ -1022,6 +1047,8 @@ where
                     })
                     .collect();
                 if keyed.len() > segment_size {
+                    // there are situations where sort_unstable might be advantageous, but
+                    // detecting them isn't trivial, and these situation should be rare.
                     if term_req.req.order.order == Order::Desc {
                         keyed.select_nth_unstable_by(segment_size, |a, b| {
                             b.0.partial_cmp(&a.0).unwrap_or(std::cmp::Ordering::Equal)
@@ -1036,10 +1063,22 @@ where
             }
             OrderTarget::Count => {
                 if entries.len() > segment_size {
+                    // unique or near-unique fields create big runs of sorted values (ones),
+                    // which is defavorable to quickselect. use the then faster sort_unstable.
+                    let num_buckets = entries.len() as u32;
+                    let num_docs: u32 = entries.iter().map(|(_, b)| b.count).sum();
+                    let near_unique =
+                        num_docs < num_buckets * DOCS_PER_BUCKET_QUICKSELECT_THRESHOLD;
                     if term_req.req.order.order == Order::Desc {
-                        entries.select_nth_unstable_by_key(segment_size, |b| {
-                            std::cmp::Reverse(b.1.count)
-                        });
+                        if near_unique {
+                            entries.sort_unstable_by_key(|b| std::cmp::Reverse(b.1.count));
+                        } else {
+                            entries.select_nth_unstable_by_key(segment_size, |b| {
+                                std::cmp::Reverse(b.1.count)
+                            });
+                        }
+                    } else if near_unique {
+                        entries.sort_unstable_by_key(|b| b.1.count);
                     } else {
                         entries.select_nth_unstable_by_key(segment_size, |b| b.1.count);
                     }
