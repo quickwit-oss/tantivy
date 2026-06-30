@@ -70,9 +70,10 @@ pub struct DocIdMapping {
 }
 
 impl DocIdMapping {
-    /// Creates a `DocIdMapping` from a mapping of new doc ids to old doc ids, with permutation validation.
-    /// The mapping is validated by checking that every old doc id appears exactly once in the mapping.
-    /// I.e., doc ids must be consecutive from `0` to `new_doc_id_to_old.len() - 1`, inclusive.
+    /// Creates a `DocIdMapping` from a mapping of new doc ids to old doc ids, with permutation
+    /// validation. The mapping is validated by checking that every old doc id appears exactly
+    /// once in the mapping. I.e., doc ids must be consecutive from `0` to
+    /// `new_doc_id_to_old.len() - 1`, inclusive.
     pub fn new_permutation(new_doc_id_to_old: Vec<DocId>) -> crate::Result<Self> {
         // Check that the mapping is a permutation of the segment doc ids.
         let max_doc = new_doc_id_to_old.len() as DocId;
@@ -189,8 +190,10 @@ mod tests_indexsorting {
     use crate::indexer::doc_id_mapping::DocIdMapping;
     use crate::indexer::NoMergePolicy;
     use crate::query::QueryParser;
-    use crate::{schema::*, TantivyError};
-    use crate::{DocAddress, Index, IndexBuilder, IndexSettings, IndexSortByField, Order};
+    use crate::schema::*;
+    use crate::{
+        DocAddress, Index, IndexBuilder, IndexSettings, IndexSortByField, Order, TantivyError,
+    };
 
     fn create_test_index(
         index_settings: Option<IndexSettings>,

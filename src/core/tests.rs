@@ -8,7 +8,7 @@ use crate::schema::{Field, IndexRecordOption, Schema, Value, INDEXED, STORED, ST
 use crate::tokenizer::TokenizerManager;
 use crate::{
     Directory, DocAddress, DocSet, Index, IndexBuilder, IndexReader, IndexSettings, IndexWriter,
-    ReloadPolicy, TantivyDocument, Term,
+    ReloadPolicy, TantivyDocument, TantivyError, Term,
 };
 
 #[test]
@@ -342,6 +342,28 @@ fn test_single_segment_index_writer_with_doc_id_mapping() -> crate::Result<()> {
         doc_2.get_first(text_field).and_then(|val| val.as_str()),
         Some("alpha beta")
     );
+    Ok(())
+}
+
+#[test]
+fn test_single_segment_index_writer_finalize_rejects_manual_doc_id_mapping() -> crate::Result<()> {
+    let mut schema_builder = Schema::builder();
+    let text_field = schema_builder.add_text_field("text", TEXT | STORED);
+    let schema = schema_builder.build();
+    let directory = RamDirectory::default();
+    let settings = IndexSettings {
+        manual_doc_id_mapping: true,
+        ..Default::default()
+    };
+    let mut single_segment_index_writer = Index::builder()
+        .schema(schema)
+        .settings(settings)
+        .single_segment_index_writer(directory, 15_000_000)?;
+
+    single_segment_index_writer.add_document(doc!(text_field=>"alpha"))?;
+
+    let error = single_segment_index_writer.finalize().unwrap_err();
+    assert!(matches!(error, TantivyError::InvalidArgument(_)));
     Ok(())
 }
 

@@ -138,6 +138,19 @@ impl SegmentWriter {
     ///
     /// Finalize consumes the `SegmentWriter`, so that it cannot be used afterwards.
     pub fn finalize(self) -> crate::Result<Vec<u64>> {
+        // Ensure the segment writer was created in remap mode so the docstore can be reordered.
+        if self
+            .segment_serializer
+            .segment()
+            .index()
+            .settings()
+            .manual_doc_id_mapping
+        {
+            return Err(TantivyError::InvalidArgument(
+                "IndexSettings::manual_doc_id_mapping must be set to false".to_string(),
+            ));
+        }
+
         let mapping: Option<DocIdMapping> = self
             .segment_serializer
             .segment()
