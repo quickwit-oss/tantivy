@@ -167,16 +167,17 @@ impl SegmentWriter {
     ///
     /// Finalize consumes the `SegmentWriter`, so that it cannot be used afterwards.
     pub fn finalize_with_doc_id_mapping(self, mapping: &DocIdMapping) -> crate::Result<Vec<u64>> {
+        let settings = self.segment_serializer.segment().index().settings();
         // Ensure the segment writer was created in remap mode so the docstore can be reordered.
-        if !self
-            .segment_serializer
-            .segment()
-            .index()
-            .settings()
-            .manual_doc_id_mapping
-        {
+        if !settings.manual_doc_id_mapping {
             return Err(TantivyError::InvalidArgument(
                 "IndexSettings::manual_doc_id_mapping must be set to true".to_string(),
+            ));
+        }
+        if settings.sort_by_field.is_some() {
+            return Err(TantivyError::InvalidArgument(
+                "IndexSettings::manual_doc_id_mapping cannot be combined with sort_by_field"
+                    .to_string(),
             ));
         }
 
@@ -1225,6 +1226,41 @@ mod tests {
         let (_index, _segment, segment_writer) =
             build_segment_writer_with_doc_id_mapping(&[Some("a"), Some("b"), Some("c")]);
         // Mapping only covers 2 of the 3 documents.
+        let mapping = DocIdMapping::new_permutation(vec![1, 0]).unwrap();
+        let err = segment_writer
+            .finalize_with_doc_id_mapping(&mapping)
+            .unwrap_err();
+        assert!(
+            matches!(err, TantivyError::InvalidArgument(_)),
+            "unexpected error: {err:?}"
+        );
+    }
+
+    #[test]
+    fn test_finalize_with_doc_id_mapping_rejects_sort_by_field() {
+        let mut schema_builder = Schema::builder();
+        schema_builder.add_u64_field("order", FAST | STORED);
+        let schema = schema_builder.build();
+        let mut index = Index::create_in_ram(schema);
+        index.settings_mut().manual_doc_id_mapping = true;
+        index.settings_mut().sort_by_field = Some(crate::IndexSortByField {
+            field: "order".to_string(),
+            order: crate::Order::Asc,
+        });
+        let segment = index.new_segment();
+        let order = index.schema().get_field("order").unwrap();
+        let mut segment_writer =
+            super::SegmentWriter::for_segment(15_000_000, segment.clone()).unwrap();
+        for opstamp in 0..2 {
+            let mut doc = TantivyDocument::default();
+            doc.add_u64(order, opstamp as u64);
+            segment_writer
+                .add_document(crate::indexer::AddOperation {
+                    opstamp: opstamp as u64,
+                    document: doc,
+                })
+                .unwrap();
+        }
         let mapping = DocIdMapping::new_permutation(vec![1, 0]).unwrap();
         let err = segment_writer
             .finalize_with_doc_id_mapping(&mapping)

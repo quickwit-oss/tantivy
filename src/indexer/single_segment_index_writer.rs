@@ -4,7 +4,7 @@ use crate::indexer::operation::AddOperation;
 use crate::indexer::segment_updater::save_metas;
 use crate::indexer::{DocIdMapping, SegmentWriter};
 use crate::schema::document::Document;
-use crate::{Directory, Index, IndexMeta, Opstamp, Segment, TantivyDocument};
+use crate::{Directory, Index, IndexMeta, IndexSettings, Opstamp, Segment, TantivyDocument};
 
 #[doc(hidden)]
 pub struct SingleSegmentIndexWriter<D: Document = TantivyDocument> {
@@ -45,7 +45,9 @@ impl<D: Document> SingleSegmentIndexWriter<D> {
         } = self;
         let max_doc = segment_writer.max_doc();
         segment_writer.finalize()?;
-        Self::finalize_inner(segment, max_doc)
+        let remapping_required = segment.index().settings().sort_by_field.is_some();
+        let index_settings = segment.index().settings().clone();
+        Self::finalize_inner(segment, max_doc, remapping_required, index_settings)
     }
 
     pub fn finalize_with_doc_id_mapping(self, mapping: &DocIdMapping) -> crate::Result<Index> {
@@ -56,14 +58,26 @@ impl<D: Document> SingleSegmentIndexWriter<D> {
         } = self;
         let max_doc = segment_writer.max_doc();
         segment_writer.finalize_with_doc_id_mapping(mapping)?;
-        Self::finalize_inner(segment, max_doc)
+        let mut index_settings = segment.index().settings().clone();
+        index_settings.manual_doc_id_mapping = false;
+        let mut index = Self::finalize_inner(segment, max_doc, true, index_settings)?;
+        index.settings_mut().manual_doc_id_mapping = false;
+        Ok(index)
     }
 
-    fn finalize_inner(segment: Segment, max_doc: u32) -> crate::Result<Index> {
+    fn finalize_inner(
+        segment: Segment,
+        max_doc: u32,
+        remapping_required: bool,
+        index_settings: IndexSettings,
+    ) -> crate::Result<Index> {
         let segment: Segment = segment.with_max_doc(max_doc);
+        if remapping_required {
+            segment.meta().untrack_temp_docstore();
+        }
         let index = segment.index();
         let index_meta = IndexMeta {
-            index_settings: index.settings().clone(),
+            index_settings,
             segments: vec![segment.meta().clone()],
             schema: index.schema(),
             opstamp: 0,
