@@ -1,14 +1,14 @@
 use crate::collector::Count;
 use crate::directory::{RamDirectory, WatchCallback};
-use crate::index::SegmentId;
-use crate::indexer::{LogMergePolicy, NoMergePolicy};
+use crate::index::{SegmentComponent, SegmentId};
+use crate::indexer::{DocIdMapping, LogMergePolicy, NoMergePolicy};
 use crate::postings::Postings;
 use crate::query::TermQuery;
-use crate::schema::{Field, IndexRecordOption, Schema, INDEXED, STRING, TEXT};
+use crate::schema::{Field, IndexRecordOption, Schema, Value, FAST, INDEXED, STORED, STRING, TEXT};
 use crate::tokenizer::TokenizerManager;
 use crate::{
-    Directory, DocSet, Index, IndexBuilder, IndexReader, IndexSettings, IndexWriter, ReloadPolicy,
-    TantivyDocument, Term,
+    Directory, DocAddress, DocSet, Index, IndexBuilder, IndexReader, IndexSettings, IndexWriter,
+    ReloadPolicy, TantivyDocument, TantivyError, Term,
 };
 
 #[test]
@@ -298,6 +298,140 @@ fn test_single_segment_index_writer() -> crate::Result<()> {
     let count = searcher.search(&term_query, &Count)?;
     assert_eq!(count, 10);
     Ok(())
+}
+
+#[test]
+fn test_single_segment_index_writer_with_doc_id_mapping() -> crate::Result<()> {
+    let mut schema_builder = Schema::builder();
+    let text_field = schema_builder.add_text_field("text", TEXT | STORED);
+    let schema = schema_builder.build();
+    let directory = RamDirectory::default();
+    let settings = IndexSettings {
+        manual_doc_id_mapping: true,
+        ..Default::default()
+    };
+    let mut single_segment_index_writer = Index::builder()
+        .schema(schema)
+        .settings(settings)
+        .single_segment_index_writer(directory, 15_000_000)?;
+
+    single_segment_index_writer.add_document(doc!(text_field=>"alpha beta"))?;
+    single_segment_index_writer.add_document(doc!())?;
+    single_segment_index_writer.add_document(doc!(text_field=>"gamma"))?;
+
+    let mapping = DocIdMapping::new_permutation(vec![2, 1, 0])?;
+    let index = single_segment_index_writer.finalize_with_doc_id_mapping(&mapping)?;
+
+    let searcher = index.reader()?.searcher();
+    let segment_reader = searcher.segment_reader(0);
+    let fieldnorm_reader = segment_reader.get_fieldnorms_reader(text_field)?;
+
+    assert_eq!(fieldnorm_reader.fieldnorm(0), 1);
+    assert_eq!(fieldnorm_reader.fieldnorm(1), 0);
+    assert_eq!(fieldnorm_reader.fieldnorm(2), 2);
+
+    let doc_0 = searcher.doc::<TantivyDocument>(DocAddress::new(0, 0))?;
+    assert_eq!(
+        doc_0.get_first(text_field).and_then(|val| val.as_str()),
+        Some("gamma")
+    );
+    let doc_1 = searcher.doc::<TantivyDocument>(DocAddress::new(0, 1))?;
+    assert!(doc_1.get_first(text_field).is_none());
+    let doc_2 = searcher.doc::<TantivyDocument>(DocAddress::new(0, 2))?;
+    assert_eq!(
+        doc_2.get_first(text_field).and_then(|val| val.as_str()),
+        Some("alpha beta")
+    );
+
+    assert!(!index.settings().manual_doc_id_mapping);
+    let segment_metas = index.searchable_segment_metas()?;
+    let segment_meta = &segment_metas[0];
+    assert!(!segment_meta
+        .list_files()
+        .contains(&segment_meta.relative_path(SegmentComponent::TempStore)));
+
+    let mut index_writer = index.writer_for_tests()?;
+    index_writer.add_document(doc!(text_field=>"delta"))?;
+    index_writer.commit()?;
+
+    Ok(())
+}
+
+#[test]
+fn test_single_segment_index_writer_with_sort_by_field_untracks_tempstore() -> crate::Result<()> {
+    let mut schema_builder = Schema::builder();
+    let sort_field = schema_builder.add_u64_field("sort", FAST | STORED);
+    let schema = schema_builder.build();
+    let sort_field_name = schema.get_field_entry(sort_field).name().to_string();
+    let directory = RamDirectory::default();
+    let settings = IndexSettings {
+        sort_by_field: Some(crate::IndexSortByField {
+            field: sort_field_name,
+            order: crate::Order::Asc,
+        }),
+        ..Default::default()
+    };
+    let mut single_segment_index_writer = Index::builder()
+        .schema(schema)
+        .settings(settings)
+        .single_segment_index_writer(directory, 15_000_000)?;
+
+    single_segment_index_writer.add_document(doc!(sort_field=>2u64))?;
+    single_segment_index_writer.add_document(doc!(sort_field=>1u64))?;
+    let index = single_segment_index_writer.finalize()?;
+
+    let segment_metas = index.searchable_segment_metas()?;
+    let segment_meta = &segment_metas[0];
+    assert!(!segment_meta
+        .list_files()
+        .contains(&segment_meta.relative_path(SegmentComponent::TempStore)));
+    Ok(())
+}
+
+#[test]
+fn test_single_segment_index_writer_finalize_rejects_manual_doc_id_mapping() -> crate::Result<()> {
+    let mut schema_builder = Schema::builder();
+    let text_field = schema_builder.add_text_field("text", TEXT | STORED);
+    let schema = schema_builder.build();
+    let directory = RamDirectory::default();
+    let settings = IndexSettings {
+        manual_doc_id_mapping: true,
+        ..Default::default()
+    };
+    let mut single_segment_index_writer = Index::builder()
+        .schema(schema)
+        .settings(settings)
+        .single_segment_index_writer(directory, 15_000_000)?;
+
+    single_segment_index_writer.add_document(doc!(text_field=>"alpha"))?;
+
+    let error = single_segment_index_writer.finalize().unwrap_err();
+    assert!(matches!(error, TantivyError::InvalidArgument(_)));
+    Ok(())
+}
+
+#[test]
+fn test_index_builder_rejects_manual_doc_id_mapping_with_sort_by_field() {
+    let mut schema_builder = Schema::builder();
+    schema_builder.add_text_field("text", TEXT | STORED);
+    let sort_field = schema_builder.add_u64_field("sort", STORED | FAST);
+    let schema = schema_builder.build();
+    let sort_field_name = schema.get_field_entry(sort_field).name().to_string();
+    let settings = IndexSettings {
+        manual_doc_id_mapping: true,
+        sort_by_field: Some(crate::IndexSortByField {
+            field: sort_field_name,
+            order: crate::Order::Asc,
+        }),
+        ..Default::default()
+    };
+
+    let error = Index::builder()
+        .schema(schema)
+        .settings(settings)
+        .create_in_ram()
+        .unwrap_err();
+    assert!(matches!(error, TantivyError::InvalidArgument(_)));
 }
 
 #[test]

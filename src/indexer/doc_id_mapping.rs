@@ -1,7 +1,6 @@
 //! This module is used when sorting the index by a property, e.g.
 //! to get mappings from old doc_id to new doc_id and vice versa, after sorting
-
-use common::ReadOnlyBitSet;
+use common::{BitSet, ReadOnlyBitSet};
 
 use super::SegmentWriter;
 use crate::schema::{Field, Schema};
@@ -71,7 +70,34 @@ pub struct DocIdMapping {
 }
 
 impl DocIdMapping {
-    pub fn from_new_id_to_old_id(new_doc_id_to_old: Vec<DocId>) -> Self {
+    /// Creates a `DocIdMapping` from a mapping of new doc ids to old doc ids, with permutation
+    /// validation. The mapping is validated by checking that every old doc id appears exactly
+    /// once in the mapping. I.e., doc ids must be consecutive from `0` to
+    /// `new_doc_id_to_old.len() - 1`, inclusive.
+    pub fn new_permutation(new_doc_id_to_old: Vec<DocId>) -> crate::Result<Self> {
+        // Check that the mapping is a permutation of the segment doc ids.
+        let max_doc = new_doc_id_to_old.len() as DocId;
+        let mut old_doc_id_to_new = vec![0; max_doc as usize];
+
+        let mut seen_doc_ids = BitSet::with_max_value(max_doc);
+        for (i, old_doc_id) in new_doc_id_to_old.iter().copied().enumerate() {
+            if old_doc_id >= max_doc || !seen_doc_ids.insert(old_doc_id) {
+                return Err(TantivyError::InvalidArgument(
+                    "Mapping must be a permutation of the segment doc ids".to_string(),
+                ));
+            }
+            old_doc_id_to_new[new_doc_id_to_old[i] as usize] = i as DocId;
+        }
+
+        let doc_id_mapping = DocIdMapping {
+            new_doc_id_to_old,
+            old_doc_id_to_new,
+        };
+        Ok(doc_id_mapping)
+    }
+
+    /// Creates a `DocIdMapping` from a mapping of new doc ids to old doc ids.
+    pub(crate) fn from_new_id_to_old_id(new_doc_id_to_old: Vec<DocId>) -> Self {
         let max_doc = new_doc_id_to_old.len();
         let old_max_doc = new_doc_id_to_old
             .iter()
@@ -89,35 +115,41 @@ impl DocIdMapping {
         }
     }
 
-    /// returns the new doc_id for the old doc_id
-    pub fn get_new_doc_id(&self, doc_id: DocId) -> DocId {
+    /// Returns the new doc_id for the old doc_id
+    pub(crate) fn get_new_doc_id(&self, doc_id: DocId) -> DocId {
         self.old_doc_id_to_new[doc_id as usize]
     }
-    /// returns the old doc_id for the new doc_id
-    pub fn get_old_doc_id(&self, doc_id: DocId) -> DocId {
-        self.new_doc_id_to_old[doc_id as usize]
-    }
-    /// iterate over old doc_ids in order of the new doc_ids
-    pub fn iter_old_doc_ids(&self) -> impl Iterator<Item = DocId> + Clone + '_ {
-        self.new_doc_id_to_old.iter().cloned()
+
+    /// Iiterate over old doc_ids in order of the new doc_ids
+    pub(crate) fn iter_old_doc_ids(&self) -> impl Iterator<Item = DocId> + Clone + '_ {
+        self.new_doc_id_to_old.iter().copied()
     }
 
-    pub fn old_to_new_ids(&self) -> &[DocId] {
+    /// Returns the new doc_ids in order of the old doc_ids
+    pub(crate) fn old_to_new_ids(&self) -> &[DocId] {
         &self.old_doc_id_to_new[..]
     }
 
     /// Remaps a given array to the new doc ids.
-    pub fn remap<T: Copy>(&self, els: &[T]) -> Vec<T> {
+    pub(crate) fn remap<T: Copy>(&self, els: &[T]) -> Vec<T> {
         self.new_doc_id_to_old
             .iter()
             .map(|old_doc| els[*old_doc as usize])
             .collect()
     }
-    pub fn num_new_doc_ids(&self) -> usize {
+
+    /// Returns the number of documents in the mapping.
+    pub(crate) fn len(&self) -> usize {
+        // new_doc_id_to_old and old_doc_id_to_new have the same length by construction.
         self.new_doc_id_to_old.len()
     }
-    pub fn num_old_doc_ids(&self) -> usize {
-        self.old_doc_id_to_new.len()
+}
+
+#[cfg(test)]
+impl DocIdMapping {
+    /// returns the old doc_id for the new doc_id
+    fn get_old_doc_id(&self, doc_id: DocId) -> DocId {
+        self.new_doc_id_to_old[doc_id as usize]
     }
 }
 
@@ -159,7 +191,9 @@ mod tests_indexsorting {
     use crate::indexer::NoMergePolicy;
     use crate::query::QueryParser;
     use crate::schema::*;
-    use crate::{DocAddress, Index, IndexBuilder, IndexSettings, IndexSortByField, Order};
+    use crate::{
+        DocAddress, Index, IndexBuilder, IndexSettings, IndexSortByField, Order, TantivyError,
+    };
 
     fn create_test_index(
         index_settings: Option<IndexSettings>,
@@ -548,6 +582,18 @@ mod tests_indexsorting {
         assert_eq!(doc_mapping.get_new_doc_id(3), 0);
         assert_eq!(doc_mapping.get_new_doc_id(4), 0);
         assert_eq!(doc_mapping.get_new_doc_id(5), 2);
+    }
+
+    #[test]
+    fn test_doc_mapping_new_permutation_rejects_out_of_range() {
+        let result = DocIdMapping::new_permutation(vec![5, 0]);
+        assert!(matches!(result, Err(TantivyError::InvalidArgument(_)),));
+    }
+
+    #[test]
+    fn test_doc_mapping_new_permutation_rejects_duplicates() {
+        let result = DocIdMapping::new_permutation(vec![0, 1, 0]);
+        assert!(matches!(result, Err(TantivyError::InvalidArgument(_)),));
     }
 
     #[test]
