@@ -10,6 +10,8 @@ pub use simple_union::SimpleUnion;
 mod tests {
 
     use std::collections::BTreeSet;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    use std::sync::Arc;
 
     use common::BitSet;
 
@@ -18,8 +20,8 @@ mod tests {
     use crate::postings::tests::test_skip_against_unoptimized;
     use crate::query::score_combiner::DoNothingCombiner;
     use crate::query::union::bitset_union::BitSetPostingUnion;
-    use crate::query::{BitSetDocSet, ConstScorer, VecDocSet};
-    use crate::{tests, DocId};
+    use crate::query::{BitSetDocSet, ConstScorer, Scorer, VecDocSet};
+    use crate::{tests, DocId, Score};
 
     fn vec_doc_set_from_docs_list(
         docs_list: &[Vec<DocId>],
@@ -66,6 +68,61 @@ mod tests {
         }
         BitSetDocSet::from(doc_bitset)
     }
+
+    struct CountingScorer {
+        docset: VecDocSet,
+        score_calls: Arc<AtomicUsize>,
+        score_doc_calls: Arc<AtomicUsize>,
+    }
+
+    impl CountingScorer {
+        fn new(
+            doc_ids: Vec<DocId>,
+            score_calls: Arc<AtomicUsize>,
+            score_doc_calls: Arc<AtomicUsize>,
+        ) -> Self {
+            CountingScorer {
+                docset: VecDocSet::from(doc_ids),
+                score_calls,
+                score_doc_calls,
+            }
+        }
+    }
+
+    impl DocSet for CountingScorer {
+        fn advance(&mut self) -> DocId {
+            self.docset.advance()
+        }
+
+        fn seek(&mut self, target: DocId) -> DocId {
+            self.docset.seek(target)
+        }
+
+        fn doc(&self) -> DocId {
+            self.docset.doc()
+        }
+
+        fn size_hint(&self) -> u32 {
+            self.docset.size_hint()
+        }
+    }
+
+    impl Scorer for CountingScorer {
+        fn score(&mut self) -> Score {
+            self.score_calls.fetch_add(1, Ordering::SeqCst);
+            1.0
+        }
+
+        fn can_score_doc(&self) -> bool {
+            true
+        }
+
+        fn score_doc(&mut self, _doc: DocId, _term_freq: u32) -> Score {
+            self.score_doc_calls.fetch_add(1, Ordering::SeqCst);
+            1.0
+        }
+    }
+
     fn aux_test_union(docs_list: &[Vec<DocId>]) {
         for constructor in [
             posting_list_union_from_docs_list,
@@ -166,6 +223,22 @@ mod tests {
             tests::sample_with_seed(100_000, 0.05, 2),
             tests::sample_with_seed(100_000, 0.001, 3),
         ]);
+    }
+
+    #[test]
+    fn test_do_nothing_combiner_does_not_score_buffered_docs() {
+        let score_calls = Arc::new(AtomicUsize::new(0));
+        let score_doc_calls = Arc::new(AtomicUsize::new(0));
+        let scorers = vec![
+            CountingScorer::new(vec![1, 3, 5], score_calls.clone(), score_doc_calls.clone()),
+            CountingScorer::new(vec![2, 3, 6], score_calls.clone(), score_doc_calls.clone()),
+        ];
+
+        let mut union = BufferedUnionScorer::build(scorers, DoNothingCombiner::default, 10);
+
+        assert_eq!(union.count_including_deleted(), 5);
+        assert_eq!(score_calls.load(Ordering::SeqCst), 0);
+        assert_eq!(score_doc_calls.load(Ordering::SeqCst), 0);
     }
 
     fn test_aux_union_skip(docs_list: &[Vec<DocId>], skip_targets: Vec<DocId>) {

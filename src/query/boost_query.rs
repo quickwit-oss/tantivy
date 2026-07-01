@@ -112,6 +112,14 @@ impl<S: Scorer> DocSet for BoostScorer<S> {
         self.underlying.fill_buffer(buffer)
     }
 
+    fn fill_buffer_up_to(
+        &mut self,
+        horizon: DocId,
+        buffer: &mut [DocId; COLLECT_BLOCK_BUFFER_LEN],
+    ) -> usize {
+        self.underlying.fill_buffer_up_to(horizon, buffer)
+    }
+
     fn doc(&self) -> u32 {
         self.underlying.doc()
     }
@@ -137,6 +145,27 @@ impl<S: Scorer> Scorer for BoostScorer<S> {
     #[inline]
     fn score(&mut self) -> Score {
         self.underlying.score() * self.boost
+    }
+
+    #[inline]
+    fn can_score_doc(&self) -> bool {
+        self.underlying.can_score_doc()
+    }
+
+    #[inline]
+    fn score_doc(&mut self, doc: DocId, term_freq: u32) -> Score {
+        self.underlying.score_doc(doc, term_freq) * self.boost
+    }
+
+    #[inline]
+    fn fill_buffer_up_to_with_term_freqs(
+        &mut self,
+        horizon: DocId,
+        docs: &mut [DocId; COLLECT_BLOCK_BUFFER_LEN],
+        term_freqs: &mut [u32; COLLECT_BLOCK_BUFFER_LEN],
+    ) -> usize {
+        self.underlying
+            .fill_buffer_up_to_with_term_freqs(horizon, docs, term_freqs)
     }
 }
 
