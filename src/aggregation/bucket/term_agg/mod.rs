@@ -339,6 +339,11 @@ impl TermsAggregationInternal {
 /// TODO: Benchmark to validate the threshold
 pub const MAX_NUM_TERMS_FOR_VEC: u64 = 100;
 
+/// Average docs-per-bucket below which term counts cluster too tightly (mostly 1s and 2s) for
+/// `select_nth_unstable` to beat `sort_unstable`'s adaptive paths, so we fall back to a full sort.
+/// This is very low on purpose, and meant to catch unique or mostly unique terms.
+const DOCS_PER_BUCKET_QUICKSELECT_THRESHOLD: u64 = 2;
+
 /// Build a concrete `SegmentTermCollector` with either a Vec- or HashMap-backed
 /// bucket storage, depending on the column type and aggregation level.
 pub(crate) fn build_segment_term_collector(
@@ -468,6 +473,9 @@ impl Bucket {
 
 /// Abstraction over the storage used for term buckets (counts only).
 trait TermAggregationMap: Clone + Debug + 'static {
+    /// Whether `into_vec` returns entries already sorted by term ord, ascending.
+    const SORTED_BY_ORD: bool;
+
     /// Create a new instance with a strict upper bound on term ids.
     fn new(max_term_id: u64, bucket_id_provider: &mut BucketIdProvider) -> Self;
 
@@ -567,6 +575,8 @@ struct PagedTermMap {
 impl PagedTermMap {}
 
 impl TermAggregationMap for PagedTermMap {
+    const SORTED_BY_ORD: bool = true;
+
     #[inline]
     fn get_memory_consumption(&self) -> usize {
         self.mem_usage + std::mem::size_of::<Self>()
@@ -635,6 +645,8 @@ impl TermAggregationMap for PagedTermMap {
 }
 
 impl TermAggregationMap for HashMapTermBuckets {
+    const SORTED_BY_ORD: bool = false;
+
     #[inline]
     fn get_memory_consumption(&self) -> usize {
         self.bucket_map.memory_consumption()
@@ -667,6 +679,8 @@ struct VecTermBucketsNoAgg {
 }
 
 impl TermAggregationMap for VecTermBucketsNoAgg {
+    const SORTED_BY_ORD: bool = true;
+
     /// Estimate the memory consumption of this struct in bytes.
     fn get_memory_consumption(&self) -> usize {
         // We do not include `std::mem::size_of::<Self>()`
@@ -723,6 +737,8 @@ struct VecTermBuckets {
 }
 
 impl TermAggregationMap for VecTermBuckets {
+    const SORTED_BY_ORD: bool = true;
+
     /// Estimate the memory consumption of this struct in bytes.
     fn get_memory_consumption(&self) -> usize {
         // We do not include `std::mem::size_of::<Self>()`
@@ -981,19 +997,40 @@ where
     ) -> crate::Result<IntermediateBucketResult> {
         let mut entries: Vec<(u64, Bucket)> = term_buckets.into_vec();
 
+        let segment_size = term_req.req.segment_size as usize;
+
+        // Total doc count over all buckets, computed is some case, and which can be reused by
+        // `cut_off_buckets` to derive `sum_other_doc_count` without a second pass.
+        let mut total_doc_count: Option<u64> = None;
+
+        // select_nth_unstable_by_key(segment_size, ...) places the (k+1)-th element at
+        // entries[segment_size] and guarantees entries[0..segment_size] are the top-k,
+        // unordered. We need this to properly compute term_doc_count_before_cutoff.
+        // In some cases (already sorted entries), we are faster sorting everything and
+        // going through sort_unstable's fast path.
         match &term_req.req.order.target {
             OrderTarget::Key => {
                 // We rely on the fact, that term ordinals match the order of the strings
                 // TODO: We could have a special collector, that keeps only TOP n results at any
                 // time.
-                if term_req.req.order.order == Order::Desc {
-                    entries.sort_unstable_by_key(|bucket| std::cmp::Reverse(bucket.0));
-                } else {
-                    entries.sort_unstable_by_key(|bucket| bucket.0);
+                if TermMap::SORTED_BY_ORD {
+                    // `into_vec` already returned entries sorted by ord ascending, we can just
+                    // revert if we want descending.
+                    if term_req.req.order.order == Order::Desc {
+                        entries.reverse();
+                    }
+                } else if entries.len() > segment_size {
+                    // Unsorted source: use select_nth
+                    if term_req.req.order.order == Order::Desc {
+                        entries
+                            .select_nth_unstable_by_key(segment_size, |b| std::cmp::Reverse(b.0));
+                    } else {
+                        entries.select_nth_unstable_by_key(segment_size, |b| b.0);
+                    }
                 }
             }
             OrderTarget::SubAggregation(sub_agg_path) => {
-                // Peek segment-level metric values, sort, then fall through to
+                // Peek segment-level metric values, select top-k, then fall through to
                 // `cut_off_buckets`. Like Elasticsearch, we always cut off when ordering
                 // by a sub-agg: top-K results are approximate and may differ from the
                 // global ordering, especially for non-monotonic metrics like avg/min.
@@ -1003,7 +1040,7 @@ where
                     ))
                 })?;
                 let (agg_name, agg_prop) = get_agg_name_and_property(sub_agg_path);
-                // Fetch values up-front; otherwise sort would re-compute per comparison
+                // Fetch values up-front; otherwise sort would re-compute per call
                 let mut keyed: Vec<(f64, (u64, Bucket))> = entries
                     .into_iter()
                     .map(|bucket| {
@@ -1013,28 +1050,49 @@ where
                         (metric_value, bucket)
                     })
                     .collect();
-                if term_req.req.order.order == Order::Desc {
-                    keyed.sort_unstable_by(|a, b| {
-                        b.0.partial_cmp(&a.0).unwrap_or(std::cmp::Ordering::Equal)
-                    });
-                } else {
-                    keyed.sort_unstable_by(|a, b| {
-                        a.0.partial_cmp(&b.0).unwrap_or(std::cmp::Ordering::Equal)
-                    });
+                if keyed.len() > segment_size {
+                    // there are situations where sort_unstable might be advantageous, but
+                    // detecting them isn't trivial, and these situation should be rare.
+                    if term_req.req.order.order == Order::Desc {
+                        keyed.select_nth_unstable_by(segment_size, |a, b| {
+                            b.0.partial_cmp(&a.0).unwrap_or(std::cmp::Ordering::Equal)
+                        });
+                    } else {
+                        keyed.select_nth_unstable_by(segment_size, |a, b| {
+                            a.0.partial_cmp(&b.0).unwrap_or(std::cmp::Ordering::Equal)
+                        });
+                    }
                 }
                 entries = keyed.into_iter().map(|(_, e)| e).collect();
             }
             OrderTarget::Count => {
-                if term_req.req.order.order == Order::Desc {
-                    entries.sort_unstable_by_key(|bucket| std::cmp::Reverse(bucket.1.count));
-                } else {
-                    entries.sort_unstable_by_key(|bucket| bucket.1.count);
+                if entries.len() > segment_size {
+                    // unique or near-unique fields create big runs of sorted values (ones),
+                    // which is defavorable to quickselect. use the then faster sort_unstable.
+                    let num_buckets = entries.len() as u64;
+                    let num_docs = entries.iter().map(|(_, b)| b.count as u64).sum();
+                    total_doc_count = Some(num_docs);
+                    let many_buckets_with_same_count =
+                        num_docs < num_buckets * DOCS_PER_BUCKET_QUICKSELECT_THRESHOLD;
+                    if term_req.req.order.order == Order::Desc {
+                        if many_buckets_with_same_count {
+                            entries.sort_unstable_by_key(|b| std::cmp::Reverse(b.1.count));
+                        } else {
+                            entries.select_nth_unstable_by_key(segment_size, |b| {
+                                std::cmp::Reverse(b.1.count)
+                            });
+                        }
+                    } else if many_buckets_with_same_count {
+                        entries.sort_unstable_by_key(|b| b.1.count);
+                    } else {
+                        entries.select_nth_unstable_by_key(segment_size, |b| b.1.count);
+                    }
                 }
             }
         }
 
         let (term_doc_count_before_cutoff, sum_other_doc_count) =
-            cut_off_buckets(&mut entries, term_req.req.segment_size as usize);
+            cut_off_buckets(&mut entries, segment_size, total_doc_count);
 
         let mut dict: FxHashMap<IntermediateKey, IntermediateTermBucketEntry> = Default::default();
         dict.reserve(entries.len());
@@ -1243,19 +1301,33 @@ impl GetDocCount for (u64, Bucket) {
     }
 }
 
+/// Truncates `entries` to the top `num_elem` and returns
+/// `(term_doc_count_before_cutoff, sum_other_doc_count)`.
+///
+/// When `total_doc_count` is `Some`, `sum_other_doc_count` is derived as `total - sum(kept)`, which
+/// only sums the `num_elem` kept entries instead of the (potentially far larger) cut-off tail.
 pub(crate) fn cut_off_buckets<T: GetDocCount + Debug>(
     entries: &mut Vec<T>,
     num_elem: usize,
+    total_doc_count: Option<u64>,
 ) -> (u64, u64) {
     let term_doc_count_before_cutoff = entries
         .get(num_elem)
         .map(|entry| entry.doc_count())
         .unwrap_or(0);
 
-    let sum_other_doc_count = entries
-        .get(num_elem..)
-        .map(|cut_off_range| cut_off_range.iter().map(|entry| entry.doc_count()).sum())
-        .unwrap_or(0);
+    let sum_other_doc_count = match total_doc_count {
+        // Reuse the precomputed total: sum_other = total - sum(kept top-k), summing only the
+        // (small) kept slice. Fewer than `num_elem` buckets means nothing is cut off, so 0.
+        Some(total) => entries
+            .get(..num_elem)
+            .map(|kept| total - kept.iter().map(|entry| entry.doc_count()).sum::<u64>())
+            .unwrap_or(0),
+        None => entries
+            .get(num_elem..)
+            .map(|cut_off_range| cut_off_range.iter().map(|entry| entry.doc_count()).sum())
+            .unwrap_or(0),
+    };
 
     entries.truncate(num_elem);
     (term_doc_count_before_cutoff, sum_other_doc_count)
