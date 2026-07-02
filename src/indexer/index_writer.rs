@@ -2249,7 +2249,7 @@ mod tests {
                 from: T1,
                 to: T2,
             ) -> String {
-                format!("{}:[{} TO {}]", field, &from.to_string(), &to.to_string())
+                format!("{}:[{} TO {}]", field, from.to_string(), to.to_string())
             }
 
             // Query first half
@@ -2308,7 +2308,7 @@ mod tests {
                 continue;
             }
             let gen_query_inclusive = |field: &str, from: Ipv6Addr, to: Ipv6Addr| {
-                format!("{}:[{} TO {}]", field, &from.to_string(), &to.to_string())
+                format!("{}:[{} TO {}]", field, from, to)
             };
             let ip = ip_from_id(existing_id);
 
@@ -2821,7 +2821,7 @@ mod tests {
             .add_document(doc!(field=>json!({"\u{0000}": "A"})))
             .unwrap();
         index_writer
-            .add_document(doc!(field=>json!({format!("\u{0000}\u{0000}"): "A"})))
+            .add_document(doc!(field=>json!({"\u{0000}\u{0000}".to_string(): "A"})))
             .unwrap();
         index_writer.commit().unwrap();
         Ok(())

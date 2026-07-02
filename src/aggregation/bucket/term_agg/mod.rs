@@ -1310,7 +1310,7 @@ pub(crate) trait GetDocCount {
 
 impl GetDocCount for (String, IntermediateTermBucketEntry) {
     fn doc_count(&self) -> u64 {
-        self.1.doc_count as u64
+        self.1.doc_count
     }
 }
 

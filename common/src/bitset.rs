@@ -373,8 +373,8 @@ impl ReadOnlyBitSet {
     /// Iterate the tinyset on the fly from serialized data.
     #[inline]
     fn iter_tinysets(&self) -> impl Iterator<Item = TinySet> + '_ {
-        self.data.chunks_exact(8).map(move |chunk| {
-            let tinyset: TinySet = TinySet::deserialize(chunk.try_into().unwrap());
+        self.data.as_chunks::<8>().0.iter().map(move |&chunk| {
+            let tinyset: TinySet = TinySet::deserialize(chunk);
             tinyset
         })
     }

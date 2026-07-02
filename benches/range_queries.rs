@@ -4,7 +4,7 @@ use binggan::{black_box, BenchGroup, BenchRunner};
 use rand::prelude::*;
 use rand::rngs::StdRng;
 use rand::SeedableRng;
-use tantivy::collector::{Count, DocSetCollector, TopDocs};
+use tantivy::collector::{Count, TopDocs};
 use tantivy::query::RangeQuery;
 use tantivy::schema::{Schema, FAST, INDEXED};
 use tantivy::{doc, Index, Order, ReloadPolicy, Searcher, Term};
@@ -183,7 +183,6 @@ fn run_benchmark_tasks(
     // Test top 100 by the field (ascending order)
     {
         let collector_name = format!("top100_by_{}_asc", field_name);
-        let field_name_owned = field_name.to_string();
         add_bench_task_top100_asc(
             bench_group,
             bench_index,
@@ -192,14 +191,12 @@ fn run_benchmark_tasks(
             field_name,
             range_low,
             range_high,
-            field_name_owned,
         );
     }
 
     // Test top 100 by the field (descending order)
     {
         let collector_name = format!("top100_by_{}_desc", field_name);
-        let field_name_owned = field_name.to_string();
         add_bench_task_top100_desc(
             bench_group,
             bench_index,
@@ -208,7 +205,6 @@ fn run_benchmark_tasks(
             field_name,
             range_low,
             range_high,
-            field_name_owned,
         );
     }
 }
@@ -234,27 +230,6 @@ fn add_bench_task_count(
     bench_group.register(task_name, move |_| black_box(search_task.run()));
 }
 
-fn add_bench_task_docset(
-    bench_group: &mut BenchGroup,
-    bench_index: &BenchIndex,
-    query: RangeQuery,
-    collector_name: &str,
-    field_name: &str,
-    range_low: u64,
-    range_high: u64,
-) {
-    let task_name = format!(
-        "range_{}_[{} TO {}]_{}",
-        field_name, range_low, range_high, collector_name
-    );
-
-    let search_task = DocSetSearchTask {
-        searcher: bench_index.searcher.clone(),
-        query,
-    };
-    bench_group.register(task_name, move |_| black_box(search_task.run()));
-}
-
 fn add_bench_task_top100_asc(
     bench_group: &mut BenchGroup,
     bench_index: &BenchIndex,
@@ -263,7 +238,6 @@ fn add_bench_task_top100_asc(
     field_name: &str,
     range_low: u64,
     range_high: u64,
-    field_name_owned: String,
 ) {
     let task_name = format!(
         "range_{}_[{} TO {}]_{}",
@@ -273,7 +247,7 @@ fn add_bench_task_top100_asc(
     let search_task = Top100AscSearchTask {
         searcher: bench_index.searcher.clone(),
         query,
-        field_name: field_name_owned,
+        field_name: field_name.to_string(),
     };
     bench_group.register(task_name, move |_| black_box(search_task.run()));
 }
@@ -286,7 +260,6 @@ fn add_bench_task_top100_desc(
     field_name: &str,
     range_low: u64,
     range_high: u64,
-    field_name_owned: String,
 ) {
     let task_name = format!(
         "range_{}_[{} TO {}]_{}",
@@ -296,7 +269,7 @@ fn add_bench_task_top100_desc(
     let search_task = Top100DescSearchTask {
         searcher: bench_index.searcher.clone(),
         query,
-        field_name: field_name_owned,
+        field_name: field_name.to_string(),
     };
     bench_group.register(task_name, move |_| black_box(search_task.run()));
 }
@@ -310,19 +283,6 @@ impl CountSearchTask {
     #[inline(never)]
     pub fn run(&self) -> usize {
         self.searcher.search(&self.query, &Count).unwrap()
-    }
-}
-
-struct DocSetSearchTask {
-    searcher: Searcher,
-    query: RangeQuery,
-}
-
-impl DocSetSearchTask {
-    #[inline(never)]
-    pub fn run(&self) -> usize {
-        let result = self.searcher.search(&self.query, &DocSetCollector).unwrap();
-        result.len()
     }
 }
 

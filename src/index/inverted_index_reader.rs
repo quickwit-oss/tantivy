@@ -446,7 +446,7 @@ impl InvertedIndexReader {
             });
 
             for posting_range in merged_posting_ranges_iter {
-                if let Err(_) = sender.unbounded_send(posting_range) {
+                if sender.unbounded_send(posting_range).is_err() {
                     // this should happen only when search is cancelled
                     return Err(io::Error::other("failed to send posting range back"));
                 }
