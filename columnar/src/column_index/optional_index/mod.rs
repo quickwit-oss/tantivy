@@ -445,9 +445,7 @@ fn deserialize_optional_index_block_metadatas(
     let mut block_metas = Vec::with_capacity(num_blocks + 1);
     let mut start_byte_offset = 0;
     let mut non_null_rows_before_block = 0;
-    for block_meta_bytes in data.chunks_exact(SERIALIZED_BLOCK_META_NUM_BYTES) {
-        let block_meta_bytes: [u8; SERIALIZED_BLOCK_META_NUM_BYTES] =
-            block_meta_bytes.try_into().unwrap();
+    for &block_meta_bytes in data.as_chunks::<SERIALIZED_BLOCK_META_NUM_BYTES>().0 {
         let SerializedBlockMeta {
             block_id,
             num_non_null_rows,

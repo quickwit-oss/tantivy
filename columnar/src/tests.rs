@@ -450,14 +450,15 @@ fn num_docs_strategy() -> impl Strategy<Value = usize> {
     )
 }
 
+type ColumnarDocs = Vec<Vec<(&'static str, ColumnValue)>>;
+
 // A columnar contains up to 2 docs.
-fn columnar_docs_strategy() -> impl Strategy<Value = Vec<Vec<(&'static str, ColumnValue)>>> {
+fn columnar_docs_strategy() -> impl Strategy<Value = ColumnarDocs> {
     num_docs_strategy()
         .prop_flat_map(|num_docs| proptest::collection::vec(doc_strategy(), num_docs))
 }
 
-fn columnar_docs_and_mapping_strategy()
--> impl Strategy<Value = (Vec<Vec<(&'static str, ColumnValue)>>, Vec<RowId>)> {
+fn columnar_docs_and_mapping_strategy() -> impl Strategy<Value = (ColumnarDocs, Vec<RowId>)> {
     columnar_docs_strategy().prop_flat_map(|docs| {
         permutation_strategy(docs.len()).prop_map(move |permutation| (docs.clone(), permutation))
     })

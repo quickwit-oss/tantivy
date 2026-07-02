@@ -229,15 +229,7 @@ fn execute_query<T: Display>(
     suffix: &str,
     index: &Index,
 ) -> NumHits {
-    let gen_query_inclusive = |from: &T, to: &T| {
-        format!(
-            "{}:[{} TO {}] {}",
-            field,
-            &from.to_string(),
-            &to.to_string(),
-            suffix
-        )
-    };
+    let gen_query_inclusive = |from: &T, to: &T| format!("{field}:[{from} TO {to}] {suffix}");
 
     let query = gen_query_inclusive(id_range.start(), id_range.end());
     execute_query_(&query, index)

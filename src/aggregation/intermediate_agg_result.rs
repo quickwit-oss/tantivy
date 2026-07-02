@@ -738,7 +738,7 @@ impl IntermediateTermBucketResult {
         let mut buckets: Vec<BucketEntry> = self
             .entries
             .into_iter()
-            .filter(|bucket| bucket.1.doc_count as u64 >= req.min_doc_count)
+            .filter(|bucket| bucket.1.doc_count >= req.min_doc_count)
             .map(|(key, entry)| {
                 let key_as_string = match key {
                     IntermediateKey::Bool(key) => {
@@ -750,7 +750,7 @@ impl IntermediateTermBucketResult {
                 Ok(BucketEntry {
                     key_as_string,
                     key: key.into(),
-                    doc_count: entry.doc_count as u64,
+                    doc_count: entry.doc_count,
                     sub_aggregation: entry
                         .sub_aggregation
                         .into_final_result_internal(sub_aggregation_req, limits)?,
@@ -1047,7 +1047,7 @@ impl IntermediateCompositeBucketResult {
                     .collect();
                 Ok(CompositeBucketEntry {
                     key,
-                    doc_count: entry.doc_count as u64,
+                    doc_count: entry.doc_count,
                     sub_aggregation: entry
                         .sub_aggregation
                         .into_final_result_internal(sub_aggregation_req, limits)?,
