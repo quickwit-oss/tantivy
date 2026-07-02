@@ -3,8 +3,8 @@ use std::net::Ipv6Addr;
 
 use columnar::column_values::CompactSpaceU64Accessor;
 use columnar::{
-    Column, ColumnType, Dictionary, MonotonicallyMappableToU128, MonotonicallyMappableToU64,
-    NumericalValue, StrColumn,
+    Column, ColumnBlockAccessor, ColumnType, Dictionary, MonotonicallyMappableToU128,
+    MonotonicallyMappableToU64, NumericalValue, StrColumn,
 };
 use rustc_hash::FxHashMap;
 use serde::{Deserialize, Serialize};
@@ -12,13 +12,18 @@ use smallvec::SmallVec;
 
 use super::{CustomOrder, Order, OrderTarget};
 use crate::aggregation::agg_data::{
-    build_segment_agg_collectors, AggRefNode, AggregationsSegmentCtx,
+    build_segment_agg_collectors, AggRefNode, AggregationsSegmentCtx, PerRequestAggSegCtx,
 };
 use crate::aggregation::agg_req::Aggregations;
 use crate::aggregation::bucket::term_agg::{
-    cut_off_buckets, get_agg_name_and_property, GetDocCount,
+    cut_off_buckets, get_agg_name_and_property, Bucket, GetDocCount, HashMapTermBuckets,
+    PagedTermMap, TermAggregationMap, VecTermBuckets, VecTermBucketsNoAgg,
+    MAX_NUM_TERMS_FOR_PAGED_MAP, MAX_NUM_TERMS_FOR_VEC,
 };
-use crate::aggregation::buffered_sub_aggs::{BufferedSubAggs, HighCardSubAggBuffer};
+use crate::aggregation::buffered_sub_aggs::{
+    BufferedSubAggs, HighCardSubAggBuffer, LowCardBufferedSubAggs, LowCardSubAggBuffer,
+    SubAggBuffer,
+};
 use crate::aggregation::intermediate_agg_result::{
     IntermediateAggregationResult, IntermediateAggregationResults, IntermediateBucketResult,
     IntermediateKey, IntermediateTermBucketEntry,
@@ -149,6 +154,10 @@ pub struct MultiTermsAggReqData {
     pub fields: Vec<MultiTermsFieldAccessors>,
     /// Sub-aggregation descriptor (empty when no sub-aggs).
     pub sub_aggregations: Aggregations,
+    /// True if this multi_terms aggregation is at the top level of the aggregation tree
+    /// (not nested). Used to gate the Vec/Paged fast-path storage tiers, which assume a
+    /// bounded number of parent buckets (mirrors [`TermsAggReqData::is_top_level`]).
+    pub is_top_level: bool,
 }
 
 impl MultiTermsAggReqData {
@@ -245,45 +254,69 @@ pub struct SegmentMultiTermsCollector {
     req_data_idx: usize,
 }
 
-impl SegmentMultiTermsCollector {
-    /// Constructs the collector from the per-request context, validating the field
-    /// configuration and sub-aggregation ordering target.
-    pub fn from_req_and_validate(
-        req: &mut AggregationsSegmentCtx,
-        node: &AggRefNode,
-    ) -> crate::Result<Self> {
-        let req_data = &req.per_request.multi_terms_req_data[node.idx_in_req_data];
+/// Shared validation for both the fast and recursive-fallback collectors: checks the
+/// field configuration and (when ordering by a sub-aggregation) that the target exists.
+fn validate_multi_terms(
+    req_data: &MultiTermsAggReqData,
+    node: &AggRefNode,
+    per_request: &PerRequestAggSegCtx,
+) -> crate::Result<()> {
+    if req_data.fields.is_empty() {
+        return Err(TantivyError::InvalidArgument(
+            "multi_terms aggregation requires at least one field".to_string(),
+        ));
+    }
 
-        if req_data.fields.is_empty() {
-            return Err(TantivyError::InvalidArgument(
-                "multi_terms aggregation requires at least one field".to_string(),
-            ));
-        }
-
-        for field_acc in &req_data.fields {
-            for (_, col_type) in &field_acc.columns {
-                if *col_type == ColumnType::Bytes {
-                    return Err(TantivyError::InvalidArgument(format!(
-                        "multi_terms aggregation is not supported for column type {:?} in field {}",
-                        col_type, field_acc.field
-                    )));
-                }
+    for field_acc in &req_data.fields {
+        for (_, col_type) in &field_acc.columns {
+            if *col_type == ColumnType::Bytes {
+                return Err(TantivyError::InvalidArgument(format!(
+                    "multi_terms aggregation is not supported for column type {:?} in field {}",
+                    col_type, field_acc.field
+                )));
             }
         }
+    }
 
-        // Validate sub-agg ordering target.
-        let req_agg = MultiTermsAggregationInternal::from_req(&req_data.req);
-        if let OrderTarget::SubAggregation(sub_agg_name) = &req_agg.order.target {
-            let (agg_name, _) = get_agg_name_and_property(sub_agg_name);
-            node.get_sub_agg(agg_name, &req.per_request)
-                .ok_or_else(|| {
-                    TantivyError::InvalidArgument(format!(
-                        "could not find aggregation with name {agg_name} in metric \
-                         sub_aggregations"
-                    ))
-                })?;
-        }
+    // Validate sub-agg ordering target.
+    let req_agg = MultiTermsAggregationInternal::from_req(&req_data.req);
+    if let OrderTarget::SubAggregation(sub_agg_name) = &req_agg.order.target {
+        let (agg_name, _) = get_agg_name_and_property(sub_agg_name);
+        node.get_sub_agg(agg_name, per_request).ok_or_else(|| {
+            TantivyError::InvalidArgument(format!(
+                "could not find aggregation with name {agg_name} in metric sub_aggregations"
+            ))
+        })?;
+    }
+    Ok(())
+}
 
+/// Builds the segment collector for a multi_terms aggregation, validating the request.
+///
+/// Picks the packed-`u64`-key fast path (see [`compute_fast_path_layout`]) whenever every
+/// field is a single, single-valued ("full") u64-backed column whose combined bit width
+/// fits in 64 bits. Falls back to the recursive [`SegmentMultiTermsCollector`] for
+/// multivalue fields, multi-column (JSON) fields, or too many/too wide fields.
+pub(crate) fn build_segment_multi_terms_collector(
+    req: &mut AggregationsSegmentCtx,
+    node: &AggRefNode,
+) -> crate::Result<Box<dyn SegmentAggregationCollector>> {
+    let req_data = req.per_request.multi_terms_req_data[node.idx_in_req_data].clone();
+    validate_multi_terms(&req_data, node, &req.per_request)?;
+
+    if let Some(packs) = compute_fast_path_layout(&req_data.fields) {
+        return build_fast_multi_terms_collector(req, node, req_data, packs);
+    }
+
+    Ok(Box::new(SegmentMultiTermsCollector::from_validated(
+        req, node,
+    )?))
+}
+
+impl SegmentMultiTermsCollector {
+    /// Constructs the recursive fallback collector. Assumes `validate_multi_terms` has
+    /// already been run by [`build_segment_multi_terms_collector`].
+    fn from_validated(req: &mut AggregationsSegmentCtx, node: &AggRefNode) -> crate::Result<Self> {
         let sub_agg = if !node.children.is_empty() {
             let sub_collector = build_segment_agg_collectors(req, &node.children)?;
             Some(BufferedSubAggs::new(sub_collector))
@@ -594,6 +627,429 @@ impl SegmentAggregationCollector for SegmentMultiTermsCollector {
     }
 }
 
+// ---------------------------------------------------------------------------
+// Fast path: packed-u64-key segment collector
+// ---------------------------------------------------------------------------
+
+/// Per-field bit-packing layout for the fast path: how many bits this field occupies in
+/// the packed `u64` key, and at what shift.
+///
+/// Field 0 occupies the highest bits, the last field the lowest (`shift == 0`). This
+/// makes numeric ordering of the packed `u64` equivalent to the lexicographic
+/// `(field_idx, raw)` comparison the recursive path uses for `OrderTarget::Key`.
+///
+/// Values are packed relative to `min_value` (i.e. `raw - min_value`) rather than
+/// absolute, so the bit width only has to cover the column's observed *range*. This
+/// matters for fields like `DateTime`/`I64` whose `to_u64` mapping flips the sign bit,
+/// which otherwise forces a 64-bit width regardless of how narrow the actual range is.
+#[derive(Clone, Copy, Debug)]
+struct FieldPack {
+    shift: u32,
+    mask: u64,
+    min_value: u64,
+}
+
+/// Computes the packed-key layout for the fast path, or `None` if any field is
+/// ineligible: a JSON multi-column field, a field that is not "full" (i.e. not exactly
+/// one value per doc -- this rules out both optional and multivalued columns), or a
+/// combination of fields whose bit widths don't fit in a single `u64`.
+fn compute_fast_path_layout(fields: &[MultiTermsFieldAccessors]) -> Option<Vec<FieldPack>> {
+    let mut widths = Vec::with_capacity(fields.len());
+    let mut mins = Vec::with_capacity(fields.len());
+    for field_acc in fields {
+        if field_acc.columns.len() != 1 {
+            return None;
+        }
+        let (col, _col_type) = &field_acc.columns[0];
+        if !col.get_cardinality().is_full() {
+            return None;
+        }
+        let min_value = col.min_value();
+        let range = col.max_value() - min_value;
+        widths.push(64 - range.leading_zeros());
+        mins.push(min_value);
+    }
+
+    let total_width: u32 = widths.iter().sum();
+    if total_width > 64 {
+        return None;
+    }
+
+    // Walk fields last-to-first so the last field gets `shift == 0`, then reverse so the
+    // result lines back up with `fields`' original order.
+    let mut packs = Vec::with_capacity(fields.len());
+    let mut shift = 0u32;
+    for (&width, &min_value) in widths.iter().zip(mins.iter()).rev() {
+        let mask = if width >= 64 { u64::MAX } else { (1u64 << width) - 1 };
+        packs.push(FieldPack {
+            shift,
+            mask,
+            min_value,
+        });
+        shift += width;
+    }
+    packs.reverse();
+    Some(packs)
+}
+
+/// Upper bound on the packed key space, used to pick a bucket-storage tier exactly like
+/// [`term_agg::build_segment_term_collector`] does with a single column's `max_value`.
+///
+/// [`term_agg::build_segment_term_collector`]: super::term_agg::build_segment_term_collector
+fn compute_max_packed(fields: &[MultiTermsFieldAccessors], packs: &[FieldPack]) -> u64 {
+    fields
+        .iter()
+        .zip(packs.iter())
+        .map(|(field_acc, pack)| {
+            let (col, _col_type) = &field_acc.columns[0];
+            (col.max_value() - pack.min_value)
+                .checked_shl(pack.shift)
+                .unwrap_or(0)
+        })
+        .sum()
+}
+
+/// Unpacks one field's raw ordinal out of a packed key and resolves it through the
+/// same [`resolve_column_value`] used by the recursive fallback path, so both paths
+/// produce byte-identical `IntermediateKey`s.
+fn resolve_packed_key(
+    packed: u64,
+    packs: &[FieldPack],
+    req_data: &MultiTermsAggReqData,
+) -> crate::Result<Vec<IntermediateKey>> {
+    packs
+        .iter()
+        .zip(req_data.fields.iter())
+        .map(|(pack, field_acc)| {
+            let raw = (packed.checked_shr(pack.shift).unwrap_or(0) & pack.mask) + pack.min_value;
+            let (col, col_type) = &field_acc.columns[0];
+            resolve_column_value(raw, col_type, &field_acc.str_dict_column, col)
+        })
+        .collect()
+}
+
+/// Builds the fast-path segment collector, selecting a bucket-storage tier the same way
+/// [`term_agg::build_segment_term_collector`] does, keyed on the packed key space
+/// (`max_packed`) instead of a single column's `max_value`.
+///
+/// [`term_agg::build_segment_term_collector`]: super::term_agg::build_segment_term_collector
+fn build_fast_multi_terms_collector(
+    req: &mut AggregationsSegmentCtx,
+    node: &AggRefNode,
+    req_data: MultiTermsAggReqData,
+    packs: Vec<FieldPack>,
+) -> crate::Result<Box<dyn SegmentAggregationCollector>> {
+    let has_sub_aggregations = !node.children.is_empty();
+    let is_top_level = req_data.is_top_level;
+    let max_packed = compute_max_packed(&req_data.fields, &packs);
+    let num_fields = req_data.fields.len();
+
+    let sub_agg_collector = if has_sub_aggregations {
+        Some(build_segment_agg_collectors(req, &node.children)?)
+    } else {
+        None
+    };
+
+    let mut bucket_id_provider = BucketIdProvider::default();
+    if is_top_level && max_packed < MAX_NUM_TERMS_FOR_VEC && !has_sub_aggregations {
+        let term_buckets = VecTermBucketsNoAgg::new(max_packed + 1, &mut bucket_id_provider);
+        let collector: SegmentMultiTermsFastCollector<_, HighCardSubAggBuffer> =
+            SegmentMultiTermsFastCollector {
+                parent_buckets: vec![term_buckets],
+                sub_agg: None,
+                bucket_id_provider,
+                req_data_idx: node.idx_in_req_data,
+                packs,
+                max_packed,
+                field_block_accessors: vec![ColumnBlockAccessor::default(); num_fields],
+                packed_keys_buf: Vec::new(),
+            };
+        Ok(Box::new(collector))
+    } else if is_top_level && max_packed < MAX_NUM_TERMS_FOR_VEC {
+        let term_buckets = VecTermBuckets::new(max_packed + 1, &mut bucket_id_provider);
+        let sub_agg = sub_agg_collector.map(LowCardBufferedSubAggs::new);
+        let collector: SegmentMultiTermsFastCollector<_, LowCardSubAggBuffer> =
+            SegmentMultiTermsFastCollector {
+                parent_buckets: vec![term_buckets],
+                sub_agg,
+                bucket_id_provider,
+                req_data_idx: node.idx_in_req_data,
+                packs,
+                max_packed,
+                field_block_accessors: vec![ColumnBlockAccessor::default(); num_fields],
+                packed_keys_buf: Vec::new(),
+            };
+        Ok(Box::new(collector))
+    } else if max_packed < MAX_NUM_TERMS_FOR_PAGED_MAP && is_top_level {
+        let term_buckets = PagedTermMap::new(max_packed + 1, &mut bucket_id_provider);
+        let sub_agg = sub_agg_collector.map(BufferedSubAggs::new);
+        let collector: SegmentMultiTermsFastCollector<PagedTermMap, HighCardSubAggBuffer> =
+            SegmentMultiTermsFastCollector {
+                parent_buckets: vec![term_buckets],
+                sub_agg,
+                bucket_id_provider,
+                req_data_idx: node.idx_in_req_data,
+                packs,
+                max_packed,
+                field_block_accessors: vec![ColumnBlockAccessor::default(); num_fields],
+                packed_keys_buf: Vec::new(),
+            };
+        Ok(Box::new(collector))
+    } else {
+        let term_buckets = HashMapTermBuckets::default();
+        let sub_agg = sub_agg_collector.map(BufferedSubAggs::new);
+        let collector: SegmentMultiTermsFastCollector<HashMapTermBuckets, HighCardSubAggBuffer> =
+            SegmentMultiTermsFastCollector {
+                parent_buckets: vec![term_buckets],
+                sub_agg,
+                bucket_id_provider,
+                req_data_idx: node.idx_in_req_data,
+                packs,
+                max_packed,
+                field_block_accessors: vec![ColumnBlockAccessor::default(); num_fields],
+                packed_keys_buf: Vec::new(),
+            };
+        Ok(Box::new(collector))
+    }
+}
+
+/// Fast-path segment collector for [`MultiTermsAggregation`]: packs each field's raw
+/// column ordinal into a single `u64` key and reuses the `term_agg` cardinality-
+/// specialized bucket storage ([`TermAggregationMap`]) exactly as if it were a single
+/// synthetic term field.
+///
+/// Only constructed when [`compute_fast_path_layout`] confirms every field is a single,
+/// full (single-valued) u64-backed column whose combined bit width fits in 64 bits; see
+/// [`build_segment_multi_terms_collector`].
+#[derive(Debug)]
+struct SegmentMultiTermsFastCollector<TermMap: TermAggregationMap, B: SubAggBuffer> {
+    /// One bucket map per parent bucket (for nested aggs).
+    parent_buckets: Vec<TermMap>,
+    sub_agg: Option<BufferedSubAggs<B>>,
+    bucket_id_provider: BucketIdProvider,
+    req_data_idx: usize,
+    packs: Vec<FieldPack>,
+    /// Upper bound on the packed key space; used to initialize each parent bucket's
+    /// `TermMap`.
+    max_packed: u64,
+    /// One block accessor per field -- unlike the single-field `terms` agg, all `N`
+    /// field blocks must be decoded and kept live simultaneously to build the packed
+    /// key, so the shared `AggregationsSegmentCtx::column_block_accessor` cannot be
+    /// reused here.
+    field_block_accessors: Vec<ColumnBlockAccessor<u64>>,
+    /// Scratch buffer for the packed keys of the current doc block. Reused across
+    /// `collect` calls to avoid reallocating.
+    packed_keys_buf: Vec<u64>,
+}
+
+impl<TermMap: TermAggregationMap, B: SubAggBuffer> SegmentMultiTermsFastCollector<TermMap, B> {
+    #[inline]
+    fn get_memory_consumption(&self, parent_bucket_id: BucketId) -> usize {
+        self.parent_buckets[parent_bucket_id as usize].get_memory_consumption()
+    }
+}
+
+impl<TermMap: TermAggregationMap, B: SubAggBuffer> SegmentAggregationCollector
+    for SegmentMultiTermsFastCollector<TermMap, B>
+{
+    fn add_intermediate_aggregation_result(
+        &mut self,
+        agg_data: &AggregationsSegmentCtx,
+        results: &mut IntermediateAggregationResults,
+        bucket: BucketId,
+    ) -> crate::Result<()> {
+        self.prepare_max_bucket(bucket, agg_data)?;
+        let term_buckets = std::mem::replace(
+            &mut self.parent_buckets[bucket as usize],
+            TermMap::new(0, &mut self.bucket_id_provider),
+        );
+        let req_data = &agg_data.per_request.multi_terms_req_data[self.req_data_idx];
+        let name = req_data.name.clone();
+        let result = into_intermediate_bucket_result_fast(
+            req_data,
+            self.sub_agg
+                .as_mut()
+                .map(BufferedSubAggs::get_sub_agg_collector),
+            term_buckets,
+            &self.packs,
+            agg_data,
+        )?;
+        results.push(name, IntermediateAggregationResult::Bucket(result))?;
+        Ok(())
+    }
+
+    #[inline]
+    fn collect(
+        &mut self,
+        parent_bucket_id: BucketId,
+        docs: &[crate::DocId],
+        agg_data: &mut AggregationsSegmentCtx,
+    ) -> crate::Result<()> {
+        let mem_pre = self.get_memory_consumption(parent_bucket_id);
+
+        let req_data = &agg_data.per_request.multi_terms_req_data[self.req_data_idx];
+
+        self.packed_keys_buf.clear();
+        self.packed_keys_buf.resize(docs.len(), 0u64);
+
+        for (field_idx, field_acc) in req_data.fields.iter().enumerate() {
+            let (col, _col_type) = &field_acc.columns[0];
+            let pack = self.packs[field_idx];
+            let block_acc = &mut self.field_block_accessors[field_idx];
+            block_acc.fetch_block_with_is_full(docs, col, true);
+            for (dst, v) in self.packed_keys_buf.iter_mut().zip(block_acc.iter_vals()) {
+                *dst |= (v - pack.min_value).checked_shl(pack.shift).unwrap_or(0);
+            }
+        }
+
+        let term_buckets = &mut self.parent_buckets[parent_bucket_id as usize];
+        if let Some(sub_agg) = &mut self.sub_agg {
+            for (&doc_id, &key) in docs.iter().zip(self.packed_keys_buf.iter()) {
+                let bucket_id = term_buckets.term_entry(key, &mut self.bucket_id_provider);
+                sub_agg.push(bucket_id, doc_id);
+            }
+        } else {
+            for &key in self.packed_keys_buf.iter() {
+                term_buckets.term_entry(key, &mut self.bucket_id_provider);
+            }
+        }
+
+        let mem_delta = self
+            .get_memory_consumption(parent_bucket_id)
+            .saturating_sub(mem_pre);
+        if mem_delta > 0 {
+            agg_data
+                .context
+                .limits
+                .add_memory_consumed(mem_delta as u64)?;
+        }
+        if let Some(sub_agg) = &mut self.sub_agg {
+            sub_agg.check_flush_local(agg_data)?;
+        }
+        Ok(())
+    }
+
+    #[inline]
+    fn flush(&mut self, agg_data: &mut AggregationsSegmentCtx) -> crate::Result<()> {
+        if let Some(sub_agg) = &mut self.sub_agg {
+            sub_agg.flush(agg_data)?;
+        }
+        Ok(())
+    }
+
+    fn prepare_max_bucket(
+        &mut self,
+        max_bucket: BucketId,
+        _agg_data: &AggregationsSegmentCtx,
+    ) -> crate::Result<()> {
+        while self.parent_buckets.len() <= max_bucket as usize {
+            let term_buckets: TermMap =
+                TermMap::new(self.max_packed, &mut self.bucket_id_provider);
+            self.parent_buckets.push(term_buckets);
+        }
+        Ok(())
+    }
+
+    fn compute_metric_value(
+        &self,
+        _bucket_id: BucketId,
+        _sub_agg_name: &str,
+        _sub_agg_property: &str,
+        _agg_data: &AggregationsSegmentCtx,
+    ) -> Option<f64> {
+        None
+    }
+}
+
+/// Convert a fast-path bucket map (packed `u64` keys) to the intermediate result.
+/// Mirrors [`SegmentMultiTermsCollector::into_intermediate_bucket_result_inner`], only
+/// diverging on key resolution (`resolve_packed_key` instead of `resolve_multi_terms_key`).
+fn into_intermediate_bucket_result_fast<TermMap: TermAggregationMap>(
+    req_data: &MultiTermsAggReqData,
+    mut sub_agg_collector: Option<&mut dyn SegmentAggregationCollector>,
+    term_buckets: TermMap,
+    packs: &[FieldPack],
+    agg_data: &AggregationsSegmentCtx,
+) -> crate::Result<IntermediateBucketResult> {
+    let req = MultiTermsAggregationInternal::from_req(&req_data.req);
+    let mut entries: Vec<(u64, Bucket)> = term_buckets.into_vec();
+
+    match &req.order.target {
+        OrderTarget::Key => {
+            // Numeric order of the packed key matches the field-0-high-bits layout's
+            // lexicographic (field_idx, raw) comparison -- see `FieldPack`.
+            if req.order.order == Order::Desc {
+                entries.sort_unstable_by_key(|bucket| std::cmp::Reverse(bucket.0));
+            } else {
+                entries.sort_unstable_by_key(|bucket| bucket.0);
+            }
+        }
+        OrderTarget::SubAggregation(sub_agg_path) => {
+            let coll = sub_agg_collector.as_deref().ok_or_else(|| {
+                TantivyError::InvalidArgument(format!(
+                    "Could not find sub-aggregation collector for path {sub_agg_path}"
+                ))
+            })?;
+            let (agg_name, agg_prop) = get_agg_name_and_property(sub_agg_path);
+            let mut keyed: Vec<(f64, (u64, Bucket))> = entries
+                .into_iter()
+                .map(|bucket| {
+                    let metric_value = coll
+                        .compute_metric_value(bucket.1.bucket_id, agg_name, agg_prop, agg_data)
+                        .unwrap_or(0.0);
+                    (metric_value, bucket)
+                })
+                .collect();
+            if req.order.order == Order::Desc {
+                keyed.sort_unstable_by(|a, b| b.0.total_cmp(&a.0));
+            } else {
+                keyed.sort_unstable_by(|a, b| a.0.total_cmp(&b.0));
+            }
+            entries = keyed.into_iter().map(|(_, e)| e).collect();
+        }
+        OrderTarget::Count => {
+            if req.order.order == Order::Desc {
+                entries.sort_unstable_by_key(|bucket| std::cmp::Reverse(bucket.1.count));
+            } else {
+                entries.sort_unstable_by_key(|bucket| bucket.1.count);
+            }
+        }
+    }
+
+    let (term_doc_count_before_cutoff, sum_other_doc_count) =
+        cut_off_buckets(&mut entries, req.segment_size as usize);
+
+    let mut result_entries: FxHashMap<Vec<IntermediateKey>, IntermediateTermBucketEntry> =
+        FxHashMap::with_capacity_and_hasher(entries.len(), Default::default());
+
+    for (packed, bucket) in entries {
+        let intermediate_key = resolve_packed_key(packed, packs, req_data)?;
+        let mut sub_aggregation_res = IntermediateAggregationResults::default();
+        if let Some(sub_agg_collector) = sub_agg_collector.as_deref_mut() {
+            sub_agg_collector.add_intermediate_aggregation_result(
+                agg_data,
+                &mut sub_aggregation_res,
+                bucket.bucket_id,
+            )?;
+        }
+        result_entries.insert(
+            intermediate_key,
+            IntermediateTermBucketEntry {
+                doc_count: bucket.count as u64,
+                sub_aggregation: sub_aggregation_res,
+            },
+        );
+    }
+
+    Ok(IntermediateBucketResult::MultiTerms {
+        buckets: IntermediateMultiTermsBucketResult {
+            entries: result_entries,
+            sum_other_doc_count,
+            doc_count_error_upper_bound: term_doc_count_before_cutoff,
+        },
+    })
+}
+
 /// Resolve a composite key (one `KeyElem` per field) to a `Vec<IntermediateKey>`.
 fn resolve_multi_terms_key(
     key: &MultiTermsKey,
@@ -812,10 +1268,12 @@ impl IntermediateMultiTermsBucketResult {
 
 #[cfg(test)]
 mod tests {
+    use common::DateTime;
     use serde_json::json;
+    use time::{Date, Month};
 
     use crate::aggregation::agg_req::Aggregations;
-    use crate::aggregation::tests::exec_request;
+    use crate::aggregation::tests::{exec_request, exec_request_with_query};
     use crate::aggregation::DistributedAggregationCollector;
     use crate::query::AllQuery;
     use crate::schema::{Schema, FAST, STRING};
@@ -1193,6 +1651,210 @@ mod tests {
         // Empty terms list should fail at collector construction (per-segment validation).
         let res = exec_request(agg_req, &index);
         assert!(res.is_err(), "expected error for empty terms");
+        Ok(())
+    }
+
+    // -----------------------------------------------------------------
+    // Fast-path (packed-u64-key) specific tests
+    // -----------------------------------------------------------------
+
+    #[test]
+    fn test_multi_terms_fast_path_multi_type_fields() -> crate::Result<()> {
+        // bool + date + u64, all FAST/full columns -> should hit the packed-key fast path
+        // and exercise `resolve_column_value` for each non-Str type through the unpack path.
+        let mut schema_builder = Schema::builder();
+        let bool_field = schema_builder.add_bool_field("flag", FAST);
+        let date_field = schema_builder.add_date_field("when", FAST);
+        let score_field = schema_builder
+            .add_u64_field("score", crate::schema::NumericOptions::default().set_fast());
+        let schema = schema_builder.build();
+        let index = Index::create_in_ram(schema);
+
+        let d1 = DateTime::from_primitive(Date::from_calendar_date(1982, Month::September, 17)?.with_hms(0, 0, 0)?);
+        let d2 = DateTime::from_primitive(Date::from_calendar_date(1983, Month::September, 27)?.with_hms(0, 0, 0)?);
+        {
+            let mut writer: IndexWriter = index.writer_with_num_threads(1, 20_000_000)?;
+            writer.add_document(doc!(bool_field => true, date_field => d1, score_field => 10u64))?;
+            writer.add_document(doc!(bool_field => true, date_field => d1, score_field => 10u64))?;
+            writer.add_document(doc!(bool_field => false, date_field => d2, score_field => 20u64))?;
+            writer.commit()?;
+        }
+
+        let agg_req: Aggregations = serde_json::from_value(json!({
+            "mt": {
+                "multi_terms": {
+                    "terms": [{"field": "flag"}, {"field": "when"}, {"field": "score"}]
+                }
+            }
+        }))?;
+        let res = exec_request(agg_req, &index)?;
+        let buckets = res["mt"]["buckets"].as_array().unwrap();
+        assert_eq!(buckets.len(), 2);
+
+        // Per the Elasticsearch spec, a bool field's `key` slot is numeric (1/0) while
+        // `key_as_string` carries the "true"/"false" string form -- see
+        // https://www.elastic.co/docs/reference/elasticsearch/mapping-reference/boolean
+        // and `terms_aggregation_bool` in term_agg/mod.rs, which asserts the same thing
+        // for the single-field `terms` aggregation.
+        let true_bucket = buckets
+            .iter()
+            .find(|b| b["key"][0] == 1.0)
+            .expect("expected a bucket with flag=true");
+        assert_eq!(true_bucket["doc_count"], 2);
+        assert_eq!(true_bucket["key"][1], "1982-09-17T00:00:00Z");
+        assert_eq!(true_bucket["key"][2], 10);
+        assert_eq!(true_bucket["key_as_string"], "true|1982-09-17T00:00:00Z|10");
+
+        let false_bucket = buckets
+            .iter()
+            .find(|b| b["key"][0] == 0.0)
+            .expect("expected a bucket with flag=false");
+        assert_eq!(false_bucket["doc_count"], 1);
+        assert_eq!(false_bucket["key"][1], "1983-09-27T00:00:00Z");
+        assert_eq!(false_bucket["key"][2], 20);
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_multi_terms_fast_path_constant_field() -> crate::Result<()> {
+        // `score` is 0 for every doc -> max_value == 0 -> width-0 field in the packed key.
+        // Grouping is effectively driven by `genre` alone, but the constant value must
+        // still resolve correctly for every bucket.
+        let index = build_two_field_index(
+            &[("rock", Some("A")), ("rock", Some("A")), ("pop", Some("A"))],
+            &[0, 0, 0],
+            false,
+        )?;
+
+        let agg_req: Aggregations = serde_json::from_value(json!({
+            "mt": {
+                "multi_terms": {
+                    "terms": [{"field": "genre"}, {"field": "score"}]
+                }
+            }
+        }))?;
+        let res = exec_request(agg_req, &index)?;
+        let buckets = res["mt"]["buckets"].as_array().unwrap();
+        assert_eq!(buckets.len(), 2);
+        for bucket in buckets {
+            assert_eq!(bucket["key"][1], 0);
+        }
+        let rock_bucket = buckets
+            .iter()
+            .find(|b| b["key"][0] == "rock")
+            .expect("expected a rock bucket");
+        assert_eq!(rock_bucket["doc_count"], 2);
+        Ok(())
+    }
+
+    #[test]
+    fn test_multi_terms_fast_path_noncontiguous_docs() -> crate::Result<()> {
+        // A term-query filter matching every other doc forces the segment collector to
+        // receive a non-contiguous `docs` slice, exercising the non-range branch of
+        // `ColumnBlockAccessor::fetch_block_with_is_full`.
+        let index = build_two_field_index(
+            &[
+                ("even", Some("A")),
+                ("odd", Some("B")),
+                ("even", Some("A")),
+                ("odd", Some("B")),
+                ("even", Some("A")),
+            ],
+            &[],
+            false,
+        )?;
+
+        let agg_req: Aggregations = serde_json::from_value(json!({
+            "mt": {
+                "multi_terms": {
+                    "terms": [{"field": "genre"}, {"field": "product"}]
+                }
+            }
+        }))?;
+        let res = exec_request_with_query(agg_req, &index, Some(("genre", "even")))?;
+        let buckets = res["mt"]["buckets"].as_array().unwrap();
+        assert_eq!(buckets.len(), 1);
+        assert_eq!(buckets[0]["key_as_string"], "even|A");
+        assert_eq!(buckets[0]["doc_count"], 3);
+        Ok(())
+    }
+
+    #[test]
+    fn test_multi_terms_wide_fields_fallback() -> crate::Result<()> {
+        // `score` alone needs the full 64 bits (max_value close to u64::MAX), so combined
+        // with any other field the packed layout would exceed 64 bits -> must fall back
+        // to the recursive collector. Verify results are still correct.
+        let index = build_two_field_index(
+            &[("rock", Some("A")), ("rock", Some("A")), ("pop", Some("A"))],
+            &[u64::MAX - 1, u64::MAX - 1, 5],
+            false,
+        )?;
+
+        let agg_req: Aggregations = serde_json::from_value(json!({
+            "mt": {
+                "multi_terms": {
+                    "terms": [{"field": "genre"}, {"field": "score"}]
+                }
+            }
+        }))?;
+        let res = exec_request(agg_req, &index)?;
+        let buckets = res["mt"]["buckets"].as_array().unwrap();
+        assert_eq!(buckets.len(), 2);
+        let rock_bucket = buckets
+            .iter()
+            .find(|b| b["key"][0] == "rock")
+            .expect("expected a rock bucket");
+        assert_eq!(rock_bucket["doc_count"], 2);
+        assert_eq!(rock_bucket["key"][1], u64::MAX - 1);
+        let pop_bucket = buckets
+            .iter()
+            .find(|b| b["key"][0] == "pop")
+            .expect("expected a pop bucket");
+        assert_eq!(pop_bucket["doc_count"], 1);
+        assert_eq!(pop_bucket["key"][1], 5);
+        Ok(())
+    }
+
+    #[test]
+    fn test_multi_terms_json_multi_column_fallback() -> crate::Result<()> {
+        // A JSON field with mixed value types within one segment produces more than one
+        // column for that field -> not eligible for the packed-key fast path (rules out
+        // JSON multi-type fields), so this must go through the recursive collector.
+        let mut schema_builder = Schema::builder();
+        let genre_field = schema_builder.add_text_field("genre", STRING | FAST);
+        let json_field = schema_builder.add_json_field("attrs", FAST);
+        let schema = schema_builder.build();
+        let index = Index::create_in_ram(schema);
+        {
+            let mut writer: IndexWriter = index.writer_with_num_threads(1, 20_000_000)?;
+            writer.add_document(
+                doc!(genre_field => "rock", json_field => json!({"val": "blue"})),
+            )?;
+            writer.add_document(
+                doc!(genre_field => "rock", json_field => json!({"val": 5.0})),
+            )?;
+            writer.add_document(
+                doc!(genre_field => "pop", json_field => json!({"val": "blue"})),
+            )?;
+            writer.commit()?;
+        }
+
+        let agg_req: Aggregations = serde_json::from_value(json!({
+            "mt": {
+                "multi_terms": {
+                    "terms": [{"field": "genre"}, {"field": "attrs.val"}]
+                }
+            }
+        }))?;
+        let res = exec_request(agg_req, &index)?;
+        let buckets = res["mt"]["buckets"].as_array().unwrap();
+        assert_eq!(buckets.len(), 3);
+        let doc_counts: u64 = buckets
+            .iter()
+            .map(|b| b["doc_count"].as_u64().unwrap())
+            .sum();
+        assert_eq!(doc_counts, 3);
         Ok(())
     }
 }

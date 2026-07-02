@@ -583,7 +583,7 @@ fn multi_terms_status_with_zipf_1000(index: &Index) {
                     {"field": "text_few_terms_status"},
                     {"field": "text_1000_terms_zipf"}
                 ],
-                "size": 10
+                "size": 100
             }
         }
     });

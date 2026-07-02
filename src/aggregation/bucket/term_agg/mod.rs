@@ -339,6 +339,11 @@ impl TermsAggregationInternal {
 /// TODO: Benchmark to validate the threshold
 pub const MAX_NUM_TERMS_FOR_VEC: u64 = 100;
 
+/// The threshold for maximum term id to use a `PagedTermMap` bucket storage; above this,
+/// `HashMapTermBuckets` is used instead.
+/// TODO: Benchmark to validate the threshold
+pub const MAX_NUM_TERMS_FOR_PAGED_MAP: u64 = 8_000_000;
+
 /// Build a concrete `SegmentTermCollector` with either a Vec- or HashMap-backed
 /// bucket storage, depending on the column type and aggregation level.
 pub(crate) fn build_segment_term_collector(
@@ -420,7 +425,7 @@ pub(crate) fn build_segment_term_collector(
             terms_req_data,
         };
         Ok(Box::new(collector))
-    } else if max_column_val < 8_000_000 && is_top_level {
+    } else if max_column_val < MAX_NUM_TERMS_FOR_PAGED_MAP && is_top_level {
         let term_buckets: PagedTermMap =
             PagedTermMap::new(max_column_val + 1, &mut bucket_id_provider);
         // Build sub-aggregation blueprint (flat pairs)
@@ -451,14 +456,14 @@ pub(crate) fn build_segment_term_collector(
 }
 
 #[derive(Debug, Clone, Copy, Default)]
-struct Bucket {
+pub(crate) struct Bucket {
     pub count: u32,
     pub bucket_id: BucketId,
 }
 
 impl Bucket {
     #[inline(always)]
-    fn new(bucket_id: BucketId) -> Self {
+    pub(crate) fn new(bucket_id: BucketId) -> Self {
         Self {
             count: 0,
             bucket_id,
@@ -467,7 +472,11 @@ impl Bucket {
 }
 
 /// Abstraction over the storage used for term buckets (counts only).
-trait TermAggregationMap: Clone + Debug + 'static {
+///
+/// Keyed on a bare `u64` term id -- also reused by the `multi_terms` fast path, which
+/// packs a composite key of several fields into a single `u64` and treats it as a
+/// synthetic term id (see [`crate::aggregation::bucket::multi_terms`]).
+pub(crate) trait TermAggregationMap: Clone + Debug + 'static {
     /// Create a new instance with a strict upper bound on term ids.
     fn new(max_term_id: u64, bucket_id_provider: &mut BucketIdProvider) -> Self;
 
@@ -483,7 +492,7 @@ trait TermAggregationMap: Clone + Debug + 'static {
 }
 
 #[derive(Clone, Debug)]
-struct HashMapTermBuckets {
+pub(crate) struct HashMapTermBuckets {
     bucket_map: FxHashMap<u64, Bucket>,
 }
 
@@ -558,7 +567,7 @@ impl Page {
 /// directories only. Therefore, this implementation is only enabled for top-level aggregations
 /// TODO: pass expected number of buckets from parent instead of strict is_top_level flag.
 #[derive(Clone, Debug, Default)]
-struct PagedTermMap {
+pub(crate) struct PagedTermMap {
     // Fixed size vector based on max_term_id
     pages: Vec<Option<Box<Page>>>,
     mem_usage: usize,
@@ -662,7 +671,7 @@ impl TermAggregationMap for HashMapTermBuckets {
 
 /// An optimized term map implementation for a compact set of term ordinals.
 #[derive(Clone, Debug)]
-struct VecTermBucketsNoAgg {
+pub(crate) struct VecTermBucketsNoAgg {
     buckets: Vec<u32>,
 }
 
@@ -718,7 +727,7 @@ impl TermAggregationMap for VecTermBucketsNoAgg {
 
 /// An optimized term map implementation for a compact set of term ordinals.
 #[derive(Clone, Debug)]
-struct VecTermBuckets {
+pub(crate) struct VecTermBuckets {
     buckets: Vec<Bucket>,
 }
 
