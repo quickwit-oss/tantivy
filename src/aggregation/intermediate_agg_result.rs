@@ -756,6 +756,17 @@ impl IntermediateBucketResult {
                 }
                 Ok(())
             }
+            IntermediateBucketResult::MultiTerms { buckets } => {
+                let multi_terms_req = req
+                    .agg
+                    .as_multi_terms()
+                    .expect("unexpected aggregation, expected multi_terms aggregation");
+                buckets.prune_intermediate_results(
+                    multi_terms_req,
+                    req.sub_aggregation(),
+                    mode,
+                )
+            }
         }
     }
 

@@ -350,6 +350,10 @@ pub const MAX_NUM_TERMS_FOR_VEC: u64 = 20_000;
 /// pay off for a handful of buckets, so this is far lower than [`MAX_NUM_TERMS_FOR_VEC`].
 pub const MAX_NUM_TERMS_FOR_LOWCARD_SUBAGG: u64 = 100;
 
+/// Threshold for using [`PagedTermMap`] storage; larger term-id spaces use
+/// [`HashMapTermBuckets`] instead.
+pub const MAX_NUM_TERMS_FOR_PAGED_MAP: u64 = 8_000_000;
+
 /// Above this term count, generate sub-aggregation bucket IDs on first use to avoid IDs for unseen
 /// terms.
 ///
@@ -442,7 +446,8 @@ pub(crate) fn build_segment_term_collector(
     // aggregations it stores a real `BucketId` (to key the buffered sub-aggs), without them the
     // zero-sized `()`, which shrinks each bucket and turns id assignment into a no-op.
     //
-    // Only the dense Vec/Paged storages below (all gated to `max_column_val < 8_000_000`) use
+    // Only the dense Vec/Paged storages below (all gated to `max_column_val <
+    // MAX_NUM_TERMS_FOR_PAGED_MAP`) use
     // `num_terms`. `saturating_add` guards the HashMap fallback, where `max_column_val` is a raw
     // numeric column value that can reach `u64::MAX`; term ordinals never come close.
     let num_terms = max_column_val.saturating_add(1);
@@ -522,7 +527,7 @@ pub(crate) fn build_segment_term_collector(
                 terms_req_data,
             ))
         }
-    } else if is_top_level && max_column_val < 8_000_000 {
+    } else if is_top_level && max_column_val < MAX_NUM_TERMS_FOR_PAGED_MAP {
         if has_sub_aggregations {
             let term_buckets = PagedTermMap::<BucketId>::new(num_terms, &mut bucket_id_provider);
             Ok(boxed_high_card_collector(
@@ -586,7 +591,7 @@ fn boxed_high_card_collector<M: TermAggregationMap>(
 /// `B` is [`BucketId`] when the terms agg has sub aggregations and the zero-sized `()` when it does
 /// not, so `Bucket<()>` is just the count (see [`BucketIdSlot`]).
 #[derive(Debug, Clone, Copy, Default)]
-struct Bucket<B> {
+pub(crate) struct Bucket<B = BucketId> {
     pub count: u32,
     pub bucket_id: B,
 }
@@ -595,7 +600,7 @@ impl<B: BucketIdSlot> Bucket<B> {
     /// Creates an empty bucket, assigning it the next id from `bucket_id_provider` (a no-op for the
     /// `()` slot, which leaves the provider untouched).
     #[inline(always)]
-    fn new(bucket_id_provider: &mut BucketIdProvider) -> Self {
+    pub(crate) fn new(bucket_id_provider: &mut BucketIdProvider) -> Self {
         Self {
             count: 0,
             bucket_id: B::assign(bucket_id_provider),
@@ -604,7 +609,7 @@ impl<B: BucketIdSlot> Bucket<B> {
 }
 
 /// Abstraction over the storage used for term buckets (counts plus a [`BucketIdSlot`]).
-trait TermAggregationMap: Clone + Debug + 'static {
+pub(crate) trait TermAggregationMap: Clone + Debug + 'static {
     /// The per-bucket id slot: [`BucketId`] with sub aggregations, `()` without (see
     /// [`BucketIdSlot`]).
     type Slot: BucketIdSlot;
@@ -628,7 +633,7 @@ trait TermAggregationMap: Clone + Debug + 'static {
 }
 
 #[derive(Clone, Debug)]
-struct HashMapTermBuckets<B> {
+pub(crate) struct HashMapTermBuckets<B = BucketId> {
     bucket_map: FxHashMap<u64, Bucket<B>>,
 }
 
@@ -703,7 +708,7 @@ impl<B: BucketIdSlot> Page<B> {
 /// directories only. Therefore, this implementation is only enabled for top-level aggregations
 /// TODO: pass expected number of buckets from parent instead of strict is_top_level flag.
 #[derive(Clone, Debug, Default)]
-struct PagedTermMap<B> {
+pub(crate) struct PagedTermMap<B = BucketId> {
     // Fixed size vector based on max_term_id
     pages: Vec<Option<Box<Page<B>>>>,
     mem_usage: usize,
@@ -900,9 +905,15 @@ impl<B: BucketIdSlot> TermAggregationMap for VecTermBucketsWithLanes<B> {
 ///
 /// `LAZY_BUCKET_ID_GENERATION` defers sub-aggregation bucket ID generation until first use.
 #[derive(Clone, Debug)]
-struct VecTermBuckets<B, const LAZY_BUCKET_ID_GENERATION: bool = false> {
+pub(crate) struct VecTermBuckets<
+    B = BucketId,
+    const LAZY_BUCKET_ID_GENERATION: bool = false,
+> {
     buckets: Vec<Bucket<B>>,
 }
+
+/// Dense term storage without sub-aggregation bucket ids.
+pub(crate) type VecTermBucketsNoAgg = VecTermBuckets<()>;
 
 impl<B: BucketIdSlot, const LAZY_BUCKET_ID_GENERATION: bool> TermAggregationMap
     for VecTermBuckets<B, LAZY_BUCKET_ID_GENERATION>
