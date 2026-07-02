@@ -1072,7 +1072,8 @@ where
                     let num_buckets = entries.len() as u64;
                     let num_docs = entries.iter().map(|(_, b)| b.count as u64).sum();
                     total_doc_count = Some(num_docs);
-                    let near_unique = num_docs < num_buckets * DOCS_PER_BUCKET_QUICKSELECT_THRESHOLD;
+                    let near_unique =
+                        num_docs < num_buckets * DOCS_PER_BUCKET_QUICKSELECT_THRESHOLD;
                     if term_req.req.order.order == Order::Desc {
                         if near_unique {
                             entries.sort_unstable_by_key(|b| std::cmp::Reverse(b.1.count));
