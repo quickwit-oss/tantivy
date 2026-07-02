@@ -1072,17 +1072,17 @@ where
                     let num_buckets = entries.len() as u64;
                     let num_docs = entries.iter().map(|(_, b)| b.count as u64).sum();
                     total_doc_count = Some(num_docs);
-                    let near_unique =
+                    let many_buckets_with_same_count =
                         num_docs < num_buckets * DOCS_PER_BUCKET_QUICKSELECT_THRESHOLD;
                     if term_req.req.order.order == Order::Desc {
-                        if near_unique {
+                        if many_buckets_with_same_count {
                             entries.sort_unstable_by_key(|b| std::cmp::Reverse(b.1.count));
                         } else {
                             entries.select_nth_unstable_by_key(segment_size, |b| {
                                 std::cmp::Reverse(b.1.count)
                             });
                         }
-                    } else if near_unique {
+                    } else if many_buckets_with_same_count {
                         entries.sort_unstable_by_key(|b| b.1.count);
                     } else {
                         entries.select_nth_unstable_by_key(segment_size, |b| b.1.count);
