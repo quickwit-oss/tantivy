@@ -11,10 +11,10 @@ use crate::aggregation::accessor_helpers::{
 use crate::aggregation::agg_req::{Aggregation, AggregationVariants, Aggregations};
 use crate::aggregation::bucket::{
     build_segment_filter_collector, build_segment_histogram_collector,
-    build_segment_range_collector, CompositeAggReqData, CompositeAggregation,
-    CompositeSourceAccessors, FilterAggReqData, HistogramAggReqData, HistogramBounds,
-    IncludeExcludeParam, MissingTermAggReqData, MultiTermsAggReqData, MultiTermsAggregation,
-    MultiTermsFieldAccessors, RangeAggReqData, SegmentMultiTermsCollector, TermMissingAgg,
+    build_segment_multi_terms_collector, build_segment_range_collector, CompositeAggReqData,
+    CompositeAggregation, CompositeSourceAccessors, FilterAggReqData, HistogramAggReqData,
+    HistogramBounds, IncludeExcludeParam, MissingTermAggReqData, MultiTermsAggReqData,
+    MultiTermsAggregation, MultiTermsFieldAccessors, RangeAggReqData, TermMissingAgg,
     TermsAggReqData, TermsAggregation, TermsAggregationInternal,
 };
 use crate::aggregation::metric::{
@@ -360,9 +360,7 @@ pub(crate) fn build_segment_agg_collector(
                 req, node,
             )?,
         )),
-        AggKind::MultiTerms => Ok(Box::new(SegmentMultiTermsCollector::from_req_and_validate(
-            req, node,
-        )?)),
+        AggKind::MultiTerms => build_segment_multi_terms_collector(req, node),
     }
 }
 
@@ -674,6 +672,7 @@ fn build_nodes(
             data,
             &req.sub_aggregation,
             multi_terms_req,
+            is_top_level,
         )?]),
         AggregationVariants::Filter(filter_req) => {
             // Build the query and evaluator upfront
@@ -740,6 +739,7 @@ fn build_multi_terms_node(
     data: &mut AggregationsSegmentCtx,
     sub_aggs: &Aggregations,
     req: &MultiTermsAggregation,
+    is_top_level: bool,
 ) -> crate::Result<AggRefNode> {
     use crate::aggregation::bucket::KeyElem;
 
@@ -829,6 +829,7 @@ fn build_multi_terms_node(
         req: req.clone(),
         fields,
         sub_aggregations: sub_aggs.clone(),
+        is_top_level,
     });
     let children = build_children(sub_aggs, reader, segment_ordinal, data)?;
     Ok(AggRefNode {
