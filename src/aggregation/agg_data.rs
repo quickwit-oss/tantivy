@@ -756,7 +756,7 @@ fn build_multi_terms_node(
         let str_dict_column = reader.fast_fields().str(field_name)?;
 
         // Collect all columns for this field (handles JSON multi-type fields).
-        let columns = get_term_agg_accessors(reader, field_name, &field_def.missing)?;
+        let columns = get_term_agg_accessors(reader, field_name, &field_def.missing, true)?;
 
         // Precompute the missing KeyElem (or None -> drop combo).
         let missing_key_elem = if let Some(missing) = &field_def.missing {
@@ -868,10 +868,15 @@ fn get_term_agg_accessors(
     reader: &SegmentReader,
     field_name: &str,
     missing: &Option<Key>,
+    include_bytes: bool,
 ) -> crate::Result<Vec<(Column<u64>, ColumnType)>> {
     // `terms` and `multi_terms` both explicitly reject `Bytes` columns downstream, which needs
     // to actually see them as a real column (rather than the empty shim below) to do so.
-    let allowed_column_types = [
+    // `cardinality` has no such rejection: it would hash raw `Bytes` term ordinals as if they
+    // were comparable numeric values, but those ordinals are segment-local, so distinct byte
+    // values in different segments could collide and be undercounted. Keep `Bytes` out of its
+    // accessors entirely instead.
+    let mut allowed_column_types = vec![
         ColumnType::I64,
         ColumnType::U64,
         ColumnType::F64,
@@ -879,8 +884,10 @@ fn get_term_agg_accessors(
         ColumnType::DateTime,
         ColumnType::Bool,
         ColumnType::IpAddr,
-        ColumnType::Bytes,
     ];
+    if include_bytes {
+        allowed_column_types.push(ColumnType::Bytes);
+    }
 
     // In case the column is empty we want the shim column to match the missing type
     let fallback_type = missing
@@ -932,7 +939,8 @@ fn build_terms_or_cardinality_nodes(
 
     let str_dict_column = reader.fast_fields().str(field_name)?;
 
-    let column_and_types = get_term_agg_accessors(reader, field_name, missing)?;
+    let include_bytes = matches!(req, TermsOrCardinalityRequest::Terms(_));
+    let column_and_types = get_term_agg_accessors(reader, field_name, missing, include_bytes)?;
 
     // Special handling when missing + multi column or incompatible type on text/date.
     let missing_and_more_than_one_col = column_and_types.len() > 1 && missing.is_some();

@@ -1120,6 +1120,40 @@ mod tests {
     }
 
     #[test]
+    fn cardinality_aggregation_bytes_excluded_from_accessors() -> crate::Result<()> {
+        // `Bytes` columns are opened as raw per-segment dictionary ordinals (like `Str`), but
+        // unlike `Str`, cardinality has no dictionary-resolution path for them: it would hash
+        // the raw ordinal directly, which are segment dependant. Ignore bytes values instead of
+        // counting them wrong.
+        let mut schema_builder = Schema::builder();
+        let field = schema_builder.add_bytes_field("raw", FAST);
+        let index = Index::create_in_ram(schema_builder.build());
+        {
+            let mut writer = index.writer_for_tests()?;
+            writer.add_document(doc!(field => vec![1u8]))?;
+            writer.add_document(doc!(field => vec![2u8]))?;
+            writer.commit()?;
+            writer.add_document(doc!(field => vec![3u8]))?;
+            writer.add_document(doc!(field => vec![4u8]))?;
+            writer.commit()?;
+        }
+
+        let agg_req: Aggregations = serde_json::from_value(json!({
+            "cardinality": {
+                "cardinality": {
+                    "field": "raw"
+                },
+            }
+        }))
+        .unwrap();
+
+        let res = exec_request(agg_req, &index)?;
+        assert_eq!(res["cardinality"]["value"], 0.0);
+
+        Ok(())
+    }
+
+    #[test]
     fn cardinality_aggregation_json() -> crate::Result<()> {
         let mut schema_builder = Schema::builder();
         let field = schema_builder.add_json_field("json", FAST);
