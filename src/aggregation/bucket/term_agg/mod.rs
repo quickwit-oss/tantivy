@@ -413,52 +413,57 @@ pub(crate) fn build_segment_term_collector(
     // `num_terms`. `saturating_add` guards the HashMap fallback, where `max_column_val` is a raw
     // numeric column value that can reach `u64::MAX`; term ordinals never come close.
     let num_terms = max_column_val.saturating_add(1);
-    if is_top_level && max_column_val < MAX_NUM_TERMS_FOR_VEC && !has_sub_aggregations {
-        let term_buckets = VecTermBuckets::<()>::new(num_terms, &mut bucket_id_provider);
-        Ok(boxed_high_card_collector(
-            term_buckets,
-            None,
-            bucket_id_provider,
-            max_column_val,
-            terms_req_data,
-        ))
-    } else if is_top_level && max_column_val < MAX_NUM_TERMS_FOR_VEC {
-        let term_buckets = VecTermBuckets::<BucketId>::new(num_terms, &mut bucket_id_provider);
-        let sub_agg = sub_agg_collector.map(LowCardBufferedSubAggs::new);
-        let collector: SegmentTermCollector<_, LowCardSubAggBuffer> = SegmentTermCollector {
-            parent_buckets: vec![term_buckets],
-            sub_agg,
-            bucket_id_provider,
-            max_term_id: max_column_val,
-            terms_req_data,
-        };
-        Ok(Box::new(collector))
-    } else if max_column_val < 8_000_000 && is_top_level {
-        // Build sub-aggregation blueprint (flat pairs)
-        let sub_agg = sub_agg_collector.map(BufferedSubAggs::new);
+    if is_top_level && max_column_val < MAX_NUM_TERMS_FOR_VEC {
+        // Low cardinality: dense `Vec` storage. With sub aggregations it pairs with the `LowCard`
+        // buffer, which groups docs in a per-bucket `Vec` — a better fit for the few buckets here
+        // than the partitioned `HighCard` buffer the branches below use (docs arrive in doc order,
+        // so `HighCard` would only merge consecutive same-bucket docs).
         if has_sub_aggregations {
-            let term_buckets = PagedTermMap::<BucketId>::new(num_terms, &mut bucket_id_provider);
-            Ok(boxed_high_card_collector(
-                term_buckets,
-                sub_agg,
+            let term_buckets = VecTermBuckets::<BucketId>::new(num_terms, &mut bucket_id_provider);
+            let collector: SegmentTermCollector<_, LowCardSubAggBuffer> = SegmentTermCollector {
+                parent_buckets: vec![term_buckets],
+                sub_agg: sub_agg_collector.map(LowCardBufferedSubAggs::new),
                 bucket_id_provider,
-                max_column_val,
+                max_term_id: max_column_val,
                 terms_req_data,
-            ))
+            };
+            Ok(Box::new(collector))
         } else {
-            let term_buckets = PagedTermMap::<()>::new(num_terms, &mut bucket_id_provider);
+            let term_buckets = VecTermBuckets::<()>::new(num_terms, &mut bucket_id_provider);
             Ok(boxed_high_card_collector(
                 term_buckets,
-                sub_agg,
+                None,
                 bucket_id_provider,
                 max_column_val,
                 terms_req_data,
             ))
         }
     } else {
-        // Build sub-aggregation blueprint (flat pairs)
+        // Higher cardinality: every remaining storage uses the partitioned `HighCard` sub-agg
+        // buffer, so it is built once here.
         let sub_agg = sub_agg_collector.map(BufferedSubAggs::new);
-        if has_sub_aggregations {
+        if max_column_val < 8_000_000 && is_top_level {
+            if has_sub_aggregations {
+                let term_buckets =
+                    PagedTermMap::<BucketId>::new(num_terms, &mut bucket_id_provider);
+                Ok(boxed_high_card_collector(
+                    term_buckets,
+                    sub_agg,
+                    bucket_id_provider,
+                    max_column_val,
+                    terms_req_data,
+                ))
+            } else {
+                let term_buckets = PagedTermMap::<()>::new(num_terms, &mut bucket_id_provider);
+                Ok(boxed_high_card_collector(
+                    term_buckets,
+                    sub_agg,
+                    bucket_id_provider,
+                    max_column_val,
+                    terms_req_data,
+                ))
+            }
+        } else if has_sub_aggregations {
             let term_buckets = HashMapTermBuckets::<BucketId>::default();
             Ok(boxed_high_card_collector(
                 term_buckets,
