@@ -82,7 +82,7 @@ impl From<IntermediateKey> for Key {
                 }
             }
             IntermediateKey::F64(f) => Self::F64(f),
-            IntermediateKey::Bool(f) => Self::Str(f.to_string()),
+            IntermediateKey::Bool(f) => Self::U64(f as u64),
             IntermediateKey::U64(f) => Self::U64(f),
             IntermediateKey::I64(f) => Self::I64(f),
         }

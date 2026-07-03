@@ -1181,12 +1181,16 @@ impl IntermediateMultiTermsBucketResult {
             .into_iter()
             .filter(|(_, e)| e.doc_count >= req.min_doc_count)
             .map(|(key_vec, entry)| {
-                let keys: Vec<Key> = key_vec.iter().cloned().map(Key::from).collect();
-                let key_as_string = keys
+                let key_as_string = key_vec
                     .iter()
-                    .map(|k| k.to_string())
+                    .map(|k| match k {
+                        // Bool keys need special-casing: `Key` form is numeric (1/0),  but `key_as_string` must still carry the "true"/"false" string form.
+                        IntermediateKey::Bool(b) => b.to_string(),
+                        other => Key::from(other.clone()).to_string(),
+                    })
                     .collect::<Vec<_>>()
                     .join("|");
+                let keys: Vec<Key> = key_vec.into_iter().map(Key::from).collect();
                 Ok(MultiTermsBucketEntry {
                     key_as_string,
                     key: keys,
@@ -1342,14 +1346,14 @@ mod tests {
         let res = exec_request(agg_req, &index)?;
         let buckets = res["genres_and_products"]["buckets"].as_array().unwrap();
 
-        // Expect: rock|A (2), rock|B (1), pop|A (1)
         assert_eq!(buckets.len(), 3);
         assert_eq!(buckets[0]["key_as_string"], "rock|A");
         assert_eq!(buckets[0]["doc_count"], 2);
+        assert_eq!(buckets[0]["key_as_string"], "rock|B");
         assert_eq!(buckets[1]["doc_count"], 1);
+        assert_eq!(buckets[0]["key_as_string"], "pop|A");
         assert_eq!(buckets[2]["doc_count"], 1);
 
-        // Verify key is an array
         assert!(buckets[0]["key"].is_array());
         assert_eq!(buckets[0]["key"][0], "rock");
         assert_eq!(buckets[0]["key"][1], "A");
@@ -1378,7 +1382,7 @@ mod tests {
         }))?;
         let res = exec_request(agg_req, &index)?;
         let buckets = res["mt"]["buckets"].as_array().unwrap();
-        // Alphabetical ascending: metal|A, pop|B, rock|A
+
         assert_eq!(buckets[0]["key_as_string"], "metal|A");
         assert_eq!(buckets[1]["key_as_string"], "pop|B");
         assert_eq!(buckets[2]["key_as_string"], "rock|A");
@@ -1435,7 +1439,6 @@ mod tests {
         let buckets = res["mt"]["buckets"].as_array().unwrap();
         assert_eq!(buckets.len(), 2);
         assert_eq!(buckets[0]["key_as_string"], "rock|A");
-        // sum_other_doc_count should account for the dropped bucket
         assert!(res["mt"]["sum_other_doc_count"].as_u64().unwrap() > 0);
         Ok(())
     }
@@ -1445,7 +1448,7 @@ mod tests {
         let index = build_two_field_index(
             &[
                 ("rock", Some("A")),
-                ("rock", None), // no product -> combo dropped
+                ("rock", None),
             ],
             &[],
             false,
@@ -1460,7 +1463,7 @@ mod tests {
         }))?;
         let res = exec_request(agg_req, &index)?;
         let buckets = res["mt"]["buckets"].as_array().unwrap();
-        // Only rock|A (1 doc); the doc without product is dropped.
+        // 2nd doc dropped
         assert_eq!(buckets.len(), 1);
         assert_eq!(buckets[0]["doc_count"], 1);
         Ok(())
@@ -1471,7 +1474,7 @@ mod tests {
         let index = build_two_field_index(
             &[
                 ("rock", Some("A")),
-                ("rock", None), // product is missing -> gets "UNKNOWN"
+                ("rock", None),
             ],
             &[],
             false,
@@ -1489,7 +1492,6 @@ mod tests {
         }))?;
         let res = exec_request(agg_req, &index)?;
         let buckets = res["mt"]["buckets"].as_array().unwrap();
-        // Expect rock|A (1) and rock|UNKNOWN (1)
         assert_eq!(buckets.len(), 2);
         let keys: Vec<&str> = buckets
             .iter()
@@ -1529,7 +1531,6 @@ mod tests {
         let res = exec_request(agg_req, &index)?;
         let buckets = res["mt"]["buckets"].as_array().unwrap();
         assert_eq!(buckets.len(), 2);
-        // Each bucket should have avg_score sub-agg
         for bucket in buckets {
             assert!(
                 bucket.get("avg_score").is_some(),
@@ -1553,7 +1554,6 @@ mod tests {
         let res = exec_request(agg_req, &index)?;
         let buckets = res["mt"]["buckets"].as_array().unwrap();
         assert_eq!(buckets.len(), 1);
-        // key_as_string must pipe-join the values
         assert_eq!(
             buckets[0]["key_as_string"].as_str().unwrap(),
             "hello world|foo|bar"
@@ -1586,7 +1586,6 @@ mod tests {
 
     #[test]
     fn test_multi_terms_multi_segment_merge() -> crate::Result<()> {
-        // Two docs in separate segments contributing to the same key -> merge must sum counts.
         let index = build_two_field_index(
             &[("rock", Some("A")), ("rock", Some("A"))],
             &[],
@@ -1604,6 +1603,7 @@ mod tests {
         let buckets = res["mt"]["buckets"].as_array().unwrap();
         assert_eq!(buckets.len(), 1);
         assert_eq!(buckets[0]["doc_count"], 2);
+        assert_eq!(buckets[0]["key_as_string"], "rock|A");
         Ok(())
     }
 
@@ -1612,7 +1612,7 @@ mod tests {
         let index = build_two_field_index(
             &[("rock", Some("A")), ("rock", Some("A")), ("pop", Some("B"))],
             &[],
-            true, // one doc per segment -> exercises merge
+            true, // one doc per segment
         )?;
 
         let agg_req: Aggregations = serde_json::from_value(json!({
@@ -1629,11 +1629,14 @@ mod tests {
         let intermediate = searcher.search(&AllQuery, &collector)?;
         let res = intermediate.into_final_result(agg_req, Default::default())?;
 
-        // Serialize to JSON for convenient indexing
         let res_val: serde_json::Value =
             serde_json::from_str(&serde_json::to_string(&res).unwrap()).unwrap();
         let buckets = res_val["mt"]["buckets"].as_array().unwrap();
-        assert!(buckets.len() >= 2);
+        assert_eq!(buckets.len(), 2);
+        assert_eq!(buckets[0]["key_as_string"], "rock|A");
+        assert_eq!(buckets[0]["doc_count"], 2);
+        assert_eq!(buckets[1]["key_as_string"], "pop|B");
+        assert_eq!(buckets[1]["doc_count"], 1);
         Ok(())
     }
 
@@ -1648,7 +1651,6 @@ mod tests {
                 }
             }
         }))?;
-        // Empty terms list should fail at collector construction (per-segment validation).
         let res = exec_request(agg_req, &index);
         assert!(res.is_err(), "expected error for empty terms");
         Ok(())
@@ -1691,11 +1693,9 @@ mod tests {
         let buckets = res["mt"]["buckets"].as_array().unwrap();
         assert_eq!(buckets.len(), 2);
 
-        // Per the Elasticsearch spec, a bool field's `key` slot is numeric (1/0) while
-        // `key_as_string` carries the "true"/"false" string form -- see
+        // a bool field's `key` slot is numeric (1/0) while `key_as_string` carries the
+        // "true"/"false" string form. See
         // https://www.elastic.co/docs/reference/elasticsearch/mapping-reference/boolean
-        // and `terms_aggregation_bool` in term_agg/mod.rs, which asserts the same thing
-        // for the single-field `terms` aggregation.
         let true_bucket = buckets
             .iter()
             .find(|b| b["key"][0] == 1.0)
@@ -1712,6 +1712,10 @@ mod tests {
         assert_eq!(false_bucket["doc_count"], 1);
         assert_eq!(false_bucket["key"][1], "1983-09-27T00:00:00Z");
         assert_eq!(false_bucket["key"][2], 20);
+        assert_eq!(
+            false_bucket["key_as_string"],
+            "false|1983-09-27T00:00:00Z|20"
+        );
 
         Ok(())
     }
@@ -1750,9 +1754,6 @@ mod tests {
 
     #[test]
     fn test_multi_terms_fast_path_noncontiguous_docs() -> crate::Result<()> {
-        // A term-query filter matching every other doc forces the segment collector to
-        // receive a non-contiguous `docs` slice, exercising the non-range branch of
-        // `ColumnBlockAccessor::fetch_block_with_is_full`.
         let index = build_two_field_index(
             &[
                 ("even", Some("A")),
