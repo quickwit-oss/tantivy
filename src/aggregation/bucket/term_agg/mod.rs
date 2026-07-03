@@ -2690,16 +2690,8 @@ mod tests {
         }))
         .unwrap();
 
-        let res = exec_request_with_query(agg_req, &index, None)?;
-
-        // TODO: Returning an error would be better instead of an empty result, since this is not a
-        // JSON field
-        assert_eq!(
-            res["my_texts"]["buckets"][0]["key"],
-            serde_json::Value::Null
-        );
-        assert_eq!(res["my_texts"]["sum_other_doc_count"], 0);
-        assert_eq!(res["my_texts"]["doc_count_error_upper_bound"], 0);
+        let res = exec_request_with_query(agg_req, &index, None);
+        assert!(res.is_err(), "expected error for Bytes field, got {res:?}");
 
         Ok(())
     }

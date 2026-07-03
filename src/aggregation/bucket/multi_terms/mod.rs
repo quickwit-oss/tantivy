@@ -209,8 +209,12 @@ impl KeyElem {
     }
 }
 
-/// The composite key for one combination of field values, inline-allocated for up to 4 fields.
-pub type MultiTermsKey = SmallVec<[KeyElem; 4]>;
+/// Inline capacity of [`MultiTermsKey`]
+const MULTI_TERMS_KEY_INLINE_CAPACITY: usize = 3;
+
+/// The composite key for one combination of field values, inline-allocated for up to
+/// [`MULTI_TERMS_KEY_INLINE_CAPACITY`] fields.
+pub type MultiTermsKey = SmallVec<[KeyElem; MULTI_TERMS_KEY_INLINE_CAPACITY]>;
 
 #[derive(Clone, Copy, Debug, Default)]
 struct MultiTermsBucket {
@@ -332,10 +336,17 @@ impl SegmentMultiTermsCollector {
         })
     }
 
-    fn get_memory_consumption(&self, parent_bucket_id: BucketId) -> usize {
+    fn get_memory_consumption(&self, parent_bucket_id: BucketId, num_fields: usize) -> usize {
         let map = &self.parent_buckets[parent_bucket_id as usize];
-        map.capacity()
-            * (std::mem::size_of::<MultiTermsKey>() + std::mem::size_of::<MultiTermsBucket>())
+        let spilled_bytes = if num_fields > MULTI_TERMS_KEY_INLINE_CAPACITY {
+            num_fields * std::mem::size_of::<KeyElem>()
+        } else {
+            0
+        };
+        let per_entry = std::mem::size_of::<MultiTermsKey>()
+            + std::mem::size_of::<MultiTermsBucket>()
+            + spilled_bytes;
+        map.capacity() * per_entry
     }
 
     /// Depth-first cartesian product walk over all fields.
@@ -354,7 +365,15 @@ impl SegmentMultiTermsCollector {
         let mut any_value = false;
 
         for (accessor_idx, (col, _col_type)) in field_acc.columns.iter().enumerate() {
-            for raw in col.values_for_doc(doc_id) {
+            // Multi-valued columns can repeat the same value for one doc (e.g. `tag: ["a",
+            // "a"]`); without deduping, the repeated value would be emitted as two separate
+            // combos, inflating doc_count and double-pushing the doc into sub-aggregations.
+            let mut raw_values: SmallVec<[u64; 2]> = col.values_for_doc(doc_id).collect();
+            if col.get_cardinality().is_multivalue() && raw_values.len() > 1 {
+                raw_values.sort_unstable();
+                raw_values.dedup();
+            }
+            for raw in raw_values {
                 any_value = true;
                 prefix.push(KeyElem::new(accessor_idx as u32, raw));
                 if is_last {
@@ -482,7 +501,7 @@ impl SegmentMultiTermsCollector {
                                 agg_prop,
                                 agg_data,
                             )
-                            .unwrap_or(0.0);
+                            .unwrap_or(f64::MIN);
                         (metric, entry)
                     })
                     .collect();
@@ -511,13 +530,23 @@ impl SegmentMultiTermsCollector {
                     entry.bucket.bucket_id,
                 )?;
             }
-            result_entries.insert(
-                intermediate_key,
-                IntermediateTermBucketEntry {
-                    doc_count: entry.bucket.count as u64,
-                    sub_aggregation: sub_aggregation_res,
-                },
-            );
+            let doc_count = entry.bucket.count as u64;
+            // Distinct raw keys can resolve to the same `IntermediateKey` (e.g. a synthetic
+            // missing key that renders to the same string as a real value in another entry) --
+            // merge into the existing bucket instead of overwriting it.
+            match result_entries.entry(intermediate_key) {
+                std::collections::hash_map::Entry::Occupied(mut occupied) => {
+                    let existing = occupied.get_mut();
+                    existing.doc_count += doc_count;
+                    existing.sub_aggregation.merge_fruits(sub_aggregation_res)?;
+                }
+                std::collections::hash_map::Entry::Vacant(vacant) => {
+                    vacant.insert(IntermediateTermBucketEntry {
+                        doc_count,
+                        sub_aggregation: sub_aggregation_res,
+                    });
+                }
+            }
         }
 
         Ok(IntermediateBucketResult::MultiTerms {
@@ -560,14 +589,15 @@ impl SegmentAggregationCollector for SegmentMultiTermsCollector {
         docs: &[crate::DocId],
         agg_data: &mut AggregationsSegmentCtx,
     ) -> crate::Result<()> {
-        let mem_pre = self.get_memory_consumption(parent_bucket_id);
-
         let req_data = &agg_data.per_request.multi_terms_req_data[self.req_data_idx];
+        let num_fields = req_data.fields.len();
+        let mem_pre = self.get_memory_consumption(parent_bucket_id, num_fields);
+
         let buckets = &mut self.parent_buckets[parent_bucket_id as usize];
         let sub_agg = &mut self.sub_agg;
         let bucket_id_provider = &mut self.bucket_id_provider;
 
-        let mut prefix: MultiTermsKey = SmallVec::with_capacity(req_data.fields.len());
+        let mut prefix: MultiTermsKey = SmallVec::with_capacity(num_fields);
         for &doc_id in docs {
             Self::visit(
                 doc_id,
@@ -581,7 +611,7 @@ impl SegmentAggregationCollector for SegmentMultiTermsCollector {
         }
 
         let mem_delta = self
-            .get_memory_consumption(parent_bucket_id)
+            .get_memory_consumption(parent_bucket_id, num_fields)
             .saturating_sub(mem_pre);
         if mem_delta > 0 {
             agg_data
@@ -999,7 +1029,7 @@ fn into_intermediate_bucket_result_fast<TermMap: TermAggregationMap>(
                 .map(|bucket| {
                     let metric_value = coll
                         .compute_metric_value(bucket.1.bucket_id, agg_name, agg_prop, agg_data)
-                        .unwrap_or(0.0);
+                        .unwrap_or(f64::MIN);
                     (metric_value, bucket)
                 })
                 .collect();
@@ -1280,6 +1310,7 @@ mod tests {
     use serde_json::json;
     use time::{Date, Month};
 
+    use super::*;
     use crate::aggregation::agg_req::Aggregations;
     use crate::aggregation::tests::{exec_request, exec_request_with_query};
     use crate::aggregation::DistributedAggregationCollector;
@@ -1502,6 +1533,80 @@ mod tests {
     }
 
     #[test]
+    fn test_multi_terms_missing_fallback_on_json_path_absent_from_segment() -> crate::Result<()> {
+        let mut schema_builder = Schema::builder();
+        let genre_field = schema_builder.add_text_field("genre", STRING | FAST);
+        let json_field = schema_builder.add_json_field("attrs", FAST);
+        let index = Index::create_in_ram(schema_builder.build());
+        {
+            let mut writer: IndexWriter = index.writer_with_num_threads(1, 20_000_000)?;
+            writer.add_document(doc!(genre_field => "rock", json_field => json!({"other": 5})))?;
+            writer.add_document(doc!(genre_field => "pop", json_field => json!({"other": 6})))?;
+            writer.commit()?;
+        }
+
+        let agg_req: Aggregations = serde_json::from_value(json!({
+            "mt": {
+                "multi_terms": {
+                    "terms": [
+                        {"field": "genre"},
+                        {"field": "attrs.val", "missing": "UNKNOWN"}
+                    ]
+                }
+            }
+        }))?;
+        let res = exec_request(agg_req, &index)?;
+        let buckets = res["mt"]["buckets"].as_array().unwrap();
+        assert_eq!(buckets.len(), 2);
+        let keys: Vec<&str> = buckets
+            .iter()
+            .map(|b| b["key_as_string"].as_str().unwrap())
+            .collect();
+        assert!(
+            keys.contains(&"rock|UNKNOWN"),
+            "expected rock|UNKNOWN, got {keys:?}"
+        );
+        assert!(
+            keys.contains(&"pop|UNKNOWN"),
+            "expected pop|UNKNOWN, got {keys:?}"
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn test_multi_terms_memory_consumption_accounts_for_spilled_keys() {
+        let mut collector = SegmentMultiTermsCollector {
+            parent_buckets: vec![FxHashMap::default()],
+            sub_agg: None,
+            bucket_id_provider: BucketIdProvider::default(),
+            req_data_idx: 0,
+        };
+        for i in 0..64u64 {
+            let mut key: MultiTermsKey = SmallVec::new();
+            key.push(KeyElem::new(0, i));
+            collector.parent_buckets[0].insert(
+                key,
+                MultiTermsBucket {
+                    count: 1,
+                    bucket_id: 0,
+                },
+            );
+        }
+
+        let num_spilled_fields = MULTI_TERMS_KEY_INLINE_CAPACITY + 2;
+        let mem_within_inline_capacity =
+            collector.get_memory_consumption(0, MULTI_TERMS_KEY_INLINE_CAPACITY);
+        let mem_with_spilled_fields = collector.get_memory_consumption(0, num_spilled_fields);
+
+        let capacity = collector.parent_buckets[0].capacity();
+        let expected_delta = capacity * num_spilled_fields * std::mem::size_of::<KeyElem>();
+        assert_eq!(
+            mem_with_spilled_fields - mem_within_inline_capacity,
+            expected_delta
+        );
+    }
+
+    #[test]
     fn test_multi_terms_sub_aggregation() -> crate::Result<()> {
         let index = build_two_field_index(
             &[
@@ -1649,6 +1754,31 @@ mod tests {
         }))?;
         let res = exec_request(agg_req, &index);
         assert!(res.is_err(), "expected error for empty terms");
+        Ok(())
+    }
+
+    #[test]
+    fn test_multi_terms_rejects_bytes_field() -> crate::Result<()> {
+        // `Bytes` columns are explicitly unsupported
+        let mut schema_builder = Schema::builder();
+        let genre_field = schema_builder.add_text_field("genre", STRING | FAST);
+        let bytes_field = schema_builder.add_bytes_field("raw", FAST);
+        let index = Index::create_in_ram(schema_builder.build());
+        {
+            let mut writer: IndexWriter = index.writer_with_num_threads(1, 20_000_000)?;
+            writer.add_document(doc!(genre_field => "rock", bytes_field => vec![1u8, 2, 3]))?;
+            writer.commit()?;
+        }
+
+        let agg_req: Aggregations = serde_json::from_value(json!({
+            "mt": {
+                "multi_terms": {
+                    "terms": [{"field": "genre"}, {"field": "raw"}]
+                }
+            }
+        }))?;
+        let res = exec_request(agg_req, &index);
+        assert!(res.is_err(), "expected error for Bytes field, got {res:?}");
         Ok(())
     }
 
@@ -1855,6 +1985,174 @@ mod tests {
             .map(|b| b["doc_count"].as_u64().unwrap())
             .sum();
         assert_eq!(doc_counts, 3);
+        Ok(())
+    }
+
+    #[test]
+    fn test_multi_terms_merges_buckets_on_intermediate_key_collision() -> crate::Result<()> {
+        // A synthetic missing key and a real value can resolve to the same `IntermediateKey`.
+        //  The two distinct raw keys must merge into one bucket instead of the second silently
+        // overwriting the first.
+        let mut schema_builder = Schema::builder();
+        let genre_field = schema_builder.add_text_field("genre", STRING | FAST);
+        let json_field = schema_builder.add_json_field("attrs", FAST);
+        let schema = schema_builder.build();
+        let index = Index::create_in_ram(schema);
+        {
+            let mut writer: IndexWriter = index.writer_with_num_threads(1, 20_000_000)?;
+            writer.add_document(
+                doc!(genre_field => "rock", json_field => json!({"val": "2023-01-01T00:00:00Z"})),
+            )?;
+            // No `attrs.val` at all -> falls back to the synthetic missing key, which resolves
+            // via the `missing` string below to the same RFC3339 string as the real date above.
+            writer.add_document(doc!(genre_field => "rock"))?;
+            writer.commit()?;
+        }
+
+        let agg_req: Aggregations = serde_json::from_value(json!({
+            "mt": {
+                "multi_terms": {
+                    "terms": [
+                        {"field": "genre"},
+                        {"field": "attrs.val", "missing": "2023-01-01T00:00:00Z"}
+                    ]
+                }
+            }
+        }))?;
+        let res = exec_request(agg_req, &index)?;
+        let buckets = res["mt"]["buckets"].as_array().unwrap();
+        assert_eq!(
+            buckets.len(),
+            1,
+            "expected the two colliding keys to merge into one bucket, got {buckets:?}"
+        );
+        assert_eq!(buckets[0]["doc_count"], 2);
+        assert_eq!(buckets[0]["key_as_string"], "rock|2023-01-01T00:00:00Z");
+        Ok(())
+    }
+
+    #[test]
+    fn test_multi_terms_dedups_repeated_value_in_multivalued_field() -> crate::Result<()> {
+        // A multivalued column can repeat the same value twice for one doc (e.g.
+        // `tag: ["a", "a"]`), this shouldn't generate 2 hits for one bucket.
+        let mut schema_builder = Schema::builder();
+        let genre_field = schema_builder.add_text_field("genre", STRING | FAST);
+        let tag_field = schema_builder.add_text_field("tag", STRING | FAST);
+        let score_field = schema_builder
+            .add_u64_field("score", crate::schema::NumericOptions::default().set_fast());
+        let index = Index::create_in_ram(schema_builder.build());
+        {
+            let mut writer: IndexWriter = index.writer_with_num_threads(1, 20_000_000)?;
+            let mut d = doc!(genre_field => "rock", score_field => 10u64);
+            d.add_text(tag_field, "a");
+            d.add_text(tag_field, "a"); // repeated value for the same doc
+            writer.add_document(d)?;
+            writer.commit()?;
+        }
+
+        let agg_req: Aggregations = serde_json::from_value(json!({
+            "mt": {
+                "multi_terms": {
+                    "terms": [{"field": "genre"}, {"field": "tag"}]
+                },
+                "aggs": {
+                    "avg_score": {"avg": {"field": "score"}}
+                }
+            }
+        }))?;
+        let res = exec_request(agg_req, &index)?;
+        let buckets = res["mt"]["buckets"].as_array().unwrap();
+        assert_eq!(
+            buckets.len(),
+            1,
+            "expected a single deduped bucket, got {buckets:?}"
+        );
+        assert_eq!(buckets[0]["key_as_string"], "rock|a");
+        assert_eq!(buckets[0]["doc_count"], 1);
+        assert_eq!(buckets[0]["avg_score"]["value"], 10.0);
+        Ok(())
+    }
+
+    #[test]
+    fn test_multi_terms_missing_subagg_value_sorts_last_at_segment_cutoff() -> crate::Result<()> {
+        let mut schema_builder = Schema::builder();
+        let genre_field = schema_builder.add_text_field("genre", STRING | FAST);
+        let product_field = schema_builder.add_text_field("product", STRING | FAST);
+        let delta_field = schema_builder
+            .add_i64_field("delta", crate::schema::NumericOptions::default().set_fast());
+        let index = Index::create_in_ram(schema_builder.build());
+        {
+            let mut writer: IndexWriter = index.writer_with_num_threads(1, 20_000_000)?;
+            writer.add_document(
+                doc!(genre_field => "rock", product_field => "A", delta_field => -5i64),
+            )?;
+            // No `delta` value at all -> avg_delta is missing for this bucket.
+            writer.add_document(doc!(genre_field => "rock", product_field => "B"))?;
+            writer.commit()?;
+        }
+
+        let agg_req: Aggregations = serde_json::from_value(json!({
+            "mt": {
+                "multi_terms": {
+                    "terms": [{"field": "genre"}, {"field": "product"}],
+                    "size": 1,
+                    "segment_size": 1,
+                    "order": {"avg_delta": "desc"}
+                },
+                "aggs": {
+                    "avg_delta": {"avg": {"field": "delta"}}
+                }
+            }
+        }))?;
+        let res = exec_request(agg_req, &index)?;
+        let buckets = res["mt"]["buckets"].as_array().unwrap();
+        assert_eq!(buckets.len(), 1);
+        assert_eq!(buckets[0]["key_as_string"], "rock|A");
+        Ok(())
+    }
+
+    #[test]
+    fn test_multi_terms_missing_subagg_value_sorts_last_at_segment_cutoff_recursive_path(
+    ) -> crate::Result<()> {
+        let mut schema_builder = Schema::builder();
+        let genre_field = schema_builder.add_text_field("genre", STRING | FAST);
+        let product_field = schema_builder.add_text_field("product", STRING | FAST);
+        let delta_field = schema_builder
+            .add_i64_field("delta", crate::schema::NumericOptions::default().set_fast());
+        let index = Index::create_in_ram(schema_builder.build());
+        {
+            let mut writer: IndexWriter = index.writer_with_num_threads(1, 20_000_000)?;
+            writer.add_document(
+                doc!(genre_field => "rock", product_field => "A", delta_field => -5i64),
+            )?;
+            // No `delta` value at all -> avg_delta is missing for this bucket.
+            writer.add_document(doc!(genre_field => "rock", product_field => "B"))?;
+            // Multivalued `product` for this doc forces the whole column to be
+            // non-full/multivalued, disqualifying the fast path for the entire request.
+            let mut multivalued_doc = doc!(genre_field => "other");
+            multivalued_doc.add_text(product_field, "C");
+            multivalued_doc.add_text(product_field, "D");
+            writer.add_document(multivalued_doc)?;
+            writer.commit()?;
+        }
+
+        let agg_req: Aggregations = serde_json::from_value(json!({
+            "mt": {
+                "multi_terms": {
+                    "terms": [{"field": "genre"}, {"field": "product"}],
+                    "size": 1,
+                    "segment_size": 1,
+                    "order": {"avg_delta": "desc"}
+                },
+                "aggs": {
+                    "avg_delta": {"avg": {"field": "delta"}}
+                }
+            }
+        }))?;
+        let res = exec_request(agg_req, &index)?;
+        let buckets = res["mt"]["buckets"].as_array().unwrap();
+        assert_eq!(buckets.len(), 1, "expected {buckets:?}");
+        assert_eq!(buckets[0]["key_as_string"], "rock|A");
         Ok(())
     }
 }
