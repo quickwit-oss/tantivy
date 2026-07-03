@@ -812,7 +812,22 @@ fn build_multi_terms_node(
                             )?
                             .map(|sentinel| KeyElem::new(idx as u32, sentinel))
                         }
-                        None => Some(KeyElem::synthetic_missing()),
+                        None => {
+                            // No numeric column matches. A `Str` column, if present, also
+                            // accepts a numeric missing as a fallback sentinel (see
+                            // `get_missing_val_as_u64_lenient`), same as `terms`
+                            let (col, col_type) = columns
+                                .iter()
+                                .find(|(_, ct)| *ct == ColumnType::Str)
+                                .unwrap_or(&columns[0]);
+                            get_missing_val_as_u64_lenient(
+                                *col_type,
+                                col.max_value(),
+                                missing,
+                                field_name,
+                            )?
+                            .map(|_| KeyElem::synthetic_missing())
+                        }
                     }
                 }
             }
