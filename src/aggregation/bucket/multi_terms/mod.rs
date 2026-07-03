@@ -680,7 +680,11 @@ fn compute_fast_path_layout(fields: &[MultiTermsFieldAccessors]) -> Option<Vec<F
     let mut packs = Vec::with_capacity(fields.len());
     let mut shift = 0u32;
     for (&width, &min_value) in widths.iter().zip(mins.iter()).rev() {
-        let mask = if width >= 64 { u64::MAX } else { (1u64 << width) - 1 };
+        let mask = if width >= 64 {
+            u64::MAX
+        } else {
+            (1u64 << width) - 1
+        };
         packs.push(FieldPack {
             shift,
             mask,
@@ -943,8 +947,7 @@ impl<TermMap: TermAggregationMap, B: SubAggBuffer> SegmentAggregationCollector
         _agg_data: &AggregationsSegmentCtx,
     ) -> crate::Result<()> {
         while self.parent_buckets.len() <= max_bucket as usize {
-            let term_buckets: TermMap =
-                TermMap::new(self.max_packed, &mut self.bucket_id_provider);
+            let term_buckets: TermMap = TermMap::new(self.max_packed, &mut self.bucket_id_provider);
             self.parent_buckets.push(term_buckets);
         }
         Ok(())
@@ -1184,7 +1187,8 @@ impl IntermediateMultiTermsBucketResult {
                 let key_as_string = key_vec
                     .iter()
                     .map(|k| match k {
-                        // Bool keys need special-casing: `Key` form is numeric (1/0),  but `key_as_string` must still carry the "true"/"false" string form.
+                        // Bool keys need special-casing: `Key` form is numeric (1/0),  but
+                        // `key_as_string` must still carry the "true"/"false" string form.
                         IntermediateKey::Bool(b) => b.to_string(),
                         other => Key::from(other.clone()).to_string(),
                     })
@@ -1451,14 +1455,7 @@ mod tests {
 
     #[test]
     fn test_multi_terms_combo_dropped_when_field_missing_no_fallback() -> crate::Result<()> {
-        let index = build_two_field_index(
-            &[
-                ("rock", Some("A")),
-                ("rock", None),
-            ],
-            &[],
-            false,
-        )?;
+        let index = build_two_field_index(&[("rock", Some("A")), ("rock", None)], &[], false)?;
 
         let agg_req: Aggregations = serde_json::from_value(json!({
             "mt": {
@@ -1477,14 +1474,7 @@ mod tests {
 
     #[test]
     fn test_multi_terms_missing_fallback() -> crate::Result<()> {
-        let index = build_two_field_index(
-            &[
-                ("rock", Some("A")),
-                ("rock", None),
-            ],
-            &[],
-            false,
-        )?;
+        let index = build_two_field_index(&[("rock", Some("A")), ("rock", None)], &[], false)?;
 
         let agg_req: Aggregations = serde_json::from_value(json!({
             "mt": {
@@ -1678,13 +1668,20 @@ mod tests {
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema);
 
-        let d1 = DateTime::from_primitive(Date::from_calendar_date(1982, Month::September, 17)?.with_hms(0, 0, 0)?);
-        let d2 = DateTime::from_primitive(Date::from_calendar_date(1983, Month::September, 27)?.with_hms(0, 0, 0)?);
+        let d1 = DateTime::from_primitive(
+            Date::from_calendar_date(1982, Month::September, 17)?.with_hms(0, 0, 0)?,
+        );
+        let d2 = DateTime::from_primitive(
+            Date::from_calendar_date(1983, Month::September, 27)?.with_hms(0, 0, 0)?,
+        );
         {
             let mut writer: IndexWriter = index.writer_with_num_threads(1, 20_000_000)?;
-            writer.add_document(doc!(bool_field => true, date_field => d1, score_field => 10u64))?;
-            writer.add_document(doc!(bool_field => true, date_field => d1, score_field => 10u64))?;
-            writer.add_document(doc!(bool_field => false, date_field => d2, score_field => 20u64))?;
+            writer
+                .add_document(doc!(bool_field => true, date_field => d1, score_field => 10u64))?;
+            writer
+                .add_document(doc!(bool_field => true, date_field => d1, score_field => 10u64))?;
+            writer
+                .add_document(doc!(bool_field => false, date_field => d2, score_field => 20u64))?;
             writer.commit()?;
         }
 
@@ -1835,15 +1832,11 @@ mod tests {
         let index = Index::create_in_ram(schema);
         {
             let mut writer: IndexWriter = index.writer_with_num_threads(1, 20_000_000)?;
-            writer.add_document(
-                doc!(genre_field => "rock", json_field => json!({"val": "blue"})),
-            )?;
-            writer.add_document(
-                doc!(genre_field => "rock", json_field => json!({"val": 5.0})),
-            )?;
-            writer.add_document(
-                doc!(genre_field => "pop", json_field => json!({"val": "blue"})),
-            )?;
+            writer
+                .add_document(doc!(genre_field => "rock", json_field => json!({"val": "blue"})))?;
+            writer.add_document(doc!(genre_field => "rock", json_field => json!({"val": 5.0})))?;
+            writer
+                .add_document(doc!(genre_field => "pop", json_field => json!({"val": "blue"})))?;
             writer.commit()?;
         }
 
