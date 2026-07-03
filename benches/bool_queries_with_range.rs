@@ -153,19 +153,16 @@ fn main() {
         // Define all four field types
         let field_names = ["num_rand", "num_asc", "num_rand_fast", "num_asc_fast"];
 
-        // Define the three terms we want to test with
-        let terms = ["a"];
+        let term = "a";
 
-        // Generate all combinations of terms and field names
+        // Generate all combinations of term and field names
         let mut queries = Vec::new();
-        for &term in &terms {
-            for &field_name in &field_names {
-                let query_str = format!(
-                    "{} AND {}:[{} TO {}]",
-                    term, field_name, range_low, range_high
-                );
-                queries.push((query_str, field_name.to_string()));
-            }
+        for &field_name in &field_names {
+            let query_str = format!(
+                "{} AND {}:[{} TO {}]",
+                term, field_name, range_low, range_high
+            );
+            queries.push((query_str, field_name.to_string()));
         }
 
         let query_str = format!(
