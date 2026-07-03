@@ -496,7 +496,7 @@ impl SegmentMultiTermsCollector {
         }
 
         let (term_doc_count_before_cutoff, sum_other_doc_count) =
-            cut_off_buckets(&mut entries, req.segment_size as usize);
+            cut_off_buckets(&mut entries, req.segment_size as usize, None);
 
         let mut result_entries: FxHashMap<Vec<IntermediateKey>, IntermediateTermBucketEntry> =
             FxHashMap::with_capacity_and_hasher(entries.len(), Default::default());
@@ -1017,7 +1017,7 @@ fn into_intermediate_bucket_result_fast<TermMap: TermAggregationMap>(
     }
 
     let (term_doc_count_before_cutoff, sum_other_doc_count) =
-        cut_off_buckets(&mut entries, req.segment_size as usize);
+        cut_off_buckets(&mut entries, req.segment_size as usize, None);
 
     let mut result_entries: FxHashMap<Vec<IntermediateKey>, IntermediateTermBucketEntry> =
         FxHashMap::with_capacity_and_hasher(entries.len(), Default::default());
@@ -1254,7 +1254,7 @@ impl IntermediateMultiTermsBucketResult {
         }
 
         let (_before_cutoff, sum_other_from_final) =
-            cut_off_buckets(&mut buckets, req.size as usize);
+            cut_off_buckets(&mut buckets, req.size as usize, None);
 
         let doc_count_error_upper_bound = if req.show_term_doc_count_error {
             Some(self.doc_count_error_upper_bound)
@@ -1349,9 +1349,15 @@ mod tests {
         assert_eq!(buckets.len(), 3);
         assert_eq!(buckets[0]["key_as_string"], "rock|A");
         assert_eq!(buckets[0]["doc_count"], 2);
-        assert_eq!(buckets[0]["key_as_string"], "rock|B");
+        // rock|B and pop|A tie on doc_count; their relative order is unspecified.
+        let tied: std::collections::HashSet<&str> = [
+            buckets[1]["key_as_string"].as_str().unwrap(),
+            buckets[2]["key_as_string"].as_str().unwrap(),
+        ]
+        .into_iter()
+        .collect();
+        assert_eq!(tied, ["rock|B", "pop|A"].into_iter().collect());
         assert_eq!(buckets[1]["doc_count"], 1);
-        assert_eq!(buckets[0]["key_as_string"], "pop|A");
         assert_eq!(buckets[2]["doc_count"], 1);
 
         assert!(buckets[0]["key"].is_array());

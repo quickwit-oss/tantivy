@@ -56,6 +56,7 @@ fn bench_agg(mut group: InputGroup<Index>) {
     register!(group, percentiles_f64);
     register!(group, terms_7);
     register!(group, terms_all_unique);
+    register!(group, terms_all_unique_order_by_key);
     register!(group, terms_150_000);
     register!(group, terms_many_top_1000);
     register!(group, terms_many_order_by_term);
@@ -299,6 +300,13 @@ fn terms_7(index: &Index) {
 fn terms_all_unique(index: &Index) {
     let agg_req = json!({
         "my_texts": { "terms": { "field": "text_all_unique_terms" } },
+    });
+    execute_agg(index, agg_req);
+}
+
+fn terms_all_unique_order_by_key(index: &Index) {
+    let agg_req = json!({
+        "my_texts": { "terms": { "field": "text_all_unique_terms", "order": { "_key": "asc" } } },
     });
     execute_agg(index, agg_req);
 }

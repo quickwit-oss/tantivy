@@ -835,7 +835,7 @@ impl IntermediateTermBucketResult {
         // This can be interesting, as a value of quality of the results, but not good to check the
         // actual error count for the returned terms.
         let (_term_doc_count_before_cutoff, sum_other_doc_count) =
-            cut_off_buckets(&mut buckets, req.size as usize);
+            cut_off_buckets(&mut buckets, req.size as usize, None);
 
         let doc_count_error_upper_bound = if req.show_term_doc_count_error {
             Some(self.doc_count_error_upper_bound)
