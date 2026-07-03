@@ -408,7 +408,11 @@ pub(crate) fn build_segment_term_collector(
     // Every storage is generic over its `Bucket` id slot (see `BucketIdSlot`): with sub
     // aggregations it stores a real `BucketId` (to key the buffered sub-aggs), without them the
     // zero-sized `()`, which shrinks each bucket and turns id assignment into a no-op.
-    let num_terms = max_column_val + 1;
+    //
+    // Only the dense Vec/Paged storages below (all gated to `max_column_val < 8_000_000`) use
+    // `num_terms`. `saturating_add` guards the HashMap fallback, where `max_column_val` is a raw
+    // numeric column value that can reach `u64::MAX`; term ordinals never come close.
+    let num_terms = max_column_val.saturating_add(1);
     if is_top_level && max_column_val < MAX_NUM_TERMS_FOR_VEC && !has_sub_aggregations {
         let term_buckets = VecTermBuckets::<()>::new(num_terms, &mut bucket_id_provider);
         Ok(boxed_high_card_collector(
@@ -1401,6 +1405,40 @@ mod tests {
             assert_eq!(bucket.bucket_id, expected_bucket_id);
             assert_eq!(bucket.count, expected_count);
         }
+    }
+
+    #[test]
+    fn terms_aggregation_u64_max_value_does_not_overflow() -> crate::Result<()> {
+        // Regression: a numeric fast field whose max value is `u64::MAX` must reach the HashMap
+        // storage without panicking on `max_column_val + 1` (the dense-storage term count), which
+        // overflows in debug builds before that fallback is chosen.
+        let mut schema_builder = Schema::builder();
+        let score_fieldtype = crate::schema::NumericOptions::default().set_fast();
+        let score_field = schema_builder.add_u64_field("score", score_fieldtype);
+        let index = Index::create_in_ram(schema_builder.build());
+        {
+            let mut index_writer = index.writer_with_num_threads(1, 20_000_000)?;
+            index_writer.set_merge_policy(Box::new(NoMergePolicy));
+            index_writer.add_document(doc!(score_field => u64::MAX))?;
+            index_writer.add_document(doc!(score_field => u64::MAX))?;
+            index_writer.add_document(doc!(score_field => 0u64))?;
+            index_writer.commit()?;
+        }
+
+        let agg_req: Aggregations = serde_json::from_value(json!({
+            "my_scores": {
+                "terms": { "field": "score" },
+            }
+        }))
+        .unwrap();
+
+        let res = exec_request(agg_req, &index)?;
+        assert_eq!(res["my_scores"]["buckets"][0]["key"], u64::MAX as f64);
+        assert_eq!(res["my_scores"]["buckets"][0]["doc_count"], 2);
+        assert_eq!(res["my_scores"]["buckets"][1]["key"], 0.0);
+        assert_eq!(res["my_scores"]["buckets"][1]["doc_count"], 1);
+        assert_eq!(res["my_scores"]["sum_other_doc_count"], 0);
+        Ok(())
     }
 
     #[test]
