@@ -10,19 +10,19 @@ use rustc_hash::FxHashMap;
 use serde::{Deserialize, Serialize};
 use smallvec::SmallVec;
 
-use super::{CustomOrder, Order, OrderTarget};
+use super::{BucketIdSlot, CustomOrder, Order, OrderTarget};
 use crate::aggregation::agg_data::{
     build_segment_agg_collectors, AggRefNode, AggregationsSegmentCtx, PerRequestAggSegCtx,
 };
 use crate::aggregation::agg_req::Aggregations;
 use crate::aggregation::bucket::term_agg::{
     cut_off_buckets, get_agg_name_and_property, Bucket, GetDocCount, HashMapTermBuckets,
-    PagedTermMap, TermAggregationMap, VecTermBuckets, VecTermBucketsNoAgg,
-    MAX_NUM_TERMS_FOR_PAGED_MAP, MAX_NUM_TERMS_FOR_VEC,
+    PagedTermMap, TermAggregationMap, VecTermBuckets, MAX_NUM_TERMS_FOR_PAGED_MAP,
+    MAX_NUM_TERMS_FOR_VEC,
 };
 use crate::aggregation::buffered_sub_aggs::{
-    BufferedSubAggs, HighCardSubAggBuffer, LowCardBufferedSubAggs, LowCardSubAggBuffer,
-    SubAggBuffer,
+    BufferedSubAggs, HighCardBufferedSubAggs, HighCardSubAggBuffer, LowCardBufferedSubAggs,
+    LowCardSubAggBuffer, SubAggBuffer,
 };
 use crate::aggregation::intermediate_agg_result::{
     IntermediateAggregationResult, IntermediateAggregationResults, IntermediateBucketResult,
@@ -785,66 +785,113 @@ fn build_fast_multi_terms_collector(
     };
 
     let mut bucket_id_provider = BucketIdProvider::default();
-    if is_top_level && max_packed < MAX_NUM_TERMS_FOR_VEC && !has_sub_aggregations {
-        let term_buckets = VecTermBucketsNoAgg::new(max_packed + 1, &mut bucket_id_provider);
-        let collector: SegmentMultiTermsFastCollector<_, HighCardSubAggBuffer> =
-            SegmentMultiTermsFastCollector {
-                parent_buckets: vec![term_buckets],
-                sub_agg: None,
+    // Mirrors `term_agg::build_segment_term_collector`'s storage selection: every storage is
+    // generic over its `Bucket` id slot (see `BucketIdSlot`), picking a real `BucketId` when sub
+    // aggregations are present and the zero-sized `()` otherwise.
+    let num_terms = max_packed.saturating_add(1);
+    if is_top_level && max_packed < MAX_NUM_TERMS_FOR_VEC {
+        if has_sub_aggregations {
+            let term_buckets = VecTermBuckets::<BucketId>::new(num_terms, &mut bucket_id_provider);
+            let sub_agg = sub_agg_collector.map(LowCardBufferedSubAggs::new);
+            let collector: SegmentMultiTermsFastCollector<_, LowCardSubAggBuffer> =
+                SegmentMultiTermsFastCollector {
+                    parent_buckets: vec![term_buckets],
+                    sub_agg,
+                    bucket_id_provider,
+                    req_data_idx: node.idx_in_req_data,
+                    packs,
+                    max_packed,
+                    field_block_accessors: vec![ColumnBlockAccessor::default(); num_fields],
+                    packed_keys_buf: Vec::new(),
+                };
+            Ok(Box::new(collector))
+        } else {
+            let term_buckets = VecTermBuckets::<()>::new(num_terms, &mut bucket_id_provider);
+            Ok(boxed_high_card_multi_terms_collector(
+                term_buckets,
+                None,
                 bucket_id_provider,
-                req_data_idx: node.idx_in_req_data,
+                node.idx_in_req_data,
                 packs,
                 max_packed,
-                field_block_accessors: vec![ColumnBlockAccessor::default(); num_fields],
-                packed_keys_buf: Vec::new(),
-            };
-        Ok(Box::new(collector))
-    } else if is_top_level && max_packed < MAX_NUM_TERMS_FOR_VEC {
-        let term_buckets = VecTermBuckets::new(max_packed + 1, &mut bucket_id_provider);
-        let sub_agg = sub_agg_collector.map(LowCardBufferedSubAggs::new);
-        let collector: SegmentMultiTermsFastCollector<_, LowCardSubAggBuffer> =
-            SegmentMultiTermsFastCollector {
-                parent_buckets: vec![term_buckets],
-                sub_agg,
-                bucket_id_provider,
-                req_data_idx: node.idx_in_req_data,
-                packs,
-                max_packed,
-                field_block_accessors: vec![ColumnBlockAccessor::default(); num_fields],
-                packed_keys_buf: Vec::new(),
-            };
-        Ok(Box::new(collector))
-    } else if max_packed < MAX_NUM_TERMS_FOR_PAGED_MAP && is_top_level {
-        let term_buckets = PagedTermMap::new(max_packed + 1, &mut bucket_id_provider);
-        let sub_agg = sub_agg_collector.map(BufferedSubAggs::new);
-        let collector: SegmentMultiTermsFastCollector<PagedTermMap, HighCardSubAggBuffer> =
-            SegmentMultiTermsFastCollector {
-                parent_buckets: vec![term_buckets],
-                sub_agg,
-                bucket_id_provider,
-                req_data_idx: node.idx_in_req_data,
-                packs,
-                max_packed,
-                field_block_accessors: vec![ColumnBlockAccessor::default(); num_fields],
-                packed_keys_buf: Vec::new(),
-            };
-        Ok(Box::new(collector))
+                num_fields,
+            ))
+        }
     } else {
-        let term_buckets = HashMapTermBuckets::default();
         let sub_agg = sub_agg_collector.map(BufferedSubAggs::new);
-        let collector: SegmentMultiTermsFastCollector<HashMapTermBuckets, HighCardSubAggBuffer> =
-            SegmentMultiTermsFastCollector {
-                parent_buckets: vec![term_buckets],
+        if max_packed < MAX_NUM_TERMS_FOR_PAGED_MAP && is_top_level {
+            if has_sub_aggregations {
+                let term_buckets =
+                    PagedTermMap::<BucketId>::new(num_terms, &mut bucket_id_provider);
+                Ok(boxed_high_card_multi_terms_collector(
+                    term_buckets,
+                    sub_agg,
+                    bucket_id_provider,
+                    node.idx_in_req_data,
+                    packs,
+                    max_packed,
+                    num_fields,
+                ))
+            } else {
+                let term_buckets = PagedTermMap::<()>::new(num_terms, &mut bucket_id_provider);
+                Ok(boxed_high_card_multi_terms_collector(
+                    term_buckets,
+                    sub_agg,
+                    bucket_id_provider,
+                    node.idx_in_req_data,
+                    packs,
+                    max_packed,
+                    num_fields,
+                ))
+            }
+        } else if has_sub_aggregations {
+            let term_buckets = HashMapTermBuckets::<BucketId>::default();
+            Ok(boxed_high_card_multi_terms_collector(
+                term_buckets,
                 sub_agg,
                 bucket_id_provider,
-                req_data_idx: node.idx_in_req_data,
+                node.idx_in_req_data,
                 packs,
                 max_packed,
-                field_block_accessors: vec![ColumnBlockAccessor::default(); num_fields],
-                packed_keys_buf: Vec::new(),
-            };
-        Ok(Box::new(collector))
+                num_fields,
+            ))
+        } else {
+            let term_buckets = HashMapTermBuckets::<()>::default();
+            Ok(boxed_high_card_multi_terms_collector(
+                term_buckets,
+                sub_agg,
+                bucket_id_provider,
+                node.idx_in_req_data,
+                packs,
+                max_packed,
+                num_fields,
+            ))
+        }
     }
+}
+
+/// Boxes a fast-path collector backed by the high-cardinality sub-agg buffer. Lets the storage
+/// branches above pick the `Bucket` id slot (`BucketId` vs `()`) without repeating the collector
+/// literal, mirroring `term_agg::boxed_high_card_collector`.
+fn boxed_high_card_multi_terms_collector<M: TermAggregationMap>(
+    term_buckets: M,
+    sub_agg: Option<HighCardBufferedSubAggs>,
+    bucket_id_provider: BucketIdProvider,
+    req_data_idx: usize,
+    packs: Vec<FieldPack>,
+    max_packed: u64,
+    num_fields: usize,
+) -> Box<dyn SegmentAggregationCollector> {
+    Box::new(SegmentMultiTermsFastCollector::<M, HighCardSubAggBuffer> {
+        parent_buckets: vec![term_buckets],
+        sub_agg,
+        bucket_id_provider,
+        req_data_idx,
+        packs,
+        max_packed,
+        field_block_accessors: vec![ColumnBlockAccessor::default(); num_fields],
+        packed_keys_buf: Vec::new(),
+    })
 }
 
 /// Fast-path segment collector for [`MultiTermsAggregation`]: packs each field's raw
@@ -940,7 +987,9 @@ impl<TermMap: TermAggregationMap, B: SubAggBuffer> SegmentAggregationCollector
         if let Some(sub_agg) = &mut self.sub_agg {
             for (&doc_id, &key) in docs.iter().zip(self.packed_keys_buf.iter()) {
                 let bucket_id = term_buckets.term_entry(key, &mut self.bucket_id_provider);
-                sub_agg.push(bucket_id, doc_id);
+                // Only reached with a real `BucketId` slot (sub_agg is `Some` only when sub
+                // aggregations are present), so `to_bucket_id` never hits `unreachable!`.
+                sub_agg.push(bucket_id.to_bucket_id(), doc_id);
             }
         } else {
             for &key in self.packed_keys_buf.iter() {
@@ -1005,7 +1054,7 @@ fn into_intermediate_bucket_result_fast<TermMap: TermAggregationMap>(
     agg_data: &AggregationsSegmentCtx,
 ) -> crate::Result<IntermediateBucketResult> {
     let req = MultiTermsAggregationInternal::from_req(&req_data.req);
-    let mut entries: Vec<(u64, Bucket)> = term_buckets.into_vec();
+    let mut entries: Vec<(u64, Bucket<TermMap::Slot>)> = term_buckets.into_vec();
 
     match &req.order.target {
         OrderTarget::Key => {
@@ -1024,11 +1073,18 @@ fn into_intermediate_bucket_result_fast<TermMap: TermAggregationMap>(
                 ))
             })?;
             let (agg_name, agg_prop) = get_agg_name_and_property(sub_agg_path);
-            let mut keyed: Vec<(f64, (u64, Bucket))> = entries
+            let mut keyed: Vec<(f64, (u64, Bucket<TermMap::Slot>))> = entries
                 .into_iter()
                 .map(|bucket| {
+                    // Only reached when ordering by a sub-agg, i.e. sub aggregations exist and the
+                    // slot is a real `BucketId`, so `to_bucket_id` never hits `unreachable!`.
                     let metric_value = coll
-                        .compute_metric_value(bucket.1.bucket_id, agg_name, agg_prop, agg_data)
+                        .compute_metric_value(
+                            bucket.1.bucket_id.to_bucket_id(),
+                            agg_name,
+                            agg_prop,
+                            agg_data,
+                        )
                         .unwrap_or(f64::MIN);
                     (metric_value, bucket)
                 })
@@ -1059,10 +1115,13 @@ fn into_intermediate_bucket_result_fast<TermMap: TermAggregationMap>(
         let intermediate_key = resolve_packed_key(packed, packs, req_data)?;
         let mut sub_aggregation_res = IntermediateAggregationResults::default();
         if let Some(sub_agg_collector) = sub_agg_collector.as_deref_mut() {
+            // The `bucket_id` is only read here, when a sub-agg collector is present -- which is
+            // exactly when the slot is a real `BucketId` (never `()`), so `to_bucket_id` never
+            // hits its `unreachable!`.
             sub_agg_collector.add_intermediate_aggregation_result(
                 agg_data,
                 &mut sub_aggregation_res,
-                bucket.bucket_id,
+                bucket.bucket_id.to_bucket_id(),
             )?;
         }
         result_entries.insert(

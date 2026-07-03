@@ -109,7 +109,7 @@ impl SegmentAggregationCollector for SegmentTermHistogramCollector {
             &self.counts,
         );
         let name = self.terms_req_data.name.clone();
-        let bucket = SegmentTermCollector::<VecTermBuckets, LowCardSubAggBuffer>::into_intermediate_bucket_result(
+        let bucket = SegmentTermCollector::<VecTermBuckets<BucketId>, LowCardSubAggBuffer>::into_intermediate_bucket_result(
             &self.terms_req_data,
             Some(&mut histogram as &mut dyn SegmentAggregationCollector),
             term_buckets,

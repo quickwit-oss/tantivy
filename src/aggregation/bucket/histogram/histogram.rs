@@ -249,12 +249,13 @@ impl HistogramBounds {
     }
 }
 
-/// The per-bucket identifier stored in a [`SegmentHistogramBucketEntry`].
+/// The per-bucket identifier stored alongside a bucket's count (e.g. in a
+/// [`SegmentHistogramBucketEntry`] or a term-agg `Bucket`).
 ///
-/// It is [`BucketId`] when the histogram has sub aggregations (which key their state by it), and
+/// It is [`BucketId`] when the aggregation has sub aggregations (which key their state by it), and
 /// the zero-sized `()` when it does not. Without sub aggregations the id is never read, so storing
-/// `()` drops 8 bytes per bucket (24 -> 16) and turns id assignment into a no-op.
-pub trait BucketIdSlot: Copy + Default + std::fmt::Debug + PartialEq {
+/// `()` drops the id bytes per bucket and turns id assignment into a no-op.
+pub trait BucketIdSlot: Copy + Default + std::fmt::Debug + PartialEq + 'static {
     /// Assigns the next id from the provider, called once when a bucket is first filled.
     fn assign(provider: &mut BucketIdProvider) -> Self;
     /// Resolves to the `BucketId` for sub-aggregation bookkeeping.
