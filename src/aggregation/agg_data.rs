@@ -762,11 +762,12 @@ fn build_multi_terms_node(
         let missing_key_elem = if let Some(missing) = &field_def.missing {
             match missing {
                 Key::Str(missing_str) => {
-                    match columns.iter().position(|(_, ct)| *ct == ColumnType::Str) {
-                        Some(idx) => {
+                    match (
+                        columns.iter().position(|(_, ct)| *ct == ColumnType::Str),
+                        str_dict_column.as_ref(),
+                    ) {
+                        (Some(idx), Some(str_dict_column)) => {
                             match str_dict_column
-                                .as_ref()
-                                .unwrap()
                                 .dictionary()
                                 .term_ord(missing_str.as_bytes())?
                             {
@@ -774,7 +775,11 @@ fn build_multi_terms_node(
                                 None => Some(KeyElem::synthetic_missing()),
                             }
                         }
-                        None => Some(KeyElem::synthetic_missing()),
+                        // Either no `Str` column was found, or the `Str` entry in `columns` is
+                        // only the empty shim `get_all_ff_reader_or_empty` produces when the
+                        // field has no dictionary at all (`str_dict_column` is `None` in that
+                        // case) -- there is no dictionary to resolve `missing_str` against.
+                        _ => Some(KeyElem::synthetic_missing()),
                     }
                 }
                 _ => {
@@ -864,6 +869,8 @@ fn get_term_agg_accessors(
     field_name: &str,
     missing: &Option<Key>,
 ) -> crate::Result<Vec<(Column<u64>, ColumnType)>> {
+    // `terms` and `multi_terms` both explicitly reject `Bytes` columns downstream, which needs
+    // to actually see them as a real column (rather than the empty shim below) to do so.
     let allowed_column_types = [
         ColumnType::I64,
         ColumnType::U64,
@@ -872,6 +879,7 @@ fn get_term_agg_accessors(
         ColumnType::DateTime,
         ColumnType::Bool,
         ColumnType::IpAddr,
+        ColumnType::Bytes,
     ];
 
     // In case the column is empty we want the shim column to match the missing type
