@@ -1782,6 +1782,65 @@ mod tests {
         Ok(())
     }
 
+    #[test]
+    fn test_multi_terms_rejects_numeric_missing_on_bool_field() -> crate::Result<()> {
+        let mut schema_builder = Schema::builder();
+        let genre_field = schema_builder.add_text_field("genre", STRING | FAST);
+        let bool_field = schema_builder.add_bool_field("flag", FAST);
+        let index = Index::create_in_ram(schema_builder.build());
+        {
+            let mut writer: IndexWriter = index.writer_with_num_threads(1, 20_000_000)?;
+            writer.add_document(doc!(genre_field => "rock", bool_field => true))?;
+            writer.commit()?;
+        }
+
+        let agg_req: Aggregations = serde_json::from_value(json!({
+            "mt": {
+                "multi_terms": {
+                    "terms": [
+                        {"field": "genre"},
+                        {"field": "flag", "missing": 1}
+                    ]
+                }
+            }
+        }))?;
+        let res = exec_request(agg_req, &index);
+        assert!(
+            res.is_err(),
+            "expected error for numeric missing on bool field, got {res:?}"
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn test_multi_terms_accepts_numeric_missing_on_str_field() -> crate::Result<()> {
+        let mut schema_builder = Schema::builder();
+        let genre_field = schema_builder.add_text_field("genre", STRING | FAST);
+        let tag_field = schema_builder.add_text_field("tag", STRING | FAST);
+        let index = Index::create_in_ram(schema_builder.build());
+        {
+            let mut writer: IndexWriter = index.writer_with_num_threads(1, 20_000_000)?;
+            writer.add_document(doc!(genre_field => "rock", tag_field => "a"))?;
+            writer.add_document(doc!(genre_field => "rock"))?;
+            writer.commit()?;
+        }
+
+        let agg_req: Aggregations = serde_json::from_value(json!({
+            "mt": {
+                "multi_terms": {
+                    "terms": [
+                        {"field": "genre"},
+                        {"field": "tag", "missing": 1}
+                    ]
+                }
+            }
+        }))?;
+        let res = exec_request(agg_req, &index)?;
+        let buckets = res["mt"]["buckets"].as_array().unwrap();
+        assert_eq!(buckets.len(), 2, "expected {buckets:?}");
+        Ok(())
+    }
+
     // -----------------------------------------------------------------
     // Fast-path (packed-u64-key) specific tests
     // -----------------------------------------------------------------
