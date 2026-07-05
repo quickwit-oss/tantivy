@@ -1,7 +1,56 @@
-use common::{BitSet, TinySet};
+use common::{BitSet, ReadOnlyBitSet, TinySet};
 
 use crate::docset::{DocSet, TERMINATED};
 use crate::DocId;
+
+pub trait BitSetBacking: Send {
+    /// Maximum value the bitset may contain (its intrinsic capacity).
+    fn max_value(&self) -> u32;
+    /// Tiny bitset for the bucket, i.e. elements `bucket * 64..(bucket + 1) * 64`.
+    fn tinyset(&self, bucket: u32) -> TinySet;
+    /// First non-empty bucket with an index `>= bucket`, if any.
+    fn first_non_empty_bucket(&self, bucket: u32) -> Option<u32>;
+    /// Number of elements set in the bitset.
+    fn len(&self) -> usize;
+}
+
+impl BitSetBacking for BitSet {
+    #[inline]
+    fn max_value(&self) -> u32 {
+        BitSet::max_value(self)
+    }
+    #[inline]
+    fn tinyset(&self, bucket: u32) -> TinySet {
+        BitSet::tinyset(self, bucket)
+    }
+    #[inline]
+    fn first_non_empty_bucket(&self, bucket: u32) -> Option<u32> {
+        BitSet::first_non_empty_bucket(self, bucket)
+    }
+    #[inline]
+    fn len(&self) -> usize {
+        BitSet::len(self)
+    }
+}
+
+impl BitSetBacking for ReadOnlyBitSet {
+    #[inline]
+    fn max_value(&self) -> u32 {
+        ReadOnlyBitSet::max_value(self)
+    }
+    #[inline]
+    fn tinyset(&self, bucket: u32) -> TinySet {
+        ReadOnlyBitSet::tinyset(self, bucket)
+    }
+    #[inline]
+    fn first_non_empty_bucket(&self, bucket: u32) -> Option<u32> {
+        ReadOnlyBitSet::first_non_empty_bucket(self, bucket)
+    }
+    #[inline]
+    fn len(&self) -> usize {
+        ReadOnlyBitSet::len(self)
+    }
+}
 
 /// A `BitSetDocSet` makes it possible to iterate through a bitset as if it was a `DocSet`.
 ///
@@ -12,39 +61,44 @@ use crate::DocId;
 ///
 /// TODO: Consider implementing a `BitTreeSet` in order to advance faster
 /// when the bitset is sparse
-pub struct BitSetDocSet {
-    docs: BitSet,
+pub struct BitSetDocSet<B = BitSet> {
+    docs: B,
     cursor_bucket: u32, //< index associated with the current tiny bitset
     cursor_tinybitset: TinySet,
     doc: u32,
+    // Cached once at construction: `ReadOnlyBitSet::len` is O(number of buckets),
+    // and `size_hint` may be called repeatedly.
+    len: u32,
 }
 
-impl BitSetDocSet {
+impl<B: BitSetBacking> BitSetDocSet<B> {
     fn go_to_bucket(&mut self, bucket_addr: u32) {
         self.cursor_bucket = bucket_addr;
         self.cursor_tinybitset = self.docs.tinyset(bucket_addr);
     }
 }
 
-impl From<BitSet> for BitSetDocSet {
-    fn from(docs: BitSet) -> BitSetDocSet {
+impl<B: BitSetBacking> From<B> for BitSetDocSet<B> {
+    fn from(docs: B) -> BitSetDocSet<B> {
         let first_tiny_bitset = if docs.max_value() == 0 {
             TinySet::empty()
         } else {
             docs.tinyset(0)
         };
+        let len = docs.len() as u32;
         let mut docset = BitSetDocSet {
             docs,
             cursor_bucket: 0,
             cursor_tinybitset: first_tiny_bitset,
             doc: 0u32,
+            len,
         };
         docset.advance();
         docset
     }
 }
 
-impl DocSet for BitSetDocSet {
+impl<B: BitSetBacking> DocSet for BitSetDocSet<B> {
     #[inline]
     fn advance(&mut self) -> DocId {
         if let Some(lower) = self.cursor_tinybitset.pop_lowest() {
@@ -89,7 +143,7 @@ impl DocSet for BitSetDocSet {
 
     /// Returns the number of values set in the underlying bitset.
     fn size_hint(&self) -> u32 {
-        self.docs.len() as u32
+        self.len
     }
 }
 
@@ -97,7 +151,7 @@ impl DocSet for BitSetDocSet {
 mod tests {
     use std::collections::BTreeSet;
 
-    use common::BitSet;
+    use common::{BitSet, ReadOnlyBitSet};
 
     use super::BitSetDocSet;
     use crate::docset::{DocSet, TERMINATED};
@@ -110,6 +164,32 @@ mod tests {
             docset.insert(doc);
         }
         BitSetDocSet::from(docset)
+    }
+
+    #[test]
+    fn test_bitset_docset_from_read_only_bitset() {
+        let docs = [1u32, 5, 6, 7, 63, 64, 65, 5112, 9999];
+        let max_doc = 10_000;
+        let mut bitset = BitSet::with_max_value(max_doc);
+        for &doc in &docs {
+            bitset.insert(doc);
+        }
+        // Round-trip the BitSet through its serialized form.
+        let read_only = ReadOnlyBitSet::from(&bitset);
+
+        let mut docset = BitSetDocSet::from(read_only);
+        assert_eq!(docset.size_hint(), docs.len() as u32);
+        for &doc in &docs {
+            assert_eq!(docset.doc(), doc);
+            docset.advance();
+        }
+        assert_eq!(docset.advance(), TERMINATED);
+
+        // Seeking works against the read-only backing too.
+        let mut docset = BitSetDocSet::from(ReadOnlyBitSet::from(&bitset));
+        assert_eq!(docset.seek(64), 64);
+        assert_eq!(docset.seek(5000), 5112);
+        assert_eq!(docset.seek(10_000), TERMINATED);
     }
 
     #[test]
