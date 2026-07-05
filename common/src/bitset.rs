@@ -705,7 +705,11 @@ mod tests {
         let num_buckets = super::num_buckets(max_value);
         // tinyset(bucket) parity for every bucket.
         for bucket in 0..num_buckets {
-            assert_eq!(bitset.tinyset(bucket), ro.tinyset(bucket), "bucket {bucket}");
+            assert_eq!(
+                bitset.tinyset(bucket),
+                ro.tinyset(bucket),
+                "bucket {bucket}"
+            );
         }
         // first_non_empty_bucket(start) parity for every start, including one-past-the-end.
         for start in 0..=num_buckets {
