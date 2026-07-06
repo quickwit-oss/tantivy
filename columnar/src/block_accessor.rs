@@ -8,6 +8,12 @@ pub struct ColumnBlockAccessor<T> {
     docid_cache: Vec<DocId>,
     missing_docids_cache: Vec<DocId>,
     row_id_cache: Vec<RowId>,
+    /// Number of entries at the front of `docid_cache`/`val_cache` that belong to the "hit"
+    /// run (real values, ascending by doc id) written by `fetch_block`/`fetch_block_with_is_full`,
+    /// as opposed to the "missing" run `fetch_block_with_missing` appends after it (also
+    /// ascending by doc id, but as a separate run -- see `iter_docid_vals_sorted`). Only
+    /// meaningful after `fetch_block_with_missing`; unused otherwise.
+    hit_len: usize,
 }
 
 impl<T: PartialOrd + Copy + std::fmt::Debug + Send + Sync + 'static + Default>
@@ -64,6 +70,9 @@ impl<T: PartialOrd + Copy + std::fmt::Debug + Send + Sync + 'static + Default>
         missing_opt: Option<T>,
     ) {
         self.fetch_block(docs, accessor);
+        // Everything currently in the caches is the "hit" run; `find_missing_docs` below (if
+        // it runs) only ever appends past this point -- see `iter_docid_vals_sorted`.
+        self.hit_len = self.docid_cache.len();
         // no missing values
         if accessor.index.get_cardinality().is_full() {
             return;
@@ -142,7 +151,20 @@ impl<T: PartialOrd + Copy + std::fmt::Debug + Send + Sync + 'static + Default>
 
         // Now duplicates are adjacent — deduplicate in place.
         let mut write = 0;
+        // Snapshot of `write` the instant `read` crosses `hit_len` (the hit/missing run
+        // boundary `fetch_block_with_missing` recorded) -- i.e. the deduped length of the
+        // hit-only prefix. `find_missing_docs` only ever reports docs absent from the hit
+        // run, so a missing doc id can never equal a hit doc id: the boundary always starts
+        // a fresh group, and `write` at that instant is exactly the hit run's deduped length,
+        // unaffected by whatever dedup happens further on in the missing run. Defaults to
+        // `self.hit_len` for the case where the boundary is never crossed (`hit_len == len`,
+        // i.e. no missing run at all); the final `.min(new_len)` then corrects that default
+        // down if the hit run itself got deduped.
+        let mut new_hit_len = self.hit_len;
         for read in 1..self.docid_cache.len() {
+            if read == self.hit_len {
+                new_hit_len = write + 1;
+            }
             if self.docid_cache[read] != self.docid_cache[write]
                 || self.val_cache[read] != self.val_cache[write]
             {
@@ -156,6 +178,7 @@ impl<T: PartialOrd + Copy + std::fmt::Debug + Send + Sync + 'static + Default>
         let new_len = write + 1;
         self.docid_cache.truncate(new_len);
         self.val_cache.truncate(new_len);
+        self.hit_len = new_hit_len.min(new_len);
     }
 
     #[inline]
@@ -182,6 +205,92 @@ impl<T: PartialOrd + Copy + std::fmt::Debug + Send + Sync + 'static + Default>
                 .iter()
                 .cloned()
                 .zip(self.val_cache.iter().cloned())
+        }
+    }
+
+    #[inline]
+    /// Like [`Self::iter_docid_vals`], but yields `(DocId, T)` pairs in ascending doc-id order.
+    ///
+    /// `fetch_block_with_missing` appends its synthesized "missing" entries as a second run
+    /// after all the "hit" entries, rather than interleaving them back into doc order (e.g.
+    /// for `docs = [1, 2, 3]` with doc `2` missing, `iter_docid_vals` yields
+    /// `(1, v1), (3, v3), (2, missing)`). This merges the two runs -- each individually
+    /// already ascending -- back into one ascending stream in `O(n)`, without a full re-sort.
+    ///
+    /// Works after `fetch_block`, `fetch_block_with_missing`, or
+    /// `fetch_block_with_missing_unique_per_doc`.
+    pub fn iter_docid_vals_sorted<'a>(
+        &'a self,
+        docs: &'a [u32],
+        accessor: &Column<T>,
+    ) -> impl Iterator<Item = (DocId, T)> + 'a + use<'a, T> {
+        if accessor.index.get_cardinality().is_full() {
+            SortedDocValsIter::Full(docs.iter().cloned().zip(self.val_cache.iter().cloned()))
+        } else {
+            let hits = self.docid_cache[..self.hit_len]
+                .iter()
+                .cloned()
+                .zip(self.val_cache[..self.hit_len].iter().cloned());
+            let missing = self.docid_cache[self.hit_len..]
+                .iter()
+                .cloned()
+                .zip(self.val_cache[self.hit_len..].iter().cloned());
+            SortedDocValsIter::Merged(MergeByDocId {
+                left: hits.peekable(),
+                right: missing.peekable(),
+            })
+        }
+    }
+}
+
+type DocIdValZip<'a, T> = std::iter::Zip<
+    std::iter::Cloned<std::slice::Iter<'a, u32>>,
+    std::iter::Cloned<std::slice::Iter<'a, T>>,
+>;
+
+/// See [`ColumnBlockAccessor::iter_docid_vals_sorted`]. Not part of the public API -- an
+/// implementation detail behind that method's opaque `impl Iterator` return type.
+enum SortedDocValsIter<'a, T: Clone> {
+    Full(DocIdValZip<'a, T>),
+    Merged(MergeByDocId<DocIdValZip<'a, T>>),
+}
+
+impl<'a, T: Clone> Iterator for SortedDocValsIter<'a, T> {
+    type Item = (DocId, T);
+
+    #[inline]
+    fn next(&mut self) -> Option<Self::Item> {
+        match self {
+            SortedDocValsIter::Full(it) => it.next(),
+            SortedDocValsIter::Merged(it) => it.next(),
+        }
+    }
+}
+
+/// Merges two `(DocId, T)` iterators, each individually ascending by `DocId`, into one
+/// ascending stream. A linear-time merge (like the merge step of mergesort) rather than a
+/// full re-sort, since both inputs are already sorted runs.
+struct MergeByDocId<I: Iterator> {
+    left: std::iter::Peekable<I>,
+    right: std::iter::Peekable<I>,
+}
+
+impl<T, I: Iterator<Item = (DocId, T)>> Iterator for MergeByDocId<I> {
+    type Item = (DocId, T);
+
+    #[inline]
+    fn next(&mut self) -> Option<Self::Item> {
+        match (self.left.peek(), self.right.peek()) {
+            (Some(l), Some(r)) => {
+                if l.0 <= r.0 {
+                    self.left.next()
+                } else {
+                    self.right.next()
+                }
+            }
+            (Some(_), None) => self.left.next(),
+            (None, Some(_)) => self.right.next(),
+            (None, None) => None,
         }
     }
 }
@@ -373,5 +482,69 @@ mod tests {
         // Single doc and full span.
         check(&mut accessor, &[42]);
         check(&mut accessor, &(0..200).collect::<Vec<u32>>());
+    }
+
+    #[test]
+    fn test_merge_by_doc_id() {
+        let left = vec![(0u32, 'a'), (2, 'c'), (4, 'e')].into_iter();
+        let right = vec![(1u32, 'b'), (3, 'd')].into_iter();
+        let merged: Vec<(u32, char)> = MergeByDocId {
+            left: left.peekable(),
+            right: right.peekable(),
+        }
+        .collect();
+        assert_eq!(
+            merged,
+            vec![(0, 'a'), (1, 'b'), (2, 'c'), (3, 'd'), (4, 'e')]
+        );
+    }
+
+    #[test]
+    fn test_iter_docid_vals_sorted_restores_doc_order_around_missing() {
+        use crate::column_index::{ColumnIndex, OptionalIndex};
+        use crate::column_values::{
+            ALL_U64_CODEC_TYPES, serialize_and_load_u64_based_column_values,
+        };
+
+        // docs 0 and 2 have a value, doc 1 is missing.
+        let vals: Vec<u64> = vec![10, 20];
+        let values =
+            serialize_and_load_u64_based_column_values::<u64>(&&vals[..], &ALL_U64_CODEC_TYPES);
+        let column = Column {
+            index: ColumnIndex::Optional(OptionalIndex::for_test(3, &[0, 2])),
+            values,
+        };
+
+        let docs = [0u32, 1, 2];
+        let mut accessor = ColumnBlockAccessor::<u64>::default();
+        accessor.fetch_block_with_missing(&docs, &column, Some(999));
+
+        // `iter_docid_vals` exposes the raw hit-run-then-missing-run layout.
+        let raw: Vec<(u32, u64)> = accessor.iter_docid_vals(&docs, &column).collect();
+        assert_eq!(raw, vec![(0, 10), (2, 20), (1, 999)]);
+
+        // `iter_docid_vals_sorted` merges it back into ascending doc order.
+        let sorted: Vec<(u32, u64)> = accessor.iter_docid_vals_sorted(&docs, &column).collect();
+        assert_eq!(sorted, vec![(0, 10), (1, 999), (2, 20)]);
+    }
+
+    #[test]
+    fn test_dedup_docid_val_pairs_updates_hit_len() {
+        // Mimics `fetch_block_with_missing_unique_per_doc`'s state for docs [0, 1, 2] on a
+        // multivalued column where doc 0 has duplicate values [10, 10], doc 1 is missing
+        // (sentinel 999), and doc 2 has [30] -- i.e. the hit run [0, 0, 2] (values [10, 10,
+        // 30]) followed by the missing run [1] (value [999]) that `fetch_block_with_missing`
+        // appends.
+        let mut accessor = ColumnBlockAccessor::<u64>::default();
+        accessor.docid_cache = vec![0, 0, 2, 1];
+        accessor.val_cache = vec![10, 10, 30, 999];
+        accessor.hit_len = 3;
+        accessor.dedup_docid_val_pairs();
+        // Doc 0's duplicate collapses, so the hit run shrinks from 3 to 2 entries -- `hit_len`
+        // must shrink with it, or `iter_docid_vals_sorted` would misinterpret the trailing
+        // `(1, 999)` missing entry as still being part of the hit run.
+        assert_eq!(accessor.docid_cache, vec![0, 2, 1]);
+        assert_eq!(accessor.val_cache, vec![10, 30, 999]);
+        assert_eq!(accessor.hit_len, 2);
     }
 }

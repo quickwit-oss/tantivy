@@ -17,8 +17,8 @@ use crate::aggregation::agg_data::{
 use crate::aggregation::agg_req::Aggregations;
 use crate::aggregation::bucket::term_agg::{
     cut_off_buckets, get_agg_name_and_property, Bucket, GetDocCount, HashMapTermBuckets,
-    PagedTermMap, TermAggregationMap, VecTermBuckets, MAX_NUM_TERMS_FOR_PAGED_MAP,
-    MAX_NUM_TERMS_FOR_VEC,
+    PagedTermMap, TermAggregationMap, VecTermBuckets, DOCS_PER_BUCKET_QUICKSELECT_THRESHOLD,
+    MAX_NUM_TERMS_FOR_PAGED_MAP, MAX_NUM_TERMS_FOR_VEC,
 };
 use crate::aggregation::buffered_sub_aggs::{
     BufferedSubAggs, HighCardBufferedSubAggs, HighCardSubAggBuffer, LowCardBufferedSubAggs,
@@ -298,9 +298,9 @@ fn validate_multi_terms(
 /// Builds the segment collector for a multi_terms aggregation, validating the request.
 ///
 /// Picks the packed-`u64`-key fast path (see [`compute_fast_path_layout`]) whenever every
-/// field is a single, single-valued ("full") u64-backed column whose combined bit width
-/// fits in 64 bits. Falls back to the recursive [`SegmentMultiTermsCollector`] for
-/// multivalue fields, multi-column (JSON) fields, or too many/too wide fields.
+/// field is a single u64-backed column, `Full` or `Optional` cardinality, whose combined
+/// bit width fits in 64 bits. Falls back to the recursive [`SegmentMultiTermsCollector`]
+/// for multivalue fields, multi-column (JSON) fields, or too many/too wide fields.
 pub(crate) fn build_segment_multi_terms_collector(
     req: &mut AggregationsSegmentCtx,
     node: &AggRefNode,
@@ -444,45 +444,72 @@ impl SegmentMultiTermsCollector {
             .into_iter()
             .map(|(key, bucket)| MultiTermsBucketEntry { key, bucket })
             .collect();
+        let segment_size = req.segment_size as usize;
 
-        // Sort by the requested order target.
+        // Total doc count over all buckets, computed in some cases, and which can be reused by
+        // `cut_off_buckets` to derive `sum_other_doc_count` without a second pass.
+        let mut total_doc_count: Option<u64> = None;
+
+        // Mirrors `term_agg::into_intermediate_bucket_result`: `select_nth_unstable_by[_key]`
+        // partitions the top-k to the front in O(n) average instead of fully sorting in
+        // O(n log n), when we only need the top `segment_size` entries. Unlike the fast path,
+        // there is no ordinal-sorted storage to shortcut here -- entries always come out of a
+        // `FxHashMap` in arbitrary order.
         match &req.order.target {
             OrderTarget::Count => {
-                if req.order.order == Order::Desc {
-                    entries.sort_unstable_by_key(|e| std::cmp::Reverse(e.bucket.count));
-                } else {
-                    entries.sort_unstable_by_key(|e| e.bucket.count);
+                if entries.len() > segment_size {
+                    // unique or near-unique combos create big runs of sorted values (ones),
+                    // which is defavorable to quickselect; use the then faster sort_unstable.
+                    let num_buckets = entries.len() as u64;
+                    let num_docs = entries.iter().map(|e| e.bucket.count as u64).sum();
+                    total_doc_count = Some(num_docs);
+                    let many_buckets_with_same_count =
+                        num_docs < num_buckets * DOCS_PER_BUCKET_QUICKSELECT_THRESHOLD;
+                    if req.order.order == Order::Desc {
+                        if many_buckets_with_same_count {
+                            entries.sort_unstable_by_key(|e| std::cmp::Reverse(e.bucket.count));
+                        } else {
+                            entries.select_nth_unstable_by_key(segment_size, |e| {
+                                std::cmp::Reverse(e.bucket.count)
+                            });
+                        }
+                    } else if many_buckets_with_same_count {
+                        entries.sort_unstable_by_key(|e| e.bucket.count);
+                    } else {
+                        entries.select_nth_unstable_by_key(segment_size, |e| e.bucket.count);
+                    }
                 }
             }
             OrderTarget::Key => {
-                // Resolve keys then sort lexicographically.
-                // We compare in column-ordinal space (u64 raw) which preserves
-                // term-dictionary ordering for Str columns.
-                // Fallback for different types: compare by accessor_idx first.
-                let ord = req.order.order;
-                entries.sort_unstable_by(|a, b| {
-                    let cmp = a
-                        .key
-                        .iter()
-                        .zip(b.key.iter())
-                        .find_map(|(ea, eb)| {
-                            let c = ea
-                                .accessor_idx
-                                .cmp(&eb.accessor_idx)
-                                .then(ea.raw.cmp(&eb.raw));
-                            if c != std::cmp::Ordering::Equal {
-                                Some(c)
-                            } else {
-                                None
-                            }
-                        })
-                        .unwrap_or(std::cmp::Ordering::Equal);
-                    if ord == Order::Desc {
-                        cmp.reverse()
-                    } else {
-                        cmp
-                    }
-                });
+                // Compare in column-ordinal space (u64 raw) which preserves term-dictionary
+                // ordering for Str columns. Fallback for different types: compare by
+                // accessor_idx first.
+                if entries.len() > segment_size {
+                    let ord = req.order.order;
+                    entries.select_nth_unstable_by(segment_size, |a, b| {
+                        let cmp = a
+                            .key
+                            .iter()
+                            .zip(b.key.iter())
+                            .find_map(|(ea, eb)| {
+                                let c = ea
+                                    .accessor_idx
+                                    .cmp(&eb.accessor_idx)
+                                    .then(ea.raw.cmp(&eb.raw));
+                                if c != std::cmp::Ordering::Equal {
+                                    Some(c)
+                                } else {
+                                    None
+                                }
+                            })
+                            .unwrap_or(std::cmp::Ordering::Equal);
+                        if ord == Order::Desc {
+                            cmp.reverse()
+                        } else {
+                            cmp
+                        }
+                    });
+                }
             }
             OrderTarget::SubAggregation(sub_agg_path) => {
                 let coll = sub_agg_collector.as_deref().ok_or_else(|| {
@@ -505,17 +532,19 @@ impl SegmentMultiTermsCollector {
                         (metric, entry)
                     })
                     .collect();
-                if req.order.order == Order::Desc {
-                    keyed.sort_unstable_by(|a, b| b.0.total_cmp(&a.0));
-                } else {
-                    keyed.sort_unstable_by(|a, b| a.0.total_cmp(&b.0));
+                if keyed.len() > segment_size {
+                    if req.order.order == Order::Desc {
+                        keyed.select_nth_unstable_by(segment_size, |a, b| b.0.total_cmp(&a.0));
+                    } else {
+                        keyed.select_nth_unstable_by(segment_size, |a, b| a.0.total_cmp(&b.0));
+                    }
                 }
                 entries = keyed.into_iter().map(|(_, e)| e).collect();
             }
         }
 
         let (term_doc_count_before_cutoff, sum_other_doc_count) =
-            cut_off_buckets(&mut entries, req.segment_size as usize, None);
+            cut_off_buckets(&mut entries, segment_size, total_doc_count);
 
         let mut result_entries: FxHashMap<Vec<IntermediateKey>, IntermediateTermBucketEntry> =
             FxHashMap::with_capacity_and_hasher(entries.len(), Default::default());
@@ -661,6 +690,28 @@ impl SegmentAggregationCollector for SegmentMultiTermsCollector {
 // Fast path: packed-u64-key segment collector
 // ---------------------------------------------------------------------------
 
+/// How an `Optional`-cardinality field's absent docs are handled by the fast path,
+/// mirroring the three cases `MultiTermsFieldAccessors::missing_key_elem` already
+/// distinguishes for the recursive path (see `compute_fast_path_layout`).
+#[derive(Clone, Copy, Debug)]
+enum OptionalMissing {
+    /// No `missing` configured -- an absent doc excludes the whole combo. Detected
+    /// directly from the collect()-time merge against the column's present docs (see
+    /// `SegmentMultiTermsFastCollector::collect`), not from a reserved packed value --
+    /// so, unlike the other two cases, this needs no extra bit width and no fill value.
+    Drop,
+    /// `missing` resolves to a real value already in the column's ordinal space -- the
+    /// raw (non-offset) value, in the same domain as `Column::max_value()`, substituted
+    /// for absent docs at collect time. Shares bucket identity with any genuinely-present
+    /// doc at that value, so no post-decode check is needed at resolve time.
+    AsValue(u64),
+    /// `missing` has no real-value analog -- `(reserved sentinel offset, raw fill
+    /// value)`. The fill is substituted for absent docs at collect time; the offset is
+    /// recognized at resolve time (`resolve_packed_key`) to route back through
+    /// `MultiTermsFieldAccessors::missing`.
+    Synthetic(u64, u64),
+}
+
 /// Per-field bit-packing layout for the fast path: how many bits this field occupies in
 /// the packed `u64` key, and at what shift.
 ///
@@ -677,30 +728,112 @@ struct FieldPack {
     shift: u32,
     mask: u64,
     min_value: u64,
+    /// Max value (pre-shift) this field's slot can ever hold -- drives
+    /// `compute_max_packed`. Equals the real (or, for `AsValue`, widened) range, except
+    /// for `Synthetic`'s reserved sentinel offset, which is always `>=` the real range
+    /// by construction.
+    max_offset: u64,
+    is_full: bool,
+    /// `None` when `is_full`, otherwise the case-1/2/3 classification (see
+    /// [`OptionalMissing`]).
+    missing: Option<OptionalMissing>,
 }
 
 /// Computes the packed-key layout for the fast path, or `None` if any field is
-/// ineligible: a JSON multi-column field, a field that is not "full" (i.e. not exactly
-/// one value per doc -- this rules out both optional and multivalued columns), or a
-/// combination of fields whose bit widths don't fit in a single `u64`.
+/// ineligible: a JSON multi-column field, a multivalued column, or a combination of
+/// fields whose bit widths don't fit in a single `u64`.
+///
+/// Both `Full` and `Optional` columns are eligible. An `Optional` field's absent docs are
+/// classified into one of three cases -- mirroring `MultiTermsFieldAccessors::missing_key_elem`,
+/// already computed for the recursive path -- and packed accordingly; see
+/// [`OptionalMissing`].
 fn compute_fast_path_layout(fields: &[MultiTermsFieldAccessors]) -> Option<Vec<FieldPack>> {
-    let mut widths = Vec::with_capacity(fields.len());
-    let mut mins = Vec::with_capacity(fields.len());
+    // Per-field layout metadata, computed before bit-widths are known, so shifts can be
+    // assigned in a second pass. `width` excludes the shift.
+    struct FieldMeta {
+        width: u32,
+        min_value: u64,
+        max_offset: u64,
+        is_full: bool,
+        missing: Option<OptionalMissing>,
+    }
+
+    let mut metas = Vec::with_capacity(fields.len());
+
     for field_acc in fields {
         if field_acc.columns.len() != 1 {
             return None;
         }
         let (col, _col_type) = &field_acc.columns[0];
-        if !col.get_cardinality().is_full() {
+        let cardinality = col.get_cardinality();
+        if cardinality.is_multivalue() {
             return None;
         }
-        let min_value = col.min_value();
-        let range = col.max_value() - min_value;
-        widths.push(64 - range.leading_zeros());
-        mins.push(min_value);
+        let is_full = cardinality.is_full();
+
+        let mut min_value = col.min_value();
+        let mut range = col.max_value() - min_value;
+
+        let (width, max_offset, missing) = if is_full {
+            (64 - range.leading_zeros(), range, None)
+        } else {
+            match field_acc.missing_key_elem {
+                None => {
+                    // Case 1 (`Drop`): absent docs are detected structurally from the
+                    // collect()-time merge, not from a reserved packed value, so this
+                    // needs no widening at all -- identical to the `is_full` computation.
+                    let width = 64 - range.leading_zeros();
+                    (width, range, Some(OptionalMissing::Drop))
+                }
+                Some(KeyElem { accessor_idx, raw })
+                    if accessor_idx != KeyElem::SYNTHETIC_MISSING =>
+                {
+                    // Case 2 (`AsValue`): widen the range to cover the real target value so
+                    // it packs like any other value in this field's slot.
+                    min_value = min_value.min(raw);
+                    range = col.max_value().max(raw) - min_value;
+                    let width = 64 - range.leading_zeros();
+                    (width, range, Some(OptionalMissing::AsValue(raw)))
+                }
+                Some(_) => {
+                    // Case 3 (`Synthetic`): needs a reserved sentinel offset guaranteed
+                    // distinct from every real present value, since it must survive as a
+                    // packed bit pattern until `resolve_packed_key`.
+                    let width0 = 64 - range.leading_zeros();
+                    let mask0 = if width0 >= 64 {
+                        u64::MAX
+                    } else {
+                        (1u64 << width0) - 1
+                    };
+                    let (width, sentinel_offset) = if range < mask0 {
+                        (width0, mask0)
+                    } else {
+                        // No spare bit pattern in the current width -- bump by one bit.
+                        if width0 >= 64 {
+                            return None;
+                        }
+                        (width0 + 1, range + 1)
+                    };
+                    let fill = min_value.checked_add(sentinel_offset)?;
+                    (
+                        width,
+                        sentinel_offset,
+                        Some(OptionalMissing::Synthetic(sentinel_offset, fill)),
+                    )
+                }
+            }
+        };
+
+        metas.push(FieldMeta {
+            width,
+            min_value,
+            max_offset,
+            is_full,
+            missing,
+        });
     }
 
-    let total_width: u32 = widths.iter().sum();
+    let total_width: u32 = metas.iter().map(|m| m.width).sum();
     if total_width > 64 {
         return None;
     }
@@ -709,18 +842,21 @@ fn compute_fast_path_layout(fields: &[MultiTermsFieldAccessors]) -> Option<Vec<F
     // result lines back up with `fields`' original order.
     let mut packs = Vec::with_capacity(fields.len());
     let mut shift = 0u32;
-    for (&width, &min_value) in widths.iter().zip(mins.iter()).rev() {
-        let mask = if width >= 64 {
+    for meta in metas.iter().rev() {
+        let mask = if meta.width >= 64 {
             u64::MAX
         } else {
-            (1u64 << width) - 1
+            (1u64 << meta.width) - 1
         };
         packs.push(FieldPack {
             shift,
             mask,
-            min_value,
+            min_value: meta.min_value,
+            max_offset: meta.max_offset,
+            is_full: meta.is_full,
+            missing: meta.missing,
         });
-        shift += width;
+        shift += meta.width;
     }
     packs.reverse();
     Some(packs)
@@ -729,17 +865,13 @@ fn compute_fast_path_layout(fields: &[MultiTermsFieldAccessors]) -> Option<Vec<F
 /// Upper bound on the packed key space, used to pick a bucket-storage tier exactly like
 /// [`term_agg::build_segment_term_collector`] does with a single column's `max_value`.
 ///
+/// Exact, not just a bound, since fields occupy disjoint bit ranges.
+///
 /// [`term_agg::build_segment_term_collector`]: super::term_agg::build_segment_term_collector
-fn compute_max_packed(fields: &[MultiTermsFieldAccessors], packs: &[FieldPack]) -> u64 {
-    fields
+fn compute_max_packed(packs: &[FieldPack]) -> u64 {
+    packs
         .iter()
-        .zip(packs.iter())
-        .map(|(field_acc, pack)| {
-            let (col, _col_type) = &field_acc.columns[0];
-            (col.max_value() - pack.min_value)
-                .checked_shl(pack.shift)
-                .unwrap_or(0)
-        })
+        .map(|p| p.max_offset.checked_shl(p.shift).unwrap_or(0))
         .sum()
 }
 
@@ -755,7 +887,17 @@ fn resolve_packed_key(
         .iter()
         .zip(req_data.fields.iter())
         .map(|(pack, field_acc)| {
-            let raw = (packed.checked_shr(pack.shift).unwrap_or(0) & pack.mask) + pack.min_value;
+            let field_bits = packed.checked_shr(pack.shift).unwrap_or(0) & pack.mask;
+            if let Some(OptionalMissing::Synthetic(sentinel, _)) = pack.missing {
+                if field_bits == sentinel {
+                    return Ok(field_acc
+                        .missing
+                        .as_ref()
+                        .map(|k| IntermediateKey::from(k.clone()))
+                        .unwrap_or(IntermediateKey::Str(String::new())));
+                }
+            }
+            let raw = field_bits + pack.min_value;
             let (col, col_type) = &field_acc.columns[0];
             resolve_column_value(raw, col_type, &field_acc.str_dict_column, col)
         })
@@ -775,8 +917,16 @@ fn build_fast_multi_terms_collector(
 ) -> crate::Result<Box<dyn SegmentAggregationCollector>> {
     let has_sub_aggregations = !node.children.is_empty();
     let is_top_level = req_data.is_top_level;
-    let max_packed = compute_max_packed(&req_data.fields, &packs);
+    let max_packed = compute_max_packed(&packs);
     let num_fields = req_data.fields.len();
+    let has_droppable_field = packs
+        .iter()
+        .any(|p| matches!(p.missing, Some(OptionalMissing::Drop)));
+    // `Drop`-classified fields first (stable sort keeps relative order otherwise), so
+    // `collect()` can shrink its active doc set as early as possible -- see
+    // `SegmentMultiTermsFastCollector::collect`.
+    let mut field_order: Vec<usize> = (0..packs.len()).collect();
+    field_order.sort_by_key(|&i| !matches!(packs[i].missing, Some(OptionalMissing::Drop)));
 
     let sub_agg_collector = if has_sub_aggregations {
         Some(build_segment_agg_collectors(req, &node.children)?)
@@ -803,6 +953,13 @@ fn build_fast_multi_terms_collector(
                     max_packed,
                     field_block_accessors: vec![ColumnBlockAccessor::default(); num_fields],
                     packed_keys_buf: Vec::new(),
+                    exclude_buf: Vec::new(),
+                    has_droppable_field,
+                    field_order,
+                    active_docs: Vec::new(),
+                    active_orig_idx: Vec::new(),
+                    next_active_docs: Vec::new(),
+                    next_active_orig_idx: Vec::new(),
                 };
             Ok(Box::new(collector))
         } else {
@@ -815,6 +972,8 @@ fn build_fast_multi_terms_collector(
                 packs,
                 max_packed,
                 num_fields,
+                has_droppable_field,
+                field_order,
             ))
         }
     } else {
@@ -831,6 +990,8 @@ fn build_fast_multi_terms_collector(
                     packs,
                     max_packed,
                     num_fields,
+                    has_droppable_field,
+                    field_order,
                 ))
             } else {
                 let term_buckets = PagedTermMap::<()>::new(num_terms, &mut bucket_id_provider);
@@ -842,6 +1003,8 @@ fn build_fast_multi_terms_collector(
                     packs,
                     max_packed,
                     num_fields,
+                    has_droppable_field,
+                    field_order,
                 ))
             }
         } else if has_sub_aggregations {
@@ -854,6 +1017,8 @@ fn build_fast_multi_terms_collector(
                 packs,
                 max_packed,
                 num_fields,
+                has_droppable_field,
+                field_order,
             ))
         } else {
             let term_buckets = HashMapTermBuckets::<()>::default();
@@ -865,6 +1030,8 @@ fn build_fast_multi_terms_collector(
                 packs,
                 max_packed,
                 num_fields,
+                has_droppable_field,
+                field_order,
             ))
         }
     }
@@ -873,6 +1040,7 @@ fn build_fast_multi_terms_collector(
 /// Boxes a fast-path collector backed by the high-cardinality sub-agg buffer. Lets the storage
 /// branches above pick the `Bucket` id slot (`BucketId` vs `()`) without repeating the collector
 /// literal, mirroring `term_agg::boxed_high_card_collector`.
+#[allow(clippy::too_many_arguments)]
 fn boxed_high_card_multi_terms_collector<M: TermAggregationMap>(
     term_buckets: M,
     sub_agg: Option<HighCardBufferedSubAggs>,
@@ -881,6 +1049,8 @@ fn boxed_high_card_multi_terms_collector<M: TermAggregationMap>(
     packs: Vec<FieldPack>,
     max_packed: u64,
     num_fields: usize,
+    has_droppable_field: bool,
+    field_order: Vec<usize>,
 ) -> Box<dyn SegmentAggregationCollector> {
     Box::new(SegmentMultiTermsFastCollector::<M, HighCardSubAggBuffer> {
         parent_buckets: vec![term_buckets],
@@ -891,6 +1061,13 @@ fn boxed_high_card_multi_terms_collector<M: TermAggregationMap>(
         max_packed,
         field_block_accessors: vec![ColumnBlockAccessor::default(); num_fields],
         packed_keys_buf: Vec::new(),
+        exclude_buf: Vec::new(),
+        has_droppable_field,
+        field_order,
+        active_docs: Vec::new(),
+        active_orig_idx: Vec::new(),
+        next_active_docs: Vec::new(),
+        next_active_orig_idx: Vec::new(),
     })
 }
 
@@ -899,9 +1076,17 @@ fn boxed_high_card_multi_terms_collector<M: TermAggregationMap>(
 /// specialized bucket storage ([`TermAggregationMap`]) exactly as if it were a single
 /// synthetic term field.
 ///
-/// Only constructed when [`compute_fast_path_layout`] confirms every field is a single,
-/// full (single-valued) u64-backed column whose combined bit width fits in 64 bits; see
-/// [`build_segment_multi_terms_collector`].
+/// Only constructed when [`compute_fast_path_layout`] confirms every field is a single
+/// `Full` or `Optional` u64-backed column whose combined bit width fits in 64 bits; see
+/// [`build_segment_multi_terms_collector`]. `Optional` fields are merged against the
+/// doc block in `collect()` via a single pass over `ColumnBlockAccessor::iter_docid_vals`
+/// (a presence-only gather, no missing-fill) rather than filling every absent doc through
+/// `fetch_block_with_missing_unique_per_doc`/`iter_docid_vals_sorted` -- that avoids
+/// materializing a placeholder for absent docs, which matters when a column is heavily
+/// sparse (most docs absent): benchmarking showed the fill-and-merge approach can be
+/// *slower* than the recursive fallback in that regime, even though it uses much less
+/// memory. See [`FieldPack`] and [`OptionalMissing`] for how absent docs are classified
+/// and packed.
 #[derive(Debug)]
 struct SegmentMultiTermsFastCollector<TermMap: TermAggregationMap, B: SubAggBuffer> {
     /// One bucket map per parent bucket (for nested aggs).
@@ -921,6 +1106,31 @@ struct SegmentMultiTermsFastCollector<TermMap: TermAggregationMap, B: SubAggBuff
     /// Scratch buffer for the packed keys of the current doc block. Reused across
     /// `collect` calls to avoid reallocating.
     packed_keys_buf: Vec<u64>,
+    /// Scratch buffer marking, per doc in the current block, whether the combo must be
+    /// excluded (a `Drop` field had no value for this doc). Only populated when
+    /// `has_droppable_field` is true.
+    exclude_buf: Vec<bool>,
+    /// True if any field is `Optional` with no `missing` configured (`OptionalMissing::Drop`).
+    /// Precomputed once so the all-`Full`-fields case (the only shape supported before this)
+    /// pays no extra cost in `collect()`.
+    has_droppable_field: bool,
+    /// Order to process fields in `collect()` when `has_droppable_field` -- `Drop`-classified
+    /// fields first (stable, otherwise preserving `packs`' order), so that later fields only
+    /// ever scan the docs still active once earlier fields have excluded some. Precomputed
+    /// once; indexes into `packs`/`req_data.fields`. Unused (natural order) otherwise.
+    field_order: Vec<usize>,
+    /// Doc ids still under consideration for the current block, shrinking as `Drop` fields
+    /// exclude docs. Parallel to `active_orig_idx`. Only used when `has_droppable_field`.
+    active_docs: Vec<crate::DocId>,
+    /// For each entry in `active_docs`, its position in the original `docs` slice /
+    /// `packed_keys_buf` / `exclude_buf` -- lets `active_docs` shrink while still writing
+    /// results back to the right absolute position. Only used when `has_droppable_field`.
+    active_orig_idx: Vec<u32>,
+    /// Scratch double-buffer for `active_docs`/`active_orig_idx`, swapped in after each
+    /// field so the accessor's borrow of the current active set never overlaps with the
+    /// compaction writing the next one. Only used when `has_droppable_field`.
+    next_active_docs: Vec<crate::DocId>,
+    next_active_orig_idx: Vec<u32>,
 }
 
 impl<TermMap: TermAggregationMap, B: SubAggBuffer> SegmentMultiTermsFastCollector<TermMap, B> {
@@ -973,26 +1183,201 @@ impl<TermMap: TermAggregationMap, B: SubAggBuffer> SegmentAggregationCollector
         self.packed_keys_buf.clear();
         self.packed_keys_buf.resize(docs.len(), 0u64);
 
-        for (field_idx, field_acc) in req_data.fields.iter().enumerate() {
-            let (col, _col_type) = &field_acc.columns[0];
-            let pack = self.packs[field_idx];
-            let block_acc = &mut self.field_block_accessors[field_idx];
-            block_acc.fetch_block_with_is_full(docs, col, true);
-            for (dst, v) in self.packed_keys_buf.iter_mut().zip(block_acc.iter_vals()) {
-                *dst |= (v - pack.min_value).checked_shl(pack.shift).unwrap_or(0);
+        if !self.has_droppable_field {
+            // No field can exclude a doc, so there's nothing an active-set could ever
+            // shrink -- process every field directly over the full `docs` block. This
+            // keeps the pre-`Optional`-support shape (all `Full` fields) exactly as cheap
+            // as before.
+            for &field_idx in &self.field_order {
+                let field_acc = &req_data.fields[field_idx];
+                let (col, _col_type) = &field_acc.columns[0];
+                let pack = self.packs[field_idx];
+                let block_acc = &mut self.field_block_accessors[field_idx];
+                if pack.is_full {
+                    block_acc.fetch_block_with_is_full(docs, col, true);
+                    for (dst, v) in self.packed_keys_buf.iter_mut().zip(block_acc.iter_vals()) {
+                        *dst |= (v - pack.min_value).checked_shl(pack.shift).unwrap_or(0);
+                    }
+                } else {
+                    // Presence-only gather (no missing-fill): `iter_docid_vals`'s non-full
+                    // branch yields an order-preserving subsequence of `docs` -- just the
+                    // docs that have a value. A single pass merging that against `docs`
+                    // avoids ever materializing a placeholder for absent docs.
+                    block_acc.fetch_block_with_is_full(docs, col, false);
+                    let mut hits = block_acc.iter_docid_vals(docs, col).peekable();
+                    let missing = pack.missing.expect(
+                        "non-full field always has `missing` set by compute_fast_path_layout",
+                    );
+                    for (dst, &doc_id) in self.packed_keys_buf.iter_mut().zip(docs.iter()) {
+                        let raw = match hits.peek() {
+                            Some(&(hit_doc, hit_val)) if hit_doc == doc_id => {
+                                hits.next();
+                                hit_val
+                            }
+                            // `has_droppable_field` is false, so this field's `missing`
+                            // is never `Drop` -- `AsValue`/`Synthetic` always substitute.
+                            _ => match missing {
+                                OptionalMissing::AsValue(fill)
+                                | OptionalMissing::Synthetic(_, fill) => fill,
+                                OptionalMissing::Drop => {
+                                    unreachable!("has_droppable_field is false")
+                                }
+                            },
+                        };
+                        let offset_bits = raw - pack.min_value;
+                        *dst |= offset_bits.checked_shl(pack.shift).unwrap_or(0);
+                    }
+                }
+            }
+        } else {
+            // At least one field can exclude a doc entirely (`Drop`). Process fields in
+            // `self.field_order` (`Drop` fields first), lazily switching from "scan the
+            // full block" to "scan only the still-active subset" the moment some field
+            // actually excludes a doc -- mirroring the "free" filtering a nested `terms`
+            // + sub-aggregation gets from the outer aggregation's own bucket dispatch
+            // (docs the outer bucket drops never reach the inner collector's
+            // `collect()`). Staying unshrunk until the first real exclusion matters: on
+            // a block where nothing ends up excluded (the common case for a field that's
+            // only rarely missing), maintaining a compacted active set is pure overhead
+            // with no payoff, so this keeps that case exactly as cheap as the `!self.
+            // has_droppable_field` branch above.
+            self.exclude_buf.clear();
+            self.exclude_buf.resize(docs.len(), false);
+            let mut shrunk = false;
+
+            for &field_idx in &self.field_order {
+                if shrunk && self.active_docs.is_empty() {
+                    break;
+                }
+                let field_acc = &req_data.fields[field_idx];
+                let (col, _col_type) = &field_acc.columns[0];
+                let pack = self.packs[field_idx];
+                let block_acc = &mut self.field_block_accessors[field_idx];
+
+                if pack.is_full {
+                    // Never excludes -- just decode over whatever is still active.
+                    if !shrunk {
+                        block_acc.fetch_block_with_is_full(docs, col, true);
+                        for (dst, v) in self.packed_keys_buf.iter_mut().zip(block_acc.iter_vals()) {
+                            *dst |= (v - pack.min_value).checked_shl(pack.shift).unwrap_or(0);
+                        }
+                    } else {
+                        block_acc.fetch_block_with_is_full(&self.active_docs, col, true);
+                        for (&orig_idx, v) in self.active_orig_idx.iter().zip(block_acc.iter_vals())
+                        {
+                            self.packed_keys_buf[orig_idx as usize] |=
+                                (v - pack.min_value).checked_shl(pack.shift).unwrap_or(0);
+                        }
+                    }
+                    continue;
+                }
+
+                let missing = pack
+                    .missing
+                    .expect("non-full field always has `missing` set by compute_fast_path_layout");
+
+                if !shrunk {
+                    block_acc.fetch_block_with_is_full(docs, col, false);
+                    let mut any_excluded = false;
+                    {
+                        let mut hits = block_acc.iter_docid_vals(docs, col).peekable();
+                        for (i, &doc_id) in docs.iter().enumerate() {
+                            let hit = match hits.peek() {
+                                Some(&(hit_doc, hit_val)) if hit_doc == doc_id => {
+                                    hits.next();
+                                    Some(hit_val)
+                                }
+                                _ => None,
+                            };
+                            let raw = match hit {
+                                Some(v) => v,
+                                None => match missing {
+                                    OptionalMissing::Drop => {
+                                        self.exclude_buf[i] = true;
+                                        any_excluded = true;
+                                        continue;
+                                    }
+                                    OptionalMissing::AsValue(fill)
+                                    | OptionalMissing::Synthetic(_, fill) => fill,
+                                },
+                            };
+                            let offset_bits = raw - pack.min_value;
+                            self.packed_keys_buf[i] |=
+                                offset_bits.checked_shl(pack.shift).unwrap_or(0);
+                        }
+                    }
+                    if any_excluded {
+                        // From here on, later fields only scan what's left -- build the
+                        // active set from every position `exclude_buf` hasn't marked yet.
+                        self.active_docs.clear();
+                        self.active_orig_idx.clear();
+                        for (i, &doc_id) in docs.iter().enumerate() {
+                            if !self.exclude_buf[i] {
+                                self.active_docs.push(doc_id);
+                                self.active_orig_idx.push(i as u32);
+                            }
+                        }
+                        shrunk = true;
+                    }
+                } else {
+                    block_acc.fetch_block_with_is_full(&self.active_docs, col, false);
+                    self.next_active_docs.clear();
+                    self.next_active_orig_idx.clear();
+                    {
+                        // Scoped so `hits`' borrow of `active_docs` ends before the swap
+                        // below -- it doesn't outlive the loop, but the borrow checker's
+                        // conservative drop-check can't see that without the extra block.
+                        let mut hits = block_acc.iter_docid_vals(&self.active_docs, col).peekable();
+                        for (&doc_id, &orig_idx) in
+                            self.active_docs.iter().zip(self.active_orig_idx.iter())
+                        {
+                            let hit = match hits.peek() {
+                                Some(&(hit_doc, hit_val)) if hit_doc == doc_id => {
+                                    hits.next();
+                                    Some(hit_val)
+                                }
+                                _ => None,
+                            };
+                            let raw = match hit {
+                                Some(v) => v,
+                                None => match missing {
+                                    OptionalMissing::Drop => {
+                                        self.exclude_buf[orig_idx as usize] = true;
+                                        continue;
+                                    }
+                                    OptionalMissing::AsValue(fill)
+                                    | OptionalMissing::Synthetic(_, fill) => fill,
+                                },
+                            };
+                            let offset_bits = raw - pack.min_value;
+                            self.packed_keys_buf[orig_idx as usize] |=
+                                offset_bits.checked_shl(pack.shift).unwrap_or(0);
+                            self.next_active_docs.push(doc_id);
+                            self.next_active_orig_idx.push(orig_idx);
+                        }
+                    }
+                    std::mem::swap(&mut self.active_docs, &mut self.next_active_docs);
+                    std::mem::swap(&mut self.active_orig_idx, &mut self.next_active_orig_idx);
+                }
             }
         }
 
         let term_buckets = &mut self.parent_buckets[parent_bucket_id as usize];
         if let Some(sub_agg) = &mut self.sub_agg {
-            for (&doc_id, &key) in docs.iter().zip(self.packed_keys_buf.iter()) {
+            for (i, (&doc_id, &key)) in docs.iter().zip(self.packed_keys_buf.iter()).enumerate() {
+                if self.has_droppable_field && self.exclude_buf[i] {
+                    continue;
+                }
                 let bucket_id = term_buckets.term_entry(key, &mut self.bucket_id_provider);
                 // Only reached with a real `BucketId` slot (sub_agg is `Some` only when sub
                 // aggregations are present), so `to_bucket_id` never hits `unreachable!`.
                 sub_agg.push(bucket_id.to_bucket_id(), doc_id);
             }
         } else {
-            for &key in self.packed_keys_buf.iter() {
+            for (i, &key) in self.packed_keys_buf.iter().enumerate() {
+                if self.has_droppable_field && self.exclude_buf[i] {
+                    continue;
+                }
                 term_buckets.term_entry(key, &mut self.bucket_id_provider);
             }
         }
@@ -1055,15 +1440,31 @@ fn into_intermediate_bucket_result_fast<TermMap: TermAggregationMap>(
 ) -> crate::Result<IntermediateBucketResult> {
     let req = MultiTermsAggregationInternal::from_req(&req_data.req);
     let mut entries: Vec<(u64, Bucket<TermMap::Slot>)> = term_buckets.into_vec();
+    let segment_size = req.segment_size as usize;
 
+    // Total doc count over all buckets, computed in some cases, and which can be reused by
+    // `cut_off_buckets` to derive `sum_other_doc_count` without a second pass.
+    let mut total_doc_count: Option<u64> = None;
+
+    // Mirrors `term_agg::into_intermediate_bucket_result`: `select_nth_unstable_by[_key]`
+    // partitions the top-k to the front in O(n) average instead of fully sorting in
+    // O(n log n), when we only need the top `segment_size` entries.
     match &req.order.target {
         OrderTarget::Key => {
             // Numeric order of the packed key matches the field-0-high-bits layout's
             // lexicographic (field_idx, raw) comparison -- see `FieldPack`.
-            if req.order.order == Order::Desc {
-                entries.sort_unstable_by_key(|bucket| std::cmp::Reverse(bucket.0));
-            } else {
-                entries.sort_unstable_by_key(|bucket| bucket.0);
+            if TermMap::SORTED_BY_ORD {
+                // `into_vec` already returned entries sorted by ord ascending, we can just
+                // revert if we want descending.
+                if req.order.order == Order::Desc {
+                    entries.reverse();
+                }
+            } else if entries.len() > segment_size {
+                if req.order.order == Order::Desc {
+                    entries.select_nth_unstable_by_key(segment_size, |b| std::cmp::Reverse(b.0));
+                } else {
+                    entries.select_nth_unstable_by_key(segment_size, |b| b.0);
+                }
             }
         }
         OrderTarget::SubAggregation(sub_agg_path) => {
@@ -1089,24 +1490,43 @@ fn into_intermediate_bucket_result_fast<TermMap: TermAggregationMap>(
                     (metric_value, bucket)
                 })
                 .collect();
-            if req.order.order == Order::Desc {
-                keyed.sort_unstable_by(|a, b| b.0.total_cmp(&a.0));
-            } else {
-                keyed.sort_unstable_by(|a, b| a.0.total_cmp(&b.0));
+            if keyed.len() > segment_size {
+                if req.order.order == Order::Desc {
+                    keyed.select_nth_unstable_by(segment_size, |a, b| b.0.total_cmp(&a.0));
+                } else {
+                    keyed.select_nth_unstable_by(segment_size, |a, b| a.0.total_cmp(&b.0));
+                }
             }
             entries = keyed.into_iter().map(|(_, e)| e).collect();
         }
         OrderTarget::Count => {
-            if req.order.order == Order::Desc {
-                entries.sort_unstable_by_key(|bucket| std::cmp::Reverse(bucket.1.count));
-            } else {
-                entries.sort_unstable_by_key(|bucket| bucket.1.count);
+            if entries.len() > segment_size {
+                // unique or near-unique combos create big runs of sorted values (ones), which
+                // is defavorable to quickselect; use the then faster sort_unstable.
+                let num_buckets = entries.len() as u64;
+                let num_docs = entries.iter().map(|(_, b)| b.count as u64).sum();
+                total_doc_count = Some(num_docs);
+                let many_buckets_with_same_count =
+                    num_docs < num_buckets * DOCS_PER_BUCKET_QUICKSELECT_THRESHOLD;
+                if req.order.order == Order::Desc {
+                    if many_buckets_with_same_count {
+                        entries.sort_unstable_by_key(|b| std::cmp::Reverse(b.1.count));
+                    } else {
+                        entries.select_nth_unstable_by_key(segment_size, |b| {
+                            std::cmp::Reverse(b.1.count)
+                        });
+                    }
+                } else if many_buckets_with_same_count {
+                    entries.sort_unstable_by_key(|b| b.1.count);
+                } else {
+                    entries.select_nth_unstable_by_key(segment_size, |b| b.1.count);
+                }
             }
         }
     }
 
     let (term_doc_count_before_cutoff, sum_other_doc_count) =
-        cut_off_buckets(&mut entries, req.segment_size as usize, None);
+        cut_off_buckets(&mut entries, segment_size, total_doc_count);
 
     let mut result_entries: FxHashMap<Vec<IntermediateKey>, IntermediateTermBucketEntry> =
         FxHashMap::with_capacity_and_hasher(entries.len(), Default::default());
@@ -1124,13 +1544,26 @@ fn into_intermediate_bucket_result_fast<TermMap: TermAggregationMap>(
                 bucket.bucket_id.to_bucket_id(),
             )?;
         }
-        result_entries.insert(
-            intermediate_key,
-            IntermediateTermBucketEntry {
-                doc_count: bucket.count as u64,
-                sub_aggregation: sub_aggregation_res,
-            },
-        );
+        let doc_count = bucket.count as u64;
+        // Distinct packed keys can resolve to the same `IntermediateKey` (e.g. a synthetic
+        // missing key that renders to the same string as a real value elsewhere) -- merge
+        // into the existing bucket instead of overwriting it. (`AsValue` doesn't need this:
+        // its fill is bit-identical to the real value, so it already merges at the packed-key
+        // level in `collect()`, before ever reaching here.) Mirrors
+        // `SegmentMultiTermsCollector::into_intermediate_bucket_result_inner`.
+        match result_entries.entry(intermediate_key) {
+            std::collections::hash_map::Entry::Occupied(mut occupied) => {
+                let existing = occupied.get_mut();
+                existing.doc_count += doc_count;
+                existing.sub_aggregation.merge_fruits(sub_aggregation_res)?;
+            }
+            std::collections::hash_map::Entry::Vacant(vacant) => {
+                vacant.insert(IntermediateTermBucketEntry {
+                    doc_count,
+                    sub_aggregation: sub_aggregation_res,
+                });
+            }
+        }
     }
 
     Ok(IntermediateBucketResult::MultiTerms {
@@ -2029,6 +2462,415 @@ mod tests {
         assert_eq!(buckets.len(), 1);
         assert_eq!(buckets[0]["key_as_string"], "even|A");
         assert_eq!(buckets[0]["doc_count"], 3);
+        Ok(())
+    }
+
+    // -----------------------------------------------------------------
+    // Fast-path support for `Optional`-cardinality fields
+    // -----------------------------------------------------------------
+
+    #[test]
+    fn test_multi_terms_fast_path_optional_field_dropped() -> crate::Result<()> {
+        // A single-column optional numeric field with no `missing` configured is now
+        // fast-path eligible; absent docs must still be dropped from every combo (case 1,
+        // `OptionalMissing::Drop`), matching the recursive path's semantics.
+        let mut schema_builder = Schema::builder();
+        let genre_field = schema_builder.add_text_field("genre", STRING | FAST);
+        let score_field = schema_builder
+            .add_u64_field("score", crate::schema::NumericOptions::default().set_fast());
+        let index = Index::create_in_ram(schema_builder.build());
+        {
+            let mut writer: IndexWriter = index.writer_with_num_threads(1, 20_000_000)?;
+            writer.add_document(doc!(genre_field => "rock", score_field => 5u64))?;
+            writer.add_document(doc!(genre_field => "rock"))?; // no score -> dropped
+            writer.commit()?;
+        }
+
+        let agg_req: Aggregations = serde_json::from_value(json!({
+            "mt": {
+                "multi_terms": {
+                    "terms": [{"field": "genre"}, {"field": "score"}]
+                }
+            }
+        }))?;
+        let res = exec_request(agg_req, &index)?;
+        let buckets = res["mt"]["buckets"].as_array().unwrap();
+        assert_eq!(buckets.len(), 1, "expected {buckets:?}");
+        assert_eq!(buckets[0]["doc_count"], 1);
+        assert_eq!(buckets[0]["key_as_string"], "rock|5");
+        Ok(())
+    }
+
+    #[test]
+    fn test_multi_terms_fast_path_optional_field_as_value_collision() -> crate::Result<()> {
+        // Regression test for treating every `missing` as needing a reserved sentinel: a
+        // numeric `missing` that coincides with a real column value (case 2,
+        // `OptionalMissing::AsValue`) must merge into the *same* bucket as that value
+        // rather than getting a distinct packed key.
+        let mut schema_builder = Schema::builder();
+        let genre_field = schema_builder.add_text_field("genre", STRING | FAST);
+        let score_field = schema_builder
+            .add_u64_field("score", crate::schema::NumericOptions::default().set_fast());
+        let index = Index::create_in_ram(schema_builder.build());
+        {
+            let mut writer: IndexWriter = index.writer_with_num_threads(1, 20_000_000)?;
+            writer.add_document(doc!(genre_field => "rock", score_field => 5u64))?;
+            writer.add_document(doc!(genre_field => "rock"))?; // missing -> packs as 5
+            writer.add_document(doc!(genre_field => "rock", score_field => 10u64))?;
+            writer.commit()?;
+        }
+
+        let agg_req: Aggregations = serde_json::from_value(json!({
+            "mt": {
+                "multi_terms": {
+                    "terms": [
+                        {"field": "genre"},
+                        {"field": "score", "missing": 5}
+                    ]
+                }
+            }
+        }))?;
+        let res = exec_request(agg_req, &index)?;
+        let buckets = res["mt"]["buckets"].as_array().unwrap();
+        assert_eq!(buckets.len(), 2, "expected {buckets:?}");
+        let five_bucket = buckets
+            .iter()
+            .find(|b| b["key_as_string"] == "rock|5")
+            .expect("expected a rock|5 bucket");
+        assert_eq!(five_bucket["doc_count"], 2);
+        let ten_bucket = buckets
+            .iter()
+            .find(|b| b["key_as_string"] == "rock|10")
+            .expect("expected a rock|10 bucket");
+        assert_eq!(ten_bucket["doc_count"], 1);
+        Ok(())
+    }
+
+    #[test]
+    fn test_multi_terms_fast_path_optional_field_synthetic_numeric() -> crate::Result<()> {
+        // A `missing` with no real-value analog on a numeric column (case 3,
+        // `OptionalMissing::Synthetic`) via the fast path, mixed with a full field.
+        let mut schema_builder = Schema::builder();
+        let genre_field = schema_builder.add_text_field("genre", STRING | FAST);
+        let score_field = schema_builder
+            .add_u64_field("score", crate::schema::NumericOptions::default().set_fast());
+        let index = Index::create_in_ram(schema_builder.build());
+        {
+            let mut writer: IndexWriter = index.writer_with_num_threads(1, 20_000_000)?;
+            writer.add_document(doc!(genre_field => "rock", score_field => 5u64))?;
+            writer.add_document(doc!(genre_field => "rock"))?;
+            writer.commit()?;
+        }
+
+        let agg_req: Aggregations = serde_json::from_value(json!({
+            "mt": {
+                "multi_terms": {
+                    "terms": [
+                        {"field": "genre"},
+                        {"field": "score", "missing": "N/A"}
+                    ]
+                }
+            }
+        }))?;
+        let res = exec_request(agg_req, &index)?;
+        let buckets = res["mt"]["buckets"].as_array().unwrap();
+        assert_eq!(buckets.len(), 2, "expected {buckets:?}");
+        let keys: Vec<&str> = buckets
+            .iter()
+            .map(|b| b["key_as_string"].as_str().unwrap())
+            .collect();
+        assert!(keys.contains(&"rock|5"), "expected rock|5, got {keys:?}");
+        assert!(
+            keys.contains(&"rock|N/A"),
+            "expected rock|N/A, got {keys:?}"
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn test_multi_terms_fast_path_optional_field_width_bump() -> crate::Result<()> {
+        // Present values exactly {0, 1} leave no spare bit pattern in a 1-bit field slot,
+        // forcing `compute_fast_path_layout`'s width-bump branch -- not a rare corner case,
+        // must work correctly together with a `Synthetic`-triggering `missing`.
+        let mut schema_builder = Schema::builder();
+        let genre_field = schema_builder.add_text_field("genre", STRING | FAST);
+        let flag_field = schema_builder
+            .add_u64_field("flag", crate::schema::NumericOptions::default().set_fast());
+        let index = Index::create_in_ram(schema_builder.build());
+        {
+            let mut writer: IndexWriter = index.writer_with_num_threads(1, 20_000_000)?;
+            writer.add_document(doc!(genre_field => "rock", flag_field => 0u64))?;
+            writer.add_document(doc!(genre_field => "rock", flag_field => 1u64))?;
+            writer.add_document(doc!(genre_field => "rock"))?; // missing
+            writer.commit()?;
+        }
+
+        let agg_req: Aggregations = serde_json::from_value(json!({
+            "mt": {
+                "multi_terms": {
+                    "terms": [
+                        {"field": "genre"},
+                        {"field": "flag", "missing": "N/A"}
+                    ]
+                }
+            }
+        }))?;
+        let res = exec_request(agg_req, &index)?;
+        let buckets = res["mt"]["buckets"].as_array().unwrap();
+        assert_eq!(buckets.len(), 3, "expected {buckets:?}");
+        let keys: Vec<&str> = buckets
+            .iter()
+            .map(|b| b["key_as_string"].as_str().unwrap())
+            .collect();
+        assert!(keys.contains(&"rock|0"), "expected {keys:?}");
+        assert!(keys.contains(&"rock|1"), "expected {keys:?}");
+        assert!(keys.contains(&"rock|N/A"), "expected {keys:?}");
+        Ok(())
+    }
+
+    #[test]
+    fn test_multi_terms_fast_path_optional_field_single_present_value() -> crate::Result<()> {
+        // Present values are a single distinct value (`range == 0`) -- the minimal
+        // width-bump case (`width0 == 0` bumps to `width == 1`).
+        let mut schema_builder = Schema::builder();
+        let genre_field = schema_builder.add_text_field("genre", STRING | FAST);
+        let flag_field = schema_builder
+            .add_u64_field("flag", crate::schema::NumericOptions::default().set_fast());
+        let index = Index::create_in_ram(schema_builder.build());
+        {
+            let mut writer: IndexWriter = index.writer_with_num_threads(1, 20_000_000)?;
+            writer.add_document(doc!(genre_field => "rock", flag_field => 7u64))?;
+            writer.add_document(doc!(genre_field => "rock"))?; // missing
+            writer.commit()?;
+        }
+
+        let agg_req: Aggregations = serde_json::from_value(json!({
+            "mt": {
+                "multi_terms": {
+                    "terms": [
+                        {"field": "genre"},
+                        {"field": "flag", "missing": "N/A"}
+                    ]
+                }
+            }
+        }))?;
+        let res = exec_request(agg_req, &index)?;
+        let buckets = res["mt"]["buckets"].as_array().unwrap();
+        assert_eq!(buckets.len(), 2, "expected {buckets:?}");
+        let keys: Vec<&str> = buckets
+            .iter()
+            .map(|b| b["key_as_string"].as_str().unwrap())
+            .collect();
+        assert!(keys.contains(&"rock|7"), "expected {keys:?}");
+        assert!(keys.contains(&"rock|N/A"), "expected {keys:?}");
+        Ok(())
+    }
+
+    #[test]
+    fn test_multi_terms_fast_path_optional_field_order_by_key_synthetic_sorts_last(
+    ) -> crate::Result<()> {
+        // The synthetic-missing sentinel is always the numeric maximum for its field slot
+        // (mirroring the recursive path's `KeyElem::SYNTHETIC_MISSING = u32::MAX`
+        // convention), so with a tight per-segment cutoff, `_key desc` must keep the
+        // missing bucket over any real value, and `_key asc` must discard it in favor of
+        // the smallest real value. No existing test covers `missing` + `OrderTarget::Key`
+        // on either path.
+        let mut schema_builder = Schema::builder();
+        let genre_field = schema_builder.add_text_field("genre", STRING | FAST);
+        let score_field = schema_builder
+            .add_u64_field("score", crate::schema::NumericOptions::default().set_fast());
+        let index = Index::create_in_ram(schema_builder.build());
+        {
+            let mut writer: IndexWriter = index.writer_with_num_threads(1, 20_000_000)?;
+            writer.add_document(doc!(genre_field => "rock", score_field => 1u64))?;
+            writer.add_document(doc!(genre_field => "rock", score_field => 2u64))?;
+            writer.add_document(doc!(genre_field => "rock", score_field => 3u64))?;
+            writer.add_document(doc!(genre_field => "rock"))?; // -> synthetic missing key
+            writer.commit()?;
+        }
+
+        let desc_req: Aggregations = serde_json::from_value(json!({
+            "mt": {
+                "multi_terms": {
+                    "terms": [
+                        {"field": "genre"},
+                        {"field": "score", "missing": "N/A"}
+                    ],
+                    "size": 1,
+                    "segment_size": 1,
+                    "order": {"_key": "desc"}
+                }
+            }
+        }))?;
+        let res = exec_request(desc_req, &index)?;
+        let buckets = res["mt"]["buckets"].as_array().unwrap();
+        assert_eq!(buckets.len(), 1, "expected {buckets:?}");
+        assert_eq!(buckets[0]["key_as_string"], "rock|N/A");
+
+        let asc_req: Aggregations = serde_json::from_value(json!({
+            "mt": {
+                "multi_terms": {
+                    "terms": [
+                        {"field": "genre"},
+                        {"field": "score", "missing": "N/A"}
+                    ],
+                    "size": 1,
+                    "segment_size": 1,
+                    "order": {"_key": "asc"}
+                }
+            }
+        }))?;
+        let res = exec_request(asc_req, &index)?;
+        let buckets = res["mt"]["buckets"].as_array().unwrap();
+        assert_eq!(buckets.len(), 1, "expected {buckets:?}");
+        assert_eq!(buckets[0]["key_as_string"], "rock|1");
+        Ok(())
+    }
+
+    #[test]
+    fn test_multi_terms_fast_path_optional_field_noncontiguous_docs() -> crate::Result<()> {
+        // A filtered query produces a sparse, non-contiguous doc-id block; some of those
+        // docs also lack the optional field's value, exercising the collect()-time
+        // presence merge together with the accessor's non-contiguous gather path.
+        let mut schema_builder = Schema::builder();
+        let genre_field = schema_builder.add_text_field("genre", STRING | FAST);
+        let score_field = schema_builder
+            .add_u64_field("score", crate::schema::NumericOptions::default().set_fast());
+        let index = Index::create_in_ram(schema_builder.build());
+        {
+            let mut writer: IndexWriter = index.writer_with_num_threads(1, 20_000_000)?;
+            writer.add_document(doc!(genre_field => "even", score_field => 1u64))?;
+            writer.add_document(doc!(genre_field => "odd", score_field => 9u64))?;
+            writer.add_document(doc!(genre_field => "even"))?; // no score -> dropped combo
+            writer.add_document(doc!(genre_field => "odd", score_field => 9u64))?;
+            writer.add_document(doc!(genre_field => "even", score_field => 1u64))?;
+            writer.commit()?;
+        }
+
+        let agg_req: Aggregations = serde_json::from_value(json!({
+            "mt": {
+                "multi_terms": {
+                    "terms": [{"field": "genre"}, {"field": "score"}]
+                }
+            }
+        }))?;
+        let res = exec_request_with_query(agg_req, &index, Some(("genre", "even")))?;
+        let buckets = res["mt"]["buckets"].as_array().unwrap();
+        assert_eq!(buckets.len(), 1, "expected {buckets:?}");
+        assert_eq!(buckets[0]["key_as_string"], "even|1");
+        assert_eq!(buckets[0]["doc_count"], 2);
+        Ok(())
+    }
+
+    #[test]
+    fn test_multi_terms_fast_path_optional_field_whole_block_absent_drop() -> crate::Result<()> {
+        // Every doc in the collected block lacks the optional field's value -- the
+        // presence gather returns no hits at all, exercising that boundary for `Drop`
+        // (whole combo dropped for every doc).
+        let mut schema_builder = Schema::builder();
+        let genre_field = schema_builder.add_text_field("genre", STRING | FAST);
+        let _score_field = schema_builder
+            .add_u64_field("score", crate::schema::NumericOptions::default().set_fast());
+        let index = Index::create_in_ram(schema_builder.build());
+        {
+            let mut writer: IndexWriter = index.writer_with_num_threads(1, 20_000_000)?;
+            writer.add_document(doc!(genre_field => "rock"))?;
+            writer.add_document(doc!(genre_field => "pop"))?;
+            writer.commit()?;
+        }
+
+        let agg_req: Aggregations = serde_json::from_value(json!({
+            "mt": {
+                "multi_terms": {
+                    "terms": [{"field": "genre"}, {"field": "score"}]
+                }
+            }
+        }))?;
+        let res = exec_request(agg_req, &index)?;
+        let buckets = res["mt"]["buckets"].as_array().unwrap();
+        assert_eq!(buckets.len(), 0, "expected {buckets:?}");
+        Ok(())
+    }
+
+    #[test]
+    fn test_multi_terms_fast_path_optional_field_whole_block_absent_synthetic() -> crate::Result<()>
+    {
+        // Same as above but with a `missing` configured -- every doc falls back to the
+        // same synthetic key instead of being dropped.
+        let mut schema_builder = Schema::builder();
+        let genre_field = schema_builder.add_text_field("genre", STRING | FAST);
+        let _score_field = schema_builder
+            .add_u64_field("score", crate::schema::NumericOptions::default().set_fast());
+        let index = Index::create_in_ram(schema_builder.build());
+        {
+            let mut writer: IndexWriter = index.writer_with_num_threads(1, 20_000_000)?;
+            writer.add_document(doc!(genre_field => "rock"))?;
+            writer.add_document(doc!(genre_field => "pop"))?;
+            writer.commit()?;
+        }
+
+        let agg_req: Aggregations = serde_json::from_value(json!({
+            "mt": {
+                "multi_terms": {
+                    "terms": [
+                        {"field": "genre"},
+                        {"field": "score", "missing": "N/A"}
+                    ]
+                }
+            }
+        }))?;
+        let res = exec_request(agg_req, &index)?;
+        let buckets = res["mt"]["buckets"].as_array().unwrap();
+        assert_eq!(buckets.len(), 2, "expected {buckets:?}");
+        let keys: Vec<&str> = buckets
+            .iter()
+            .map(|b| b["key_as_string"].as_str().unwrap())
+            .collect();
+        assert!(keys.contains(&"rock|N/A"), "expected {keys:?}");
+        assert!(keys.contains(&"pop|N/A"), "expected {keys:?}");
+        Ok(())
+    }
+
+    #[test]
+    fn test_multi_terms_fast_path_optional_field_overflow_falls_back() -> crate::Result<()> {
+        // Present-value range already spans the full `u64` space; combined with a
+        // mismatched-type `missing` that would need to bump past 64 bits, the fast path
+        // must gracefully bail (not overflow/panic) and fall back to the recursive
+        // collector, still producing correct results.
+        let mut schema_builder = Schema::builder();
+        let genre_field = schema_builder.add_text_field("genre", STRING | FAST);
+        let big_field = schema_builder
+            .add_u64_field("big", crate::schema::NumericOptions::default().set_fast());
+        let index = Index::create_in_ram(schema_builder.build());
+        {
+            let mut writer: IndexWriter = index.writer_with_num_threads(1, 20_000_000)?;
+            writer.add_document(doc!(genre_field => "rock", big_field => 0u64))?;
+            writer.add_document(doc!(genre_field => "rock", big_field => u64::MAX))?;
+            writer.add_document(doc!(genre_field => "pop"))?; // missing
+            writer.commit()?;
+        }
+
+        let agg_req: Aggregations = serde_json::from_value(json!({
+            "mt": {
+                "multi_terms": {
+                    "terms": [
+                        {"field": "genre"},
+                        {"field": "big", "missing": "N/A"}
+                    ]
+                }
+            }
+        }))?;
+        let res = exec_request(agg_req, &index)?;
+        let buckets = res["mt"]["buckets"].as_array().unwrap();
+        assert_eq!(buckets.len(), 3, "expected {buckets:?}");
+        let keys: Vec<&str> = buckets
+            .iter()
+            .map(|b| b["key_as_string"].as_str().unwrap())
+            .collect();
+        assert!(keys.contains(&"rock|0"), "expected {keys:?}");
+        let max_key = format!("rock|{}", u64::MAX);
+        assert!(keys.contains(&max_key.as_str()), "expected {keys:?}");
+        assert!(keys.contains(&"pop|N/A"), "expected {keys:?}");
         Ok(())
     }
 

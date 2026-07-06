@@ -347,7 +347,7 @@ pub const MAX_NUM_TERMS_FOR_PAGED_MAP: u64 = 8_000_000;
 /// Average docs-per-bucket below which term counts cluster too tightly (mostly 1s and 2s) for
 /// `select_nth_unstable` to beat `sort_unstable`'s adaptive paths, so we fall back to a full sort.
 /// This is very low on purpose, and meant to catch unique or mostly unique terms.
-const DOCS_PER_BUCKET_QUICKSELECT_THRESHOLD: u64 = 2;
+pub(crate) const DOCS_PER_BUCKET_QUICKSELECT_THRESHOLD: u64 = 2;
 
 /// Build a concrete `SegmentTermCollector` with either a Vec- or HashMap-backed
 /// bucket storage, depending on the column type and aggregation level.

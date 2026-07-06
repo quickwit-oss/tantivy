@@ -86,6 +86,31 @@ fn bench_agg(mut group: InputGroup<Index>) {
     register!(group, multi_terms_status_with_zipf_1000);
     register!(group, multi_terms_zipf_1000_with_status);
     register!(group, multi_terms_status_with_zipf_1000_sub_agg);
+    register!(group, multi_terms_7);
+    register!(group, multi_terms_all_unique);
+    register!(group, multi_terms_all_unique_order_by_key);
+    register!(group, multi_terms_150_000);
+    register!(group, multi_terms_many_top_1000);
+    register!(group, multi_terms_many_order_by_term);
+    register!(group, multi_terms_many_with_top_hits);
+    register!(group, multi_terms_all_unique_with_avg_sub_agg);
+    register!(group, multi_terms_many_with_avg_sub_agg);
+    register!(group, multi_terms_status_with_avg_sub_agg);
+    register!(group, multi_terms_status_with_histogram);
+    register!(group, multi_terms_status_with_date_histogram);
+    register!(group, multi_terms_status_with_date_histogram_hard_bounds);
+    register!(
+        group,
+        multi_terms_status_with_date_histogram_and_sibling_terms
+    );
+    register!(group, multi_terms_zipf_1000);
+    register!(group, multi_terms_zipf_1000_with_histogram);
+    register!(group, multi_terms_zipf_1000_with_avg_sub_agg);
+    register!(group, multi_terms_many_json_mixed_type_with_avg_sub_agg);
+    register!(group, multi_terms_status_with_cardinality_agg);
+    register!(group, multi_terms_100_buckets_with_cardinality_agg);
+    register!(group, multi_terms_many_with_single_term_order_by_card);
+    register!(group, multi_terms_many_with_single_term_2_order_by_card);
 
     register!(group, cardinality_agg);
     register!(group, cardinality_agg_high_card);
@@ -627,6 +652,291 @@ fn multi_terms_status_with_zipf_1000_sub_agg(index: &Index) {
             },
             "aggs": {
                 "average_f64": { "avg": { "field": "score_f64" } }
+            }
+        }
+    });
+    execute_agg(index, agg_req);
+}
+
+/// multi_terms equivalent of terms_7: single-column multi_terms on text_few_terms_status
+fn multi_terms_7(index: &Index) {
+    let agg_req = json!({
+        "my_texts": { "multi_terms": { "terms": [{"field": "text_few_terms_status"}] } },
+    });
+    execute_agg(index, agg_req);
+}
+/// multi_terms equivalent of terms_all_unique
+fn multi_terms_all_unique(index: &Index) {
+    let agg_req = json!({
+        "my_texts": { "multi_terms": { "terms": [{"field": "text_all_unique_terms"}] } },
+    });
+    execute_agg(index, agg_req);
+}
+/// multi_terms equivalent of terms_all_unique_order_by_key
+fn multi_terms_all_unique_order_by_key(index: &Index) {
+    let agg_req = json!({
+        "my_texts": {
+            "multi_terms": {
+                "terms": [{"field": "text_all_unique_terms"}],
+                "order": { "_key": "asc" }
+            }
+        },
+    });
+    execute_agg(index, agg_req);
+}
+/// multi_terms equivalent of terms_150_000
+fn multi_terms_150_000(index: &Index) {
+    let agg_req = json!({
+        "my_texts": { "multi_terms": { "terms": [{"field": "text_many_terms"}] } },
+    });
+    execute_agg(index, agg_req);
+}
+/// multi_terms equivalent of terms_many_top_1000
+fn multi_terms_many_top_1000(index: &Index) {
+    let agg_req = json!({
+        "my_texts": {
+            "multi_terms": { "terms": [{"field": "text_many_terms"}], "size": 1000 }
+        },
+    });
+    execute_agg(index, agg_req);
+}
+/// multi_terms equivalent of terms_many_order_by_term
+fn multi_terms_many_order_by_term(index: &Index) {
+    let agg_req = json!({
+        "my_texts": {
+            "multi_terms": {
+                "terms": [{"field": "text_many_terms"}],
+                "order": { "_key": "desc" }
+            }
+        },
+    });
+    execute_agg(index, agg_req);
+}
+/// multi_terms equivalent of terms_many_with_top_hits
+fn multi_terms_many_with_top_hits(index: &Index) {
+    let agg_req = json!({
+        "my_texts": {
+            "multi_terms": { "terms": [{"field": "text_many_terms"}] },
+            "aggs": {
+                "top_hits": { "top_hits":
+                    {
+                        "sort": [
+                            { "score": "desc" }
+                        ],
+                        "size": 2,
+                        "doc_value_fields": ["score_f64"]
+                    }
+                }
+            }
+        },
+    });
+    execute_agg(index, agg_req);
+}
+/// multi_terms equivalent of terms_all_unique_with_avg_sub_agg
+fn multi_terms_all_unique_with_avg_sub_agg(index: &Index) {
+    let agg_req = json!({
+        "my_texts": {
+            "multi_terms": { "terms": [{"field": "text_all_unique_terms"}] },
+            "aggs": {
+                "average_f64": { "avg": { "field": "score_f64" } }
+            }
+        },
+    });
+    execute_agg(index, agg_req);
+}
+/// multi_terms equivalent of terms_many_with_avg_sub_agg
+fn multi_terms_many_with_avg_sub_agg(index: &Index) {
+    let agg_req = json!({
+        "my_texts": {
+            "multi_terms": { "terms": [{"field": "text_many_terms"}] },
+            "aggs": {
+                "average_f64": { "avg": { "field": "score_f64" } }
+            }
+        },
+    });
+    execute_agg(index, agg_req);
+}
+/// multi_terms equivalent of terms_status_with_avg_sub_agg
+fn multi_terms_status_with_avg_sub_agg(index: &Index) {
+    let agg_req = json!({
+        "my_texts": {
+            "multi_terms": { "terms": [{"field": "text_few_terms_status"}] },
+            "aggs": {
+                "average_f64": { "avg": { "field": "score_f64" } }
+            }
+        },
+    });
+    execute_agg(index, agg_req);
+}
+/// multi_terms equivalent of terms_status_with_histogram
+fn multi_terms_status_with_histogram(index: &Index) {
+    let agg_req = json!({
+        "my_texts": {
+            "multi_terms": { "terms": [{"field": "text_few_terms_status"}] },
+            "aggs": {
+                "histo": {"histogram": { "field": "score_f64", "interval": 10 }}
+            }
+        }
+    });
+    execute_agg(index, agg_req);
+}
+/// multi_terms equivalent of terms_status_with_date_histogram
+fn multi_terms_status_with_date_histogram(index: &Index) {
+    let agg_req = json!({
+        "my_texts": {
+            "multi_terms": { "terms": [{"field": "text_few_terms_status"}] },
+            "aggs": {
+                "over_time": { "date_histogram": { "field": "timestamp", "fixed_interval": "1h" } }
+            }
+        }
+    });
+    execute_agg(index, agg_req);
+}
+/// multi_terms equivalent of terms_status_with_date_histogram_hard_bounds
+fn multi_terms_status_with_date_histogram_hard_bounds(index: &Index) {
+    let agg_req = json!({
+        "my_texts": {
+            "multi_terms": { "terms": [{"field": "text_few_terms_status"}] },
+            "aggs": {
+                "over_time": {
+                    "date_histogram": {
+                        "field": "timestamp",
+                        "fixed_interval": "1h",
+                        "hard_bounds": { "min": 3_600_000, "max": 428_400_000 }
+                    }
+                }
+            }
+        }
+    });
+    execute_agg(index, agg_req);
+}
+/// multi_terms equivalent of terms_status_with_date_histogram_and_sibling_terms
+fn multi_terms_status_with_date_histogram_and_sibling_terms(index: &Index) {
+    let agg_req = json!({
+        "my_texts": {
+            "multi_terms": { "terms": [{"field": "text_few_terms_status"}] },
+            "aggs": {
+                "over_time": { "date_histogram": { "field": "timestamp", "fixed_interval": "1h" } }
+            }
+        },
+        "other_texts": { "multi_terms": { "terms": [{"field": "text_few_terms"}] } }
+    });
+    execute_agg(index, agg_req);
+}
+/// multi_terms equivalent of terms_zipf_1000
+fn multi_terms_zipf_1000(index: &Index) {
+    let agg_req = json!({
+        "my_texts": { "multi_terms": { "terms": [{"field": "text_1000_terms_zipf"}] } },
+    });
+    execute_agg(index, agg_req);
+}
+/// multi_terms equivalent of terms_zipf_1000_with_histogram
+fn multi_terms_zipf_1000_with_histogram(index: &Index) {
+    let agg_req = json!({
+        "my_texts": {
+            "multi_terms": { "terms": [{"field": "text_1000_terms_zipf"}] },
+            "aggs": {
+                "histo": {"histogram": { "field": "score_f64", "interval": 10 }}
+            }
+        }
+    });
+    execute_agg(index, agg_req);
+}
+/// multi_terms equivalent of terms_zipf_1000_with_avg_sub_agg
+fn multi_terms_zipf_1000_with_avg_sub_agg(index: &Index) {
+    let agg_req = json!({
+        "my_texts": {
+            "multi_terms": { "terms": [{"field": "text_1000_terms_zipf"}] },
+            "aggs": {
+                "average_f64": { "avg": { "field": "score_f64" } }
+            }
+        },
+    });
+    execute_agg(index, agg_req);
+}
+/// multi_terms equivalent of terms_many_json_mixed_type_with_avg_sub_agg
+fn multi_terms_many_json_mixed_type_with_avg_sub_agg(index: &Index) {
+    let agg_req = json!({
+        "my_texts": {
+            "multi_terms": { "terms": [{"field": "json.mixed_type"}] },
+            "aggs": {
+                "average_f64": { "avg": { "field": "score_f64" } }
+            }
+        },
+    });
+    execute_agg(index, agg_req);
+}
+/// multi_terms equivalent of terms_status_with_cardinality_agg
+fn multi_terms_status_with_cardinality_agg(index: &Index) {
+    let agg_req = json!({
+        "my_texts": {
+            "multi_terms": { "terms": [{"field": "text_few_terms_status"}] },
+            "aggs": {
+                "cardinality": {
+                    "cardinality": {
+                        "field": "text_few_terms_status"
+                    },
+                }
+            }
+        },
+    });
+    execute_agg(index, agg_req);
+}
+/// multi_terms equivalent of terms_100_buckets_with_cardinality_agg
+fn multi_terms_100_buckets_with_cardinality_agg(index: &Index) {
+    let agg_req = json!({
+        "my_texts": {
+            "multi_terms": { "terms": [{"field": "text_1000_terms_zipf"}], "size": 100 },
+            "aggs": {
+                "cardinality": {
+                    "cardinality": {
+                        "field": "text_many_terms"
+                    },
+                }
+            }
+        },
+    });
+    execute_agg(index, agg_req);
+}
+/// multi_terms equivalent of terms_many_with_single_term_order_by_card:
+/// flat multi_terms(text_many_terms, single_term) instead of nested terms
+fn multi_terms_many_with_single_term_order_by_card(index: &Index) {
+    let agg_req = json!({
+        "my_texts": {
+            "multi_terms": {
+                "terms": [
+                    {"field": "text_many_terms"},
+                    {"field": "single_term"}
+                ],
+                "order": { "cardinality": "desc" }
+            },
+            "aggs": {
+                "cardinality": {
+                    "cardinality": { "field": "text_few_terms" }
+                }
+            }
+        },
+    });
+    execute_agg(index, agg_req);
+}
+/// multi_terms equivalent of terms_many_with_single_term_2_order_by_card:
+/// flat multi_terms(text_many_terms, single_term) instead of two nested terms levels
+fn multi_terms_many_with_single_term_2_order_by_card(index: &Index) {
+    let agg_req = json!({
+        "by_ip": {
+            "multi_terms": {
+                "terms": [
+                    {"field": "text_many_terms"},
+                    {"field": "single_term"}
+                ],
+                "order": { "card_few_terms": "desc" }
+            },
+            "aggs": {
+                "card_few_terms": {
+                    "cardinality": { "field": "text_few_terms" }
+                },
+                "avg_botscore": { "avg": { "field": "score" } },
+                "distinct_path2": { "cardinality": { "field": "text_few_terms" } }
             }
         }
     });
