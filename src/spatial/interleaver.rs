@@ -5,6 +5,7 @@ use std::cmp::Ordering;
 use std::collections::BinaryHeap;
 
 use common::ReadOnlyBitSet;
+use rustc_hash::FxHashSet;
 
 use super::cell_index_reader::CellIndexIter;
 use super::edge_cache::EdgeCache;
@@ -277,6 +278,7 @@ pub struct Interleaver<'a, S: Surface> {
     max_sponge_cells: u64,
     crossings: u64,
     crossers: u64,
+    geometry_ids: FxHashSet<GeometryId>,
     segment_names: Vec<String>,
 }
 
@@ -303,6 +305,7 @@ impl<'a, S: Surface> Interleaver<'a, S> {
             max_sponge_cells: 0,
             crossings: 0,
             crossers: 0,
+            geometry_ids: FxHashSet::default(),
             segment_names,
         };
         let n = merge.sources.len();
@@ -398,7 +401,11 @@ impl<'a, S: Surface> Iterator for Interleaver<'a, S> {
                         self.heap.push(HeapEntry::Sponge(merged));
                     } else {
                         let short_edges = merged.short_edge_count;
-                        let geometry_count = merged.anchors.len();
+                        self.geometry_ids.clear();
+                        for anchor in &merged.anchors {
+                            self.geometry_ids.insert(anchor.geometry_id);
+                        }
+                        let geometry_count = self.geometry_ids.len();
                         let threshold = self.max_edges.max(
                             (self.min_short_edge_fraction * (short_edges + geometry_count) as f64)
                                 as usize,
