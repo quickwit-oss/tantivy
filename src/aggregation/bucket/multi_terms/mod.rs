@@ -176,9 +176,7 @@ impl MultiTermsAggReqData {
 ///
 /// `accessor_idx` identifies which column of the field produced the value,
 /// enabling correct resolution back to a typed [`IntermediateKey`].
-/// The sentinel `u32::MAX` marks a synthetic missing value (resolved via the
-/// `missing` field of [`MultiTermsFieldAccessors`] rather than a column lookup).
-#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
 pub struct KeyElem {
     /// Index into `MultiTermsFieldAccessors::columns`, or `u32::MAX` for synthetic missing.
     pub accessor_idx: u32,
@@ -215,6 +213,9 @@ const MULTI_TERMS_KEY_INLINE_CAPACITY: usize = 3;
 /// The composite key for one combination of field values, inline-allocated for up to
 /// [`MULTI_TERMS_KEY_INLINE_CAPACITY`] fields.
 pub type MultiTermsKey = SmallVec<[KeyElem; MULTI_TERMS_KEY_INLINE_CAPACITY]>;
+
+/// One field's candidate `KeyElem`s for the current document.
+type FieldValues = SmallVec<[KeyElem; 2]>;
 
 #[derive(Clone, Copy, Debug, Default)]
 struct MultiTermsBucket {
@@ -349,72 +350,72 @@ impl SegmentMultiTermsCollector {
         map.capacity() * per_entry
     }
 
-    /// Depth-first cartesian product walk over all fields.
-    /// Pushes one `KeyElem` per field onto `prefix`, then at depth == num_fields emits the key.
+    /// Gathers field `field_acc`'s candidate `KeyElem`s for `doc_id` into `out`.
+    ///
+    /// Dedup or set missing value as required.
+    fn gather_field_values(
+        doc_id: crate::DocId,
+        field_acc: &MultiTermsFieldAccessors,
+        out: &mut FieldValues,
+    ) {
+        out.clear();
+        for (accessor_idx, (col, _col_type)) in field_acc.columns.iter().enumerate() {
+            let start = out.len();
+            out.extend(
+                col.values_for_doc(doc_id)
+                    .map(|raw| KeyElem::new(accessor_idx as u32, raw)),
+            );
+            if col.get_cardinality().is_multivalue() && out.len() - start > 1 {
+                let values = &mut out[start..];
+                values.sort_unstable_by_key(|elem| elem.raw);
+                let mut unique_index = 0;
+                for i in 1..values.len() {
+                    if values[i].raw != values[unique_index].raw {
+                        unique_index += 1;
+                        values[unique_index] = values[i];
+                    }
+                }
+                out.truncate(start + unique_index + 1);
+            }
+        }
+
+        if out.is_empty() {
+            if let Some(missing_elem) = field_acc.missing_key_elem {
+                out.push(missing_elem);
+            }
+        }
+    }
+
     fn visit(
         doc_id: crate::DocId,
         field_idx: usize,
         prefix: &mut MultiTermsKey,
-        req_data: &MultiTermsAggReqData,
+        field_values: &[FieldValues],
         buckets: &mut FxHashMap<MultiTermsKey, MultiTermsBucket>,
         sub_agg: &mut Option<BufferedSubAggs<HighCardSubAggBuffer>>,
         bucket_id_provider: &mut BucketIdProvider,
     ) {
-        let field_acc = &req_data.fields[field_idx];
-        let is_last = field_idx + 1 == req_data.fields.len();
-        let mut any_value = false;
+        let is_last = field_idx + 1 == field_values.len();
 
-        for (accessor_idx, (col, _col_type)) in field_acc.columns.iter().enumerate() {
-            // Multi-valued columns can repeat the same value for one doc (e.g. `tag: ["a",
-            // "a"]`); without deduping, the repeated value would be emitted as two separate
-            // combos, inflating doc_count and double-pushing the doc into sub-aggregations.
-            let mut raw_values: SmallVec<[u64; 2]> = col.values_for_doc(doc_id).collect();
-            if col.get_cardinality().is_multivalue() && raw_values.len() > 1 {
-                raw_values.sort_unstable();
-                raw_values.dedup();
+        for &elem in &field_values[field_idx] {
+            prefix.push(elem);
+            if is_last {
+                Self::emit(doc_id, prefix, buckets, sub_agg, bucket_id_provider);
+            } else {
+                Self::visit(
+                    doc_id,
+                    field_idx + 1,
+                    prefix,
+                    field_values,
+                    buckets,
+                    sub_agg,
+                    bucket_id_provider,
+                );
             }
-            for raw in raw_values {
-                any_value = true;
-                prefix.push(KeyElem::new(accessor_idx as u32, raw));
-                if is_last {
-                    Self::emit(doc_id, prefix, buckets, sub_agg, bucket_id_provider);
-                } else {
-                    Self::visit(
-                        doc_id,
-                        field_idx + 1,
-                        prefix,
-                        req_data,
-                        buckets,
-                        sub_agg,
-                        bucket_id_provider,
-                    );
-                }
-                prefix.pop();
-            }
-        }
-
-        if !any_value {
-            if let Some(missing_elem) = field_acc.missing_key_elem {
-                prefix.push(missing_elem);
-                if is_last {
-                    Self::emit(doc_id, prefix, buckets, sub_agg, bucket_id_provider);
-                } else {
-                    Self::visit(
-                        doc_id,
-                        field_idx + 1,
-                        prefix,
-                        req_data,
-                        buckets,
-                        sub_agg,
-                        bucket_id_provider,
-                    );
-                }
-                prefix.pop();
-            } // else drop the combo for this doc
+            prefix.pop();
         }
     }
 
-    #[inline]
     fn emit(
         doc_id: crate::DocId,
         key: &MultiTermsKey,
@@ -455,34 +456,14 @@ impl SegmentMultiTermsCollector {
                 }
             }
             OrderTarget::Key => {
-                // Resolve keys then sort lexicographically.
-                // We compare in column-ordinal space (u64 raw) which preserves
-                // term-dictionary ordering for Str columns.
-                // Fallback for different types: compare by accessor_idx first.
-                let ord = req.order.order;
-                entries.sort_unstable_by(|a, b| {
-                    let cmp = a
-                        .key
-                        .iter()
-                        .zip(b.key.iter())
-                        .find_map(|(ea, eb)| {
-                            let c = ea
-                                .accessor_idx
-                                .cmp(&eb.accessor_idx)
-                                .then(ea.raw.cmp(&eb.raw));
-                            if c != std::cmp::Ordering::Equal {
-                                Some(c)
-                            } else {
-                                None
-                            }
-                        })
-                        .unwrap_or(std::cmp::Ordering::Equal);
-                    if ord == Order::Desc {
-                        cmp.reverse()
-                    } else {
-                        cmp
-                    }
-                });
+                // `KeyElem`'s derived `Ord` (accessor_idx, then raw) compares in
+                // column-ordinal space, which preserves term-dictionary ordering for Str
+                // columns; `MultiTermsKey`'s `Ord` then compares keys lexicographically.
+                if req.order.order == Order::Desc {
+                    entries.sort_unstable_by(|a, b| b.key.cmp(&a.key));
+                } else {
+                    entries.sort_unstable_by(|a, b| a.key.cmp(&b.key));
+                }
             }
             OrderTarget::SubAggregation(sub_agg_path) => {
                 let coll = sub_agg_collector.as_deref().ok_or_else(|| {
@@ -598,12 +579,22 @@ impl SegmentAggregationCollector for SegmentMultiTermsCollector {
         let bucket_id_provider = &mut self.bucket_id_provider;
 
         let mut prefix: MultiTermsKey = SmallVec::with_capacity(num_fields);
-        for &doc_id in docs {
+        let mut field_values: SmallVec<[FieldValues; MULTI_TERMS_KEY_INLINE_CAPACITY]> =
+            (0..num_fields).map(|_| FieldValues::new()).collect();
+
+        'docs: for &doc_id in docs {
+            for (field_acc, values) in req_data.fields.iter().zip(field_values.iter_mut()) {
+                Self::gather_field_values(doc_id, field_acc, values);
+                if values.is_empty() {
+                    continue 'docs;
+                }
+            }
+
             Self::visit(
                 doc_id,
                 0,
                 &mut prefix,
-                req_data,
+                &field_values,
                 buckets,
                 sub_agg,
                 bucket_id_provider,
@@ -2150,9 +2141,46 @@ mod tests {
     }
 
     #[test]
+    fn test_multi_terms_dedups_mixed_repeats_in_multivalued_field() -> crate::Result<()> {
+        let mut schema_builder = Schema::builder();
+        let genre_field = schema_builder.add_text_field("genre", STRING | FAST);
+        let tag_field = schema_builder.add_text_field("tag", STRING | FAST);
+        let index = Index::create_in_ram(schema_builder.build());
+        {
+            let mut writer: IndexWriter = index.writer_with_num_threads(1, 20_000_000)?;
+            let mut d = doc!(genre_field => "rock");
+            d.add_text(tag_field, "a");
+            d.add_text(tag_field, "a");
+            d.add_text(tag_field, "b");
+            d.add_text(tag_field, "b");
+            d.add_text(tag_field, "c");
+            writer.add_document(d)?;
+            writer.commit()?;
+        }
+
+        let agg_req: Aggregations = serde_json::from_value(json!({
+            "mt": {
+                "multi_terms": {
+                    "terms": [{"field": "genre"}, {"field": "tag"}]
+                }
+            }
+        }))?;
+        let res = exec_request(agg_req, &index)?;
+        let buckets = res["mt"]["buckets"].as_array().unwrap();
+        let mut keys: Vec<&str> = buckets
+            .iter()
+            .map(|b| b["key_as_string"].as_str().unwrap())
+            .collect();
+        keys.sort_unstable();
+        assert_eq!(keys, vec!["rock|a", "rock|b", "rock|c"]);
+        for bucket in buckets {
+            assert_eq!(bucket["doc_count"], 1);
+        }
+        Ok(())
+    }
+
+    #[test]
     fn test_multi_terms_dedups_repeated_value_in_multivalued_field() -> crate::Result<()> {
-        // A multivalued column can repeat the same value twice for one doc (e.g.
-        // `tag: ["a", "a"]`), this shouldn't generate 2 hits for one bucket.
         let mut schema_builder = Schema::builder();
         let genre_field = schema_builder.add_text_field("genre", STRING | FAST);
         let tag_field = schema_builder.add_text_field("tag", STRING | FAST);
