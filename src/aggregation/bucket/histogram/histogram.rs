@@ -256,6 +256,10 @@ impl HistogramBounds {
 /// the zero-sized `()` when it does not. Without sub aggregations the id is never read, so storing
 /// `()` drops the id bytes per bucket and turns id assignment into a no-op.
 pub trait BucketIdSlot: Copy + Default + std::fmt::Debug + PartialEq + 'static {
+    /// Whether this slot carries a real id, i.e. `assign` produces a meaningful value. `false` for
+    /// the `()` slot, letting callers gate id-assignment code out at compile time (e.g. skip the
+    /// lazy-assign branch in a hot loop entirely rather than relying on the optimizer).
+    const ASSIGNS_ID: bool;
     /// Assigns the next id from the provider, called once when a bucket is first filled.
     fn assign(provider: &mut BucketIdProvider) -> Self;
     /// Resolves to the `BucketId` for sub-aggregation bookkeeping.
@@ -265,6 +269,7 @@ pub trait BucketIdSlot: Copy + Default + std::fmt::Debug + PartialEq + 'static {
     fn to_bucket_id(self) -> BucketId;
 }
 impl BucketIdSlot for BucketId {
+    const ASSIGNS_ID: bool = true;
     #[inline(always)]
     fn assign(provider: &mut BucketIdProvider) -> Self {
         provider.next_bucket_id()
@@ -275,6 +280,7 @@ impl BucketIdSlot for BucketId {
     }
 }
 impl BucketIdSlot for () {
+    const ASSIGNS_ID: bool = false;
     #[inline(always)]
     fn assign(_provider: &mut BucketIdProvider) -> Self {}
     #[inline(always)]
