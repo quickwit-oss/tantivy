@@ -70,7 +70,7 @@ fn bench_agg(mut group: InputGroup<Index>) {
     register!(group, terms_status_with_date_histogram);
     register!(group, terms_status_with_date_histogram_hard_bounds);
     register!(group, terms_status_with_date_histogram_and_sibling_terms);
-    register!(group, terms_zipf_1000);
+    register!(group, terms_zipf_1000_only);
     register!(group, terms_zipf_1000_with_histogram);
     register!(group, terms_zipf_1000_with_avg_sub_agg);
     register!(group, terms_zipf_90);
@@ -490,7 +490,7 @@ fn terms_zipf_1000_with_avg_sub_agg(index: &Index) {
     execute_agg(index, agg_req);
 }
 
-fn terms_zipf_1000(index: &Index) {
+fn terms_zipf_1000_only(index: &Index) {
     let agg_req = json!({
         "my_texts": { "terms": { "field": "text_1000_terms_zipf" } },
     });
@@ -763,13 +763,13 @@ fn get_collector(agg_req: Aggregations) -> AggregationCollector {
 }
 
 fn get_test_index_bench(cardinality: Cardinality) -> tantivy::Result<Index> {
-    // Flag to use existing index
+    // Flag to reuse an on-disk index across runs. The generated data differs per cardinality, so
+    // the path must include the cardinality — otherwise one cardinality reuses another's index.
     let reuse_index = std::env::var("REUSE_AGG_BENCH_INDEX").is_ok();
-    if reuse_index && std::path::Path::new("agg_bench").exists() {
-        return Index::open_in_dir("agg_bench");
+    let index_dir = format!("agg_bench/{cardinality:?}");
+    if reuse_index && std::path::Path::new(&index_dir).exists() {
+        return Index::open_in_dir(&index_dir);
     }
-    // crreate dir
-    std::fs::create_dir_all("agg_bench")?;
     let mut schema_builder = Schema::builder();
     let text_fieldtype = tantivy::schema::TextOptions::default()
         .set_indexing_options(
@@ -796,7 +796,8 @@ fn get_test_index_bench(cardinality: Cardinality) -> tantivy::Result<Index> {
     let date_field = schema_builder.add_date_field("timestamp", FAST);
     // use tmp dir
     let index = if reuse_index {
-        Index::create_in_dir("agg_bench", schema_builder.build())?
+        std::fs::create_dir_all(&index_dir)?;
+        Index::create_in_dir(&index_dir, schema_builder.build())?
     } else {
         Index::create_from_tempdir(schema_builder.build())?
     };
@@ -821,7 +822,7 @@ fn get_test_index_bench(cardinality: Cardinality) -> tantivy::Result<Index> {
         .collect::<Vec<_>>();
 
     // Prepare 1000 unique terms sampled using a Zipf distribution.
-    // Exponent ~1.1 approximates top-20 terms covering around ~20%.
+    // Exponent 1.1: heavy head — term_1 alone ~18%, top-20 terms ~57%.
     let terms_1000: Vec<String> = (1..=1000).map(|i| format!("term_{i}")).collect();
     let zipf_1000 = rand_distr::Zipf::new(1000.0, 1.1f64).unwrap();
 
