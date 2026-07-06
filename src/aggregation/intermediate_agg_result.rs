@@ -209,6 +209,37 @@ impl IntermediateAggregationResults {
         Self { aggs_res }
     }
 
+    pub(crate) fn get_value_from_aggregation(
+        &self,
+        name: &str,
+        agg_property: &str,
+    ) -> crate::Result<Option<f64>> {
+        if let Some(agg) = self.aggs_res.get(name) {
+            agg.get_value_from_aggregation(name, agg_property)
+        } else {
+            Err(TantivyError::InternalError(format!(
+                "Can't find aggregation {name:?} in sub-aggregations"
+            )))
+        }
+    }
+
+    /// Re-prune intermediate results using the limits from the aggregation request.
+    ///
+    /// `use_segment_size` controls which size limit is applied: `true` uses `segment_size`,
+    /// `false` uses `size`.
+    pub fn prune_intermediate_results(
+        &mut self,
+        req: &Aggregations,
+        use_segment_size: bool,
+    ) -> crate::Result<()> {
+        for (key, agg_res) in self.aggs_res.iter_mut() {
+            if let Some(agg_req) = req.get(key.as_str()) {
+                agg_res.prune_intermediate_results(agg_req, use_segment_size)?;
+            }
+        }
+        Ok(())
+    }
+
     /// Merge another intermediate aggregation result into this result.
     pub fn merge_fruits(&mut self, mut other: IntermediateAggregationResults) -> crate::Result<()> {
         for (key, left) in self.aggs_res.iter_mut() {
@@ -328,6 +359,34 @@ impl IntermediateAggregationResult {
             _ => panic!("aggregation result type mismatch (mixed metric and buckets)"),
         }
     }
+
+    pub(crate) fn get_value_from_aggregation(
+        &self,
+        _name: &str,
+        agg_property: &str,
+    ) -> crate::Result<Option<f64>> {
+        match self {
+            IntermediateAggregationResult::Bucket(_) => Err(TantivyError::InternalError(
+                "Tried to retrieve value from bucket aggregation. This is not supported and \
+                 should not happen during collection phase, but should be caught during validation"
+                    .to_string(),
+            )),
+            IntermediateAggregationResult::Metric(metric) => metric.get_value(agg_property),
+        }
+    }
+
+    pub(crate) fn prune_intermediate_results(
+        &mut self,
+        req: &Aggregation,
+        use_segment_size: bool,
+    ) -> crate::Result<()> {
+        match self {
+            IntermediateAggregationResult::Bucket(bucket) => {
+                bucket.prune_intermediate_results(req, use_segment_size)
+            }
+            IntermediateAggregationResult::Metric(_) => Ok(()),
+        }
+    }
 }
 
 /// Holds the intermediate data for metric results
@@ -404,6 +463,32 @@ impl IntermediateMetricResult {
             IntermediateMetricResult::Cardinality(cardinality) => {
                 MetricResult::Cardinality(cardinality.finalize().into())
             }
+        }
+    }
+
+    pub(crate) fn get_value(&self, agg_property: &str) -> crate::Result<Option<f64>> {
+        match self {
+            IntermediateMetricResult::Average(avg) => Ok(avg.finalize()),
+            IntermediateMetricResult::Count(count) => Ok(count.finalize()),
+            IntermediateMetricResult::Max(max) => Ok(max.finalize()),
+            IntermediateMetricResult::Min(min) => Ok(min.finalize()),
+            IntermediateMetricResult::Stats(stats) => stats.finalize().get_value(agg_property),
+            IntermediateMetricResult::ExtendedStats(stats) => {
+                stats.finalize().get_value(agg_property)
+            }
+            IntermediateMetricResult::Sum(sum) => Ok(sum.finalize()),
+            IntermediateMetricResult::Percentiles(collector) => {
+                let percentile: f64 = agg_property.parse().map_err(|_| {
+                    TantivyError::AggregationError(AggregationError::InvalidRequest(format!(
+                        "percentile property {agg_property:?} is not a valid number"
+                    )))
+                })?;
+                collector.get_percentile(percentile)
+            }
+            IntermediateMetricResult::TopHits(_) => Err(TantivyError::AggregationError(
+                AggregationError::InvalidRequest("top_hits can't be used to order".to_string()),
+            )),
+            IntermediateMetricResult::Cardinality(card) => Ok(card.clone().finalize()),
         }
     }
 
@@ -601,6 +686,48 @@ impl IntermediateBucketResult {
                     .expect("unexpected aggregation, expected composite aggregation");
                 buckets.into_final_result(composite_req, req.sub_aggregation(), limits)
             }
+        }
+    }
+
+    pub(crate) fn prune_intermediate_results(
+        &mut self,
+        req: &Aggregation,
+        use_segment_size: bool,
+    ) -> crate::Result<()> {
+        match self {
+            IntermediateBucketResult::Terms { buckets } => {
+                let terms_req = req
+                    .agg
+                    .as_term()
+                    .expect("unexpected aggregation, expected term aggregation");
+                buckets.prune_intermediate_results(
+                    terms_req,
+                    req.sub_aggregation(),
+                    use_segment_size,
+                )
+            }
+            IntermediateBucketResult::Range(range_res) => {
+                for entry in range_res.buckets.values_mut() {
+                    entry
+                        .sub_aggregation_res
+                        .prune_intermediate_results(req.sub_aggregation(), use_segment_size)?;
+                }
+                Ok(())
+            }
+            IntermediateBucketResult::Histogram { buckets, .. } => {
+                for entry in buckets.iter_mut() {
+                    entry
+                        .sub_aggregation
+                        .prune_intermediate_results(req.sub_aggregation(), use_segment_size)?;
+                }
+                Ok(())
+            }
+            IntermediateBucketResult::Filter {
+                sub_aggregations, ..
+            } => {
+                sub_aggregations.prune_intermediate_results(req.sub_aggregation(), use_segment_size)
+            }
+            IntermediateBucketResult::Composite { .. } => Ok(()),
         }
     }
 
@@ -820,6 +947,89 @@ impl IntermediateTermBucketResult {
             sum_other_doc_count: self.sum_other_doc_count + sum_other_doc_count,
             doc_count_error_upper_bound,
         })
+    }
+
+    pub(crate) fn prune_intermediate_results(
+        &mut self,
+        req: &TermsAggregation,
+        sub_aggregation_req: &Aggregations,
+        use_segment_size: bool,
+    ) -> crate::Result<()> {
+        let req_internal = TermsAggregationInternal::from_req(req);
+        let size = if use_segment_size {
+            req_internal.segment_size as usize
+        } else {
+            req_internal.size as usize
+        };
+
+        if self.entries.len() > size {
+            let mut entries: Vec<(IntermediateKey, IntermediateTermBucketEntry)> =
+                self.entries.drain().collect();
+
+            match &req_internal.order.target {
+                OrderTarget::SubAggregation(sub_agg_path) => {
+                    let (agg_name, agg_prop) = get_agg_name_and_property(sub_agg_path);
+                    let mut keyed: Vec<(f64, (IntermediateKey, IntermediateTermBucketEntry))> =
+                        entries
+                            .into_iter()
+                            .map(|entry| {
+                                let val = entry
+                                    .1
+                                    .sub_aggregation
+                                    .get_value_from_aggregation(agg_name, agg_prop)
+                                    .ok()
+                                    .flatten()
+                                    .unwrap_or(f64::MIN);
+                                (val, entry)
+                            })
+                            .collect();
+                    if req_internal.order.order == Order::Desc {
+                        keyed.select_nth_unstable_by(size, |a, b| b.0.total_cmp(&a.0));
+                    } else {
+                        keyed.select_nth_unstable_by(size, |a, b| a.0.total_cmp(&b.0));
+                    }
+                    entries = keyed.into_iter().map(|(_, entry)| entry).collect();
+                }
+                OrderTarget::Key => {
+                    if req_internal.order.order == Order::Desc {
+                        entries.select_nth_unstable_by(size, |(k1, _), (k2, _)| {
+                            k2.partial_cmp(k1)
+                                .expect("expected type string, which is always sortable")
+                        });
+                    } else {
+                        entries.select_nth_unstable_by(size, |(k1, _), (k2, _)| {
+                            k1.partial_cmp(k2)
+                                .expect("expected type string, which is always sortable")
+                        });
+                    }
+                }
+                OrderTarget::Count => {
+                    if req_internal.order.order == Order::Desc {
+                        entries.select_nth_unstable_by_key(size, |(_, e)| {
+                            std::cmp::Reverse(e.doc_count)
+                        });
+                    } else {
+                        entries.select_nth_unstable_by_key(size, |(_, e)| e.doc_count);
+                    }
+                }
+            }
+            let cutoff_doc_count = entries[size].1.doc_count;
+            self.sum_other_doc_count += entries[size..]
+                .iter()
+                .map(|(_, e)| e.doc_count)
+                .sum::<u64>();
+            self.doc_count_error_upper_bound += cutoff_doc_count;
+            entries.truncate(size);
+            self.entries = entries.into_iter().collect();
+        }
+
+        for entry in self.entries.values_mut() {
+            entry
+                .sub_aggregation
+                .prune_intermediate_results(sub_aggregation_req, use_segment_size)?;
+        }
+
+        Ok(())
     }
 }
 
@@ -1238,6 +1448,162 @@ mod tests {
         ]);
 
         assert_eq!(tree_left, tree_expected);
+    }
+
+    #[test]
+    fn test_prune_intermediate_results_finalizer_size() {
+        use crate::aggregation::bucket::TermsAggregation;
+
+        let mut buckets: FxHashMap<IntermediateKey, IntermediateTermBucketEntry> =
+            FxHashMap::default();
+        for (key, count) in [("a", 10u64), ("b", 5), ("c", 20), ("d", 1), ("e", 15)] {
+            buckets.insert(
+                IntermediateKey::Str(key.to_string()),
+                IntermediateTermBucketEntry {
+                    doc_count: count,
+                    sub_aggregation: Default::default(),
+                },
+            );
+        }
+        let mut term_result = IntermediateTermBucketResult {
+            entries: buckets,
+            sum_other_doc_count: 0,
+            doc_count_error_upper_bound: 0,
+        };
+
+        let req: TermsAggregation =
+            serde_json::from_str(r#"{"field": "myfield", "size": 2, "segment_size": 4}"#).unwrap();
+
+        // use_segment_size=false → keep top 2 by count: c(20), e(15); prune a(10), b(5), d(1)
+        term_result
+            .prune_intermediate_results(&req, &Default::default(), false)
+            .unwrap();
+        assert_eq!(term_result.entries.len(), 2);
+        assert!(term_result
+            .entries
+            .contains_key(&IntermediateKey::Str("c".to_string())));
+        assert!(term_result
+            .entries
+            .contains_key(&IntermediateKey::Str("e".to_string())));
+        assert_eq!(term_result.sum_other_doc_count, 10 + 5 + 1);
+        assert_eq!(term_result.doc_count_error_upper_bound, 10); // doc_count of first cut entry (a)
+    }
+
+    #[test]
+    fn test_prune_intermediate_results_segment_size() {
+        use crate::aggregation::bucket::TermsAggregation;
+
+        let mut buckets: FxHashMap<IntermediateKey, IntermediateTermBucketEntry> =
+            FxHashMap::default();
+        for (key, count) in [("a", 10u64), ("b", 5), ("c", 20), ("d", 1), ("e", 15)] {
+            buckets.insert(
+                IntermediateKey::Str(key.to_string()),
+                IntermediateTermBucketEntry {
+                    doc_count: count,
+                    sub_aggregation: Default::default(),
+                },
+            );
+        }
+        let mut term_result = IntermediateTermBucketResult {
+            entries: buckets,
+            sum_other_doc_count: 0,
+            doc_count_error_upper_bound: 0,
+        };
+
+        let req: TermsAggregation =
+            serde_json::from_str(r#"{"field": "myfield", "size": 2, "segment_size": 4}"#).unwrap();
+
+        // use_segment_size=true → keep top 4 by count: c(20), e(15), a(10), b(5); prune d(1)
+        term_result
+            .prune_intermediate_results(&req, &Default::default(), true)
+            .unwrap();
+        assert_eq!(term_result.entries.len(), 4);
+        assert!(!term_result
+            .entries
+            .contains_key(&IntermediateKey::Str("d".to_string())));
+        assert_eq!(term_result.sum_other_doc_count, 1);
+        assert_eq!(term_result.doc_count_error_upper_bound, 1);
+    }
+
+    #[test]
+    fn test_prune_intermediate_results_via_top_level() {
+        let mut buckets: FxHashMap<IntermediateKey, IntermediateTermBucketEntry> =
+            FxHashMap::default();
+        for (key, count) in [("x", 100u64), ("y", 50), ("z", 10)] {
+            buckets.insert(
+                IntermediateKey::Str(key.to_string()),
+                IntermediateTermBucketEntry {
+                    doc_count: count,
+                    sub_aggregation: Default::default(),
+                },
+            );
+        }
+        let mut results = IntermediateAggregationResults::default();
+        results.aggs_res.insert(
+            "my_terms".to_string(),
+            IntermediateAggregationResult::Bucket(IntermediateBucketResult::Terms {
+                buckets: IntermediateTermBucketResult {
+                    entries: buckets,
+                    sum_other_doc_count: 0,
+                    doc_count_error_upper_bound: 0,
+                },
+            }),
+        );
+
+        let req: crate::aggregation::agg_req::Aggregations =
+            serde_json::from_str(r#"{"my_terms": {"terms": {"field": "myfield", "size": 1}}}"#)
+                .unwrap();
+
+        results.prune_intermediate_results(&req, false).unwrap();
+
+        let IntermediateAggregationResult::Bucket(IntermediateBucketResult::Terms { buckets }) =
+            results.aggs_res.get("my_terms").unwrap()
+        else {
+            panic!("expected terms bucket");
+        };
+        assert_eq!(buckets.entries.len(), 1);
+        assert!(buckets
+            .entries
+            .contains_key(&IntermediateKey::Str("x".to_string())));
+        assert_eq!(buckets.sum_other_doc_count, 60); // y(50) + z(10)
+    }
+
+    #[test]
+    fn test_prune_intermediate_results_key_order() {
+        use crate::aggregation::bucket::TermsAggregation;
+
+        let mut buckets: FxHashMap<IntermediateKey, IntermediateTermBucketEntry> =
+            FxHashMap::default();
+        for key in ["a", "b", "c", "d", "e"] {
+            buckets.insert(
+                IntermediateKey::Str(key.to_string()),
+                IntermediateTermBucketEntry {
+                    doc_count: 1,
+                    sub_aggregation: Default::default(),
+                },
+            );
+        }
+        let mut term_result = IntermediateTermBucketResult {
+            entries: buckets,
+            sum_other_doc_count: 0,
+            doc_count_error_upper_bound: 0,
+        };
+
+        let req: TermsAggregation =
+            serde_json::from_str(r#"{"field": "myfield", "size": 2, "order": {"_key": "asc"}}"#)
+                .unwrap();
+
+        // asc key order, size=2 → keep "a" and "b"
+        term_result
+            .prune_intermediate_results(&req, &Default::default(), false)
+            .unwrap();
+        assert_eq!(term_result.entries.len(), 2);
+        assert!(term_result
+            .entries
+            .contains_key(&IntermediateKey::Str("a".to_string())));
+        assert!(term_result
+            .entries
+            .contains_key(&IntermediateKey::Str("b".to_string())));
     }
 
     #[test]

@@ -176,6 +176,15 @@ fn format_percentile(percentile: f64) -> String {
 }
 
 impl PercentilesCollector {
+    /// Returns the value at the given percentile (0–100). Returns `None` when the sketch is empty.
+    pub(crate) fn get_percentile(&self, percentile: f64) -> crate::Result<Option<f64>> {
+        self.sketch.quantile(percentile / 100.0).map_err(|err| {
+            TantivyError::AggregationError(crate::aggregation::AggregationError::InvalidRequest(
+                format!("percentile {percentile} out of range: {err}"),
+            ))
+        })
+    }
+
     /// Convert result into final result. This will query the quantils from the underlying quantil
     /// collector.
     pub fn into_final_result(self, req: &PercentilesAggregationReq) -> PercentilesMetricResult {
