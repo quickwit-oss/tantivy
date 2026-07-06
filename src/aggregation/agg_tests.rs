@@ -3,7 +3,10 @@ use serde_json::Value;
 use crate::aggregation::agg_req::{Aggregation, Aggregations};
 use crate::aggregation::agg_result::AggregationResults;
 use crate::aggregation::collector::AggregationCollector;
-use crate::aggregation::intermediate_agg_result::IntermediateAggregationResults;
+use crate::aggregation::intermediate_agg_result::{
+    IntermediateAggregationResult, IntermediateAggregationResults, IntermediateBucketResult,
+    IntermediateKey,
+};
 use crate::aggregation::tests::{get_test_index_2_segments, get_test_index_from_values_and_terms};
 use crate::aggregation::DistributedAggregationCollector;
 use crate::docset::COLLECT_BLOCK_BUFFER_LEN;
@@ -1478,4 +1481,133 @@ fn test_aggregation_field_validation_helper() {
     let result =
         crate::aggregation::agg_req::validate_aggregation_fields_exist(&agg_req, segment_reader);
     assert!(result.is_ok());
+}
+
+// "a" has low scores (p50 ≈ 1.5), "b" has high scores (p50 ≈ 99.5).
+// With order by p50 desc and segment_size=1, the segment collector should retain only "b".
+#[test]
+fn test_percentile_order_segment_level() -> crate::Result<()> {
+    let index = get_test_index_from_values_and_terms(
+        false,
+        &[vec![
+            (1.0, "a".to_string()),
+            (2.0, "a".to_string()),
+            (99.0, "b".to_string()),
+            (100.0, "b".to_string()),
+        ]],
+    )?;
+
+    let agg_req: Aggregations = serde_json::from_value(serde_json::json!({
+        "my_terms": {
+            "terms": {
+                "field": "string_id",
+                "size": 1,
+                "segment_size": 1,
+                "order": { "my_pct.50": "desc" }
+            },
+            "aggs": {
+                "my_pct": { "percentiles": { "field": "score_f64", "percents": [50] } }
+            }
+        }
+    }))
+    .unwrap();
+
+    let collector = DistributedAggregationCollector::from_aggs(agg_req, Default::default());
+    let reader = index.reader()?;
+    let intermediate = reader.searcher().search(&AllQuery, &collector)?;
+
+    let IntermediateAggregationResult::Bucket(IntermediateBucketResult::Terms { buckets }) =
+        intermediate.aggs_res.get("my_terms").unwrap()
+    else {
+        panic!("expected terms bucket");
+    };
+    assert_eq!(
+        buckets.entries.len(),
+        1,
+        "segment_size=1 should retain only one bucket"
+    );
+    assert!(
+        buckets
+            .entries
+            .contains_key(&IntermediateKey::Str("b".to_string())),
+        "\"b\" (higher p50) should survive, not \"a\""
+    );
+    assert!(
+        buckets.sum_other_doc_count > 0,
+        "pruned docs should be accounted for"
+    );
+
+    Ok(())
+}
+
+// Same setup with two segments. Both terms survive segment-level pruning (segment_size=2).
+// After merging, prune_intermediate_results with size=1 should keep only "b".
+#[test]
+fn test_percentile_order_prune_intermediate() -> crate::Result<()> {
+    let index = get_test_index_from_values_and_terms(
+        false,
+        &[
+            vec![
+                (1.0, "a".to_string()),
+                (2.0, "a".to_string()),
+                (99.0, "b".to_string()),
+                (100.0, "b".to_string()),
+            ],
+            vec![(3.0, "a".to_string()), (98.0, "b".to_string())],
+        ],
+    )?;
+
+    let agg_req: Aggregations = serde_json::from_value(serde_json::json!({
+        "my_terms": {
+            "terms": {
+                "field": "string_id",
+                "size": 1,
+                "segment_size": 2,
+                "order": { "my_pct.50": "desc" }
+            },
+            "aggs": {
+                "my_pct": { "percentiles": { "field": "score_f64", "percents": [50] } }
+            }
+        }
+    }))
+    .unwrap();
+
+    let collector = DistributedAggregationCollector::from_aggs(agg_req.clone(), Default::default());
+    let reader = index.reader()?;
+    let mut intermediate = reader.searcher().search(&AllQuery, &collector)?;
+
+    // Both terms should have survived segment-level pruning (segment_size=2).
+    {
+        let IntermediateAggregationResult::Bucket(IntermediateBucketResult::Terms { buckets }) =
+            intermediate.aggs_res.get("my_terms").unwrap()
+        else {
+            panic!("expected terms bucket");
+        };
+        assert_eq!(
+            buckets.entries.len(),
+            2,
+            "both terms should survive segment-level pruning"
+        );
+    }
+
+    intermediate.prune_intermediate_results(&agg_req, false)?;
+
+    let IntermediateAggregationResult::Bucket(IntermediateBucketResult::Terms { buckets }) =
+        intermediate.aggs_res.get("my_terms").unwrap()
+    else {
+        panic!("expected terms bucket");
+    };
+    assert_eq!(
+        buckets.entries.len(),
+        1,
+        "size=1 should retain only one bucket"
+    );
+    assert!(
+        buckets
+            .entries
+            .contains_key(&IntermediateKey::Str("b".to_string())),
+        "\"b\" (higher p50) should survive, not \"a\""
+    );
+
+    Ok(())
 }
