@@ -670,6 +670,17 @@ struct FieldPack {
     min_value: u64,
 }
 
+fn single_field_fast_path_compatible(field: &MultiTermsFieldAccessors) -> bool {
+    if field.columns.len() != 1 {
+        return false
+    }
+    let (col, _col_type) = &field.columns[0];
+    if !col.get_cardinality().is_full() {
+        return false
+    }
+    true
+}
+
 /// Computes the packed-key layout for the fast path, or `None` if any field is
 /// ineligible: a JSON multi-column field, a field that is not "full" (i.e. not exactly
 /// one value per doc -- this rules out both optional and multivalued columns), or a
@@ -677,14 +688,12 @@ struct FieldPack {
 fn compute_fast_path_layout(fields: &[MultiTermsFieldAccessors]) -> Option<Vec<FieldPack>> {
     let mut widths = Vec::with_capacity(fields.len());
     let mut mins = Vec::with_capacity(fields.len());
+
+    if !fields.iter().all(single_field_fast_path_compatible) {
+        return None
+    }
     for field_acc in fields {
-        if field_acc.columns.len() != 1 {
-            return None;
-        }
         let (col, _col_type) = &field_acc.columns[0];
-        if !col.get_cardinality().is_full() {
-            return None;
-        }
         let min_value = col.min_value();
         let range = col.max_value() - min_value;
         widths.push(64 - range.leading_zeros());
