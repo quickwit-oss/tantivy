@@ -346,9 +346,11 @@ fn test_single_segment_index_writer_with_doc_id_mapping() -> crate::Result<()> {
     assert!(!index.settings().manual_doc_id_mapping);
     let segment_metas = index.searchable_segment_metas()?;
     let segment_meta = &segment_metas[0];
+    let temp_store_path = segment_meta.relative_path(SegmentComponent::TempStore);
     assert!(!segment_meta
         .list_files()
-        .contains(&segment_meta.relative_path(SegmentComponent::TempStore)));
+        .contains(&temp_store_path));
+    assert!(!index.directory().exists(&temp_store_path)?);
 
     let mut index_writer = index.writer_for_tests()?;
     index_writer.add_document(doc!(text_field=>"delta"))?;
@@ -382,9 +384,11 @@ fn test_single_segment_index_writer_with_sort_by_field_untracks_tempstore() -> c
 
     let segment_metas = index.searchable_segment_metas()?;
     let segment_meta = &segment_metas[0];
+    let temp_store_path = segment_meta.relative_path(SegmentComponent::TempStore);
     assert!(!segment_meta
         .list_files()
-        .contains(&segment_meta.relative_path(SegmentComponent::TempStore)));
+        .contains(&temp_store_path));
+    assert!(!index.directory().exists(&temp_store_path)?);
     Ok(())
 }
 

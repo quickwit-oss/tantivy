@@ -72,19 +72,31 @@ impl<D: Document> SingleSegmentIndexWriter<D> {
         index_settings: IndexSettings,
     ) -> crate::Result<Index> {
         let segment: Segment = segment.with_max_doc(max_doc);
+        let segment_meta = segment.meta();
+        let mut index = segment.index().clone();
+
         if remapping_required {
-            segment.meta().untrack_temp_docstore();
+            // Untrack the temp docstore file from the segment metadata.
+            segment_meta.untrack_temp_docstore();
         }
-        let index = segment.index();
+
         let index_meta = IndexMeta {
             index_settings,
-            segments: vec![segment.meta().clone()],
+            segments: vec![segment_meta.clone()],
             schema: index.schema(),
             opstamp: 0,
             payload: None,
         };
         save_metas(&index_meta, index.directory())?;
         index.directory().sync_directory()?;
-        Ok(index.clone())
+
+        if remapping_required {
+            // Run the garbage collector to remove the temp docstore file from the directory.
+            let mut living_files = segment_meta.list_files();
+            living_files.insert(crate::core::META_FILEPATH.to_path_buf());
+            index.directory_mut().garbage_collect(|| living_files)?;
+        }
+
+        Ok(index)
     }
 }
