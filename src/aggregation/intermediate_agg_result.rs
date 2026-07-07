@@ -727,7 +727,17 @@ impl IntermediateBucketResult {
             } => {
                 sub_aggregations.prune_intermediate_results(req.sub_aggregation(), use_segment_size)
             }
-            IntermediateBucketResult::Composite { .. } => Ok(()),
+            IntermediateBucketResult::Composite { buckets } => {
+                if !use_segment_size {
+                    buckets.trim()?;
+                }
+                for entry in buckets.entries.values_mut() {
+                    entry
+                        .sub_aggregation
+                        .prune_intermediate_results(req.sub_aggregation(), use_segment_size)?;
+                }
+                Ok(())
+            }
         }
     }
 
@@ -962,6 +972,11 @@ impl IntermediateTermBucketResult {
             req_internal.size as usize
         };
 
+        if !use_segment_size {
+            let min_doc_count = req_internal.min_doc_count;
+            self.entries.retain(|_, e| e.doc_count >= min_doc_count);
+        }
+
         if self.entries.len() > size {
             let mut entries: Vec<(IntermediateKey, IntermediateTermBucketEntry)> =
                 self.entries.drain().collect();
@@ -991,17 +1006,23 @@ impl IntermediateTermBucketResult {
                     entries = keyed.into_iter().map(|(_, entry)| entry).collect();
                 }
                 OrderTarget::Key => {
+                    let mut keyed: Vec<(Key, (IntermediateKey, IntermediateTermBucketEntry))> =
+                        entries
+                            .into_iter()
+                            .map(|entry| (entry.0.clone().into(), entry))
+                            .collect();
                     if req_internal.order.order == Order::Desc {
-                        entries.select_nth_unstable_by(size, |(k1, _), (k2, _)| {
+                        keyed.select_nth_unstable_by(size, |(k1, _), (k2, _)| {
                             k2.partial_cmp(k1)
                                 .expect("expected type string, which is always sortable")
                         });
                     } else {
-                        entries.select_nth_unstable_by(size, |(k1, _), (k2, _)| {
+                        keyed.select_nth_unstable_by(size, |(k1, _), (k2, _)| {
                             k1.partial_cmp(k2)
                                 .expect("expected type string, which is always sortable")
                         });
                     }
+                    entries = keyed.into_iter().map(|(_, entry)| entry).collect();
                 }
                 OrderTarget::Count => {
                     if req_internal.order.order == Order::Desc {
@@ -1018,7 +1039,9 @@ impl IntermediateTermBucketResult {
                 .iter()
                 .map(|(_, e)| e.doc_count)
                 .sum::<u64>();
-            self.doc_count_error_upper_bound += cutoff_doc_count;
+            if use_segment_size {
+                self.doc_count_error_upper_bound += cutoff_doc_count;
+            }
             entries.truncate(size);
             self.entries = entries.into_iter().collect();
         }
@@ -1486,7 +1509,8 @@ mod tests {
             .entries
             .contains_key(&IntermediateKey::Str("e".to_string())));
         assert_eq!(term_result.sum_other_doc_count, 10 + 5 + 1);
-        assert_eq!(term_result.doc_count_error_upper_bound, 10); // doc_count of first cut entry (a)
+        // final-size cutoff doesn't contribute to error bound
+        assert_eq!(term_result.doc_count_error_upper_bound, 0);
     }
 
     #[test]
