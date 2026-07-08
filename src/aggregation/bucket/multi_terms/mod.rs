@@ -672,11 +672,11 @@ struct FieldPack {
 
 fn single_field_fast_path_compatible(field: &MultiTermsFieldAccessors) -> bool {
     if field.columns.len() != 1 {
-        return false
+        return false;
     }
     let (col, _col_type) = &field.columns[0];
     if !col.get_cardinality().is_full() {
-        return false
+        return false;
     }
     true
 }
@@ -690,7 +690,7 @@ fn compute_fast_path_layout(fields: &[MultiTermsFieldAccessors]) -> Option<Vec<F
     let mut mins = Vec::with_capacity(fields.len());
 
     if !fields.iter().all(single_field_fast_path_compatible) {
-        return None
+        return None;
     }
     for field_acc in fields {
         let (col, _col_type) = &field_acc.columns[0];
