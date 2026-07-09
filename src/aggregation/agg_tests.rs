@@ -664,6 +664,82 @@ fn test_aggregation_flushing_variants() {
     test_aggregation_flushing(true, true).unwrap();
 }
 
+// Regression test for https://github.com/quickwit-oss/tantivy/issues/2992
+//
+// A skewed terms bucket over <100 terms uses the low-cardinality (Vec) sub-agg buffer. A dominant
+// term keeps crossing the periodic flush threshold (every 2048 docs), which used to drop the
+// cached doc ids of the minority buckets before collecting them — corrupting their metric
+// sub-aggregations while their doc counts stayed exact.
+#[test]
+fn test_terms_sub_agg_flushing_skewed_buckets() -> crate::Result<()> {
+    use std::collections::HashMap;
+
+    // 89 minority terms + 1 dominant term = 90 distinct terms, staying below
+    // MAX_NUM_TERMS_FOR_VEC (100) so the low-cardinality Vec sub-agg buffer is used.
+    const NUM_MINORITY_TERMS: usize = 89;
+
+    let mut values: Vec<(f64, String)> = Vec::new();
+    let mut minority_idx = 0usize;
+    // Enough docs to cross the 2048 flush threshold multiple times. The minority docs are
+    // sprinkled among the dominant ones so they land in different flush windows.
+    for i in 0..5000u64 {
+        if i % 25 == 0 {
+            let term = format!("minority_{:02}", minority_idx % NUM_MINORITY_TERMS);
+            minority_idx += 1;
+            values.push(((i % 13 + 1) as f64, term));
+        } else {
+            values.push((7.0, "dominant".to_string()));
+        }
+    }
+
+    let mut truth: HashMap<String, (u64, f64)> = HashMap::new();
+    for (score, term) in &values {
+        let entry = truth.entry(term.clone()).or_insert((0, 0.0));
+        entry.0 += 1;
+        entry.1 += *score;
+    }
+    // Sanity check on the shape of the generated data.
+    assert_eq!(truth.len(), NUM_MINORITY_TERMS + 1);
+
+    let index = get_test_index_from_values_and_terms(false, &[values])?;
+    let reader = index.reader()?;
+
+    let agg_req: Aggregations = serde_json::from_value(json!({
+        "my_terms": {
+            "terms": { "field": "string_id", "size": 100 },
+            "aggs": {
+                "sum_score": { "sum": { "field": "score" } }
+            }
+        }
+    }))
+    .unwrap();
+
+    let collector = get_collector(agg_req);
+    let searcher = reader.searcher();
+    let agg_res = searcher.search(&AllQuery, &collector)?;
+    let res: Value = serde_json::from_str(&serde_json::to_string(&agg_res)?)?;
+
+    let buckets = res["my_terms"]["buckets"].as_array().unwrap();
+    // size 100 >= 90 distinct terms, so every bucket is returned.
+    assert_eq!(buckets.len(), truth.len());
+    for bucket in buckets {
+        let key = bucket["key"].as_str().unwrap();
+        let (true_count, true_sum) = truth[key];
+        assert_eq!(
+            bucket["doc_count"].as_u64().unwrap(),
+            true_count,
+            "doc_count mismatch for {key}"
+        );
+        assert_eq!(
+            bucket["sum_score"]["value"].as_f64().unwrap(),
+            true_sum,
+            "sum sub-agg mismatch for {key}"
+        );
+    }
+
+    Ok(())
+}
+
 #[test]
 fn test_aggregation_level1_simple() -> crate::Result<()> {
     let index = get_test_index_2_segments(true)?;
