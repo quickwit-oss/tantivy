@@ -73,6 +73,8 @@ fn bench_agg(mut group: InputGroup<Index>) {
     register!(group, terms_zipf_1000);
     register!(group, terms_zipf_1000_with_histogram);
     register!(group, terms_zipf_1000_with_avg_sub_agg);
+    register!(group, terms_zipf_90);
+    register!(group, terms_zipf_90_with_sum_sub_agg);
 
     register!(group, terms_many_json_mixed_type_with_avg_sub_agg);
 
@@ -495,6 +497,27 @@ fn terms_zipf_1000(index: &Index) {
     execute_agg(index, agg_req);
 }
 
+fn terms_zipf_90(index: &Index) {
+    let agg_req = json!({
+        "my_texts": { "terms": { "field": "text_90_terms_zipf", "size": 100 } },
+    });
+    execute_agg(index, agg_req);
+}
+
+// 90-term (low-cardinality Vec path) terms agg with a metric sub-agg. The skewed distribution keeps
+// a dominant bucket crossing the sub-agg flush threshold, exercising the buffer flush path.
+fn terms_zipf_90_with_sum_sub_agg(index: &Index) {
+    let agg_req = json!({
+        "my_texts": {
+            "terms": { "field": "text_90_terms_zipf", "size": 100 },
+            "aggs": {
+                "sum_score": { "sum": { "field": "score" } }
+            }
+        },
+    });
+    execute_agg(index, agg_req);
+}
+
 fn terms_many_json_mixed_type_with_avg_sub_agg(index: &Index) {
     let agg_req = json!({
         "my_texts": {
@@ -762,6 +785,8 @@ fn get_test_index_bench(cardinality: Cardinality) -> tantivy::Result<Index> {
     let text_field_few_terms = schema_builder.add_text_field("text_few_terms", STRING | FAST);
     let text_field_few_terms_status =
         schema_builder.add_text_field("text_few_terms_status", STRING | FAST);
+    let text_field_90_terms_zipf =
+        schema_builder.add_text_field("text_90_terms_zipf", STRING | FAST);
     let text_field_1000_terms_zipf =
         schema_builder.add_text_field("text_1000_terms_zipf", STRING | FAST);
     let score_fieldtype = tantivy::schema::NumericOptions::default().set_fast();
@@ -800,6 +825,12 @@ fn get_test_index_bench(cardinality: Cardinality) -> tantivy::Result<Index> {
     let terms_1000: Vec<String> = (1..=1000).map(|i| format!("term_{i}")).collect();
     let zipf_1000 = rand_distr::Zipf::new(1000.0, 1.1f64).unwrap();
 
+    // 90 terms (< MAX_NUM_TERMS_FOR_VEC), skewed via Zipf so a dominant bucket keeps crossing the
+    // sub-agg flush threshold while minority buckets stay small. Exercises the low-cardinality
+    // sub-agg buffer flush path (see issue #2992).
+    let terms_90: Vec<String> = (1..=90).map(|i| format!("term_{i}")).collect();
+    let zipf_90 = rand_distr::Zipf::new(90.0, 1.1f64).unwrap();
+
     {
         let mut rng = StdRng::from_seed([1u8; 32]);
         let mut index_writer = index.writer_with_num_threads(1, 200_000_000)?;
@@ -815,6 +846,8 @@ fn get_test_index_bench(cardinality: Cardinality) -> tantivy::Result<Index> {
             let idx_b = zipf_1000.sample(&mut rng) as usize - 1;
             let term_1000_a = &terms_1000[idx_a];
             let term_1000_b = &terms_1000[idx_b];
+            let term_90_a = &terms_90[zipf_90.sample(&mut rng) as usize - 1];
+            let term_90_b = &terms_90[zipf_90.sample(&mut rng) as usize - 1];
             index_writer.add_document(doc!(
                 json_field => json!({"mixed_type": 10.0}),
                 json_field => json!({"mixed_type": 10.0}),
@@ -830,6 +863,8 @@ fn get_test_index_bench(cardinality: Cardinality) -> tantivy::Result<Index> {
                 text_field_few_terms => "cool",
                 text_field_few_terms_status => log_level_sample_a,
                 text_field_few_terms_status => log_level_sample_b,
+                text_field_90_terms_zipf => term_90_a.as_str(),
+                text_field_90_terms_zipf => term_90_b.as_str(),
                 text_field_1000_terms_zipf => term_1000_a.as_str(),
                 text_field_1000_terms_zipf => term_1000_b.as_str(),
                 score_field => 1u64,
@@ -866,6 +901,7 @@ fn get_test_index_bench(cardinality: Cardinality) -> tantivy::Result<Index> {
                 text_field_many_terms => many_terms_data.choose(&mut rng).unwrap().to_string(),
                 text_field_few_terms => few_terms_data.choose(&mut rng).unwrap().to_string(),
                 text_field_few_terms_status => status_field_data[log_level_distribution.sample(&mut rng)].0,
+                text_field_90_terms_zipf => terms_90[zipf_90.sample(&mut rng) as usize - 1].as_str(),
                 text_field_1000_terms_zipf => terms_1000[zipf_1000.sample(&mut rng) as usize - 1].as_str(),
                 score_field => val as u64,
                 score_field_f64 => lg_norm.sample(&mut rng),
