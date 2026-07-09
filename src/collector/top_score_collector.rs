@@ -490,6 +490,19 @@ where
     fn convert_segment_sort_key(&self, sort_key: Self::SegmentSortKey) -> Self::SortKey {
         sort_key
     }
+
+    fn supports_bm25_pruning(&self) -> bool {
+        false
+    }
+
+    fn bm25_pruning_threshold(
+        &self,
+        _threshold: &Self::SegmentSortKey,
+        _segment_ord: crate::SegmentOrdinal,
+        _threshold_ord: crate::SegmentOrdinal,
+    ) -> Option<Score> {
+        None
+    }
 }
 
 /// Fast TopN Computation
@@ -520,8 +533,6 @@ pub struct TopNComputer<Score, D, C> {
     #[serde(skip)]
     pub(crate) shared_threshold: SharedThresholdArcOpt<Score>,
     pub(crate) segment_ord: SegmentOrdinal,
-    #[serde(skip)]
-    pub(crate) pruning_threshold: Option<Score>,
 }
 
 // Intermediate struct for TopNComputer for deserialization, to keep vec capacity
@@ -552,7 +563,6 @@ impl<Score, D, C> From<TopNComputerDeser<Score, D, C>> for TopNComputer<Score, D
             comparator: value.comparator,
             shared_threshold: None,
             segment_ord: value.segment_ord,
-            pruning_threshold: None,
         }
     }
 }
@@ -582,7 +592,6 @@ impl<Score: Clone, D: Clone, C: Clone> Clone for TopNComputer<Score, D, C> {
             comparator: self.comparator.clone(),
             shared_threshold: self.shared_threshold.clone(),
             segment_ord: self.segment_ord,
-            pruning_threshold: self.pruning_threshold.clone(),
         }
     }
 }
@@ -629,25 +638,12 @@ where
             comparator,
             shared_threshold: None,
             segment_ord: 0,
-            pruning_threshold: None,
         }
     }
 
     /// Sets the current threshold.
     pub fn set_threshold(&mut self, threshold: (TSortKey, SegmentOrdinal)) {
         self.threshold = Some(threshold);
-        self.update_pruning_threshold();
-    }
-
-    pub(crate) fn update_pruning_threshold(&mut self) {
-        if let Some((val, ord)) = &self.threshold {
-            if let Some(shared) = &self.shared_threshold {
-                self.pruning_threshold =
-                    Some(shared.competitive_threshold(val.clone(), *ord, self.segment_ord));
-            } else {
-                self.pruning_threshold = Some(val.clone());
-            }
-        }
     }
 
     /// Push a new document to the top n.
@@ -734,7 +730,6 @@ where
         } else {
             self.threshold = Some((median, self.segment_ord));
         }
-        self.update_pruning_threshold();
     }
 
     /// Returns the top n elements in sorted order.

@@ -82,4 +82,16 @@ impl SegmentSortKeyComputer for ByStringColumnSegmentSortKeyComputer {
             .ok()?;
         String::try_from(bytes).ok()
     }
+
+    fn supports_bm25_pruning(&self) -> bool {
+        false
+    }
+    fn bm25_pruning_threshold(
+        &self,
+        _threshold: &Self::SegmentSortKey,
+        _segment_ord: crate::SegmentOrdinal,
+        _threshold_ord: crate::SegmentOrdinal,
+    ) -> Option<crate::Score> {
+        None
+    }
 }

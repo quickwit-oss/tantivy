@@ -246,6 +246,18 @@ impl SegmentSortKeyComputer for ErasedColumnSegmentSortKeyComputer {
     fn convert_segment_sort_key(&self, segment_sort_key: Self::SegmentSortKey) -> OwnedValue {
         self.inner.convert_segment_sort_key(segment_sort_key)
     }
+
+    fn supports_bm25_pruning(&self) -> bool {
+        false
+    }
+    fn bm25_pruning_threshold(
+        &self,
+        _threshold: &Self::SegmentSortKey,
+        _segment_ord: crate::SegmentOrdinal,
+        _threshold_ord: crate::SegmentOrdinal,
+    ) -> Option<crate::Score> {
+        None
+    }
 }
 
 #[cfg(test)]

@@ -88,6 +88,18 @@ impl SegmentSortKeyComputer for ByBytesColumnSegmentSortKeyComputer {
             .ok()?;
         Some(bytes)
     }
+
+    fn supports_bm25_pruning(&self) -> bool {
+        false
+    }
+    fn bm25_pruning_threshold(
+        &self,
+        _threshold: &Self::SegmentSortKey,
+        _segment_ord: crate::SegmentOrdinal,
+        _threshold_ord: crate::SegmentOrdinal,
+    ) -> Option<crate::Score> {
+        None
+    }
 }
 
 #[cfg(test)]

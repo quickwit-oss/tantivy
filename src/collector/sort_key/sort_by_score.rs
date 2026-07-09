@@ -2,7 +2,6 @@ use std::sync::Arc;
 
 use super::shared_threshold::{AtomicSharedThreshold, SharedThresholdArcOpt};
 use crate::collector::sort_key::NaturalComparator;
-use crate::collector::sort_key_top_collector::TopBySortKeySegmentCollector;
 use crate::collector::{SegmentSortKeyComputer, SortKeyComputer};
 use crate::{DocId, Score, SegmentOrdinal};
 
@@ -65,42 +64,6 @@ impl SortKeyComputer for SortBySimilarityScore {
     ) -> crate::Result<Self::Child> {
         Ok(self.clone())
     }
-
-    fn collect_segment_top_k(
-        &self,
-        weight: &dyn crate::query::Weight,
-        reader: &crate::SegmentReader,
-        segment_collector: &mut TopBySortKeySegmentCollector<Self::Child, Self::Comparator>,
-    ) -> crate::Result<()> {
-        let top_n = &mut segment_collector.topn_computer;
-
-        let (initial_score, initial_ord) = top_n
-            .shared_threshold
-            .as_ref()
-            .and_then(|s| s.load())
-            .unwrap_or((Score::MIN, SegmentOrdinal::MAX));
-
-        top_n.set_threshold((initial_score, initial_ord));
-
-        let pruning_threshold = top_n.pruning_threshold.unwrap_or(Score::MIN);
-
-        if let Some(alive_bitset) = reader.alive_bitset() {
-            weight.for_each_pruning(pruning_threshold, reader, &mut |doc, score| {
-                if alive_bitset.is_deleted(doc) {
-                    return top_n.pruning_threshold.unwrap_or(Score::MIN);
-                }
-                top_n.push(score, doc);
-                top_n.pruning_threshold.unwrap_or(Score::MIN)
-            })?;
-        } else {
-            weight.for_each_pruning(pruning_threshold, reader, &mut |doc, score| {
-                top_n.push(score, doc);
-                top_n.pruning_threshold.unwrap_or(Score::MIN)
-            })?;
-        }
-
-        Ok(())
-    }
 }
 
 impl SegmentSortKeyComputer for SortBySimilarityScore {
@@ -115,5 +78,22 @@ impl SegmentSortKeyComputer for SortBySimilarityScore {
 
     fn convert_segment_sort_key(&self, score: Score) -> Score {
         score
+    }
+
+    fn supports_bm25_pruning(&self) -> bool {
+        true
+    }
+
+    fn bm25_pruning_threshold(
+        &self,
+        threshold: &Score,
+        segment_ord: SegmentOrdinal,
+        threshold_ord: SegmentOrdinal,
+    ) -> Option<Score> {
+        if segment_ord < threshold_ord {
+            Some(threshold.next_down())
+        } else {
+            Some(*threshold)
+        }
     }
 }

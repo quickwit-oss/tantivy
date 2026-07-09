@@ -5,7 +5,7 @@ use crate::collector::sort_key::{Comparator, NaturalComparator};
 use crate::collector::sort_key_top_collector::TopBySortKeySegmentCollector;
 use crate::collector::{default_collect_segment_impl, TopNComputer};
 use crate::schema::Schema;
-use crate::{DocId, Result, Score, SegmentReader};
+use crate::{DocId, Result, Score, SegmentOrdinal, SegmentReader};
 
 /// A `SegmentSortKeyComputer` makes it possible to modify the default score
 /// for a given document belonging to a specific segment.
@@ -81,6 +81,41 @@ pub trait SegmentSortKeyComputer: 'static {
 
     /// Convert a segment level sort key into the global sort key.
     fn convert_segment_sort_key(&self, sort_key: Self::SegmentSortKey) -> Self::SortKey;
+
+    /// Indicates whether the sort key computer can take advantage of the BMW (Block Max WAND)
+    /// optimization over the BM25 score.
+    ///
+    /// If `true`, the collector will use `weight.for_each_pruning` to skip blocks of documents
+    /// that cannot possibly be competitive. If `false`, it falls back to a standard
+    /// document-by-document collection.
+    ///
+    /// Wrappers around other `SegmentSortKeyComputer`s should typically forward this method
+    /// to their inner computer, or return `false` if they break the monotonic relationship
+    /// with the BM25 score.
+    fn supports_bm25_pruning(&self) -> bool;
+
+    /// Extracts the BM25 score pruning threshold from the `SegmentSortKey` threshold, if
+    /// applicable.
+    ///
+    /// This method is only called if `supports_bm25_pruning()` returns `true` and the Top-K queue
+    /// has established a competitive threshold.
+    ///
+    /// The returned `Score` is used as the pruning threshold in
+    /// `weight.for_each_pruning(threshold)`. Any blocks of documents with a maximum BM25 score
+    /// strictly less than the returned threshold will be skipped entirely by the query
+    /// execution.
+    ///
+    /// In compound sort keys (like Tuples), if secondary tie-breaking components are used,
+    /// this method must return a relaxed threshold (e.g., using `Score::next_down()`) so that
+    /// the secondary components have a chance to resolve the tie.
+    ///
+    /// Returning `None` disables pruning for the current execution.
+    fn bm25_pruning_threshold(
+        &self,
+        threshold: &Self::SegmentSortKey,
+        segment_ord: crate::SegmentOrdinal,
+        threshold_ord: crate::SegmentOrdinal,
+    ) -> Option<Score>;
 }
 
 /// `SortKeyComputer` defines the sort key to be used by a TopK Collector.
@@ -129,7 +164,12 @@ pub trait SortKeyComputer: Sync {
         None
     }
 
-    /// Sorting by score has a overriding implementation for BM25 scores, using Block-WAND.
+    /// Computes the top-k results for a segment.
+    ///
+    /// The default implementation provides an optimized execution path that leverages Block Max
+    /// WAND (BMW) pruning if the underlying `Comparator` signals support via
+    /// `supports_bm25_pruning()`. Otherwise, it falls back to a standard document-by-document
+    /// collection.
     fn collect_segment_top_k(
         &self,
         weight: &dyn crate::query::Weight,
@@ -137,7 +177,53 @@ pub trait SortKeyComputer: Sync {
         segment_collector: &mut TopBySortKeySegmentCollector<Self::Child, Self::Comparator>,
     ) -> crate::Result<()> {
         let with_scoring = self.requires_scoring();
-        default_collect_segment_impl(segment_collector, weight, reader, with_scoring)?;
+
+        if !with_scoring
+            || !segment_collector
+                .segment_sort_key_computer
+                .supports_bm25_pruning()
+        {
+            default_collect_segment_impl(segment_collector, weight, reader, with_scoring)?;
+            return Ok(());
+        }
+
+        let top_n = &mut segment_collector.topn_computer;
+
+        let initial_threshold = top_n.shared_threshold.as_ref().and_then(|s| s.load());
+
+        if let Some(threshold) = initial_threshold {
+            top_n.set_threshold(threshold);
+        }
+
+        let segment_ord = top_n.segment_ord;
+        let segment_sort_key_computer = &mut segment_collector.segment_sort_key_computer;
+
+        let get_pruning_threshold = |top_n: &TopNComputer<_, _, _>, comp: &Self::Child| -> Score {
+            if let Some((threshold_key, threshold_ord)) = &top_n.threshold {
+                comp.bm25_pruning_threshold(threshold_key, segment_ord, *threshold_ord)
+                    .unwrap_or(Score::MIN)
+            } else {
+                Score::MIN
+            }
+        };
+
+        let initial_pruning_threshold = get_pruning_threshold(top_n, segment_sort_key_computer);
+
+        if let Some(alive_bitset) = reader.alive_bitset() {
+            weight.for_each_pruning(initial_pruning_threshold, reader, &mut |doc, score| {
+                if alive_bitset.is_deleted(doc) {
+                    return get_pruning_threshold(top_n, segment_sort_key_computer);
+                }
+                segment_sort_key_computer.compute_sort_key_and_collect(doc, score, top_n);
+                get_pruning_threshold(top_n, segment_sort_key_computer)
+            })?;
+        } else {
+            weight.for_each_pruning(initial_pruning_threshold, reader, &mut |doc, score| {
+                segment_sort_key_computer.compute_sort_key_and_collect(doc, score, top_n);
+                get_pruning_threshold(top_n, segment_sort_key_computer)
+            })?;
+        }
+
         Ok(())
     }
 
@@ -273,6 +359,24 @@ where
             self.1.convert_segment_sort_key(tail_sort_key),
         )
     }
+
+    fn supports_bm25_pruning(&self) -> bool {
+        self.0.supports_bm25_pruning()
+    }
+
+    fn bm25_pruning_threshold(
+        &self,
+        threshold: &Self::SegmentSortKey,
+        segment_ord: SegmentOrdinal,
+        _threshold_ord: SegmentOrdinal,
+    ) -> Option<Score> {
+        let (head_threshold, _tail_threshold) = threshold;
+        // Since we have a tail, we must always evaluate documents where Head matches exactly,
+        // because the Tail could still win. We simulate this by passing `SegmentOrdinal::MAX`
+        // as the `threshold_ord` (so segment_ord < threshold_ord is always true for the Head).
+        self.0
+            .bm25_pruning_threshold(head_threshold, segment_ord, SegmentOrdinal::MAX)
+    }
 }
 
 /// This struct is used as an adapter to take a sort key computer and map its score to another
@@ -323,6 +427,20 @@ where
             self.sort_key_computer
                 .convert_segment_sort_key(segment_sort_key),
         )
+    }
+
+    fn supports_bm25_pruning(&self) -> bool {
+        self.sort_key_computer.supports_bm25_pruning()
+    }
+
+    fn bm25_pruning_threshold(
+        &self,
+        threshold: &Self::SegmentSortKey,
+        segment_ord: SegmentOrdinal,
+        threshold_ord: SegmentOrdinal,
+    ) -> Option<Score> {
+        self.sort_key_computer
+            .bm25_pruning_threshold(threshold, segment_ord, threshold_ord)
     }
 }
 
@@ -599,6 +717,18 @@ where
     /// Convert a segment level score into the global level score.
     fn convert_segment_sort_key(&self, sort_key: Self::SegmentSortKey) -> Self::SortKey {
         sort_key
+    }
+
+    fn supports_bm25_pruning(&self) -> bool {
+        false
+    }
+    fn bm25_pruning_threshold(
+        &self,
+        _threshold: &Self::SegmentSortKey,
+        _segment_ord: crate::SegmentOrdinal,
+        _threshold_ord: crate::SegmentOrdinal,
+    ) -> Option<crate::Score> {
+        None
     }
 }
 
