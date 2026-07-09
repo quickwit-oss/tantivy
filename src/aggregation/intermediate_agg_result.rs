@@ -32,6 +32,16 @@ use crate::aggregation::bucket::TermsAggregationInternal;
 use crate::aggregation::metric::CardinalityCollector;
 use crate::TantivyError;
 
+/// Controls which size limit is applied when pruning intermediate aggregation results.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum PruneMode {
+    /// Use the same rules for pruning as the per-segment pruning, notably using `segment_size`.
+    Intermediate,
+    /// Use the same rules for pruning as what happen when creating normal results.
+    /// Uses `size`, and possibly apply other filtering such as `min_doc_count`.
+    Final,
+}
+
 /// Contains the intermediate aggregation result, which is optimized to be merged with other
 /// intermediate results.
 ///
@@ -224,17 +234,14 @@ impl IntermediateAggregationResults {
     }
 
     /// Re-prune intermediate results using the limits from the aggregation request.
-    ///
-    /// `use_segment_size` controls which size limit is applied: `true` uses `segment_size`,
-    /// `false` uses `size`.
     pub fn prune_intermediate_results(
         &mut self,
         req: &Aggregations,
-        use_segment_size: bool,
+        mode: PruneMode,
     ) -> crate::Result<()> {
         for (key, agg_res) in self.aggs_res.iter_mut() {
             if let Some(agg_req) = req.get(key.as_str()) {
-                agg_res.prune_intermediate_results(agg_req, use_segment_size)?;
+                agg_res.prune_intermediate_results(agg_req, mode)?;
             }
         }
         Ok(())
@@ -378,11 +385,11 @@ impl IntermediateAggregationResult {
     pub(crate) fn prune_intermediate_results(
         &mut self,
         req: &Aggregation,
-        use_segment_size: bool,
+        mode: PruneMode,
     ) -> crate::Result<()> {
         match self {
             IntermediateAggregationResult::Bucket(bucket) => {
-                bucket.prune_intermediate_results(req, use_segment_size)
+                bucket.prune_intermediate_results(req, mode)
             }
             IntermediateAggregationResult::Metric(_) => Ok(()),
         }
@@ -692,7 +699,7 @@ impl IntermediateBucketResult {
     pub(crate) fn prune_intermediate_results(
         &mut self,
         req: &Aggregation,
-        use_segment_size: bool,
+        mode: PruneMode,
     ) -> crate::Result<()> {
         match self {
             IntermediateBucketResult::Terms { buckets } => {
@@ -700,17 +707,13 @@ impl IntermediateBucketResult {
                     .agg
                     .as_term()
                     .expect("unexpected aggregation, expected term aggregation");
-                buckets.prune_intermediate_results(
-                    terms_req,
-                    req.sub_aggregation(),
-                    use_segment_size,
-                )
+                buckets.prune_intermediate_results(terms_req, req.sub_aggregation(), mode)
             }
             IntermediateBucketResult::Range(range_res) => {
                 for entry in range_res.buckets.values_mut() {
                     entry
                         .sub_aggregation_res
-                        .prune_intermediate_results(req.sub_aggregation(), use_segment_size)?;
+                        .prune_intermediate_results(req.sub_aggregation(), mode)?;
                 }
                 Ok(())
             }
@@ -718,23 +721,21 @@ impl IntermediateBucketResult {
                 for entry in buckets.iter_mut() {
                     entry
                         .sub_aggregation
-                        .prune_intermediate_results(req.sub_aggregation(), use_segment_size)?;
+                        .prune_intermediate_results(req.sub_aggregation(), mode)?;
                 }
                 Ok(())
             }
             IntermediateBucketResult::Filter {
                 sub_aggregations, ..
-            } => {
-                sub_aggregations.prune_intermediate_results(req.sub_aggregation(), use_segment_size)
-            }
+            } => sub_aggregations.prune_intermediate_results(req.sub_aggregation(), mode),
             IntermediateBucketResult::Composite { buckets } => {
-                if !use_segment_size {
+                if mode == PruneMode::Final {
                     buckets.trim()?;
                 }
                 for entry in buckets.entries.values_mut() {
                     entry
                         .sub_aggregation
-                        .prune_intermediate_results(req.sub_aggregation(), use_segment_size)?;
+                        .prune_intermediate_results(req.sub_aggregation(), mode)?;
                 }
                 Ok(())
             }
@@ -963,19 +964,16 @@ impl IntermediateTermBucketResult {
         &mut self,
         req: &TermsAggregation,
         sub_aggregation_req: &Aggregations,
-        use_segment_size: bool,
+        mode: PruneMode,
     ) -> crate::Result<()> {
         let req_internal = TermsAggregationInternal::from_req(req);
-        let size = if use_segment_size {
-            req_internal.segment_size as usize
-        } else {
-            req_internal.size as usize
-        };
-
-        if !use_segment_size {
+        let size = if mode == PruneMode::Final {
             let min_doc_count = req_internal.min_doc_count;
             self.entries.retain(|_, e| e.doc_count >= min_doc_count);
-        }
+            req_internal.size as usize
+        } else {
+            req_internal.segment_size as usize
+        };
 
         if self.entries.len() > size {
             let mut entries: Vec<(IntermediateKey, IntermediateTermBucketEntry)> =
@@ -1039,7 +1037,7 @@ impl IntermediateTermBucketResult {
                 .iter()
                 .map(|(_, e)| e.doc_count)
                 .sum::<u64>();
-            if use_segment_size {
+            if mode == PruneMode::Intermediate {
                 self.doc_count_error_upper_bound += cutoff_doc_count;
             }
             entries.truncate(size);
@@ -1049,7 +1047,7 @@ impl IntermediateTermBucketResult {
         for entry in self.entries.values_mut() {
             entry
                 .sub_aggregation
-                .prune_intermediate_results(sub_aggregation_req, use_segment_size)?;
+                .prune_intermediate_results(sub_aggregation_req, mode)?;
         }
 
         Ok(())
@@ -1497,9 +1495,9 @@ mod tests {
         let req: TermsAggregation =
             serde_json::from_str(r#"{"field": "myfield", "size": 2, "segment_size": 4}"#).unwrap();
 
-        // use_segment_size=false → keep top 2 by count: c(20), e(15); prune a(10), b(5), d(1)
+        // Final mode, keep top 2 by count: c(20), e(15); prune a(10), b(5), d(1)
         term_result
-            .prune_intermediate_results(&req, &Default::default(), false)
+            .prune_intermediate_results(&req, &Default::default(), PruneMode::Final)
             .unwrap();
         assert_eq!(term_result.entries.len(), 2);
         assert!(term_result
@@ -1537,9 +1535,9 @@ mod tests {
         let req: TermsAggregation =
             serde_json::from_str(r#"{"field": "myfield", "size": 2, "segment_size": 4}"#).unwrap();
 
-        // use_segment_size=true → keep top 4 by count: c(20), e(15), a(10), b(5); prune d(1)
+        // Intermediate mode, keep top 4 by count: c(20), e(15), a(10), b(5); prune d(1)
         term_result
-            .prune_intermediate_results(&req, &Default::default(), true)
+            .prune_intermediate_results(&req, &Default::default(), PruneMode::Intermediate)
             .unwrap();
         assert_eq!(term_result.entries.len(), 4);
         assert!(!term_result
@@ -1578,7 +1576,9 @@ mod tests {
             serde_json::from_str(r#"{"my_terms": {"terms": {"field": "myfield", "size": 1}}}"#)
                 .unwrap();
 
-        results.prune_intermediate_results(&req, false).unwrap();
+        results
+            .prune_intermediate_results(&req, PruneMode::Final)
+            .unwrap();
 
         let IntermediateAggregationResult::Bucket(IntermediateBucketResult::Terms { buckets }) =
             results.aggs_res.get("my_terms").unwrap()
@@ -1619,7 +1619,7 @@ mod tests {
 
         // asc key order, size=2 → keep "a" and "b"
         term_result
-            .prune_intermediate_results(&req, &Default::default(), false)
+            .prune_intermediate_results(&req, &Default::default(), PruneMode::Final)
             .unwrap();
         assert_eq!(term_result.entries.len(), 2);
         assert!(term_result

@@ -5,7 +5,7 @@ use crate::aggregation::agg_result::AggregationResults;
 use crate::aggregation::collector::AggregationCollector;
 use crate::aggregation::intermediate_agg_result::{
     IntermediateAggregationResult, IntermediateAggregationResults, IntermediateBucketResult,
-    IntermediateKey,
+    IntermediateKey, PruneMode,
 };
 use crate::aggregation::tests::{get_test_index_2_segments, get_test_index_from_values_and_terms};
 use crate::aggregation::DistributedAggregationCollector;
@@ -1590,7 +1590,7 @@ fn test_percentile_order_prune_intermediate() -> crate::Result<()> {
         );
     }
 
-    intermediate.prune_intermediate_results(&agg_req, false)?;
+    intermediate.prune_intermediate_results(&agg_req, PruneMode::Final)?;
 
     let IntermediateAggregationResult::Bucket(IntermediateBucketResult::Terms { buckets }) =
         intermediate.aggs_res.get("my_terms").unwrap()
