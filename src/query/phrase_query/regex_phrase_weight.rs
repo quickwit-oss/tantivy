@@ -9,6 +9,7 @@ use crate::index::SegmentReader;
 use crate::postings::{LoadedPostings, Postings, SegmentPostings, TermInfo};
 use crate::query::bm25::Bm25Weight;
 use crate::query::explanation::does_not_match;
+use crate::query::scorer::{BasicPruningScorer, PruningScorer};
 use crate::query::union::{BitSetPostingUnion, SimpleUnion};
 use crate::query::{AutomatonWeight, BitSetDocSet, EmptyScorer, Explanation, Scorer, Weight};
 use crate::schema::{Field, IndexRecordOption};
@@ -272,6 +273,22 @@ impl Weight for RegexPhraseWeight {
     fn scorer(&self, reader: &SegmentReader, boost: Score) -> crate::Result<Box<dyn Scorer>> {
         if let Some(scorer) = self.phrase_scorer(reader, boost)? {
             Ok(Box::new(scorer))
+        } else {
+            Ok(Box::new(EmptyScorer))
+        }
+    }
+
+    fn pruning_scorer(
+        &self,
+        reader: &SegmentReader,
+        boost: Score,
+        init_threshold: Score,
+    ) -> crate::Result<Box<dyn PruningScorer>> {
+        if let Some(scorer) = self.phrase_scorer(reader, boost)? {
+            Ok(Box::new(BasicPruningScorer::new(
+                Box::new(scorer),
+                init_threshold,
+            )))
         } else {
             Ok(Box::new(EmptyScorer))
         }

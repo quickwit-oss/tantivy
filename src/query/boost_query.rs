@@ -1,5 +1,6 @@
 use std::fmt;
 
+use super::scorer::PruningScorer;
 use crate::docset::{SeekDangerResult, COLLECT_BLOCK_BUFFER_LEN};
 use crate::fastfield::AliveBitSet;
 use crate::query::{EnableScoring, Explanation, Query, Scorer, Weight};
@@ -75,6 +76,16 @@ impl BoostWeight {
 impl Weight for BoostWeight {
     fn scorer(&self, reader: &SegmentReader, boost: Score) -> crate::Result<Box<dyn Scorer>> {
         self.weight.scorer(reader, boost * self.boost)
+    }
+
+    fn pruning_scorer(
+        &self,
+        reader: &SegmentReader,
+        boost: Score,
+        init_threshold: Score,
+    ) -> crate::Result<Box<dyn PruningScorer>> {
+        self.weight
+            .pruning_scorer(reader, boost * self.boost, init_threshold)
     }
 
     fn explain(&self, reader: &SegmentReader, doc: u32) -> crate::Result<Explanation> {

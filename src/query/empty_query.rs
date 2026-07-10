@@ -1,3 +1,4 @@
+use super::scorer::PruningScorer;
 use super::Scorer;
 use crate::docset::TERMINATED;
 use crate::index::SegmentReader;
@@ -30,6 +31,15 @@ impl Weight for EmptyWeight {
         Ok(Box::new(EmptyScorer))
     }
 
+    fn pruning_scorer(
+        &self,
+        _reader: &SegmentReader,
+        _boost: Score,
+        _init_threshold: Score,
+    ) -> crate::Result<Box<dyn PruningScorer>> {
+        Ok(Box::new(EmptyScorer))
+    }
+
     fn explain(&self, _reader: &SegmentReader, doc: DocId) -> crate::Result<Explanation> {
         Err(does_not_match(doc))
     }
@@ -59,6 +69,10 @@ impl Scorer for EmptyScorer {
     fn score(&mut self) -> Score {
         0.0
     }
+}
+
+impl PruningScorer for EmptyScorer {
+    fn set_threshold(&mut self, _score: Score) {}
 }
 
 #[cfg(test)]
