@@ -85,9 +85,9 @@ fn bench_agg(mut group: InputGroup<Index>) {
     register!(group, composite_histogram_calendar);
 
     // multi_terms aggregation benchmarks
-    register!(group, multi_terms_status_with_zipf_1000);
-    register!(group, multi_terms_zipf_1000_with_status);
-    register!(group, multi_terms_status_with_zipf_1000_sub_agg);
+    register!(group, multi_terms_status_and_zipf_1000);
+    register!(group, multi_terms_zipf_1000_and_status);
+    register!(group, multi_terms_status_and_zipf_1000_avg_sub_agg);
 
     register!(group, cardinality_agg);
     register!(group, cardinality_agg_high_card);
@@ -606,7 +606,7 @@ fn composite_histogram_calendar(index: &Index) {
 
 /// multi_terms equivalent of terms_status_with_terms_zipf_1000_sub_agg:
 /// flat GroupBy(status, zipf_1000) vs nested terms(status) -> terms(zipf_1000)
-fn multi_terms_status_with_zipf_1000(index: &Index) {
+fn multi_terms_status_and_zipf_1000(index: &Index) {
     let agg_req = json!({
         "mt": {
             "multi_terms": {
@@ -623,7 +623,7 @@ fn multi_terms_status_with_zipf_1000(index: &Index) {
 
 /// multi_terms equivalent of terms_zipf_1000_with_terms_status_sub_agg:
 /// flat GroupBy(zipf_1000, status) vs nested terms(zipf_1000) -> terms(status)
-fn multi_terms_zipf_1000_with_status(index: &Index) {
+fn multi_terms_zipf_1000_and_status(index: &Index) {
     let agg_req = json!({
         "mt": {
             "multi_terms": {
@@ -639,7 +639,7 @@ fn multi_terms_zipf_1000_with_status(index: &Index) {
 }
 
 /// multi_terms on the same field pair as the nested benchmarks, with an avg sub-aggregation
-fn multi_terms_status_with_zipf_1000_sub_agg(index: &Index) {
+fn multi_terms_status_and_zipf_1000_avg_sub_agg(index: &Index) {
     let agg_req = json!({
         "mt": {
             "multi_terms": {
