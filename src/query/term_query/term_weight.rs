@@ -85,44 +85,6 @@ impl Weight for TermWeight {
         }
     }
 
-    /// Calls `callback` with all of the `(doc, score)` for which score
-    /// is exceeding a given threshold.
-    ///
-    /// This method is useful for the TopDocs collector.
-    /// For all docsets, the blanket implementation has the benefit
-    /// of prefiltering (doc, score) pairs, avoiding the
-    /// virtual dispatch cost.
-    ///
-    /// More importantly, it makes it possible for scorers to implement
-    /// important optimization (e.g. BlockWAND for union).
-    ///
-    /// Overrides the blanket implementation to drive the concrete
-    /// [`BlockWandSingleScorer`] directly, rather than through a
-    /// `Box<dyn PruningScorer>`. This monomorphizes `for_each_pruning_scorer`
-    /// over the concrete scorer so `advance`/`score`/`set_threshold` are
-    /// statically dispatched (and inlinable) in the hot loop.
-    fn for_each_pruning(
-        &self,
-        threshold: Score,
-        reader: &SegmentReader,
-        callback: &mut dyn FnMut(DocId, Score) -> Score,
-    ) -> crate::Result<()> {
-        let specialized_scorer = self.specialized_scorer(reader, 1.0)?;
-        match specialized_scorer {
-            TermOrEmptyOrAllScorer::TermScorer(term_scorer) => {
-                let mut scorer = BlockWandSingleScorer::new(*term_scorer, threshold);
-                for_each_pruning_scorer(&mut scorer, callback);
-            }
-            TermOrEmptyOrAllScorer::Empty => {}
-            TermOrEmptyOrAllScorer::AllMatch(_) => {
-                return Err(TantivyError::InvalidArgument(
-                    "for each pruning should only be called if scoring is enabled".to_string(),
-                ));
-            }
-        }
-        Ok(())
-    }
-
     /// Iterates through all of the document matched by the DocSet
     /// `DocSet` and push the scored documents to the collector.
     fn for_each(
@@ -161,6 +123,44 @@ impl Weight for TermWeight {
             }
         };
 
+        Ok(())
+    }
+
+    /// Calls `callback` with all of the `(doc, score)` for which score
+    /// is exceeding a given threshold.
+    ///
+    /// This method is useful for the TopDocs collector.
+    /// For all docsets, the blanket implementation has the benefit
+    /// of prefiltering (doc, score) pairs, avoiding the
+    /// virtual dispatch cost.
+    ///
+    /// More importantly, it makes it possible for scorers to implement
+    /// important optimization (e.g. BlockWAND for union).
+    ///
+    /// Overrides the blanket implementation to drive the concrete
+    /// [`BlockWandSingleScorer`] directly, rather than through a
+    /// `Box<dyn PruningScorer>`. This monomorphizes `for_each_pruning_scorer`
+    /// over the concrete scorer so `advance`/`score`/`set_threshold` are
+    /// statically dispatched (and inlinable) in the hot loop.
+    fn for_each_pruning(
+        &self,
+        threshold: Score,
+        reader: &SegmentReader,
+        callback: &mut dyn FnMut(DocId, Score) -> Score,
+    ) -> crate::Result<()> {
+        let specialized_scorer = self.specialized_scorer(reader, 1.0)?;
+        match specialized_scorer {
+            TermOrEmptyOrAllScorer::TermScorer(term_scorer) => {
+                let mut scorer = BlockWandSingleScorer::new(*term_scorer, threshold);
+                for_each_pruning_scorer(&mut scorer, callback);
+            }
+            TermOrEmptyOrAllScorer::Empty => {}
+            TermOrEmptyOrAllScorer::AllMatch(_) => {
+                return Err(TantivyError::InvalidArgument(
+                    "for each pruning should only be called if scoring is enabled".to_string(),
+                ));
+            }
+        }
         Ok(())
     }
 }

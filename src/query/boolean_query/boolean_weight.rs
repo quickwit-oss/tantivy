@@ -567,6 +567,41 @@ impl<TScoreCombiner: ScoreCombiner + Sync> Weight for BooleanWeight<TScoreCombin
         Ok(())
     }
 
+    fn for_each_no_score(
+        &self,
+        reader: &SegmentReader,
+        callback: &mut dyn FnMut(&[DocId]),
+    ) -> crate::Result<()> {
+        let scorer = self.complex_scorer(reader, 1.0, || DoNothingCombiner)?;
+        let num_docs = reader.num_docs();
+        let mut buffer = [0u32; COLLECT_BLOCK_BUFFER_LEN];
+
+        match scorer {
+            SpecializedScorer::TermUnion(mut term_scorers) => {
+                if term_scorers.len() == 1 {
+                    let mut term_scorer = term_scorers.pop().unwrap();
+                    for_each_docset_buffered(&mut term_scorer, &mut buffer, callback);
+                } else {
+                    let mut union_scorer =
+                        BufferedUnionScorer::build(term_scorers, &self.score_combiner_fn, num_docs);
+                    for_each_docset_buffered(&mut union_scorer, &mut buffer, callback);
+                }
+            }
+            SpecializedScorer::TermIntersection(term_scorers) => {
+                let boxed_scorers: Vec<Box<dyn Scorer>> = term_scorers
+                    .into_iter()
+                    .map(|term_scorer| Box::new(term_scorer) as Box<dyn Scorer>)
+                    .collect();
+                let mut intersection = intersect_scorers(boxed_scorers, num_docs);
+                for_each_docset_buffered(intersection.as_mut(), &mut buffer, callback);
+            }
+            SpecializedScorer::Other(mut scorer) => {
+                for_each_docset_buffered(scorer.as_mut(), &mut buffer, callback);
+            }
+        }
+        Ok(())
+    }
+
     /// Calls `callback` with all of the `(doc, score)` for which score
     /// is exceeding a given threshold.
     ///
@@ -613,41 +648,6 @@ impl<TScoreCombiner: ScoreCombiner + Sync> Weight for BooleanWeight<TScoreCombin
             SpecializedScorer::Other(scorer) => {
                 let mut scorer = BasicPruningScorer::new(scorer, threshold);
                 for_each_pruning_scorer(&mut scorer, callback);
-            }
-        }
-        Ok(())
-    }
-
-    fn for_each_no_score(
-        &self,
-        reader: &SegmentReader,
-        callback: &mut dyn FnMut(&[DocId]),
-    ) -> crate::Result<()> {
-        let scorer = self.complex_scorer(reader, 1.0, || DoNothingCombiner)?;
-        let num_docs = reader.num_docs();
-        let mut buffer = [0u32; COLLECT_BLOCK_BUFFER_LEN];
-
-        match scorer {
-            SpecializedScorer::TermUnion(mut term_scorers) => {
-                if term_scorers.len() == 1 {
-                    let mut term_scorer = term_scorers.pop().unwrap();
-                    for_each_docset_buffered(&mut term_scorer, &mut buffer, callback);
-                } else {
-                    let mut union_scorer =
-                        BufferedUnionScorer::build(term_scorers, &self.score_combiner_fn, num_docs);
-                    for_each_docset_buffered(&mut union_scorer, &mut buffer, callback);
-                }
-            }
-            SpecializedScorer::TermIntersection(term_scorers) => {
-                let boxed_scorers: Vec<Box<dyn Scorer>> = term_scorers
-                    .into_iter()
-                    .map(|term_scorer| Box::new(term_scorer) as Box<dyn Scorer>)
-                    .collect();
-                let mut intersection = intersect_scorers(boxed_scorers, num_docs);
-                for_each_docset_buffered(intersection.as_mut(), &mut buffer, callback);
-            }
-            SpecializedScorer::Other(mut scorer) => {
-                for_each_docset_buffered(scorer.as_mut(), &mut buffer, callback);
             }
         }
         Ok(())

@@ -169,33 +169,6 @@ pub fn block_wand_single_scorer(
     for_each_pruning_scorer(&mut scorer, callback);
 }
 
-struct TermScorerWithMaxScore {
-    scorer: Box<TermScorer>,
-    max_score: Score,
-}
-
-impl From<TermScorer> for TermScorerWithMaxScore {
-    fn from(scorer: TermScorer) -> Self {
-        let scorer = Box::new(scorer);
-        let max_score = scorer.max_score();
-        TermScorerWithMaxScore { scorer, max_score }
-    }
-}
-
-impl Deref for TermScorerWithMaxScore {
-    type Target = TermScorer;
-
-    fn deref(&self) -> &Self::Target {
-        &self.scorer
-    }
-}
-
-impl DerefMut for TermScorerWithMaxScore {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.scorer
-    }
-}
-
 /// Implements the WAND (Weak AND) algorithm for dynamic pruning
 /// described in the paper "Faster Top-k Document Retrieval Using Block-Max Indexes".
 /// Link: <http://engineering.nyu.edu/~suel/papers/bmw.pdf>
@@ -416,6 +389,33 @@ impl DocSet for BlockWandSingleScorer {
     /// computed ahead of time, so just defer to the internal scorer
     fn size_hint(&self) -> u32 {
         self.scorer.size_hint()
+    }
+}
+
+struct TermScorerWithMaxScore {
+    scorer: Box<TermScorer>,
+    max_score: Score,
+}
+
+impl From<TermScorer> for TermScorerWithMaxScore {
+    fn from(scorer: TermScorer) -> Self {
+        let scorer = Box::new(scorer);
+        let max_score = scorer.max_score();
+        TermScorerWithMaxScore { scorer, max_score }
+    }
+}
+
+impl Deref for TermScorerWithMaxScore {
+    type Target = TermScorer;
+
+    fn deref(&self) -> &Self::Target {
+        &self.scorer
+    }
+}
+
+impl DerefMut for TermScorerWithMaxScore {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.scorer
     }
 }
 
