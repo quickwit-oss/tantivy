@@ -1,3 +1,4 @@
+use super::scorer::{BasicPruningScorer, PruningScorer};
 use super::Scorer;
 use crate::docset::COLLECT_BLOCK_BUFFER_LEN;
 use crate::index::SegmentReader;
@@ -34,27 +35,18 @@ pub(crate) fn for_each_docset_buffered<T: DocSet + ?Sized>(
     }
 }
 
-/// Calls `callback` with all of the `(doc, score)` for which score
-/// is exceeding a given threshold.
+/// Iterates through all of the `(doc, score)` produced by a pruning scorer.
 ///
-/// This method is useful for the [`TopDocs`](crate::collector::TopDocs) collector.
-/// For all docsets, the blanket implementation has the benefit
-/// of prefiltering (doc, score) pairs, avoiding the
-/// virtual dispatch cost.
-///
-/// More importantly, it makes it possible for scorers to implement
-/// important optimization (e.g. BlockWAND for union).
-pub(crate) fn for_each_pruning_scorer<TScorer: Scorer + ?Sized>(
+/// `callback` returns the new threshold after each call, which is fed back into
+/// the scorer via [`PruningScorer::set_threshold`] so it can keep pruning.
+pub(crate) fn for_each_pruning_scorer<TScorer: PruningScorer + ?Sized>(
     scorer: &mut TScorer,
-    mut threshold: Score,
     callback: &mut dyn FnMut(DocId, Score) -> Score,
 ) {
     let mut doc = scorer.doc();
     while doc != TERMINATED {
-        let score = scorer.score();
-        if score > threshold {
-            threshold = callback(doc, score);
-        }
+        let new_threshold = callback(doc, scorer.score());
+        scorer.set_threshold(new_threshold);
         doc = scorer.advance();
     }
 }
@@ -70,6 +62,27 @@ pub trait Weight: Send + Sync + 'static {
     ///
     /// See [`Query`](crate::query::Query).
     fn scorer(&self, reader: &SegmentReader, boost: Score) -> crate::Result<Box<dyn Scorer>>;
+
+    /// Returns a pruning scorer for the given segment.
+    ///
+    /// `boost` is a multiplier to apply to the score. `init_threshold` is the
+    /// initial score threshold below which documents may be pruned.
+    ///
+    /// The default implementation wraps [`Weight::scorer`] in a
+    /// [`BasicPruningScorer`], which simply filters out `(doc, score)` pairs
+    /// below the current threshold. Scorers that can prune more aggressively
+    /// (e.g. BlockWAND over a union or intersection) override this.
+    fn pruning_scorer(
+        &self,
+        reader: &SegmentReader,
+        boost: Score,
+        init_threshold: Score,
+    ) -> crate::Result<Box<dyn PruningScorer>> {
+        Ok(Box::new(BasicPruningScorer::new(
+            self.scorer(reader, boost)?,
+            init_threshold,
+        )))
+    }
 
     /// Returns an [`Explanation`] for the given document.
     fn explain(&self, reader: &SegmentReader, doc: DocId) -> crate::Result<Explanation>;
@@ -126,8 +139,8 @@ pub trait Weight: Send + Sync + 'static {
         reader: &SegmentReader,
         callback: &mut dyn FnMut(DocId, Score) -> Score,
     ) -> crate::Result<()> {
-        let mut scorer = self.scorer(reader, 1.0)?;
-        for_each_pruning_scorer(scorer.as_mut(), threshold, callback);
+        let mut scorer = self.pruning_scorer(reader, 1.0, threshold)?;
+        for_each_pruning_scorer(scorer.as_mut(), callback);
         Ok(())
     }
 }

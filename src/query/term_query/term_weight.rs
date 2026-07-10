@@ -4,8 +4,10 @@ use crate::fieldnorm::FieldNormReader;
 use crate::index::SegmentReader;
 use crate::postings::SegmentPostings;
 use crate::query::bm25::Bm25Weight;
+use crate::query::boolean_query::BlockWandSingleScorer;
 use crate::query::explanation::does_not_match;
-use crate::query::weight::{for_each_docset_buffered, for_each_scorer};
+use crate::query::scorer::BasicPruningScorer;
+use crate::query::weight::{for_each_docset_buffered, for_each_pruning_scorer, for_each_scorer};
 use crate::query::{AllScorer, AllWeight, EmptyScorer, Explanation, Scorer, Weight};
 use crate::schema::IndexRecordOption;
 use crate::{DocId, Score, TantivyError, Term};
@@ -38,6 +40,25 @@ impl Weight for TermWeight {
         Ok(self.specialized_scorer(reader, boost)?.into_boxed_scorer())
     }
 
+    fn pruning_scorer(
+        &self,
+        reader: &SegmentReader,
+        boost: Score,
+        init_threshold: Score,
+    ) -> crate::Result<Box<dyn crate::query::scorer::PruningScorer>> {
+        let specialized_scorer = self.specialized_scorer(reader, boost)?;
+        match specialized_scorer {
+            TermOrEmptyOrAllScorer::TermScorer(term_scorer) => Ok(Box::new(
+                BlockWandSingleScorer::new(*term_scorer, init_threshold),
+            )),
+            TermOrEmptyOrAllScorer::Empty => Ok(Box::new(EmptyScorer)),
+            TermOrEmptyOrAllScorer::AllMatch(all_scorer) => Ok(Box::new(BasicPruningScorer::new(
+                Box::new(all_scorer),
+                init_threshold,
+            ))),
+        }
+    }
+
     fn explain(&self, reader: &SegmentReader, doc: DocId) -> crate::Result<Explanation> {
         match self.specialized_scorer(reader, 1.0)? {
             TermOrEmptyOrAllScorer::TermScorer(mut term_scorer) => {
@@ -62,6 +83,44 @@ impl Weight for TermWeight {
             let term_info = inv_index.get_term_info(&self.term)?;
             Ok(term_info.map(|term_info| term_info.doc_freq).unwrap_or(0))
         }
+    }
+
+    /// Calls `callback` with all of the `(doc, score)` for which score
+    /// is exceeding a given threshold.
+    ///
+    /// This method is useful for the TopDocs collector.
+    /// For all docsets, the blanket implementation has the benefit
+    /// of prefiltering (doc, score) pairs, avoiding the
+    /// virtual dispatch cost.
+    ///
+    /// More importantly, it makes it possible for scorers to implement
+    /// important optimization (e.g. BlockWAND for union).
+    ///
+    /// Overrides the blanket implementation to drive the concrete
+    /// [`BlockWandSingleScorer`] directly, rather than through a
+    /// `Box<dyn PruningScorer>`. This monomorphizes `for_each_pruning_scorer`
+    /// over the concrete scorer so `advance`/`score`/`set_threshold` are
+    /// statically dispatched (and inlinable) in the hot loop.
+    fn for_each_pruning(
+        &self,
+        threshold: Score,
+        reader: &SegmentReader,
+        callback: &mut dyn FnMut(DocId, Score) -> Score,
+    ) -> crate::Result<()> {
+        let specialized_scorer = self.specialized_scorer(reader, 1.0)?;
+        match specialized_scorer {
+            TermOrEmptyOrAllScorer::TermScorer(term_scorer) => {
+                let mut scorer = BlockWandSingleScorer::new(*term_scorer, threshold);
+                for_each_pruning_scorer(&mut scorer, callback);
+            }
+            TermOrEmptyOrAllScorer::Empty => {}
+            TermOrEmptyOrAllScorer::AllMatch(_) => {
+                return Err(TantivyError::InvalidArgument(
+                    "for each pruning should only be called if scoring is enabled".to_string(),
+                ));
+            }
+        }
+        Ok(())
     }
 
     /// Iterates through all of the document matched by the DocSet
@@ -102,41 +161,6 @@ impl Weight for TermWeight {
             }
         };
 
-        Ok(())
-    }
-
-    /// Calls `callback` with all of the `(doc, score)` for which score
-    /// is exceeding a given threshold.
-    ///
-    /// This method is useful for the TopDocs collector.
-    /// For all docsets, the blanket implementation has the benefit
-    /// of prefiltering (doc, score) pairs, avoiding the
-    /// virtual dispatch cost.
-    ///
-    /// More importantly, it makes it possible for scorers to implement
-    /// important optimization (e.g. BlockWAND for union).
-    fn for_each_pruning(
-        &self,
-        threshold: Score,
-        reader: &SegmentReader,
-        callback: &mut dyn FnMut(DocId, Score) -> Score,
-    ) -> crate::Result<()> {
-        let specialized_scorer = self.specialized_scorer(reader, 1.0)?;
-        match specialized_scorer {
-            TermOrEmptyOrAllScorer::TermScorer(term_scorer) => {
-                crate::query::boolean_query::block_wand_single_scorer(
-                    *term_scorer,
-                    threshold,
-                    callback,
-                );
-            }
-            TermOrEmptyOrAllScorer::Empty => {}
-            TermOrEmptyOrAllScorer::AllMatch(_) => {
-                return Err(TantivyError::InvalidArgument(
-                    "for each pruning should only be called if scoring is enabled".to_string(),
-                ));
-            }
-        }
         Ok(())
     }
 }
