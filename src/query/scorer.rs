@@ -24,7 +24,11 @@ impl Scorer for Box<dyn Scorer> {
     }
 }
 
+/// A `Scorer` that prunes its document set by a minimum score threshold
 pub trait PruningScorer: Scorer {
+    /// Updates the threshold used for pruning. Pruning logic generally
+    /// assumes that calls to this function will provide monotonically-
+    /// increasing scores.
     fn set_threshold(&mut self, score: Score);
 }
 
