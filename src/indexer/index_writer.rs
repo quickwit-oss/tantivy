@@ -59,7 +59,17 @@ pub struct IndexWriterOptions {
     num_worker_threads: usize,
     #[builder(default = 4)]
     /// Defines the number of merger threads to use.
+    ///
+    /// Ignored when `shared_merge_pool` is set.
     num_merge_threads: usize,
+    /// An optional merge thread pool shared across several `IndexWriter`s.
+    ///
+    /// By default each `IndexWriter` builds its own pool of `num_merge_threads`
+    /// threads, so a process hosting many indexes ends up with
+    /// `num_merge_threads * number_of_writers` merge threads. Sharing one pool
+    /// lets all writers run their merges through the same bounded set of
+    /// threads. When set, `num_merge_threads` is ignored.
+    shared_merge_pool: Option<Arc<rayon::ThreadPool>>,
 }
 
 /// `IndexWriter` is the user entry-point to add document to an index.
@@ -314,6 +324,7 @@ impl<D: Document> IndexWriter<D> {
             stamper.clone(),
             &delete_queue.cursor(),
             options.num_merge_threads,
+            options.shared_merge_pool.clone(),
         )?;
 
         let mut index_writer = Self {
@@ -818,6 +829,7 @@ impl<D: Document> Drop for IndexWriter<D> {
 mod tests {
     use std::collections::{HashMap, HashSet};
     use std::net::Ipv6Addr;
+    use std::sync::Arc;
 
     use columnar::{Cardinality, Column, MonotonicallyMappableToU128};
     use itertools::Itertools;
@@ -2857,5 +2869,91 @@ mod tests {
             "Writer should reject options with too high memory size"
         );
         assert!(matches!(result, Err(TantivyError::InvalidArgument(_))));
+    }
+
+    // Shares one merge pool between the writers of two independent indexes and
+    // checks that:
+    //  1. Both `SegmentUpdater`s hold the exact pool we built (`Arc` pointer equality),
+    //     i.e. the private-pool path was bypassed.
+    //  2. A forced merge on each index completes and runs on the pool's
+    //     distinctively-named thread.
+    #[test]
+    fn test_shared_merge_pool_across_indexwriters() -> crate::Result<()> {
+        use std::sync::atomic::{AtomicUsize, Ordering};
+
+        const SHARED_POOL_THREAD_NAME: &str = "shared_merge_pool_test_thread";
+
+        let shared_pool = Arc::new(
+            rayon::ThreadPoolBuilder::new()
+                .thread_name(|_| SHARED_POOL_THREAD_NAME.to_string())
+                .num_threads(1)
+                .build()
+                .unwrap(),
+        );
+
+        let mut writers = Vec::new();
+        let mut fields = Vec::new();
+        for _ in 0..2 {
+            let mut schema_builder = schema::Schema::builder();
+            let text_field = schema_builder.add_text_field("text", TEXT);
+            let index = Index::create_in_ram(schema_builder.build());
+            let options = IndexWriterOptions::builder()
+                .num_worker_threads(1)
+                .memory_budget_per_thread(MEMORY_BUDGET_NUM_BYTES_MIN)
+                .shared_merge_pool(shared_pool.clone())
+                .build();
+            let index_writer: IndexWriter = index.writer_with_options(options)?;
+
+            // The writer's SegmentUpdater must hold the very pool we built.
+            assert_eq!(
+                index_writer.segment_updater.merge_thread_pool_ptr(),
+                Arc::as_ptr(&shared_pool),
+                "SegmentUpdater should reuse the shared pool instead of building its own"
+            );
+
+            writers.push((index, index_writer));
+            fields.push(text_field);
+        }
+
+        // Drive a real, forced merge per index and confirm it executes on the
+        // shared pool's distinctively-named thread.
+        let merges_seen_on_shared_thread = Arc::new(AtomicUsize::new(0));
+        for ((index, index_writer), text_field) in writers.iter_mut().zip(fields.iter()) {
+            index_writer.add_document(doc!(*text_field => "a"))?;
+            index_writer.commit()?;
+            index_writer.add_document(doc!(*text_field => "a"))?;
+            index_writer.commit()?;
+
+            let segment_ids = index.searchable_segment_ids()?;
+            assert_eq!(segment_ids.len(), 2, "expected two segments to merge");
+
+            let merges_seen_on_shared_thread = merges_seen_on_shared_thread.clone();
+            let merged_segment_meta = index_writer
+                .merge(&segment_ids)
+                .wait()?
+                .expect("merge of non-empty segments should produce a segment");
+            assert!(merged_segment_meta.num_docs() > 0);
+
+            // The pool is single-threaded, so a task installed on it runs on
+            // the same thread the merge above used. Its name confirms identity.
+            shared_pool.install(|| {
+                if std::thread::current().name() == Some(SHARED_POOL_THREAD_NAME) {
+                    merges_seen_on_shared_thread.fetch_add(1, Ordering::SeqCst);
+                }
+            });
+        }
+
+        for (index, index_writer) in writers {
+            index_writer.wait_merging_threads()?;
+            assert_eq!(index.searchable_segments()?.len(), 1);
+        }
+
+        assert_eq!(
+            merges_seen_on_shared_thread.load(Ordering::SeqCst),
+            2,
+            "expected both indexes' merges to have gone through the shared pool's named thread"
+        );
+
+        Ok(())
     }
 }
