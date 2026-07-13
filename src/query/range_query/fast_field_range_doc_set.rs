@@ -58,6 +58,12 @@ pub(crate) struct RangeDocSet<T> {
     /// Current batch of loaded docs.
     loaded_docs: VecCursor,
     last_seek_pos_opt: Option<u32>,
+    /// Rolling confidence that `seek_danger` targets are clustered: each small hop builds it up to a
+    /// cap, each large hop erodes it. Once it clears [`MIN_RUN_TO_SCAN`] the seeks are dense enough
+    /// that one forward-scanned block serves many targets more cheaply than a point lookup each.
+    /// Unlike a cumulative distance sum it has no periodic reset, so a sustained dense run keeps
+    /// scanning while a few isolated jumps only nick it (see [`DocSet::seek_danger`]).
+    seek_cluster_run: u32,
 }
 
 const DEFAULT_FETCH_HORIZON: u32 = 128;
@@ -71,6 +77,7 @@ impl<T: Send + Sync + PartialOrd + Copy + Debug + 'static> RangeDocSet<T> {
                 next_fetch_start: TERMINATED,
                 fetch_horizon: DEFAULT_FETCH_HORIZON,
                 last_seek_pos_opt: None,
+                seek_cluster_run: 0,
             };
         }
 
@@ -81,6 +88,7 @@ impl<T: Send + Sync + PartialOrd + Copy + Debug + 'static> RangeDocSet<T> {
             next_fetch_start: 0,
             fetch_horizon: DEFAULT_FETCH_HORIZON,
             last_seek_pos_opt: None,
+            seek_cluster_run: 0,
         };
         range_docset.reset_fetch_range();
         range_docset.fetch_block();
@@ -129,6 +137,9 @@ impl<T: Send + Sync + PartialOrd + Copy + Debug + 'static> RangeDocSet<T> {
 
         let last_doc = self.loaded_docs.last_doc();
         let doc_buffer: &mut Vec<DocId> = self.loaded_docs.get_cleared_data();
+
+        // TODO: for very sparse columns (e.g. 0.1%), we could load the values in the column and translate them back to
+        // docids, instead of starting at the docids. That way we should be able to extend fetch_end for cheap.
         self.column.get_docids_for_value_range(
             self.value_range.clone(),
             self.next_fetch_start..fetch_end,
@@ -169,6 +180,7 @@ impl<T: Send + Sync + PartialOrd + Copy + Debug + 'static> DocSet for RangeDocSe
     /// of `DocSet` should support it.
     ///
     /// Calling `seek(TERMINATED)` is also legal and is the normal way to consume a `DocSet`.
+    #[inline(never)]
     fn seek(&mut self, target: DocId) -> DocId {
         if self.is_last_seek_distance_large(target) {
             self.reset_fetch_range();
@@ -194,10 +206,71 @@ impl<T: Send + Sync + PartialOrd + Copy + Debug + 'static> DocSet for RangeDocSe
             return SeekDangerResult::SeekLowerBound(TERMINATED);
         }
 
-        if self.is_last_seek_distance_large(target) {
-            self.reset_fetch_range();
+        let distance_to_last_seek = self
+            .last_seek_pos_opt
+            .map(|last_seek_pos| target.saturating_sub(last_seek_pos))
+            .unwrap_or(u32::MAX);
+        // The point lookup is more expensive than scanning forward, so once the seeks look
+        // clustered we switch to scanning forward instead of doing a point lookup per target.
+        //
+        // We can't look into the future to see if the next seek is also small, but if we change
+        // the API in tantivy to operate on blocks of DocIds or have access to the callers docset, we can
+        // do a better job here.
+        //
+        // A fetch_block via seek on 128 elements is as expensive as ~24 point lookups. 
+        const SMALL_HOP: u32 = 4;
+        const MIN_RUN_TO_SCAN: u32 = 16;
+        const LARGE_HOP_PENALTY: u32 = 6;
+        // Cap keeps the counter reactive
+        const MAX_RUN: u32 = MIN_RUN_TO_SCAN + 4 * LARGE_HOP_PENALTY;
+        if distance_to_last_seek <= SMALL_HOP {
+            self.seek_cluster_run = (self.seek_cluster_run + 1).min(MAX_RUN);
+        } else {
+            // Large hops erode 4× faster than small hops build, so we keep scanning only while
+            // seeks stay ~80%+ clustered.
+            self.seek_cluster_run = self.seek_cluster_run.saturating_sub(LARGE_HOP_PENALTY);
         }
+        if self.seek_cluster_run >= MIN_RUN_TO_SCAN {
+            // Start each clustered scan from a modest horizon (fetch_block grows it if a block comes
+            // up empty) rather than inheriting a large one from an earlier full scan.
+            self.fetch_horizon = DEFAULT_FETCH_HORIZON;
+            let mut doc = self.doc();
+            if doc < target {
+                doc = self.seek(target);
+            }
+            return if doc == target {
+                SeekDangerResult::Found
+            } else {
+                SeekDangerResult::SeekLowerBound(doc)
+            };
+        }
+
         self.last_seek_pos_opt = Some(target);
+
+        // If the target is already in the loaded docs, we can just return Found without doing a
+        // point lookup. This also leaves the cursor positioned on `target`, so the docset stays in
+        // a valid state and a following `advance()` resumes the scan right after it.
+        if self
+            .loaded_docs
+            .last_doc()
+            .map(|doc| doc >= target)
+            .unwrap_or(false)
+        {
+            // A previously scanned block still covers the target, let's artificially extend the run
+            // to the cap so it keeps the same hysteresis headroom as a naturally clustered run.
+            self.seek_cluster_run = MAX_RUN;
+            self.fetch_horizon = DEFAULT_FETCH_HORIZON;
+
+            // iterate through the loaded docs to find the target or the next doc after it
+            while let Some(doc) = self.loaded_docs.current() {
+                if doc == target {
+                    return SeekDangerResult::Found;
+                } else if doc > target {
+                    return SeekDangerResult::SeekLowerBound(doc);
+                }
+                self.loaded_docs.next();
+            }
+        }
 
         let is_match = self
             .column
