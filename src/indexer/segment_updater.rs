@@ -678,6 +678,11 @@ impl SegmentUpdater {
         Ok(after_merge_segment_meta)
     }
 
+    /// Check if there are still pending merges without blocking
+    pub fn has_merging_threads(&self) -> bool {
+        self.merge_operations.len() > 0
+    }
+
     /// Wait for current merging threads.
     ///
     /// Upon termination of the current merging threads,
