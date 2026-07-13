@@ -45,6 +45,17 @@ fn error_in_index_worker_thread(context: &str) -> TantivyError {
     ))
 }
 
+const WORKER_FLUSH_FAILED: &str = "An indexing worker thread panicked before sealing its segments";
+
+/// One commit epoch's work order for a persistent worker: drain `receiver`
+/// until it closes (sealing a segment when the memory budget trips), then ack
+/// through `flushed`. See [`IndexWriter::add_indexing_worker`].
+struct EpochTask<D: Document> {
+    receiver: AddBatchReceiver<D>,
+    flushed: crossbeam_channel::Sender<crate::Result<()>>,
+    delete_cursor: DeleteCursor,
+}
+
 #[derive(Clone, bon::Builder)]
 /// A builder for creating a new [IndexWriter] for an index.
 pub struct IndexWriterOptions {
@@ -78,6 +89,12 @@ pub struct IndexWriter<D: Document = TantivyDocument> {
     options: IndexWriterOptions,
 
     workers_join_handle: Vec<JoinHandle<crate::Result<()>>>,
+    /// Delivers each worker its next [`EpochTask`]; dropping the senders tells
+    /// parked workers to exit.
+    worker_epoch_senders: Vec<crossbeam_channel::Sender<EpochTask<D>>>,
+    /// Flush acks for the in-flight epoch, waited on by `prepare_commit`. A
+    /// crossbeam receiver (not a `FutureResult`) keeps `IndexWriter: Sync`.
+    worker_flushes: Vec<crossbeam_channel::Receiver<crate::Result<()>>>,
 
     index_writer_status: IndexWriterStatus<D>,
     operation_sender: AddBatchSender<D>,
@@ -327,6 +344,8 @@ impl<D: Document> IndexWriter<D> {
             segment_updater,
 
             workers_join_handle: vec![],
+            worker_epoch_senders: vec![],
+            worker_flushes: vec![],
 
             delete_queue,
 
@@ -355,6 +374,8 @@ impl<D: Document> IndexWriter<D> {
         // this will stop the indexing thread,
         // dropping the last reference to the segment_updater.
         self.drop_sender();
+        // Close epoch channels so parked workers exit and can be joined.
+        self.worker_epoch_senders.clear();
 
         let former_workers_handles = std::mem::take(&mut self.workers_join_handle);
         for join_handle in former_workers_handles {
@@ -409,54 +430,84 @@ impl<D: Document> IndexWriter<D> {
             })
     }
 
-    /// Spawns a new worker thread for indexing.
-    /// The thread consumes documents from the pipeline.
+    /// Spawns a persistent indexing worker that lives for the writer's whole
+    /// life: each epoch it drains an [`EpochTask`]'s channel, acks through
+    /// `flushed`, and parks for the next. Replaces the former
+    /// join-then-respawn per commit, whose fixed cost dominated high-rate
+    /// commits.
     fn add_indexing_worker(&mut self) -> crate::Result<()> {
-        let document_receiver_clone = self.operation_receiver()?;
         let index_writer_bomb = self.index_writer_status.create_bomb();
 
         let segment_updater = self.segment_updater.clone();
 
-        let mut delete_cursor = self.delete_queue.cursor();
-
         let mem_budget = self.options.memory_budget_per_thread;
         let index = self.index.clone();
+        let (epoch_sender, epoch_receiver) = crossbeam_channel::unbounded::<EpochTask<D>>();
+        // Seed the first epoch with the writer's current operation channel.
+        let (flushed_sender, flushed) = crossbeam_channel::bounded(1);
+        epoch_sender
+            .send(EpochTask {
+                receiver: self.operation_receiver()?,
+                flushed: flushed_sender,
+                delete_cursor: self.delete_queue.cursor(),
+            })
+            .expect("the worker's epoch receiver cannot be gone: we hold it");
         let join_handle: JoinHandle<crate::Result<()>> = thread::Builder::new()
             .name(format!("thrd-tantivy-index{}", self.worker_id))
             .spawn(move || {
-                loop {
-                    let mut document_iterator = document_receiver_clone
-                        .clone()
-                        .into_iter()
-                        .filter(|batch| !batch.is_empty())
-                        .peekable();
+                // A closed epoch channel is the shutdown signal.
+                while let Ok(EpochTask {
+                    receiver,
+                    flushed,
+                    mut delete_cursor,
+                }) = epoch_receiver.recv()
+                {
+                    let epoch_result: crate::Result<()> = loop {
+                        let mut document_iterator = receiver
+                            .clone()
+                            .into_iter()
+                            .filter(|batch| !batch.is_empty())
+                            .peekable();
 
-                    // The peeking here is to avoid creating a new segment's files
-                    // if no document are available.
-                    //
-                    // This is a valid guarantee as the peeked document now belongs to
-                    // our local iterator.
-                    if let Some(batch) = document_iterator.peek() {
-                        assert!(!batch.is_empty());
-                        delete_cursor.skip_to(batch[0].opstamp);
-                    } else {
-                        // No more documents.
-                        // It happens when there is a commit, or if the `IndexWriter`
-                        // was dropped.
-                        index_writer_bomb.defuse();
-                        return Ok(());
+                        // The peeking here is to avoid creating a new segment's files
+                        // if no document are available.
+                        //
+                        // This is a valid guarantee as the peeked document now belongs to
+                        // our local iterator.
+                        if let Some(batch) = document_iterator.peek() {
+                            assert!(!batch.is_empty());
+                            delete_cursor.skip_to(batch[0].opstamp);
+                        } else {
+                            // Channel drained and closed: flush barrier reached.
+                            break Ok(());
+                        }
+
+                        if let Err(err) = index_documents(
+                            mem_budget,
+                            index.new_segment(),
+                            &mut document_iterator,
+                            &segment_updater,
+                            delete_cursor.clone(),
+                        ) {
+                            break Err(err);
+                        }
+                    };
+                    let failed = epoch_result.is_err();
+                    // Forward the result verbatim; harmless if nobody waits.
+                    let _ = flushed.send(epoch_result);
+                    if failed {
+                        // Leaving the bomb armed kills the writer.
+                        return Err(error_in_index_worker_thread(
+                            "An indexing worker thread stopped after an indexing error",
+                        ));
                     }
-
-                    index_documents(
-                        mem_budget,
-                        index.new_segment(),
-                        &mut document_iterator,
-                        &segment_updater,
-                        delete_cursor.clone(),
-                    )?;
                 }
+                index_writer_bomb.defuse();
+                Ok(())
             })?;
         self.worker_id += 1;
+        self.worker_epoch_senders.push(epoch_sender);
+        self.worker_flushes.push(flushed);
         self.workers_join_handle.push(join_handle);
         Ok(())
     }
@@ -542,15 +593,18 @@ impl<D: Document> IndexWriter<D> {
     /// and replace all the channels by new ones.
     ///
     /// The current workers will keep on indexing
-    /// the pending document and stop
+    /// the pending document and seal their segment
     /// when no documents are remaining.
     ///
-    /// Returns the former segment_ready channel.
-    fn recreate_document_channel(&mut self) {
+    /// Returns the new receiver, which `prepare_commit` hands to the workers
+    /// as the next [`EpochTask`] after the current epoch flushes.
+    fn recreate_document_channel(&mut self) -> AddBatchReceiver<D> {
         let (document_sender, document_receiver) =
             crossbeam_channel::bounded(PIPELINE_MAX_SIZE_IN_DOCS);
         self.operation_sender = document_sender;
-        self.index_writer_status = IndexWriterStatus::from(document_receiver);
+        self.index_writer_status
+            .replace_receiver(document_receiver.clone());
+        document_receiver
     }
 
     /// Rollback to the last commit
@@ -616,9 +670,9 @@ impl<D: Document> IndexWriter<D> {
     /// using this API.
     /// See [`PreparedCommit::set_payload()`].
     pub fn prepare_commit(&mut self) -> crate::Result<PreparedCommit<'_, D>> {
-        // Here, because we join all of the worker threads,
-        // all of the segment update for this commit have been
-        // sent.
+        // Here, because we wait for all of the worker threads to reach the
+        // epoch's flush barrier, all of the segment updates for this commit
+        // have been sent.
         //
         // No document belonging to the next commit have been
         // pushed too, because add_document can only happen
@@ -628,18 +682,29 @@ impl<D: Document> IndexWriter<D> {
         // committed segments.
         info!("Preparing commit");
 
-        // this will drop the current document channel
-        // and recreate a new one.
-        self.recreate_document_channel();
-
-        let former_workers_join_handle = std::mem::take(&mut self.workers_join_handle);
-
-        for worker_handle in former_workers_join_handle {
-            let indexing_worker_result = worker_handle
-                .join()
-                .map_err(|e| TantivyError::ErrorInThread(format!("{e:?}")))?;
-            indexing_worker_result?;
-            self.add_indexing_worker()?;
+        // Closing the current epoch channel makes workers drain it, seal their
+        // segments, ack, and park — replacing the old join-then-respawn per
+        // commit. Waiting on the acks is the barrier.
+        let document_receiver = self.recreate_document_channel();
+        for flushed in std::mem::take(&mut self.worker_flushes) {
+            // A disconnected channel means the worker panicked before acking.
+            flushed
+                .recv()
+                .map_err(|_| TantivyError::SystemError(WORKER_FLUSH_FAILED.to_string()))??;
+        }
+        // Hand every (parked) worker the next epoch's channel.
+        for epoch_sender in &self.worker_epoch_senders {
+            let (flushed_sender, flushed) = crossbeam_channel::bounded(1);
+            epoch_sender
+                .send(EpochTask {
+                    receiver: document_receiver.clone(),
+                    flushed: flushed_sender,
+                    delete_cursor: self.delete_queue.cursor(),
+                })
+                .map_err(|_| {
+                    error_in_index_worker_thread("An indexing worker thread is not running")
+                })?;
+            self.worker_flushes.push(flushed);
         }
 
         let commit_opstamp = self.stamper.stamp();
@@ -808,6 +873,8 @@ impl<D: Document> Drop for IndexWriter<D> {
     fn drop(&mut self) {
         self.segment_updater.kill();
         self.drop_sender();
+        // Close epoch channels so parked workers exit and can be joined.
+        self.worker_epoch_senders.clear();
         for work in self.workers_join_handle.drain(..) {
             let _ = work.join();
         }
