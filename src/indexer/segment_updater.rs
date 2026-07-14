@@ -1,4 +1,3 @@
-use std::any::Any;
 use std::borrow::BorrowMut;
 use std::collections::HashSet;
 use std::io::Write;
@@ -25,8 +24,6 @@ use crate::indexer::{
     SegmentSerializer,
 };
 use crate::{FutureResult, Opstamp, TantivyError};
-
-const PANIC_CAUGHT: &str = "Panic caught in merge thread";
 
 /// Save the index meta file.
 /// This operation is atomic:
@@ -300,14 +297,13 @@ impl SegmentUpdater {
                 let pool = ThreadPoolBuilder::new()
                     .thread_name(|i| format!("merge_thread_{i}"))
                     .num_threads(num_merge_threads)
-                    .panic_handler(move |panic| {
+                    .panic_handler(move |_panic| {
                         // We don't print the panic content itself,
-                        // it is already printed during the unwinding
-                        if let Some(message) = panic.downcast_ref::<&str>() {
-                            if *message != PANIC_CAUGHT {
-                                error!("uncaught merge panic")
-                            }
-                        }
+                        // it is already printed during the unwinding.
+                        // Merge panics are caught and reported through the
+                        // future in `start_merge`; reaching here means an
+                        // unexpected, uncaught panic on a merge thread.
+                        error!("uncaught merge panic")
                     })
                     .build()
                     .map_err(|_| {
@@ -557,14 +553,16 @@ impl SegmentUpdater {
                     } else {
                         "UNKNOWN"
                     };
+                    warn!("Merge thread panicked: {panic_str}");
                     let _send_result = merging_future_send.send(Err(TantivyError::SystemError(
                         format!("Merge thread panicked: {panic_str}"),
                     )));
-                    // Resume unwinding because we forced unwind safety with
-                    // `std::panic::AssertUnwindSafe` Use a specific message so
-                    // the panic_handler can double check that we properly caught the panic.
-                    let boxed_panic_message: Box<dyn Any + Send> = Box::new(PANIC_CAUGHT);
-                    std::panic::resume_unwind(boxed_panic_message);
+                    // Do not resume unwinding: the panic is already caught and
+                    // reported through the future. Re-panicking here would
+                    // escape into the rayon pool, and a shared pool (see
+                    // `IndexWriterOptions::shared_merge_pool`) has no
+                    // panic handler installed, so it would abort the process.
+                    return;
                 }
             };
             match merge_res {
