@@ -139,10 +139,9 @@ fn merge(
 /// meant to work if you have an `IndexWriter` running for the origin indices, or
 /// the destination `Index`.
 ///
-/// It is the caller's responsibility to ensure every custom
-/// [`SegmentPlugin`](crate::SegmentPlugin) is registered on the source indices and that
-/// the indices share the same plugin set. A source segment whose custom extension has no
-/// registered plugin has that component's data silently dropped from the merge.
+/// Every custom [`SegmentPlugin`](crate::SegmentPlugin) must be registered on the source
+/// indices, and all source indices must register the same plugin set; the merge errors
+/// otherwise. The merged output carries that shared plugin set forward.
 #[doc(hidden)]
 pub fn merge_indices<T: Into<Box<dyn Directory>>>(
     indices: &[Index],
@@ -190,10 +189,9 @@ pub fn merge_indices<T: Into<Box<dyn Directory>>>(
 /// meant to work if you have an `IndexWriter` running for the origin indices, or
 /// the destination `Index`.
 ///
-/// It is the caller's responsibility to ensure every custom
-/// [`SegmentPlugin`](crate::SegmentPlugin) is registered on the segments' source indices.
-/// A source segment whose custom extension has no registered plugin has that component's
-/// data silently dropped from the merge.
+/// Every custom [`SegmentPlugin`](crate::SegmentPlugin) must be registered on the segments'
+/// source indices, and all of those indices must register the same plugin set; the merge
+/// errors otherwise. The merged output carries that shared plugin set forward.
 #[doc(hidden)]
 pub fn merge_filtered_segments<T: Into<Box<dyn Directory>>>(
     segments: &[Segment],

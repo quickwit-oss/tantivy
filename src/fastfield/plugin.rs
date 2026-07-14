@@ -17,9 +17,10 @@ use crate::fastfield::{FastFieldReaders, FastFieldsWriter};
 use crate::index::{SegmentComponent, SegmentReader};
 use crate::indexer::doc_id_mapping::{DocIdMapping, MappingType, SegmentDocIdMapping};
 use crate::plugin::{PluginMergeContext, PluginWriter, PluginWriterContext, SegmentPlugin};
-use crate::schema::{value_type_to_column_type, Schema, TantivyDocument};
+use crate::schema::document::Document;
+use crate::schema::{value_type_to_column_type, Schema};
 use crate::space_usage::{ComponentSpaceUsage, FAST_FIELDS};
-use crate::{DocId, Segment};
+use crate::Segment;
 
 pub struct FastFieldsPlugin;
 
@@ -28,21 +29,8 @@ impl SegmentPlugin for FastFieldsPlugin {
         &["fast"]
     }
 
-    fn create_writer(&self, ctx: &PluginWriterContext) -> crate::Result<Box<dyn PluginWriter>> {
-        let index = ctx.segment.index();
-        let tokenizer_manager = index.fast_field_tokenizer().clone();
-        let writer = FastFieldsWriter::from_schema_and_tokenizer_manager(
-            &ctx.segment.schema(),
-            tokenizer_manager,
-        )?;
-
-        let path = ctx.segment.relative_path(SegmentComponent::FastFields);
-        let fast_field_write = Some(index.directory().open_write(&path)?);
-
-        Ok(Box::new(FastFieldsPluginWriter {
-            writer: Some(writer),
-            fast_field_write,
-        }))
+    fn create_writer(&self, _ctx: &PluginWriterContext) -> crate::Result<Box<dyn PluginWriter>> {
+        unimplemented!("FastFieldsPlugin is a built-in; use FastFieldsPluginWriter::new")
     }
 
     fn merge(&self, ctx: PluginMergeContext) -> crate::Result<()> {
@@ -91,58 +79,59 @@ impl SegmentPlugin for FastFieldsPlugin {
 }
 
 pub struct FastFieldsPluginWriter {
-    /// The inner writer is wrapped in an `Option` because `FastFieldsWriter::serialize`
-    /// takes `self` by value. We `.take()` it during serialize.
-    pub writer: Option<FastFieldsWriter>,
-    fast_field_write: Option<WritePtr>,
+    pub writer: FastFieldsWriter,
+    fast_field_write: WritePtr,
 }
 
 impl FastFieldsPluginWriter {
+    pub(crate) fn new(ctx: &PluginWriterContext) -> crate::Result<Self> {
+        let index = ctx.segment.index();
+        let tokenizer_manager = index.fast_field_tokenizer().clone();
+        let writer = FastFieldsWriter::from_schema_and_tokenizer_manager(
+            &ctx.segment.schema(),
+            tokenizer_manager,
+        )?;
+
+        let path = ctx.segment.relative_path(SegmentComponent::FastFields);
+        let fast_field_write = index.directory().open_write(&path)?;
+
+        Ok(FastFieldsPluginWriter {
+            writer,
+            fast_field_write,
+        })
+    }
+
+    /// Generic, zero-copy document ingestion. Called directly by the `SegmentWriter` for
+    /// this built-in, so a custom `Document` is indexed in place without materializing a
+    /// `TantivyDocument`.
+    pub(crate) fn index_document<D: Document>(&mut self, doc: &D) -> crate::Result<()> {
+        self.writer.add_document(doc)
+    }
+
     pub fn writer_mut(&mut self) -> &mut FastFieldsWriter {
-        self.writer
-            .as_mut()
-            .expect("FastFieldsWriter already consumed by serialize")
+        &mut self.writer
     }
 
     pub fn writer(&self) -> &FastFieldsWriter {
-        self.writer
-            .as_ref()
-            .expect("FastFieldsWriter already consumed by serialize")
+        &self.writer
     }
 }
 
 impl PluginWriter for FastFieldsPluginWriter {
-    fn add_document(
-        &mut self,
-        _doc_id: DocId,
-        doc: &TantivyDocument,
-        _schema: &Schema,
-    ) -> crate::Result<()> {
-        self.writer_mut().add_document(doc)
-    }
-
     fn serialize(
-        &mut self,
+        mut self: Box<Self>,
         _segment: &Segment,
         doc_id_map: Option<&DocIdMapping>,
     ) -> crate::Result<()> {
-        if let (Some(writer), Some(wrt)) = (self.writer.take(), self.fast_field_write.as_mut()) {
-            writer
-                .serialize(wrt, doc_id_map)
-                .map_err(|e| crate::TantivyError::InternalError(e.to_string()))?;
-        }
-        Ok(())
-    }
-
-    fn close(self: Box<Self>) -> crate::Result<()> {
-        if let Some(wrt) = self.fast_field_write {
-            wrt.terminate()?;
-        }
+        self.writer
+            .serialize(&mut self.fast_field_write, doc_id_map)
+            .map_err(|e| crate::TantivyError::InternalError(e.to_string()))?;
+        self.fast_field_write.terminate()?;
         Ok(())
     }
 
     fn mem_usage(&self) -> usize {
-        self.writer.as_ref().map_or(0, |w| w.mem_usage())
+        self.writer.mem_usage()
     }
 
     fn as_any(&self) -> &dyn Any {

@@ -4,16 +4,18 @@
 
 mod index;
 mod index_meta;
+mod inverted_index_plugin;
 mod inverted_index_reader;
 mod segment;
 mod segment_component;
 mod segment_id;
 mod segment_reader;
 
-pub(crate) use self::index::{builtin_plugins, list_segment_files, PluginCheckedIndex};
+pub(crate) use self::index::{builtin_plugins, list_segment_files};
 pub use self::index::{Index, IndexBuilder};
 pub(crate) use self::index_meta::SegmentMetaInventory;
 pub use self::index_meta::{IndexMeta, IndexSettings, IndexSortByField, Order, SegmentMeta};
+pub use self::inverted_index_plugin::{InvertedIndexPlugin, InvertedIndexPluginWriter};
 pub use self::inverted_index_reader::InvertedIndexReader;
 pub use self::segment::Segment;
 pub use self::segment_component::SegmentComponent;

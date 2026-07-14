@@ -146,9 +146,21 @@ impl IndexMerger {
             );
             return Err(crate::TantivyError::InvalidArgument(err_msg));
         }
-        // Get the custom plugins from the first segment's index (all segments should share
-        // the same index config).
+        // The merged output carries the first segment's custom plugin set, so every source
+        // segment must register the same set — otherwise a later segment's custom component
+        // would be silently dropped, or the first index's plugin would read a component the
+        // later segment lacks. Fail closed on any mismatch.
         let custom_plugins = if let Some(first_segment) = segments.first() {
+            let expected = first_segment.index().custom_extensions();
+            for segment in &segments[1..] {
+                if segment.index().custom_extensions() != expected {
+                    return Err(crate::TantivyError::InvalidArgument(
+                        "Attempt to merge segments whose source indices register different plugin \
+                         sets"
+                            .to_string(),
+                    ));
+                }
+            }
             first_segment.index().custom_plugins().to_vec()
         } else {
             Vec::new()
@@ -509,8 +521,7 @@ impl IndexMerger {
         };
 
         // Merge plugins in write order (matching `Index::all_plugins`):
-        // fieldnorms before postings (which reads them back), then fast_fields,
-        // store, and custom plugins.
+        // inverted index, then fast_fields, store, and custom plugins.
         for plugin in builtin_plugins()
             .into_iter()
             .chain(self.custom_plugins.iter().cloned())

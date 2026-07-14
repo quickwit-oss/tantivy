@@ -12,9 +12,7 @@ use super::{AddBatch, AddBatchReceiver, AddBatchSender, PreparedCommit};
 use crate::directory::{DirectoryLock, GarbageCollectionResult, TerminatingWrite};
 use crate::error::TantivyError;
 use crate::fastfield::write_alive_bitset;
-use crate::index::{
-    Index, PluginCheckedIndex, Segment, SegmentComponent, SegmentId, SegmentMeta, SegmentReader,
-};
+use crate::index::{Index, Segment, SegmentComponent, SegmentId, SegmentMeta, SegmentReader};
 use crate::indexer::delete_queue::{DeleteCursor, DeleteQueue};
 use crate::indexer::doc_opstamp_mapping::DocToOpstampMapping;
 use crate::indexer::index_writer_status::IndexWriterStatus;
@@ -280,11 +278,11 @@ impl<D: Document> IndexWriter<D> {
     /// If the memory arena per thread is too small or too big, returns
     /// `TantivyError::InvalidArgument`
     pub(crate) fn new(
-        index: PluginCheckedIndex,
+        index: Index,
         options: IndexWriterOptions,
         directory_lock: DirectoryLock,
     ) -> crate::Result<Self> {
-        let index = index.into_inner();
+        index.validate_plugins()?;
         if options.memory_budget_per_thread < MEMORY_BUDGET_NUM_BYTES_MIN {
             let err_msg = format!(
                 "The memory arena in bytes per thread needs to be at least \
@@ -577,11 +575,8 @@ impl<D: Document> IndexWriter<D> {
             .take()
             .expect("The IndexWriter does not have any lock. This is a bug, please report.");
 
-        let new_index_writer = IndexWriter::new(
-            PluginCheckedIndex::new(self.index.clone())?,
-            self.options.clone(),
-            directory_lock,
-        )?;
+        let new_index_writer =
+            IndexWriter::new(self.index.clone(), self.options.clone(), directory_lock)?;
 
         // the current `self` is dropped right away because of this call.
         //

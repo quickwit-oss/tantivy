@@ -12,11 +12,11 @@ use crate::directory::Directory;
 use crate::index::{SegmentComponent, SegmentReader};
 use crate::indexer::doc_id_mapping::DocIdMapping;
 use crate::plugin::{PluginMergeContext, PluginWriter, PluginWriterContext, SegmentPlugin};
-use crate::schema::document::{Document, TantivyDocument};
+use crate::schema::document::Document;
 use crate::schema::Schema;
 use crate::space_usage::{ComponentSpaceUsage, STORE};
 use crate::store::{StoreReader, StoreWriter};
-use crate::{DocId, Segment};
+use crate::Segment;
 
 pub struct StorePlugin;
 
@@ -25,38 +25,8 @@ impl SegmentPlugin for StorePlugin {
         &["store"]
     }
 
-    fn create_writer(&self, ctx: &PluginWriterContext) -> crate::Result<Box<dyn PluginWriter>> {
-        let settings = ctx.segment.index().settings();
-        let directory = ctx.segment.index().directory();
-        let remapping_required = settings.sort_by_field.is_some();
-
-        let store_writer = if remapping_required {
-            let path = ctx.segment.relative_path(SegmentComponent::TempStore);
-            let store_write = directory.open_write(&path)?;
-            StoreWriter::new(
-                store_write,
-                crate::store::Compressor::None,
-                // We want fast random access on the docs, so we choose a small block size.
-                // If this is zero, the skip index will contain too many checkpoints and
-                // therefore will be relatively slow.
-                16000,
-                settings.docstore_compress_dedicated_thread,
-            )?
-        } else {
-            let path = ctx.segment.relative_path(SegmentComponent::Store);
-            let store_write = directory.open_write(&path)?;
-            StoreWriter::new(
-                store_write,
-                settings.docstore_compression,
-                settings.docstore_blocksize,
-                settings.docstore_compress_dedicated_thread,
-            )?
-        };
-
-        Ok(Box::new(StorePluginWriter {
-            store_writer: Some(store_writer),
-            remapping_required,
-        }))
+    fn create_writer(&self, _ctx: &PluginWriterContext) -> crate::Result<Box<dyn PluginWriter>> {
+        unimplemented!("StorePlugin is a built-in; use StorePluginWriter::new")
     }
 
     fn merge(&self, ctx: PluginMergeContext) -> crate::Result<()> {
@@ -143,6 +113,40 @@ pub struct StorePluginWriter {
 }
 
 impl StorePluginWriter {
+    pub(crate) fn new(ctx: &PluginWriterContext) -> crate::Result<Self> {
+        let settings = ctx.segment.index().settings();
+        let directory = ctx.segment.index().directory();
+        let remapping_required = settings.sort_by_field.is_some();
+
+        let store_writer = if remapping_required {
+            let path = ctx.segment.relative_path(SegmentComponent::TempStore);
+            let store_write = directory.open_write(&path)?;
+            StoreWriter::new(
+                store_write,
+                crate::store::Compressor::None,
+                // We want fast random access on the docs, so we choose a small block size.
+                // If this is zero, the skip index will contain too many checkpoints and
+                // therefore will be relatively slow.
+                16000,
+                settings.docstore_compress_dedicated_thread,
+            )?
+        } else {
+            let path = ctx.segment.relative_path(SegmentComponent::Store);
+            let store_write = directory.open_write(&path)?;
+            StoreWriter::new(
+                store_write,
+                settings.docstore_compression,
+                settings.docstore_blocksize,
+                settings.docstore_compress_dedicated_thread,
+            )?
+        };
+
+        Ok(StorePluginWriter {
+            store_writer: Some(store_writer),
+            remapping_required,
+        })
+    }
+
     pub fn store<D: Document>(&mut self, document: &D, schema: &Schema) -> crate::Result<()> {
         if let Some(ref mut writer) = self.store_writer {
             writer
@@ -163,17 +167,8 @@ impl StorePluginWriter {
 }
 
 impl PluginWriter for StorePluginWriter {
-    fn add_document(
-        &mut self,
-        _doc_id: DocId,
-        doc: &TantivyDocument,
-        schema: &Schema,
-    ) -> crate::Result<()> {
-        self.store(doc, schema)
-    }
-
     fn serialize(
-        &mut self,
+        mut self: Box<Self>,
         segment: &Segment,
         doc_id_map: Option<&DocIdMapping>,
     ) -> crate::Result<()> {
@@ -217,11 +212,7 @@ impl PluginWriter for StorePluginWriter {
                 self.store_writer = Some(store_writer);
             }
         }
-        // For non-sorted indexes, data was already written incrementally. Nothing to do.
-        Ok(())
-    }
-
-    fn close(self: Box<Self>) -> crate::Result<()> {
+        // For non-sorted indexes, data was already written incrementally.
         if let Some(writer) = self.store_writer {
             writer
                 .close()
@@ -231,7 +222,9 @@ impl PluginWriter for StorePluginWriter {
     }
 
     fn mem_usage(&self) -> usize {
-        self.store_writer.as_ref().map_or(0, |w| w.mem_usage())
+        self.store_writer
+            .as_ref()
+            .map_or(0, |writer| writer.mem_usage())
     }
 
     fn as_any(&self) -> &dyn Any {

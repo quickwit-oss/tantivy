@@ -1,6 +1,28 @@
 use stacker::{ArenaHashMap, MemoryArena};
 
 use crate::indexer::path_to_unordered_id::PathToUnorderedId;
+use crate::postings::compute_table_memory_size;
+
+/// Computes the initial size of the term hash table.
+///
+/// Returns the recommended initial table size as a power of 2.
+///
+/// Note this is a very dumb way to compute log2, but it is easier to proofread that way.
+pub(crate) fn compute_initial_table_size(per_thread_memory_budget: usize) -> crate::Result<usize> {
+    let table_memory_upper_bound = per_thread_memory_budget / 3;
+    (10..20) // We cap it at 2^19 = 512K capacity.
+        // TODO: There are cases where this limit causes a
+        // reallocation in the hashmap. Check if this affects performance.
+        .map(|power| 1 << power)
+        .take_while(|capacity| compute_table_memory_size(*capacity) < table_memory_upper_bound)
+        .last()
+        .ok_or_else(|| {
+            crate::TantivyError::InvalidArgument(format!(
+                "per thread memory budget (={per_thread_memory_budget}) is too small. Raise the \
+                 memory budget or lower the number of threads."
+            ))
+        })
+}
 
 /// IndexingContext contains all of the transient memory arenas
 /// required for building the inverted index.

@@ -4,7 +4,6 @@
 use common::ReadOnlyBitSet;
 
 use super::SegmentWriter;
-use crate::fastfield::FastFieldsPluginWriter;
 use crate::schema::{Field, Schema};
 use crate::{DocAddress, DocId, IndexSortByField, TantivyError};
 
@@ -142,14 +141,11 @@ pub(crate) fn get_doc_id_mapping_from_field(
 ) -> crate::Result<DocIdMapping> {
     let schema = segment_writer.segment.schema();
     expect_field_id_for_sort_field(&schema, &sort_by_field)?; // for now expect
-    let new_doc_id_to_old = segment_writer
-        .plugin_writer::<FastFieldsPluginWriter>()
-        .writer()
-        .sort_order(
-            sort_by_field.field.as_str(),
-            segment_writer.max_doc(),
-            sort_by_field.order.is_desc(),
-        );
+    let new_doc_id_to_old = segment_writer.fast_fields.writer().sort_order(
+        sort_by_field.field.as_str(),
+        segment_writer.max_doc(),
+        sort_by_field.order.is_desc(),
+    );
     // create new doc_id to old doc_id index (used in fast_field_writers)
     Ok(DocIdMapping::from_new_id_to_old_id(new_doc_id_to_old))
 }

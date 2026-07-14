@@ -14,7 +14,8 @@ use common::HasLen;
 
 use crate::index::{IndexSettings, SegmentComponent, SegmentReader};
 use crate::indexer::doc_id_mapping::SegmentDocIdMapping;
-use crate::schema::{Schema, TantivyDocument};
+use crate::schema::document::ErasedDocument;
+use crate::schema::Schema;
 use crate::space_usage::ComponentSpaceUsage;
 use crate::{DocId, Segment};
 
@@ -80,30 +81,31 @@ pub trait SegmentPlugin: Send + Sync + 'static {
 pub trait PluginWriter: Send + Any {
     /// Records a single document during indexing.
     ///
-    /// Called once per document added to the segment, in doc-id order, for every plugin
-    /// writer. The default is a no-op; override it to accumulate per-document state.
+    /// Called once per document added to the segment, in doc-id order, for every custom
+    /// plugin writer. The document is passed type-erased as [`&dyn ErasedDocument`] — custom
+    /// plugins are trait objects, so they cannot take a generic `Document`. A plugin that
+    /// knows the concrete document type can recover it for free with
+    /// `doc.as_any().downcast_ref::<ConcreteDoc>()`; otherwise it can walk `doc.erased_fields()`.
+    /// The default is a no-op; override it to accumulate per-document state.
     fn add_document(
         &mut self,
         _doc_id: DocId,
-        _doc: &TantivyDocument,
+        _doc: &dyn ErasedDocument,
         _schema: &Schema,
     ) -> crate::Result<()> {
         Ok(())
     }
 
-    /// Serialize accumulated data to segment files.
-    /// Called during `SegmentWriter::finalize()`.
+    /// Serialize accumulated data to segment files and finalize them.
+    /// Called once, during `SegmentWriter::finalize()`.
     ///
-    /// `Segment`'s file APIs (`open_write`/`open_read`) take `&self`, so a shared
-    /// reference is sufficient.
+    /// Consumes the writer: it is the terminal step of the writer's lifecycle, responsible
+    /// for both writing the segment files and closing their handles.
     fn serialize(
-        &mut self,
+        self: Box<Self>,
         segment: &Segment,
         doc_id_map: Option<&crate::indexer::doc_id_mapping::DocIdMapping>,
     ) -> crate::Result<()>;
-
-    /// Finalize and close any open file handles.
-    fn close(self: Box<Self>) -> crate::Result<()>;
 
     /// Current memory usage of this writer.
     fn mem_usage(&self) -> usize;
@@ -122,6 +124,9 @@ pub trait PluginWriter: Send + Any {
 pub struct PluginWriterContext<'a> {
     /// The segment being written to.
     pub segment: &'a Segment,
+    /// Per-thread indexing memory budget in bytes. Plugins that keep an in-memory arena
+    /// (e.g. the inverted index) size it from this.
+    pub memory_budget_in_bytes: usize,
 }
 
 /// Context provided to [`SegmentPlugin::merge`].
@@ -178,7 +183,7 @@ mod tests {
 
     impl PluginWriter for MarkerWriter {
         fn serialize(
-            &mut self,
+            self: Box<Self>,
             segment: &Segment,
             _doc_id_map: Option<&crate::indexer::doc_id_mapping::DocIdMapping>,
         ) -> crate::Result<()> {
@@ -187,10 +192,6 @@ mod tests {
             use std::io::Write;
             write.write_all(&MARKER.to_le_bytes())?;
             common::TerminatingWrite::terminate(write)?;
-            Ok(())
-        }
-
-        fn close(self: Box<Self>) -> crate::Result<()> {
             Ok(())
         }
 
@@ -225,13 +226,13 @@ mod tests {
         assert!(
             index
                 .all_plugins()
-                .any(|p| p.extensions().contains(&"marker")),
+                .any(|plugin| plugin.extensions().contains(&"marker")),
             "marker plugin should be registered"
         );
         assert!(
             index
                 .all_plugins()
-                .any(|p| p.extensions().contains(&"fieldnorm")),
+                .any(|plugin| plugin.extensions().contains(&"fieldnorm")),
             "fieldnorms built-in plugin should be registered"
         );
 
@@ -397,6 +398,37 @@ mod tests {
     }
 
     #[test]
+    fn test_custom_plugin_indexes_custom_document() -> crate::Result<()> {
+        use std::collections::BTreeMap;
+
+        use crate::indexer::operation::AddOperation;
+        use crate::indexer::SegmentWriter;
+        use crate::schema::{Field, OwnedValue};
+
+        let mut schema_builder = Schema::builder();
+        let text_field = schema_builder.add_text_field("text", TEXT | STORED);
+        let index = Index::builder()
+            .schema(schema_builder.build())
+            .register_plugin(Arc::new(MarkerPlugin))
+            .create_in_ram()?;
+
+        let segment = index.new_segment();
+        let mut segment_writer = SegmentWriter::for_segment(15_000_000, segment)?;
+
+        // A custom (non-`TantivyDocument`) document type indexes fine even with a custom plugin
+        // registered: built-ins take it generically, and the custom plugin receives it
+        // type-erased (`&dyn ErasedDocument`) — no materialization, no error.
+        let mut document: BTreeMap<Field, OwnedValue> = BTreeMap::new();
+        document.insert(text_field, "hello".into());
+        segment_writer.add_document(AddOperation {
+            opstamp: 0,
+            document,
+        })?;
+
+        Ok(())
+    }
+
+    #[test]
     fn test_reserved_extension_plugins_fail_closed() -> crate::Result<()> {
         use crate::TantivyError;
 
@@ -440,6 +472,44 @@ mod tests {
                 "expected ConflictingPlugins error for `{reserved}`, got {err:?}"
             );
         }
+        Ok(())
+    }
+
+    #[test]
+    fn test_merge_indices_mismatched_plugins_fails_closed() -> crate::Result<()> {
+        use crate::directory::RamDirectory;
+        use crate::indexer::merge_indices;
+        use crate::TantivyError;
+
+        // Two indices with identical schemas but different plugin sets: only the first
+        // registers the marker plugin. Merging must fail closed rather than silently drop
+        // the marker component (or read a missing one), since the merged output would carry
+        // only the first index's plugin set.
+        let build = |with_plugin: bool| -> crate::Result<Index> {
+            let mut schema_builder = Schema::builder();
+            let text_field = schema_builder.add_text_field("text", TEXT | STORED);
+            let mut builder = Index::builder().schema(schema_builder.build());
+            if with_plugin {
+                builder = builder.register_plugin(Arc::new(MarkerPlugin));
+            }
+            let index = builder.create_in_ram()?;
+            let mut writer: IndexWriter = index.writer_with_num_threads(1, 15_000_000)?;
+            writer.add_document(crate::doc!(text_field => "hello world"))?;
+            writer.commit()?;
+            Ok(index)
+        };
+
+        let with_marker = build(true)?;
+        let without_marker = build(false)?;
+
+        let err = merge_indices(&[with_marker, without_marker], RamDirectory::create())
+            .err()
+            .expect("merge should fail when source indices register different plugin sets");
+        assert!(
+            matches!(err, TantivyError::InvalidArgument(ref msg) if msg.contains("plugin sets")),
+            "expected InvalidArgument about plugin sets, got {err:?}"
+        );
+
         Ok(())
     }
 }

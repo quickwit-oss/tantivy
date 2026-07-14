@@ -161,6 +161,7 @@
 
 mod de;
 mod default_document;
+mod erased;
 mod existing_type_impls;
 mod owned_value;
 mod se;
@@ -177,6 +178,7 @@ pub use self::de::{
 pub use self::default_document::{
     CompactDocArrayIter, CompactDocObjectIter, CompactDocValue, DocParsingError, TantivyDocument,
 };
+pub use self::erased::{ErasedDocument, ErasedValue};
 pub use self::owned_value::OwnedValue;
 pub(crate) use self::se::BinaryDocumentSerializer;
 pub use self::value::{ReferenceValue, ReferenceValueLeaf, Value};
