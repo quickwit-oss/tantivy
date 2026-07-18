@@ -100,17 +100,20 @@ impl DateTime {
 
     /// Convert to UNIX timestamp in seconds.
     pub const fn into_timestamp_secs(self) -> i64 {
-        self.timestamp_nanos / 1_000_000_000
+        // Euclidean division floors towards negative infinity so that timestamps
+        // before the epoch are rounded down to their containing second instead of
+        // towards zero (which would move them forward in time).
+        self.timestamp_nanos.div_euclid(1_000_000_000)
     }
 
     /// Convert to UNIX timestamp in milliseconds.
     pub const fn into_timestamp_millis(self) -> i64 {
-        self.timestamp_nanos / 1_000_000
+        self.timestamp_nanos.div_euclid(1_000_000)
     }
 
     /// Convert to UNIX timestamp in microseconds.
     pub const fn into_timestamp_micros(self) -> i64 {
-        self.timestamp_nanos / 1_000
+        self.timestamp_nanos.div_euclid(1_000)
     }
 
     /// Convert to UNIX timestamp in nanoseconds.
@@ -142,16 +145,25 @@ impl DateTime {
         PrimitiveDateTime::new(utc_datetime.date(), utc_datetime.time())
     }
 
-    /// Truncates the microseconds value to the corresponding precision.
+    /// Truncates the timestamp to the corresponding precision.
+    ///
+    /// Truncation always floors towards the earlier instant, so a timestamp is
+    /// mapped to the start of the bucket that contains it. This relies on
+    /// Euclidean division, otherwise timestamps before the epoch would be
+    /// rounded towards zero and land in the following bucket.
     pub fn truncate(self, precision: DateTimePrecision) -> Self {
-        let truncated_timestamp_micros = match precision {
-            DateTimePrecision::Seconds => (self.timestamp_nanos / 1_000_000_000) * 1_000_000_000,
-            DateTimePrecision::Milliseconds => (self.timestamp_nanos / 1_000_000) * 1_000_000,
-            DateTimePrecision::Microseconds => (self.timestamp_nanos / 1_000) * 1_000,
+        let truncated_timestamp_nanos = match precision {
+            DateTimePrecision::Seconds => {
+                self.timestamp_nanos.div_euclid(1_000_000_000) * 1_000_000_000
+            }
+            DateTimePrecision::Milliseconds => {
+                self.timestamp_nanos.div_euclid(1_000_000) * 1_000_000
+            }
+            DateTimePrecision::Microseconds => self.timestamp_nanos.div_euclid(1_000) * 1_000,
             DateTimePrecision::Nanoseconds => self.timestamp_nanos,
         };
         Self {
-            timestamp_nanos: truncated_timestamp_micros,
+            timestamp_nanos: truncated_timestamp_nanos,
         }
     }
 }
@@ -172,5 +184,152 @@ impl BinarySerializable for DateTime {
     fn deserialize<R: Read>(reader: &mut R) -> std::io::Result<Self> {
         let timestamp_micros = <i64 as BinarySerializable>::deserialize(reader)?;
         Ok(Self::from_timestamp_micros(timestamp_micros))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{DateTime, DateTimePrecision};
+
+    #[test]
+    fn test_into_timestamp_floors_for_negative_values() {
+        // A timestamp of -0.5s is inside the wall-clock second `[-1s, 0s)`, so
+        // converting it to a coarser unit must floor to -1, not round toward zero.
+        assert_eq!(
+            DateTime::from_timestamp_nanos(-500_000_000).into_timestamp_secs(),
+            -1
+        );
+        assert_eq!(
+            DateTime::from_timestamp_nanos(-1_500_000_000).into_timestamp_secs(),
+            -2
+        );
+
+        assert_eq!(
+            DateTime::from_timestamp_nanos(-500_000).into_timestamp_millis(),
+            -1
+        );
+        assert_eq!(
+            DateTime::from_timestamp_nanos(-1_500_000).into_timestamp_millis(),
+            -2
+        );
+
+        assert_eq!(
+            DateTime::from_timestamp_nanos(-500).into_timestamp_micros(),
+            -1
+        );
+        assert_eq!(
+            DateTime::from_timestamp_nanos(-1_500).into_timestamp_micros(),
+            -2
+        );
+    }
+
+    #[test]
+    fn test_into_timestamp_unchanged_for_positive_and_exact_values() {
+        assert_eq!(
+            DateTime::from_timestamp_nanos(1_500_000_000).into_timestamp_secs(),
+            1
+        );
+        assert_eq!(
+            DateTime::from_timestamp_nanos(-1_000_000_000).into_timestamp_secs(),
+            -1
+        );
+        assert_eq!(DateTime::from_timestamp_nanos(0).into_timestamp_secs(), 0);
+
+        assert_eq!(
+            DateTime::from_timestamp_nanos(1_500_000).into_timestamp_millis(),
+            1
+        );
+        assert_eq!(
+            DateTime::from_timestamp_nanos(1_500).into_timestamp_micros(),
+            1
+        );
+    }
+
+    #[test]
+    fn test_truncate_never_moves_forward_in_time() {
+        // Truncating to a coarser precision must never produce a value that is
+        // later than the input, otherwise the timestamp lands in the wrong bucket.
+        let negative = DateTime::from_timestamp_nanos(-500_000_000);
+        assert_eq!(
+            negative.truncate(DateTimePrecision::Seconds),
+            DateTime::from_timestamp_secs(-1),
+        );
+        assert!(negative.truncate(DateTimePrecision::Seconds) <= negative);
+
+        assert_eq!(
+            DateTime::from_timestamp_nanos(-1_500_000_000).truncate(DateTimePrecision::Seconds),
+            DateTime::from_timestamp_secs(-2),
+        );
+
+        assert_eq!(
+            DateTime::from_timestamp_nanos(-1_500_000).truncate(DateTimePrecision::Milliseconds),
+            DateTime::from_timestamp_millis(-2),
+        );
+        assert_eq!(
+            DateTime::from_timestamp_nanos(-1_500).truncate(DateTimePrecision::Microseconds),
+            DateTime::from_timestamp_micros(-2),
+        );
+    }
+
+    #[test]
+    fn test_truncate_buckets_same_second_together() {
+        // Every instant inside the wall-clock second `[-1s, 0s)` must truncate to
+        // the same bucket (-1s) at second precision.
+        let second_start = DateTime::from_timestamp_secs(-1);
+        for nanos in [-1_000_000_000, -999_999_999, -500_000_000, -1] {
+            assert_eq!(
+                DateTime::from_timestamp_nanos(nanos).truncate(DateTimePrecision::Seconds),
+                second_start,
+                "nanos {nanos} should truncate to -1s",
+            );
+        }
+        // ...and the next second up must be a different bucket.
+        assert_eq!(
+            DateTime::from_timestamp_nanos(0).truncate(DateTimePrecision::Seconds),
+            DateTime::from_timestamp_secs(0),
+        );
+        assert_eq!(
+            DateTime::from_timestamp_nanos(500_000_000).truncate(DateTimePrecision::Seconds),
+            DateTime::from_timestamp_secs(0),
+        );
+    }
+
+    #[test]
+    fn test_truncate_positive_values_unchanged() {
+        assert_eq!(
+            DateTime::from_timestamp_nanos(1_500_000_000).truncate(DateTimePrecision::Seconds),
+            DateTime::from_timestamp_secs(1),
+        );
+        assert_eq!(
+            DateTime::from_timestamp_nanos(1_999_999_999).truncate(DateTimePrecision::Seconds),
+            DateTime::from_timestamp_secs(1),
+        );
+        assert_eq!(
+            DateTime::from_timestamp_nanos(42).truncate(DateTimePrecision::Nanoseconds),
+            DateTime::from_timestamp_nanos(42),
+        );
+    }
+
+    #[test]
+    fn test_truncate_bucket_invariant_over_range() {
+        // For any timestamp and precision, the truncated value must be <= the
+        // original and within one unit of it (i.e. a proper floor to the bucket).
+        let units = [
+            (DateTimePrecision::Seconds, 1_000_000_000i64),
+            (DateTimePrecision::Milliseconds, 1_000_000),
+            (DateTimePrecision::Microseconds, 1_000),
+        ];
+        for (precision, unit) in units {
+            for nanos in [-3_333_333_333i64, -1_000_000_001, -7, 0, 7, 1_000_000_001] {
+                let dt = DateTime::from_timestamp_nanos(nanos);
+                let truncated = dt.truncate(precision).into_timestamp_nanos();
+                assert!(
+                    truncated <= nanos,
+                    "{truncated} !<= {nanos} for {precision:?}"
+                );
+                assert!(nanos - truncated < unit, "gap too large for {precision:?}");
+                assert_eq!(truncated % unit, 0, "not aligned for {precision:?}");
+            }
+        }
     }
 }
