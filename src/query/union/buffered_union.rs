@@ -11,23 +11,6 @@ use crate::{DocId, Score};
 const HORIZON_NUM_TINYBITSETS: usize = HORIZON as usize / 64;
 const HORIZON: u32 = 64u32 * 64u32;
 
-// `drain_filter` is not stable yet.
-// This function is similar except that it does is not unstable, and
-// it does not keep the original vector ordering.
-//
-// Elements are dropped and not yielded.
-fn unordered_drain_filter<T, P>(v: &mut Vec<T>, mut predicate: P)
-where P: FnMut(&mut T) -> bool {
-    let mut i = 0;
-    while i < v.len() {
-        if predicate(&mut v[i]) {
-            v.swap_remove(i);
-        } else {
-            i += 1;
-        }
-    }
-}
-
 /// Creates a `DocSet` that iterate through the union of two or more `DocSet`s.
 pub struct BufferedUnionScorer<TScorer, TScoreCombiner = DoNothingCombiner> {
     /// Active scorers (already filtered of `TERMINATED`).
@@ -66,23 +49,21 @@ fn refill<TScorer: Scorer, TScoreCombiner: ScoreCombiner>(
     score_combiner: &mut [TScoreCombiner; HORIZON as usize],
     min_doc: DocId,
 ) {
-    unordered_drain_filter(scorers, |scorer| {
-        let horizon = min_doc + HORIZON;
+    let horizon = min_doc + HORIZON;
+    for scorer in scorers.iter_mut() {
         loop {
             let doc = scorer.doc();
             if doc >= horizon {
-                return false;
+                break;
             }
             // add this document
             let delta = doc - min_doc;
             bitsets[(delta / 64) as usize].insert_mut(delta % 64u32);
             score_combiner[delta as usize].update(scorer);
-            if scorer.advance() == TERMINATED {
-                // remove the docset, it has been entirely consumed.
-                return true;
-            }
+            scorer.advance();
         }
-    });
+    }
+    scorers.retain(|scorer| scorer.doc() != TERMINATED);
 }
 
 impl<TScorer: Scorer, TScoreCombiner: ScoreCombiner> BufferedUnionScorer<TScorer, TScoreCombiner> {
@@ -114,6 +95,7 @@ impl<TScorer: Scorer, TScoreCombiner: ScoreCombiner> BufferedUnionScorer<TScorer
         union
     }
 
+    #[inline(never)]
     fn refill(&mut self) -> bool {
         if let Some(min_doc) = self.docsets.iter().map(DocSet::doc).min() {
             // Reset the sliding window to start at the smallest doc
@@ -253,12 +235,12 @@ where
 
             // The target is outside of the buffered horizon.
             // advance all docsets to a doc >= to the target.
-            unordered_drain_filter(&mut self.docsets, |docset| {
+            for docset in &mut self.docsets {
                 if docset.doc() < target {
                     docset.seek(target);
                 }
-                docset.doc() == TERMINATED
-            });
+            }
+            self.docsets.retain(|docset| docset.doc() != TERMINATED);
 
             // at this point all of the docsets
             // are positioned on a doc >= to the target.
