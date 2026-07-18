@@ -144,19 +144,18 @@ where
     TScorer: Scorer,
     TScoreCombiner: ScoreCombiner,
 {
-    #[inline]
     fn advance(&mut self) -> DocId {
-        if self.advance_buffered() {
-            return self.doc;
+        // A loop rather than two sequential advance_buffered calls
+        // produces a single inlined copy
+        loop {
+            if self.advance_buffered() {
+                return self.doc;
+            }
+            if !self.refill() {
+                self.doc = TERMINATED;
+                return TERMINATED;
+            }
         }
-        if !self.refill() {
-            self.doc = TERMINATED;
-            return TERMINATED;
-        }
-        if !self.advance_buffered() {
-            return TERMINATED;
-        }
-        self.doc
     }
 
     fn fill_buffer(&mut self, buffer: &mut [DocId; COLLECT_BLOCK_BUFFER_LEN]) -> usize {
