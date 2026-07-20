@@ -358,7 +358,7 @@ pub const MAX_NUM_TERMS_FOR_PAGED_MAP: u64 = 8_000_000;
 /// terms.
 ///
 /// TODO: Benchmark this threshold.
-const LAZY_BUCKET_ID_GENERATION_THRESHOLD: u64 = 4_096;
+pub(crate) const LAZY_BUCKET_ID_GENERATION_THRESHOLD: u64 = 4_096;
 
 /// Average docs-per-bucket below which term counts cluster too tightly (mostly 1s and 2s) for
 /// `select_nth_unstable` to beat `sort_unstable`'s adaptive paths, so we fall back to a full sort.
@@ -371,7 +371,7 @@ const DOCS_PER_BUCKET_QUICKSELECT_THRESHOLD: u64 = 2;
 /// the dense term maps preallocate all `num_terms` slots at construction, so their memory would
 /// otherwise escape the limit entirely (relevant now that the `Vec` threshold reaches
 /// [`MAX_NUM_TERMS_FOR_VEC`]).
-fn add_memory_consumption<M: TermAggregationMap>(
+pub(crate) fn add_memory_consumption<M: TermAggregationMap>(
     term_buckets: &M,
     req_data: &mut AggregationsSegmentCtx,
 ) -> crate::Result<()> {
@@ -912,8 +912,6 @@ pub(crate) struct VecTermBuckets<
     buckets: Vec<Bucket<B>>,
 }
 
-/// Dense term storage without sub-aggregation bucket ids.
-pub(crate) type VecTermBucketsNoAgg = VecTermBuckets<()>;
 
 impl<B: BucketIdSlot, const LAZY_BUCKET_ID_GENERATION: bool> TermAggregationMap
     for VecTermBuckets<B, LAZY_BUCKET_ID_GENERATION>
