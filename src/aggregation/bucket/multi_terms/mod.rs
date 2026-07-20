@@ -256,7 +256,7 @@ pub struct SegmentMultiTermsCollector {
     parent_buckets: Vec<FxHashMap<MultiTermsKey, MultiTermsBucket>>,
     sub_agg: Option<BufferedSubAggs<HighCardSubAggBuffer>>,
     bucket_id_provider: BucketIdProvider,
-    req_data_idx: usize,
+    req_data: MultiTermsAggReqData,
 }
 
 /// Shared validation for both the fast and recursive-fallback collectors: checks the
@@ -314,14 +314,18 @@ pub(crate) fn build_segment_multi_terms_collector(
     }
 
     Ok(Box::new(SegmentMultiTermsCollector::from_validated(
-        req, node,
+        req, node, req_data,
     )?))
 }
 
 impl SegmentMultiTermsCollector {
     /// Constructs the recursive fallback collector. Assumes `validate_multi_terms` has
     /// already been run by [`build_segment_multi_terms_collector`].
-    fn from_validated(req: &mut AggregationsSegmentCtx, node: &AggRefNode) -> crate::Result<Self> {
+    fn from_validated(
+        req: &mut AggregationsSegmentCtx,
+        node: &AggRefNode,
+        req_data: MultiTermsAggReqData,
+    ) -> crate::Result<Self> {
         let sub_agg = if !node.children.is_empty() {
             let sub_collector = build_segment_agg_collectors(req, &node.children)?;
             Some(BufferedSubAggs::new(sub_collector))
@@ -333,7 +337,7 @@ impl SegmentMultiTermsCollector {
             parent_buckets: vec![FxHashMap::default()],
             sub_agg,
             bucket_id_provider: BucketIdProvider::default(),
-            req_data_idx: node.idx_in_req_data,
+            req_data,
         })
     }
 
@@ -549,7 +553,7 @@ impl SegmentAggregationCollector for SegmentMultiTermsCollector {
     ) -> crate::Result<()> {
         self.prepare_max_bucket(bucket, agg_data)?;
         let bucket_map = std::mem::take(&mut self.parent_buckets[bucket as usize]);
-        let req_data = &agg_data.per_request.multi_terms_req_data[self.req_data_idx];
+        let req_data = &self.req_data;
         let name = req_data.name.clone();
         let result = Self::into_intermediate_bucket_result_inner(
             req_data,
@@ -570,7 +574,7 @@ impl SegmentAggregationCollector for SegmentMultiTermsCollector {
         docs: &[crate::DocId],
         agg_data: &mut AggregationsSegmentCtx,
     ) -> crate::Result<()> {
-        let req_data = &agg_data.per_request.multi_terms_req_data[self.req_data_idx];
+        let req_data = &self.req_data;
         let num_fields = req_data.fields.len();
         let mem_pre = self.get_memory_consumption(parent_bucket_id, num_fields);
 
@@ -798,7 +802,7 @@ fn build_fast_multi_terms_collector(
                     parent_buckets: vec![term_buckets],
                     sub_agg,
                     bucket_id_provider,
-                    req_data_idx: node.idx_in_req_data,
+                    req_data,
                     packs,
                     max_packed,
                     field_block_accessors: vec![ColumnBlockAccessor::default(); num_fields],
@@ -811,7 +815,7 @@ fn build_fast_multi_terms_collector(
                 term_buckets,
                 None,
                 bucket_id_provider,
-                node.idx_in_req_data,
+                req_data,
                 packs,
                 max_packed,
                 num_fields,
@@ -827,7 +831,7 @@ fn build_fast_multi_terms_collector(
                     term_buckets,
                     sub_agg,
                     bucket_id_provider,
-                    node.idx_in_req_data,
+                    req_data,
                     packs,
                     max_packed,
                     num_fields,
@@ -838,7 +842,7 @@ fn build_fast_multi_terms_collector(
                     term_buckets,
                     sub_agg,
                     bucket_id_provider,
-                    node.idx_in_req_data,
+                    req_data,
                     packs,
                     max_packed,
                     num_fields,
@@ -850,7 +854,7 @@ fn build_fast_multi_terms_collector(
                 term_buckets,
                 sub_agg,
                 bucket_id_provider,
-                node.idx_in_req_data,
+                req_data,
                 packs,
                 max_packed,
                 num_fields,
@@ -861,7 +865,7 @@ fn build_fast_multi_terms_collector(
                 term_buckets,
                 sub_agg,
                 bucket_id_provider,
-                node.idx_in_req_data,
+                req_data,
                 packs,
                 max_packed,
                 num_fields,
@@ -877,7 +881,7 @@ fn boxed_high_card_multi_terms_collector<M: TermAggregationMap>(
     term_buckets: M,
     sub_agg: Option<HighCardBufferedSubAggs>,
     bucket_id_provider: BucketIdProvider,
-    req_data_idx: usize,
+    req_data: MultiTermsAggReqData,
     packs: Vec<FieldPack>,
     max_packed: u64,
     num_fields: usize,
@@ -886,7 +890,7 @@ fn boxed_high_card_multi_terms_collector<M: TermAggregationMap>(
         parent_buckets: vec![term_buckets],
         sub_agg,
         bucket_id_provider,
-        req_data_idx,
+        req_data,
         packs,
         max_packed,
         field_block_accessors: vec![ColumnBlockAccessor::default(); num_fields],
@@ -908,7 +912,7 @@ struct SegmentMultiTermsFastCollector<TermMap: TermAggregationMap, B: SubAggBuff
     parent_buckets: Vec<TermMap>,
     sub_agg: Option<BufferedSubAggs<B>>,
     bucket_id_provider: BucketIdProvider,
-    req_data_idx: usize,
+    req_data: MultiTermsAggReqData,
     packs: Vec<FieldPack>,
     /// Upper bound on the packed key space; used to initialize each parent bucket's
     /// `TermMap`.
@@ -944,7 +948,7 @@ impl<TermMap: TermAggregationMap, B: SubAggBuffer> SegmentAggregationCollector
             &mut self.parent_buckets[bucket as usize],
             TermMap::new(0, &mut self.bucket_id_provider),
         );
-        let req_data = &agg_data.per_request.multi_terms_req_data[self.req_data_idx];
+        let req_data = &self.req_data;
         let name = req_data.name.clone();
         let result = into_intermediate_bucket_result_fast(
             req_data,
@@ -968,7 +972,7 @@ impl<TermMap: TermAggregationMap, B: SubAggBuffer> SegmentAggregationCollector
     ) -> crate::Result<()> {
         let mem_pre = self.get_memory_consumption(parent_bucket_id);
 
-        let req_data = &agg_data.per_request.multi_terms_req_data[self.req_data_idx];
+        let req_data = &self.req_data;
 
         self.packed_keys_buf.clear();
         self.packed_keys_buf.resize(docs.len(), 0u64);
@@ -1638,7 +1642,13 @@ mod tests {
             parent_buckets: vec![FxHashMap::default()],
             sub_agg: None,
             bucket_id_provider: BucketIdProvider::default(),
-            req_data_idx: 0,
+            req_data: MultiTermsAggReqData {
+                name: String::new(),
+                req: MultiTermsAggregation::default(),
+                fields: Vec::new(),
+                sub_aggregations: Aggregations::default(),
+                is_top_level: true,
+            },
         };
         for i in 0..64u64 {
             let mut key: MultiTermsKey = SmallVec::new();
