@@ -64,8 +64,11 @@ fn bench_agg(mut group: InputGroup<Index>) {
     register!(group, terms_all_unique_with_avg_sub_agg);
     register!(group, terms_many_with_avg_sub_agg);
     register!(group, terms_status_with_avg_sub_agg);
-    register!(group, terms_status_with_terms_zipf_1000_sub_agg);
-    register!(group, terms_zipf_1000_with_terms_status_sub_agg);
+    register!(group, nested_terms_status_and_zipf_1000);
+    register!(group, nested_terms_zipf_1000_and_status);
+    register!(group, nested_terms_many_and_zipf_1000);
+    register!(group, nested_terms_many_and_zipf_1000_and_status);
+    register!(group, nested_terms_status_and_zipf_1000_avg_sub_agg);
     register!(group, terms_status_with_histogram);
     register!(group, terms_status_with_date_histogram);
     register!(group, terms_status_with_date_histogram_hard_bounds);
@@ -85,6 +88,8 @@ fn bench_agg(mut group: InputGroup<Index>) {
     // multi_terms aggregation benchmarks
     register!(group, multi_terms_status_and_zipf_1000);
     register!(group, multi_terms_zipf_1000_and_status);
+    register!(group, multi_terms_many_and_zipf_1000);
+    register!(group, multi_terms_many_and_zipf_1000_and_status);
     register!(group, multi_terms_status_and_zipf_1000_avg_sub_agg);
 
     register!(group, cardinality_agg);
@@ -370,7 +375,7 @@ fn terms_all_unique_with_avg_sub_agg(index: &Index) {
     });
     execute_agg(index, agg_req);
 }
-fn terms_status_with_terms_zipf_1000_sub_agg(index: &Index) {
+fn nested_terms_status_and_zipf_1000(index: &Index) {
     let agg_req = json!({
         "my_texts": {
             "terms": { "field": "text_few_terms_status" },
@@ -382,12 +387,60 @@ fn terms_status_with_terms_zipf_1000_sub_agg(index: &Index) {
     execute_agg(index, agg_req);
 }
 
-fn terms_zipf_1000_with_terms_status_sub_agg(index: &Index) {
+fn nested_terms_zipf_1000_and_status(index: &Index) {
     let agg_req = json!({
         "my_texts": {
             "terms": { "field": "text_1000_terms_zipf" },
             "aggs": {
                 "nested_terms": { "terms": { "field": "text_few_terms_status" } }
+            }
+        }
+    });
+    execute_agg(index, agg_req);
+}
+
+fn nested_terms_many_and_zipf_1000(index: &Index) {
+    let agg_req = json!({
+        "my_texts": {
+            "terms": { "field": "text_many_terms" },
+            "aggs": {
+                "nested_terms": { "terms": { "field": "text_1000_terms_zipf" } }
+            }
+        }
+    });
+    execute_agg(index, agg_req);
+}
+
+fn nested_terms_many_and_zipf_1000_and_status(index: &Index) {
+    let agg_req = json!({
+        "my_texts": {
+            "terms": { "field": "text_many_terms" },
+            "aggs": {
+                "nested_zipf_terms": {
+                    "terms": { "field": "text_1000_terms_zipf" },
+                    "aggs": {
+                        "nested_status_terms": {
+                            "terms": { "field": "text_few_terms_status" }
+                        }
+                    }
+                }
+            }
+        }
+    });
+    execute_agg(index, agg_req);
+}
+
+fn nested_terms_status_and_zipf_1000_avg_sub_agg(index: &Index) {
+    let agg_req = json!({
+        "my_texts": {
+            "terms": { "field": "text_few_terms_status" },
+            "aggs": {
+                "nested_terms": {
+                    "terms": { "field": "text_1000_terms_zipf" },
+                    "aggs": {
+                        "average_f64": { "avg": { "field": "score_f64" } }
+                    }
+                }
             }
         }
     });
@@ -581,7 +634,7 @@ fn composite_histogram_calendar(index: &Index) {
     execute_agg(index, agg_req);
 }
 
-/// multi_terms equivalent of terms_status_with_terms_zipf_1000_sub_agg:
+/// multi_terms equivalent of nested_terms_status_and_zipf_1000:
 /// flat GroupBy(status, zipf_1000) vs nested terms(status) -> terms(zipf_1000)
 fn multi_terms_status_and_zipf_1000(index: &Index) {
     let agg_req = json!({
@@ -598,7 +651,7 @@ fn multi_terms_status_and_zipf_1000(index: &Index) {
     execute_agg(index, agg_req);
 }
 
-/// multi_terms equivalent of terms_zipf_1000_with_terms_status_sub_agg:
+/// multi_terms equivalent of nested_terms_zipf_1000_and_status:
 /// flat GroupBy(zipf_1000, status) vs nested terms(zipf_1000) -> terms(status)
 fn multi_terms_zipf_1000_and_status(index: &Index) {
     let agg_req = json!({
@@ -615,7 +668,42 @@ fn multi_terms_zipf_1000_and_status(index: &Index) {
     execute_agg(index, agg_req);
 }
 
-/// multi_terms on the same field pair as the nested benchmarks, with an avg sub-aggregation
+/// multi_terms equivalent of nested_terms_many_and_zipf_1000:
+/// flat GroupBy(many, zipf_1000) vs nested terms(many) -> terms(zipf_1000)
+fn multi_terms_many_and_zipf_1000(index: &Index) {
+    let agg_req = json!({
+        "mt": {
+            "multi_terms": {
+                "terms": [
+                    {"field": "text_many_terms"},
+                    {"field": "text_1000_terms_zipf"}
+                ],
+                "size": 100
+            }
+        }
+    });
+    execute_agg(index, agg_req);
+}
+
+/// multi_terms equivalent of nested_terms_many_and_zipf_1000_and_status:
+/// flat GroupBy(many, zipf_1000, status) vs three nested terms levels
+fn multi_terms_many_and_zipf_1000_and_status(index: &Index) {
+    let agg_req = json!({
+        "mt": {
+            "multi_terms": {
+                "terms": [
+                    {"field": "text_many_terms"},
+                    {"field": "text_1000_terms_zipf"},
+                    {"field": "text_few_terms_status"}
+                ],
+                "size": 100
+            }
+        }
+    });
+    execute_agg(index, agg_req);
+}
+
+/// multi_terms equivalent of nested_terms_status_and_zipf_1000_avg_sub_agg.
 fn multi_terms_status_and_zipf_1000_avg_sub_agg(index: &Index) {
     let agg_req = json!({
         "mt": {
