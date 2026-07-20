@@ -524,6 +524,11 @@ impl QueryParser {
                 let ip_v6 = IpAddr::from_str(phrase)?.into_ipv6_addr();
                 Ok(Term::from_field_ip_addr(field, ip_v6))
             }
+            // Custom fields are neither indexed nor fast, so the guard above returns
+            // `FieldNotIndexed` before this match.
+            FieldType::Custom(_) => {
+                unreachable!("the query parser does not support custom field types")
+            }
         }
     }
 
@@ -623,6 +628,11 @@ impl QueryParser {
                 let ip_v6 = IpAddr::from_str(phrase)?.into_ipv6_addr();
                 let term = Term::from_field_ip_addr(field, ip_v6);
                 Ok(vec![LogicalLiteral::Term(term)])
+            }
+            // Custom fields are not indexed, so the `is_indexed()` guard above returns
+            // `FieldNotIndexed` before this match.
+            FieldType::Custom(_) => {
+                unreachable!("the query parser does not support custom field types")
             }
         }
     }

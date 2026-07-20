@@ -367,6 +367,10 @@ impl InvertedIndexPluginWriter {
                         self.fieldnorms_writer.record(doc_id, field, num_vals);
                     }
                 }
+                // Custom fields are not indexed; the `is_indexed()` guard above skips them.
+                FieldType::Custom(_) => {
+                    unreachable!("the inverted index does not support custom field types")
+                }
             }
         }
         self.max_doc = doc_id + 1;

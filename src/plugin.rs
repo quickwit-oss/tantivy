@@ -147,14 +147,20 @@ mod tests {
 
     use std::sync::Arc;
 
+    use serde_json::json;
+
     use super::*;
     use crate::index::SegmentComponent;
-    use crate::schema::{Schema, STORED, TEXT};
-    use crate::{Index, IndexWriter};
+    use crate::schema::document::{ErasedDocument, Value};
+    use crate::schema::{Field, FieldType, Schema, STORED, TEXT};
+    use crate::{Index, IndexWriter, TantivyDocument};
 
     const MARKER: u32 = 0xDEADBEEF;
 
-    /// A simple plugin that writes a fixed marker to a custom file.
+    /// A simple plugin that writes a fixed marker to a custom file, and — when the schema
+    /// declares a custom field — also persists that field's opaque payloads. This exercises the
+    /// plugin-defined field type end to end: the schema binds a type name, and the plugin
+    /// consumes the values by matching that field, with no other coupling.
     struct MarkerPlugin;
 
     impl SegmentPlugin for MarkerPlugin {
@@ -162,11 +168,15 @@ mod tests {
             &["marker"]
         }
 
-        fn create_writer(
-            &self,
-            _ctx: &PluginWriterContext,
-        ) -> crate::Result<Box<dyn PluginWriter>> {
-            Ok(Box::new(MarkerWriter))
+        fn create_writer(&self, ctx: &PluginWriterContext) -> crate::Result<Box<dyn PluginWriter>> {
+            // Find the (optional) custom field this plugin should consume.
+            let custom_field = ctx.segment.schema().fields().find_map(|(field, entry)| {
+                matches!(entry.field_type(), FieldType::Custom(_)).then_some(field)
+            });
+            Ok(Box::new(MarkerWriter {
+                custom_field,
+                payloads: Vec::new(),
+            }))
         }
 
         fn merge(&self, ctx: PluginMergeContext) -> crate::Result<()> {
@@ -179,9 +189,54 @@ mod tests {
         }
     }
 
-    struct MarkerWriter;
+    /// The marker file is `MARKER` followed by each custom payload as `[u32 len][bytes]`.
+    fn parse_marker_payloads(data: &[u8]) -> Vec<Vec<u8>> {
+        assert_eq!(
+            u32::from_le_bytes([data[0], data[1], data[2], data[3]]),
+            MARKER
+        );
+        let mut payloads = Vec::new();
+        let mut pos = 4;
+        while pos < data.len() {
+            let len = u32::from_le_bytes([data[pos], data[pos + 1], data[pos + 2], data[pos + 3]])
+                as usize;
+            pos += 4;
+            payloads.push(data[pos..pos + len].to_vec());
+            pos += len;
+        }
+        payloads
+    }
+
+    struct MarkerWriter {
+        custom_field: Option<Field>,
+        payloads: Vec<Vec<u8>>,
+    }
 
     impl PluginWriter for MarkerWriter {
+        fn add_document(
+            &mut self,
+            _doc_id: DocId,
+            doc: &dyn ErasedDocument,
+            _schema: &Schema,
+        ) -> crate::Result<()> {
+            let Some(custom_field) = self.custom_field else {
+                return Ok(());
+            };
+            // This plugin only handles `TantivyDocument`s, so recover the concrete type for free
+            // (zero-cost downcast) and read the custom field through its typed API rather than
+            // walking the erased document.
+            let doc = doc
+                .as_any()
+                .downcast_ref::<TantivyDocument>()
+                .expect("MarkerPlugin only supports TantivyDocument");
+            for value in doc.get_all(custom_field) {
+                if let Some(bytes) = value.as_custom() {
+                    self.payloads.push(bytes.to_vec());
+                }
+            }
+            Ok(())
+        }
+
         fn serialize(
             self: Box<Self>,
             segment: &Segment,
@@ -191,12 +246,16 @@ mod tests {
             let mut write = segment.open_write(component)?;
             use std::io::Write;
             write.write_all(&MARKER.to_le_bytes())?;
+            for payload in &self.payloads {
+                write.write_all(&(payload.len() as u32).to_le_bytes())?;
+                write.write_all(payload)?;
+            }
             common::TerminatingWrite::terminate(write)?;
             Ok(())
         }
 
         fn mem_usage(&self) -> usize {
-            std::mem::size_of::<Self>()
+            self.payloads.iter().map(Vec::len).sum()
         }
 
         fn as_any(&self) -> &dyn Any {
@@ -214,6 +273,8 @@ mod tests {
 
         let mut schema_builder = Schema::builder();
         let text_field = schema_builder.add_text_field("text", TEXT | STORED);
+        // A plugin-defined field type. Only the type name is declared here; no plugin is named.
+        let payload_field = schema_builder.add_custom_field("payload", "marker_payload", json!({}));
         let schema = schema_builder.build();
 
         let plugin: Arc<dyn SegmentPlugin> = Arc::new(MarkerPlugin);
@@ -236,29 +297,47 @@ mod tests {
             "fieldnorms built-in plugin should be registered"
         );
 
-        // write: two commits, no auto-merge, so we get two distinct segments.
+        // write: two commits, no auto-merge, so we get two distinct segments. Each document
+        // carries a custom payload the plugin consumes.
+        let add = |writer: &mut IndexWriter, text: &str, payload: &[u8]| {
+            let mut doc = TantivyDocument::new();
+            doc.add_text(text_field, text);
+            doc.add_custom(payload_field, payload);
+            writer.add_document(doc).unwrap();
+        };
         let mut writer: IndexWriter = index.writer_with_num_threads(1, 15_000_000)?;
         writer.set_merge_policy(Box::new(NoMergePolicy));
-        writer.add_document(crate::doc!(text_field => "hello world"))?;
-        writer.add_document(crate::doc!(text_field => "foo bar"))?;
+        add(&mut writer, "hello world", b"p-hello");
+        add(&mut writer, "foo bar", b"p-foo");
         writer.commit()?;
-        writer.add_document(crate::doc!(text_field => "baz qux"))?;
+        add(&mut writer, "baz qux", b"p-baz");
         writer.commit()?;
 
-        // read: each segment carries the marker written by MarkerWriter::serialize.
+        // read: each segment carries the marker plus the custom payloads, both written by
+        // MarkerWriter::serialize.
         let searcher = index.reader()?.searcher();
         assert_eq!(searcher.num_docs(), 3);
         let segment_readers = searcher.segment_readers();
         assert_eq!(segment_readers.len(), 2);
+        let mut all_payloads: Vec<Vec<u8>> = Vec::new();
         for segment_reader in segment_readers {
             let data = segment_reader
                 .open_read(SegmentComponent::Custom("marker".to_string()))?
                 .read_bytes()?;
-            assert_eq!(
-                u32::from_le_bytes([data[0], data[1], data[2], data[3]]),
-                MARKER
-            );
+            all_payloads.extend(parse_marker_payloads(&data));
         }
+        all_payloads.sort();
+        assert_eq!(
+            all_payloads,
+            vec![b"p-baz".to_vec(), b"p-foo".to_vec(), b"p-hello".to_vec()]
+        );
+
+        // The built-in store still works for the ordinary field alongside the custom one.
+        let stored: TantivyDocument = searcher.doc(crate::DocAddress::new(0, 0))?;
+        assert_eq!(
+            stored.get_first(text_field).and_then(|v| v.as_str()),
+            Some("hello world")
+        );
 
         // merge: exercises MarkerPlugin::merge.
         writer.merge(&index.searchable_segment_ids()?).wait()?;
@@ -277,6 +356,38 @@ mod tests {
         );
 
         Ok(())
+    }
+
+    #[test]
+    fn test_parse_json_rejects_custom_field() {
+        let mut schema_builder = Schema::builder();
+        schema_builder.add_custom_field("embedding", "vec", json!({ "dim": 3 }));
+        let schema = schema_builder.build();
+
+        let err = TantivyDocument::parse_json(&schema, r#"{"embedding": [1.0, 2.0, 3.0]}"#)
+            .expect_err("custom fields cannot be populated from JSON");
+        assert!(
+            format!("{err:?}").contains("custom"),
+            "expected a custom-type parse error, got {err:?}"
+        );
+    }
+
+    #[test]
+    fn test_custom_field_schema_roundtrip() {
+        let mut schema_builder = Schema::builder();
+        schema_builder.add_custom_field("embedding", "vec", json!({ "dim": 3 }));
+        let schema = schema_builder.build();
+
+        let reparsed: Schema =
+            serde_json::from_str(&serde_json::to_string(&schema).unwrap()).unwrap();
+        let field = reparsed.get_field("embedding").unwrap();
+        match reparsed.get_field_entry(field).field_type() {
+            FieldType::Custom(options) => {
+                assert_eq!(options.type_name(), "vec");
+                assert_eq!(options.params()["dim"].as_u64(), Some(3));
+            }
+            other => panic!("expected a custom field type, got {other:?}"),
+        }
     }
 
     #[test]

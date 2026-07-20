@@ -200,6 +200,11 @@ impl FastFieldsWriter {
                             .record_str(doc_id, field_name, &token.text);
                     }
                 }
+                // Custom fields are never fast (`is_fast() == false`), so they are not registered
+                // in `fast_field_names` and `add_doc_value` returns early above.
+                ReferenceValueLeaf::Custom(_) => {
+                    unreachable!("the fast field writer does not support custom field types")
+                }
             },
             ReferenceValue::Array(val) => {
                 // TODO: Check this is the correct behaviour we want.
@@ -337,6 +342,9 @@ fn record_json_value_to_columnar_writer<'a, V: Value<'a>>(
                 unimplemented!(
                     "Pre-tokenized string support in dynamic fields is not yet implemented"
                 )
+            }
+            ReferenceValueLeaf::Custom(_) => {
+                unimplemented!("the JSON field does not support custom field types")
             }
         },
         ReferenceValue::Array(elements) => {

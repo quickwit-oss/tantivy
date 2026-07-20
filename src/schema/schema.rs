@@ -194,6 +194,25 @@ impl SchemaBuilder {
         self.add_field(field_entry)
     }
 
+    /// Adds a plugin-defined custom field to the schema.
+    ///
+    /// `type_name` identifies the custom type a plugin will consume (e.g. `"vec"`); `params`
+    /// carries opaque, type-specific configuration. Custom fields are ignored by the built-in
+    /// components — populate them with [`add_custom`](crate::TantivyDocument::add_custom) and
+    /// consume them from a [`SegmentPlugin`](crate::SegmentPlugin).
+    pub fn add_custom_field<T: Into<String>>(
+        &mut self,
+        field_name: &str,
+        type_name: T,
+        params: serde_json::Value,
+    ) -> Field {
+        let field_entry = FieldEntry::new_custom(
+            field_name.to_string(),
+            CustomOptions::new(type_name, params),
+        );
+        self.add_field(field_entry)
+    }
+
     /// Adds a field entry to the schema in build.
     pub fn add_field(&mut self, field_entry: FieldEntry) -> Field {
         let field = Field::from_field_id(self.fields.len() as u32);

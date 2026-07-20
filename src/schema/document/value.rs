@@ -90,6 +90,12 @@ pub trait Value<'a>: Send + Sync + Debug {
     }
 
     #[inline]
+    /// If the Value is a custom payload, returns its bytes. Returns None otherwise.
+    fn as_custom(&self) -> Option<&'a [u8]> {
+        self.as_leaf().and_then(|leaf| leaf.as_custom())
+    }
+
+    #[inline]
     /// Returns the iterator over the array if the Value is an array.
     fn as_array(&self) -> Option<Self::ArrayIter> {
         if let ReferenceValue::Array(val) = self.as_value() {
@@ -136,6 +142,9 @@ pub enum ReferenceValueLeaf<'a> {
     Bool(bool),
     /// Pre-tokenized str type,
     PreTokStr(Box<PreTokenizedString>),
+    /// Opaque payload of a plugin-defined custom field. Distinct from [`Bytes`](Self::Bytes) so
+    /// the built-ins leave it alone and a consuming plugin can recognize it.
+    Custom(&'a [u8]),
 }
 
 impl From<u64> for ReferenceValueLeaf<'_> {
@@ -219,6 +228,9 @@ impl<'a, T: Value<'a> + ?Sized> From<ReferenceValueLeaf<'a>> for ReferenceValue<
             ReferenceValueLeaf::Bool(val) => ReferenceValue::Leaf(ReferenceValueLeaf::Bool(val)),
             ReferenceValueLeaf::PreTokStr(val) => {
                 ReferenceValue::Leaf(ReferenceValueLeaf::PreTokStr(val))
+            }
+            ReferenceValueLeaf::Custom(val) => {
+                ReferenceValue::Leaf(ReferenceValueLeaf::Custom(val))
             }
         }
     }
@@ -331,6 +343,16 @@ impl<'a> ReferenceValueLeaf<'a> {
             None
         }
     }
+
+    #[inline]
+    /// If the Value is a custom payload, returns its bytes. Returns None otherwise.
+    pub fn as_custom(&self) -> Option<&'a [u8]> {
+        if let Self::Custom(val) = self {
+            Some(val)
+        } else {
+            None
+        }
+    }
 }
 
 /// A enum representing a value for tantivy to index.
@@ -435,6 +457,12 @@ where V: Value<'a>
     /// If the Value is a facet, returns the associated facet. Returns None otherwise.
     pub fn as_facet(&self) -> Option<&'a str> {
         self.as_leaf().and_then(|leaf| leaf.as_facet())
+    }
+
+    #[inline]
+    /// If the Value is a custom payload, returns its bytes. Returns None otherwise.
+    pub fn as_custom(&self) -> Option<&'a [u8]> {
+        self.as_leaf().and_then(|leaf| leaf.as_custom())
     }
 
     #[inline]
