@@ -152,10 +152,23 @@ pub enum BucketResult {
         ///
         /// See [`TermsAggregation`](super::bucket::TermsAggregation)
         buckets: Vec<BucketEntry>,
-        /// The number of documents that didn’t make it into to TOP N due to shard_size or size
+        /// The number of documents that didn't make it into to TOP N due to shard_size or size
         sum_other_doc_count: u64,
         #[serde(skip_serializing_if = "Option::is_none")]
         /// The upper bound error for the doc count of each term.
+        doc_count_error_upper_bound: Option<u64>,
+    },
+    /// This is the multi_terms result -- placed AFTER Terms so that a zero-bucket result
+    /// deserializes as Terms (the more common case). Non-empty MultiTerms still deserializes
+    /// correctly because its array `key` fails Terms' scalar `key` check first. The only known
+    /// ambiguity is an empty MultiTerms result decoding as Terms (deserialization only).
+    MultiTerms {
+        /// The buckets (one per unique combination of field values).
+        buckets: Vec<MultiTermsBucketEntry>,
+        /// The number of documents that didn't make it into the TOP N.
+        sum_other_doc_count: u64,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        /// The upper bound error for the doc count of each term combination.
         doc_count_error_upper_bound: Option<u64>,
     },
     /// This is the filter result - a single bucket with sub-aggregations
@@ -179,6 +192,11 @@ impl BucketResult {
             BucketResult::Histogram { buckets } => {
                 buckets.iter().map(|bucket| bucket.get_bucket_count()).sum()
             }
+            BucketResult::MultiTerms {
+                buckets,
+                sum_other_doc_count: _,
+                doc_count_error_upper_bound: _,
+            } => buckets.iter().map(|bucket| bucket.get_bucket_count()).sum(),
             BucketResult::Terms {
                 buckets,
                 sum_other_doc_count: _,
@@ -267,6 +285,35 @@ impl GetDocCount for &BucketEntry {
     }
 }
 impl GetDocCount for BucketEntry {
+    fn doc_count(&self) -> u64 {
+        self.doc_count
+    }
+}
+
+/// Bucket entry for a [`multi_terms`](super::bucket::MultiTermsAggregation) aggregation.
+///
+/// The key is a vector of values (one per declared field), and `key_as_string` is the pipe-joined
+/// representation.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct MultiTermsBucketEntry {
+    /// Pipe-joined string representation of all key elements, e.g. `"rock|Product A"`.
+    pub key_as_string: String,
+    /// The composite key: one [`Key`] per field in declaration order.
+    pub key: Vec<Key>,
+    /// Number of documents in this bucket.
+    pub doc_count: u64,
+    /// Sub-aggregation results.
+    #[serde(flatten)]
+    pub sub_aggregation: AggregationResults,
+}
+
+impl MultiTermsBucketEntry {
+    pub(crate) fn get_bucket_count(&self) -> u64 {
+        1 + self.sub_aggregation.get_bucket_count()
+    }
+}
+
+impl GetDocCount for MultiTermsBucketEntry {
     fn doc_count(&self) -> u64 {
         self.doc_count
     }

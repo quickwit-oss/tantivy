@@ -28,7 +28,7 @@ use super::{format_date, AggregationError, Key, SerializedKey};
 use crate::aggregation::agg_result::{
     AggregationResults, BucketEntries, BucketEntry, CompositeBucketEntry, FilterBucketResult,
 };
-use crate::aggregation::bucket::TermsAggregationInternal;
+use crate::aggregation::bucket::{IntermediateMultiTermsBucketResult, TermsAggregationInternal};
 use crate::aggregation::metric::CardinalityCollector;
 use crate::TantivyError;
 
@@ -324,6 +324,11 @@ pub(crate) fn empty_from_req(req: &Aggregation) -> IntermediateAggregationResult
                 buckets: IntermediateCompositeBucketResult::default(),
             })
         }
+        MultiTerms(_) => {
+            IntermediateAggregationResult::Bucket(IntermediateBucketResult::MultiTerms {
+                buckets: Default::default(),
+            })
+        }
     }
 }
 
@@ -591,6 +596,11 @@ pub enum IntermediateBucketResult {
         /// The composite buckets
         buckets: IntermediateCompositeBucketResult,
     },
+    /// Multi-terms aggregation
+    MultiTerms {
+        /// The multi-terms buckets
+        buckets: IntermediateMultiTermsBucketResult,
+    },
 }
 
 impl IntermediateBucketResult {
@@ -692,6 +702,13 @@ impl IntermediateBucketResult {
                     .as_composite()
                     .expect("unexpected aggregation, expected composite aggregation");
                 buckets.into_final_result(composite_req, req.sub_aggregation(), limits)
+            }
+            IntermediateBucketResult::MultiTerms { buckets } => {
+                let multi_terms_req = req
+                    .agg
+                    .as_multi_terms()
+                    .expect("unexpected aggregation, expected multi_terms aggregation");
+                buckets.into_final_result(multi_terms_req, req.sub_aggregation(), limits)
             }
         }
     }
@@ -815,6 +832,14 @@ impl IntermediateBucketResult {
             ) => {
                 composite_left.merge_fruits(composite_right)?;
             }
+            (
+                IntermediateBucketResult::MultiTerms { buckets: mt_left },
+                IntermediateBucketResult::MultiTerms { buckets: mt_right },
+            ) => {
+                merge_maps(&mut mt_left.entries, mt_right.entries)?;
+                mt_left.sum_other_doc_count += mt_right.sum_other_doc_count;
+                mt_left.doc_count_error_upper_bound += mt_right.doc_count_error_upper_bound;
+            }
             (IntermediateBucketResult::Range(_), _) => {
                 panic!("try merge on different types")
             }
@@ -828,6 +853,9 @@ impl IntermediateBucketResult {
                 panic!("try merge on different types")
             }
             (IntermediateBucketResult::Composite { .. }, _) => {
+                panic!("try merge on different types")
+            }
+            (IntermediateBucketResult::MultiTerms { .. }, _) => {
                 panic!("try merge on different types")
             }
         }

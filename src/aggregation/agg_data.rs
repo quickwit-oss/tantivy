@@ -11,10 +11,11 @@ use crate::aggregation::accessor_helpers::{
 use crate::aggregation::agg_req::{Aggregation, AggregationVariants, Aggregations};
 use crate::aggregation::bucket::{
     build_segment_filter_collector, build_segment_histogram_collector,
-    build_segment_range_collector, CompositeAggReqData, CompositeAggregation,
-    CompositeSourceAccessors, FilterAggReqData, HistogramAggReqData, HistogramBounds,
-    IncludeExcludeParam, MissingTermAggReqData, RangeAggReqData, TermMissingAgg, TermsAggReqData,
-    TermsAggregation, TermsAggregationInternal,
+    build_segment_multi_terms_collector, build_segment_range_collector, CompositeAggReqData,
+    CompositeAggregation, CompositeSourceAccessors, FilterAggReqData, HistogramAggReqData,
+    HistogramBounds, IncludeExcludeParam, MissingTermAggReqData, MultiTermsAggReqData,
+    MultiTermsAggregation, MultiTermsFieldAccessors, RangeAggReqData, TermMissingAgg,
+    TermsAggReqData, TermsAggregation, TermsAggregationInternal,
 };
 use crate::aggregation::metric::{
     build_segment_stats_collector, AverageAggregation, CardinalityAggReqData,
@@ -76,6 +77,10 @@ impl AggregationsSegmentCtx {
         self.per_request.composite_req_data.push(data);
         self.per_request.composite_req_data.len() - 1
     }
+    pub(crate) fn push_multi_terms_req_data(&mut self, data: MultiTermsAggReqData) -> usize {
+        self.per_request.multi_terms_req_data.push(data);
+        self.per_request.multi_terms_req_data.len() - 1
+    }
 
     #[inline]
     pub(crate) fn get_term_req_data(&self, idx: usize) -> &TermsAggReqData {
@@ -125,6 +130,8 @@ pub struct PerRequestAggSegCtx {
     pub missing_term_req_data: Vec<MissingTermAggReqData>,
     /// CompositeAggReqData contains the request data for a composite aggregation.
     pub composite_req_data: Vec<CompositeAggReqData>,
+    /// MultiTermsAggReqData contains the request data for a multi_terms aggregation.
+    pub multi_terms_req_data: Vec<MultiTermsAggReqData>,
 
     /// Request tree used to build collectors.
     pub agg_tree: Vec<AggRefNode>,
@@ -177,6 +184,11 @@ impl PerRequestAggSegCtx {
                 .iter()
                 .map(|t| t.get_memory_consumption())
                 .sum::<usize>()
+            + self
+                .multi_terms_req_data
+                .iter()
+                .map(|t| t.get_memory_consumption())
+                .sum::<usize>()
             + self.agg_tree.len() * std::mem::size_of::<AggRefNode>()
     }
 
@@ -194,6 +206,7 @@ impl PerRequestAggSegCtx {
             AggKind::Range => self.range_req_data[idx].name.as_str(),
             AggKind::Filter => self.filter_req_data[idx].name.as_str(),
             AggKind::Composite => self.composite_req_data[idx].name.as_str(),
+            AggKind::MultiTerms => self.multi_terms_req_data[idx].name.as_str(),
         }
     }
 
@@ -347,6 +360,7 @@ pub(crate) fn build_segment_agg_collector(
                 req, node,
             )?,
         )),
+        AggKind::MultiTerms => build_segment_multi_terms_collector(req, node),
     }
 }
 
@@ -378,6 +392,7 @@ pub enum AggKind {
     Range,
     Filter,
     Composite,
+    MultiTerms,
 }
 
 impl AggKind {
@@ -394,6 +409,7 @@ impl AggKind {
             AggKind::Range => "Range",
             AggKind::Filter => "Filter",
             AggKind::Composite => "Composite",
+            AggKind::MultiTerms => "MultiTerms",
         }
     }
 }
@@ -649,6 +665,15 @@ fn build_nodes(
             &req.sub_aggregation,
             composite_req,
         )?]),
+        AggregationVariants::MultiTerms(multi_terms_req) => Ok(vec![build_multi_terms_node(
+            agg_name,
+            reader,
+            segment_ordinal,
+            data,
+            &req.sub_aggregation,
+            multi_terms_req,
+            is_top_level,
+        )?]),
         AggregationVariants::Filter(filter_req) => {
             // Build the query and evaluator upfront
             let schema = reader.schema();
@@ -707,6 +732,133 @@ fn build_composite_node(
     })
 }
 
+fn build_multi_terms_node(
+    agg_name: &str,
+    reader: &SegmentReader,
+    segment_ordinal: SegmentOrdinal,
+    data: &mut AggregationsSegmentCtx,
+    sub_aggs: &Aggregations,
+    req: &MultiTermsAggregation,
+    is_top_level: bool,
+) -> crate::Result<AggRefNode> {
+    use crate::aggregation::bucket::KeyElem;
+
+    if req.terms.is_empty() {
+        return Err(crate::TantivyError::InvalidArgument(
+            "multi_terms aggregation requires at least one field".to_string(),
+        ));
+    }
+
+    let mut fields = Vec::with_capacity(req.terms.len());
+
+    for field_def in &req.terms {
+        let field_name = &field_def.field;
+        let str_dict_column = reader.fast_fields().str(field_name)?;
+
+        // Collect all columns for this field (handles JSON multi-type fields).
+        let columns = get_term_agg_accessors(reader, field_name, &field_def.missing, true)?;
+
+        // Precompute the missing KeyElem (or None -> drop combo).
+        let missing_key_elem = if let Some(missing) = &field_def.missing {
+            match missing {
+                Key::Str(missing_str) => {
+                    match (
+                        columns.iter().position(|(_, ct)| *ct == ColumnType::Str),
+                        str_dict_column.as_ref(),
+                    ) {
+                        (Some(idx), Some(str_dict_column)) => {
+                            match str_dict_column
+                                .dictionary()
+                                .term_ord(missing_str.as_bytes())?
+                            {
+                                Some(ord) => Some(KeyElem::new(idx as u32, ord)),
+                                None => Some(KeyElem::synthetic_missing()),
+                            }
+                        }
+                        // Either no `Str` column was found, or the `Str` entry in `columns` is
+                        // only the empty shim `get_all_ff_reader_or_empty` produces when the
+                        // field has no dictionary at all (`str_dict_column` is `None` in that
+                        // case) -- there is no dictionary to resolve `missing_str` against.
+                        _ => Some(KeyElem::synthetic_missing()),
+                    }
+                }
+                _ => {
+                    // Non-string missing: find the column whose type best matches the
+                    // missing key. Prefer an exact-type match; fall back to any numeric
+                    // column so cross-type coercions (e.g. Key::F64 on an I64 column)
+                    // still work.
+                    let preferred_type = match missing {
+                        Key::F64(_) => ColumnType::F64,
+                        Key::I64(_) => ColumnType::I64,
+                        Key::U64(_) => ColumnType::U64,
+                        Key::Str(_) => unreachable!("handled by Key::Str arm"),
+                    };
+                    let idx = columns
+                        .iter()
+                        .position(|(_, ct)| *ct == preferred_type)
+                        .or_else(|| {
+                            columns
+                                .iter()
+                                .position(|(_, ct)| ct.numerical_type().is_some())
+                        });
+                    match idx {
+                        Some(idx) => {
+                            let (col, col_type) = &columns[idx];
+                            get_missing_val_as_u64_lenient(
+                                *col_type,
+                                col.max_value(),
+                                missing,
+                                field_name,
+                            )?
+                            .map(|sentinel| KeyElem::new(idx as u32, sentinel))
+                        }
+                        None => {
+                            // No numeric column matches. A `Str` column, if present, also
+                            // accepts a numeric missing as a fallback sentinel (see
+                            // `get_missing_val_as_u64_lenient`), same as `terms`
+                            let (col, col_type) = columns
+                                .iter()
+                                .find(|(_, ct)| *ct == ColumnType::Str)
+                                .unwrap_or(&columns[0]);
+                            get_missing_val_as_u64_lenient(
+                                *col_type,
+                                col.max_value(),
+                                missing,
+                                field_name,
+                            )?
+                            .map(|_| KeyElem::synthetic_missing())
+                        }
+                    }
+                }
+            }
+        } else {
+            None
+        };
+
+        fields.push(MultiTermsFieldAccessors {
+            columns,
+            str_dict_column,
+            missing: field_def.missing.clone(),
+            missing_key_elem,
+            field: field_name.clone(),
+        });
+    }
+
+    let idx = data.push_multi_terms_req_data(MultiTermsAggReqData {
+        name: agg_name.to_string(),
+        req: req.clone(),
+        fields,
+        sub_aggregations: sub_aggs.clone(),
+        is_top_level,
+    });
+    let children = build_children(sub_aggs, reader, segment_ordinal, data)?;
+    Ok(AggRefNode {
+        kind: AggKind::MultiTerms,
+        idx_in_req_data: idx,
+        children,
+    })
+}
+
 fn build_children(
     aggs: &Aggregations,
     reader: &SegmentReader,
@@ -731,8 +883,15 @@ fn get_term_agg_accessors(
     reader: &SegmentReader,
     field_name: &str,
     missing: &Option<Key>,
+    include_bytes: bool,
 ) -> crate::Result<Vec<(Column<u64>, ColumnType)>> {
-    let allowed_column_types = [
+    // `terms` and `multi_terms` both explicitly reject `Bytes` columns downstream, which needs
+    // to actually see them as a real column (rather than the empty shim below) to do so.
+    // `cardinality` has no such rejection: it would hash raw `Bytes` term ordinals as if they
+    // were comparable numeric values, but those ordinals are segment-local, so distinct byte
+    // values in different segments could collide and be undercounted. Keep `Bytes` out of its
+    // accessors entirely instead.
+    let mut allowed_column_types = vec![
         ColumnType::I64,
         ColumnType::U64,
         ColumnType::F64,
@@ -741,6 +900,9 @@ fn get_term_agg_accessors(
         ColumnType::Bool,
         ColumnType::IpAddr,
     ];
+    if include_bytes {
+        allowed_column_types.push(ColumnType::Bytes);
+    }
 
     // In case the column is empty we want the shim column to match the missing type
     let fallback_type = missing
@@ -792,7 +954,8 @@ fn build_terms_or_cardinality_nodes(
 
     let str_dict_column = reader.fast_fields().str(field_name)?;
 
-    let column_and_types = get_term_agg_accessors(reader, field_name, missing)?;
+    let include_bytes = matches!(req, TermsOrCardinalityRequest::Terms(_));
+    let column_and_types = get_term_agg_accessors(reader, field_name, missing, include_bytes)?;
 
     // Special handling when missing + multi column or incompatible type on text/date.
     let missing_and_more_than_one_col = column_and_types.len() > 1 && missing.is_some();

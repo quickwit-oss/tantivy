@@ -339,6 +339,11 @@ impl TermsAggregationInternal {
 /// TODO: Benchmark to validate the threshold
 pub const MAX_NUM_TERMS_FOR_VEC: u64 = 100;
 
+/// The threshold for maximum term id to use a `PagedTermMap` bucket storage; above this,
+/// `HashMapTermBuckets` is used instead.
+/// TODO: Benchmark to validate the threshold
+pub const MAX_NUM_TERMS_FOR_PAGED_MAP: u64 = 8_000_000;
+
 /// Average docs-per-bucket below which term counts cluster too tightly (mostly 1s and 2s) for
 /// `select_nth_unstable` to beat `sort_unstable`'s adaptive paths, so we fall back to a full sort.
 /// This is very low on purpose, and meant to catch unique or mostly unique terms.
@@ -409,9 +414,10 @@ pub(crate) fn build_segment_term_collector(
     // aggregations it stores a real `BucketId` (to key the buffered sub-aggs), without them the
     // zero-sized `()`, which shrinks each bucket and turns id assignment into a no-op.
     //
-    // Only the dense Vec/Paged storages below (all gated to `max_column_val < 8_000_000`) use
-    // `num_terms`. `saturating_add` guards the HashMap fallback, where `max_column_val` is a raw
-    // numeric column value that can reach `u64::MAX`; term ordinals never come close.
+    // Only the dense Vec/Paged storages below (all gated to `max_column_val <
+    // MAX_NUM_TERMS_FOR_PAGED_MAP`) use `num_terms`. `saturating_add` guards the HashMap fallback,
+    // where `max_column_val` is a raw numeric column value that can reach `u64::MAX`; term ordinals
+    // never come close.
     let num_terms = max_column_val.saturating_add(1);
     if is_top_level && max_column_val < MAX_NUM_TERMS_FOR_VEC {
         // Low cardinality: dense `Vec` storage. With sub aggregations it pairs with the `LowCard`
@@ -442,7 +448,7 @@ pub(crate) fn build_segment_term_collector(
         // Higher cardinality: every remaining storage uses the partitioned `HighCard` sub-agg
         // buffer, so it is built once here.
         let sub_agg = sub_agg_collector.map(BufferedSubAggs::new);
-        if max_column_val < 8_000_000 && is_top_level {
+        if max_column_val < MAX_NUM_TERMS_FOR_PAGED_MAP && is_top_level {
             if has_sub_aggregations {
                 let term_buckets =
                     PagedTermMap::<BucketId>::new(num_terms, &mut bucket_id_provider);
@@ -508,7 +514,7 @@ fn boxed_high_card_collector<M: TermAggregationMap>(
 /// `B` is [`BucketId`] when the terms agg has sub aggregations and the zero-sized `()` when it does
 /// not, so `Bucket<()>` is just the count (see [`BucketIdSlot`]).
 #[derive(Debug, Clone, Copy, Default)]
-struct Bucket<B> {
+pub(crate) struct Bucket<B> {
     pub count: u32,
     pub bucket_id: B,
 }
@@ -526,7 +532,11 @@ impl<B: BucketIdSlot> Bucket<B> {
 }
 
 /// Abstraction over the storage used for term buckets (counts plus a [`BucketIdSlot`]).
-trait TermAggregationMap: Clone + Debug + 'static {
+///
+/// Keyed on a bare `u64` term id -- also reused by the `multi_terms` fast path, which
+/// packs a composite key of several fields into a single `u64` and treats it as a
+/// synthetic term id (see [`crate::aggregation::bucket::multi_terms`]).
+pub(crate) trait TermAggregationMap: Clone + Debug + 'static {
     /// The per-bucket id slot: [`BucketId`] with sub aggregations, `()` without (see
     /// [`BucketIdSlot`]).
     type Slot: BucketIdSlot;
@@ -550,7 +560,7 @@ trait TermAggregationMap: Clone + Debug + 'static {
 }
 
 #[derive(Clone, Debug)]
-struct HashMapTermBuckets<B> {
+pub(crate) struct HashMapTermBuckets<B> {
     bucket_map: FxHashMap<u64, Bucket<B>>,
 }
 
@@ -625,7 +635,7 @@ impl<B: BucketIdSlot> Page<B> {
 /// directories only. Therefore, this implementation is only enabled for top-level aggregations
 /// TODO: pass expected number of buckets from parent instead of strict is_top_level flag.
 #[derive(Clone, Debug, Default)]
-struct PagedTermMap<B> {
+pub(crate) struct PagedTermMap<B> {
     // Fixed size vector based on max_term_id
     pages: Vec<Option<Box<Page<B>>>>,
     mem_usage: usize,
@@ -733,7 +743,7 @@ impl<B: BucketIdSlot> TermAggregationMap for HashMapTermBuckets<B> {
 
 /// An optimized term map implementation for a compact set of term ordinals.
 #[derive(Clone, Debug)]
-struct VecTermBuckets<B> {
+pub(crate) struct VecTermBuckets<B> {
     buckets: Vec<Bucket<B>>,
 }
 
@@ -2735,16 +2745,8 @@ mod tests {
         }))
         .unwrap();
 
-        let res = exec_request_with_query(agg_req, &index, None)?;
-
-        // TODO: Returning an error would be better instead of an empty result, since this is not a
-        // JSON field
-        assert_eq!(
-            res["my_texts"]["buckets"][0]["key"],
-            serde_json::Value::Null
-        );
-        assert_eq!(res["my_texts"]["sum_other_doc_count"], 0);
-        assert_eq!(res["my_texts"]["doc_count_error_upper_bound"], 0);
+        let res = exec_request_with_query(agg_req, &index, None);
+        assert!(res.is_err(), "expected error for Bytes field, got {res:?}");
 
         Ok(())
     }
