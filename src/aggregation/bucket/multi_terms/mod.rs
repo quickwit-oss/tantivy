@@ -181,7 +181,7 @@ pub struct KeyElem {
     /// Index into `MultiTermsFieldAccessors::columns`, or `u32::MAX` for synthetic missing.
     pub accessor_idx: u32,
     /// Raw fast-field u64 value (term ord for Str, `to_u64` encoding for numerics).
-    pub raw: u64,
+    pub val: u64,
 }
 
 impl KeyElem {
@@ -189,15 +189,15 @@ impl KeyElem {
     pub const SYNTHETIC_MISSING: u32 = u32::MAX;
 
     /// Creates a `KeyElem` for a real column value.
-    pub fn new(accessor_idx: u32, raw: u64) -> Self {
-        Self { accessor_idx, raw }
+    pub fn new(accessor_idx: u32, val: u64) -> Self {
+        Self { accessor_idx, val }
     }
 
     /// Creates a `KeyElem` that encodes a synthetic missing value.
     pub fn synthetic_missing() -> Self {
         Self {
             accessor_idx: Self::SYNTHETIC_MISSING,
-            raw: 0,
+            val: 0,
         }
     }
 
@@ -367,14 +367,14 @@ impl SegmentMultiTermsCollector {
             let start = out.len();
             out.extend(
                 col.values_for_doc(doc_id)
-                    .map(|raw| KeyElem::new(accessor_idx as u32, raw)),
+                    .map(|val| KeyElem::new(accessor_idx as u32, val)),
             );
             if col.get_cardinality().is_multivalue() && out.len() - start > 1 {
                 let values = &mut out[start..];
-                values.sort_unstable_by_key(|elem| elem.raw);
+                values.sort_unstable_by_key(|elem| elem.val);
                 let mut unique_index = 0;
                 for i in 1..values.len() {
-                    if values[i].raw != values[unique_index].raw {
+                    if values[i].val != values[unique_index].val {
                         unique_index += 1;
                         values[unique_index] = values[i];
                     }
@@ -390,7 +390,7 @@ impl SegmentMultiTermsCollector {
         }
     }
 
-    fn visit(
+    fn collect_field_value_combinations(
         doc_id: crate::DocId,
         field_idx: usize,
         prefix: &mut MultiTermsKey,
@@ -404,9 +404,15 @@ impl SegmentMultiTermsCollector {
         for &elem in &field_values[field_idx] {
             prefix.push(elem);
             if is_last {
-                Self::emit(doc_id, prefix, buckets, sub_agg, bucket_id_provider);
+                Self::record_field_value_combination(
+                    doc_id,
+                    prefix,
+                    buckets,
+                    sub_agg,
+                    bucket_id_provider,
+                );
             } else {
-                Self::visit(
+                Self::collect_field_value_combinations(
                     doc_id,
                     field_idx + 1,
                     prefix,
@@ -420,7 +426,7 @@ impl SegmentMultiTermsCollector {
         }
     }
 
-    fn emit(
+    fn record_field_value_combination(
         doc_id: crate::DocId,
         key: &MultiTermsKey,
         buckets: &mut FxHashMap<MultiTermsKey, MultiTermsBucket>,
@@ -594,7 +600,7 @@ impl SegmentAggregationCollector for SegmentMultiTermsCollector {
                 }
             }
 
-            Self::visit(
+            Self::collect_field_value_combinations(
                 doc_id,
                 0,
                 &mut prefix,
@@ -1172,7 +1178,7 @@ fn resolve_key_elem(
     }
 
     let (col, col_type) = &field_acc.columns[elem.accessor_idx as usize];
-    resolve_column_value(elem.raw, col_type, &field_acc.str_dict_column, col)
+    resolve_column_value(elem.val, col_type, &field_acc.str_dict_column, col)
 }
 
 /// Convert a raw u64 from a specific column type to an [`IntermediateKey`].
