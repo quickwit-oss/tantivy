@@ -16,7 +16,7 @@ pub enum MappingType {
 
 /// Struct to provide mapping from new doc_id to old doc_id and segment.
 #[derive(Clone)]
-pub(crate) struct SegmentDocIdMapping {
+pub struct SegmentDocIdMapping {
     pub(crate) new_doc_id_to_old_doc_addr: Vec<DocAddress>,
     pub(crate) alive_bitsets: Vec<Option<ReadOnlyBitSet>>,
     mapping_type: MappingType,
@@ -139,9 +139,9 @@ pub(crate) fn get_doc_id_mapping_from_field(
     sort_by_field: IndexSortByField,
     segment_writer: &SegmentWriter,
 ) -> crate::Result<DocIdMapping> {
-    let schema = segment_writer.segment_serializer.segment().schema();
+    let schema = segment_writer.segment.schema();
     expect_field_id_for_sort_field(&schema, &sort_by_field)?; // for now expect
-    let new_doc_id_to_old = segment_writer.fast_field_writers.sort_order(
+    let new_doc_id_to_old = segment_writer.fast_fields.writer().sort_order(
         sort_by_field.field.as_str(),
         segment_writer.max_doc(),
         sort_by_field.order.is_desc(),

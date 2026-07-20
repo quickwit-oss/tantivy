@@ -675,9 +675,10 @@ mod tests {
             reader.reload().unwrap();
             let num_segments = reader.searcher().segment_readers().len();
             assert!(num_segments <= 4);
-            let num_components_except_deletes_and_tempstore =
-                crate::index::SegmentComponent::iterator().len() - 2;
-            let max_num_mmapped = num_components_except_deletes_and_tempstore * num_segments;
+            // Built-in segment components excluding the delete file (no deletes here):
+            // postings, positions, fast fields, field norms, terms, store, temp store.
+            let max_components_per_segment = 7;
+            let max_num_mmapped = max_components_per_segment * num_segments;
             assert_eventually(|| {
                 let num_mmapped = mmap_directory.get_cache_info().mmapped.len();
                 if num_mmapped > max_num_mmapped {

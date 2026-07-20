@@ -1,8 +1,9 @@
-use std::collections::HashSet;
+use std::collections::{BTreeSet, HashSet};
 use std::fmt;
 #[cfg(feature = "mmap")]
 use std::path::Path;
 use std::path::PathBuf;
+use std::sync::Arc;
 use std::thread::available_parallelism;
 
 use super::segment::Segment;
@@ -14,15 +15,20 @@ use crate::directory::error::OpenReadError;
 use crate::directory::MmapDirectory;
 use crate::directory::{Directory, ManagedDirectory, RamDirectory, INDEX_WRITER_LOCK};
 use crate::error::{DataCorruption, TantivyError};
-use crate::index::{IndexMeta, SegmentId, SegmentMeta, SegmentMetaInventory};
+use crate::fastfield::FastFieldsPlugin;
+use crate::index::{
+    IndexMeta, InvertedIndexPlugin, SegmentComponent, SegmentId, SegmentMeta, SegmentMetaInventory,
+};
 use crate::indexer::index_writer::{
     IndexWriterOptions, MAX_NUM_THREAD, MEMORY_BUDGET_NUM_BYTES_MIN,
 };
 use crate::indexer::segment_updater::save_metas;
 use crate::indexer::{IndexWriter, SingleSegmentIndexWriter};
+use crate::plugin::SegmentPlugin;
 use crate::reader::{IndexReader, IndexReaderBuilder};
 use crate::schema::document::Document;
 use crate::schema::{Field, FieldType, Schema, Type};
+use crate::store::StorePlugin;
 use crate::tokenizer::{TextAnalyzer, TokenizerManager};
 use crate::SegmentReader;
 
@@ -48,6 +54,49 @@ fn load_metas(
         .map_err(From::from)
 }
 
+/// The built-in plugins, in write order.
+pub(crate) fn builtin_plugins() -> Vec<Arc<dyn SegmentPlugin>> {
+    vec![
+        Arc::new(InvertedIndexPlugin),
+        Arc::new(FastFieldsPlugin),
+        Arc::new(StorePlugin),
+    ]
+}
+
+/// The files owned by the given segments: one per plugin extension (the built-in
+/// extensions plus the index's required custom ones), plus each segment's delete bitset
+/// and — while it is still being written — its temp store.
+///
+/// Callers pass the segment set they care about (e.g. all tracked segments for garbage
+/// collection, or just the committed ones) and the index's persisted custom extensions.
+pub(crate) fn list_segment_files(
+    segment_metas: &[SegmentMeta],
+    persisted_custom_extensions: &[String],
+) -> HashSet<PathBuf> {
+    let extensions: Vec<String> = builtin_plugins()
+        .iter()
+        .flat_map(|plugin| plugin.extensions().iter().map(|ext| ext.to_string()))
+        .chain(persisted_custom_extensions.iter().cloned())
+        .collect();
+    let mut files = HashSet::new();
+    for segment_meta in segment_metas {
+        for ext in &extensions {
+            files.insert(segment_meta.relative_path(SegmentComponent::Custom(ext.clone())));
+        }
+        files.insert(segment_meta.relative_path(SegmentComponent::Delete));
+        if segment_meta.include_temp_store() {
+            files.insert(segment_meta.relative_path(SegmentComponent::TempStore));
+        }
+    }
+    files
+}
+
+/// File extensions for built-in segment components that no plugin owns: the temp
+/// store (`<uuid>.store.temp`) and the delete bitset (`<uuid>.<opstamp>.del`).
+/// Both spellings of each are reserved — the bare [`SegmentComponent`] name and the
+/// on-disk extension — so a custom plugin cannot claim either and contend for the file.
+const RESERVED_NON_PLUGIN_EXTENSIONS: &[&str] = &["temp", "store.temp", "del"];
+
 /// Save the index meta file.
 /// This operation is atomic :
 /// Either
@@ -58,11 +107,18 @@ fn load_metas(
 fn save_new_metas(
     schema: Schema,
     index_settings: IndexSettings,
+    plugins: &[Arc<dyn SegmentPlugin>],
     directory: &dyn Directory,
 ) -> crate::Result<()> {
+    let persisted_custom_extensions: Vec<String> = plugins
+        .iter()
+        .flat_map(|plugin| plugin.extensions().iter().copied())
+        .map(str::to_string)
+        .collect();
     save_metas(
         &IndexMeta {
             index_settings,
+            persisted_custom_extensions,
             segments: Vec::new(),
             schema,
             opstamp: 0u64,
@@ -106,6 +162,7 @@ pub struct IndexBuilder {
     index_settings: IndexSettings,
     tokenizer_manager: TokenizerManager,
     fast_field_tokenizer_manager: TokenizerManager,
+    custom_plugins: Vec<Arc<dyn SegmentPlugin>>,
 }
 impl Default for IndexBuilder {
     fn default() -> Self {
@@ -120,6 +177,7 @@ impl IndexBuilder {
             index_settings: IndexSettings::default(),
             tokenizer_manager: TokenizerManager::default(),
             fast_field_tokenizer_manager: TokenizerManager::default(),
+            custom_plugins: Vec::new(),
         }
     }
 
@@ -146,6 +204,12 @@ impl IndexBuilder {
     /// Set the fast field tokenizers.
     pub fn fast_field_tokenizers(mut self, tokenizers: TokenizerManager) -> Self {
         self.fast_field_tokenizer_manager = tokenizers;
+        self
+    }
+
+    #[must_use]
+    pub fn register_plugin(mut self, plugin: Arc<dyn SegmentPlugin>) -> Self {
+        self.custom_plugins.push(plugin);
         self
     }
 
@@ -223,6 +287,7 @@ impl IndexBuilder {
         let mut index = Index::open(dir)?;
         index.set_tokenizers(self.tokenizer_manager.clone());
         if index.schema() == self.get_expect_schema()? {
+            index.custom_plugins.extend(self.custom_plugins);
             Ok(index)
         } else {
             Err(TantivyError::SchemaError(
@@ -275,13 +340,14 @@ impl IndexBuilder {
     /// Creates a new index given an implementation of the trait `Directory`.
     ///
     /// If a directory previously existed, it will be erased.
-    fn create<T: Into<Box<dyn Directory>>>(self, dir: T) -> crate::Result<Index> {
+    pub(crate) fn create<T: Into<Box<dyn Directory>>>(self, dir: T) -> crate::Result<Index> {
         self.validate()?;
         let dir = dir.into();
         let directory = ManagedDirectory::wrap(dir)?;
         save_new_metas(
             self.get_expect_schema()?,
             self.index_settings.clone(),
+            &self.custom_plugins,
             &directory,
         )?;
         let mut metas = IndexMeta::with_schema(self.get_expect_schema()?);
@@ -289,6 +355,7 @@ impl IndexBuilder {
         let mut index = Index::open_from_metas(directory, &metas, SegmentMetaInventory::default());
         index.set_tokenizers(self.tokenizer_manager);
         index.set_fast_field_tokenizers(self.fast_field_tokenizer_manager);
+        index.custom_plugins.extend(self.custom_plugins);
         Ok(index)
     }
 }
@@ -303,6 +370,7 @@ pub struct Index {
     tokenizers: TokenizerManager,
     fast_field_tokenizers: TokenizerManager,
     inventory: SegmentMetaInventory,
+    custom_plugins: Vec<Arc<dyn SegmentPlugin>>,
 }
 
 impl Index {
@@ -422,12 +490,28 @@ impl Index {
             fast_field_tokenizers: TokenizerManager::default(),
             executor: Executor::single_thread(),
             inventory,
+            custom_plugins: Vec::new(),
         }
     }
 
     /// Setter for the tokenizer manager.
     pub fn set_tokenizers(&mut self, tokenizers: TokenizerManager) {
         self.tokenizers = tokenizers;
+    }
+
+    /// Re-attach a custom segment plugin after the index has been opened.
+    ///
+    /// Plugin registration is not persisted, so `Index::open` restores only the
+    /// built-in plugins. Custom plugins must be re-registered before any write,
+    /// merge, or garbage collection, the same way custom tokenizers are
+    /// re-attached via [`Index::set_tokenizers`].
+    ///
+    /// The index records, at creation, the custom extensions it requires, so these
+    /// operations fail closed with [`TantivyError::MissingPlugin`] when an owning
+    /// plugin is not registered — rather than dropping its data from a merge or
+    /// deleting its files during garbage collection.
+    pub fn register_plugin(&mut self, plugin: Arc<dyn SegmentPlugin>) {
+        self.custom_plugins.push(plugin);
     }
 
     /// Accessor for the tokenizer manager.
@@ -586,7 +670,7 @@ impl Index {
                 )
             })?;
 
-        IndexWriter::new(self, options, directory_lock)
+        IndexWriter::new(self.clone(), options, directory_lock)
     }
 
     /// Open a new index writer. Attempts to acquire a lockfile.
@@ -651,6 +735,85 @@ impl Index {
             num_threads = (memory_budget_in_bytes / MEMORY_BUDGET_NUM_BYTES_MIN).max(1);
         }
         self.writer_with_num_threads(num_threads, memory_budget_in_bytes)
+    }
+
+    /// The custom (non-built-in) plugins registered on this index.
+    pub fn custom_plugins(&self) -> &[Arc<dyn SegmentPlugin>] {
+        &self.custom_plugins
+    }
+
+    /// The sorted set of extensions claimed by the registered custom (non-built-in) plugins.
+    pub(crate) fn custom_extensions(&self) -> BTreeSet<&str> {
+        self.custom_plugins
+            .iter()
+            .flat_map(|plugin| plugin.extensions().iter().copied())
+            .collect()
+    }
+
+    /// All plugins that participate in writing and merging, in write order: the built-ins
+    /// (field norms, postings, fast fields, store) followed by the registered custom
+    /// plugins. Built-ins are not stored; they are produced fresh here from `builtin_plugins`.
+    pub fn all_plugins(&self) -> impl Iterator<Item = Arc<dyn SegmentPlugin>> + '_ {
+        builtin_plugins()
+            .into_iter()
+            .chain(self.custom_plugins.iter().cloned())
+    }
+
+    /// Validates that the registered plugin set matches the index's recorded plugin set:
+    /// no two plugins claim the same extension, none claim a reserved one, and the
+    /// registered custom plugins exactly match the extensions the index was created with.
+    /// The plugin set is part of the index's structure, like the schema, and is fixed at
+    /// creation.
+    pub(crate) fn validate_plugins(&self) -> crate::Result<()> {
+        // No two plugins may claim the same extension, and none may claim a reserved one.
+        let all_plugins: Vec<_> = self.all_plugins().collect();
+        let mut claimed_extensions: HashSet<&str> =
+            RESERVED_NON_PLUGIN_EXTENSIONS.iter().copied().collect();
+        let mut conflicting: std::collections::BTreeSet<String> = std::collections::BTreeSet::new();
+        for plugin in &all_plugins {
+            for &ext in plugin.extensions() {
+                if !claimed_extensions.insert(ext) {
+                    conflicting.insert(ext.to_string());
+                }
+            }
+        }
+        if !conflicting.is_empty() {
+            return Err(crate::TantivyError::ConflictingPlugins(
+                conflicting.into_iter().collect::<Vec<_>>().join(", "),
+            ));
+        }
+
+        // The index persists, at creation, the custom plugin extensions it requires; that
+        // index-wide record is the single source of truth for the plugin set. The currently
+        // registered custom plugins must match it exactly.
+        let metas = self.load_metas()?;
+        let persisted_custom_extensions: BTreeSet<&str> = metas
+            .persisted_custom_extensions
+            .iter()
+            .map(String::as_str)
+            .collect();
+        let registered_custom_extensions = self.custom_extensions();
+
+        // Persisted but not registered: writing or merging would silently drop that plugin's data.
+        let missing: Vec<&str> = persisted_custom_extensions
+            .difference(&registered_custom_extensions)
+            .copied()
+            .collect();
+        if !missing.is_empty() {
+            return Err(crate::TantivyError::MissingPlugin(missing.join(", ")));
+        }
+
+        // Registered but not persisted: the plugin set is fixed at creation, so a plugin not
+        // persisted there cannot be added to an existing index.
+        let unexpected: Vec<&str> = registered_custom_extensions
+            .difference(&persisted_custom_extensions)
+            .copied()
+            .collect();
+        if !unexpected.is_empty() {
+            return Err(crate::TantivyError::UnexpectedPlugin(unexpected.join(", ")));
+        }
+
+        Ok(())
     }
 
     /// Accessor to the index settings
@@ -720,11 +883,9 @@ impl Index {
     /// Returns the set of corrupted files
     pub fn validate_checksum(&self) -> crate::Result<HashSet<PathBuf>> {
         let managed_files = self.directory.list_managed_files();
-        let active_segments_files: HashSet<PathBuf> = self
-            .searchable_segment_metas()?
-            .iter()
-            .flat_map(|segment_meta| segment_meta.list_files())
-            .collect();
+        let metas = self.load_metas()?;
+        let active_segments_files =
+            list_segment_files(&metas.segments, &metas.persisted_custom_extensions);
         let active_existing_files: HashSet<&PathBuf> =
             active_segments_files.intersection(&managed_files).collect();
 

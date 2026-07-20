@@ -1,46 +1,12 @@
-use columnar::MonotonicallyMappableToU64;
-use common::JsonPathWriter;
-use itertools::Itertools;
-use tokenizer_api::BoxTokenStream;
-
 use super::doc_id_mapping::{get_doc_id_mapping_from_field, DocIdMapping};
 use super::operation::AddOperation;
-use crate::fastfield::FastFieldsWriter;
-use crate::fieldnorm::{FieldNormReaders, FieldNormsWriter};
-use crate::index::{Segment, SegmentComponent};
-use crate::indexer::indexing_term::IndexingTerm;
-use crate::indexer::segment_serializer::SegmentSerializer;
-use crate::json_utils::{index_json_value, IndexingPositionsPerPath};
-use crate::postings::{
-    compute_table_memory_size, serialize_postings, IndexingContext, IndexingPosition,
-    PerFieldPostingsWriter, PostingsWriter,
-};
-use crate::schema::document::{Document, Value};
-use crate::schema::{FieldEntry, FieldType, Schema, DATE_TIME_PRECISION_INDEXED};
-use crate::store::{StoreReader, StoreWriter};
-use crate::tokenizer::{FacetTokenizer, PreTokenizedStream, TextAnalyzer, Tokenizer};
-use crate::{DocId, Opstamp, TantivyError};
-
-/// Computes the initial size of the hash table.
-///
-/// Returns the recommended initial table size as a power of 2.
-///
-/// Note this is a very dumb way to compute log2, but it is easier to proofread that way.
-fn compute_initial_table_size(per_thread_memory_budget: usize) -> crate::Result<usize> {
-    let table_memory_upper_bound = per_thread_memory_budget / 3;
-    (10..20) // We cap it at 2^19 = 512K capacity.
-        // TODO: There are cases where this limit causes a
-        // reallocation in the hashmap. Check if this affects performance.
-        .map(|power| 1 << power)
-        .take_while(|capacity| compute_table_memory_size(*capacity) < table_memory_upper_bound)
-        .last()
-        .ok_or_else(|| {
-            crate::TantivyError::InvalidArgument(format!(
-                "per thread memory budget (={per_thread_memory_budget}) is too small. Raise the \
-                 memory budget or lower the number of threads."
-            ))
-        })
-}
+use crate::fastfield::FastFieldsPluginWriter;
+use crate::index::{InvertedIndexPluginWriter, Segment};
+use crate::plugin::{PluginWriter, PluginWriterContext};
+use crate::schema::document::{Document, ErasedDocument};
+use crate::schema::Schema;
+use crate::store::StorePluginWriter;
+use crate::{DocId, Opstamp};
 
 fn remap_doc_opstamps(
     opstamps: Vec<Opstamp>,
@@ -63,16 +29,12 @@ fn remap_doc_opstamps(
 /// The segment is laid on disk when the segment gets `finalized`.
 pub struct SegmentWriter {
     pub(crate) max_doc: DocId,
-    pub(crate) ctx: IndexingContext,
-    pub(crate) per_field_postings_writers: PerFieldPostingsWriter,
-    pub(crate) segment_serializer: SegmentSerializer,
-    pub(crate) fast_field_writers: FastFieldsWriter,
-    pub(crate) fieldnorms_writer: FieldNormsWriter,
-    pub(crate) json_path_writer: JsonPathWriter,
-    pub(crate) json_positions_per_path: IndexingPositionsPerPath,
+    pub(crate) segment: Segment,
+    pub(crate) inverted_index: InvertedIndexPluginWriter,
+    pub(crate) fast_fields: FastFieldsPluginWriter,
+    pub(crate) store_writer: StorePluginWriter,
+    custom_plugins: Vec<Box<dyn PluginWriter>>,
     pub(crate) doc_opstamps: Vec<Opstamp>,
-    per_field_text_analyzers: Vec<TextAnalyzer>,
-    term_buffer: IndexingTerm,
     schema: Schema,
 }
 
@@ -88,76 +50,69 @@ impl SegmentWriter {
     /// - schema
     pub fn for_segment(memory_budget_in_bytes: usize, segment: Segment) -> crate::Result<Self> {
         let schema = segment.schema();
-        let tokenizer_manager = segment.index().tokenizers().clone();
-        let tokenizer_manager_fast_field = segment.index().fast_field_tokenizer().clone();
-        let table_size = compute_initial_table_size(memory_budget_in_bytes)?;
-        let segment_serializer = SegmentSerializer::for_segment(segment, false)?;
-        let per_field_postings_writers = PerFieldPostingsWriter::for_schema(&schema);
-        let per_field_text_analyzers = schema
-            .fields()
-            .map(|(_, field_entry): (_, &FieldEntry)| {
-                let text_options = match field_entry.field_type() {
-                    FieldType::Str(ref text_options) => text_options.get_indexing_options(),
-                    FieldType::JsonObject(ref json_object_options) => {
-                        json_object_options.get_text_indexing_options()
-                    }
-                    _ => None,
-                };
-                let tokenizer_name = text_options
-                    .map(|text_index_option| text_index_option.tokenizer())
-                    .unwrap_or("default");
-
-                tokenizer_manager.get(tokenizer_name).ok_or_else(|| {
-                    TantivyError::SchemaError(format!(
-                        "Error getting tokenizer for field: {}",
-                        field_entry.name()
-                    ))
-                })
-            })
-            .collect::<Result<Vec<_>, _>>()?;
+        let ctx = PluginWriterContext {
+            segment: &segment,
+            memory_budget_in_bytes,
+        };
+        let inverted_index = InvertedIndexPluginWriter::new(&ctx)?;
+        let fast_fields = FastFieldsPluginWriter::new(&ctx)?;
+        let store_writer = StorePluginWriter::new(&ctx)?;
+        let custom_plugins = segment
+            .index()
+            .custom_plugins()
+            .iter()
+            .map(|plugin| plugin.create_writer(&ctx))
+            .collect::<crate::Result<Vec<_>>>()?;
         Ok(Self {
             max_doc: 0,
-            ctx: IndexingContext::new(table_size),
-            per_field_postings_writers,
-            fieldnorms_writer: FieldNormsWriter::for_schema(&schema),
-            json_path_writer: JsonPathWriter::default(),
-            json_positions_per_path: IndexingPositionsPerPath::default(),
-            segment_serializer,
-            fast_field_writers: FastFieldsWriter::from_schema_and_tokenizer_manager(
-                &schema,
-                tokenizer_manager_fast_field,
-            )?,
+            segment,
+            inverted_index,
+            fast_fields,
+            store_writer,
+            custom_plugins,
             doc_opstamps: Vec::with_capacity(1_000),
-            per_field_text_analyzers,
-            term_buffer: IndexingTerm::with_capacity(16),
             schema,
         })
+    }
+
+    /// Resolves a custom plugin writer by one of its registered extensions.
+    /// Callers downcast the returned writer to their concrete type via `as_any_mut`.
+    pub fn custom_plugin_writer_mut(&mut self, extension: &str) -> Option<&mut dyn PluginWriter> {
+        let idx = self
+            .segment
+            .index()
+            .custom_plugins()
+            .iter()
+            .position(|plugin| plugin.extensions().contains(&extension))?;
+        self.custom_plugins
+            .get_mut(idx)
+            .map(|writer| writer.as_mut())
     }
 
     /// Lay on disk the current content of the `SegmentWriter`
     ///
     /// Finalize consumes the `SegmentWriter`, so that it cannot
     /// be used afterwards.
-    pub fn finalize(mut self) -> crate::Result<Vec<u64>> {
-        self.fieldnorms_writer.fill_up_to_max_doc(self.max_doc);
+    pub fn finalize(self) -> crate::Result<Vec<u64>> {
         let mapping: Option<DocIdMapping> = self
-            .segment_serializer
-            .segment()
+            .segment
             .index()
             .settings()
             .sort_by_field
             .clone()
             .map(|sort_by_field| get_doc_id_mapping_from_field(sort_by_field, &self))
             .transpose()?;
-        remap_and_write(
-            self.schema,
-            &self.per_field_postings_writers,
-            self.ctx,
-            self.fast_field_writers,
-            &self.fieldnorms_writer,
-            self.segment_serializer,
-            mapping.as_ref(),
-        )?;
+
+        // Serialize in write order: inverted index, fast fields, store, then custom plugins.
+        let segment = &self.segment;
+        let map = mapping.as_ref();
+        Box::new(self.inverted_index).serialize(segment, map)?;
+        Box::new(self.fast_fields).serialize(segment, map)?;
+        Box::new(self.store_writer).serialize(segment, map)?;
+        for writer in self.custom_plugins {
+            writer.serialize(segment, map)?;
+        }
+
         let doc_opstamps = remap_doc_opstamps(self.doc_opstamps, mapping.as_ref());
         Ok(doc_opstamps)
     }
@@ -165,209 +120,14 @@ impl SegmentWriter {
     /// Returns an estimation of the current memory usage of the segment writer.
     /// If the mem usage exceeds the `memory_budget`, the segment be serialized.
     pub fn mem_usage(&self) -> usize {
-        self.ctx.mem_usage()
-            + self.fieldnorms_writer.mem_usage()
-            + self.fast_field_writers.mem_usage()
-            + self.segment_serializer.mem_usage()
-    }
-
-    fn index_document<D: Document>(&mut self, doc: &D) -> crate::Result<()> {
-        let doc_id = self.max_doc;
-
-        // TODO: Can this be optimised a bit?
-        let vals_grouped_by_field = doc
-            .iter_fields_and_values()
-            .sorted_by_key(|(field, _)| *field)
-            .chunk_by(|(field, _)| *field);
-
-        for (field, field_values) in &vals_grouped_by_field {
-            let values = field_values.map(|el| el.1);
-
-            let field_entry = self.schema.get_field_entry(field);
-            let make_schema_error = || {
-                TantivyError::SchemaError(format!(
-                    "Expected a {:?} for field {:?}",
-                    field_entry.field_type().value_type(),
-                    field_entry.name()
-                ))
-            };
-            if !field_entry.is_indexed() {
-                continue;
-            }
-
-            let (term_buffer, ctx) = (&mut self.term_buffer, &mut self.ctx);
-            let postings_writer: &mut dyn PostingsWriter =
-                self.per_field_postings_writers.get_for_field_mut(field);
-            term_buffer.clear_with_field(field);
-
-            match field_entry.field_type() {
-                FieldType::Facet(_) => {
-                    let mut facet_tokenizer = FacetTokenizer::default(); // this can be global
-                    for value in values {
-                        let value = value.as_value();
-
-                        let facet_str = value.as_facet().ok_or_else(make_schema_error)?;
-                        let mut facet_tokenizer = facet_tokenizer.token_stream(facet_str);
-                        let mut indexing_position = IndexingPosition::default();
-                        postings_writer.index_text(
-                            doc_id,
-                            &mut facet_tokenizer,
-                            term_buffer,
-                            ctx,
-                            &mut indexing_position,
-                        );
-                    }
-                }
-                FieldType::Str(_) => {
-                    let mut indexing_position = IndexingPosition::default();
-                    for value in values {
-                        let value = value.as_value();
-
-                        let mut token_stream = if let Some(text) = value.as_str() {
-                            let text_analyzer =
-                                &mut self.per_field_text_analyzers[field.field_id() as usize];
-                            text_analyzer.token_stream(text)
-                        } else if let Some(tok_str) = value.into_pre_tokenized_text() {
-                            BoxTokenStream::new(PreTokenizedStream::from(*tok_str.clone()))
-                        } else {
-                            continue;
-                        };
-
-                        assert!(term_buffer.is_empty());
-                        postings_writer.index_text(
-                            doc_id,
-                            &mut *token_stream,
-                            term_buffer,
-                            ctx,
-                            &mut indexing_position,
-                        );
-                    }
-                    if field_entry.has_fieldnorms() {
-                        self.fieldnorms_writer
-                            .record(doc_id, field, indexing_position.num_tokens);
-                    }
-                }
-                FieldType::U64(_) => {
-                    let mut num_vals = 0;
-                    for value in values {
-                        let value = value.as_value();
-
-                        num_vals += 1;
-                        let u64_val = value.as_u64().ok_or_else(make_schema_error)?;
-                        term_buffer.set_u64(u64_val);
-                        postings_writer.subscribe(doc_id, 0u32, term_buffer, ctx);
-                    }
-                    if field_entry.has_fieldnorms() {
-                        self.fieldnorms_writer.record(doc_id, field, num_vals);
-                    }
-                }
-                FieldType::Date(_) => {
-                    let mut num_vals = 0;
-                    for value in values {
-                        let value = value.as_value();
-
-                        num_vals += 1;
-                        let date_val = value.as_datetime().ok_or_else(make_schema_error)?;
-                        term_buffer
-                            .set_u64(date_val.truncate(DATE_TIME_PRECISION_INDEXED).to_u64());
-                        postings_writer.subscribe(doc_id, 0u32, term_buffer, ctx);
-                    }
-                    if field_entry.has_fieldnorms() {
-                        self.fieldnorms_writer.record(doc_id, field, num_vals);
-                    }
-                }
-                FieldType::I64(_) => {
-                    let mut num_vals = 0;
-                    for value in values {
-                        let value = value.as_value();
-
-                        num_vals += 1;
-                        let i64_val = value.as_i64().ok_or_else(make_schema_error)?;
-                        term_buffer.set_i64(i64_val);
-                        postings_writer.subscribe(doc_id, 0u32, term_buffer, ctx);
-                    }
-                    if field_entry.has_fieldnorms() {
-                        self.fieldnorms_writer.record(doc_id, field, num_vals);
-                    }
-                }
-                FieldType::F64(_) => {
-                    let mut num_vals = 0;
-                    for value in values {
-                        let value = value.as_value();
-                        num_vals += 1;
-                        let f64_val = value.as_f64().ok_or_else(make_schema_error)?;
-                        term_buffer.set_f64(f64_val);
-                        postings_writer.subscribe(doc_id, 0u32, term_buffer, ctx);
-                    }
-                    if field_entry.has_fieldnorms() {
-                        self.fieldnorms_writer.record(doc_id, field, num_vals);
-                    }
-                }
-                FieldType::Bool(_) => {
-                    let mut num_vals = 0;
-                    for value in values {
-                        let value = value.as_value();
-                        num_vals += 1;
-                        let bool_val = value.as_bool().ok_or_else(make_schema_error)?;
-                        term_buffer.set_bool(bool_val);
-                        postings_writer.subscribe(doc_id, 0u32, term_buffer, ctx);
-                    }
-                    if field_entry.has_fieldnorms() {
-                        self.fieldnorms_writer.record(doc_id, field, num_vals);
-                    }
-                }
-                FieldType::Bytes(_) => {
-                    let mut num_vals = 0;
-                    for value in values {
-                        let value = value.as_value();
-                        num_vals += 1;
-                        let bytes = value.as_bytes().ok_or_else(make_schema_error)?;
-                        term_buffer.set_bytes(bytes);
-                        postings_writer.subscribe(doc_id, 0u32, term_buffer, ctx);
-                    }
-                    if field_entry.has_fieldnorms() {
-                        self.fieldnorms_writer.record(doc_id, field, num_vals);
-                    }
-                }
-                FieldType::JsonObject(json_options) => {
-                    let text_analyzer =
-                        &mut self.per_field_text_analyzers[field.field_id() as usize];
-
-                    self.json_positions_per_path.clear();
-                    self.json_path_writer
-                        .set_expand_dots(json_options.is_expand_dots_enabled());
-                    for json_value in values {
-                        self.json_path_writer.clear();
-
-                        index_json_value(
-                            doc_id,
-                            json_value,
-                            text_analyzer,
-                            term_buffer,
-                            &mut self.json_path_writer,
-                            postings_writer,
-                            ctx,
-                            &mut self.json_positions_per_path,
-                        );
-                    }
-                }
-                FieldType::IpAddr(_) => {
-                    let mut num_vals = 0;
-                    for value in values {
-                        let value = value.as_value();
-
-                        num_vals += 1;
-                        let ip_addr = value.as_ip_addr().ok_or_else(make_schema_error)?;
-                        term_buffer.set_ip_addr(ip_addr);
-                        postings_writer.subscribe(doc_id, 0u32, term_buffer, ctx);
-                    }
-                    if field_entry.has_fieldnorms() {
-                        self.fieldnorms_writer.record(doc_id, field, num_vals);
-                    }
-                }
-            }
-        }
-        Ok(())
+        self.inverted_index.mem_usage()
+            + self.fast_fields.mem_usage()
+            + self.store_writer.mem_usage()
+            + self
+                .custom_plugins
+                .iter()
+                .map(|writer| writer.mem_usage())
+                .sum::<usize>()
     }
 
     /// Indexes a new document
@@ -378,11 +138,23 @@ impl SegmentWriter {
         add_operation: AddOperation<D>,
     ) -> crate::Result<()> {
         let AddOperation { document, opstamp } = add_operation;
+        let doc_id = self.max_doc;
         self.doc_opstamps.push(opstamp);
-        self.fast_field_writers.add_document(&document)?;
-        self.index_document(&document)?;
-        let doc_writer = self.segment_serializer.get_store_writer();
-        doc_writer.store(&document, &self.schema)?;
+
+        // Built-in writers index the document generically — zero-copy for any `Document` type.
+        self.inverted_index.index_document(doc_id, &document)?;
+        self.fast_fields.index_document(&document)?;
+        self.store_writer.store(&document, &self.schema)?;
+
+        // Custom plugins are trait objects, so they take the document type-erased. Leaves stay
+        // borrowed; a plugin that knows the concrete type recovers it for free via `as_any`.
+        if !self.custom_plugins.is_empty() {
+            let erased: &dyn ErasedDocument = &document;
+            for writer in &mut self.custom_plugins {
+                writer.add_document(doc_id, erased, &self.schema)?;
+            }
+        }
+
         self.max_doc += 1;
         Ok(())
     }
@@ -406,73 +178,6 @@ impl SegmentWriter {
     pub fn num_docs(&self) -> u32 {
         self.max_doc
     }
-}
-
-/// This method is used as a trick to workaround the borrow checker
-/// Writes a view of a segment by pushing information
-/// to the `SegmentSerializer`.
-///
-/// `doc_id_map` is used to map to the new doc_id order.
-fn remap_and_write(
-    schema: Schema,
-    per_field_postings_writers: &PerFieldPostingsWriter,
-    ctx: IndexingContext,
-    fast_field_writers: FastFieldsWriter,
-    fieldnorms_writer: &FieldNormsWriter,
-    mut serializer: SegmentSerializer,
-    doc_id_map: Option<&DocIdMapping>,
-) -> crate::Result<()> {
-    debug!("remap-and-write");
-    if let Some(fieldnorms_serializer) = serializer.extract_fieldnorms_serializer() {
-        fieldnorms_writer.serialize(fieldnorms_serializer, doc_id_map)?;
-    }
-    let fieldnorm_data = serializer
-        .segment()
-        .open_read(SegmentComponent::FieldNorms)?;
-    let fieldnorm_readers = FieldNormReaders::open(fieldnorm_data)?;
-    serialize_postings(
-        ctx,
-        schema,
-        per_field_postings_writers,
-        fieldnorm_readers,
-        doc_id_map,
-        serializer.get_postings_serializer(),
-    )?;
-    debug!("fastfield-serialize");
-    fast_field_writers.serialize(serializer.get_fast_field_write(), doc_id_map)?;
-
-    // finalize temp docstore and create version, which reflects the doc_id_map
-    if let Some(doc_id_map) = doc_id_map {
-        debug!("resort-docstore");
-        let store_write = serializer
-            .segment_mut()
-            .open_write(SegmentComponent::Store)?;
-        let settings = serializer.segment().index().settings();
-        let store_writer = StoreWriter::new(
-            store_write,
-            settings.docstore_compression,
-            settings.docstore_blocksize,
-            settings.docstore_compress_dedicated_thread,
-        )?;
-        let old_store_writer = std::mem::replace(&mut serializer.store_writer, store_writer);
-        old_store_writer.close()?;
-        let store_read = StoreReader::open(
-            serializer
-                .segment()
-                .open_read(SegmentComponent::TempStore)?,
-            1, /* The docstore is configured to have one doc per block, and each doc is
-                * accessed only once: we don't need caching. */
-        )?;
-        for old_doc_id in doc_id_map.iter_old_doc_ids() {
-            let doc_bytes = store_read.get_document_bytes(old_doc_id)?;
-            serializer.get_store_writer().store_bytes(&doc_bytes)?;
-        }
-    }
-
-    debug!("serializer-close");
-    serializer.close()?;
-
-    Ok(())
 }
 
 #[cfg(test)]
@@ -503,7 +208,7 @@ mod tests {
     #[test]
     #[cfg(not(feature = "compare_hash_only"))]
     fn test_hashmap_size() {
-        use super::compute_initial_table_size;
+        use crate::postings::compute_initial_table_size;
         assert_eq!(compute_initial_table_size(100_000).unwrap(), 1 << 12);
         assert_eq!(compute_initial_table_size(1_000_000).unwrap(), 1 << 15);
         assert_eq!(compute_initial_table_size(15_000_000).unwrap(), 1 << 19);

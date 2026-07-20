@@ -161,6 +161,7 @@
 
 mod de;
 mod default_document;
+mod erased;
 mod existing_type_impls;
 mod owned_value;
 mod se;
@@ -177,6 +178,7 @@ pub use self::de::{
 pub use self::default_document::{
     CompactDocArrayIter, CompactDocObjectIter, CompactDocValue, DocParsingError, TantivyDocument,
 };
+pub use self::erased::{ErasedDocument, ErasedValue};
 pub use self::owned_value::OwnedValue;
 pub(crate) use self::se::BinaryDocumentSerializer;
 pub use self::value::{ReferenceValue, ReferenceValueLeaf, Value};
@@ -194,6 +196,21 @@ pub trait Document: Send + Sync + 'static {
 
     /// Get an iterator iterating over all fields and values in a document.
     fn iter_fields_and_values(&self) -> Self::FieldsValuesIter<'_>;
+
+    /// Convert this document into the canonical [`TantivyDocument`] representation.
+    ///
+    /// The indexer calls this once per document so it can hand a single concrete type to
+    /// every [`PluginWriter`](crate::plugin::PluginWriter). The default materializes a new
+    /// `TantivyDocument`; `TantivyDocument` overrides it to return itself, so indexing the
+    /// default document type costs nothing extra.
+    fn into_tantivy_document(self) -> TantivyDocument
+    where Self: Sized {
+        let mut doc = TantivyDocument::new();
+        for (field, value) in self.iter_fields_and_values() {
+            doc.add_field_value(field, value);
+        }
+        doc
+    }
 
     /// Sort and groups the field_values by field.
     ///

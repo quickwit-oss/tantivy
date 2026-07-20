@@ -234,7 +234,7 @@ impl FastFieldsWriter {
     /// Serializes all of the `FastFieldWriter`s by pushing them in
     /// order to the fast field serializer.
     pub fn serialize(
-        mut self,
+        &mut self,
         wrt: &mut dyn io::Write,
         doc_id_map_opt: Option<&DocIdMapping>,
     ) -> io::Result<()> {
