@@ -556,6 +556,7 @@ mod tests {
             assert_eq!(index_settings_deser, index_settings);
         }
         {
+            // manual_doc_id_mapping should not be persisted.
             index_settings.manual_doc_id_mapping = true;
             let index_settings_json = serde_json::to_value(&index_settings).unwrap();
             assert_eq!(
