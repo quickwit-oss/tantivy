@@ -8,7 +8,7 @@ use rand_distr::Distribution;
 use serde_json::json;
 use tantivy::aggregation::agg_req::Aggregations;
 use tantivy::aggregation::AggregationCollector;
-use tantivy::query::{AllQuery, TermQuery};
+use tantivy::query::{AllQuery, Query, TermQuery};
 use tantivy::schema::{IndexRecordOption, Schema, TextFieldIndexing, FAST, STRING};
 use tantivy::{doc, DateTime, Index, Term};
 
@@ -22,6 +22,28 @@ macro_rules! register {
         $runner.register(stringify!($func), move |index| {
             $func(index);
         })
+    };
+    ($runner:expr, $func:ident, $filtered_func:ident) => {
+        register!($runner, $func);
+        register!($runner, $filtered_func);
+    };
+}
+
+macro_rules! define_multi_terms_benchmark {
+    (
+        $(#[$meta:meta])*
+        $name:ident,
+        $filtered_name:ident,
+        $agg_req:expr $(,)?
+    ) => {
+        $(#[$meta])*
+        fn $name(index: &Index) {
+            execute_agg(index, $agg_req);
+        }
+
+        fn $filtered_name(index: &Index) {
+            execute_agg_filtered(index, $agg_req);
+        }
     };
 }
 
@@ -86,11 +108,31 @@ fn bench_agg(mut group: InputGroup<Index>) {
     register!(group, composite_histogram_calendar);
 
     // multi_terms aggregation benchmarks
-    register!(group, multi_terms_status_and_zipf_1000);
-    register!(group, multi_terms_zipf_1000_and_status);
-    register!(group, multi_terms_many_and_zipf_1000);
-    register!(group, multi_terms_many_and_zipf_1000_and_status);
-    register!(group, multi_terms_status_and_zipf_1000_avg_sub_agg);
+    register!(
+        group,
+        multi_terms_status_and_zipf_1000,
+        multi_terms_status_and_zipf_1000_filtered
+    );
+    register!(
+        group,
+        multi_terms_zipf_1000_and_status,
+        multi_terms_zipf_1000_and_status_filtered
+    );
+    register!(
+        group,
+        multi_terms_many_and_zipf_1000,
+        multi_terms_many_and_zipf_1000_filtered
+    );
+    register!(
+        group,
+        multi_terms_many_and_zipf_1000_and_status,
+        multi_terms_many_and_zipf_1000_and_status_filtered
+    );
+    register!(
+        group,
+        multi_terms_status_and_zipf_1000_avg_sub_agg,
+        multi_terms_status_and_zipf_1000_avg_sub_agg_filtered
+    );
 
     register!(group, cardinality_agg);
     register!(group, cardinality_agg_high_card);
@@ -634,10 +676,12 @@ fn composite_histogram_calendar(index: &Index) {
     execute_agg(index, agg_req);
 }
 
-/// multi_terms equivalent of nested_terms_status_and_zipf_1000:
-/// flat GroupBy(status, zipf_1000) vs nested terms(status) -> terms(zipf_1000)
-fn multi_terms_status_and_zipf_1000(index: &Index) {
-    let agg_req = json!({
+define_multi_terms_benchmark!(
+    /// multi_terms equivalent of nested_terms_status_and_zipf_1000:
+    /// flat GroupBy(status, zipf_1000) vs nested terms(status) -> terms(zipf_1000)
+    multi_terms_status_and_zipf_1000,
+    multi_terms_status_and_zipf_1000_filtered,
+    json!({
         "mt": {
             "multi_terms": {
                 "terms": [
@@ -647,14 +691,15 @@ fn multi_terms_status_and_zipf_1000(index: &Index) {
                 "size": 100
             }
         }
-    });
-    execute_agg(index, agg_req);
-}
+    }),
+);
 
-/// multi_terms equivalent of nested_terms_zipf_1000_and_status:
-/// flat GroupBy(zipf_1000, status) vs nested terms(zipf_1000) -> terms(status)
-fn multi_terms_zipf_1000_and_status(index: &Index) {
-    let agg_req = json!({
+define_multi_terms_benchmark!(
+    /// multi_terms equivalent of nested_terms_zipf_1000_and_status:
+    /// flat GroupBy(zipf_1000, status) vs nested terms(zipf_1000) -> terms(status)
+    multi_terms_zipf_1000_and_status,
+    multi_terms_zipf_1000_and_status_filtered,
+    json!({
         "mt": {
             "multi_terms": {
                 "terms": [
@@ -664,14 +709,15 @@ fn multi_terms_zipf_1000_and_status(index: &Index) {
                 "size": 100
             }
         }
-    });
-    execute_agg(index, agg_req);
-}
+    }),
+);
 
-/// multi_terms equivalent of nested_terms_many_and_zipf_1000:
-/// flat GroupBy(many, zipf_1000) vs nested terms(many) -> terms(zipf_1000)
-fn multi_terms_many_and_zipf_1000(index: &Index) {
-    let agg_req = json!({
+define_multi_terms_benchmark!(
+    /// multi_terms equivalent of nested_terms_many_and_zipf_1000:
+    /// flat GroupBy(many, zipf_1000) vs nested terms(many) -> terms(zipf_1000)
+    multi_terms_many_and_zipf_1000,
+    multi_terms_many_and_zipf_1000_filtered,
+    json!({
         "mt": {
             "multi_terms": {
                 "terms": [
@@ -681,14 +727,15 @@ fn multi_terms_many_and_zipf_1000(index: &Index) {
                 "size": 100
             }
         }
-    });
-    execute_agg(index, agg_req);
-}
+    }),
+);
 
-/// multi_terms equivalent of nested_terms_many_and_zipf_1000_and_status:
-/// flat GroupBy(many, zipf_1000, status) vs three nested terms levels
-fn multi_terms_many_and_zipf_1000_and_status(index: &Index) {
-    let agg_req = json!({
+define_multi_terms_benchmark!(
+    /// multi_terms equivalent of nested_terms_many_and_zipf_1000_and_status:
+    /// flat GroupBy(many, zipf_1000, status) vs three nested terms levels
+    multi_terms_many_and_zipf_1000_and_status,
+    multi_terms_many_and_zipf_1000_and_status_filtered,
+    json!({
         "mt": {
             "multi_terms": {
                 "terms": [
@@ -699,13 +746,14 @@ fn multi_terms_many_and_zipf_1000_and_status(index: &Index) {
                 "size": 100
             }
         }
-    });
-    execute_agg(index, agg_req);
-}
+    }),
+);
 
-/// multi_terms equivalent of nested_terms_status_and_zipf_1000_avg_sub_agg.
-fn multi_terms_status_and_zipf_1000_avg_sub_agg(index: &Index) {
-    let agg_req = json!({
+define_multi_terms_benchmark!(
+    /// multi_terms equivalent of nested_terms_status_and_zipf_1000_avg_sub_agg.
+    multi_terms_status_and_zipf_1000_avg_sub_agg,
+    multi_terms_status_and_zipf_1000_avg_sub_agg_filtered,
+    json!({
         "mt": {
             "multi_terms": {
                 "terms": [
@@ -717,18 +765,31 @@ fn multi_terms_status_and_zipf_1000_avg_sub_agg(index: &Index) {
                 "average_f64": { "avg": { "field": "score_f64" } }
             }
         }
-    });
-    execute_agg(index, agg_req);
-}
+    }),
+);
 
 fn execute_agg(index: &Index, agg_req: serde_json::Value) {
+    execute_agg_with_query(index, agg_req, &AllQuery);
+}
+
+fn execute_agg_filtered(index: &Index, agg_req: serde_json::Value) {
+    let filter_field = index.schema().get_field("filter_field").unwrap();
+    let filter_query = TermQuery::new(
+        Term::from_field_text(filter_field, "a"),
+        IndexRecordOption::Basic,
+    );
+    execute_agg_with_query(index, agg_req, &filter_query);
+}
+
+fn execute_agg_with_query(index: &Index, agg_req: serde_json::Value, query: &dyn Query) {
     let agg_req: Aggregations = serde_json::from_value(agg_req).unwrap();
     let collector = get_collector(agg_req);
 
     let reader = index.reader().unwrap();
     let searcher = reader.searcher();
-    black_box(searcher.search(&AllQuery, &collector).unwrap());
+    black_box(searcher.search(query, &collector).unwrap());
 }
+
 fn range_agg(index: &Index) {
     let agg_req = json!({
         "range_f64": { "range": { "field": "score_f64", "ranges": [
@@ -899,6 +960,7 @@ fn get_test_index_bench(cardinality: Cardinality) -> tantivy::Result<Index> {
         )
         .set_stored();
     let text_field = schema_builder.add_text_field("text", text_fieldtype.clone());
+    let filter_field = schema_builder.add_text_field("filter_field", STRING);
     let single_term = schema_builder.add_text_field("single_term", FAST);
     let json_field = schema_builder.add_json_field("json", FAST);
     let text_field_all_unique_terms =
@@ -947,11 +1009,25 @@ fn get_test_index_bench(cardinality: Cardinality) -> tantivy::Result<Index> {
 
     {
         let mut rng = StdRng::from_seed([1u8; 32]);
+        let mut filter_rng = StdRng::from_seed([2u8; 32]);
         let mut index_writer = index.writer_with_num_threads(1, 200_000_000)?;
+        // 1% steady-state match rate, with random clusters averaging four documents.
+        const CLUSTER_END_PROBABILITY: f64 = 0.25;
+        let mut filter_matches = false;
+        let mut add_document = |mut document: tantivy::TantivyDocument| -> tantivy::Result<()> {
+            filter_matches = if filter_matches {
+                !filter_rng.random_bool(CLUSTER_END_PROBABILITY)
+            } else {
+                filter_rng.random_bool(CLUSTER_END_PROBABILITY / 99.0)
+            };
+            document.add_text(filter_field, if filter_matches { "a" } else { "b" });
+            index_writer.add_document(document)?;
+            Ok(())
+        };
         // To make the different test cases comparable we just change one doc to force the
         // cardinality
         if cardinality == Cardinality::OptionalDense {
-            index_writer.add_document(doc!())?;
+            add_document(doc!())?;
         }
         if cardinality == Cardinality::Multivalued {
             let log_level_sample_a = status_field_data[log_level_distribution.sample(&mut rng)].0;
@@ -960,7 +1036,7 @@ fn get_test_index_bench(cardinality: Cardinality) -> tantivy::Result<Index> {
             let idx_b = zipf_1000.sample(&mut rng) as usize - 1;
             let term_1000_a = &terms_1000[idx_a];
             let term_1000_b = &terms_1000[idx_b];
-            index_writer.add_document(doc!(
+            add_document(doc!(
                 json_field => json!({"mixed_type": 10.0}),
                 json_field => json!({"mixed_type": 10.0}),
                 single_term => "single_term",
@@ -1003,7 +1079,7 @@ fn get_test_index_bench(cardinality: Cardinality) -> tantivy::Result<Index> {
             let base_ms = (i as i64 * SPAN_MS) / doc_with_value as i64;
             let noise_ms = rng.random_range(-NOISE_MS..NOISE_MS);
             let ts_ms = (base_ms + noise_ms).clamp(0, SPAN_MS);
-            index_writer.add_document(doc!(
+            add_document(doc!(
                 single_term => "single_term",
                 text_field => "cool",
                 json_field => json,
@@ -1019,10 +1095,11 @@ fn get_test_index_bench(cardinality: Cardinality) -> tantivy::Result<Index> {
             ))?;
             if cardinality == Cardinality::OptionalSparse {
                 for _ in 0..20 {
-                    index_writer.add_document(doc!(text_field => "cool"))?;
+                    add_document(doc!(text_field => "cool"))?;
                 }
             }
         }
+        drop(add_document);
         // writing the segment
         index_writer.commit()?;
     }
