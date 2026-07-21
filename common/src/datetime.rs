@@ -100,20 +100,17 @@ impl DateTime {
 
     /// Convert to UNIX timestamp in seconds.
     pub const fn into_timestamp_secs(self) -> i64 {
-        // Euclidean division floors towards negative infinity so that timestamps
-        // before the epoch are rounded down to their containing second instead of
-        // towards zero (which would move them forward in time).
-        self.timestamp_nanos.div_euclid(1_000_000_000)
+        floor_to_representable_unit(self.timestamp_nanos, 1_000_000_000)
     }
 
     /// Convert to UNIX timestamp in milliseconds.
     pub const fn into_timestamp_millis(self) -> i64 {
-        self.timestamp_nanos.div_euclid(1_000_000)
+        floor_to_representable_unit(self.timestamp_nanos, 1_000_000)
     }
 
     /// Convert to UNIX timestamp in microseconds.
     pub const fn into_timestamp_micros(self) -> i64 {
-        self.timestamp_nanos.div_euclid(1_000)
+        floor_to_representable_unit(self.timestamp_nanos, 1_000)
     }
 
     /// Convert to UNIX timestamp in nanoseconds.
@@ -172,6 +169,18 @@ impl DateTime {
     }
 }
 
+/// Floors a nanosecond timestamp to a coarser unit while keeping the result
+/// convertible back to nanoseconds without overflowing at the lower bound.
+const fn floor_to_representable_unit(timestamp_nanos: i64, unit: i64) -> i64 {
+    let timestamp = timestamp_nanos.div_euclid(unit);
+    let minimum_representable = i64::MIN / unit;
+    if timestamp < minimum_representable {
+        minimum_representable
+    } else {
+        timestamp
+    }
+}
+
 impl fmt::Debug for DateTime {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let utc_rfc3339 = self.into_utc().format(&Rfc3339).map_err(|_| fmt::Error)?;
@@ -194,6 +203,7 @@ impl BinarySerializable for DateTime {
 #[cfg(test)]
 mod tests {
     use super::{DateTime, DateTimePrecision};
+    use crate::BinarySerializable;
 
     #[test]
     fn test_into_timestamp_floors_for_negative_values() {
@@ -225,6 +235,29 @@ mod tests {
             DateTime::from_timestamp_nanos(-1_500).into_timestamp_micros(),
             -2
         );
+    }
+
+    #[test]
+    fn test_into_timestamp_clamps_at_minimum_datetime() {
+        assert_eq!(
+            DateTime::MIN.into_timestamp_secs(),
+            i64::MIN / 1_000_000_000
+        );
+        assert_eq!(DateTime::MIN.into_timestamp_millis(), i64::MIN / 1_000_000);
+        assert_eq!(DateTime::MIN.into_timestamp_micros(), i64::MIN / 1_000);
+    }
+
+    #[test]
+    fn test_binary_serialization_at_minimum_datetime() {
+        for datetime in [DateTime::MIN, DateTime::from_timestamp_nanos(i64::MIN + 1)] {
+            let mut bytes = Vec::new();
+            datetime.serialize(&mut bytes).unwrap();
+            let deserialized = DateTime::deserialize(&mut bytes.as_slice()).unwrap();
+            assert_eq!(
+                deserialized,
+                DateTime::from_timestamp_micros(i64::MIN / 1_000)
+            );
+        }
     }
 
     #[test]
