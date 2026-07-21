@@ -153,13 +153,17 @@ impl DateTime {
     /// rounded towards zero and land in the following bucket.
     pub fn truncate(self, precision: DateTimePrecision) -> Self {
         let truncated_timestamp_nanos = match precision {
-            DateTimePrecision::Seconds => {
-                self.timestamp_nanos.div_euclid(1_000_000_000) * 1_000_000_000
+            DateTimePrecision::Seconds => self
+                .timestamp_nanos
+                .div_euclid(1_000_000_000)
+                .saturating_mul(1_000_000_000),
+            DateTimePrecision::Milliseconds => self
+                .timestamp_nanos
+                .div_euclid(1_000_000)
+                .saturating_mul(1_000_000),
+            DateTimePrecision::Microseconds => {
+                self.timestamp_nanos.div_euclid(1_000).saturating_mul(1_000)
             }
-            DateTimePrecision::Milliseconds => {
-                self.timestamp_nanos.div_euclid(1_000_000) * 1_000_000
-            }
-            DateTimePrecision::Microseconds => self.timestamp_nanos.div_euclid(1_000) * 1_000,
             DateTimePrecision::Nanoseconds => self.timestamp_nanos,
         };
         Self {
@@ -268,6 +272,26 @@ mod tests {
         assert_eq!(
             DateTime::from_timestamp_nanos(-1_500).truncate(DateTimePrecision::Microseconds),
             DateTime::from_timestamp_micros(-2),
+        );
+    }
+
+    #[test]
+    fn test_truncate_saturates_at_minimum_datetime() {
+        for precision in [
+            DateTimePrecision::Seconds,
+            DateTimePrecision::Milliseconds,
+            DateTimePrecision::Microseconds,
+        ] {
+            assert_eq!(DateTime::MIN.truncate(precision), DateTime::MIN);
+            assert_eq!(
+                DateTime::from_timestamp_nanos(i64::MIN + 1).truncate(precision),
+                DateTime::MIN,
+            );
+        }
+
+        assert_eq!(
+            DateTime::MIN.truncate(DateTimePrecision::Nanoseconds),
+            DateTime::MIN,
         );
     }
 
