@@ -1,4 +1,5 @@
 use std::fmt::Debug;
+use std::hash::Hash;
 use std::net::Ipv6Addr;
 
 use columnar::column_values::CompactSpaceU64Accessor;
@@ -531,44 +532,58 @@ impl<B: BucketIdSlot> Bucket<B> {
     }
 }
 
-/// Abstraction over the storage used for term buckets (counts plus a [`BucketIdSlot`]).
+/// A key accepted by a [`TermAggregationMap`].
 ///
-/// Keyed on a bare `u64` term id -- also reused by the `multi_terms` fast path, which
-/// packs a composite key of several fields into a single `u64` and treats it as a
-/// synthetic term id (see [`crate::aggregation::bucket::multi_terms`]).
-pub(crate) trait TermAggregationMap: Clone + Debug + 'static {
+/// The map allocation already includes the inline key object. Implementations report only heap
+/// allocations owned indirectly by the key, such as a spilled `SmallVec`.
+pub(crate) trait AggregationMapKey: Clone + Debug + Eq + Hash + 'static {
+    fn heap_memory_usage(&self) -> usize {
+        0
+    }
+}
+
+impl AggregationMapKey for u64 {}
+
+/// Abstraction over the storage used for aggregation buckets (counts plus a [`BucketIdSlot`]).
+///
+/// Terms aggregations use the default `u64` key. Multi-terms reuses the same abstraction with
+/// either a packed `u64` or a composite key.
+pub(crate) trait TermAggregationMap<K: AggregationMapKey = u64>:
+    Clone + Debug + 'static
+{
     /// The per-bucket id slot: [`BucketId`] with sub aggregations, `()` without (see
     /// [`BucketIdSlot`]).
     type Slot: BucketIdSlot;
 
-    /// Whether `into_vec` returns entries already sorted by term ord, ascending.
-    const SORTED_BY_ORD: bool;
+    /// Whether `into_vec` returns entries already sorted by key, ascending.
+    const SORTED_BY_KEY: bool;
 
-    /// Create a new instance with a strict upper bound on term ids.
-    fn new(max_term_id: u64, bucket_id_provider: &mut BucketIdProvider) -> Self;
+    /// Create a new instance. Dense and paged maps interpret `map_init_value` as their key-domain
+    /// bound; hash maps ignore it.
+    fn new(map_init_value: u64, bucket_id_provider: &mut BucketIdProvider) -> Self;
 
     /// Estimate the memory consumption of this struct in bytes.
     fn get_memory_consumption(&self) -> usize;
 
-    /// Increments the count and returns the bucket id slot associated to a given term_id.
-    fn term_entry(&mut self, term_id: u64, bucket_id_provider: &mut BucketIdProvider)
-        -> Self::Slot;
+    /// Increments the count and returns the bucket id slot associated with `key`.
+    fn term_entry(&mut self, key: K, bucket_id_provider: &mut BucketIdProvider) -> Self::Slot;
 
-    /// Returns the term aggregation as a vector of (term_id, bucket) pairs,
-    /// in any order.
-    fn into_vec(self) -> Vec<(u64, Bucket<Self::Slot>)>;
+    /// Returns the aggregation as a vector of `(key, bucket)` pairs, in any order.
+    fn into_vec(self) -> Vec<(K, Bucket<Self::Slot>)>;
 }
 
 #[derive(Clone, Debug)]
-pub(crate) struct HashMapTermBuckets<B> {
-    bucket_map: FxHashMap<u64, Bucket<B>>,
+pub(crate) struct HashMapTermBuckets<B, K = u64> {
+    bucket_map: FxHashMap<K, Bucket<B>>,
+    key_heap_memory: usize,
 }
 
-impl<B> Default for HashMapTermBuckets<B> {
+impl<B, K> Default for HashMapTermBuckets<B, K> {
     #[inline(always)]
     fn default() -> Self {
         Self {
             bucket_map: FxHashMap::default(),
+            key_heap_memory: 0,
         }
     }
 }
@@ -644,7 +659,7 @@ pub(crate) struct PagedTermMap<B> {
 impl<B: BucketIdSlot> TermAggregationMap for PagedTermMap<B> {
     type Slot = B;
 
-    const SORTED_BY_ORD: bool = true;
+    const SORTED_BY_KEY: bool = true;
 
     #[inline]
     fn get_memory_consumption(&self) -> usize {
@@ -711,32 +726,35 @@ impl<B: BucketIdSlot> TermAggregationMap for PagedTermMap<B> {
     }
 }
 
-impl<B: BucketIdSlot> TermAggregationMap for HashMapTermBuckets<B> {
+impl<K: AggregationMapKey, B: BucketIdSlot> TermAggregationMap<K> for HashMapTermBuckets<B, K> {
     type Slot = B;
 
-    const SORTED_BY_ORD: bool = false;
+    const SORTED_BY_KEY: bool = false;
 
     #[inline]
     fn get_memory_consumption(&self) -> usize {
-        self.bucket_map.memory_consumption()
+        self.bucket_map.memory_consumption() + self.key_heap_memory
     }
 
     #[inline(always)]
-    fn term_entry(&mut self, term_id: u64, bucket_id_provider: &mut BucketIdProvider) -> B {
-        let bucket = self
-            .bucket_map
-            .entry(term_id)
-            .or_insert_with(|| Bucket::new(bucket_id_provider));
+    fn term_entry(&mut self, key: K, bucket_id_provider: &mut BucketIdProvider) -> B {
+        let bucket = match self.bucket_map.entry(key) {
+            std::collections::hash_map::Entry::Occupied(entry) => entry.into_mut(),
+            std::collections::hash_map::Entry::Vacant(entry) => {
+                self.key_heap_memory += entry.key().heap_memory_usage();
+                entry.insert(Bucket::new(bucket_id_provider))
+            }
+        };
         bucket.count += 1;
         bucket.bucket_id
     }
 
-    fn into_vec(self) -> Vec<(u64, Bucket<B>)> {
+    fn into_vec(self) -> Vec<(K, Bucket<B>)> {
         self.bucket_map.into_iter().collect()
     }
 
     #[inline]
-    fn new(_max_term_id: u64, _bucket_id_provider: &mut BucketIdProvider) -> Self {
+    fn new(_map_init_value: u64, _bucket_id_provider: &mut BucketIdProvider) -> Self {
         Self::default()
     }
 }
@@ -750,7 +768,7 @@ pub(crate) struct VecTermBuckets<B> {
 impl<B: BucketIdSlot> TermAggregationMap for VecTermBuckets<B> {
     type Slot = B;
 
-    const SORTED_BY_ORD: bool = true;
+    const SORTED_BY_KEY: bool = true;
 
     /// Estimate the memory consumption of this struct in bytes.
     fn get_memory_consumption(&self) -> usize {
@@ -1031,7 +1049,7 @@ where
                 // We rely on the fact, that term ordinals match the order of the strings
                 // TODO: We could have a special collector, that keeps only TOP n results at any
                 // time.
-                if TermMap::SORTED_BY_ORD {
+                if TermMap::SORTED_BY_KEY {
                     // `into_vec` already returned entries sorted by ord ascending, we can just
                     // revert if we want descending.
                     if term_req.req.order.order == Order::Desc {
