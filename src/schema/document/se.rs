@@ -3,7 +3,7 @@ use std::io;
 use std::io::Write;
 
 use columnar::MonotonicallyMappableToU128;
-use common::{f64_to_u64, BinarySerializable, VInt};
+use common::{f64_to_u64, zig_zag_encode, BinarySerializable, VInt};
 
 use super::{OwnedValue, ReferenceValueLeaf};
 use crate::schema::document::{type_codes, Document, ReferenceValue, Value};
@@ -37,7 +37,9 @@ where W: Write
 
         VInt(num_field_values as u64).serialize(self.writer)?;
         for (field, value_access) in stored_field_values() {
-            field.serialize(self.writer)?;
+            // Field ids are small and are stored as a variable-length integer
+            // (doc store `V3`+) rather than a fixed 4-byte `u32`.
+            VInt(field.field_id() as u64).serialize(self.writer)?;
 
             let mut serializer = BinaryValueSerializer::new(self.writer);
             match value_access.as_value() {
@@ -103,10 +105,13 @@ where W: Write
                     self.serialize_with_type_code(type_codes::TEXT_CODE, &Cow::Borrowed(val))
                 }
                 ReferenceValueLeaf::U64(val) => {
-                    self.serialize_with_type_code(type_codes::U64_CODE, &val)
+                    // Stored as a variable-length integer (doc store `V3`+).
+                    self.serialize_with_type_code(type_codes::U64_CODE, &VInt(val))
                 }
                 ReferenceValueLeaf::I64(val) => {
-                    self.serialize_with_type_code(type_codes::I64_CODE, &val)
+                    // Zig-zag encoded then stored as a variable-length integer
+                    // (doc store `V3`+) so small-magnitude negatives stay small.
+                    self.serialize_with_type_code(type_codes::I64_CODE, &VInt(zig_zag_encode(val)))
                 }
                 ReferenceValueLeaf::F64(val) => {
                     self.serialize_with_type_code(type_codes::F64_CODE, &f64_to_u64(val))
@@ -371,7 +376,7 @@ mod tests {
 
         let result = serialize_value(ReferenceValueLeaf::U64(123).into());
         let expected = binary_repr!(
-            type_codes::U64_CODE => 123u64,
+            type_codes::U64_CODE => VInt(123u64),
         );
         assert_eq!(
             result, expected,
@@ -380,7 +385,7 @@ mod tests {
 
         let result = serialize_value(ReferenceValueLeaf::I64(-123).into());
         let expected = binary_repr!(
-            type_codes::I64_CODE => -123i64,
+            type_codes::I64_CODE => VInt(zig_zag_encode(-123i64)),
         );
         assert_eq!(
             result, expected,
@@ -483,7 +488,7 @@ mod tests {
             length elements.len(),
             type_codes::NULL_CODE => (),
             type_codes::TEXT_CODE => String::from("Hello, world"),
-            type_codes::I64_CODE => 12345i64,
+            type_codes::I64_CODE => VInt(zig_zag_encode(12345i64)),
         );
         assert_eq!(
             result, expected,
@@ -601,7 +606,7 @@ mod tests {
             collection type_codes::OBJECT_CODE,
             length 4,   // 2 keys, 2 values
             type_codes::TEXT_CODE => String::from("inner-1"),
-            type_codes::I64_CODE => -123i64,
+            type_codes::I64_CODE => VInt(zig_zag_encode(-123i64)),
             type_codes::TEXT_CODE => String::from("inner-2"),
             type_codes::TEXT_CODE => String::from("bobby of the sea 2"),
         );
@@ -700,11 +705,15 @@ mod tests {
 
         let result = serialize_doc(&document, &schema);
         let mut expected = expected_doc_data!(length document.len());
-        name.serialize(&mut expected).unwrap();
+        VInt(name.field_id() as u64)
+            .serialize(&mut expected)
+            .unwrap();
         expected
             .extend_from_slice(&binary_repr!(type_codes::TEXT_CODE => String::from("ChillFish8")));
-        age.serialize(&mut expected).unwrap();
-        expected.extend_from_slice(&binary_repr!(type_codes::U64_CODE => 20u64));
+        VInt(age.field_id() as u64)
+            .serialize(&mut expected)
+            .unwrap();
+        expected.extend_from_slice(&binary_repr!(type_codes::U64_CODE => VInt(20u64)));
         assert_eq!(
             result, expected,
             "Expected serialized document to match the binary representation"
@@ -722,7 +731,9 @@ mod tests {
 
         let result = serialize_doc(&document, &schema);
         let mut expected = expected_doc_data!(length 1);
-        name.serialize(&mut expected).unwrap();
+        VInt(name.field_id() as u64)
+            .serialize(&mut expected)
+            .unwrap();
         expected
             .extend_from_slice(&binary_repr!(type_codes::TEXT_CODE => String::from("ChillFish8")));
         assert_eq!(
