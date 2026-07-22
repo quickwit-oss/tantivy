@@ -147,7 +147,9 @@ impl SegmentWriter {
             .manual_doc_id_mapping
         {
             return Err(TantivyError::InvalidArgument(
-                "IndexSettings::manual_doc_id_mapping must be set to false. With manual_doc_id_mapping, you need to call finalize_with_doc_id_mapping".to_string(),
+                "IndexSettings::manual_doc_id_mapping must be set to false. With \
+                 manual_doc_id_mapping, you need to call finalize_with_doc_id_mapping"
+                    .to_string(),
             ));
         }
 
