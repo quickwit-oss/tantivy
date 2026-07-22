@@ -931,7 +931,9 @@ fn build_allowed_term_ids_for_str(
         // add matches
         allowed = Some(BitSet::with_max_value(allowed_capacity));
         let allowed = allowed.as_mut().unwrap();
-        for_each_matching_term_ord(str_col, include, |ord| allowed.insert(ord))?;
+        for_each_matching_term_ord(str_col, include, |ord| {
+            let _ = allowed.insert(ord);
+        })?;
     };
 
     if let Some(exclude) = exclude {

@@ -1,7 +1,10 @@
 //! This module is used when sorting the index by a property, e.g.
 //! to get mappings from old doc_id to new doc_id and vice versa, after sorting
+use std::convert::Infallible;
+use std::error::Error;
 
-use common::ReadOnlyBitSet;
+use common::{BitSet, ReadOnlyBitSet};
+use unwrap_infallible::UnwrapInfallible;
 
 use super::SegmentWriter;
 use crate::schema::{Field, Schema};
@@ -71,7 +74,34 @@ pub struct DocIdMapping {
 }
 
 impl DocIdMapping {
-    pub fn from_new_id_to_old_id(new_doc_id_to_old: Vec<DocId>) -> Self {
+    /// Creates a `DocIdMapping` from a mapping of new doc ids to old doc ids, with permutation
+    /// validation. The mapping is validated by checking that every old doc id appears exactly
+    /// once in the mapping. I.e., doc ids must be consecutive from `0` to
+    /// `new_doc_id_to_old.len() - 1`, inclusive.
+    pub fn new_permutation(new_doc_id_to_old: Vec<DocId>) -> crate::Result<Self> {
+        let max_doc = new_doc_id_to_old.len() as DocId;
+        let mut seen_doc_ids: BitSet = BitSet::with_max_value(max_doc);
+
+        Self::from_new_id_to_old_id_inner(new_doc_id_to_old, |old_doc_id| {
+            if old_doc_id >= max_doc || !seen_doc_ids.insert(old_doc_id) {
+                return Err(TantivyError::InvalidArgument(
+                    "Mapping must be a permutation of the segment doc ids".to_string(),
+                ));
+            }
+            Ok::<(), TantivyError>(())
+        })
+    }
+
+    /// Creates a `DocIdMapping` from a mapping of new doc ids to old doc ids.
+    pub(crate) fn from_new_id_to_old_id(new_doc_id_to_old: Vec<DocId>) -> Self {
+        Self::from_new_id_to_old_id_inner(new_doc_id_to_old, |_| Ok::<(), Infallible>(()))
+            .unwrap_infallible()
+    }
+
+    fn from_new_id_to_old_id_inner<E: Error>(
+        new_doc_id_to_old: Vec<DocId>,
+        mut validate: impl FnMut(DocId) -> Result<(), E>,
+    ) -> Result<Self, E> {
         let max_doc = new_doc_id_to_old.len();
         let old_max_doc = new_doc_id_to_old
             .iter()
@@ -81,43 +111,50 @@ impl DocIdMapping {
             .unwrap_or(0);
         let mut old_doc_id_to_new = vec![0; old_max_doc as usize];
         for i in 0..max_doc {
+            (validate)(new_doc_id_to_old[i])?;
             old_doc_id_to_new[new_doc_id_to_old[i] as usize] = i as DocId;
         }
-        DocIdMapping {
+        Ok(DocIdMapping {
             new_doc_id_to_old,
             old_doc_id_to_new,
-        }
+        })
     }
 
-    /// returns the new doc_id for the old doc_id
-    pub fn get_new_doc_id(&self, doc_id: DocId) -> DocId {
+    /// Returns the new doc_id for the old doc_id
+    pub(crate) fn get_new_doc_id(&self, doc_id: DocId) -> DocId {
         self.old_doc_id_to_new[doc_id as usize]
     }
-    /// returns the old doc_id for the new doc_id
-    pub fn get_old_doc_id(&self, doc_id: DocId) -> DocId {
-        self.new_doc_id_to_old[doc_id as usize]
-    }
-    /// iterate over old doc_ids in order of the new doc_ids
-    pub fn iter_old_doc_ids(&self) -> impl Iterator<Item = DocId> + Clone + '_ {
-        self.new_doc_id_to_old.iter().cloned()
+
+    /// Iiterate over old doc_ids in order of the new doc_ids
+    pub(crate) fn iter_old_doc_ids(&self) -> impl Iterator<Item = DocId> + Clone + '_ {
+        self.new_doc_id_to_old.iter().copied()
     }
 
-    pub fn old_to_new_ids(&self) -> &[DocId] {
+    /// Returns the new doc_ids in order of the old doc_ids
+    pub(crate) fn old_to_new_ids(&self) -> &[DocId] {
         &self.old_doc_id_to_new[..]
     }
 
     /// Remaps a given array to the new doc ids.
-    pub fn remap<T: Copy>(&self, els: &[T]) -> Vec<T> {
+    pub(crate) fn remap<T: Copy>(&self, els: &[T]) -> Vec<T> {
         self.new_doc_id_to_old
             .iter()
             .map(|old_doc| els[*old_doc as usize])
             .collect()
     }
-    pub fn num_new_doc_ids(&self) -> usize {
+
+    /// Returns the number of documents in the mapping.
+    pub(crate) fn len(&self) -> usize {
+        // new_doc_id_to_old and old_doc_id_to_new have the same length by construction.
         self.new_doc_id_to_old.len()
     }
-    pub fn num_old_doc_ids(&self) -> usize {
-        self.old_doc_id_to_new.len()
+}
+
+#[cfg(test)]
+impl DocIdMapping {
+    /// returns the old doc_id for the new doc_id
+    fn get_old_doc_id(&self, doc_id: DocId) -> DocId {
+        self.new_doc_id_to_old[doc_id as usize]
     }
 }
 
@@ -155,11 +192,15 @@ mod tests_indexsorting {
     use common::DateTime;
 
     use crate::collector::TopDocs;
+    use crate::directory::{Directory, RamDirectory};
+    use crate::index::SegmentComponent;
     use crate::indexer::doc_id_mapping::DocIdMapping;
     use crate::indexer::NoMergePolicy;
     use crate::query::QueryParser;
     use crate::schema::*;
-    use crate::{DocAddress, Index, IndexBuilder, IndexSettings, IndexSortByField, Order};
+    use crate::{
+        DocAddress, Index, IndexBuilder, IndexSettings, IndexSortByField, Order, TantivyError,
+    };
 
     fn create_test_index(
         index_settings: Option<IndexSettings>,
@@ -537,6 +578,139 @@ mod tests_indexsorting {
     }
 
     #[test]
+    fn test_single_segment_index_writer_with_doc_id_mapping() -> crate::Result<()> {
+        let mut schema_builder = Schema::builder();
+        let text_field = schema_builder.add_text_field("text", TEXT | STORED);
+        let schema = schema_builder.build();
+        let settings = IndexSettings {
+            manual_doc_id_mapping: true,
+            ..Default::default()
+        };
+        let mut single_segment_index_writer = Index::builder()
+            .schema(schema)
+            .settings(settings)
+            .single_segment_index_writer(RamDirectory::default(), 15_000_000)?;
+
+        single_segment_index_writer.add_document(doc!(text_field=>"alpha beta"))?;
+        single_segment_index_writer.add_document(doc!())?;
+        single_segment_index_writer.add_document(doc!(text_field=>"gamma"))?;
+
+        let mapping = DocIdMapping::new_permutation(vec![2, 1, 0])?;
+        let index = single_segment_index_writer.finalize_with_doc_id_mapping(&mapping)?;
+
+        let searcher = index.reader()?.searcher();
+        let segment_reader = searcher.segment_reader(0);
+        let fieldnorm_reader = segment_reader.get_fieldnorms_reader(text_field)?;
+
+        assert_eq!(fieldnorm_reader.fieldnorm(0), 1);
+        assert_eq!(fieldnorm_reader.fieldnorm(1), 0);
+        assert_eq!(fieldnorm_reader.fieldnorm(2), 2);
+
+        let doc_0 = searcher.doc::<TantivyDocument>(DocAddress::new(0, 0))?;
+        assert_eq!(
+            doc_0.get_first(text_field).and_then(|val| val.as_str()),
+            Some("gamma")
+        );
+        let doc_1 = searcher.doc::<TantivyDocument>(DocAddress::new(0, 1))?;
+        assert!(doc_1.get_first(text_field).is_none());
+        let doc_2 = searcher.doc::<TantivyDocument>(DocAddress::new(0, 2))?;
+        assert_eq!(
+            doc_2.get_first(text_field).and_then(|val| val.as_str()),
+            Some("alpha beta")
+        );
+
+        assert!(!index.settings().manual_doc_id_mapping);
+        let segment_metas = index.searchable_segment_metas()?;
+        let segment_meta = &segment_metas[0];
+        let temp_store_path = segment_meta.relative_path(SegmentComponent::TempStore);
+        assert!(!segment_meta.list_files().contains(&temp_store_path));
+        assert!(!index.directory().exists(&temp_store_path)?);
+
+        let mut index_writer = index.writer_for_tests()?;
+        index_writer.add_document(doc!(text_field=>"delta"))?;
+        index_writer.commit()?;
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_single_segment_index_writer_with_sort_by_field_untracks_tempstore() -> crate::Result<()>
+    {
+        let mut schema_builder = Schema::builder();
+        let sort_field = schema_builder.add_u64_field("sort", FAST | STORED);
+        let schema = schema_builder.build();
+        let sort_field_name = schema.get_field_entry(sort_field).name().to_string();
+        let settings = IndexSettings {
+            sort_by_field: Some(IndexSortByField {
+                field: sort_field_name,
+                order: Order::Asc,
+            }),
+            ..Default::default()
+        };
+        let mut single_segment_index_writer = Index::builder()
+            .schema(schema)
+            .settings(settings)
+            .single_segment_index_writer(RamDirectory::default(), 15_000_000)?;
+
+        single_segment_index_writer.add_document(doc!(sort_field=>2u64))?;
+        single_segment_index_writer.add_document(doc!(sort_field=>1u64))?;
+        let index = single_segment_index_writer.finalize()?;
+
+        let segment_metas = index.searchable_segment_metas()?;
+        let segment_meta = &segment_metas[0];
+        let temp_store_path = segment_meta.relative_path(SegmentComponent::TempStore);
+        assert!(!segment_meta.list_files().contains(&temp_store_path));
+        assert!(!index.directory().exists(&temp_store_path)?);
+        Ok(())
+    }
+
+    #[test]
+    fn test_single_segment_index_writer_finalize_rejects_manual_doc_id_mapping() -> crate::Result<()>
+    {
+        let mut schema_builder = Schema::builder();
+        let text_field = schema_builder.add_text_field("text", TEXT | STORED);
+        let schema = schema_builder.build();
+        let settings = IndexSettings {
+            manual_doc_id_mapping: true,
+            ..Default::default()
+        };
+        let mut single_segment_index_writer = Index::builder()
+            .schema(schema)
+            .settings(settings)
+            .single_segment_index_writer(RamDirectory::default(), 15_000_000)?;
+
+        single_segment_index_writer.add_document(doc!(text_field=>"alpha"))?;
+
+        let error = single_segment_index_writer.finalize().unwrap_err();
+        assert!(matches!(error, TantivyError::InvalidArgument(_)));
+        Ok(())
+    }
+
+    #[test]
+    fn test_index_builder_rejects_manual_doc_id_mapping_with_sort_by_field() {
+        let mut schema_builder = Schema::builder();
+        schema_builder.add_text_field("text", TEXT | STORED);
+        let sort_field = schema_builder.add_u64_field("sort", STORED | FAST);
+        let schema = schema_builder.build();
+        let sort_field_name = schema.get_field_entry(sort_field).name().to_string();
+        let settings = IndexSettings {
+            manual_doc_id_mapping: true,
+            sort_by_field: Some(IndexSortByField {
+                field: sort_field_name,
+                order: Order::Asc,
+            }),
+            ..Default::default()
+        };
+
+        let error = Index::builder()
+            .schema(schema)
+            .settings(settings)
+            .create_in_ram()
+            .unwrap_err();
+        assert!(matches!(error, TantivyError::InvalidArgument(_)));
+    }
+
+    #[test]
     fn test_doc_mapping() {
         let doc_mapping = DocIdMapping::from_new_id_to_old_id(vec![3, 2, 5]);
         assert_eq!(doc_mapping.get_old_doc_id(0), 3);
@@ -548,6 +722,18 @@ mod tests_indexsorting {
         assert_eq!(doc_mapping.get_new_doc_id(3), 0);
         assert_eq!(doc_mapping.get_new_doc_id(4), 0);
         assert_eq!(doc_mapping.get_new_doc_id(5), 2);
+    }
+
+    #[test]
+    fn test_doc_mapping_new_permutation_rejects_out_of_range() {
+        let result = DocIdMapping::new_permutation(vec![5, 0]);
+        assert!(matches!(result, Err(TantivyError::InvalidArgument(_)),));
+    }
+
+    #[test]
+    fn test_doc_mapping_new_permutation_rejects_duplicates() {
+        let result = DocIdMapping::new_permutation(vec![0, 1, 0]);
+        assert!(matches!(result, Err(TantivyError::InvalidArgument(_)),));
     }
 
     #[test]

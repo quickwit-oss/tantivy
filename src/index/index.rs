@@ -233,6 +233,14 @@ impl IndexBuilder {
 
     fn validate(&self) -> crate::Result<()> {
         if let Some(schema) = self.schema.as_ref() {
+            if self.index_settings.manual_doc_id_mapping
+                && self.index_settings.sort_by_field.is_some()
+            {
+                return Err(TantivyError::InvalidArgument(
+                    "IndexSettings::manual_doc_id_mapping cannot be combined with sort_by_field"
+                        .to_string(),
+                ));
+            }
             if let Some(sort_by_field) = self.index_settings.sort_by_field.as_ref() {
                 let schema_field = schema.get_field(&sort_by_field.field).map_err(|_| {
                     TantivyError::InvalidArgument(format!(

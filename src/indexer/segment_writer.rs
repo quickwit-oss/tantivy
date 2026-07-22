@@ -136,10 +136,23 @@ impl SegmentWriter {
 
     /// Lay on disk the current content of the `SegmentWriter`
     ///
-    /// Finalize consumes the `SegmentWriter`, so that it cannot
-    /// be used afterwards.
-    pub fn finalize(mut self) -> crate::Result<Vec<u64>> {
-        self.fieldnorms_writer.fill_up_to_max_doc(self.max_doc);
+    /// Finalize consumes the `SegmentWriter`, so that it cannot be used afterwards.
+    pub fn finalize(self) -> crate::Result<Vec<u64>> {
+        // Ensure the segment writer was created in remap mode so the docstore can be reordered.
+        if self
+            .segment_serializer
+            .segment()
+            .index()
+            .settings()
+            .manual_doc_id_mapping
+        {
+            return Err(TantivyError::InvalidArgument(
+                "IndexSettings::manual_doc_id_mapping must be set to false. With \
+                 manual_doc_id_mapping, you need to call finalize_with_doc_id_mapping"
+                    .to_string(),
+            ));
+        }
+
         let mapping: Option<DocIdMapping> = self
             .segment_serializer
             .segment()
@@ -149,6 +162,42 @@ impl SegmentWriter {
             .clone()
             .map(|sort_by_field| get_doc_id_mapping_from_field(sort_by_field, &self))
             .transpose()?;
+        self.finalize_inner(mapping.as_ref())
+    }
+
+    /// Lay on disk the current content of the `SegmentWriter` using the provided doc id mapping.
+    ///
+    /// Finalize consumes the `SegmentWriter`, so that it cannot be used afterwards.
+    pub fn finalize_with_doc_id_mapping(self, mapping: &DocIdMapping) -> crate::Result<Vec<u64>> {
+        let settings = self.segment_serializer.segment().index().settings();
+        // Ensure the segment writer was created in remap mode so the docstore can be reordered.
+        if !settings.manual_doc_id_mapping {
+            return Err(TantivyError::InvalidArgument(
+                "IndexSettings::manual_doc_id_mapping must be set to true".to_string(),
+            ));
+        }
+        if settings.sort_by_field.is_some() {
+            return Err(TantivyError::InvalidArgument(
+                "IndexSettings::manual_doc_id_mapping cannot be combined with sort_by_field"
+                    .to_string(),
+            ));
+        }
+
+        // Check that the mapping eventually covers all documents in the segment.
+        if mapping.len() != self.max_doc as usize {
+            return Err(TantivyError::InvalidArgument(format!(
+                "Mapping must cover all documents in this segment. Expected {} documents, got {}",
+                self.max_doc,
+                mapping.len()
+            )));
+        }
+
+        self.finalize_inner(Some(mapping))
+    }
+
+    fn finalize_inner(mut self, mapping: Option<&DocIdMapping>) -> crate::Result<Vec<u64>> {
+        // Pad before remapping; the mapping indexes fieldnorms by old doc id.
+        self.fieldnorms_writer.fill_up_to_max_doc(self.max_doc);
         remap_and_write(
             self.schema,
             &self.per_field_postings_writers,
@@ -156,9 +205,9 @@ impl SegmentWriter {
             self.fast_field_writers,
             &self.fieldnorms_writer,
             self.segment_serializer,
-            mapping.as_ref(),
+            mapping,
         )?;
-        let doc_opstamps = remap_doc_opstamps(self.doc_opstamps, mapping.as_ref());
+        let doc_opstamps = remap_doc_opstamps(self.doc_opstamps, mapping);
         Ok(doc_opstamps)
     }
 
@@ -485,6 +534,7 @@ mod tests {
     use crate::collector::{Count, TopDocs};
     use crate::directory::RamDirectory;
     use crate::fastfield::FastValue;
+    use crate::indexer::doc_id_mapping::DocIdMapping;
     use crate::postings::{Postings, TermInfo};
     use crate::query::{PhraseQuery, QueryParser};
     use crate::schema::{
@@ -497,7 +547,7 @@ mod tests {
     use crate::tokenizer::{PreTokenizedString, Token};
     use crate::{
         DateTime, Directory, DocAddress, DocSet, Index, IndexWriter, SegmentReader,
-        TantivyDocument, Term, TERMINATED,
+        TantivyDocument, TantivyError, Term, TERMINATED,
     };
 
     #[test]
@@ -1135,5 +1185,123 @@ mod tests {
             error.to_string(),
             "Schema error: 'Error getting tokenizer for field: title'"
         );
+    }
+
+    /// Builds a `SegmentWriter` with a fast `u64` field and a text field that only some
+    /// documents populate, so the text field is missing fieldnorms on some docs.
+    ///
+    /// The `texts` slice provides, for each document, an optional text value. The order
+    /// number is always recorded in the `order` fast field so callers can recover the
+    /// original document via that value.
+    fn build_segment_writer_with_doc_id_mapping(
+        texts: &[Option<&str>],
+    ) -> (Index, crate::Segment, super::SegmentWriter) {
+        let mut schema_builder = Schema::builder();
+        schema_builder.add_u64_field("order", FAST | STORED);
+        schema_builder.add_text_field("text", TEXT);
+        let schema = schema_builder.build();
+        let mut index = Index::create_in_ram(schema);
+        index.settings_mut().manual_doc_id_mapping = true;
+        let segment = index.new_segment();
+        let order = index.schema().get_field("order").unwrap();
+        let text = index.schema().get_field("text").unwrap();
+        let mut segment_writer =
+            super::SegmentWriter::for_segment(15_000_000, segment.clone()).unwrap();
+        for (opstamp, text_opt) in texts.iter().enumerate() {
+            let mut doc = TantivyDocument::default();
+            doc.add_u64(order, opstamp as u64);
+            if let Some(text_value) = text_opt {
+                doc.add_text(text, *text_value);
+            }
+            segment_writer
+                .add_document(crate::indexer::AddOperation {
+                    opstamp: opstamp as u64,
+                    document: doc,
+                })
+                .unwrap();
+        }
+        (index, segment, segment_writer)
+    }
+
+    #[test]
+    fn test_finalize_with_doc_id_mapping_rejects_wrong_length() {
+        let (_index, _segment, segment_writer) =
+            build_segment_writer_with_doc_id_mapping(&[Some("a"), Some("b"), Some("c")]);
+        // Mapping only covers 2 of the 3 documents.
+        let mapping = DocIdMapping::new_permutation(vec![1, 0]).unwrap();
+        let err = segment_writer
+            .finalize_with_doc_id_mapping(&mapping)
+            .unwrap_err();
+        assert!(
+            matches!(err, TantivyError::InvalidArgument(_)),
+            "unexpected error: {err:?}"
+        );
+    }
+
+    #[test]
+    fn test_finalize_with_doc_id_mapping_rejects_sort_by_field() {
+        let mut schema_builder = Schema::builder();
+        schema_builder.add_u64_field("order", FAST | STORED);
+        let schema = schema_builder.build();
+        let mut index = Index::create_in_ram(schema);
+        index.settings_mut().manual_doc_id_mapping = true;
+        index.settings_mut().sort_by_field = Some(crate::IndexSortByField {
+            field: "order".to_string(),
+            order: crate::Order::Asc,
+        });
+        let segment = index.new_segment();
+        let order = index.schema().get_field("order").unwrap();
+        let mut segment_writer =
+            super::SegmentWriter::for_segment(15_000_000, segment.clone()).unwrap();
+        for opstamp in 0..2 {
+            let mut doc = TantivyDocument::default();
+            doc.add_u64(order, opstamp as u64);
+            segment_writer
+                .add_document(crate::indexer::AddOperation {
+                    opstamp: opstamp as u64,
+                    document: doc,
+                })
+                .unwrap();
+        }
+        let mapping = DocIdMapping::new_permutation(vec![1, 0]).unwrap();
+        let err = segment_writer
+            .finalize_with_doc_id_mapping(&mapping)
+            .unwrap_err();
+        assert!(
+            matches!(err, TantivyError::InvalidArgument(_)),
+            "unexpected error: {err:?}"
+        );
+    }
+
+    #[test]
+    fn test_finalize_with_doc_id_mapping_remaps_missing_fieldnorms() -> crate::Result<()> {
+        // doc 0: "alpha beta"  (2 tokens)
+        // doc 1: <no text>     (missing fieldnorm -> 0)
+        // doc 2: "gamma"       (1 token)
+        // doc 3: <no text>     (missing fieldnorm -> 0)
+        let (index, segment, segment_writer) = build_segment_writer_with_doc_id_mapping(&[
+            Some("alpha beta"),
+            None,
+            Some("gamma"),
+            None,
+        ]);
+        let max_doc = segment_writer.max_doc();
+
+        // Reverse the documents. New doc id i maps to old doc id (3 - i).
+        let mapping = DocIdMapping::new_permutation(vec![3, 2, 1, 0])?;
+        segment_writer.finalize_with_doc_id_mapping(&mapping)?;
+
+        let segment = segment.with_max_doc(max_doc);
+        let segment_reader = SegmentReader::open(&segment)?;
+        let text = index.schema().get_field("text").unwrap();
+        let fieldnorm_reader = segment_reader.get_fieldnorms_reader(text)?;
+
+        // After remapping, fieldnorms follow the reversed order:
+        // new 0 <- old 3 (0), new 1 <- old 2 (1), new 2 <- old 1 (0), new 3 <- old 0 (2)
+        assert_eq!(fieldnorm_reader.fieldnorm(0), 0);
+        assert_eq!(fieldnorm_reader.fieldnorm(1), 1);
+        assert_eq!(fieldnorm_reader.fieldnorm(2), 0);
+        assert_eq!(fieldnorm_reader.fieldnorm(3), 2);
+        Ok(())
     }
 }
