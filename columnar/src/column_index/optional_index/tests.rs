@@ -2,7 +2,7 @@ use proptest::prelude::*;
 use proptest::{prop_oneof, proptest};
 
 use super::*;
-use crate::{ColumnarReader, ColumnarWriter, DynamicColumnHandle};
+use crate::{ColumnIndex, ColumnarReader, ColumnarWriter, DynamicColumnHandle};
 
 #[test]
 fn test_optional_index_bug_2293() {
@@ -123,6 +123,11 @@ fn test_null_index(data: &[bool]) {
 
     // 100 samples
     let step_size = (data.len() / 100).max(1);
+    let sampled_doc_ids: Vec<DocId> = (0..data.len())
+        .step_by(step_size)
+        .map(|doc_id| doc_id as DocId)
+        .collect();
+    assert_rank_if_exists_batch_matches_scalar(&null_index, &sampled_doc_ids);
     for (pos, value) in data.iter().enumerate().step_by(step_size) {
         assert_eq!(null_index.contains(pos as u32), *value);
     }
@@ -141,6 +146,98 @@ fn test_optional_index_translate() {
     let optional_index = OptionalIndex::for_test(4, &[0, 2]);
     assert_eq!(optional_index.rank_if_exists(0), Some(0));
     assert_eq!(optional_index.rank_if_exists(2), Some(1));
+}
+
+fn assert_rank_if_exists_batch_matches_scalar(optional_index: &OptionalIndex, doc_ids: &[DocId]) {
+    let mut expected_doc_ids = vec![u32::MAX];
+    let mut expected_row_ids = vec![u32::MAX];
+    for &doc_id in doc_ids {
+        if let Some(row_id) = optional_index.rank_if_exists(doc_id) {
+            expected_doc_ids.push(doc_id);
+            expected_row_ids.push(row_id);
+        }
+    }
+
+    let mut actual_doc_ids = vec![u32::MAX];
+    let mut actual_row_ids = vec![u32::MAX];
+    optional_index.rank_if_exists_batch(doc_ids, &mut actual_doc_ids, &mut actual_row_ids);
+    assert_eq!(actual_doc_ids, expected_doc_ids);
+    assert_eq!(actual_row_ids, expected_row_ids);
+
+    let mut column_doc_ids = vec![u32::MAX];
+    let mut column_row_ids = vec![u32::MAX];
+    ColumnIndex::Optional(optional_index.clone()).docids_to_rowids(
+        doc_ids,
+        &mut column_doc_ids,
+        &mut column_row_ids,
+    );
+    assert_eq!(column_doc_ids, expected_doc_ids);
+    assert_eq!(column_row_ids, expected_row_ids);
+}
+
+#[test]
+fn test_optional_index_rank_if_exists_batch_sparse_blocks() {
+    let row_ids = [
+        1,
+        3,
+        10,
+        20,
+        30,
+        40,
+        50,
+        ELEMENTS_PER_BLOCK - 1,
+        2 * ELEMENTS_PER_BLOCK + 2,
+        2 * ELEMENTS_PER_BLOCK + 200,
+    ];
+    let optional_index = OptionalIndex::for_test(3 * ELEMENTS_PER_BLOCK, &row_ids);
+
+    let sorted_doc_ids = [
+        0,
+        1,
+        2,
+        3,
+        3,
+        49,
+        50,
+        ELEMENTS_PER_BLOCK - 1,
+        ELEMENTS_PER_BLOCK,
+        ELEMENTS_PER_BLOCK + 1,
+        2 * ELEMENTS_PER_BLOCK + 1,
+        2 * ELEMENTS_PER_BLOCK + 2,
+        2 * ELEMENTS_PER_BLOCK + 199,
+        2 * ELEMENTS_PER_BLOCK + 200,
+        3 * ELEMENTS_PER_BLOCK,
+    ];
+    assert_rank_if_exists_batch_matches_scalar(&optional_index, &sorted_doc_ids);
+
+    // Arbitrary input order and duplicate doc ids retain the scalar lookup semantics.
+    let unsorted_doc_ids = [
+        2 * ELEMENTS_PER_BLOCK + 200,
+        3,
+        ELEMENTS_PER_BLOCK,
+        1,
+        3,
+        u32::MAX,
+        50,
+    ];
+    assert_rank_if_exists_batch_matches_scalar(&optional_index, &unsorted_doc_ids);
+}
+
+#[test]
+fn test_optional_index_rank_if_exists_batch_dense_and_sparse_blocks() {
+    let mut row_ids: Vec<RowId> = (0..6_000).collect();
+    row_ids.extend([ELEMENTS_PER_BLOCK + 5, 2 * ELEMENTS_PER_BLOCK + 7]);
+    let optional_index = OptionalIndex::for_test(2 * ELEMENTS_PER_BLOCK + 8, row_ids.as_slice());
+    let doc_ids = [
+        0,
+        1,
+        5_999,
+        6_000,
+        ELEMENTS_PER_BLOCK - 1,
+        ELEMENTS_PER_BLOCK + 5,
+        2 * ELEMENTS_PER_BLOCK + 7,
+    ];
+    assert_rank_if_exists_batch_matches_scalar(&optional_index, &doc_ids);
 }
 
 #[test]

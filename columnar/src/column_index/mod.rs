@@ -107,12 +107,7 @@ impl ColumnIndex {
                 row_ids.extend_from_slice(doc_ids);
             }
             ColumnIndex::Optional(optional_index) => {
-                for doc_id in doc_ids {
-                    if let Some(row_id) = optional_index.rank_if_exists(*doc_id) {
-                        doc_ids_out.push(*doc_id);
-                        row_ids.push(row_id);
-                    }
-                }
+                optional_index.rank_if_exists_batch(doc_ids, doc_ids_out, row_ids);
             }
             ColumnIndex::Multivalued(multivalued_index) => {
                 for doc_id in doc_ids {
