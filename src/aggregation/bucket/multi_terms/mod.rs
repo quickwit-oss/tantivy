@@ -346,10 +346,9 @@ where
     /// Reused for full/optional columns: one key is built per surviving document without
     /// materializing per-field value vectors.
     single_value_keys_buf: Vec<Codec::Key>,
-    /// Documents still able to produce a key in the single-valued path and their positions in
-    /// `single_value_keys_buf`.
-    active_docs_buf: Vec<crate::DocId>,
-    active_doc_indices_buf: Vec<u32>,
+    /// Whether each document in the current single-valued block can produce a complete key.
+    /// `Vec<bool>` keeps this as a reusable bitset indexed like `single_value_keys_buf`.
+    valid_docs_buf: Vec<bool>,
     /// Reused only when at least one column is multivalued, laid out as `[doc][field]`.
     field_values_buf: Vec<FieldValues>,
 }
@@ -664,95 +663,78 @@ where
                     }
                 }
             } else {
-                // Optional columns still have at most one value per document, so build directly
-                // into one key per document. Keep only documents that can produce a complete key;
-                // later fields are decoded against that shrinking active set.
-                self.active_docs_buf.clear();
-                self.active_docs_buf.extend_from_slice(docs);
-                self.active_doc_indices_buf.clear();
-                self.active_doc_indices_buf.extend(0..docs.len() as u32);
+                // Optional columns still have at most one value per document. Decode every field
+                // against the original block and track which document positions can produce a
+                // complete key. Invalid documents are skipped for later key writes and when the
+                // bucket map is populated.
+                self.valid_docs_buf.resize(docs.len(), true);
+                self.valid_docs_buf.fill(true);
+                let valid_docs = &mut self.valid_docs_buf;
+                let mut num_valid_docs = docs.len();
 
                 for (field_idx, field) in self.req_data.fields.iter().enumerate() {
-                    if self.active_docs_buf.is_empty() {
+                    if num_valid_docs == 0 {
                         break;
                     }
 
                     if field.column.get_cardinality().is_full() {
-                        block_accessor.fetch_block_with_is_full(
-                            &self.active_docs_buf,
-                            &field.column,
-                            true,
-                        );
-                        for (&doc_idx, val) in self
-                            .active_doc_indices_buf
-                            .iter()
-                            .zip(block_accessor.iter_vals())
-                        {
-                            key_codec.push(
-                                &mut keys[doc_idx as usize],
-                                field_idx,
-                                KeyElem::new(val),
-                            );
+                        block_accessor.fetch_block_with_is_full(docs, &field.column, true);
+                        if num_valid_docs == docs.len() {
+                            key_codec.push_full_values(keys, field_idx, block_accessor.iter_vals());
+                        } else {
+                            for (doc_idx, val) in block_accessor.iter_vals().enumerate() {
+                                if valid_docs[doc_idx] {
+                                    key_codec.push(
+                                        &mut keys[doc_idx],
+                                        field_idx,
+                                        KeyElem::new(val),
+                                    );
+                                }
+                            }
                         }
                         continue;
                     }
 
                     debug_assert!(field.column.get_cardinality().is_optional());
-                    block_accessor.fetch_block_with_is_full(
-                        &self.active_docs_buf,
-                        &field.column,
-                        false,
-                    );
+                    block_accessor.fetch_block_with_is_full(docs, &field.column, false);
                     let missing = self.req_data.missing_accessors[field_idx].as_ref();
-                    let num_active_docs_before = self.active_doc_indices_buf.len();
-                    // Compact original indices in place. `hits` borrows `active_docs_buf`, so that
-                    // parallel vector is rebuilt only after the iterator has been released.
-                    let mut num_active_docs = 0;
                     let mut hits = block_accessor
-                        .iter_docid_vals(&self.active_docs_buf, &field.column)
+                        .iter_docid_vals(docs, &field.column)
                         .peekable();
-                    for active_idx in 0..num_active_docs_before {
-                        let doc_id = self.active_docs_buf[active_idx];
-                        let doc_idx = self.active_doc_indices_buf[active_idx];
+                    for (doc_idx, &doc_id) in docs.iter().enumerate() {
                         debug_assert!(hits.peek().is_none_or(|(hit_doc, _)| *hit_doc >= doc_id));
-                        let elem = hits
+                        let column_elem = hits
                             .next_if(|(hit_doc, _)| *hit_doc == doc_id)
-                            .map(|(_, val)| KeyElem::new(val))
-                            .or_else(|| missing_key_elem_for_doc(missing, doc_id));
-                        if let Some(elem) = elem {
-                            key_codec.push(&mut keys[doc_idx as usize], field_idx, elem);
-                            if num_active_docs != active_idx {
-                                self.active_doc_indices_buf[num_active_docs] = doc_idx;
-                            }
-                            num_active_docs += 1;
+                            .map(|(_, val)| KeyElem::new(val));
+
+                        if !valid_docs[doc_idx] {
+                            continue;
+                        }
+
+                        if let Some(elem) =
+                            column_elem.or_else(|| missing_key_elem_for_doc(missing, doc_id))
+                        {
+                            key_codec.push(&mut keys[doc_idx], field_idx, elem);
+                        } else {
+                            valid_docs[doc_idx] = false;
+                            num_valid_docs -= 1;
                         }
                     }
                     debug_assert!(hits.next().is_none());
-                    drop(hits); // release the borrow of `active_docs_buf` before compacting it
-
-                    if num_active_docs != num_active_docs_before {
-                        self.active_doc_indices_buf.truncate(num_active_docs);
-                        for active_idx in 0..num_active_docs {
-                            let doc_idx = self.active_doc_indices_buf[active_idx] as usize;
-                            self.active_docs_buf[active_idx] = docs[doc_idx];
-                        }
-                        self.active_docs_buf.truncate(num_active_docs);
-                    }
                 }
 
                 if let Some(sub_agg) = sub_agg {
-                    for (&doc_id, &doc_idx) in self
-                        .active_docs_buf
-                        .iter()
-                        .zip(self.active_doc_indices_buf.iter())
-                    {
-                        let bucket_id =
-                            buckets.term_entry(keys[doc_idx as usize].clone(), bucket_id_provider);
-                        sub_agg.push(bucket_id.to_bucket_id(), doc_id);
+                    for (doc_idx, (&doc_id, key)) in docs.iter().zip(keys.iter()).enumerate() {
+                        if valid_docs[doc_idx] {
+                            let bucket_id = buckets.term_entry(key.clone(), bucket_id_provider);
+                            sub_agg.push(bucket_id.to_bucket_id(), doc_id);
+                        }
                     }
                 } else {
-                    for &doc_idx in &self.active_doc_indices_buf {
-                        buckets.term_entry(keys[doc_idx as usize].clone(), bucket_id_provider);
+                    for (doc_idx, key) in keys.iter().enumerate() {
+                        if valid_docs[doc_idx] {
+                            buckets.term_entry(key.clone(), bucket_id_provider);
+                        }
                     }
                 }
             }
@@ -1192,8 +1174,7 @@ where
         all_fields_full,
         all_fields_single_valued,
         single_value_keys_buf: Vec::new(),
-        active_docs_buf: Vec::new(),
-        active_doc_indices_buf: Vec::new(),
+        valid_docs_buf: Vec::new(),
         field_values_buf: Vec::new(),
     })
 }
@@ -2130,8 +2111,8 @@ mod tests {
     fn test_multi_terms_unpacked_single_value_path_handles_optional_field() -> crate::Result<()> {
         // `big` requires 64 bits and `tag` requires another bit, selecting `MultiTermsKey`.
         // `tag` is optional but not multivalued, so collection should still build one key per
-        // surviving document directly. Putting it first also exercises active-doc compaction
-        // before decoding the later full column.
+        // surviving document directly. Putting it first also exercises validity filtering before
+        // decoding the later full column.
         let mut schema_builder = Schema::builder();
         let tag_field = schema_builder.add_text_field("tag", STRING | FAST);
         let big_field = schema_builder
