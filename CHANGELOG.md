@@ -52,6 +52,7 @@ Tantivy 0.26 (Unreleased)
 - Skip column traversal in `RangeDocSet` when query range does not overlap with column bounds [#2783](https://github.com/quickwit-oss/tantivy/pull/2783)(@ChangRui-Ryan)
 - Speed up exclude queries by supporting multiple excluded `DocSet`s without intermediate union [#2825](https://github.com/quickwit-oss/tantivy/pull/2825)(@PSeitz)
 - Improve union performance for non-score unions with `fill_buffer` and optimized `TinySet` [#2863](https://github.com/quickwit-oss/tantivy/pull/2863)(@PSeitz)
+- Make the doc store binary format more compact by storing field ids and integers as variable-length integers (`VInt`, with zig-zag encoding for signed integers). This introduces doc store format `V3` while remaining backwards compatible with older segments [#903](https://github.com/quickwit-oss/tantivy/issues/903)
 
 Tantivy 0.25
 ================================

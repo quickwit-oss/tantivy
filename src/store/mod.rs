@@ -44,7 +44,7 @@ pub use self::writer::StoreWriter;
 mod store_compressor;
 
 /// Doc store version in footer to handle format changes.
-pub(crate) const DOC_STORE_VERSION: DocStoreVersion = DocStoreVersion::V2;
+pub(crate) const DOC_STORE_VERSION: DocStoreVersion = DocStoreVersion::V3;
 
 #[cfg(feature = "lz4-compression")]
 mod compression_lz4_block;
@@ -214,6 +214,72 @@ pub(crate) mod tests {
             BLOCK_SIZE,
             true,
         )
+    }
+
+    // Pathological schema with many numeric fields, as suggested in
+    // https://github.com/quickwit-oss/tantivy/issues/903 . This exercises the
+    // variable-length field-id and integer encoding heavily and verifies that
+    // documents still round-trip through the store correctly.
+    #[test]
+    fn test_store_many_numeric_fields_roundtrip() -> crate::Result<()> {
+        use common::DateTime;
+
+        use crate::schema::{OwnedValue, Value};
+
+        const NUM_U64_FIELDS: usize = 100;
+
+        let mut schema_builder = Schema::builder();
+        let u64_fields: Vec<_> = (0..NUM_U64_FIELDS)
+            .map(|i| schema_builder.add_u64_field(&format!("u64_{i}"), STORED))
+            .collect();
+        let i64_field = schema_builder.add_i64_field("i64", STORED);
+        let date_field = schema_builder.add_date_field("date", STORED);
+        let schema = schema_builder.build();
+
+        let path = Path::new("store");
+        let directory = RamDirectory::create();
+        let store_wrt = directory.open_write(path)?;
+        {
+            let mut store_writer =
+                StoreWriter::new(store_wrt, Compressor::default(), BLOCK_SIZE, true)?;
+            for i in 0..NUM_DOCS as u64 {
+                let mut doc = TantivyDocument::default();
+                for (j, field) in u64_fields.iter().enumerate() {
+                    doc.add_u64(*field, i.wrapping_mul(j as u64 + 1));
+                }
+                // Include both signs to exercise zig-zag encoding.
+                doc.add_i64(i64_field, (i as i64) - (NUM_DOCS as i64) / 2);
+                doc.add_date(date_field, DateTime::from_timestamp_nanos(i as i64 * 1_000));
+                store_writer.store(&doc, &schema)?;
+            }
+            store_writer.close()?;
+        }
+
+        let store_file = directory.open_read(path)?;
+        let store = StoreReader::open(store_file, 10)?;
+        for i in 0..NUM_DOCS as u64 {
+            let doc = store.get::<TantivyDocument>(i as u32)?;
+            for (j, field) in u64_fields.iter().enumerate() {
+                assert_eq!(
+                    doc.get_first(*field).unwrap().as_value().as_u64().unwrap(),
+                    i.wrapping_mul(j as u64 + 1)
+                );
+            }
+            assert_eq!(
+                doc.get_first(i64_field)
+                    .unwrap()
+                    .as_value()
+                    .as_i64()
+                    .unwrap(),
+                (i as i64) - (NUM_DOCS as i64) / 2
+            );
+            let expected_date = DateTime::from_timestamp_nanos(i as i64 * 1_000);
+            match doc.get_first(date_field).unwrap().as_value().into() {
+                OwnedValue::Date(dt) => assert_eq!(dt, expected_date),
+                other => panic!("expected date, got {other:?}"),
+            }
+        }
+        Ok(())
     }
 
     #[test]

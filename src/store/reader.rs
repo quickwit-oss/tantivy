@@ -31,12 +31,17 @@ type Block = OwnedBytes;
 pub(crate) enum DocStoreVersion {
     V1 = 1,
     V2 = 2,
+    /// Same as V2 but field ids and integers are stored using variable-length
+    /// encoding (`VInt`, with zig-zag for signed integers) to make blocks more
+    /// compact before compression.
+    V3 = 3,
 }
 impl Display for DocStoreVersion {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             DocStoreVersion::V1 => write!(f, "V1"),
             DocStoreVersion::V2 => write!(f, "V2"),
+            DocStoreVersion::V3 => write!(f, "V3"),
         }
     }
 }
@@ -49,6 +54,7 @@ impl BinarySerializable for DocStoreVersion {
         Ok(match u32::deserialize(reader)? {
             1 => DocStoreVersion::V1,
             2 => DocStoreVersion::V2,
+            3 => DocStoreVersion::V3,
             v => {
                 return Err(io::Error::new(
                     io::ErrorKind::InvalidData,
@@ -499,7 +505,7 @@ mod tests {
         assert_eq!(store.cache_stats().cache_hits, 1);
         assert_eq!(store.cache_stats().cache_misses, 2);
 
-        assert_eq!(store.cache.peek_lru(), Some(232206));
+        assert_eq!(store.cache.peek_lru(), Some(229266));
 
         Ok(())
     }
