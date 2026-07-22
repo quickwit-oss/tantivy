@@ -83,10 +83,10 @@ const CLUSTERED_SIGNAL_FRAC: f64 = 0.3;
 enum TermLayout {
     /// Each doc is independently "a" with probability `p_a`: the "a" docs are scattered uniformly.
     Uniform,
-    /// The "a" docs arrive in bursts (see [`TitleField::next_token`]). Real attributes rarely sprinkle
-    /// evenly — a log level spikes, a topic is ingested together — so their matching docs cluster.
-    /// Bursts are statistically denser regions, not solid runs, and a background floor keeps some
-    /// "a" docs scattered in between.
+    /// The "a" docs arrive in bursts (see [`TitleField::next_token`]). Real attributes rarely
+    /// sprinkle evenly — a log level spikes, a topic is ingested together — so their matching
+    /// docs cluster. Bursts are statistically denser regions, not solid runs, and a background
+    /// floor keeps some "a" docs scattered in between.
     Clustered,
 }
 
@@ -100,9 +100,10 @@ impl TermLayout {
     }
 }
 
-/// Derives a schema-safe title field name from a term probability and layout, e.g. `(0.001, Uniform)`
-/// -> `title_0_1pct` and `(0.001, Clustered)` -> `title_clustered_0_1pct`. A title field is populated
-/// with token "a" for a `p_a` fraction of documents, so `<name>:a` matches ~`p_a` of them.
+/// Derives a schema-safe title field name from a term probability and layout, e.g. `(0.001,
+/// Uniform)` -> `title_0_1pct` and `(0.001, Clustered)` -> `title_clustered_0_1pct`. A title field
+/// is populated with token "a" for a `p_a` fraction of documents, so `<name>:a` matches ~`p_a` of
+/// them.
 fn title_field_name(p_a: f64, layout: TermLayout) -> String {
     let pct = format_pct(p_a).replace('.', "_").replace('%', "pct");
     match layout {
@@ -131,19 +132,22 @@ struct TitleField {
     /// Latent-field value a doc must exceed to be "a". Set to `Φ⁻¹(1 - p_a)` for the unit-variance
     /// field below, so `P(exceed) = p_a` and the marginal is `p_a` however bursty the drift is.
     threshold: f64,
-    /// Amplitude per octave, so the summed drift carries `CLUSTERED_SIGNAL_FRAC` of the unit variance.
+    /// Amplitude per octave, so the summed drift carries `CLUSTERED_SIGNAL_FRAC` of the unit
+    /// variance.
     octave_weight: f64,
-    /// s.d. of the per-doc noise carrying the remaining `1 - CLUSTERED_SIGNAL_FRAC` of the variance.
+    /// s.d. of the per-doc noise carrying the remaining `1 - CLUSTERED_SIGNAL_FRAC` of the
+    /// variance.
     noise_sd: f64,
     octaves: Vec<Ar1Octave>,
 }
 
 impl TitleField {
     fn new(p_a: f64, layout: TermLayout, field: Field, num_docs: usize) -> Self {
-        // Octave j has correlation length CLUSTERED_DRIFT_SCALE * num_docs / 4^j; rho = e^(-1/len) is
-        // the per-doc retention producing that length. Splitting the signal variance equally across
-        // octaves (weight = sqrt(signal/octaves)) plus noise variance (1 - signal) makes the latent
-        // field unit-variance, so the threshold is a plain standard-normal quantile.
+        // Octave j has correlation length CLUSTERED_DRIFT_SCALE * num_docs / 4^j; rho = e^(-1/len)
+        // is the per-doc retention producing that length. Splitting the signal variance
+        // equally across octaves (weight = sqrt(signal/octaves)) plus noise variance (1 -
+        // signal) makes the latent field unit-variance, so the threshold is a plain
+        // standard-normal quantile.
         let octaves = (0..CLUSTERED_OCTAVES)
             .map(|j| {
                 let len = (CLUSTERED_DRIFT_SCALE * num_docs as f64 / 4f64.powi(j as i32)).max(1.0);
@@ -165,10 +169,11 @@ impl TitleField {
     }
 
     /// Draws this document's token. Uniform: independently "a" with probability `p_a`. Clustered:
-    /// advance the drift, add per-doc noise to get a unit-variance latent value, and emit "a" when it
-    /// clears `threshold`. Because the drift moves slowly, neighbouring docs land on the same side of
-    /// the threshold together — that is the clustering; the noise softens the boundary and scatters a
-    /// background of "a" docs through the cold stretches (and "b" docs through the hot ones).
+    /// advance the drift, add per-doc noise to get a unit-variance latent value, and emit "a" when
+    /// it clears `threshold`. Because the drift moves slowly, neighbouring docs land on the
+    /// same side of the threshold together — that is the clustering; the noise softens the
+    /// boundary and scatters a background of "a" docs through the cold stretches (and "b" docs
+    /// through the hot ones).
     fn next_token(&mut self, rng: &mut StdRng) -> &'static str {
         match self.layout {
             TermLayout::Uniform => {
@@ -202,25 +207,38 @@ fn standard_normal(rng: &mut StdRng) -> f64 {
     (-2.0 * u1.ln()).sqrt() * (2.0 * std::f64::consts::PI * u2).cos()
 }
 
-/// Inverse standard-normal CDF (the probit / quantile function) via Acklam's rational approximation,
-/// accurate to ~1e-9 over `p ∈ (0, 1)` — enough to place the clustered-layout threshold. Only called
-/// once per field, so speed is irrelevant.
+/// Inverse standard-normal CDF (the probit / quantile function) via Acklam's rational
+/// approximation, accurate to ~1e-9 over `p ∈ (0, 1)` — enough to place the clustered-layout
+/// threshold. Only called once per field, so speed is irrelevant.
 fn inverse_normal_cdf(p: f64) -> f64 {
     // Coefficients for the central and tail regions of the approximation.
     const A: [f64; 6] = [
-        -3.969683028665376e+01, 2.209460984245205e+02, -2.759285104469687e+02,
-        1.383577518672690e+02, -3.066479806614716e+01, 2.506628277459239e+00,
+        -3.969683028665376e+01,
+        2.209460984245205e+02,
+        -2.759285104469687e+02,
+        1.383577518672690e+02,
+        -3.066479806614716e+01,
+        2.506628277459239e+00,
     ];
     const B: [f64; 5] = [
-        -5.447609879822406e+01, 1.615858368580409e+02, -1.556989798598866e+02,
-        6.680131188771972e+01, -1.328068155288572e+01,
+        -5.447609879822406e+01,
+        1.615858368580409e+02,
+        -1.556989798598866e+02,
+        6.680131188771972e+01,
+        -1.328068155288572e+01,
     ];
     const C: [f64; 6] = [
-        -7.784894002430293e-03, -3.223964580411365e-01, -2.400758277161838e+00,
-        -2.549732539343734e+00, 4.374664141464968e+00, 2.938163982698783e+00,
+        -7.784894002430293e-03,
+        -3.223964580411365e-01,
+        -2.400758277161838e+00,
+        -2.549732539343734e+00,
+        4.374664141464968e+00,
+        2.938163982698783e+00,
     ];
     const D: [f64; 4] = [
-        7.784695709041462e-03, 3.224671290700398e-01, 2.445134137142996e+00,
+        7.784695709041462e-03,
+        3.224671290700398e-01,
+        2.445134137142996e+00,
         3.754408661907416e+00,
     ];
     const P_LOW: f64 = 0.02425;
@@ -283,7 +301,8 @@ impl NumericFields {
 /// rebuilding a near-identical index.
 fn build_shared_index(num_docs: usize, term_specs: &[(f64, TermLayout)]) -> BenchIndex {
     let mut schema_builder = Schema::builder();
-    // One title field per distinct (probability, layout); querying `<name>:a` matches ~p of documents.
+    // One title field per distinct (probability, layout); querying `<name>:a` matches ~p of
+    // documents.
     let mut title_fields: Vec<TitleField> = Vec::new();
     for &(p_a, layout) in term_specs {
         if title_fields
@@ -362,9 +381,10 @@ fn main() {
         (0.7, 0.1),
     ];
 
-    // Each scenario is run under both term layouts: `uniform` ("a" scattered evenly) and `clustered`
-    // ("a" arriving in organic bursts, same marginal `p(a)`). Real corpora look like the latter, and
-    // where the matching docs land is exactly what an intersection's block-skipping sees.
+    // Each scenario is run under both term layouts: `uniform` ("a" scattered evenly) and
+    // `clustered` ("a" arriving in organic bursts, same marginal `p(a)`). Real corpora look
+    // like the latter, and where the matching docs land is exactly what an intersection's
+    // block-skipping sees.
     let layouts = [TermLayout::Uniform, TermLayout::Clustered];
 
     // Build a single shared corpus with a title field for each (probability, layout).
@@ -382,9 +402,9 @@ fn main() {
     term_specs.push((regression_term_p, TermLayout::Uniform));
     let bench_index = build_shared_index(5_000_000, &term_specs);
 
-    // Precompute each group's name and queries once; every collector runner reuses them. Layouts are
-    // interleaved per scenario so a scenario's `uniform` and `clustered` groups sit next to each
-    // other in the output for easy comparison.
+    // Precompute each group's name and queries once; every collector runner reuses them. Layouts
+    // are interleaved per scenario so a scenario's `uniform` and `clustered` groups sit next to
+    // each other in the output for easy comparison.
     let mut prepared: Vec<(String, Vec<Query3>)> = Vec::new();
     for &(p_a, range_sel) in &scenarios {
         for &layout in &layouts {
@@ -394,7 +414,10 @@ fn main() {
                 layout.tag(),
                 format_pct(range_sel)
             );
-            prepared.push((group_name, build_term_and_range_queries(p_a, range_sel, layout)));
+            prepared.push((
+                group_name,
+                build_term_and_range_queries(p_a, range_sel, layout),
+            ));
         }
     }
 
@@ -434,9 +457,13 @@ fn main() {
 
     // A separate runner per collector type: the collector heads the output section (via the runner
     // name) instead of being repeated in every task name.
-    run_collector(BenchRunner::with_name("count"), &bench_index, &prepared, false, |_| {
-        Count
-    });
+    run_collector(
+        BenchRunner::with_name("count"),
+        &bench_index,
+        &prepared,
+        false,
+        |_| Count,
+    );
     run_collector(
         BenchRunner::with_name("cnt+top_score"),
         &bench_index,
@@ -473,8 +500,7 @@ fn build_term_and_range_queries(p_a: f64, range_sel: f64, layout: TermLayout) ->
         .iter()
         .map(|&(field_name, dist)| {
             let (low, high) = dist.bounds_for(range_sel);
-            let query_str =
-                format!("{}:a AND {}:[{} TO {}]", title_field, field_name, low, high);
+            let query_str = format!("{}:a AND {}:[{} TO {}]", title_field, field_name, low, high);
             let label = format!("a_AND_{}", field_name);
             (query_str, label, field_name.to_string())
         })
