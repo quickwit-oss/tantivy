@@ -100,7 +100,7 @@ impl DocIdMapping {
 
     fn from_new_id_to_old_id_inner<E: Error>(
         new_doc_id_to_old: Vec<DocId>,
-        mut check: impl FnMut(DocId) -> Result<(), E>,
+        mut validate: impl FnMut(DocId) -> Result<(), E>,
     ) -> Result<Self, E> {
         let max_doc = new_doc_id_to_old.len();
         let old_max_doc = new_doc_id_to_old
@@ -111,7 +111,7 @@ impl DocIdMapping {
             .unwrap_or(0);
         let mut old_doc_id_to_new = vec![0; old_max_doc as usize];
         for i in 0..max_doc {
-            (check)(new_doc_id_to_old[i])?;
+            (validate)(new_doc_id_to_old[i])?;
             old_doc_id_to_new[new_doc_id_to_old[i] as usize] = i as DocId;
         }
         Ok(DocIdMapping {
