@@ -81,16 +81,68 @@ impl SparseBlock<'_> {
         (self.0.len() / 2) as u16
     }
 
+    /// Looks up several sorted elements while keeping a cursor into the sparse block.
+    ///
+    /// The callback receives `(element, rank)` for each element present in the block. Once a
+    /// lookup has passed a sparse value, later lookups never search the prefix containing that
+    /// value again. Queries below the next sparse value only require a comparison with that value.
+    #[inline]
+    pub(crate) fn rank_if_exists_batch(
+        &self,
+        els: impl Iterator<Item = u16>,
+        mut collect: impl FnMut(u16, u16),
+    ) {
+        let data = self.0;
+        let num_vals = self.num_vals();
+        let mut candidate_rank = 0u16;
+        let mut previous_el = None;
+
+        for el in els {
+            debug_assert!(previous_el.is_none_or(|previous_el| previous_el <= el));
+            previous_el = Some(el);
+
+            if candidate_rank >= num_vals {
+                return;
+            }
+            let mut candidate = self.value_at_idx(data, candidate_rank);
+            if candidate < el {
+                // Check the immediately following value first. This makes querying consecutive
+                // sparse values linear instead of performing a binary search for every value.
+                candidate_rank += 1;
+                if candidate_rank >= num_vals {
+                    return;
+                }
+                candidate = self.value_at_idx(data, candidate_rank);
+
+                if candidate < el {
+                    candidate_rank = self
+                        .binary_search_from(el, candidate_rank + 1)
+                        .unwrap_or_else(|rank| rank);
+                    if candidate_rank >= num_vals {
+                        return;
+                    }
+                    candidate = self.value_at_idx(data, candidate_rank);
+                }
+            }
+
+            if candidate == el {
+                collect(el, candidate_rank);
+            }
+        }
+    }
+
+    #[inline]
+    // Looks for the element in the block. Returns the position if found.
+    fn binary_search(&self, target: u16) -> Result<u16, u16> {
+        self.binary_search_from(target, 0)
+    }
+
     #[inline]
     #[expect(clippy::comparison_chain)]
-    // Looks for the element in the block. Returns the positions if found.
-    fn binary_search(&self, target: u16) -> Result<u16, u16> {
+    fn binary_search_from(&self, target: u16, mut left: u16) -> Result<u16, u16> {
         let data = &self.0;
-        let mut size = self.num_vals();
-        let mut left = 0;
-        let mut right = size;
-        // TODO try different implem.
-        //  e.g. exponential search into binary search
+        let mut right = self.num_vals();
+        let mut size = right - left;
         while left < right {
             let mid = left + size / 2;
 
