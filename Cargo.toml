@@ -70,6 +70,7 @@ futures-util = { version = "0.3.28", optional = true }
 futures-channel = { version = "0.3.28", optional = true }
 fnv = "1.0.7"
 typetag = "0.2.21"
+unwrap-infallible = "1.0.0"
 
 [target.'cfg(windows)'.dependencies]
 winapi = "0.3.9"

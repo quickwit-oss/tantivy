@@ -1,6 +1,10 @@
 //! This module is used when sorting the index by a property, e.g.
 //! to get mappings from old doc_id to new doc_id and vice versa, after sorting
+use std::convert::Infallible;
+use std::error::Error;
+
 use common::{BitSet, ReadOnlyBitSet};
+use unwrap_infallible::UnwrapInfallible;
 
 use super::SegmentWriter;
 use crate::schema::{Field, Schema};
@@ -75,29 +79,29 @@ impl DocIdMapping {
     /// once in the mapping. I.e., doc ids must be consecutive from `0` to
     /// `new_doc_id_to_old.len() - 1`, inclusive.
     pub fn new_permutation(new_doc_id_to_old: Vec<DocId>) -> crate::Result<Self> {
-        // Check that the mapping is a permutation of the segment doc ids.
         let max_doc = new_doc_id_to_old.len() as DocId;
-        let mut old_doc_id_to_new = vec![0; max_doc as usize];
+        let mut seen_doc_ids: BitSet = BitSet::with_max_value(max_doc);
 
-        let mut seen_doc_ids = BitSet::with_max_value(max_doc);
-        for (i, old_doc_id) in new_doc_id_to_old.iter().copied().enumerate() {
+        Self::from_new_id_to_old_id_inner(new_doc_id_to_old, |old_doc_id| {
             if old_doc_id >= max_doc || !seen_doc_ids.insert(old_doc_id) {
                 return Err(TantivyError::InvalidArgument(
                     "Mapping must be a permutation of the segment doc ids".to_string(),
                 ));
             }
-            old_doc_id_to_new[new_doc_id_to_old[i] as usize] = i as DocId;
-        }
-
-        let doc_id_mapping = DocIdMapping {
-            new_doc_id_to_old,
-            old_doc_id_to_new,
-        };
-        Ok(doc_id_mapping)
+            Ok::<(), TantivyError>(())
+        })
     }
 
     /// Creates a `DocIdMapping` from a mapping of new doc ids to old doc ids.
     pub(crate) fn from_new_id_to_old_id(new_doc_id_to_old: Vec<DocId>) -> Self {
+        Self::from_new_id_to_old_id_inner(new_doc_id_to_old, |_| Ok::<(), Infallible>(()))
+            .unwrap_infallible()
+    }
+
+    fn from_new_id_to_old_id_inner<E: Error>(
+        new_doc_id_to_old: Vec<DocId>,
+        mut check: impl FnMut(DocId) -> Result<(), E>,
+    ) -> Result<Self, E> {
         let max_doc = new_doc_id_to_old.len();
         let old_max_doc = new_doc_id_to_old
             .iter()
@@ -107,12 +111,13 @@ impl DocIdMapping {
             .unwrap_or(0);
         let mut old_doc_id_to_new = vec![0; old_max_doc as usize];
         for i in 0..max_doc {
+            (check)(new_doc_id_to_old[i])?;
             old_doc_id_to_new[new_doc_id_to_old[i] as usize] = i as DocId;
         }
-        DocIdMapping {
+        Ok(DocIdMapping {
             new_doc_id_to_old,
             old_doc_id_to_new,
-        }
+        })
     }
 
     /// Returns the new doc_id for the old doc_id
