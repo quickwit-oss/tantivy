@@ -1273,12 +1273,11 @@ mod tests {
 
         assert_eq!(data.per_request.agg_tree.len(), 4);
         assert_eq!(data.per_request.multi_terms_req_data.len(), 4);
-        assert!(
-            data.per_request
-                .agg_tree
-                .iter()
-                .all(|node| node.children.len() == 1)
-        );
+        assert!(data
+            .per_request
+            .agg_tree
+            .iter()
+            .all(|node| node.children.len() == 1));
 
         let actual_types: FxHashSet<Vec<ColumnType>> = data
             .per_request
@@ -1301,15 +1300,14 @@ mod tests {
         .into_iter()
         .collect();
         assert_eq!(actual_types, expected_types);
-        assert!(
-            data.per_request
-                .multi_terms_req_data
-                .iter()
-                .flat_map(|req_data| &req_data.fields)
-                .all(|field| {
-                    field.str_dict_column.is_some() == (field.column_type == ColumnType::Str)
-                })
-        );
+        assert!(data
+            .per_request
+            .multi_terms_req_data
+            .iter()
+            .flat_map(|req_data| &req_data.fields)
+            .all(|field| {
+                field.str_dict_column.is_some() == (field.column_type == ColumnType::Str)
+            }));
 
         Ok(())
     }
