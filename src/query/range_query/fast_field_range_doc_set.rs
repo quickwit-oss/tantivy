@@ -55,6 +55,9 @@ pub(crate) struct RangeDocSet<T> {
     ///   should load small chunks. When the seeks are small, we can employ the same strategy as on
     ///   a full scan.
     fetch_horizon: u32,
+    /// Upper bound for `fetch_horizon`. This can be changed while the docset is running.
+    /// Must remain greater than zero.
+    max_fetch_horizon: u32,
     /// Current batch of loaded docs.
     loaded_docs: VecCursor,
     last_seek_pos_opt: Option<u32>,
@@ -68,7 +71,7 @@ pub(crate) struct RangeDocSet<T> {
 }
 
 const DEFAULT_FETCH_HORIZON: u32 = 128;
-const MAX_FETCH_HORIZON: u32 = 100_000;
+const DEFAULT_MAX_FETCH_HORIZON: u32 = 100_000;
 impl<T: Send + Sync + PartialOrd + Copy + Debug + 'static> RangeDocSet<T> {
     pub(crate) fn new(value_range: RangeInclusive<T>, column: Column<T>) -> Self {
         if *value_range.start() > column.max_value() || *value_range.end() < column.min_value() {
@@ -78,6 +81,7 @@ impl<T: Send + Sync + PartialOrd + Copy + Debug + 'static> RangeDocSet<T> {
                 loaded_docs: VecCursor::new(),
                 next_fetch_start: TERMINATED,
                 fetch_horizon: DEFAULT_FETCH_HORIZON,
+                max_fetch_horizon: DEFAULT_MAX_FETCH_HORIZON,
                 last_seek_pos_opt: None,
                 seek_cluster_run: 0,
             };
@@ -89,6 +93,7 @@ impl<T: Send + Sync + PartialOrd + Copy + Debug + 'static> RangeDocSet<T> {
             loaded_docs: VecCursor::new(),
             next_fetch_start: 0,
             fetch_horizon: DEFAULT_FETCH_HORIZON,
+            max_fetch_horizon: DEFAULT_MAX_FETCH_HORIZON,
             last_seek_pos_opt: None,
             seek_cluster_run: 0,
         };
@@ -97,8 +102,12 @@ impl<T: Send + Sync + PartialOrd + Copy + Debug + 'static> RangeDocSet<T> {
         range_docset
     }
 
+    fn set_fetch_horizon(&mut self, fetch_horizon: u32) {
+        self.fetch_horizon = fetch_horizon.min(self.max_fetch_horizon);
+    }
+
     fn reset_fetch_range(&mut self) {
-        self.fetch_horizon = DEFAULT_FETCH_HORIZON;
+        self.set_fetch_horizon(DEFAULT_FETCH_HORIZON);
     }
 
     /// Returns true if more data could be fetched
@@ -107,12 +116,12 @@ impl<T: Send + Sync + PartialOrd + Copy + Debug + 'static> RangeDocSet<T> {
             return;
         }
         while self.loaded_docs.is_consumed() {
-            let finished_to_end = self.do_fetch_horizon(self.fetch_horizon);
+            let finished_to_end = self.do_fetch_horizon();
             if finished_to_end {
                 break;
             }
             // Fetch more data, increase horizon. Horizon only gets reset when doing a seek.
-            self.fetch_horizon = (self.fetch_horizon * 2).min(MAX_FETCH_HORIZON);
+            self.set_fetch_horizon(self.fetch_horizon.saturating_mul(2));
         }
     }
 
@@ -126,11 +135,12 @@ impl<T: Send + Sync + PartialOrd + Copy + Debug + 'static> RangeDocSet<T> {
     }
 
     /// Fetches a block for docid range [next_fetch_start .. next_fetch_start + HORIZON]
-    fn do_fetch_horizon(&mut self, horizon: u32) -> bool {
+    fn do_fetch_horizon(&mut self) -> bool {
+        let horizon = self.fetch_horizon;
         let mut finished_to_end = false;
 
         let num_docs = self.column.num_docs();
-        let mut fetch_end = self.next_fetch_start + horizon;
+        let mut fetch_end = self.next_fetch_start.saturating_add(horizon);
         if fetch_end >= num_docs {
             fetch_end = num_docs;
             finished_to_end = true;
@@ -166,8 +176,13 @@ impl<T: Send + Sync + PartialOrd + Copy + Debug + 'static> RangeDocSet<T> {
             self.loaded_docs.next();
         }
 
-        if self.loaded_docs.is_consumed() && self.next_fetch_start < self.column.num_docs() {
-            self.do_fetch_horizon(self.fetch_horizon);
+        while self.loaded_docs.is_consumed() {
+            let finished_to_end = self.do_fetch_horizon();
+            if finished_to_end {
+                break;
+            }
+            // Fetch more data, increase horizon. Horizon only gets reset when doing a seek.
+            self.set_fetch_horizon(self.fetch_horizon.saturating_mul(2));
         }
 
         match self.loaded_docs.current() {
@@ -176,7 +191,13 @@ impl<T: Send + Sync + PartialOrd + Copy + Debug + 'static> RangeDocSet<T> {
             None if self.next_fetch_start >= self.column.num_docs() => {
                 SeekDangerResult::SeekLowerBound(TERMINATED)
             }
-            None => SeekDangerResult::SeekLowerBound(self.next_fetch_start),
+            None => {
+                // Since the caller will use this a new lowerbound this messes up our
+                // last_seek_pos_opt, distance computation so we artificially set it
+                // to the returned lower bound, which is the next_fetch_start.
+                self.last_seek_pos_opt = Some(self.next_fetch_start);
+                SeekDangerResult::SeekLowerBound(self.next_fetch_start)
+            }
         }
     }
 }
@@ -229,14 +250,6 @@ impl<T: Send + Sync + PartialOrd + Copy + Debug + 'static> DocSet for RangeDocSe
             return SeekDangerResult::SeekLowerBound(TERMINATED);
         }
 
-        // A scan miss returns the next matching doc as its lower bound. The intersection then
-        // calls us again with that exact doc. Do not count that self-generated hop against the
-        // driver's density: it is not a point lookup and says nothing about the driver's spacing.
-        if self.loaded_docs.current() == Some(target) {
-            self.last_seek_pos_opt = Some(target);
-            return SeekDangerResult::Found;
-        }
-
         let distance_to_last_seek = self
             .last_seek_pos_opt
             .map(|last_seek_pos| target.saturating_sub(last_seek_pos))
@@ -265,8 +278,7 @@ impl<T: Send + Sync + PartialOrd + Copy + Debug + 'static> DocSet for RangeDocSe
             .seek_cluster_run
             .saturating_add_signed(score_delta)
             .min(MAX_RUN);
-        // Depending on our current run, we want to scan larger blocks.
-        self.fetch_horizon = DEFAULT_FETCH_HORIZON * MAX_RUN / MIN_RUN_TO_SCAN;
+        self.set_fetch_horizon(DEFAULT_FETCH_HORIZON * MAX_RUN / MIN_RUN_TO_SCAN);
         self.last_seek_pos_opt = Some(target);
         if self.seek_cluster_run >= MIN_RUN_TO_SCAN {
             return self.fetch_block_seek_danger(target);
