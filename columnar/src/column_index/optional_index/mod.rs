@@ -291,6 +291,7 @@ impl OptionalIndex {
         doc_ids_out: &mut Vec<DocId>,
         row_ids_out: &mut Vec<RowId>,
     ) {
+        // TODO: change the API to require sorted input, and remove the fallback.
         if !doc_ids.is_sorted() {
             for &doc_id in doc_ids {
                 if let Some(row_id) = self.rank_if_exists(doc_id) {

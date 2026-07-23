@@ -87,6 +87,7 @@ fn bench_agg(mut group: InputGroup<Index>) {
     register!(group, terms_many_with_avg_sub_agg);
     register!(group, terms_status_with_avg_sub_agg);
     register!(group, nested_terms_status_and_zipf_1000);
+    register!(group, nested_terms_status_and_zipf_1000_with_missing);
     register!(group, nested_terms_zipf_1000_and_status);
     register!(group, nested_terms_many_and_zipf_1000);
     register!(group, nested_terms_many_and_zipf_1000_and_status);
@@ -114,6 +115,11 @@ fn bench_agg(mut group: InputGroup<Index>) {
         group,
         multi_terms_status_and_zipf_1000,
         multi_terms_status_and_zipf_1000_filtered
+    );
+    register!(
+        group,
+        multi_terms_status_and_zipf_1000_with_missing,
+        multi_terms_status_and_zipf_1000_with_missing_filtered
     );
     register!(
         group,
@@ -431,6 +437,26 @@ fn nested_terms_status_and_zipf_1000(index: &Index) {
     execute_agg(index, agg_req);
 }
 
+fn nested_terms_status_and_zipf_1000_with_missing(index: &Index) {
+    let agg_req = json!({
+        "my_texts": {
+            "terms": {
+                "field": "text_few_terms_status",
+                "missing": "MISSING_STATUS"
+            },
+            "aggs": {
+                "nested_terms": {
+                    "terms": {
+                        "field": "text_1000_terms_zipf",
+                        "missing": "MISSING_ZIPF"
+                    }
+                }
+            }
+        }
+    });
+    execute_agg(index, agg_req);
+}
+
 fn nested_terms_zipf_1000_and_status(index: &Index) {
     let agg_req = json!({
         "my_texts": {
@@ -710,6 +736,23 @@ define_multi_terms_benchmark!(
                 "terms": [
                     {"field": "text_few_terms_status"},
                     {"field": "text_1000_terms_zipf"}
+                ],
+                "size": 100
+            }
+        }
+    }),
+);
+
+define_multi_terms_benchmark!(
+    /// multi_terms equivalent of nested_terms_status_and_zipf_1000_with_missing.
+    multi_terms_status_and_zipf_1000_with_missing,
+    multi_terms_status_and_zipf_1000_with_missing_filtered,
+    json!({
+        "mt": {
+            "multi_terms": {
+                "terms": [
+                    {"field": "text_few_terms_status", "missing": "MISSING_STATUS"},
+                    {"field": "text_1000_terms_zipf", "missing": "MISSING_ZIPF"}
                 ],
                 "size": 100
             }
