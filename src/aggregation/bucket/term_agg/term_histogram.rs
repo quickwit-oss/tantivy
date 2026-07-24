@@ -389,9 +389,8 @@ mod tests {
         Ok(())
     }
 
-    /// Term cardinality above the general path's `MAX_NUM_TERMS_FOR_VEC` (100) still fuses: the
-    /// flat grid is bounded by the total cell count (`num_terms * num_time_buckets`), not the
-    /// term count.
+    /// Term cardinality is not what gates fusing: the flat grid is bounded by the total cell count
+    /// (`num_terms * num_time_buckets`), not the term count, so many terms still fuse.
     #[test]
     fn fused_term_histogram_many_terms() -> crate::Result<()> {
         let num_terms = 150usize;
