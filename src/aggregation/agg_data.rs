@@ -769,12 +769,8 @@ fn build_multi_terms_nodes(
         // columns before injecting the fallback, so a value in another type-specific collector is
         // not mistaken for a missing field and a genuinely missing document is not counted once
         // per type.
-        let missing_choice = prepare_multi_terms_missing(
-            &columns,
-            str_dict_column.as_ref(),
-            field_def.missing.as_ref(),
-            field_name,
-        )?;
+        let missing_choice =
+            prepare_multi_terms_missing(&columns, field_def.missing.as_ref(), field_name)?;
         let all_columns: Option<Arc<[Column<u64>]>> = missing_choice.as_ref().map(|_| {
             Arc::from(
                 columns
@@ -787,7 +783,7 @@ fn build_multi_terms_nodes(
         let mut typed_accessors = Vec::with_capacity(columns.len());
         for (column_idx, (column, column_type)) in columns.into_iter().enumerate() {
             let missing = match (&missing_choice, &all_columns) {
-                (Some((missing_idx, key_elem)), Some(all_columns))
+                (Some((missing_idx, missing_value)), Some(all_columns))
                     if *missing_idx == column_idx =>
                 {
                     Some(MultiTermsMissingAccessor {
@@ -796,7 +792,7 @@ fn build_multi_terms_nodes(
                             .missing
                             .clone()
                             .expect("missing choice requires a configured missing value"),
-                        key_elem: *key_elem,
+                        missing_value: *missing_value,
                     })
                 }
                 _ => None,
@@ -861,77 +857,77 @@ fn build_multi_terms_nodes(
 
 fn prepare_multi_terms_missing(
     columns: &[(Column<u64>, ColumnType)],
-    str_dict_column: Option<&StrColumn>,
     missing: Option<&Key>,
     field_name: &str,
-) -> crate::Result<Option<(usize, crate::aggregation::bucket::KeyElem)>> {
-    use crate::aggregation::bucket::KeyElem;
-
+) -> crate::Result<Option<(usize, u64)>> {
     let Some(missing) = missing else {
         return Ok(None);
     };
 
-    if let Key::Str(missing_str) = missing {
-        let str_column_idx = columns
+    // Attach string fallbacks to the string column when one exists. A string fallback on any
+    // other physical type is handled synthetically, just like the special terms missing
+    // collector.
+    let column_idx = if matches!(missing, Key::Str(_)) {
+        columns
             .iter()
-            .position(|(_, column_type)| *column_type == ColumnType::Str);
-        return match (str_column_idx, str_dict_column) {
-            (Some(column_idx), Some(str_dict_column)) => {
-                let key_elem = match str_dict_column
-                    .dictionary()
-                    .term_ord(missing_str.as_bytes())?
-                {
-                    Some(ord) => KeyElem::new(ord),
-                    None => KeyElem::synthetic_missing(),
-                };
-                Ok(Some((column_idx, key_elem)))
-            }
-            // No string dictionary is available. Attach the synthetic fallback to one physical
-            // accessor so only one collector handles a globally missing value.
-            (Some(column_idx), None) => Ok(Some((column_idx, KeyElem::synthetic_missing()))),
-            (None, _) => Ok(Some((0, KeyElem::synthetic_missing()))),
+            .position(|(_, column_type)| *column_type == ColumnType::Str)
+            .unwrap_or(0)
+    } else {
+        // Prefer an exact physical type for numeric missing values, then any numerical type, then
+        // a string column (which accepts numeric fallbacks through a synthetic value).
+        let preferred_type = match missing {
+            Key::F64(_) => ColumnType::F64,
+            Key::I64(_) => ColumnType::I64,
+            Key::U64(_) => ColumnType::U64,
+            Key::Str(_) => unreachable!("handled above"),
         };
-    }
-
-    // Prefer an exact physical type for numeric missing values, then any numerical type. This
-    // preserves the same lenient coercions used by the terms aggregation.
-    let preferred_type = match missing {
-        Key::F64(_) => ColumnType::F64,
-        Key::I64(_) => ColumnType::I64,
-        Key::U64(_) => ColumnType::U64,
-        Key::Str(_) => unreachable!("handled above"),
+        columns
+            .iter()
+            .position(|(_, column_type)| *column_type == preferred_type)
+            .or_else(|| {
+                columns
+                    .iter()
+                    .position(|(_, column_type)| column_type.numerical_type().is_some())
+            })
+            .or_else(|| {
+                columns
+                    .iter()
+                    .position(|(_, column_type)| *column_type == ColumnType::Str)
+            })
+            .unwrap_or(0)
     };
-    let numeric_column_idx = columns
-        .iter()
-        .position(|(_, column_type)| *column_type == preferred_type)
-        .or_else(|| {
-            columns
-                .iter()
-                .position(|(_, column_type)| column_type.numerical_type().is_some())
-        });
 
-    if let Some(column_idx) = numeric_column_idx {
-        let (column, column_type) = &columns[column_idx];
-        return Ok(get_missing_val_as_u64_lenient(
-            *column_type,
-            column.max_value(),
-            missing,
-            field_name,
-        )?
-        .map(|val| (column_idx, KeyElem::new(val))));
+    let (column, column_type) = &columns[column_idx];
+    if !matches!(missing, Key::Str(_)) && *column_type != ColumnType::Str {
+        // Validate the same lenient numeric coercions as a terms aggregation. The converted value
+        // is deliberately ignored: multi_terms uses a collision-free sentinel and resolves it
+        // back to the request's original missing key.
+        get_missing_val_as_u64_lenient(*column_type, column.max_value(), missing, field_name)?;
     }
 
-    // A string column accepts numeric missing keys via a synthetic sentinel. Other physical types
-    // are rejected by `get_missing_val_as_u64_lenient`, matching terms aggregation validation.
-    let column_idx = columns
-        .iter()
-        .position(|(_, column_type)| *column_type == ColumnType::Str)
-        .unwrap_or(0);
-    let (column, column_type) = &columns[column_idx];
-    Ok(
-        get_missing_val_as_u64_lenient(*column_type, column.max_value(), missing, field_name)?
-            .map(|_| (column_idx, KeyElem::synthetic_missing())),
-    )
+    Ok(Some((column_idx, find_missing_sentinel(column))))
+}
+
+/// Returns a value that cannot collide with a value in `column`.
+///
+/// Usually one of the column bounds leaves a free value. Only a column whose bounds span the
+/// entire `u64` domain requires the slower scan.
+fn find_missing_sentinel(column: &Column<u64>) -> u64 {
+    if let Some(sentinel) = column.max_value().checked_add(1) {
+        return sentinel;
+    }
+    if let Some(sentinel) = column.min_value().checked_sub(1) {
+        return sentinel;
+    }
+
+    // TODO: This is an extreme edge case that would be better handled by a collector that does
+    // not use sentinel missing values. For now, we just scan the column.
+    let values: FxHashSet<u64> = column.values.iter().collect();
+    let mut sentinel = 1u64;
+    while values.contains(&sentinel) {
+        sentinel += 1;
+    }
+    sentinel
 }
 
 fn build_children(
