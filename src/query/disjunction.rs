@@ -315,6 +315,20 @@ mod tests {
         fn score(&mut self) -> Score {
             self.foo.get(self.cursor).map(|x| x.1).unwrap_or(0.0)
         }
+
+        #[inline]
+        fn can_score_doc(&self) -> bool {
+            true
+        }
+
+        #[inline]
+        fn score_doc(&mut self, doc: DocId, _term_freq: u32) -> Score {
+            self.foo
+                .iter()
+                .find(|(candidate_doc, _)| *candidate_doc == doc)
+                .map(|(_, score)| *score)
+                .unwrap_or(0.0)
+        }
     }
 
     #[test]

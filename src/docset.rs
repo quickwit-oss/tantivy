@@ -138,6 +138,31 @@ pub trait DocSet: Send {
         buffer.len()
     }
 
+    /// Fills a given mutable buffer with the next doc ids smaller than `horizon`.
+    ///
+    /// Unlike [`DocSet::fill_buffer`], this method must not advance past a doc id greater than or
+    /// equal to `horizon`.
+    fn fill_buffer_up_to(
+        &mut self,
+        horizon: DocId,
+        buffer: &mut [DocId; COLLECT_BLOCK_BUFFER_LEN],
+    ) -> usize {
+        if self.doc() == TERMINATED {
+            return 0;
+        }
+        for (pos, buffer_val) in buffer.iter_mut().enumerate() {
+            let doc = self.doc();
+            if doc >= horizon {
+                return pos;
+            }
+            *buffer_val = doc;
+            if self.advance() == TERMINATED {
+                return pos + 1;
+            }
+        }
+        buffer.len()
+    }
+
     /// Returns the current document
     /// Right after creating a new `DocSet`, the docset points to the first document.
     ///
@@ -249,6 +274,14 @@ impl DocSet for &mut dyn DocSet {
 
     fn fill_buffer(&mut self, buffer: &mut [DocId; COLLECT_BLOCK_BUFFER_LEN]) -> usize {
         (**self).fill_buffer(buffer)
+    }
+
+    fn fill_buffer_up_to(
+        &mut self,
+        horizon: DocId,
+        buffer: &mut [DocId; COLLECT_BLOCK_BUFFER_LEN],
+    ) -> usize {
+        (**self).fill_buffer_up_to(horizon, buffer)
     }
 
     fn fill_bitset_block(
