@@ -11,7 +11,7 @@
 //! loop. Flat fits the model trivially; IVF gets to drive.
 
 use std::cmp::Ordering;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 
 use super::backend::{ProbeStats, VectorBackend};
 use super::ivf::AdaptiveProbeParams;
@@ -36,11 +36,6 @@ pub struct TopDocsByVectorSimilarity<T: VectorElement> {
     limit: usize,
     offset: usize,
     adaptive: AdaptiveProbeParams,
-    /// Optional per-segment [`ProbeStats`] sink. When `Some`, each segment's
-    /// probe stats are pushed here; the caller aggregates after the search.
-    /// `None` (the default) is the zero-cost production path. Shared because
-    /// `collect_segment` takes `&self`.
-    probe_stats_sink: Option<Arc<Mutex<Vec<ProbeStats>>>>,
 }
 
 impl<T: VectorElement> TopDocsByVectorSimilarity<T> {
@@ -51,15 +46,7 @@ impl<T: VectorElement> TopDocsByVectorSimilarity<T> {
             limit,
             offset: 0,
             adaptive: AdaptiveProbeParams::default(),
-            probe_stats_sink: None,
         }
-    }
-
-    /// Collect per-segment [`ProbeStats`] into `sink`. Each `collect_segment`
-    /// pushes one entry; the caller aggregates after the search. Off by default.
-    pub fn with_probe_stats_sink(mut self, sink: Arc<Mutex<Vec<ProbeStats>>>) -> Self {
-        self.probe_stats_sink = Some(sink);
-        self
     }
 
     /// Drop the first `offset` results in the global ranking — used to
@@ -82,8 +69,22 @@ impl<T: VectorElement> TopDocsByVectorSimilarity<T> {
     }
 }
 
+/// What a [`TopDocsByVectorSimilarity`] search returns: the global top-N
+/// plus each searched segment's [`ProbeStats`], so callers can inspect or
+/// aggregate probe metrics without a side channel.
+#[derive(Debug, Default)]
+pub struct VectorSimilarityFruit {
+    /// Global top-N `(score, address)` pairs in descending-similarity order.
+    pub results: Vec<(Score, DocAddress)>,
+    /// One [`ProbeStats`] per collected segment, in segment-ordinal order
+    /// after [`Collector::merge_fruits`]. The counter fields are summable
+    /// across segments; `probed_clusters`, `min_candidates`, and
+    /// `termination` only carry per-segment meaning.
+    pub stats: Vec<ProbeStats>,
+}
+
 impl<T: VectorElement> Collector for TopDocsByVectorSimilarity<T> {
-    type Fruit = Vec<(Score, DocAddress)>;
+    type Fruit = VectorSimilarityFruit;
     type Child = NoOpSegmentCollector;
 
     fn check_schema(&self, schema: &Schema) -> crate::Result<()> {
@@ -137,7 +138,7 @@ impl<T: VectorElement> Collector for TopDocsByVectorSimilarity<T> {
         weight: &dyn Weight,
         segment_ord: SegmentOrdinal,
         reader: &SegmentReader,
-    ) -> crate::Result<Vec<(Score, DocAddress)>> {
+    ) -> crate::Result<Self::Fruit> {
         let backend = VectorBackend::for_segment(
             reader,
             segment_ord,
@@ -145,36 +146,34 @@ impl<T: VectorElement> Collector for TopDocsByVectorSimilarity<T> {
             Arc::clone(&self.query),
             self.adaptive.clone(),
         )?;
-        match &self.probe_stats_sink {
-            None => backend.top_n(weight, reader, self.segment_top_n()),
-            Some(sink) => {
-                let mut stats = ProbeStats::default();
-                let hits = backend.top_n_with_stats(
-                    weight,
-                    reader,
-                    self.segment_top_n(),
-                    Some(&mut stats),
-                )?;
-                sink.lock().unwrap().push(stats);
-                Ok(hits)
-            }
-        }
+        let (results, stats) = backend.top_n(weight, reader, self.segment_top_n())?;
+        Ok(VectorSimilarityFruit {
+            results,
+            stats: vec![stats],
+        })
     }
 
     fn merge_fruits(
         &self,
-        segment_fruits: Vec<Vec<(Score, DocAddress)>>,
+        segment_fruits: Vec<VectorSimilarityFruit>,
     ) -> crate::Result<Self::Fruit> {
         // Per-segment fruits are each already top-(limit+offset);
         // flatten, sort descending, drop offset, truncate to limit.
-        let mut all: Vec<(Score, DocAddress)> = segment_fruits.into_iter().flatten().collect();
-        all.sort_by(|a, b| b.0.partial_cmp(&a.0).unwrap_or(Ordering::Equal));
-        if self.offset >= all.len() {
-            return Ok(Vec::new());
+        // Stats concatenate untouched — one entry per segment, kept even
+        // when the offset swallows every result.
+        let mut stats = Vec::with_capacity(segment_fruits.len());
+        let mut all: Vec<(Score, DocAddress)> = Vec::new();
+        for fruit in segment_fruits {
+            stats.extend(fruit.stats);
+            all.extend(fruit.results);
         }
-        all.drain(..self.offset);
+        all.sort_by(|a, b| b.0.partial_cmp(&a.0).unwrap_or(Ordering::Equal));
+        all.drain(..self.offset.min(all.len()));
         all.truncate(self.limit);
-        Ok(all)
+        Ok(VectorSimilarityFruit {
+            results: all,
+            stats,
+        })
     }
 }
 
@@ -184,10 +183,10 @@ impl<T: VectorElement> Collector for TopDocsByVectorSimilarity<T> {
 pub struct NoOpSegmentCollector;
 
 impl SegmentCollector for NoOpSegmentCollector {
-    type Fruit = Vec<(Score, DocAddress)>;
+    type Fruit = VectorSimilarityFruit;
     fn collect(&mut self, _doc: DocId, _score: Score) {}
     fn harvest(self) -> Self::Fruit {
-        Vec::new()
+        VectorSimilarityFruit::default()
     }
 }
 
@@ -232,19 +231,18 @@ mod ivf_e2e_tests {
                     .order_by_similarity(index.embedding_field(), query.to_vec())
                     .with_adaptive_params(params.clone());
                 let actual = searcher.search(&AllQuery, &collector)?;
-                assert_eq!(actual, expected, "IVF query={query:?} k={k}");
+                assert_eq!(actual.results, expected, "IVF query={query:?} k={k}");
             }
         }
         Ok(())
     }
 
-    /// The production-collectible path: attaching a `ProbeStats` sink to the
-    /// collector fills one entry per IVF segment during the normal
-    /// `searcher.search` path, each satisfying the counter invariant. Without a
-    /// sink the search is unaffected (covered by `e2e_ivf_matches_global_oracle`).
+    /// The production path: the fruit of a normal `searcher.search` carries
+    /// one `ProbeStats` per IVF segment, each satisfying the counter
+    /// invariant, so callers can aggregate probe metrics straight off the
+    /// search result.
     #[test]
-    fn e2e_ivf_probe_stats_sink_collects() -> crate::Result<()> {
-        use std::sync::Mutex;
+    fn e2e_ivf_fruit_carries_per_segment_probe_stats() -> crate::Result<()> {
         let index = TestVectorIndex::builder(VectorDType::F32)
             .metric(Metric::L2)
             .vector_storage_format(VectorStorageFormat::Ivf)
@@ -252,18 +250,15 @@ mod ivf_e2e_tests {
         let searcher = index.index.reader()?.searcher();
         let num_segments = searcher.segment_readers().len();
 
-        let sink = Arc::new(Mutex::new(Vec::new()));
         let collector = TopDocs::with_limit(4)
             .order_by_similarity(index.embedding_field(), vec![0.5_f32, 0.5])
-            .with_adaptive_params(exhaustive_params(9))
-            .with_probe_stats_sink(Arc::clone(&sink));
-        let _ = searcher.search(&AllQuery, &collector)?;
+            .with_adaptive_params(exhaustive_params(9));
+        let fruit = searcher.search(&AllQuery, &collector)?;
 
-        let collected = sink.lock().unwrap();
         // One ProbeStats per searched segment.
-        assert_eq!(collected.len(), num_segments);
+        assert_eq!(fruit.stats.len(), num_segments);
         let mut total_visited = 0usize;
-        for s in collected.iter() {
+        for s in &fruit.stats {
             assert_eq!(
                 s.vectors_visited,
                 s.pruned_filter + s.pruned_dead + s.pruned_seen + s.candidates_scored,
@@ -294,7 +289,7 @@ mod ivf_e2e_tests {
             .order_by_similarity(index.embedding_field(), query.to_vec())
             .with_adaptive_params(exhaustive_params(9));
         let actual = searcher.search(&AllQuery, &collector)?;
-        assert_eq!(actual, expected);
+        assert_eq!(actual.results, expected);
         Ok(())
     }
 
@@ -315,7 +310,7 @@ mod ivf_e2e_tests {
                 let collector = TopDocs::with_limit(k)
                     .order_by_similarity(index.embedding_field(), query.to_vec());
                 let actual = searcher.search(&AllQuery, &collector)?;
-                assert_eq!(actual, expected, "Flat query={query:?} k={k}");
+                assert_eq!(actual.results, expected, "Flat query={query:?} k={k}");
             }
         }
         Ok(())
@@ -422,7 +417,7 @@ mod ivf_e2e_tests {
                     .order_by_similarity(embedding_field, query.to_vec())
                     .with_adaptive_params(params.clone());
                 let actual = searcher.search(&AllQuery, &collector)?;
-                assert_eq!(actual, expected, "mixed query={query:?} k={k}");
+                assert_eq!(actual.results, expected, "mixed query={query:?} k={k}");
             }
         }
         Ok(())

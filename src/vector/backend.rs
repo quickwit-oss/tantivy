@@ -60,31 +60,21 @@ impl<T: VectorElement> VectorBackend<T> {
     /// Top-N within this segment: probe routed clusters when the reader has
     /// an index, exact-scan otherwise. Hits come back already tagged with
     /// `DocAddress`, so the collector doesn't need a second pass to attach
-    /// the segment.
+    /// the segment. The segment's [`ProbeStats`] ride along: the IVF path
+    /// fills the probe-loop counters, the flat/exact path only
+    /// `exact_rows_read`.
     pub fn top_n(
         &self,
         weight: &dyn Weight,
         segment_reader: &SegmentReader,
         top_n: usize,
-    ) -> crate::Result<Vec<(Score, DocAddress)>> {
-        self.top_n_with_stats(weight, segment_reader, top_n, None)
-    }
-
-    /// Like [`Self::top_n`] but threads an optional [`ProbeStats`] sink into
-    /// the IVF probe loop; `None` is identical in behavior and cost to
-    /// `top_n`. The exact path fills only `exact_rows_read` and leaves
-    /// every probe-loop field untouched.
-    pub fn top_n_with_stats(
-        &self,
-        weight: &dyn Weight,
-        segment_reader: &SegmentReader,
-        top_n: usize,
-        stats: Option<&mut ProbeStats>,
-    ) -> crate::Result<Vec<(Score, DocAddress)>> {
-        match self.reader.index() {
-            Some(index) => self.probe_top_n(index, weight, segment_reader, top_n, stats),
-            None => self.exact_top_n(weight, segment_reader, top_n, stats),
-        }
+    ) -> crate::Result<(Vec<(Score, DocAddress)>, ProbeStats)> {
+        let mut stats = ProbeStats::default();
+        let hits = match self.reader.index() {
+            Some(index) => self.probe_top_n(index, weight, segment_reader, top_n, &mut stats)?,
+            None => self.exact_top_n(weight, segment_reader, top_n, &mut stats)?,
+        };
+        Ok((hits, stats))
     }
 
     /// Flat/exact scan: drain the filter DocSet doc-by-doc, scoring each
@@ -95,7 +85,7 @@ impl<T: VectorElement> VectorBackend<T> {
         weight: &dyn Weight,
         segment_reader: &SegmentReader,
         top_n: usize,
-        stats: Option<&mut ProbeStats>,
+        stats: &mut ProbeStats,
     ) -> crate::Result<Vec<(Score, DocAddress)>> {
         // `for_each_no_score` walks the filter DocSet in ascending doc order,
         // which permits the fast `TopNComputer::push` path (valid only under
@@ -140,9 +130,7 @@ impl<T: VectorElement> VectorBackend<T> {
         if let Some(err) = read_err {
             return Err(err);
         }
-        if let Some(s) = stats {
-            s.exact_rows_read += rows_read;
-        }
+        stats.exact_rows_read += rows_read;
         let segment_ord = self.segment_ord;
         Ok(topn
             .into_sorted_vec()
@@ -167,9 +155,9 @@ pub enum ProbeTermination {
 
 /// Per-segment probe-loop instrumentation: which clusters were probed
 /// (in probe order) and a prune breakdown of every doc the inner loop
-/// touched. Filled by [`VectorBackend::top_n_with_stats`] when a sink is
-/// supplied. The flat/exact path fills only `exact_rows_read`; every
-/// other field is IVF-probe-only.
+/// touched. Returned by [`VectorBackend::top_n`] alongside the hits.
+/// The flat/exact path fills only `exact_rows_read`; every other field
+/// is IVF-probe-only.
 #[derive(Debug, Default)]
 pub struct ProbeStats {
     /// Clusters visited by the probe loop, in probe order. A cluster
@@ -229,29 +217,15 @@ struct Survivor {
 }
 
 impl<T: VectorElement> VectorBackend<T> {
-    /// Test helper: run `top_n` with a fresh `ProbeStats` and return both.
-    #[cfg(test)]
-    pub(crate) fn top_n_instrumented(
-        &self,
-        weight: &dyn Weight,
-        segment_reader: &SegmentReader,
-        top_n: usize,
-    ) -> crate::Result<(Vec<(Score, DocAddress)>, ProbeStats)> {
-        let mut stats = ProbeStats::default();
-        let hits = self.top_n_with_stats(weight, segment_reader, top_n, Some(&mut stats))?;
-        Ok((hits, stats))
-    }
-
-    /// Top-N by IVF probe. When `stats` is `Some`, it is filled with this
-    /// segment's probe-loop counters; `None` is the zero-cost production
-    /// path.
+    /// Top-N by IVF probe. Fills `stats` with this segment's probe-loop
+    /// counters.
     fn probe_top_n(
         &self,
         index: &IvfIndex,
         weight: &dyn Weight,
         segment_reader: &SegmentReader,
         top_n: usize,
-        mut stats: Option<&mut ProbeStats>,
+        stats: &mut ProbeStats,
     ) -> crate::Result<Vec<(Score, DocAddress)>> {
         if top_n == 0 {
             return Ok(Vec::new());
@@ -302,9 +276,7 @@ impl<T: VectorElement> VectorBackend<T> {
             .min_candidates
             .max(top_n + self.adaptive.overfetch_margin);
 
-        if let Some(s) = stats.as_deref_mut() {
-            s.min_candidates = min_candidates;
-        }
+        stats.min_candidates = min_candidates;
 
         let topn = self.scan_clusters(
             index,
@@ -316,13 +288,11 @@ impl<T: VectorElement> VectorBackend<T> {
             max_doc,
             alive,
             top_n,
-            stats.as_deref_mut(),
+            stats,
         )?;
 
         // The routing cost is only known once the scan stops pulling.
-        if let Some(s) = stats {
-            s.routing = ranked.metrics();
-        }
+        stats.routing = ranked.metrics();
 
         let segment_ord = self.segment_ord;
         Ok(topn
@@ -364,7 +334,7 @@ impl<T: VectorElement> VectorBackend<T> {
         max_doc: DocId,
         alive: Option<&AliveBitSet>,
         top_n: usize,
-        mut stats: Option<&mut ProbeStats>,
+        stats: &mut ProbeStats,
     ) -> crate::Result<TopNComputer<Score, DocId, NaturalComparator>> {
         let mut topn = TopNComputer::<Score, DocId, NaturalComparator>::new_with_comparator(
             top_n,
@@ -372,7 +342,7 @@ impl<T: VectorElement> VectorBackend<T> {
         );
         // `candidates` is the cumulative scored count that drives the gate; the
         // prune counters accumulate into locals and fold into `ProbeStats` once
-        // after the loop, so the hot per-doc path carries no `Option` check.
+        // after the loop, keeping the hot per-doc path free of indirection.
         let mut candidates = 0usize;
         let mut visited = 0usize;
         let mut pruned_filter = 0usize;
@@ -407,9 +377,7 @@ impl<T: VectorElement> VectorBackend<T> {
 
             // Record the probe before doing any work, so even an empty
             // cluster counts as "probed".
-            if let Some(s) = stats.as_deref_mut() {
-                s.probed_clusters.push(cluster);
-            }
+            stats.probed_clusters.push(cluster);
 
             let rows = index.cluster_range(cluster);
             let num_rows = rows.len();
@@ -449,16 +417,14 @@ impl<T: VectorElement> VectorBackend<T> {
             candidates += survivors.len();
         }
 
-        if let Some(s) = stats {
-            s.vectors_visited += visited;
-            s.pruned_filter += pruned_filter;
-            s.pruned_dead += pruned_dead;
-            s.pruned_seen += pruned_seen;
-            s.postings_row += postings_row;
-            s.postings_skipped += postings_skipped;
-            s.candidates_scored += candidates;
-            s.termination = termination;
-        }
+        stats.vectors_visited += visited;
+        stats.pruned_filter += pruned_filter;
+        stats.pruned_dead += pruned_dead;
+        stats.pruned_seen += pruned_seen;
+        stats.postings_row += postings_row;
+        stats.postings_skipped += postings_skipped;
+        stats.candidates_scored += candidates;
+        stats.termination = termination;
 
         Ok(topn)
     }
@@ -686,14 +652,18 @@ mod tests {
         let collector = TopDocs::with_limit(k)
             .order_by_similarity(field, query)
             .with_adaptive_params(params);
-        index.reader()?.searcher().search(filter, &collector)
+        Ok(index
+            .reader()?
+            .searcher()
+            .search(filter, &collector)?
+            .results)
     }
 
-    /// Probe-stat helper: run `VectorBackend::top_n_instrumented` against
+    /// Probe-stat helper: run `VectorBackend::top_n` against
     /// the first segment of `index` and return (hits, stats).
     /// The contracts are per-segment, so collecting from segment 0 is
     /// what each assertion is talking about.
-    fn run_top_n_instrumented(
+    fn run_top_n(
         index: &Index,
         embed_field: Field,
         query: Vec<f32>,
@@ -714,7 +684,7 @@ mod tests {
             segment_reader.vector_index(embed_field)?.index().is_some(),
             "expected IVF storage"
         );
-        backend.top_n_instrumented(weight.as_ref(), segment_reader, k)
+        backend.top_n(weight.as_ref(), segment_reader, k)
     }
 
     // ---- Inline IVF builder for crafted-geometry tests ----
@@ -1058,7 +1028,7 @@ mod tests {
         let (index, embed_field, _label) =
             build_inline_ivf(Metric::L2, &centroids, &docs, replicas)?;
 
-        let (_, stats) = run_top_n_instrumented(
+        let (_, stats) = run_top_n(
             &index,
             embed_field,
             vec![10.0, 10.0],
@@ -1874,7 +1844,7 @@ mod tests {
             .metric(Metric::L2)
             .vector_storage_format(VectorStorageFormat::Ivf)
             .build()?;
-        let (hits, stats) = run_top_n_instrumented(
+        let (hits, stats) = run_top_n(
             &index.index,
             index.embedding_field(),
             vec![0.0_f32, 0.0],
@@ -1894,12 +1864,12 @@ mod tests {
     /// docs in the inspected segment. Exhaustive params on a 9-centroid
     /// segment visit all 9.
     #[test]
-    fn ivf_top_n_instrumented_collects_probe_stats() -> crate::Result<()> {
+    fn ivf_top_n_collects_probe_stats() -> crate::Result<()> {
         let index = TestVectorIndex::builder(VectorDType::F32)
             .metric(Metric::L2)
             .vector_storage_format(VectorStorageFormat::Ivf)
             .build()?;
-        let (_, stats) = run_top_n_instrumented(
+        let (_, stats) = run_top_n(
             &index.index,
             index.embedding_field(),
             vec![0.0_f32, 0.0],
@@ -1968,7 +1938,7 @@ mod tests {
             max_probe_fraction: 0.1,
             min_probe_clusters: 1,
         };
-        let (_, stats) = run_top_n_instrumented(&index, embed_field, vec![10.0, 10.0], 3, params)?;
+        let (_, stats) = run_top_n(&index, embed_field, vec![10.0, 10.0], 3, params)?;
         assert_eq!(stats.termination, ProbeTermination::Ceiling);
         // Stopped at exactly the cap, short of the ranked list.
         assert_eq!(stats.probed_clusters.len(), 1);
@@ -2004,7 +1974,7 @@ mod tests {
         let query = [0.0f32, 0.0];
         let k = 3;
         let expected = ground_truth_top_k(&index, embed_field, Metric::L2, &query, k)?;
-        let (hits, stats) = run_top_n_instrumented(
+        let (hits, stats) = run_top_n(
             &index,
             embed_field,
             query.to_vec(),
@@ -2064,8 +2034,7 @@ mod tests {
         for (ord, centroid) in centroids.iter().enumerate().step_by(3) {
             let query = [centroid[0] + 0.3, centroid[1] - 0.2];
             let expected = ground_truth_top_k(&index, embed_field, Metric::L2, &query, k)?;
-            let (hits, stats) =
-                run_top_n_instrumented(&index, embed_field, query.to_vec(), k, params.clone())?;
+            let (hits, stats) = run_top_n(&index, embed_field, query.to_vec(), k, params.clone())?;
             assert_eq!(hits, expected, "routed top-{k} near centroid {ord}");
             assert!(
                 stats.probed_clusters.len() <= 2,
@@ -2185,7 +2154,7 @@ mod tests {
             params.resolved_probe_ceiling(DEFAULT_NUM_CENTROIDS)? < DEFAULT_NUM_CENTROIDS,
             "resolved ceiling does not bind",
         );
-        let (_, stats) = run_top_n_instrumented(
+        let (_, stats) = run_top_n(
             &index.index,
             index.embedding_field(),
             vec![0.0_f32, 0.0],
@@ -2235,7 +2204,7 @@ mod tests {
             max_probe_fraction: 1.0,
             min_probe_clusters: 1,
         };
-        let (_, stats) = run_top_n_instrumented(
+        let (_, stats) = run_top_n(
             &index.index,
             index.embedding_field(),
             vec![0.0_f32, 0.0],
@@ -2280,7 +2249,7 @@ mod tests {
             max_probe_fraction: 1.0,
             min_probe_clusters: 1,
         };
-        let (_, stats) = run_top_n_instrumented(&index, embed_field, vec![1.0, 0.3], 1, params)?;
+        let (_, stats) = run_top_n(&index, embed_field, vec![1.0, 0.3], 1, params)?;
         assert_eq!(stats.termination, ProbeTermination::Gate);
         assert_eq!(
             stats.probed_clusters.len(),
@@ -2310,7 +2279,7 @@ mod tests {
             overfetch_margin: 0,
             ..Default::default()
         };
-        let (_, stats) = run_top_n_instrumented(
+        let (_, stats) = run_top_n(
             &index.index,
             index.embedding_field(),
             query.to_vec(),
@@ -2338,7 +2307,7 @@ mod tests {
             .vector_storage_format(VectorStorageFormat::Ivf)
             .build()?;
         let query = [9.0_f32, 0.5];
-        let (_, stats) = run_top_n_instrumented(
+        let (_, stats) = run_top_n(
             &index.index,
             index.embedding_field(),
             query.to_vec(),
@@ -2404,7 +2373,7 @@ mod tests {
         }
     }
 
-    /// Like [`run_top_n_instrumented`] but with a caller-supplied filter
+    /// Like [`run_top_n`] but with a caller-supplied filter
     /// weight.
     fn run_top_n_with_weight(
         index: &Index,
@@ -2427,7 +2396,7 @@ mod tests {
             segment_reader.vector_index(embed_field)?.index().is_some(),
             "expected IVF storage"
         );
-        backend.top_n_instrumented(weight, segment_reader, k)
+        backend.top_n(weight, segment_reader, k)
     }
 
     /// The two partition identities every scan must uphold: each touched
@@ -2495,7 +2464,7 @@ mod tests {
             segment_reader.vector_index(embed_field)?.index().is_none(),
             "expected flat storage"
         );
-        backend.top_n_instrumented(weight, segment_reader, k)
+        backend.top_n(weight, segment_reader, k)
     }
 
     /// Filter-aware fetches across selectivities: on the replicated

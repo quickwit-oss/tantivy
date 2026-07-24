@@ -402,10 +402,16 @@ fn flat_top_n_returns_nearest_when_more_than_k_docs_per_segment() -> crate::Resu
     let query = grid2d::centroids()[0];
     let top_k = 3;
     let expected = index.ground_truth(query, top_k)?;
-    let hits = index.index.reader()?.searcher().search(
-        &AllQuery,
-        &TopDocs::with_limit(top_k).order_by_similarity(index.embedding_field(), query.to_vec()),
-    )?;
+    let hits = index
+        .index
+        .reader()?
+        .searcher()
+        .search(
+            &AllQuery,
+            &TopDocs::with_limit(top_k)
+                .order_by_similarity(index.embedding_field(), query.to_vec()),
+        )?
+        .results;
     assert_eq!(hits, expected);
     Ok(())
 }
@@ -536,7 +542,7 @@ fn ingest_accepts_zero_vector() -> crate::Result<()> {
 
     let searcher = index.reader()?.searcher();
     let collector = TopDocs::with_limit(2).order_by_similarity(embedding_field, vec![1.0_f32, 0.0]);
-    let hits = searcher.search(&AllQuery, &collector)?;
+    let hits = searcher.search(&AllQuery, &collector)?.results;
     assert_eq!(hits.len(), 2, "zero vector must be ingested and returned");
     assert!(hits[0].0 > 0.0, "non-zero doc must rank first: {hits:?}");
     assert_eq!(hits[1].0, 0.0, "zero vector scores 0.0: {hits:?}");
