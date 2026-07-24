@@ -245,12 +245,21 @@ mod tests {
 
     use super::{DeleteOperation, DeleteQueue};
     use crate::index::SegmentReader;
-    use crate::query::{Explanation, Scorer, Weight};
+    use crate::query::{Explanation, PruningScorer, Scorer, Weight};
     use crate::{DocId, Score};
 
     struct DummyWeight;
     impl Weight for DummyWeight {
         fn scorer(&self, _reader: &SegmentReader, _boost: Score) -> crate::Result<Box<dyn Scorer>> {
+            Err(crate::TantivyError::InternalError("dummy impl".to_owned()))
+        }
+
+        fn pruning_scorer(
+            &self,
+            _reader: &SegmentReader,
+            _boost: Score,
+            _init_threshold: Score,
+        ) -> crate::Result<Box<dyn PruningScorer>> {
             Err(crate::TantivyError::InternalError("dummy impl".to_owned()))
         }
 
