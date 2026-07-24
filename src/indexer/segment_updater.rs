@@ -1,4 +1,3 @@
-use std::any::Any;
 use std::borrow::BorrowMut;
 use std::collections::HashSet;
 use std::io::Write;
@@ -25,8 +24,6 @@ use crate::indexer::{
     SegmentSerializer,
 };
 use crate::{FutureResult, Opstamp, TantivyError};
-
-const PANIC_CAUGHT: &str = "Panic caught in merge thread";
 
 /// Save the index meta file.
 /// This operation is atomic:
@@ -261,7 +258,10 @@ pub(crate) struct InnerSegmentUpdater {
     // the unique active `SegmentUpdater`.
     active_index_meta: RwLock<Arc<IndexMeta>>,
     pool: ThreadPool,
-    merge_thread_pool: ThreadPool,
+    // `Arc` so a pool shared across writers (see
+    // `IndexWriterOptions::shared_merge_pool`) can be held without owning it.
+    // A private pool is wrapped in an `Arc` too, so this field is uniform.
+    merge_thread_pool: Arc<ThreadPool>,
 
     index: Index,
     segment_manager: SegmentManager,
@@ -277,6 +277,7 @@ impl SegmentUpdater {
         stamper: Stamper,
         delete_cursor: &DeleteCursor,
         num_merge_threads: usize,
+        shared_merge_pool: Option<Arc<ThreadPool>>,
     ) -> crate::Result<SegmentUpdater> {
         let segments = index.searchable_segment_metas()?;
         let segment_manager = SegmentManager::from_segments(segments, delete_cursor);
@@ -289,24 +290,30 @@ impl SegmentUpdater {
                     "Failed to spawn segment updater thread".to_string(),
                 )
             })?;
-        let merge_thread_pool = ThreadPoolBuilder::new()
-            .thread_name(|i| format!("merge_thread_{i}"))
-            .num_threads(num_merge_threads)
-            .panic_handler(move |panic| {
-                // We don't print the panic content itself,
-                // it is already printed during the unwinding
-                if let Some(message) = panic.downcast_ref::<&str>() {
-                    if *message != PANIC_CAUGHT {
+        // Reuse the shared pool when provided, otherwise build a private one.
+        let merge_thread_pool = match shared_merge_pool {
+            Some(shared_pool) => shared_pool,
+            None => {
+                let pool = ThreadPoolBuilder::new()
+                    .thread_name(|i| format!("merge_thread_{i}"))
+                    .num_threads(num_merge_threads)
+                    .panic_handler(move |_panic| {
+                        // We don't print the panic content itself,
+                        // it is already printed during the unwinding.
+                        // Merge panics are caught and reported through the
+                        // future in `start_merge`; reaching here means an
+                        // unexpected, uncaught panic on a merge thread.
                         error!("uncaught merge panic")
-                    }
-                }
-            })
-            .build()
-            .map_err(|_| {
-                crate::TantivyError::SystemError(
-                    "Failed to spawn segment merging thread".to_string(),
-                )
-            })?;
+                    })
+                    .build()
+                    .map_err(|_| {
+                        crate::TantivyError::SystemError(
+                            "Failed to spawn segment merging thread".to_string(),
+                        )
+                    })?;
+                Arc::new(pool)
+            }
+        };
         let index_meta = index.load_metas()?;
         Ok(SegmentUpdater(Arc::new(InnerSegmentUpdater {
             active_index_meta: RwLock::new(Arc::new(index_meta)),
@@ -323,6 +330,15 @@ impl SegmentUpdater {
 
     pub fn get_merge_policy(&self) -> Arc<dyn MergePolicy> {
         self.merge_policy.read().unwrap().clone()
+    }
+
+    /// Pointer identifying the merge thread pool backing this `SegmentUpdater`.
+    ///
+    /// Used by tests to assert a `shared_merge_pool` is reused rather than
+    /// copied into a private pool.
+    #[cfg(test)]
+    pub(crate) fn merge_thread_pool_ptr(&self) -> *const ThreadPool {
+        Arc::as_ptr(&self.merge_thread_pool)
     }
 
     pub fn set_merge_policy(&self, merge_policy: Box<dyn MergePolicy>) {
@@ -537,14 +553,16 @@ impl SegmentUpdater {
                     } else {
                         "UNKNOWN"
                     };
+                    warn!("Merge thread panicked: {panic_str}");
                     let _send_result = merging_future_send.send(Err(TantivyError::SystemError(
                         format!("Merge thread panicked: {panic_str}"),
                     )));
-                    // Resume unwinding because we forced unwind safety with
-                    // `std::panic::AssertUnwindSafe` Use a specific message so
-                    // the panic_handler can double check that we properly caught the panic.
-                    let boxed_panic_message: Box<dyn Any + Send> = Box::new(PANIC_CAUGHT);
-                    std::panic::resume_unwind(boxed_panic_message);
+                    // Do not resume unwinding: the panic is already caught and
+                    // reported through the future. Re-panicking here would
+                    // escape into the rayon pool, and a shared pool (see
+                    // `IndexWriterOptions::shared_merge_pool`) has no
+                    // panic handler installed, so it would abort the process.
+                    return;
                 }
             };
             match merge_res {

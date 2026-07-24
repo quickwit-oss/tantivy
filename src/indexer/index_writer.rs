@@ -59,7 +59,17 @@ pub struct IndexWriterOptions {
     num_worker_threads: usize,
     #[builder(default = 4)]
     /// Defines the number of merger threads to use.
+    ///
+    /// Ignored when `shared_merge_pool` is set.
     num_merge_threads: usize,
+    /// An optional merge thread pool shared across several `IndexWriter`s.
+    ///
+    /// By default each `IndexWriter` builds its own pool of `num_merge_threads`
+    /// threads, so a process hosting many indexes ends up with
+    /// `num_merge_threads * number_of_writers` merge threads. Sharing one pool
+    /// lets all writers run their merges through the same bounded set of
+    /// threads. When set, `num_merge_threads` is ignored.
+    shared_merge_pool: Option<Arc<rayon::ThreadPool>>,
 }
 
 /// `IndexWriter` is the user entry-point to add document to an index.
@@ -314,6 +324,7 @@ impl<D: Document> IndexWriter<D> {
             stamper.clone(),
             &delete_queue.cursor(),
             options.num_merge_threads,
+            options.shared_merge_pool.clone(),
         )?;
 
         let mut index_writer = Self {
@@ -818,6 +829,8 @@ impl<D: Document> Drop for IndexWriter<D> {
 mod tests {
     use std::collections::{HashMap, HashSet};
     use std::net::Ipv6Addr;
+    use std::path::Path;
+    use std::sync::Arc;
 
     use columnar::{Cardinality, Column, MonotonicallyMappableToU128};
     use itertools::Itertools;
@@ -825,7 +838,10 @@ mod tests {
 
     use super::super::operation::UserOperation;
     use crate::collector::{Count, TopDocs};
-    use crate::directory::error::LockError;
+    use crate::directory::error::{DeleteError, LockError, OpenReadError, OpenWriteError};
+    use crate::directory::{
+        Directory, FileHandle, RamDirectory, WatchCallback, WatchHandle, WritePtr,
+    };
     use crate::error::*;
     use crate::indexer::index_writer::MEMORY_BUDGET_NUM_BYTES_MIN;
     use crate::indexer::{IndexWriterOptions, NoMergePolicy};
@@ -2857,5 +2873,196 @@ mod tests {
             "Writer should reject options with too high memory size"
         );
         assert!(matches!(result, Err(TantivyError::InvalidArgument(_))));
+    }
+
+    // Shares one merge pool between the writers of two independent indexes and
+    // checks that:
+    //  1. Both `SegmentUpdater`s hold the exact pool we built (`Arc` pointer equality),
+    //     i.e. the private-pool path was bypassed.
+    //  2. A forced merge on each index completes and runs on the pool's
+    //     distinctively-named thread.
+    #[test]
+    fn test_shared_merge_pool_across_indexwriters() -> crate::Result<()> {
+        use std::sync::atomic::{AtomicUsize, Ordering};
+
+        const SHARED_POOL_THREAD_NAME: &str = "shared_merge_pool_test_thread";
+
+        let shared_pool = Arc::new(
+            rayon::ThreadPoolBuilder::new()
+                .thread_name(|_| SHARED_POOL_THREAD_NAME.to_string())
+                .num_threads(1)
+                .build()
+                .unwrap(),
+        );
+
+        let mut writers = Vec::new();
+        let mut fields = Vec::new();
+        for _ in 0..2 {
+            let mut schema_builder = schema::Schema::builder();
+            let text_field = schema_builder.add_text_field("text", TEXT);
+            let index = Index::create_in_ram(schema_builder.build());
+            let options = IndexWriterOptions::builder()
+                .num_worker_threads(1)
+                .memory_budget_per_thread(MEMORY_BUDGET_NUM_BYTES_MIN)
+                .shared_merge_pool(shared_pool.clone())
+                .build();
+            let index_writer: IndexWriter = index.writer_with_options(options)?;
+
+            // The writer's SegmentUpdater must hold the very pool we built.
+            assert_eq!(
+                index_writer.segment_updater.merge_thread_pool_ptr(),
+                Arc::as_ptr(&shared_pool),
+                "SegmentUpdater should reuse the shared pool instead of building its own"
+            );
+
+            writers.push((index, index_writer));
+            fields.push(text_field);
+        }
+
+        // Drive a real, forced merge per index and confirm it executes on the
+        // shared pool's distinctively-named thread.
+        let merges_seen_on_shared_thread = Arc::new(AtomicUsize::new(0));
+        for ((index, index_writer), text_field) in writers.iter_mut().zip(fields.iter()) {
+            index_writer.add_document(doc!(*text_field => "a"))?;
+            index_writer.commit()?;
+            index_writer.add_document(doc!(*text_field => "a"))?;
+            index_writer.commit()?;
+
+            let segment_ids = index.searchable_segment_ids()?;
+            assert_eq!(segment_ids.len(), 2, "expected two segments to merge");
+
+            let merges_seen_on_shared_thread = merges_seen_on_shared_thread.clone();
+            let merged_segment_meta = index_writer
+                .merge(&segment_ids)
+                .wait()?
+                .expect("merge of non-empty segments should produce a segment");
+            assert!(merged_segment_meta.num_docs() > 0);
+
+            // The pool is single-threaded, so a task installed on it runs on
+            // the same thread the merge above used. Its name confirms identity.
+            shared_pool.install(|| {
+                if std::thread::current().name() == Some(SHARED_POOL_THREAD_NAME) {
+                    merges_seen_on_shared_thread.fetch_add(1, Ordering::SeqCst);
+                }
+            });
+        }
+
+        for (index, index_writer) in writers {
+            index_writer.wait_merging_threads()?;
+            assert_eq!(index.searchable_segments()?.len(), 1);
+        }
+
+        assert_eq!(
+            merges_seen_on_shared_thread.load(Ordering::SeqCst),
+            2,
+            "expected both indexes' merges to have gone through the shared pool's named thread"
+        );
+
+        Ok(())
+    }
+
+    /// Wraps a `RamDirectory` and panics on `open_write` once armed, to force
+    /// a panic inside a running merge.
+    #[derive(Clone, Debug)]
+    struct PanicOnWriteDirectory {
+        inner: RamDirectory,
+        armed: Arc<std::sync::atomic::AtomicBool>,
+    }
+
+    impl Directory for PanicOnWriteDirectory {
+        fn get_file_handle(&self, path: &Path) -> Result<Arc<dyn FileHandle>, OpenReadError> {
+            self.inner.get_file_handle(path)
+        }
+        fn delete(&self, path: &Path) -> Result<(), DeleteError> {
+            self.inner.delete(path)
+        }
+        fn exists(&self, path: &Path) -> Result<bool, OpenReadError> {
+            self.inner.exists(path)
+        }
+        fn open_write(&self, path: &Path) -> Result<WritePtr, OpenWriteError> {
+            if self.armed.load(std::sync::atomic::Ordering::SeqCst) {
+                panic!("panic injected by test in open_write");
+            }
+            self.inner.open_write(path)
+        }
+        fn atomic_read(&self, path: &Path) -> Result<Vec<u8>, OpenReadError> {
+            self.inner.atomic_read(path)
+        }
+        fn atomic_write(&self, path: &Path, data: &[u8]) -> std::io::Result<()> {
+            self.inner.atomic_write(path, data)
+        }
+        fn sync_directory(&self) -> std::io::Result<()> {
+            self.inner.sync_directory()
+        }
+        fn watch(&self, watch_callback: WatchCallback) -> crate::Result<WatchHandle> {
+            self.inner.watch(watch_callback)
+        }
+    }
+
+    // A panic inside a merge must be reported as an error through the merge
+    // future instead of escaping into the rayon pool: a shared pool (unlike
+    // the private one) has no panic handler installed, so an escaped panic
+    // would abort the whole process. This test would abort (not fail) if a
+    // merge panic ever escaped again.
+    #[test]
+    fn test_merge_panic_on_shared_pool_is_reported_not_aborting() -> crate::Result<()> {
+        use std::sync::atomic::{AtomicBool, Ordering};
+
+        let shared_pool = Arc::new(
+            rayon::ThreadPoolBuilder::new()
+                .num_threads(1)
+                .build()
+                .unwrap(),
+        );
+
+        let armed = Arc::new(AtomicBool::new(false));
+        let directory = PanicOnWriteDirectory {
+            inner: RamDirectory::create(),
+            armed: armed.clone(),
+        };
+
+        let mut schema_builder = schema::Schema::builder();
+        let text_field = schema_builder.add_text_field("text", TEXT);
+        let index = Index::create(
+            directory,
+            schema_builder.build(),
+            IndexSettings::default(),
+        )?;
+
+        let options = IndexWriterOptions::builder()
+            .num_worker_threads(1)
+            .memory_budget_per_thread(MEMORY_BUDGET_NUM_BYTES_MIN)
+            .shared_merge_pool(shared_pool)
+            .build();
+        let mut index_writer: IndexWriter = index.writer_with_options(options)?;
+
+        index_writer.add_document(doc!(text_field => "a"))?;
+        index_writer.commit()?;
+        index_writer.add_document(doc!(text_field => "a"))?;
+        index_writer.commit()?;
+
+        let segment_ids = index.searchable_segment_ids()?;
+        assert_eq!(segment_ids.len(), 2, "expected two segments to merge");
+
+        // From here on, the merge's first `open_write` (serializing the merged
+        // segment) panics inside the merge thread.
+        armed.store(true, Ordering::SeqCst);
+
+        let merge_err = index_writer
+            .merge(&segment_ids)
+            .wait()
+            .expect_err("panicking merge should surface as an error");
+        assert!(
+            matches!(
+                &merge_err,
+                TantivyError::SystemError(msg) if msg.contains("Merge thread panicked")
+            ),
+            "unexpected error: {merge_err:?}"
+        );
+
+        // Disarm so the writer can shut down cleanly.
+        armed.store(false, Ordering::SeqCst);
+        index_writer.wait_merging_threads()?;
+        Ok(())
     }
 }
