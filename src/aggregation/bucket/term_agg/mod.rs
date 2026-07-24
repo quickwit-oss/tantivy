@@ -1061,6 +1061,7 @@ impl<TermMap: TermAggregationMap, B: SubAggBuffer> SegmentAggregationCollector
                 docs,
                 &req_data.accessor,
                 req_data.missing_value_for_accessor,
+                false,
             );
 
         if let Some(sub_agg) = &mut self.sub_agg {

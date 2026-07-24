@@ -56,6 +56,8 @@ impl<T: PartialOrd + Copy + std::fmt::Debug + Send + Sync + 'static + Default>
                 .get_vals(&self.row_id_cache, &mut self.val_cache);
         }
     }
+
+    /// Fetches a block and appends `missing_opt` for documents without a value.
     #[inline]
     pub fn fetch_block_with_missing(
         &mut self,
@@ -63,26 +65,72 @@ impl<T: PartialOrd + Copy + std::fmt::Debug + Send + Sync + 'static + Default>
         accessor: &Column<T>,
         missing_opt: Option<T>,
     ) {
+        self.fetch_block_with_missing_ordered(docs, accessor, missing_opt, false);
+    }
+
+    /// Fetches a block and adds `missing_opt` for documents without a value. When `ordered` is
+    /// true, the missing entries are inserted in document order instead of appended as a second
+    /// run.
+    #[inline]
+    pub fn fetch_block_with_missing_ordered(
+        &mut self,
+        docs: &[u32],
+        accessor: &Column<T>,
+        missing_opt: Option<T>,
+        ordered: bool,
+    ) {
         self.fetch_block(docs, accessor);
+        let cardinality = accessor.index.get_cardinality();
         // no missing values
-        if accessor.index.get_cardinality().is_full() {
+        if cardinality.is_full() {
             return;
         }
         let Some(missing) = missing_opt else {
             return;
         };
 
-        // We can compare docid_cache length with docs to find missing docs
-        // For multi value columns we can't rely on the length and always need to scan
-        if accessor.index.get_cardinality().is_multivalue() || docs.len() != self.docid_cache.len()
-        {
-            self.missing_docids_cache.clear();
-            find_missing_docs(docs, &self.docid_cache, |doc| {
-                self.missing_docids_cache.push(doc);
-                self.val_cache.push(missing);
-            });
+        // We can compare docid_cache length with docs to find missing docs.
+        // For multi value columns we can't rely on the length and always need to scan.
+        let is_multivalue = cardinality.is_multivalue();
+        if !is_multivalue && docs.len() == self.docid_cache.len() {
+            return;
+        }
+
+        if ordered && !is_multivalue {
+            // Expand backwards so values that have not moved yet are not overwritten.
+            let mut end = docs.len();
+            self.val_cache.resize(end, missing);
+            for hit_idx in (0..self.docid_cache.len()).rev() {
+                let pos = docs[..end].partition_point(|&doc| doc < self.docid_cache[hit_idx]);
+                self.val_cache[pos + 1..end].fill(missing);
+                self.val_cache[pos] = self.val_cache[hit_idx];
+                end = pos;
+            }
+            self.val_cache[..end].fill(missing);
+            self.docid_cache.clear();
+            self.docid_cache.extend_from_slice(docs);
+            return;
+        }
+
+        self.missing_docids_cache.clear();
+        find_missing_docs(docs, &self.docid_cache, |doc| {
+            self.missing_docids_cache.push(doc);
+        });
+
+        if !ordered {
+            self.val_cache.resize(
+                self.val_cache.len() + self.missing_docids_cache.len(),
+                missing,
+            );
             self.docid_cache
                 .extend_from_slice(&self.missing_docids_cache);
+            return;
+        }
+
+        for &doc in &self.missing_docids_cache {
+            let pos = self.docid_cache.partition_point(|&hit| hit < doc);
+            self.docid_cache.insert(pos, doc);
+            self.val_cache.insert(pos, missing);
         }
     }
 
@@ -97,10 +145,11 @@ impl<T: PartialOrd + Copy + std::fmt::Debug + Send + Sync + 'static + Default>
         docs: &[u32],
         accessor: &Column<T>,
         missing: Option<T>,
+        ordered: bool,
     ) where
         T: Ord,
     {
-        self.fetch_block_with_missing(docs, accessor, missing);
+        self.fetch_block_with_missing_ordered(docs, accessor, missing, ordered);
         if accessor.index.get_cardinality().is_multivalue() {
             self.dedup_docid_val_pairs();
         }
@@ -279,6 +328,35 @@ mod tests {
         });
 
         assert_eq!(missing_docs, vec![1, 2, 3, 4, 5]);
+    }
+
+    #[test]
+    fn test_fetch_block_with_missing_ordered() {
+        use crate::column_index::{ColumnIndex, OptionalIndex};
+        use crate::column_values::{
+            ALL_U64_CODEC_TYPES, serialize_and_load_u64_based_column_values,
+        };
+
+        let vals = vec![10u64, 40, 70];
+        let values =
+            serialize_and_load_u64_based_column_values::<u64>(&&vals[..], &ALL_U64_CODEC_TYPES);
+        let column = Column {
+            index: ColumnIndex::Optional(OptionalIndex::for_test(9, &[1, 4, 7])),
+            values,
+        };
+        let docs = [0, 1, 2, 4, 7, 8];
+        let mut accessor = ColumnBlockAccessor::<u64>::default();
+
+        accessor.fetch_block_with_missing_ordered(&docs, &column, Some(99), true);
+
+        assert_eq!(
+            accessor.iter_vals().collect::<Vec<_>>(),
+            vec![99, 10, 99, 40, 70, 99]
+        );
+        assert_eq!(
+            accessor.iter_docid_vals(&docs, &column).collect::<Vec<_>>(),
+            vec![(0, 99), (1, 10), (2, 99), (4, 40), (7, 70), (8, 99)]
+        );
     }
 
     #[test]

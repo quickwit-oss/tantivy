@@ -30,7 +30,7 @@ use crate::aggregation::intermediate_agg_result::{
     IntermediateKey, IntermediateTermBucketEntry, PruneMode,
 };
 use crate::aggregation::segment_agg_result::{BucketIdProvider, SegmentAggregationCollector};
-use crate::aggregation::{format_date, BucketId, Key};
+use crate::aggregation::{f64_to_fastfield_u64, format_date, BucketId, Key};
 use crate::TantivyError;
 
 /// Multi-terms aggregation: one bucket per unique combination of values across N term fields.
@@ -132,8 +132,8 @@ pub struct MultiTermsMissingAccessor {
     pub all_columns: Arc<[Column<u64>]>,
     /// The user-configured fallback key, used to resolve synthetic missing values.
     pub key: Key,
-    /// Precomputed key element to collect when the field is absent from every physical column.
-    pub key_elem: KeyElem,
+    /// Collision-free value injected for missing documents.
+    pub missing_value: u64,
 }
 
 /// One typed accessor for one field in a multi_terms collector.
@@ -190,79 +190,53 @@ impl MultiTermsAggReqData {
     }
 }
 
-/// One element of a composite key.
-#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
-pub struct KeyElem {
-    /// Whether this value must resolve directly to the configured missing key.
-    ///
-    /// This field comes first so derived ordering keeps synthetic missing values after real
-    /// column values, matching the old accessor-index sentinel ordering.
-    synthetic_missing: bool,
-    /// Raw fast-field u64 value (term ord for Str, `to_u64` encoding for numerics).
-    pub val: u64,
-}
-
-impl KeyElem {
-    /// Creates a `KeyElem` for a real column value.
-    pub fn new(val: u64) -> Self {
-        Self {
-            val,
-            synthetic_missing: false,
-        }
-    }
-
-    /// Creates a `KeyElem` that encodes a synthetic missing value.
-    pub fn synthetic_missing() -> Self {
-        Self {
-            val: 0,
-            synthetic_missing: true,
-        }
-    }
-
-    /// Returns `true` if this element encodes a synthetic missing value.
-    pub fn is_synthetic_missing(self) -> bool {
-        self.synthetic_missing
-    }
-}
-
-/// Inline capacity of [`MultiTermsKey`]
+/// Inline capacity of [`MultiTermsKey`].
 const MULTI_TERMS_KEY_INLINE_CAPACITY: usize = 3;
 
-/// The composite key for one combination of field values, inline-allocated for up to
+/// The composite key for one combination of raw fast-field values, inline-allocated for up to
 /// [`MULTI_TERMS_KEY_INLINE_CAPACITY`] fields.
-pub type MultiTermsKey = SmallVec<[KeyElem; MULTI_TERMS_KEY_INLINE_CAPACITY]>;
+pub type MultiTermsKey = SmallVec<[u64; MULTI_TERMS_KEY_INLINE_CAPACITY]>;
 
 impl AggregationMapKey for MultiTermsKey {
     fn heap_memory_usage(&self) -> usize {
         if self.spilled() {
-            self.capacity() * std::mem::size_of::<KeyElem>()
+            self.capacity() * std::mem::size_of::<u64>()
         } else {
             0
         }
     }
 }
 
-/// One field's candidate `KeyElem`s for the current document.
-type FieldValues = SmallVec<[KeyElem; 2]>;
+/// One field's candidate values for the current document.
+type FieldValues = SmallVec<[u64; 2]>;
 
-/// Fetches one field into the shared block accessor and returns whether its values are dense over
-/// `docs`.
+/// Returns the missing sentinel that can safely be injected while decoding this physical column.
+/// Mixed-type fields require a later union-of-columns existence check instead.
+#[inline(always)]
+fn block_missing_value(missing: Option<&MultiTermsMissingAccessor>) -> Option<u64> {
+    missing
+        .filter(|missing| missing.all_columns.len() == 1)
+        .map(|missing| missing.missing_value)
+}
+
+/// Fetches one field into the shared block accessor and forwards safe missing handling. Ordering
+/// is requested only by multi-terms, which needs values from different fields aligned by document.
+/// Returns whether every document has a value after decoding.
 #[inline(always)]
 fn fetch_field_block(
     docs: &[crate::DocId],
     field: &MultiTermsFieldAccessor,
+    missing: Option<&MultiTermsMissingAccessor>,
     block_accessor: &mut ColumnBlockAccessor<u64>,
 ) -> bool {
-    let cardinality = field.column.get_cardinality();
-    let is_full = cardinality.is_full();
-
-    if cardinality.is_multivalue() {
-        block_accessor.fetch_block_with_missing_unique_per_doc(docs, &field.column, None);
-    } else {
-        block_accessor.fetch_block_with_is_full(docs, &field.column, is_full);
-    }
-
-    is_full
+    let missing_value = block_missing_value(missing);
+    block_accessor.fetch_block_with_missing_unique_per_doc(
+        docs,
+        &field.column,
+        missing_value,
+        true,
+    );
+    field.column.get_cardinality().is_full() || missing_value.is_some()
 }
 
 /// Key operations used by the unified collector.
@@ -274,7 +248,7 @@ trait MultiTermsKeyCodec: Clone + Debug + 'static {
 
     fn new_key(&self) -> Self::Key;
     fn clear_key(&self, key: &mut Self::Key);
-    fn push(&self, key: &mut Self::Key, field_idx: usize, elem: KeyElem);
+    fn push(&self, key: &mut Self::Key, field_idx: usize, value: u64);
     fn pop(&self, key: &mut Self::Key, field_idx: usize);
 
     /// Pushes one full field's values into every key buffer. Entries belonging to documents
@@ -305,9 +279,9 @@ impl MultiTermsKeyCodec for UnpackedKeyCodec {
         key.clear();
     }
 
-    fn push(&self, key: &mut Self::Key, field_idx: usize, elem: KeyElem) {
+    fn push(&self, key: &mut Self::Key, field_idx: usize, value: u64) {
         debug_assert_eq!(key.len(), field_idx);
-        key.push(elem);
+        key.push(value);
     }
 
     fn pop(&self, key: &mut Self::Key, field_idx: usize) {
@@ -319,7 +293,7 @@ impl MultiTermsKeyCodec for UnpackedKeyCodec {
     where I: IntoIterator<Item = u64> {
         for (key, val) in keys.iter_mut().zip(values) {
             debug_assert!(key.len() <= field_idx);
-            key.push(KeyElem::new(val));
+            key.push(val);
         }
     }
 
@@ -422,29 +396,26 @@ fn validate_multi_terms(
     Ok(())
 }
 
-/// Returns the configured missing element if `doc_id` is absent from every physical column for
+/// Returns the configured missing sentinel if `doc_id` is absent from every physical column for
 /// this requested field. `None` means this typed collector branch must drop the document.
 #[inline]
-fn missing_key_elem_for_doc(
+fn missing_value_for_doc(
     missing: Option<&MultiTermsMissingAccessor>,
     doc_id: crate::DocId,
-) -> Option<KeyElem> {
+) -> Option<u64> {
     let missing = missing?;
     let field_has_value = missing
         .all_columns
         .iter()
         .any(|column| column.index.has_value(doc_id));
-    (!field_has_value).then_some(missing.key_elem)
+    (!field_has_value).then_some(missing.missing_value)
 }
 
 /// Builds the segment collector for a multi_terms aggregation, validating the request.
 ///
-/// Every request uses the same block-decoding collector. [`compute_packed_u64_layout`] only chooses
-/// its key representation: a packed `u64` (plus dense/paged term storage when useful) if the key
-/// fits, or [`MultiTermsKey`] in a hash map otherwise. Full and optional columns build one key per
-/// surviving document directly. Multivalued columns materialize per-field candidates only when
-/// Cartesian key generation is required. Both paths retain packed keys whenever their value ranges
-/// fit in 64 bits.
+/// Every value, including missing, is represented as a plain `u64` and collected through block
+/// decoding. [`compute_packed_u64_layout`] chooses a packed `u64` key when possible and otherwise
+/// uses [`MultiTermsKey`].
 pub(crate) fn build_segment_multi_terms_collector(
     req: &mut AggregationsSegmentCtx,
     node: &AggRefNode,
@@ -675,7 +646,12 @@ where
                 // Bulk-decode each full column and build one key per document directly, without
                 // per-document column dispatch or Cartesian recursion.
                 for (field_idx, field) in self.req_data.fields.iter().enumerate() {
-                    fetch_field_block(docs, field, block_accessor);
+                    fetch_field_block(
+                        docs,
+                        field,
+                        self.req_data.missing_accessors[field_idx].as_ref(),
+                        block_accessor,
+                    );
                     key_codec.push_full_values(keys_buf, field_idx, block_accessor.iter_vals());
                 }
 
@@ -703,13 +679,16 @@ where
                         break;
                     }
 
-                    let is_full = fetch_field_block(docs, field, block_accessor);
-                    if is_full {
+                    let missing = self.req_data.missing_accessors[field_idx].as_ref();
+                    let has_value_per_doc = fetch_field_block(docs, field, missing, block_accessor);
+                    if has_value_per_doc {
                         key_codec.push_full_values(keys_buf, field_idx, block_accessor.iter_vals());
                         continue;
                     }
 
-                    let missing = self.req_data.missing_accessors[field_idx].as_ref();
+                    // Without an injectable sentinel, values remain sorted by document. This path
+                    // covers fields without a fallback and mixed-type fields whose missing value
+                    // must be checked against all physical columns.
                     let mut docids_and_vals = block_accessor
                         .iter_docid_vals(docs, &field.column)
                         .peekable();
@@ -717,18 +696,18 @@ where
                         debug_assert!(docids_and_vals
                             .peek()
                             .is_none_or(|(hit_doc, _)| *hit_doc >= doc_id));
-                        let column_elem = docids_and_vals
+                        let column_value = docids_and_vals
                             .next_if(|(hit_doc, _)| *hit_doc == doc_id)
-                            .map(|(_, val)| KeyElem::new(val));
+                            .map(|(_, value)| value);
 
                         if !valid_docs[doc_idx] {
                             continue;
                         }
 
-                        if let Some(elem) =
-                            column_elem.or_else(|| missing_key_elem_for_doc(missing, doc_id))
+                        if let Some(value) =
+                            column_value.or_else(|| missing_value_for_doc(missing, doc_id))
                         {
-                            key_codec.push(&mut keys_buf[doc_idx], field_idx, elem);
+                            key_codec.push(&mut keys_buf[doc_idx], field_idx, value);
                         } else {
                             valid_docs[doc_idx] = false;
                         }
@@ -767,18 +746,18 @@ where
             }
 
             // At least one field is multivalued, so retain every field's candidates until the
-            // document's Cartesian combinations are generated. Non-full accessors expose sorted
-            // `(doc_id, value)` pairs and deduplicate repeated values within one document.
+            // document's Cartesian combinations are generated.
             let block_accessor = &mut agg_data.column_block_accessor;
             for (field_idx, field) in self.req_data.fields.iter().enumerate() {
-                let is_full = fetch_field_block(docs, field, block_accessor);
-                if is_full {
-                    for (doc_idx, val) in block_accessor.iter_vals().enumerate() {
-                        field_values[doc_idx * num_fields + field_idx].push(KeyElem::new(val));
+                let missing = self.req_data.missing_accessors[field_idx].as_ref();
+                fetch_field_block(docs, field, missing, block_accessor);
+                if field.column.get_cardinality().is_full() {
+                    for (doc_idx, value) in block_accessor.iter_vals().enumerate() {
+                        field_values[doc_idx * num_fields + field_idx].push(value);
                     }
                 } else {
                     let mut doc_idx = 0usize;
-                    for (doc_id, val) in block_accessor.iter_docid_vals(docs, &field.column) {
+                    for (doc_id, value) in block_accessor.iter_docid_vals(docs, &field.column) {
                         while docs
                             .get(doc_idx)
                             .is_some_and(|candidate| *candidate < doc_id)
@@ -786,21 +765,24 @@ where
                             doc_idx += 1;
                         }
                         debug_assert_eq!(docs.get(doc_idx), Some(&doc_id));
-                        field_values[doc_idx * num_fields + field_idx].push(KeyElem::new(val));
+                        field_values[doc_idx * num_fields + field_idx].push(value);
                     }
                 }
             }
 
-            // Missing is field-level, not typed-column-level: only the designated accessor may
-            // emit it, and only when every physical column for that requested field is absent.
+            // Mixed-type missing handling cannot be delegated to one physical column: only the
+            // designated accessor may emit the fallback, and only when every physical column for
+            // that requested field is absent.
             for (doc_idx, &doc_id) in docs.iter().enumerate() {
                 for (field_idx, missing) in self.req_data.missing_accessors.iter().enumerate() {
+                    if block_missing_value(missing.as_ref()).is_some() {
+                        continue;
+                    }
                     let values = &mut field_values[doc_idx * num_fields + field_idx];
                     if values.is_empty() {
-                        if let Some(missing_elem) =
-                            missing_key_elem_for_doc(missing.as_ref(), doc_id)
+                        if let Some(missing_value) = missing_value_for_doc(missing.as_ref(), doc_id)
                         {
-                            values.push(missing_elem);
+                            values.push(missing_value);
                         }
                     }
                 }
@@ -882,24 +864,21 @@ where
 
 /// Per-field bit layout within a packed `u64` key.
 ///
-/// Field 0 occupies the highest bits, so numeric packed-key order is the same as
-/// lexicographic [`KeyElem`] order. Values are offset by `min_value`; synthetic missing values,
-/// when needed, reserve the first offset after the real value range.
+/// Field 0 occupies the highest bits, so numeric packed-key order is the same as lexicographic raw
+/// value order. Values are offset by `min_value`; an injectable missing sentinel is part of that
+/// ordinary value range.
 #[derive(Clone, Copy, Debug)]
 struct FieldPack {
     shift: u32,
     mask: u64,
     min_value: u64,
     max_offset: u64,
-    synthetic_offset: Option<u64>,
 }
 
 /// Computes a packed-`u64` layout regardless of column cardinality.
 ///
-/// `None` now means only that the lossless encoded key needs more than 64 bits. Optional and
-/// multivalued columns remain eligible. A non-full field's configured missing value is included in
-/// its value range; synthetic missing values reserve a distinct offset so they can be resolved
-/// after collection.
+/// `None` means that the lossless encoded key needs more than 64 bits. Optional and multivalued
+/// columns remain eligible, and a reachable missing sentinel is included in its field's range.
 fn compute_packed_u64_layout(
     fields: &[MultiTermsFieldAccessor],
     missing_accessors: &[Option<MultiTermsMissingAccessor>],
@@ -913,35 +892,28 @@ fn compute_packed_u64_layout(
     for (field, missing) in fields.iter().zip(missing_accessors.iter()) {
         let mut min_value = field.column.min_value();
         let mut max_value = field.column.max_value();
-        let mut synthetic_offset = None;
 
         // Full columns cannot emit missing for any document in this segment, so do not widen their
         // packed domain for an unreachable fallback.
         if !field.column.get_cardinality().is_full() {
             if let Some(missing) = missing {
-                if missing.key_elem.is_synthetic_missing() {
-                    let real_range = max_value - min_value;
-                    synthetic_offset = Some(real_range.checked_add(1)?);
-                } else {
-                    min_value = min_value.min(missing.key_elem.val);
-                    max_value = max_value.max(missing.key_elem.val);
-                }
+                min_value = min_value.min(missing.missing_value);
+                max_value = max_value.max(missing.missing_value);
             }
         }
 
-        let real_range = max_value - min_value;
-        let max_offset = synthetic_offset.unwrap_or(real_range).max(real_range);
+        let max_offset = max_value - min_value;
         let width = 64 - max_offset.leading_zeros();
         total_width = total_width.checked_add(width)?;
         if total_width > 64 {
             return None;
         }
-        field_layouts.push((width, min_value, max_offset, synthetic_offset));
+        field_layouts.push((width, min_value, max_offset));
     }
 
     let mut packs = Vec::with_capacity(fields.len());
     let mut shift = 0u32;
-    for &(width, min_value, max_offset, synthetic_offset) in field_layouts.iter().rev() {
+    for &(width, min_value, max_offset) in field_layouts.iter().rev() {
         let mask = if width == 64 {
             u64::MAX
         } else if width == 0 {
@@ -954,7 +926,6 @@ fn compute_packed_u64_layout(
             mask,
             min_value,
             max_offset,
-            synthetic_offset,
         });
         shift += width;
     }
@@ -994,16 +965,11 @@ impl MultiTermsKeyCodec for PackedU64KeyCodec {
         *key = 0;
     }
 
-    fn push(&self, key: &mut Self::Key, field_idx: usize, elem: KeyElem) {
+    fn push(&self, key: &mut Self::Key, field_idx: usize, value: u64) {
         let pack = self.packs[field_idx];
-        let offset = if elem.is_synthetic_missing() {
-            pack.synthetic_offset
-                .expect("packed synthetic missing value has a reserved offset")
-        } else {
-            elem.val
-                .checked_sub(pack.min_value)
-                .expect("packed value is not below the field minimum")
-        };
+        let offset = value
+            .checked_sub(pack.min_value)
+            .expect("packed value is not below the field minimum");
         debug_assert!(offset <= pack.max_offset);
         *key |= shift_packed_bits(offset, pack.shift);
     }
@@ -1035,12 +1001,7 @@ impl MultiTermsKeyCodec for PackedU64KeyCodec {
             .zip(req_data.missing_accessors.iter())
             .map(|((pack, field), missing)| {
                 let offset = key.checked_shr(pack.shift).unwrap_or(0) & pack.mask;
-                let elem = if pack.synthetic_offset == Some(offset) {
-                    KeyElem::synthetic_missing()
-                } else {
-                    KeyElem::new(offset + pack.min_value)
-                };
-                resolve_key_elem(elem, field, missing.as_ref())
+                resolve_key_value(offset + pack.min_value, field, missing.as_ref())
             })
             .collect()
     }
@@ -1234,7 +1195,7 @@ where
     })
 }
 
-/// Resolve a composite key (one `KeyElem` per field) to a `Vec<IntermediateKey>`.
+/// Resolve a composite key (one raw fast-field value per field) to intermediate keys.
 fn resolve_multi_terms_key(
     key: &MultiTermsKey,
     req_data: &MultiTermsAggReqData,
@@ -1242,31 +1203,59 @@ fn resolve_multi_terms_key(
     key.iter()
         .zip(req_data.fields.iter())
         .zip(req_data.missing_accessors.iter())
-        .map(|((elem, field_acc), missing)| resolve_key_elem(*elem, field_acc, missing.as_ref()))
+        .map(|((value, field_acc), missing)| resolve_key_value(*value, field_acc, missing.as_ref()))
         .collect()
 }
 
-/// Resolve one [`KeyElem`] for one field to an [`IntermediateKey`].
-fn resolve_key_elem(
-    elem: KeyElem,
+/// Resolve one raw fast-field value, recognizing the collision-free missing sentinel first.
+fn resolve_key_value(
+    value: u64,
     field_acc: &MultiTermsFieldAccessor,
     missing: Option<&MultiTermsMissingAccessor>,
 ) -> crate::Result<IntermediateKey> {
-    if elem.is_synthetic_missing() {
-        let missing = missing.ok_or_else(|| {
-            TantivyError::AggregationError(crate::aggregation::AggregationError::InternalError(
-                "multi_terms synthetic missing key has no missing accessor".to_string(),
-            ))
-        })?;
-        return Ok(IntermediateKey::from(missing.key.clone()));
+    if let Some(missing) = missing.filter(|missing| missing.missing_value == value) {
+        return resolve_missing_key(missing, field_acc);
     }
 
     resolve_column_value(
-        elem.val,
+        value,
         &field_acc.column_type,
         &field_acc.str_dict_column,
         &field_acc.column,
     )
+}
+
+/// Resolve the request's missing key using the selected column's lenient numeric coercion. String
+/// fallbacks (and numeric fallbacks attached to string columns) keep their request representation.
+fn resolve_missing_key(
+    missing: &MultiTermsMissingAccessor,
+    field_acc: &MultiTermsFieldAccessor,
+) -> crate::Result<IntermediateKey> {
+    let numeric_value = match missing.key {
+        Key::F64(value) => Some(value),
+        Key::I64(value) => Some(value as f64),
+        Key::U64(value) => Some(value as f64),
+        Key::Str(_) => None,
+    };
+    if field_acc.column_type.numerical_type().is_some() {
+        if let Some(value) = numeric_value {
+            let encoded = f64_to_fastfield_u64(value, &field_acc.column_type).ok_or_else(|| {
+                TantivyError::AggregationError(crate::aggregation::AggregationError::InternalError(
+                    format!(
+                        "could not encode multi_terms missing value for column type {:?}",
+                        field_acc.column_type
+                    ),
+                ))
+            })?;
+            return resolve_column_value(
+                encoded,
+                &field_acc.column_type,
+                &field_acc.str_dict_column,
+                &field_acc.column,
+            );
+        }
+    }
+    Ok(IntermediateKey::from(missing.key.clone()))
 }
 
 /// Convert a raw u64 from a specific column type to an [`IntermediateKey`].
@@ -1832,14 +1821,14 @@ mod tests {
 
         for i in 0..64u64 {
             let inline_key: MultiTermsKey = (0..MULTI_TERMS_KEY_INLINE_CAPACITY)
-                .map(|field_idx| KeyElem::new(i + field_idx as u64))
+                .map(|field_idx| i + field_idx as u64)
                 .collect();
             let spilled_key: MultiTermsKey = (0..num_spilled_fields)
-                .map(|field_idx| KeyElem::new(i + field_idx as u64))
+                .map(|field_idx| i + field_idx as u64)
                 .collect();
             assert!(!inline_key.spilled());
             assert!(spilled_key.spilled());
-            expected_spilled_bytes += spilled_key.capacity() * std::mem::size_of::<KeyElem>();
+            expected_spilled_bytes += spilled_key.capacity() * std::mem::size_of::<u64>();
 
             inline_map.term_entry(inline_key, &mut bucket_id_provider);
             spilled_map.term_entry(spilled_key, &mut bucket_id_provider);
@@ -2219,6 +2208,42 @@ mod tests {
     }
 
     #[test]
+    fn test_multi_terms_missing_fast_path_noncontiguous_docs() -> crate::Result<()> {
+        let index = build_two_field_index(
+            &[
+                ("even", Some("A")),
+                ("odd", Some("B")),
+                ("even", None),
+                ("odd", Some("B")),
+                ("even", Some("A")),
+            ],
+            &[],
+            false,
+        )?;
+
+        let agg_req: Aggregations = serde_json::from_value(json!({
+            "mt": {
+                "multi_terms": {
+                    "terms": [
+                        {"field": "genre"},
+                        {"field": "product", "missing": "MISSING"}
+                    ]
+                }
+            }
+        }))?;
+        let res = exec_request_with_query(agg_req, &index, Some(("genre", "even")))?;
+        let buckets = res["mt"]["buckets"].as_array().unwrap();
+        assert_eq!(buckets.len(), 2, "unexpected {buckets:?}");
+        assert!(buckets
+            .iter()
+            .any(|bucket| bucket["key_as_string"] == "even|A" && bucket["doc_count"] == 2));
+        assert!(buckets
+            .iter()
+            .any(|bucket| bucket["key_as_string"] == "even|MISSING" && bucket["doc_count"] == 1));
+        Ok(())
+    }
+
+    #[test]
     fn test_multi_terms_wide_fields_use_unpacked_key() -> crate::Result<()> {
         // `score` alone needs the full 64 bits (max_value close to u64::MAX), so combined
         // with any other field the packed layout exceeds 64 bits. The same collector switches to
@@ -2308,8 +2333,8 @@ mod tests {
     }
 
     #[test]
-    fn test_multi_terms_unpacked_key_handles_multivalue_missing_and_sub_aggregation(
-    ) -> crate::Result<()> {
+    fn test_multi_terms_u64_max_handles_multivalue_missing_and_sub_aggregation() -> crate::Result<()>
+    {
         let mut schema_builder = Schema::builder();
         let tag_field = schema_builder.add_text_field("tag", STRING | FAST);
         let big_field = schema_builder
