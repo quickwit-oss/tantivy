@@ -208,7 +208,7 @@ impl<T: PartialOrd + Copy + std::fmt::Debug + Send + Sync + 'static + Default>
     }
 
     #[inline]
-    pub fn iter_vals(&self) -> impl Iterator<Item = T> + '_ {
+    pub fn iter_vals(&self) -> impl ExactSizeIterator<Item = T> + '_ {
         self.val_cache.iter().cloned()
     }
 
