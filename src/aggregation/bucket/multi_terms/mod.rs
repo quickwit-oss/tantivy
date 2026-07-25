@@ -207,12 +207,12 @@ impl AggregationMapKey for MultiTermsKey {
     }
 }
 
-/// One field's candidate values for the current document.
+/// All values for one field of one document, inline for up to two values.
 type FieldValues = SmallVec<[u64; 2]>;
 
 /// Returns the missing sentinel that can safely be injected while decoding this physical column.
 /// Mixed-type fields require a later union-of-columns existence check instead.
-#[inline(always)]
+#[inline]
 fn block_missing_value(missing: Option<&MultiTermsMissingAccessor>) -> Option<u64> {
     missing
         .filter(|missing| missing.all_columns.len() == 1)
@@ -222,7 +222,7 @@ fn block_missing_value(missing: Option<&MultiTermsMissingAccessor>) -> Option<u6
 /// Fetches one field into the shared block accessor and forwards safe missing handling. Ordering
 /// is requested only by multi-terms, which needs values from different fields aligned by document.
 /// Returns whether every document has a value after decoding.
-#[inline(always)]
+#[inline]
 fn fetch_field_block(
     docs: &[crate::DocId],
     field: &MultiTermsFieldAccessor,
@@ -236,7 +236,8 @@ fn fetch_field_block(
         missing_value,
         true,
     );
-    field.column.get_cardinality().is_full() || missing_value.is_some()
+    !field.column.get_cardinality().is_multivalue()
+        && block_accessor.iter_vals().len() == docs.len()
 }
 
 /// Key operations used by the unified collector.
@@ -251,8 +252,7 @@ trait MultiTermsKeyCodec: Clone + Debug + 'static {
     fn push(&self, key: &mut Self::Key, field_idx: usize, value: u64);
     fn pop(&self, key: &mut Self::Key, field_idx: usize);
 
-    /// Pushes one full field's values into every key buffer. Entries belonging to documents
-    /// already marked invalid may have an incomplete prefix; their contents are discarded later.
+    /// Pushes one field's aligned values into every active key buffer.
     fn push_full_values<I>(&self, keys: &mut [Self::Key], field_idx: usize, values: I)
     where I: IntoIterator<Item = u64>;
 
@@ -342,16 +342,16 @@ where
     map_init_value: u64,
     /// Computed once when building the collector; column cardinality is immutable per segment.
     all_fields_full: bool,
-    /// True when every selected column has at most one value per document.
-    all_fields_single_valued: bool,
-    /// Reused for full/optional columns: one key is built per surviving document without
-    /// materializing per-field value vectors.
+    /// Whether fields can be collected directly into one key per surviving document.
+    use_single_value_path: bool,
+    /// Used for full/optional columns: one key is built per surviving document
     single_value_keys_buf: Vec<Codec::Key>,
-    /// Whether each document in the current single-valued block can produce a complete key.
-    /// This reusable mask is indexed like `single_value_keys_buf`.
-    valid_docs_buf: Vec<bool>,
-    /// Reused only when at least one column is multivalued, laid out as `[doc][field]`.
-    field_values_buf: Vec<FieldValues>,
+    /// Document IDs still able to produce a complete single-valued key. They are kept in the
+    /// same order as the corresponding prefix of `single_value_keys_buf`.
+    active_docs: Vec<u32>,
+    /// Conceptually a flattened `Vec<Vec<u64>>`: each entry contains all values for one
+    /// `[doc][field]`, indexed by `doc_idx * num_fields + field_idx`. Used by the general path.
+    doc_field_values_buf: Vec<FieldValues>,
 }
 
 /// Validates the field configuration and, when ordering by a sub-aggregation, that the target
@@ -631,7 +631,7 @@ where
         let bucket_id_provider = &mut self.bucket_id_provider;
         let key_codec = &self.key_codec;
 
-        if self.all_fields_single_valued {
+        if self.use_single_value_path {
             if self.single_value_keys_buf.len() < docs.len() {
                 self.single_value_keys_buf
                     .resize_with(docs.len(), || key_codec.new_key());
@@ -666,67 +666,62 @@ where
                     }
                 }
             } else {
-                // Optional columns still have at most one value per document. Decode every field
-                // against the original block and track which document positions can produce a
-                // complete key. Full columns may bulk-write throwaway values into an already
-                // invalid key slot; only valid positions are inserted into the bucket map.
-                self.valid_docs_buf.resize(docs.len(), true);
-                self.valid_docs_buf.fill(true);
-                let valid_docs = &mut self.valid_docs_buf;
+                // Keep surviving document IDs and their partially built keys at matching indices.
+                // A sparse field is merge-joined with the active document IDs; later fields then
+                // decode only the survivors.
+                self.active_docs.clear();
+                self.active_docs.extend_from_slice(docs);
 
                 for (field_idx, field) in self.req_data.fields.iter().enumerate() {
-                    if !valid_docs.contains(&true) {
+                    if self.active_docs.is_empty() {
                         break;
                     }
 
                     let missing = self.req_data.missing_accessors[field_idx].as_ref();
-                    let has_value_per_doc = fetch_field_block(docs, field, missing, block_accessor);
+                    let has_value_per_doc = fetch_field_block(
+                        self.active_docs.as_slice(),
+                        field,
+                        missing,
+                        block_accessor,
+                    );
                     if has_value_per_doc {
-                        key_codec.push_full_values(keys_buf, field_idx, block_accessor.iter_vals());
+                        key_codec.push_full_values(
+                            &mut keys_buf[..self.active_docs.len()],
+                            field_idx,
+                            block_accessor.iter_vals(),
+                        );
                         continue;
                     }
 
-                    // Without an injectable sentinel, values remain sorted by document. This path
-                    // covers fields without a fallback and mixed-type fields whose missing value
-                    // must be checked against all physical columns.
-                    let mut docids_and_vals = block_accessor
-                        .iter_docid_vals(docs, &field.column)
-                        .peekable();
-                    for (doc_idx, &doc_id) in docs.iter().enumerate() {
-                        debug_assert!(docids_and_vals
-                            .peek()
-                            .is_none_or(|(hit_doc, _)| *hit_doc >= doc_id));
-                        let column_value = docids_and_vals
-                            .next_if(|(hit_doc, _)| *hit_doc == doc_id)
-                            .map(|(_, value)| value);
-
-                        if !valid_docs[doc_idx] {
-                            continue;
+                    debug_assert!(missing.is_none());
+                    debug_assert!(!field.column.get_cardinality().is_full());
+                    let mut source_idx = 0usize;
+                    let mut target_idx = 0usize;
+                    for (doc_id, value) in block_accessor.iter_docid_vals(docs, &field.column) {
+                        while self.active_docs[source_idx] < doc_id {
+                            source_idx += 1;
                         }
-
-                        if let Some(value) =
-                            column_value.or_else(|| missing_value_for_doc(missing, doc_id))
-                        {
-                            key_codec.push(&mut keys_buf[doc_idx], field_idx, value);
-                        } else {
-                            valid_docs[doc_idx] = false;
+                        debug_assert_eq!(self.active_docs[source_idx], doc_id);
+                        if target_idx != source_idx {
+                            self.active_docs[target_idx] = doc_id;
+                            keys_buf.swap(target_idx, source_idx);
                         }
+                        key_codec.push(&mut keys_buf[target_idx], field_idx, value);
+                        source_idx += 1;
+                        target_idx += 1;
                     }
-                    debug_assert!(docids_and_vals.next().is_none());
+                    self.active_docs.truncate(target_idx);
                 }
 
+                let active_keys = &keys_buf[..self.active_docs.len()];
                 if let Some(sub_agg) = sub_agg {
-                    for (doc_idx, (&doc_id, key)) in docs.iter().zip(keys_buf.iter()).enumerate() {
-                        if valid_docs[doc_idx] {
-                            let bucket_id = buckets.term_entry(key.clone(), bucket_id_provider);
-                            sub_agg.push(bucket_id.to_bucket_id(), doc_id);
-                        }
+                    for (&doc_id, key) in self.active_docs.iter().zip(active_keys) {
+                        let bucket_id = buckets.term_entry(key.clone(), bucket_id_provider);
+                        sub_agg.push(bucket_id.to_bucket_id(), doc_id);
                     }
                 } else {
-                    for (doc_idx, key) in keys_buf.iter().enumerate() {
-                        if valid_docs[doc_idx] {
-                            buckets.term_entry(key.clone(), bucket_id_provider);
-                        }
+                    for key in active_keys {
+                        buckets.term_entry(key.clone(), bucket_id_provider);
                     }
                 }
             }
@@ -736,24 +731,24 @@ where
                     "multi_terms field-value scratch size overflow".to_string(),
                 ))
             })?;
-            if self.field_values_buf.len() < required_values {
-                self.field_values_buf
+            if self.doc_field_values_buf.len() < required_values {
+                self.doc_field_values_buf
                     .resize_with(required_values, FieldValues::new);
             }
-            let field_values = &mut self.field_values_buf[..required_values];
-            for values in field_values.iter_mut() {
+            let doc_field_values = &mut self.doc_field_values_buf[..required_values];
+            for values in doc_field_values.iter_mut() {
                 values.clear();
             }
 
-            // At least one field is multivalued, so retain every field's candidates until the
-            // document's Cartesian combinations are generated.
+            // Retain each field's values until the document's Cartesian combinations are
+            // generated. This also handles mixed-type missing values that need existence checks.
             let block_accessor = &mut agg_data.column_block_accessor;
             for (field_idx, field) in self.req_data.fields.iter().enumerate() {
                 let missing = self.req_data.missing_accessors[field_idx].as_ref();
                 fetch_field_block(docs, field, missing, block_accessor);
                 if field.column.get_cardinality().is_full() {
                     for (doc_idx, value) in block_accessor.iter_vals().enumerate() {
-                        field_values[doc_idx * num_fields + field_idx].push(value);
+                        doc_field_values[doc_idx * num_fields + field_idx].push(value);
                     }
                 } else {
                     let mut doc_idx = 0usize;
@@ -765,7 +760,7 @@ where
                             doc_idx += 1;
                         }
                         debug_assert_eq!(docs.get(doc_idx), Some(&doc_id));
-                        field_values[doc_idx * num_fields + field_idx].push(value);
+                        doc_field_values[doc_idx * num_fields + field_idx].push(value);
                     }
                 }
             }
@@ -778,7 +773,7 @@ where
                     if block_missing_value(missing.as_ref()).is_some() {
                         continue;
                     }
-                    let values = &mut field_values[doc_idx * num_fields + field_idx];
+                    let values = &mut doc_field_values[doc_idx * num_fields + field_idx];
                     if values.is_empty() {
                         if let Some(missing_value) = missing_value_for_doc(missing.as_ref(), doc_id)
                         {
@@ -791,8 +786,8 @@ where
             let mut prefix = key_codec.new_key();
             for (doc_idx, &doc_id) in docs.iter().enumerate() {
                 let start = doc_idx * num_fields;
-                let values = &field_values[start..start + num_fields];
-                if values.iter().any(FieldValues::is_empty) {
+                let field_values = &doc_field_values[start..start + num_fields];
+                if field_values.iter().any(FieldValues::is_empty) {
                     continue;
                 }
                 key_codec.clear_key(&mut prefix);
@@ -801,7 +796,7 @@ where
                     doc_id,
                     0,
                     &mut prefix,
-                    values,
+                    field_values,
                     buckets,
                     sub_agg,
                     bucket_id_provider,
@@ -1176,10 +1171,14 @@ where
         .fields
         .iter()
         .all(|field| field.column.get_cardinality().is_full());
-    let all_fields_single_valued = req_data
+    let use_single_value_path = req_data
         .fields
         .iter()
-        .all(|field| !field.column.get_cardinality().is_multivalue());
+        .zip(&req_data.missing_accessors)
+        .all(|(field, missing)| {
+            !field.column.get_cardinality().is_multivalue()
+                && (missing.is_none() || block_missing_value(missing.as_ref()).is_some())
+        });
     Box::new(SegmentMultiTermsCollector::<Codec, BucketMap, Buffer> {
         parent_buckets: vec![buckets],
         sub_agg,
@@ -1188,10 +1187,10 @@ where
         key_codec,
         map_init_value,
         all_fields_full,
-        all_fields_single_valued,
+        use_single_value_path,
         single_value_keys_buf: Vec::new(),
-        valid_docs_buf: Vec::new(),
-        field_values_buf: Vec::new(),
+        active_docs: Vec::new(),
+        doc_field_values_buf: Vec::new(),
     })
 }
 
@@ -2276,6 +2275,44 @@ mod tests {
             .expect("expected a pop bucket");
         assert_eq!(pop_bucket["doc_count"], 1);
         assert_eq!(pop_bucket["key"][1], 5);
+        Ok(())
+    }
+
+    #[test]
+    fn test_multi_terms_single_value_path_filters_docs_between_fields() -> crate::Result<()> {
+        let mut schema_builder = Schema::builder();
+        let first_field = schema_builder.add_text_field("first", STRING | FAST);
+        let second_field = schema_builder.add_text_field("second", STRING | FAST);
+        let third_field = schema_builder.add_text_field("third", STRING | FAST);
+        let index = Index::create_in_ram(schema_builder.build());
+        {
+            let mut writer: IndexWriter = index.writer_with_num_threads(1, 20_000_000)?;
+            writer
+                .add_document(doc!(first_field => "a", second_field => "x", third_field => "p"))?;
+            writer.add_document(doc!(second_field => "x", third_field => "q"))?;
+            writer.add_document(doc!(first_field => "b", third_field => "r"))?;
+            writer
+                .add_document(doc!(first_field => "c", second_field => "z", third_field => "s"))?;
+            writer.commit()?;
+        }
+
+        let agg_req: Aggregations = serde_json::from_value(json!({
+            "mt": {
+                "multi_terms": {
+                    "terms": [
+                        {"field": "first"},
+                        {"field": "second"},
+                        {"field": "third"}
+                    ],
+                    "order": {"_key": "asc"}
+                }
+            }
+        }))?;
+        let res = exec_request(agg_req, &index)?;
+        let buckets = res["mt"]["buckets"].as_array().unwrap();
+        assert_eq!(buckets.len(), 2, "unexpected {buckets:?}");
+        assert_eq!(buckets[0]["key_as_string"], "a|x|p");
+        assert_eq!(buckets[1]["key_as_string"], "c|z|s");
         Ok(())
     }
 
