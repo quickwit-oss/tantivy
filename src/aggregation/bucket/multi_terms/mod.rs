@@ -312,6 +312,59 @@ impl MultiTermsPacking for U64ArrayKeyPacking {
     }
 }
 
+impl MultiTermsPacking for PackedU64KeyPacking {
+    type PackingType = u64;
+
+    fn new_packing(&self) -> Self::PackingType {
+        0
+    }
+
+    fn clear_packing(&self, key: &mut Self::PackingType) {
+        *key = 0;
+    }
+
+    fn push(&self, key: &mut Self::PackingType, field_idx: usize, value: u64) {
+        let pack = self.packs[field_idx];
+        let offset = value
+            .checked_sub(pack.min_value)
+            .expect("packed value is not below the field minimum");
+        debug_assert!(offset <= pack.max_offset);
+        *key |= shift_packed_bits(offset, pack.shift);
+    }
+
+    fn pop(&self, key: &mut Self::PackingType, field_idx: usize) {
+        let pack = self.packs[field_idx];
+        *key &= !shift_packed_bits(pack.mask, pack.shift);
+    }
+
+    #[inline]
+    fn push_full_values<I>(&self, keys: &mut [Self::PackingType], field_idx: usize, values: I)
+    where I: IntoIterator<Item = u64> {
+        let pack = self.packs[field_idx];
+        for (key, val) in keys.iter_mut().zip(values) {
+            let offset = val - pack.min_value;
+            debug_assert!(offset <= pack.max_offset);
+            *key |= shift_packed_bits(offset, pack.shift);
+        }
+    }
+
+    fn unpack(
+        &self,
+        key: &Self::PackingType,
+        req_data: &MultiTermsAggReqData,
+    ) -> crate::Result<Vec<IntermediateKey>> {
+        self.packs
+            .iter()
+            .zip(req_data.fields.iter())
+            .zip(req_data.missing_accessors.iter())
+            .map(|((pack, field), missing)| {
+                let offset = key.checked_shr(pack.shift).unwrap_or(0) & pack.mask;
+                resolve_key_value(offset + pack.min_value, field, missing.as_ref())
+            })
+            .collect()
+    }
+}
+
 #[derive(Debug)]
 struct MultiTermsBucketEntry<K, B> {
     key: K,
@@ -960,59 +1013,6 @@ struct PackedU64KeyPacking {
     packs: Vec<FieldPack>,
 }
 
-impl MultiTermsPacking for PackedU64KeyPacking {
-    type PackingType = u64;
-
-    fn new_packing(&self) -> Self::PackingType {
-        0
-    }
-
-    fn clear_packing(&self, key: &mut Self::PackingType) {
-        *key = 0;
-    }
-
-    fn push(&self, key: &mut Self::PackingType, field_idx: usize, value: u64) {
-        let pack = self.packs[field_idx];
-        let offset = value
-            .checked_sub(pack.min_value)
-            .expect("packed value is not below the field minimum");
-        debug_assert!(offset <= pack.max_offset);
-        *key |= shift_packed_bits(offset, pack.shift);
-    }
-
-    fn pop(&self, key: &mut Self::PackingType, field_idx: usize) {
-        let pack = self.packs[field_idx];
-        *key &= !shift_packed_bits(pack.mask, pack.shift);
-    }
-
-    #[inline]
-    fn push_full_values<I>(&self, keys: &mut [Self::PackingType], field_idx: usize, values: I)
-    where I: IntoIterator<Item = u64> {
-        let pack = self.packs[field_idx];
-        for (key, val) in keys.iter_mut().zip(values) {
-            let offset = val - pack.min_value;
-            debug_assert!(offset <= pack.max_offset);
-            *key |= shift_packed_bits(offset, pack.shift);
-        }
-    }
-
-    fn unpack(
-        &self,
-        key: &Self::PackingType,
-        req_data: &MultiTermsAggReqData,
-    ) -> crate::Result<Vec<IntermediateKey>> {
-        self.packs
-            .iter()
-            .zip(req_data.fields.iter())
-            .zip(req_data.missing_accessors.iter())
-            .map(|((pack, field), missing)| {
-                let offset = key.checked_shr(pack.shift).unwrap_or(0) & pack.mask;
-                resolve_key_value(offset + pack.min_value, field, missing.as_ref())
-            })
-            .collect()
-    }
-}
-
 /// Selects the key packing and bucket storage, then boxes the concrete collector.
 fn build_multi_terms_collector<BucketSlot: BucketIdSlot>(
     req: &mut AggregationsSegmentCtx,
@@ -1042,11 +1042,9 @@ fn build_multi_terms_collector<BucketSlot: BucketIdSlot>(
                     VecTermBuckets<BucketSlot, true>,
                 >(req, node, req_data, packing, num_terms, true);
             }
-            return box_multi_terms_collector::<
-                HighCardSubAggBuffer,
-                _,
-                VecTermBuckets<BucketSlot>,
-            >(req, node, req_data, packing, num_terms, true);
+            return box_multi_terms_collector::<HighCardSubAggBuffer, _, VecTermBuckets<BucketSlot>>(
+                req, node, req_data, packing, num_terms, true,
+            );
         }
         if is_top_level && max_packed < MAX_NUM_TERMS_FOR_PAGED_MAP {
             return box_multi_terms_collector::<HighCardSubAggBuffer, _, PagedTermMap<BucketSlot>>(
@@ -1324,13 +1322,11 @@ impl IntermediateMultiTermsBucketResult {
                         })
                         .collect();
                     if req.order.order == Order::Desc {
-                        keyed.select_nth_unstable_by(size, |left, right| {
-                            right.0.total_cmp(&left.0)
-                        });
+                        keyed
+                            .select_nth_unstable_by(size, |left, right| right.0.total_cmp(&left.0));
                     } else {
-                        keyed.select_nth_unstable_by(size, |left, right| {
-                            left.0.total_cmp(&right.0)
-                        });
+                        keyed
+                            .select_nth_unstable_by(size, |left, right| left.0.total_cmp(&right.0));
                     }
                     entries = keyed.into_iter().map(|(_, entry)| entry).collect();
                 }

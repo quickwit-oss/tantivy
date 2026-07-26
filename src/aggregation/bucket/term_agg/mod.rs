@@ -927,13 +927,9 @@ impl<B: BucketIdSlot> TermAggregationMap for VecTermBucketsWithLanes<B> {
 ///
 /// `LAZY_BUCKET_ID_GENERATION` defers sub-aggregation bucket ID generation until first use.
 #[derive(Clone, Debug)]
-pub(crate) struct VecTermBuckets<
-    B = BucketId,
-    const LAZY_BUCKET_ID_GENERATION: bool = false,
-> {
+pub(crate) struct VecTermBuckets<B = BucketId, const LAZY_BUCKET_ID_GENERATION: bool = false> {
     buckets: Vec<Bucket<B>>,
 }
-
 
 impl<B: BucketIdSlot, const LAZY_BUCKET_ID_GENERATION: bool> TermAggregationMap
     for VecTermBuckets<B, LAZY_BUCKET_ID_GENERATION>
