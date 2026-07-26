@@ -600,8 +600,8 @@ pub(crate) struct Bucket<B = BucketId> {
 impl<B: BucketIdSlot> Bucket<B> {
     /// Creates an empty bucket, assigning it the next id from `bucket_id_provider` (a no-op for the
     /// `()` slot, which leaves the provider untouched).
-    #[inline(always)]
-    pub(crate) fn new(bucket_id_provider: &mut BucketIdProvider) -> Self {
+    #[inline]
+    fn new(bucket_id_provider: &mut BucketIdProvider) -> Self {
         Self {
             count: 0,
             bucket_id: B::assign(bucket_id_provider),
@@ -656,7 +656,7 @@ pub(crate) struct HashMapTermBuckets<B = BucketId, K = u64> {
 }
 
 impl<B, K> Default for HashMapTermBuckets<B, K> {
-    #[inline(always)]
+    #[inline]
     fn default() -> Self {
         Self {
             bucket_map: FxHashMap::default(),
@@ -813,7 +813,7 @@ impl<K: AggregationMapKey, B: BucketIdSlot> TermAggregationMap<K> for HashMapTer
         self.bucket_map.memory_consumption() + self.key_heap_memory
     }
 
-    #[inline(always)]
+    #[inline]
     fn term_entry(&mut self, key: K, bucket_id_provider: &mut BucketIdProvider) -> B {
         let bucket = match self.bucket_map.entry(key) {
             std::collections::hash_map::Entry::Occupied(entry) => entry.into_mut(),
@@ -952,7 +952,7 @@ impl<B: BucketIdSlot, const LAZY_BUCKET_ID_GENERATION: bool> TermAggregationMap
     }
 
     /// Add an occurrence of the given term id.
-    #[inline(always)]
+    #[inline]
     fn term_entry(&mut self, term_id: u64, bucket_id_provider: &mut BucketIdProvider) -> B {
         let term_id_usize = term_id as usize;
         debug_assert!(

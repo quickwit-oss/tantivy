@@ -240,56 +240,56 @@ fn fetch_field_block(
         && block_accessor.iter_vals().len() == docs.len()
 }
 
-/// Key operations used by the unified collector.
+/// Packing operations used by the unified collector.
 ///
 /// Compact layouts use a packed `u64`; layouts wider than 64 bits use [`MultiTermsKey`].
 /// Collection, bucket accounting, sub-aggregation buffering, and result conversion are shared.
-trait MultiTermsKeyCodec: Clone + Debug + 'static {
-    type Key: AggregationMapKey + Ord;
+trait MultiTermsPacking: Clone + Debug + 'static {
+    type PackingType: AggregationMapKey + Ord;
 
-    fn new_key(&self) -> Self::Key;
-    fn clear_key(&self, key: &mut Self::Key);
-    fn push(&self, key: &mut Self::Key, field_idx: usize, value: u64);
-    fn pop(&self, key: &mut Self::Key, field_idx: usize);
+    fn new_packing(&self) -> Self::PackingType;
+    fn clear_packing(&self, key: &mut Self::PackingType);
+    fn push(&self, key: &mut Self::PackingType, field_idx: usize, value: u64);
+    fn pop(&self, key: &mut Self::PackingType, field_idx: usize);
 
     /// Pushes one field's aligned values into every active key buffer.
-    fn push_full_values<I>(&self, keys: &mut [Self::Key], field_idx: usize, values: I)
+    fn push_full_values<I>(&self, keys: &mut [Self::PackingType], field_idx: usize, values: I)
     where I: IntoIterator<Item = u64>;
 
-    fn resolve_key(
+    fn unpack(
         &self,
-        key: &Self::Key,
+        key: &Self::PackingType,
         req_data: &MultiTermsAggReqData,
     ) -> crate::Result<Vec<IntermediateKey>>;
 }
 
 #[derive(Clone, Debug)]
-struct UnpackedKeyCodec {
+struct U64ArrayKeyPacking {
     num_fields: usize,
 }
 
-impl MultiTermsKeyCodec for UnpackedKeyCodec {
-    type Key = MultiTermsKey;
+impl MultiTermsPacking for U64ArrayKeyPacking {
+    type PackingType = MultiTermsKey;
 
-    fn new_key(&self) -> Self::Key {
+    fn new_packing(&self) -> Self::PackingType {
         SmallVec::with_capacity(self.num_fields)
     }
 
-    fn clear_key(&self, key: &mut Self::Key) {
+    fn clear_packing(&self, key: &mut Self::PackingType) {
         key.clear();
     }
 
-    fn push(&self, key: &mut Self::Key, field_idx: usize, value: u64) {
+    fn push(&self, key: &mut Self::PackingType, field_idx: usize, value: u64) {
         debug_assert_eq!(key.len(), field_idx);
         key.push(value);
     }
 
-    fn pop(&self, key: &mut Self::Key, field_idx: usize) {
+    fn pop(&self, key: &mut Self::PackingType, field_idx: usize) {
         debug_assert_eq!(key.len(), field_idx + 1);
         key.pop();
     }
 
-    fn push_full_values<I>(&self, keys: &mut [Self::Key], field_idx: usize, values: I)
+    fn push_full_values<I>(&self, keys: &mut [Self::PackingType], field_idx: usize, values: I)
     where I: IntoIterator<Item = u64> {
         for (key, val) in keys.iter_mut().zip(values) {
             debug_assert!(key.len() <= field_idx);
@@ -297,12 +297,18 @@ impl MultiTermsKeyCodec for UnpackedKeyCodec {
         }
     }
 
-    fn resolve_key(
+    fn unpack(
         &self,
-        key: &Self::Key,
+        key: &Self::PackingType,
         req_data: &MultiTermsAggReqData,
     ) -> crate::Result<Vec<IntermediateKey>> {
-        resolve_multi_terms_key(key, req_data)
+        key.iter()
+            .zip(req_data.fields.iter())
+            .zip(req_data.missing_accessors.iter())
+            .map(|((value, field_acc), missing)| {
+                resolve_key_value(*value, field_acc, missing.as_ref())
+            })
+            .collect()
     }
 }
 
@@ -322,12 +328,12 @@ impl<K, B: BucketIdSlot> GetDocCount for MultiTermsBucketEntry<K, B> {
 // Segment collector
 // ---------------------------------------------------------------------------
 
-/// Segment-level collector shared by packed and unpacked key representations.
+/// Segment-level collector shared by packed-u64 and u64-array key representations.
 #[derive(Debug)]
-struct SegmentMultiTermsCollector<Codec, BucketMap, Buffer>
+struct SegmentMultiTermsCollector<Packing, BucketMap, Buffer>
 where
-    Codec: MultiTermsKeyCodec,
-    BucketMap: TermAggregationMap<Codec::Key>,
+    Packing: MultiTermsPacking,
+    BucketMap: TermAggregationMap<Packing::PackingType>,
     Buffer: SubAggBuffer,
 {
     /// One bucket map per parent bucket (for nested aggs).
@@ -335,7 +341,7 @@ where
     sub_agg: Option<BufferedSubAggs<Buffer>>,
     bucket_id_provider: BucketIdProvider,
     req_data: MultiTermsAggReqData,
-    key_codec: Codec,
+    packing: Packing,
     /// Argument used when creating another map for a nested parent bucket. For a dense Vec map
     /// this is the number of keys; for paged/hash maps it is the maximum packed key (or
     /// ignored).
@@ -345,7 +351,7 @@ where
     /// Whether fields can be collected directly into one key per surviving document.
     use_single_value_path: bool,
     /// Used for full/optional columns: one key is built per surviving document
-    single_value_keys_buf: Vec<Codec::Key>,
+    single_value_keys_buf: Vec<Packing::PackingType>,
     /// Document IDs still able to produce a complete single-valued key. They are kept in the
     /// same order as the corresponding prefix of `single_value_keys_buf`.
     active_docs: Vec<u32>,
@@ -424,13 +430,17 @@ pub(crate) fn build_segment_multi_terms_collector(
     validate_multi_terms(&req_data, node, &req.per_request)?;
 
     let packed_layout = compute_packed_u64_layout(&req_data.fields, &req_data.missing_accessors);
-    build_multi_terms_collector(req, node, req_data, packed_layout)
+    if node.children.is_empty() {
+        build_multi_terms_collector::<()>(req, node, req_data, packed_layout)
+    } else {
+        build_multi_terms_collector::<BucketId>(req, node, req_data, packed_layout)
+    }
 }
 
-impl<Codec, BucketMap, Buffer> SegmentMultiTermsCollector<Codec, BucketMap, Buffer>
+impl<Packing, BucketMap, Buffer> SegmentMultiTermsCollector<Packing, BucketMap, Buffer>
 where
-    Codec: MultiTermsKeyCodec,
-    BucketMap: TermAggregationMap<Codec::Key>,
+    Packing: MultiTermsPacking,
+    BucketMap: TermAggregationMap<Packing::PackingType>,
     Buffer: SubAggBuffer,
 {
     fn get_memory_consumption(&self, parent_bucket_id: BucketId) -> usize {
@@ -439,10 +449,10 @@ where
 
     #[allow(clippy::too_many_arguments)]
     fn collect_field_value_combinations(
-        key_codec: &Codec,
+        packing: &Packing,
         doc_id: crate::DocId,
         field_idx: usize,
-        prefix: &mut Codec::Key,
+        prefix: &mut Packing::PackingType,
         field_values: &[FieldValues],
         buckets: &mut BucketMap,
         sub_agg: &mut Option<BufferedSubAggs<Buffer>>,
@@ -451,7 +461,7 @@ where
         let is_last = field_idx + 1 == field_values.len();
 
         for &elem in &field_values[field_idx] {
-            key_codec.push(prefix, field_idx, elem);
+            packing.push(prefix, field_idx, elem);
             if is_last {
                 let bucket_id = buckets.term_entry(prefix.clone(), bucket_id_provider);
                 if let Some(sub_agg) = sub_agg {
@@ -459,7 +469,7 @@ where
                 }
             } else {
                 Self::collect_field_value_combinations(
-                    key_codec,
+                    packing,
                     doc_id,
                     field_idx + 1,
                     prefix,
@@ -469,13 +479,13 @@ where
                     bucket_id_provider,
                 );
             }
-            key_codec.pop(prefix, field_idx);
+            packing.pop(prefix, field_idx);
         }
     }
 
-    /// Convert any bucket-map/key-codec pair to the shared intermediate result.
+    /// Convert any bucket-map/packing pair to the shared intermediate result.
     fn into_intermediate_bucket_result(
-        key_codec: &Codec,
+        packing: &Packing,
         req_data: &MultiTermsAggReqData,
         mut sub_agg_collector: Option<&mut dyn SegmentAggregationCollector>,
         bucket_map: BucketMap,
@@ -483,11 +493,12 @@ where
     ) -> crate::Result<IntermediateBucketResult> {
         let req = MultiTermsAggregationInternal::from_req(&req_data.req);
 
-        let mut entries: Vec<MultiTermsBucketEntry<Codec::Key, BucketMap::Slot>> = bucket_map
-            .into_vec()
-            .into_iter()
-            .map(|(key, bucket)| MultiTermsBucketEntry { key, bucket })
-            .collect();
+        let mut entries: Vec<MultiTermsBucketEntry<Packing::PackingType, BucketMap::Slot>> =
+            bucket_map
+                .into_vec()
+                .into_iter()
+                .map(|(key, bucket)| MultiTermsBucketEntry { key, bucket })
+                .collect();
 
         match &req.order.target {
             OrderTarget::Count => {
@@ -545,7 +556,7 @@ where
             FxHashMap::with_capacity_and_hasher(entries.len(), Default::default());
 
         for entry in entries {
-            let intermediate_key = key_codec.resolve_key(&entry.key, req_data)?;
+            let intermediate_key = packing.unpack(&entry.key, req_data)?;
             let mut sub_aggregation_res = IntermediateAggregationResults::default();
             if let Some(sub_agg_collector) = sub_agg_collector.as_deref_mut() {
                 sub_agg_collector.add_intermediate_aggregation_result(
@@ -582,11 +593,11 @@ where
     }
 }
 
-impl<Codec, BucketMap, Buffer> SegmentAggregationCollector
-    for SegmentMultiTermsCollector<Codec, BucketMap, Buffer>
+impl<Packing, BucketMap, Buffer> SegmentAggregationCollector
+    for SegmentMultiTermsCollector<Packing, BucketMap, Buffer>
 where
-    Codec: MultiTermsKeyCodec,
-    BucketMap: TermAggregationMap<Codec::Key>,
+    Packing: MultiTermsPacking,
+    BucketMap: TermAggregationMap<Packing::PackingType>,
     Buffer: SubAggBuffer,
 {
     fn add_intermediate_aggregation_result(
@@ -604,7 +615,7 @@ where
         );
         let name = self.req_data.name.clone();
         let result = Self::into_intermediate_bucket_result(
-            &self.key_codec,
+            &self.packing,
             &self.req_data,
             self.sub_agg
                 .as_mut()
@@ -629,16 +640,16 @@ where
         let buckets = &mut self.parent_buckets[parent_bucket_id as usize];
         let sub_agg = &mut self.sub_agg;
         let bucket_id_provider = &mut self.bucket_id_provider;
-        let key_codec = &self.key_codec;
+        let packing = &self.packing;
 
         if self.use_single_value_path {
             if self.single_value_keys_buf.len() < docs.len() {
                 self.single_value_keys_buf
-                    .resize_with(docs.len(), || key_codec.new_key());
+                    .resize_with(docs.len(), || packing.new_packing());
             }
             let keys_buf = &mut self.single_value_keys_buf[..docs.len()];
             for key in keys_buf.iter_mut() {
-                key_codec.clear_key(key);
+                packing.clear_packing(key);
             }
 
             let block_accessor = &mut agg_data.column_block_accessor;
@@ -652,7 +663,7 @@ where
                         self.req_data.missing_accessors[field_idx].as_ref(),
                         block_accessor,
                     );
-                    key_codec.push_full_values(keys_buf, field_idx, block_accessor.iter_vals());
+                    packing.push_full_values(keys_buf, field_idx, block_accessor.iter_vals());
                 }
 
                 if let Some(sub_agg) = sub_agg {
@@ -685,7 +696,7 @@ where
                         block_accessor,
                     );
                     if has_value_per_doc {
-                        key_codec.push_full_values(
+                        packing.push_full_values(
                             &mut keys_buf[..self.active_docs.len()],
                             field_idx,
                             block_accessor.iter_vals(),
@@ -706,7 +717,7 @@ where
                             self.active_docs[target_idx] = doc_id;
                             keys_buf.swap(target_idx, source_idx);
                         }
-                        key_codec.push(&mut keys_buf[target_idx], field_idx, value);
+                        packing.push(&mut keys_buf[target_idx], field_idx, value);
                         source_idx += 1;
                         target_idx += 1;
                     }
@@ -783,16 +794,16 @@ where
                 }
             }
 
-            let mut prefix = key_codec.new_key();
+            let mut prefix = packing.new_packing();
             for (doc_idx, &doc_id) in docs.iter().enumerate() {
                 let start = doc_idx * num_fields;
                 let field_values = &doc_field_values[start..start + num_fields];
                 if field_values.iter().any(FieldValues::is_empty) {
                     continue;
                 }
-                key_codec.clear_key(&mut prefix);
+                packing.clear_packing(&mut prefix);
                 Self::collect_field_value_combinations(
-                    key_codec,
+                    packing,
                     doc_id,
                     0,
                     &mut prefix,
@@ -945,22 +956,22 @@ fn compute_max_packed(packs: &[FieldPack]) -> u64 {
 }
 
 #[derive(Clone, Debug)]
-struct PackedU64KeyCodec {
+struct PackedU64KeyPacking {
     packs: Vec<FieldPack>,
 }
 
-impl MultiTermsKeyCodec for PackedU64KeyCodec {
-    type Key = u64;
+impl MultiTermsPacking for PackedU64KeyPacking {
+    type PackingType = u64;
 
-    fn new_key(&self) -> Self::Key {
+    fn new_packing(&self) -> Self::PackingType {
         0
     }
 
-    fn clear_key(&self, key: &mut Self::Key) {
+    fn clear_packing(&self, key: &mut Self::PackingType) {
         *key = 0;
     }
 
-    fn push(&self, key: &mut Self::Key, field_idx: usize, value: u64) {
+    fn push(&self, key: &mut Self::PackingType, field_idx: usize, value: u64) {
         let pack = self.packs[field_idx];
         let offset = value
             .checked_sub(pack.min_value)
@@ -969,13 +980,13 @@ impl MultiTermsKeyCodec for PackedU64KeyCodec {
         *key |= shift_packed_bits(offset, pack.shift);
     }
 
-    fn pop(&self, key: &mut Self::Key, field_idx: usize) {
+    fn pop(&self, key: &mut Self::PackingType, field_idx: usize) {
         let pack = self.packs[field_idx];
         *key &= !shift_packed_bits(pack.mask, pack.shift);
     }
 
     #[inline]
-    fn push_full_values<I>(&self, keys: &mut [Self::Key], field_idx: usize, values: I)
+    fn push_full_values<I>(&self, keys: &mut [Self::PackingType], field_idx: usize, values: I)
     where I: IntoIterator<Item = u64> {
         let pack = self.packs[field_idx];
         for (key, val) in keys.iter_mut().zip(values) {
@@ -985,9 +996,9 @@ impl MultiTermsKeyCodec for PackedU64KeyCodec {
         }
     }
 
-    fn resolve_key(
+    fn unpack(
         &self,
-        key: &Self::Key,
+        key: &Self::PackingType,
         req_data: &MultiTermsAggReqData,
     ) -> crate::Result<Vec<IntermediateKey>> {
         self.packs
@@ -1002,8 +1013,8 @@ impl MultiTermsKeyCodec for PackedU64KeyCodec {
     }
 }
 
-/// Selects the key codec and bucket storage, then delegates to one generic collector builder.
-fn build_multi_terms_collector(
+/// Selects the key packing and bucket storage, then boxes the concrete collector.
+fn build_multi_terms_collector<BucketSlot: BucketIdSlot>(
     req: &mut AggregationsSegmentCtx,
     node: &AggRefNode,
     req_data: MultiTermsAggReqData,
@@ -1013,197 +1024,107 @@ fn build_multi_terms_collector(
         let is_top_level = req_data.is_top_level;
         let max_packed = compute_max_packed(&packs);
         let num_terms = max_packed.saturating_add(1);
-        let codec = PackedU64KeyCodec { packs };
+        let packing = PackedU64KeyPacking { packs };
 
         if is_top_level
             && !node.children.is_empty()
             && max_packed < MAX_NUM_TERMS_FOR_LOWCARD_SUBAGG
         {
-            return build_multi_terms_collector_with_maps::<LowCardSubAggBuffer, _, _, _>(
-                req,
-                node,
-                req_data,
-                codec,
-                num_terms,
-                true,
-                |provider| VecTermBuckets::<BucketId>::new(num_terms, provider),
-                |provider| VecTermBuckets::<()>::new(num_terms, provider),
+            return box_multi_terms_collector::<LowCardSubAggBuffer, _, VecTermBuckets<BucketSlot>>(
+                req, node, req_data, packing, num_terms, true,
             );
         }
         if is_top_level && max_packed < MAX_NUM_TERMS_FOR_VEC {
             if num_terms > LAZY_BUCKET_ID_GENERATION_THRESHOLD {
-                return build_multi_terms_collector_with_maps::<
+                return box_multi_terms_collector::<
                     HighCardSubAggBuffer,
                     _,
-                    _,
-                    _,
-                >(
-                    req,
-                    node,
-                    req_data,
-                    codec,
-                    num_terms,
-                    true,
-                    |provider| VecTermBuckets::<BucketId, true>::new(num_terms, provider),
-                    |provider| VecTermBuckets::<()>::new(num_terms, provider),
-                );
+                    VecTermBuckets<BucketSlot, true>,
+                >(req, node, req_data, packing, num_terms, true);
             }
-            return build_multi_terms_collector_with_maps::<HighCardSubAggBuffer, _, _, _>(
-                req,
-                node,
-                req_data,
-                codec,
-                num_terms,
-                true,
-                |provider| VecTermBuckets::<BucketId>::new(num_terms, provider),
-                |provider| VecTermBuckets::<()>::new(num_terms, provider),
-            );
+            return box_multi_terms_collector::<
+                HighCardSubAggBuffer,
+                _,
+                VecTermBuckets<BucketSlot>,
+            >(req, node, req_data, packing, num_terms, true);
         }
         if is_top_level && max_packed < MAX_NUM_TERMS_FOR_PAGED_MAP {
-            return build_multi_terms_collector_with_maps::<HighCardSubAggBuffer, _, _, _>(
-                req,
-                node,
-                req_data,
-                codec,
-                max_packed,
-                false,
-                |provider| PagedTermMap::<BucketId>::new(max_packed, provider),
-                |provider| PagedTermMap::<()>::new(max_packed, provider),
+            return box_multi_terms_collector::<HighCardSubAggBuffer, _, PagedTermMap<BucketSlot>>(
+                req, node, req_data, packing, max_packed, false,
             );
         }
-        return build_multi_terms_collector_with_maps::<HighCardSubAggBuffer, _, _, _>(
-            req,
-            node,
-            req_data,
-            codec,
-            0,
-            false,
-            |_| HashMapTermBuckets::<BucketId>::default(),
-            |_| HashMapTermBuckets::<()>::default(),
+        return box_multi_terms_collector::<HighCardSubAggBuffer, _, HashMapTermBuckets<BucketSlot>>(
+            req, node, req_data, packing, 0, false,
         );
     }
 
-    let codec = UnpackedKeyCodec {
+    let packing = U64ArrayKeyPacking {
         num_fields: req_data.fields.len(),
     };
-    build_multi_terms_collector_with_maps::<HighCardSubAggBuffer, _, _, _>(
-        req,
-        node,
-        req_data,
-        codec,
-        0,
-        false,
-        |_| HashMapTermBuckets::<BucketId, MultiTermsKey>::default(),
-        |_| HashMapTermBuckets::<(), MultiTermsKey>::default(),
-    )
+    box_multi_terms_collector::<
+        HighCardSubAggBuffer,
+        _,
+        HashMapTermBuckets<BucketSlot, MultiTermsKey>,
+    >(req, node, req_data, packing, 0, false)
 }
 
-/// Builds the same collector for every codec/map combination. The two map factories differ only in
-/// whether their bucket slot stores a real id for sub-aggregations or the zero-sized `()` slot.
-#[allow(clippy::too_many_arguments)]
-fn build_multi_terms_collector_with_maps<Buffer, Codec, MapWithSubAgg, MapWithoutSubAgg>(
+fn box_multi_terms_collector<Buffer, Packing, BucketMap>(
     req: &mut AggregationsSegmentCtx,
     node: &AggRefNode,
     req_data: MultiTermsAggReqData,
-    codec: Codec,
+    packing: Packing,
     map_init_value: u64,
     charge_initial_map_memory: bool,
-    map_with_sub_agg: impl FnOnce(&mut BucketIdProvider) -> MapWithSubAgg,
-    map_without_sub_agg: impl FnOnce(&mut BucketIdProvider) -> MapWithoutSubAgg,
 ) -> crate::Result<Box<dyn SegmentAggregationCollector>>
 where
     Buffer: SubAggBuffer + 'static,
-    Codec: MultiTermsKeyCodec,
-    MapWithSubAgg: TermAggregationMap<Codec::Key, Slot = BucketId>,
-    MapWithoutSubAgg: TermAggregationMap<Codec::Key, Slot = ()>,
+    Packing: MultiTermsPacking,
+    BucketMap: TermAggregationMap<Packing::PackingType>,
 {
     let mut bucket_id_provider = BucketIdProvider::default();
-    if node.children.is_empty() {
-        let buckets = map_without_sub_agg(&mut bucket_id_provider);
-        if charge_initial_map_memory {
-            req.context
-                .limits
-                .add_memory_consumed(buckets.get_memory_consumption() as u64)?;
-        }
-        Ok(box_multi_terms_collector::<_, _, Buffer>(
-            buckets,
-            None,
-            bucket_id_provider,
-            req_data,
-            codec,
-            map_init_value,
-        ))
-    } else {
-        let buckets = map_with_sub_agg(&mut bucket_id_provider);
-        if charge_initial_map_memory {
-            req.context
-                .limits
-                .add_memory_consumed(buckets.get_memory_consumption() as u64)?;
-        }
-        let sub_agg = Some(BufferedSubAggs::<Buffer>::new(
-            build_segment_agg_collectors(req, &node.children)?,
-        ));
-        Ok(box_multi_terms_collector(
-            buckets,
-            sub_agg,
-            bucket_id_provider,
-            req_data,
-            codec,
-            map_init_value,
-        ))
+    let buckets = BucketMap::new(map_init_value, &mut bucket_id_provider);
+    if charge_initial_map_memory {
+        req.context
+            .limits
+            .add_memory_consumed(buckets.get_memory_consumption() as u64)?;
     }
-}
-
-fn box_multi_terms_collector<Codec, BucketMap, Buffer>(
-    buckets: BucketMap,
-    sub_agg: Option<BufferedSubAggs<Buffer>>,
-    bucket_id_provider: BucketIdProvider,
-    req_data: MultiTermsAggReqData,
-    key_codec: Codec,
-    map_init_value: u64,
-) -> Box<dyn SegmentAggregationCollector>
-where
-    Codec: MultiTermsKeyCodec,
-    BucketMap: TermAggregationMap<Codec::Key>,
-    Buffer: SubAggBuffer + 'static,
-{
+    let sub_agg = if node.children.is_empty() {
+        None
+    } else {
+        Some(BufferedSubAggs::<Buffer>::new(
+            build_segment_agg_collectors(req, &node.children)?,
+        ))
+    };
     let all_fields_full = req_data
         .fields
         .iter()
         .all(|field| field.column.get_cardinality().is_full());
-    let use_single_value_path = req_data
-        .fields
-        .iter()
-        .zip(&req_data.missing_accessors)
-        .all(|(field, missing)| {
-            !field.column.get_cardinality().is_multivalue()
-                && (missing.is_none() || block_missing_value(missing.as_ref()).is_some())
-        });
-    Box::new(SegmentMultiTermsCollector::<Codec, BucketMap, Buffer> {
+    let use_single_value_path =
+        req_data
+            .fields
+            .iter()
+            .zip(&req_data.missing_accessors)
+            .all(|(field, missing)| {
+                !field.column.get_cardinality().is_multivalue()
+                    && (missing.is_none() || block_missing_value(missing.as_ref()).is_some())
+            });
+    Ok(Box::new(SegmentMultiTermsCollector::<
+        Packing,
+        BucketMap,
+        Buffer,
+    > {
         parent_buckets: vec![buckets],
         sub_agg,
         bucket_id_provider,
         req_data,
-        key_codec,
+        packing,
         map_init_value,
         all_fields_full,
         use_single_value_path,
         single_value_keys_buf: Vec::new(),
         active_docs: Vec::new(),
         doc_field_values_buf: Vec::new(),
-    })
-}
-
-/// Resolve a composite key (one raw fast-field value per field) to intermediate keys.
-fn resolve_multi_terms_key(
-    key: &MultiTermsKey,
-    req_data: &MultiTermsAggReqData,
-) -> crate::Result<Vec<IntermediateKey>> {
-    key.iter()
-        .zip(req_data.fields.iter())
-        .zip(req_data.missing_accessors.iter())
-        .map(|((value, field_acc), missing)| resolve_key_value(*value, field_acc, missing.as_ref()))
-        .collect()
+    }))
 }
 
 /// Resolve one raw fast-field value, recognizing the collision-free missing sentinel first.
@@ -2075,7 +1996,7 @@ mod tests {
     }
 
     // -----------------------------------------------------------------
-    // Packed/unpacked key collector tests
+    // Packed-u64/u64-array key collector tests
     // -----------------------------------------------------------------
 
     #[test]
@@ -2243,7 +2164,7 @@ mod tests {
     }
 
     #[test]
-    fn test_multi_terms_wide_fields_use_unpacked_key() -> crate::Result<()> {
+    fn test_multi_terms_wide_fields_use_u64_array_key() -> crate::Result<()> {
         // `score` alone needs the full 64 bits (max_value close to u64::MAX), so combined
         // with any other field the packed layout exceeds 64 bits. The same collector switches to
         // `MultiTermsKey` while preserving the result.
@@ -2317,7 +2238,7 @@ mod tests {
     }
 
     #[test]
-    fn test_multi_terms_unpacked_single_value_path_handles_optional_field() -> crate::Result<()> {
+    fn test_multi_terms_u64_array_single_value_path_handles_optional_field() -> crate::Result<()> {
         // `big` requires 64 bits and `tag` requires another bit, selecting `MultiTermsKey`.
         // `tag` is optional but not multivalued, so collection should still build one key per
         // surviving document directly. Putting it first also exercises validity filtering before
