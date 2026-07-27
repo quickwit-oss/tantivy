@@ -285,6 +285,54 @@ fn fixture_uses_selected_storage_format() -> crate::Result<()> {
     Ok(())
 }
 
+/// Both vector segment files must stamp the current format-generation header
+/// ahead of their composite body, so future layout changes can be gated.
+#[test]
+fn vector_files_stamp_format_version_header() -> crate::Result<()> {
+    use crate::directory::CompositeFile;
+    use crate::index::SegmentComponent;
+    use crate::vector::header::{read_header, VectorFileVersion};
+    use crate::vector::ivf::CENTROIDS_EXT;
+    use crate::vector::VEC_EXT;
+
+    for format in [VectorStorageFormat::Flat, VectorStorageFormat::Ivf] {
+        let index = TestVectorIndex::builder(VectorDType::F32)
+            .vector_storage_format(format)
+            .build()?;
+        let searcher = index.index.reader()?.searcher();
+        assert!(!searcher.segment_readers().is_empty());
+
+        for segment_reader in searcher.segment_readers() {
+            let vec_file =
+                segment_reader.open_read(SegmentComponent::Custom(VEC_EXT.to_string()))?;
+            let (version, body) = read_header(&vec_file)?;
+            assert_eq!(version, VectorFileVersion::V1);
+            // Body must be a valid composite — proves the stamp sits in front
+            // of the framing, not inside a slot.
+            CompositeFile::open(&body)?;
+
+            match format {
+                VectorStorageFormat::Flat => {
+                    assert!(
+                        segment_reader
+                            .open_read(SegmentComponent::Custom(CENTROIDS_EXT.to_string()))
+                            .is_err(),
+                        "flat segments must not write `.centroids`"
+                    );
+                }
+                VectorStorageFormat::Ivf => {
+                    let centroids_file = segment_reader
+                        .open_read(SegmentComponent::Custom(CENTROIDS_EXT.to_string()))?;
+                    let (version, body) = read_header(&centroids_file)?;
+                    assert_eq!(version, VectorFileVersion::V1);
+                    CompositeFile::open(&body)?;
+                }
+            }
+        }
+    }
+    Ok(())
+}
+
 #[test]
 fn fixture_vectors_round_trip_from_readers() -> crate::Result<()> {
     let mut expected = grid2d::vectors(NUM_DOCS);
@@ -435,7 +483,8 @@ fn ivf_merge_writes_centroid_graph_slot() -> crate::Result<()> {
     for segment_reader in searcher.segment_readers() {
         let centroids_file =
             segment_reader.open_read(SegmentComponent::Custom(CENTROIDS_EXT.to_string()))?;
-        let composite = CompositeFile::open(&centroids_file)?;
+        let (_version, body) = super::header::read_header(&centroids_file)?;
+        let composite = CompositeFile::open(&body)?;
         let graph_bytes = composite
             .open_read_with_idx(index.embedding_field(), 2)
             .expect("IVF merge should write the centroid graph slot")

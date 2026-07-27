@@ -1,11 +1,13 @@
-//! Format version for the per-segment `.vec` file.
+//! Format version for the per-segment vector files (`.vec` and `.centroids`).
 //!
-//! A fixed 4-byte header (a `u32` version) is prepended to every `.vec` file,
-//! ahead of the [`CompositeFile`](crate::directory::CompositeFile) body. The
-//! version is the wire-layout *generation* — bump it when the framing changes
-//! incompatibly. It is orthogonal to the
+//! A fixed 4-byte header (a `u32` version) is prepended to every file, ahead of
+//! the [`CompositeFile`](crate::directory::CompositeFile) body. The version is
+//! the wire-layout *generation* — bump it when the framing changes incompatibly.
+//!
+//! For `.vec`, the version is orthogonal to the
 //! [`IdMap`](super::flat::id_map) variant, which selects the storage *mode*
-//! (flat vs IVF) within a generation.
+//! (flat vs IVF) within a generation. For `.centroids`, it versions the IVF
+//! routing composite (centroids, cluster offsets, optional graph).
 
 use std::io::{self, Read, Write};
 
@@ -13,16 +15,16 @@ use common::{BinarySerializable, HasLen};
 
 use crate::directory::FileSlice;
 
-/// Length of the `.vec` header in bytes (a single `u32`).
+/// Length of the version header in bytes (a single `u32`).
 pub(crate) const HEADER_LEN: usize = 4;
 
-/// On-disk format version of the `.vec` file.
+/// On-disk format version of a vector segment file (`.vec` or `.centroids`).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub(crate) enum VectorFileVersion {
     V1 = 1,
 }
 
-/// Version stamped into newly written `.vec` files.
+/// Version stamped into newly written vector files.
 pub(crate) const CURRENT: VectorFileVersion = VectorFileVersion::V1;
 
 impl BinarySerializable for VectorFileVersion {
@@ -35,7 +37,7 @@ impl BinarySerializable for VectorFileVersion {
             1 => Ok(VectorFileVersion::V1),
             other => Err(io::Error::new(
                 io::ErrorKind::InvalidData,
-                format!("unsupported .vec format version: {other}"),
+                format!("unsupported vector file format version: {other}"),
             )),
         }
     }
@@ -55,7 +57,7 @@ pub(crate) fn read_header(file: &FileSlice) -> io::Result<(VectorFileVersion, Fi
     if file.len() < HEADER_LEN {
         return Err(io::Error::new(
             io::ErrorKind::UnexpectedEof,
-            "`.vec` file is smaller than its header",
+            "vector file is smaller than its header",
         ));
     }
     let header_bytes = file.slice_to(HEADER_LEN).read_bytes()?;

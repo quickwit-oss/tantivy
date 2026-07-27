@@ -112,11 +112,11 @@ impl VectorIndexReader {
         };
         let id_map = IdMap::open(id_map_slice, segment_reader.max_doc())?;
 
-        // TODO: Add a version header to the centroids file
         let centroid_slots =
             match segment_reader.open_read(SegmentComponent::Custom(CENTROIDS_EXT.to_string())) {
                 Ok(file) => {
-                    let composite = CompositeFile::open(&file)?;
+                    let (_version, body) = read_header(&file)?;
+                    let composite = CompositeFile::open(&body)?;
                     match (
                         composite.open_read_with_idx(field, 0),
                         composite.open_read_with_idx(field, 1),

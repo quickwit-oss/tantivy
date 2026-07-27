@@ -217,7 +217,9 @@ pub(crate) fn merge_ivf(
     let mut vec_file = directory.open_write(&vec_path)?;
     write_header(&mut vec_file)?;
     let mut vec_write = CompositeWrite::wrap(vec_file);
-    let mut centroids_write = CompositeWrite::wrap(directory.open_write(&centroids_path)?);
+    let mut centroids_file = directory.open_write(&centroids_path)?;
+    write_header(&mut centroids_file)?;
+    let mut centroids_write = CompositeWrite::wrap(centroids_file);
 
     for (field, entry) in ctx.schema.fields() {
         let opts = match entry.field_type() {

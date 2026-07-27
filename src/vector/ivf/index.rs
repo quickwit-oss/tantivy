@@ -3,9 +3,10 @@
 //! serializers the merge calls and the [`IvfIndex::open`] that parses them
 //! back sit side by side.
 //!
-//! Written per field, only for IVF segments (⟺ the field's `.vec` `IdMap` is
-//! `Explicit`). A [`CompositeFile`](crate::directory::CompositeFile) with
-//! three slots per field:
+//! The on-disk file is a 4-byte format-version stamp (see `vector::header`)
+//! followed by a [`CompositeFile`](crate::directory::CompositeFile). Written
+//! per field, only for IVF segments (⟺ the field's `.vec` `IdMap` is
+//! `Explicit`). The composite has three slots per field:
 //!
 //! ```text
 //! [0] num_centroids (u32) + num_docs (u32) + centroid_bytes (N · stride)
