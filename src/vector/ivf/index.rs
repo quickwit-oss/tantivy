@@ -331,7 +331,7 @@ impl Iterator for ClusterRanking<'_> {
 /// [`ClusterRanking::metrics`] snapshot): how many centroids were scored to
 /// pick the probe order, and — when routing went through the centroid RNG —
 /// the beam search's full [`NeighborhoodGraphSearchMetrics`].
-#[derive(Clone, Copy, Debug, Default)]
+#[derive(Clone, Copy, Debug, Default, serde::Serialize)]
 pub struct IvfSearchMetrics {
     /// Centroids scored to route the query (the navigation cost):
     /// `num_centroids` on the exact path, the beam-visited count when routed

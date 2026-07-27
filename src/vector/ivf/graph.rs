@@ -378,7 +378,7 @@ impl EdgeListMut<'_> {
 }
 
 /// Why a [`RelativeNeighborhoodGraph::search`] stopped expanding.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize)]
 pub enum SearchTerminationReason {
     /// The best unexpanded candidate could not beat the worst kept result of
     /// a full beam: the search converged.
@@ -390,7 +390,7 @@ pub enum SearchTerminationReason {
 
 /// Per-query cost and convergence counters returned by
 /// [`RelativeNeighborhoodGraph::search`].
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, serde::Serialize)]
 pub struct NeighborhoodGraphSearchMetrics {
     /// Nodes visited — and therefore scored — by the query; the search's
     /// navigation cost.

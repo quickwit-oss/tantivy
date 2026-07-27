@@ -141,7 +141,7 @@ impl<T: VectorElement> VectorBackend<T> {
 }
 
 /// How the probe loop stopped.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Default, serde::Serialize)]
 pub enum ProbeTermination {
     /// The filter-effective probe budget reached `max_probe_count` — the
     /// probe ceiling.
@@ -153,17 +153,12 @@ pub enum ProbeTermination {
     Exhausted,
 }
 
-/// Per-segment probe-loop instrumentation: which clusters were probed
-/// (in probe order) and a prune breakdown of every doc the inner loop
-/// touched. Returned by [`VectorBackend::top_n`] alongside the hits.
-/// The flat/exact path fills only `exact_rows_read`; every other field
-/// is IVF-probe-only.
-#[derive(Debug, Default)]
+/// Per-segment probe-loop instrumentation: a prune breakdown of every
+/// doc the inner loop touched, plus posting-fetch counters. Returned by
+/// [`VectorBackend::top_n`] alongside the hits. The flat/exact path fills
+/// only `exact_rows_read`; every other field is IVF-probe-only.
+#[derive(Debug, Default, serde::Serialize)]
 pub struct ProbeStats {
-    /// Clusters visited by the probe loop, in probe order. A cluster
-    /// appears here once we've passed the stop-condition gate for it,
-    /// regardless of whether its doc-ids slice ends up empty.
-    pub probed_clusters: Vec<usize>,
     /// Docs that passed filter + alive + seen and were scored against the
     /// query. This stays the "scored" bucket and equals the final survivor
     /// `candidates`, so starvation is just `candidates_scored < min_candidates`.
@@ -185,7 +180,7 @@ pub struct ProbeStats {
     /// `filter → alive → seen` pre-pass left zero survivors (fully
     /// filtered / dead / already-seen, or the cluster is empty). The two
     /// `postings_*` counters partition the probed clusters:
-    /// `postings_row + postings_skipped == probed_clusters.len()`.
+    /// [`clusters_probed`](Self::clusters_probed) `== postings_row + postings_skipped`.
     pub postings_skipped: usize,
     /// Flat/exact-path stride-sized row reads — one per survivor scored.
     /// Filled only by the exact (non-IVF) path.
@@ -200,6 +195,15 @@ pub struct ProbeStats {
     pub min_candidates: usize,
     /// How the probe loop terminated. Per-segment; does not sum.
     pub termination: ProbeTermination,
+}
+
+impl ProbeStats {
+    /// Clusters the probe loop visited — each either fetched survivors
+    /// (`postings_row`) or skipped (`postings_skipped`).
+    #[inline]
+    pub fn clusters_probed(&self) -> usize {
+        self.postings_row + self.postings_skipped
+    }
 }
 
 /// Floor a probed cluster charges the ceiling even when the filter skips
@@ -374,10 +378,6 @@ impl<T: VectorElement> VectorBackend<T> {
                 break;
             }
             let cluster = cluster as usize;
-
-            // Record the probe before doing any work, so even an empty
-            // cluster counts as "probed".
-            stats.probed_clusters.push(cluster);
 
             let rows = index.cluster_range(cluster);
             let num_rows = rows.len();
@@ -625,8 +625,9 @@ mod tests {
     use crate::schema::{IndexRecordOption, Schema, Term, STORED, STRING};
     use crate::vector::tests::{exhaustive_params, TestVectorIndex};
     use crate::vector::{
-        IvfCentroids, IvfClusterer, IvfMatrix, IvfMergeSettings, IvfVectors, VectorClusterStats,
-        VectorDType, VectorInfo, VectorOptions, VectorStorageFormat,
+        IvfCentroids, IvfClusterer, IvfMatrix, IvfMergeSettings, IvfVectors,
+        NeighborhoodGraphSearchMetrics, SearchTerminationReason, VectorClusterStats, VectorDType,
+        VectorInfo, VectorOptions, VectorStorageFormat,
     };
     use crate::{Index, IndexWriter, TantivyDocument};
 
@@ -1854,15 +1855,15 @@ mod tests {
         assert!(hits.is_empty());
         // Short-circuit fires before the probe loop, so no clusters
         // visited and no candidates scored.
-        assert!(stats.probed_clusters.is_empty());
+        assert_eq!(stats.clusters_probed(), 0);
         assert_eq!(stats.candidates_scored, 0);
         Ok(())
     }
 
-    /// Smoke for the instrumented seam: probed_clusters is non-empty,
-    /// every entry is < num_centroids, and candidates_scored ≤ total
-    /// docs in the inspected segment. Exhaustive params on a 9-centroid
-    /// segment visit all 9.
+    /// Smoke for the instrumented seam: every centroid is probed under
+    /// exhaustive params, and candidates_scored ≤ total docs in the
+    /// inspected segment. Exhaustive params on a 9-centroid segment
+    /// visit all 9.
     #[test]
     fn ivf_top_n_collects_probe_stats() -> crate::Result<()> {
         let index = TestVectorIndex::builder(VectorDType::F32)
@@ -1876,10 +1877,7 @@ mod tests {
             4,
             exhaustive_params(DEFAULT_NUM_CENTROIDS),
         )?;
-        assert_eq!(stats.probed_clusters.len(), DEFAULT_NUM_CENTROIDS);
-        for &c in &stats.probed_clusters {
-            assert!(c < DEFAULT_NUM_CENTROIDS, "probed cluster {c} out of range");
-        }
+        assert_eq!(stats.clusters_probed(), DEFAULT_NUM_CENTROIDS);
         // The first segment has docs distributed across all 9 clusters;
         // candidates_scored equals the segment's doc count under
         // exhaustive probe + AllQuery.
@@ -1941,7 +1939,7 @@ mod tests {
         let (_, stats) = run_top_n(&index, embed_field, vec![10.0, 10.0], 3, params)?;
         assert_eq!(stats.termination, ProbeTermination::Ceiling);
         // Stopped at exactly the cap, short of the ranked list.
-        assert_eq!(stats.probed_clusters.len(), 1);
+        assert_eq!(stats.clusters_probed(), 1);
         assert_eq!(stats.routing.visited_count, centroids.len());
         assert_eq!(
             stats.vectors_visited,
@@ -1982,7 +1980,7 @@ mod tests {
             AdaptiveProbeParams::default(),
         )?;
         assert_eq!(hits, expected, "linear fallback must match the oracle");
-        assert_eq!(stats.probed_clusters, vec![0], "one cluster, one probe");
+        assert_eq!(stats.clusters_probed(), 1, "one cluster, one probe");
         assert_eq!(stats.routing.visited_count, 1);
         Ok(())
     }
@@ -2037,9 +2035,9 @@ mod tests {
             let (hits, stats) = run_top_n(&index, embed_field, query.to_vec(), k, params.clone())?;
             assert_eq!(hits, expected, "routed top-{k} near centroid {ord}");
             assert!(
-                stats.probed_clusters.len() <= 2,
-                "cap 2 must bound the probes, got {:?}",
-                stats.probed_clusters
+                stats.clusters_probed() <= 2,
+                "cap 2 must bound the probes, got {}",
+                stats.clusters_probed()
             );
             assert!(
                 stats.routing.visited_count <= centroids.len(),
@@ -2163,20 +2161,12 @@ mod tests {
         )?;
         assert_eq!(stats.termination, ProbeTermination::Ceiling);
 
-        let searcher = index.index.reader()?.searcher();
-        let sizes = searcher.segment_readers()[0]
-            .vector_index(index.embedding_field())?
-            .cluster_sizes()
-            .expect("ivf segment exposes cluster sizes");
-        let non_empty_probed = stats
-            .probed_clusters
-            .iter()
-            .filter(|&&c| sizes[c] > 0)
-            .count();
+        // With AllQuery every non-empty probed cluster fetches survivors
+        // (`postings_row`); empty ones skip. The filter-effective ceiling
+        // of 2 therefore binds at exactly 2 fetches.
         assert_eq!(
-            non_empty_probed, 2,
-            "cap ⇒ exactly 2 non-empty (filter-effective) clusters probed, got {:?}",
-            stats.probed_clusters,
+            stats.postings_row, 2,
+            "cap ⇒ exactly 2 non-empty (filter-effective) clusters probed, got {stats:?}"
         );
         Ok(())
     }
@@ -2252,10 +2242,9 @@ mod tests {
         let (_, stats) = run_top_n(&index, embed_field, vec![1.0, 0.3], 1, params)?;
         assert_eq!(stats.termination, ProbeTermination::Gate);
         assert_eq!(
-            stats.probed_clusters.len(),
+            stats.clusters_probed(),
             1,
-            "gate must stop before the far angular cluster ({:?})",
-            stats.probed_clusters,
+            "gate must stop before the far angular cluster ({stats:?})",
         );
         Ok(())
     }
@@ -2287,58 +2276,77 @@ mod tests {
             params,
         )?;
         assert!(
-            stats.probed_clusters.len() < DEFAULT_NUM_CENTROIDS,
+            stats.clusters_probed() < DEFAULT_NUM_CENTROIDS,
             "default-params pruning should visit strictly fewer than {DEFAULT_NUM_CENTROIDS} \
-             clusters; got {} ({:?})",
-            stats.probed_clusters.len(),
-            stats.probed_clusters,
+             clusters; got {} ({stats:?})",
+            stats.clusters_probed(),
         );
         Ok(())
     }
 
-    /// Structural invariants on the probe stats themselves —
-    /// independent of any specific stop-condition behavior.
-    ///   - all probed indices live in [0, num_centroids)
-    ///   - no duplicates (a cluster is probed at most once)
-    ///   - the first probed cluster is the centroid nearest the query
+    /// `ProbeStats` (and nested routing / optional graph metrics) round-trip
+    /// through `serde_json` with the field names callers rely on.
     #[test]
-    fn probe_stats_probed_clusters_validity() -> crate::Result<()> {
-        let index = TestVectorIndex::builder(VectorDType::F32)
-            .vector_storage_format(VectorStorageFormat::Ivf)
-            .build()?;
-        let query = [9.0_f32, 0.5];
-        let (_, stats) = run_top_n(
-            &index.index,
-            index.embedding_field(),
-            query.to_vec(),
-            2,
-            exhaustive_params(DEFAULT_NUM_CENTROIDS),
-        )?;
+    fn probe_stats_serializes_to_json() {
+        let stats = ProbeStats {
+            candidates_scored: 10,
+            vectors_visited: 20,
+            pruned_filter: 4,
+            pruned_dead: 3,
+            pruned_seen: 3,
+            postings_row: 1,
+            postings_skipped: 1,
+            exact_rows_read: 0,
+            routing: IvfSearchMetrics {
+                visited_count: 7,
+                graph: Some(NeighborhoodGraphSearchMetrics {
+                    visited_count: 7,
+                    expanded_count: 4,
+                    edges_scanned: 12,
+                    evictions: 1,
+                    result_count: 3,
+                    termination_reason: SearchTerminationReason::SearchConverged,
+                }),
+            },
+            min_candidates: 5,
+            termination: ProbeTermination::Gate,
+        };
 
-        for &c in &stats.probed_clusters {
-            assert!(
-                c < DEFAULT_NUM_CENTROIDS,
-                "probed cluster {c} out of range (num_centroids={DEFAULT_NUM_CENTROIDS})",
-            );
-        }
-        let unique: std::collections::HashSet<usize> =
-            stats.probed_clusters.iter().copied().collect();
+        let value = serde_json::to_value(&stats).expect("ProbeStats should serialize to JSON");
         assert_eq!(
-            unique.len(),
-            stats.probed_clusters.len(),
-            "duplicate probed cluster: {:?}",
-            stats.probed_clusters,
+            value,
+            serde_json::json!({
+                "candidates_scored": 10,
+                "vectors_visited": 20,
+                "pruned_filter": 4,
+                "pruned_dead": 3,
+                "pruned_seen": 3,
+                "postings_row": 1,
+                "postings_skipped": 1,
+                "exact_rows_read": 0,
+                "routing": {
+                    "visited_count": 7,
+                    "graph": {
+                        "visited_count": 7,
+                        "expanded_count": 4,
+                        "edges_scanned": 12,
+                        "evictions": 1,
+                        "result_count": 3,
+                        "termination_reason": "SearchConverged"
+                    }
+                },
+                "min_candidates": 5,
+                "termination": "Gate"
+            })
         );
+        assert_eq!(stats.clusters_probed(), 2);
 
-        let nearest = nearest_centroid_to(&query);
-        assert_eq!(
-            stats.probed_clusters.first().copied(),
-            Some(nearest),
-            "first probed should be the centroid nearest the query; nearest = {nearest}, \
-             probed_clusters = {:?}",
-            stats.probed_clusters,
-        );
-        Ok(())
+        // Exact routing leaves `graph` unset — still must serialize as null.
+        let mut exact_routing = stats;
+        exact_routing.routing.graph = None;
+        let exact_value =
+            serde_json::to_value(&exact_routing).expect("ProbeStats should serialize to JSON");
+        assert_eq!(exact_value["routing"]["graph"], serde_json::Value::Null);
     }
 
     // ============================================================
@@ -2399,19 +2407,12 @@ mod tests {
         backend.top_n(weight, segment_reader, k)
     }
 
-    /// The two partition identities every scan must uphold: each touched
-    /// row lands in exactly one prune bucket, and each probed cluster
-    /// either fetches its survivors or skips.
+    /// Every touched row lands in exactly one prune bucket.
     fn assert_stats_identities(stats: &ProbeStats) {
         assert_eq!(
             stats.vectors_visited,
             stats.pruned_filter + stats.pruned_dead + stats.pruned_seen + stats.candidates_scored,
             "visited must equal filter+dead+seen+scored ({stats:?})"
-        );
-        assert_eq!(
-            stats.probed_clusters.len(),
-            stats.postings_row + stats.postings_skipped,
-            "probed clusters must partition into fetched+skipped ({stats:?})"
         );
     }
 
@@ -2512,7 +2513,7 @@ mod tests {
                     assert_eq!(stats.postings_row, 0, "0%: no fetches");
                     assert_eq!(
                         stats.postings_skipped,
-                        stats.probed_clusters.len(),
+                        stats.clusters_probed(),
                         "0%: every probed cluster skips its fetch"
                     );
                 }
@@ -2523,7 +2524,7 @@ mod tests {
                     assert_eq!(stats.postings_row, 1, "{stats:?}");
                     assert_eq!(
                         stats.postings_skipped,
-                        stats.probed_clusters.len() - 1,
+                        stats.clusters_probed() - 1,
                         "{stats:?}"
                     );
                 }
@@ -2568,7 +2569,7 @@ mod tests {
         );
         // Only the first-probed cell fetches anything.
         assert_eq!(stats.postings_row, 1, "{stats:?}");
-        assert_eq!(stats.postings_skipped, stats.probed_clusters.len() - 1);
+        assert_eq!(stats.postings_skipped, stats.clusters_probed() - 1);
         assert_stats_identities(&stats);
         Ok(())
     }
@@ -2630,10 +2631,9 @@ mod tests {
         Ok(())
     }
 
-    /// An empty cluster still counts as probed — the probe is recorded
-    /// before any work — and takes the skip path: `postings_skipped`
-    /// increments, nothing is fetched, and the visited/prune counters
-    /// don't move.
+    /// An empty cluster still counts as probed — the loop visits it and
+    /// takes the skip path: `postings_skipped` increments, nothing is
+    /// fetched, and the visited/prune counters don't move.
     #[test]
     fn empty_cluster_probed_but_fetch_skipped() -> crate::Result<()> {
         // No doc is nearest to the third centroid, so its cluster is
@@ -2672,13 +2672,9 @@ mod tests {
         )?;
         assert_eq!(hits.len(), 8);
         assert_eq!(
-            stats.probed_clusters.len(),
+            stats.clusters_probed(),
             centroids.len(),
             "the empty cluster still counts as probed: {stats:?}"
-        );
-        assert!(
-            stats.probed_clusters.contains(&2),
-            "the empty cluster is in the probe list: {stats:?}"
         );
         assert_eq!(
             stats.postings_skipped, 1,
@@ -2727,7 +2723,7 @@ mod tests {
             // fields must stay zeroed.
             assert_eq!(stats.vectors_visited, 0, "{pct}%: {stats:?}");
             assert_eq!(stats.candidates_scored, 0, "{pct}%: {stats:?}");
-            assert!(stats.probed_clusters.is_empty(), "{pct}%: {stats:?}");
+            assert_eq!(stats.clusters_probed(), 0, "{pct}%: {stats:?}");
             assert_eq!(
                 stats.exact_rows_read, admitted,
                 "{pct}%: one row read per survivor"
@@ -2877,16 +2873,5 @@ mod tests {
     /// The shared fixture's first centroid (top-left of the 3×3 grid).
     fn grid2d_first_centroid() -> [f32; 2] {
         [0.0, 0.0]
-    }
-
-    /// L2-nearest centroid index for a query against the shared
-    /// fixture's default 3×3 grid centroids.
-    fn nearest_centroid_to(query: &[f32; 2]) -> usize {
-        // Match the grid in `crate::vector::tests::grid2d::centroids()`:
-        // origin=(0,0), 3×3, gap=3.0, row-major.
-        let centroids: Vec<[f32; 2]> = (0..3)
-            .flat_map(|row| (0..3).map(move |col| [col as f32 * 3.0, row as f32 * 3.0]))
-            .collect();
-        nearest_centroid(*query, &centroids)
     }
 }
