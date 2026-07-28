@@ -335,18 +335,19 @@ impl TermsAggregationInternal {
     }
 }
 
-/// Threshold for using dense `Vec` storage ([`VecTermBuckets`]) for term buckets. Below this many
-/// term ordinals the `Vec` (direct-indexed, no hashing/paging) beats the paged/hashed storages.
-/// It preallocates `num_terms` slots, so the ceiling also bounds its memory
-/// (`num_terms * size_of::<Bucket>`, ≤ ~160KB here).
+/// Threshold for using dense `Vec` storage ([`VecTermBuckets`] or
+/// [`LowCardVecTermBuckets`]) for term buckets. Below this many term ordinals the `Vec`
+/// (direct-indexed, no hashing/paging) beats the paged/hashed storages. It preallocates
+/// `num_terms` slots, so the ceiling also bounds its memory.
 ///
 /// TODO: Benchmark to validate the threshold
 pub const MAX_NUM_TERMS_FOR_VEC: u64 = 20_000;
 
-/// Threshold below which a terms agg *with sub-aggregations* pairs the `Vec` storage with the
-/// [`LowCardSubAggBuffer`] (which buffers docs in a per-bucket `Vec`). That layout only pays off
-/// for a handful of buckets, so it is far lower than [`MAX_NUM_TERMS_FOR_VEC`]; between the two
-/// thresholds the `Vec` storage pairs with the partitioned `HighCard` buffer instead.
+/// Threshold below which a terms agg without sub-aggregations uses [`LowCardVecTermBuckets`], whose
+/// independent count lanes improve throughput when many consecutive values address the same few
+/// counters. With sub-aggregations, this threshold selects [`LowCardSubAggBuffer`] (which buffers
+/// docs in a per-bucket `Vec`) while retaining scalar term counters. Both specialized layouts only
+/// pay off for a handful of buckets, so this is far lower than [`MAX_NUM_TERMS_FOR_VEC`].
 pub const MAX_NUM_TERMS_FOR_LOWCARD_SUBAGG: u64 = 100;
 
 /// Above this term count, generate sub-aggregation bucket IDs on first use to avoid IDs for unseen
@@ -363,7 +364,7 @@ const DOCS_PER_BUCKET_QUICKSELECT_THRESHOLD: u64 = 2;
 /// Charge a `Vec`-backed term storage's eager, up-front allocation against the memory limit.
 ///
 /// The paged/hashed storages grow lazily during `collect` and are charged there via deltas, but
-/// [`VecTermBuckets`] preallocates all `num_terms` slots at construction, so its memory would
+/// the dense term maps preallocate all `num_terms` slots at construction, so their memory would
 /// otherwise escape the limit entirely (relevant now that the `Vec` threshold reaches
 /// [`MAX_NUM_TERMS_FOR_VEC`]).
 fn add_memory_consumption<M: TermAggregationMap>(
@@ -446,21 +447,34 @@ pub(crate) fn build_segment_term_collector(
     // numeric column value that can reach `u64::MAX`; term ordinals never come close.
     let num_terms = max_column_val.saturating_add(1);
 
-    // Very low cardinality *with* sub aggregations: dense `Vec` storage paired with the `LowCard`
-    // buffer, which groups docs in a per-bucket `Vec`. That layout only fits a handful of buckets
-    // (docs arrive in doc order, so the partitioned `HighCard` buffer would merely merge
-    // consecutive same-bucket docs), so it is gated far below the general `Vec` threshold.
-    if is_top_level && has_sub_aggregations && max_column_val < MAX_NUM_TERMS_FOR_LOWCARD_SUBAGG {
-        let term_buckets = VecTermBuckets::<BucketId>::new(num_terms, &mut bucket_id_provider);
+    // Very low cardinality without sub aggregations: cycle writes through independent count lanes,
+    // avoiding a serial read/modify/write dependency when consecutive docs repeatedly hit the same
+    // few terms. With sub aggregations, the per-doc buffer push already breaks that dependency;
+    // lanes only add indexing and a wider bucket layout, so retain one scalar counter and bucket id
+    // per term while pairing it with the `LowCard` doc buffer.
+    if is_top_level && max_column_val < MAX_NUM_TERMS_FOR_LOWCARD_SUBAGG {
+        if has_sub_aggregations {
+            let term_buckets = VecTermBuckets::<BucketId>::new(num_terms, &mut bucket_id_provider);
+            add_memory_consumption(&term_buckets, req_data)?;
+            let collector: SegmentTermCollector<_, LowCardSubAggBuffer> = SegmentTermCollector {
+                parent_buckets: vec![term_buckets],
+                sub_agg: sub_agg_collector.map(LowCardBufferedSubAggs::new),
+                bucket_id_provider,
+                max_term_id: max_column_val,
+                terms_req_data,
+            };
+            return Ok(Box::new(collector));
+        }
+
+        let term_buckets = LowCardVecTermBuckets::<()>::new(num_terms, &mut bucket_id_provider);
         add_memory_consumption(&term_buckets, req_data)?;
-        let collector: SegmentTermCollector<_, LowCardSubAggBuffer> = SegmentTermCollector {
-            parent_buckets: vec![term_buckets],
-            sub_agg: sub_agg_collector.map(LowCardBufferedSubAggs::new),
+        return Ok(boxed_high_card_collector(
+            term_buckets,
+            None,
             bucket_id_provider,
-            max_term_id: max_column_val,
+            max_column_val,
             terms_req_data,
-        };
-        return Ok(Box::new(collector));
+        ));
     }
 
     // Everything below uses the partitioned `HighCard` sub-agg buffer, so it is built once here.
@@ -792,6 +806,93 @@ impl<B: BucketIdSlot> TermAggregationMap for HashMapTermBuckets<B> {
     #[inline]
     fn new(_max_term_id: u64, _bucket_id_provider: &mut BucketIdProvider) -> Self {
         Self::default()
+    }
+}
+
+/// Number of independent counters maintained per logical very-low-cardinality term bucket.
+///
+/// Cycling writes across eight counters covers the read/modify/write latency of a counter update
+/// while keeping the entire map small at [`MAX_NUM_TERMS_FOR_LOWCARD_SUBAGG`].
+const NUM_LOW_CARD_COUNT_LANES: usize = 8;
+
+/// A very-low-cardinality term bucket with split count storage and one shared sub-aggregation id.
+/// Only the counters are replicated: `bucket_id` remains unique per logical term.
+#[derive(Clone, Copy, Debug)]
+struct LowCardTermBucket<B> {
+    count_lanes: [u32; NUM_LOW_CARD_COUNT_LANES],
+    bucket_id: B,
+}
+
+impl<B: BucketIdSlot> LowCardTermBucket<B> {
+    #[inline(always)]
+    fn new(bucket_id_provider: &mut BucketIdProvider) -> Self {
+        Self {
+            count_lanes: [0; NUM_LOW_CARD_COUNT_LANES],
+            bucket_id: B::assign(bucket_id_provider),
+        }
+    }
+
+    #[inline]
+    fn into_bucket(self) -> Bucket<B> {
+        Bucket {
+            count: self.count_lanes.into_iter().sum(),
+            bucket_id: self.bucket_id,
+        }
+    }
+}
+
+/// A dense term map for very low cardinality. Each logical bucket cycles writes over independent
+/// count lanes, which are consolidated when the map is converted into its result representation.
+#[derive(Clone, Debug)]
+struct LowCardVecTermBuckets<B> {
+    buckets: Vec<LowCardTermBucket<B>>,
+    next_count_lane: usize,
+}
+
+impl<B: BucketIdSlot> TermAggregationMap for LowCardVecTermBuckets<B> {
+    type Slot = B;
+
+    const SORTED_BY_ORD: bool = true;
+
+    fn get_memory_consumption(&self) -> usize {
+        self.buckets.capacity() * std::mem::size_of::<LowCardTermBucket<B>>()
+    }
+
+    #[inline(always)]
+    fn term_entry(&mut self, term_id: u64, _bucket_id_provider: &mut BucketIdProvider) -> B {
+        let term_id_usize = term_id as usize;
+        debug_assert!(
+            term_id_usize < self.buckets.len(),
+            "term_id {} out of bounds for LowCardVecTermBuckets (len={})",
+            term_id,
+            self.buckets.len()
+        );
+
+        self.next_count_lane = (self.next_count_lane + 1) % NUM_LOW_CARD_COUNT_LANES;
+        let bucket = unsafe { self.buckets.get_unchecked_mut(term_id_usize) };
+        bucket.count_lanes[self.next_count_lane] += 1;
+        bucket.bucket_id
+    }
+
+    fn into_vec(self) -> Vec<(u64, Bucket<B>)> {
+        self.buckets
+            .into_iter()
+            .enumerate()
+            .filter_map(|(term_id, low_card_bucket)| {
+                let bucket = low_card_bucket.into_bucket();
+                (bucket.count > 0).then_some((term_id as u64, bucket))
+            })
+            .collect()
+    }
+
+    fn new(num_terms: u64, bucket_id_provider: &mut BucketIdProvider) -> Self {
+        let buckets = std::iter::repeat_with(|| LowCardTermBucket::new(bucket_id_provider))
+            .take(num_terms as usize)
+            .collect();
+        Self {
+            buckets,
+            next_count_lane: 0,
+        }
     }
 }
 
@@ -1439,7 +1540,7 @@ mod tests {
     use common::DateTime;
     use time::{Date, Month};
 
-    use super::{PagedTermMap, TermAggregationMap, PAGE_SIZE};
+    use super::{LowCardVecTermBuckets, PagedTermMap, TermAggregationMap, PAGE_SIZE};
     use crate::aggregation::agg_req::Aggregations;
     use crate::aggregation::intermediate_agg_result::IntermediateAggregationResults;
     use crate::aggregation::segment_agg_result::BucketIdProvider;
@@ -1452,6 +1553,37 @@ mod tests {
     use crate::query::AllQuery;
     use crate::schema::{IntoIpv6Addr, Schema, FAST, INDEXED, STRING, TEXT};
     use crate::{Index, IndexWriter};
+
+    #[test]
+    fn low_card_term_map_consolidates_count_lanes_and_shares_bucket_ids() {
+        let mut bucket_id_provider = BucketIdProvider::default();
+        let mut map = LowCardVecTermBuckets::<BucketId>::new(3, &mut bucket_id_provider);
+        let mut expected_counts = [0u32; 3];
+
+        // Exercise every lane with a deliberately skewed distribution.
+        for i in 0..10_003usize {
+            let term_id = if i % 101 == 0 {
+                2
+            } else if i % 11 == 0 {
+                1
+            } else {
+                0
+            };
+            let bucket_id = map.term_entry(term_id as u64, &mut bucket_id_provider);
+            assert_eq!(bucket_id, term_id as BucketId);
+            expected_counts[term_id] += 1;
+        }
+
+        // The count lanes do not expand the sub-aggregation bucket-id space.
+        assert_eq!(bucket_id_provider.next_bucket_id(), 3);
+
+        let entries = map.into_vec();
+        assert_eq!(entries.len(), expected_counts.len());
+        for (term_id, bucket) in entries {
+            assert_eq!(bucket.count, expected_counts[term_id as usize]);
+            assert_eq!(bucket.bucket_id, term_id as BucketId);
+        }
+    }
 
     #[test]
     fn paged_term_map_reuses_buckets_and_counts() {

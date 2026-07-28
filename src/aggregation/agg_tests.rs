@@ -678,7 +678,7 @@ fn test_terms_sub_agg_flushing_skewed_buckets() -> crate::Result<()> {
     use std::collections::HashMap;
 
     // 89 minority terms + 1 dominant term = 90 distinct terms, staying below
-    // MAX_NUM_TERMS_FOR_VEC (100) so the low-cardinality Vec sub-agg buffer is used.
+    // MAX_NUM_TERMS_FOR_LOWCARD_SUBAGG (100) so the low-cardinality Vec sub-agg buffer is used.
     const NUM_MINORITY_TERMS: usize = 89;
 
     let mut values: Vec<(f64, String)> = Vec::new();
