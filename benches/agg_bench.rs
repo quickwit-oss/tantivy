@@ -765,7 +765,9 @@ fn get_collector(agg_req: Aggregations) -> AggregationCollector {
 fn get_test_index_bench(cardinality: Cardinality) -> tantivy::Result<Index> {
     // Flag to reuse an on-disk index across runs. The generated data differs per cardinality, so
     // the path must include the cardinality — otherwise one cardinality reuses another's index.
-    let reuse_index = std::env::var("REUSE_AGG_BENCH_INDEX").is_ok();
+    let reuse_index = std::env::var("REUSE_AGG_BENCH_INDEX")
+        .map(|v| v == "true")
+        .unwrap_or(true);
     let index_dir = format!("agg_bench/{cardinality:?}");
     if reuse_index && std::path::Path::new(&index_dir).exists() {
         return Index::open_in_dir(&index_dir);
