@@ -1,7 +1,27 @@
 use core::fmt::Debug;
+use std::net::Ipv6Addr;
 use std::ops::RangeInclusive;
 
 use columnar::Column;
+
+/// Maps supported column values into an ordered integer space for range-width estimation.
+pub(crate) trait RangeDocSetValue:
+    Send + Sync + PartialOrd + Copy + Debug + 'static
+{
+    fn to_u128(self) -> u128;
+}
+
+impl RangeDocSetValue for u64 {
+    fn to_u128(self) -> u128 {
+        self as u128
+    }
+}
+
+impl RangeDocSetValue for Ipv6Addr {
+    fn to_u128(self) -> u128 {
+        u128::from_be_bytes(self.octets())
+    }
+}
 
 use crate::docset::SeekDangerResult;
 use crate::{DocId, DocSet, TERMINATED};
@@ -72,7 +92,9 @@ pub(crate) struct RangeDocSet<T> {
 
 const DEFAULT_FETCH_HORIZON: u32 = 128;
 const DEFAULT_MAX_FETCH_HORIZON: u32 = 100_000;
-impl<T: Send + Sync + PartialOrd + Copy + Debug + 'static> RangeDocSet<T> {
+const RANGE_DOCSET_COST_PER_HIT: f64 = 0.5;
+
+impl<T: RangeDocSetValue> RangeDocSet<T> {
     pub(crate) fn new(value_range: RangeInclusive<T>, column: Column<T>) -> Self {
         if *value_range.start() > column.max_value() || *value_range.end() < column.min_value() {
             return Self {
@@ -100,6 +122,26 @@ impl<T: Send + Sync + PartialOrd + Copy + Debug + 'static> RangeDocSet<T> {
         range_docset.reset_fetch_range();
         range_docset.fetch_block();
         range_docset
+    }
+
+    /// Estimates matching values by assuming values are uniformly distributed between the
+    /// column's minimum and maximum.
+    fn estimated_num_hits(&self) -> f64 {
+        if self.column.num_values() == 0 {
+            return 0.0;
+        }
+
+        let column_min = self.column.min_value().to_u128();
+        let column_max = self.column.max_value().to_u128();
+        let range_start = (*self.value_range.start()).to_u128().max(column_min);
+        let range_end = (*self.value_range.end()).to_u128().min(column_max);
+        if range_start > range_end {
+            return 0.0;
+        }
+
+        let column_width = (column_max - column_min) as f64 + 1.0;
+        let range_width = (range_end - range_start) as f64 + 1.0;
+        self.column.num_values() as f64 * range_width / column_width
     }
 
     fn set_fetch_horizon(&mut self, fetch_horizon: u32) {
@@ -176,13 +218,16 @@ impl<T: Send + Sync + PartialOrd + Copy + Debug + 'static> RangeDocSet<T> {
             self.loaded_docs.next();
         }
 
-        while self.loaded_docs.is_consumed() {
-            let finished_to_end = self.do_fetch_horizon();
-            if finished_to_end {
-                break;
-            }
-            // Fetch more data, increase horizon. Horizon only gets reset when doing a seek.
-            self.set_fetch_horizon(self.fetch_horizon.saturating_mul(2));
+        // We want to limit the number of docs we fetch, so we don't scan the whole column if the
+        // target is far away.
+        // There are exceptions to this.
+        // 1. If we intersect term "a" that has a lot of docs with a range query that has few hits,
+        //    we want to scan more, so we don't get called repeatedly with small incremental
+        //    targets.
+        // 2. If the range column is mostly empty, checking is relatively cheap, so we can scan
+        //    more.
+        if self.loaded_docs.is_consumed() {
+            self.do_fetch_horizon();
         }
 
         match self.loaded_docs.current() {
@@ -202,7 +247,7 @@ impl<T: Send + Sync + PartialOrd + Copy + Debug + 'static> RangeDocSet<T> {
     }
 }
 
-impl<T: Send + Sync + PartialOrd + Copy + Debug + 'static> DocSet for RangeDocSet<T> {
+impl<T: RangeDocSetValue> DocSet for RangeDocSet<T> {
     #[inline]
     fn advance(&mut self) -> DocId {
         if let Some(docid) = self.loaded_docs.next() {
@@ -250,6 +295,14 @@ impl<T: Send + Sync + PartialOrd + Copy + Debug + 'static> DocSet for RangeDocSe
             return SeekDangerResult::SeekLowerBound(TERMINATED);
         }
 
+        // A scan miss can return an actual matching doc as its lower bound. The intersection then
+        // calls us again with that doc. It is already loaded, and this self-generated hop says
+        // nothing about the density of the driving docset.
+        if self.loaded_docs.current() == Some(target) {
+            self.last_seek_pos_opt = Some(target);
+            return SeekDangerResult::Found;
+        }
+
         let distance_to_last_seek = self
             .last_seek_pos_opt
             .map(|last_seek_pos| target.saturating_sub(last_seek_pos))
@@ -278,7 +331,11 @@ impl<T: Send + Sync + PartialOrd + Copy + Debug + 'static> DocSet for RangeDocSe
             .seek_cluster_run
             .saturating_add_signed(score_delta)
             .min(MAX_RUN);
-        self.set_fetch_horizon(DEFAULT_FETCH_HORIZON * MAX_RUN / MIN_RUN_TO_SCAN);
+        if self.seek_cluster_run == MIN_RUN_TO_SCAN {
+            // Start a newly detected dense run with a bounded speculative scan. Productive blocks
+            // grow the horizon in `fetch_block_seek_danger`.
+            self.reset_fetch_range();
+        }
         self.last_seek_pos_opt = Some(target);
         if self.seek_cluster_run >= MIN_RUN_TO_SCAN {
             return self.fetch_block_seek_danger(target);
@@ -329,18 +386,13 @@ impl<T: Send + Sync + PartialOrd + Copy + Debug + 'static> DocSet for RangeDocSe
     /// Returns a best-effort hint of the
     /// cost to drive the docset.
     fn cost(&self) -> u64 {
-        // Advancing the docset is pretty expensive since it scans the whole column, there is no
-        // index currently (will change with an kd-tree)
-        // Since we use SIMD to scan the fast field range query we lower the cost a little bit,
-        // assuming that we hit 10% of the docs like in size_hint.
+        // We have two cost:
+        // * a fixed cost of scanning the fast field, which is 10% of the column size
+        // * another fixed cost of start scanning the column, which is 100
+        // * a cost for each hit, we assume a uniform distribution of the values in the column
         //
-        // If we would return a cost higher than num_docs, we would never choose ff range query as
-        // the driver in a DocSet, when intersecting a term query with a fast field. But
-        // it's the faster choice when the term query has a lot of docids and the range
-        // query has not.
-        //
-        // Ideally this would take the fast field codec into account
-        (self.column.num_docs() as f64 * 0.8) as u64
+        100 + (self.column.num_values() as u64 / 10)
+            + (self.estimated_num_hits() * RANGE_DOCSET_COST_PER_HIT) as u64
     }
 }
 
@@ -392,6 +444,17 @@ mod tests {
         values_for_doc: impl Fn(usize) -> Vec<u64>,
     ) -> RangeDocSet<u64> {
         RangeDocSet::new(value_range, build_u64_column(num_docs, values_for_doc))
+    }
+
+    #[test]
+    fn cost_estimates_hits_from_range_and_column_bounds() {
+        let column = build_u64_column(1_000, |i| vec![(i % 100) as u64]);
+
+        assert_eq!(RangeDocSet::new(20..=39, column.clone()).cost(), 100);
+        assert_eq!(RangeDocSet::new(50..=50, column.clone()).cost(), 5);
+        assert_eq!(RangeDocSet::new(0..=99, column.clone()).cost(), 500);
+        assert_eq!(RangeDocSet::new(90..=200, column.clone()).cost(), 50);
+        assert_eq!(RangeDocSet::new(200..=300, column).cost(), 0);
     }
 
     #[test]
