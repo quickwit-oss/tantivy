@@ -466,7 +466,7 @@ pub(crate) fn build_segment_term_collector(
             return Ok(Box::new(collector));
         }
 
-        let term_buckets = LowCardVecTermBuckets::<()>::new(num_terms, &mut bucket_id_provider);
+        let term_buckets = VecTermBucketsWithLanes::<()>::new(num_terms, &mut bucket_id_provider);
         add_memory_consumption(&term_buckets, req_data)?;
         return Ok(boxed_high_card_collector(
             term_buckets,
@@ -818,12 +818,12 @@ const NUM_LOW_CARD_COUNT_LANES: usize = 8;
 /// A very-low-cardinality term bucket with split count storage and one shared sub-aggregation id.
 /// Only the counters are replicated: `bucket_id` remains unique per logical term.
 #[derive(Clone, Copy, Debug)]
-struct LowCardTermBucket<B> {
+struct TermBucketWithLanes<B> {
     count_lanes: [u32; NUM_LOW_CARD_COUNT_LANES],
     bucket_id: B,
 }
 
-impl<B: BucketIdSlot> LowCardTermBucket<B> {
+impl<B: BucketIdSlot> TermBucketWithLanes<B> {
     #[inline(always)]
     fn new(bucket_id_provider: &mut BucketIdProvider) -> Self {
         Self {
@@ -844,18 +844,18 @@ impl<B: BucketIdSlot> LowCardTermBucket<B> {
 /// A dense term map for very low cardinality. Each logical bucket cycles writes over independent
 /// count lanes, which are consolidated when the map is converted into its result representation.
 #[derive(Clone, Debug)]
-struct LowCardVecTermBuckets<B> {
-    buckets: Vec<LowCardTermBucket<B>>,
+struct VecTermBucketsWithLanes<B> {
+    buckets: Vec<TermBucketWithLanes<B>>,
     next_count_lane: usize,
 }
 
-impl<B: BucketIdSlot> TermAggregationMap for LowCardVecTermBuckets<B> {
+impl<B: BucketIdSlot> TermAggregationMap for VecTermBucketsWithLanes<B> {
     type Slot = B;
 
     const SORTED_BY_ORD: bool = true;
 
     fn get_memory_consumption(&self) -> usize {
-        self.buckets.capacity() * std::mem::size_of::<LowCardTermBucket<B>>()
+        self.buckets.capacity() * std::mem::size_of::<TermBucketWithLanes<B>>()
     }
 
     #[inline(always)]
@@ -886,7 +886,7 @@ impl<B: BucketIdSlot> TermAggregationMap for LowCardVecTermBuckets<B> {
     }
 
     fn new(num_terms: u64, bucket_id_provider: &mut BucketIdProvider) -> Self {
-        let buckets = std::iter::repeat_with(|| LowCardTermBucket::new(bucket_id_provider))
+        let buckets = std::iter::repeat_with(|| TermBucketWithLanes::new(bucket_id_provider))
             .take(num_terms as usize)
             .collect();
         Self {
@@ -1540,7 +1540,7 @@ mod tests {
     use common::DateTime;
     use time::{Date, Month};
 
-    use super::{LowCardVecTermBuckets, PagedTermMap, TermAggregationMap, PAGE_SIZE};
+    use super::{PagedTermMap, TermAggregationMap, VecTermBucketsWithLanes, PAGE_SIZE};
     use crate::aggregation::agg_req::Aggregations;
     use crate::aggregation::intermediate_agg_result::IntermediateAggregationResults;
     use crate::aggregation::segment_agg_result::BucketIdProvider;
@@ -1557,7 +1557,7 @@ mod tests {
     #[test]
     fn low_card_term_map_consolidates_count_lanes_and_shares_bucket_ids() {
         let mut bucket_id_provider = BucketIdProvider::default();
-        let mut map = LowCardVecTermBuckets::<BucketId>::new(3, &mut bucket_id_provider);
+        let mut map = VecTermBucketsWithLanes::<BucketId>::new(3, &mut bucket_id_provider);
         let mut expected_counts = [0u32; 3];
 
         // Exercise every lane with a deliberately skewed distribution.
