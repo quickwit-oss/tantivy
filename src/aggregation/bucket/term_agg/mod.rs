@@ -879,7 +879,7 @@ struct VecTermBucketsWithLanes<B> {
 impl<B: BucketIdSlot> TermAggregationMap for VecTermBucketsWithLanes<B> {
     type Slot = B;
 
-    const SORTED_BY_ORD: bool = true;
+    const SORTED_BY_KEY: bool = true;
 
     fn get_memory_consumption(&self) -> usize {
         self.buckets.capacity() * std::mem::size_of::<TermBucketWithLanes<B>>()
