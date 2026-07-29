@@ -337,19 +337,23 @@ impl TermsAggregationInternal {
 }
 
 /// Threshold for using dense `Vec` storage ([`VecTermBuckets`] or
-/// [`LowCardVecTermBuckets`]) for term buckets. Below this many term ordinals the `Vec`
+/// [`VecTermBucketsWithLanes`]) for term buckets. Below this many term ordinals the `Vec`
 /// (direct-indexed, no hashing/paging) beats the paged/hashed storages. It preallocates
 /// `num_terms` slots, so the ceiling also bounds its memory.
 ///
 /// TODO: Benchmark to validate the threshold
 pub const MAX_NUM_TERMS_FOR_VEC: u64 = 20_000;
 
-/// Threshold below which a terms agg without sub-aggregations uses [`LowCardVecTermBuckets`], whose
-/// independent count lanes improve throughput when many consecutive values address the same few
-/// counters. With sub-aggregations, this threshold selects [`LowCardSubAggBuffer`] (which buffers
-/// docs in a per-bucket `Vec`) while retaining scalar term counters. Both specialized layouts only
-/// pay off for a handful of buckets, so this is far lower than [`MAX_NUM_TERMS_FOR_VEC`].
-pub const MAX_NUM_TERMS_FOR_LOWCARD_SUBAGG: u64 = 100;
+/// Maximum number of logical counters for which replicating count lanes is worthwhile.
+const MAX_NUM_BUCKETS_FOR_COUNT_LANES: usize = 100;
+
+/// Threshold below which a terms agg without sub-aggregations uses
+/// [`VecTermBucketsWithLanes`], whose independent count lanes improve throughput when many
+/// consecutive values address the same few counters. With sub-aggregations, this threshold selects
+/// [`LowCardSubAggBuffer`] (which buffers docs in a per-bucket `Vec`) while retaining scalar term
+/// counters. Both specialized layouts only pay off for a handful of buckets, so this is far lower
+/// than [`MAX_NUM_TERMS_FOR_VEC`].
+pub const MAX_NUM_TERMS_FOR_LOWCARD_SUBAGG: u64 = MAX_NUM_BUCKETS_FOR_COUNT_LANES as u64;
 
 /// Threshold for using [`PagedTermMap`] storage; larger term-id spaces use
 /// [`HashMapTermBuckets`] instead.
@@ -845,16 +849,17 @@ const NUM_LOW_CARD_COUNT_LANES: usize = 8;
 /// A very-low-cardinality term bucket with split count storage and one shared sub-aggregation id.
 /// Only the counters are replicated: `bucket_id` remains unique per logical term.
 #[derive(Clone, Copy, Debug)]
-struct TermBucketWithLanes<B> {
-    count_lanes: [u32; NUM_LOW_CARD_COUNT_LANES],
+struct TermBucketWithLanes<B, const LANES: usize> {
+    count_lanes: [u32; LANES],
     bucket_id: B,
 }
 
-impl<B: BucketIdSlot> TermBucketWithLanes<B> {
+impl<B: BucketIdSlot, const LANES: usize> TermBucketWithLanes<B, LANES> {
     #[inline(always)]
     fn new(bucket_id_provider: &mut BucketIdProvider) -> Self {
+        assert!(LANES > 0, "a term bucket needs at least one count lane");
         Self {
-            count_lanes: [0; NUM_LOW_CARD_COUNT_LANES],
+            count_lanes: [0; LANES],
             bucket_id: B::assign(bucket_id_provider),
         }
     }
@@ -871,18 +876,18 @@ impl<B: BucketIdSlot> TermBucketWithLanes<B> {
 /// A dense term map for very low cardinality. Each logical bucket cycles writes over independent
 /// count lanes, which are consolidated when the map is converted into its result representation.
 #[derive(Clone, Debug)]
-struct VecTermBucketsWithLanes<B> {
-    buckets: Vec<TermBucketWithLanes<B>>,
+struct VecTermBucketsWithLanes<B, const LANES: usize = NUM_LOW_CARD_COUNT_LANES> {
+    buckets: Vec<TermBucketWithLanes<B, LANES>>,
     next_count_lane: usize,
 }
 
-impl<B: BucketIdSlot> TermAggregationMap for VecTermBucketsWithLanes<B> {
+impl<B: BucketIdSlot, const LANES: usize> TermAggregationMap for VecTermBucketsWithLanes<B, LANES> {
     type Slot = B;
 
     const SORTED_BY_KEY: bool = true;
 
     fn get_memory_consumption(&self) -> usize {
-        self.buckets.capacity() * std::mem::size_of::<TermBucketWithLanes<B>>()
+        self.buckets.capacity() * std::mem::size_of::<TermBucketWithLanes<B, LANES>>()
     }
 
     #[inline(always)]
@@ -890,12 +895,12 @@ impl<B: BucketIdSlot> TermAggregationMap for VecTermBucketsWithLanes<B> {
         let term_id_usize = term_id as usize;
         debug_assert!(
             term_id_usize < self.buckets.len(),
-            "term_id {} out of bounds for LowCardVecTermBuckets (len={})",
+            "term_id {} out of bounds for VecTermBucketsWithLanes (len={})",
             term_id,
             self.buckets.len()
         );
 
-        self.next_count_lane = (self.next_count_lane + 1) % NUM_LOW_CARD_COUNT_LANES;
+        self.next_count_lane = (self.next_count_lane + 1) % LANES;
         let bucket = unsafe { self.buckets.get_unchecked_mut(term_id_usize) };
         bucket.count_lanes[self.next_count_lane] += 1;
         bucket.bucket_id
@@ -913,9 +918,11 @@ impl<B: BucketIdSlot> TermAggregationMap for VecTermBucketsWithLanes<B> {
     }
 
     fn new(num_terms: u64, bucket_id_provider: &mut BucketIdProvider) -> Self {
-        let buckets = std::iter::repeat_with(|| TermBucketWithLanes::new(bucket_id_provider))
-            .take(num_terms as usize)
-            .collect();
+        assert!(LANES > 0, "a term map needs at least one count lane");
+        let buckets =
+            std::iter::repeat_with(|| TermBucketWithLanes::<B, LANES>::new(bucket_id_provider))
+                .take(num_terms as usize)
+                .collect();
         Self {
             buckets,
             next_count_lane: 0,
