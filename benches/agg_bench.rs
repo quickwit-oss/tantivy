@@ -112,6 +112,9 @@ fn bench_agg(runner: &mut BenchRunner, index: &Index, execute_filtered: Aggregat
             benchmark_config!(terms_status_with_histogram),
             benchmark_config!(terms_zipf_1000_with_histogram),
             benchmark_config!(terms_status_with_date_histogram),
+            benchmark_config!(terms_status_with_date_histogram_single_bucket),
+            benchmark_config!(terms_status_with_date_histogram_4_buckets),
+            benchmark_config!(terms_status_with_date_histogram_8_buckets),
             benchmark_config!(terms_status_with_date_histogram_hard_bounds),
             benchmark_config!(terms_status_with_date_histogram_and_sibling_terms),
         ],
@@ -502,6 +505,46 @@ fn terms_status_with_date_histogram() -> AggregationRequest {
 /// doc is in-bounds. This exercises the collector's hard-bounds path: `bounds.contains` runs per
 /// doc (the `all_docs_in_bounds` short-circuit is off) and the rare out-of-bounds doc takes the
 /// `term_counts` branch.
+/// The timestamps span 0..120h, so a seven-day interval puts the entire index in one histogram
+/// bucket. Combined with the skewed status distribution, this repeatedly updates the same grid
+/// cell and highlights the benefit of independent count lanes.
+fn terms_status_with_date_histogram_single_bucket() -> AggregationRequest {
+    json!({
+        "my_texts": {
+            "terms": { "field": "text_few_terms_status" },
+            "aggs": {
+                "over_time": { "date_histogram": { "field": "timestamp", "fixed_interval": "7d" } }
+            }
+        }
+    })
+}
+
+/// A thirty-two-hour interval divides the 0..120h timestamp span into exactly four buckets and
+/// exercises the four-bucket linear resolver.
+fn terms_status_with_date_histogram_4_buckets() -> AggregationRequest {
+    json!({
+        "my_texts": {
+            "terms": { "field": "text_few_terms_status" },
+            "aggs": {
+                "over_time": { "date_histogram": { "field": "timestamp", "fixed_interval": "32h" } }
+            }
+        }
+    })
+}
+
+/// A sixteen-hour interval divides the 0..120h timestamp span into exactly eight buckets and
+/// exercises the eight-bucket linear resolver.
+fn terms_status_with_date_histogram_8_buckets() -> AggregationRequest {
+    json!({
+        "my_texts": {
+            "terms": { "field": "text_few_terms_status" },
+            "aggs": {
+                "over_time": { "date_histogram": { "field": "timestamp", "fixed_interval": "16h" } }
+            }
+        }
+    })
+}
+
 fn terms_status_with_date_histogram_hard_bounds() -> AggregationRequest {
     json!({
         "my_texts": {
