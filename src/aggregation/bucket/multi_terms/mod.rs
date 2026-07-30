@@ -207,9 +207,6 @@ impl AggregationMapKey for MultiTermsKey {
     }
 }
 
-/// All values for one field of one document, inline for up to two values.
-type FieldValues = SmallVec<[u64; 2]>;
-
 /// Returns the missing sentinel that can safely be injected while decoding this physical column.
 /// Mixed-type fields require a later union-of-columns existence check instead.
 #[inline]
@@ -221,7 +218,7 @@ fn block_missing_value(missing: Option<&MultiTermsMissingAccessor>) -> Option<u6
 
 /// Fetches one field into the shared block accessor and forwards safe missing handling. Ordering
 /// is requested only by multi-terms, which needs values from different fields aligned by document.
-/// Returns whether every document has a value after decoding.
+/// Returns whether decoding produced exactly one aligned value per document.
 #[inline]
 fn fetch_field_block(
     docs: &[crate::DocId],
@@ -236,8 +233,10 @@ fn fetch_field_block(
         missing_value,
         true,
     );
-    !field.column.get_cardinality().is_multivalue()
-        && block_accessor.iter_vals().len() == docs.len()
+    if block_accessor.values().len() != docs.len() {
+        return false;
+    }
+    !field.column.get_cardinality().is_multivalue() || block_accessor.docids() == docs
 }
 
 /// Packing operations used by the unified collector.
@@ -250,7 +249,6 @@ trait MultiTermsPacking: Clone + Debug + 'static {
     fn new_packing(&self) -> Self::PackingType;
     fn clear_packing(&self, key: &mut Self::PackingType);
     fn push(&self, key: &mut Self::PackingType, field_idx: usize, value: u64);
-    fn pop(&self, key: &mut Self::PackingType, field_idx: usize);
 
     /// Pushes one field's aligned values into every active key buffer.
     fn push_full_values<I>(&self, keys: &mut [Self::PackingType], field_idx: usize, values: I)
@@ -282,11 +280,6 @@ impl MultiTermsPacking for U64ArrayKeyPacking {
     fn push(&self, key: &mut Self::PackingType, field_idx: usize, value: u64) {
         debug_assert_eq!(key.len(), field_idx);
         key.push(value);
-    }
-
-    fn pop(&self, key: &mut Self::PackingType, field_idx: usize) {
-        debug_assert_eq!(key.len(), field_idx + 1);
-        key.pop();
     }
 
     fn push_full_values<I>(&self, keys: &mut [Self::PackingType], field_idx: usize, values: I)
@@ -330,11 +323,6 @@ impl MultiTermsPacking for PackedU64KeyPacking {
             .expect("packed value is not below the field minimum");
         debug_assert!(offset <= pack.max_offset);
         *key |= shift_packed_bits(offset, pack.shift);
-    }
-
-    fn pop(&self, key: &mut Self::PackingType, field_idx: usize) {
-        let pack = self.packs[field_idx];
-        *key &= !shift_packed_bits(pack.mask, pack.shift);
     }
 
     #[inline]
@@ -401,16 +389,15 @@ where
     map_init_value: u64,
     /// Computed once when building the collector; column cardinality is immutable per segment.
     all_fields_full: bool,
-    /// Whether fields can be collected directly into one key per surviving document.
-    use_single_value_path: bool,
-    /// Used for full/optional columns: one key is built per surviving document
-    single_value_keys_buf: Vec<Packing::PackingType>,
-    /// Document IDs still able to produce a complete single-valued key. They are kept in the
-    /// same order as the corresponding prefix of `single_value_keys_buf`.
+    /// Partial keys for the current block. Multiple consecutive keys may belong to one document
+    /// after a multivalued field expands the Cartesian product.
+    keys_buf: Vec<Packing::PackingType>,
+    /// Reusable destination when a field filters or expands the partial keys.
+    next_keys_buf: Vec<Packing::PackingType>,
+    /// Documents still able to produce a complete key.
     active_docs: Vec<u32>,
-    /// Conceptually a flattened `Vec<Vec<u64>>`: each entry contains all values for one
-    /// `[doc][field]`, indexed by `doc_idx * num_fields + field_idx`. Used by the general path.
-    doc_field_values_buf: Vec<FieldValues>,
+    /// Number of consecutive keys in `keys_buf` belonging to each entry in `active_docs`.
+    active_doc_key_counts: Vec<usize>,
 }
 
 /// Validates the field configuration and, when ordering by a sub-aggregation, that the target
@@ -498,42 +485,6 @@ where
 {
     fn get_memory_consumption(&self, parent_bucket_id: BucketId) -> usize {
         self.parent_buckets[parent_bucket_id as usize].get_memory_consumption()
-    }
-
-    #[allow(clippy::too_many_arguments)]
-    fn collect_field_value_combinations(
-        packing: &Packing,
-        doc_id: crate::DocId,
-        field_idx: usize,
-        prefix: &mut Packing::PackingType,
-        field_values: &[FieldValues],
-        buckets: &mut BucketMap,
-        sub_agg: &mut Option<BufferedSubAggs<Buffer>>,
-        bucket_id_provider: &mut BucketIdProvider,
-    ) {
-        let is_last = field_idx + 1 == field_values.len();
-
-        for &elem in &field_values[field_idx] {
-            packing.push(prefix, field_idx, elem);
-            if is_last {
-                let bucket_id = buckets.term_entry(prefix.clone(), bucket_id_provider);
-                if let Some(sub_agg) = sub_agg {
-                    sub_agg.push(bucket_id.to_bucket_id(), doc_id);
-                }
-            } else {
-                Self::collect_field_value_combinations(
-                    packing,
-                    doc_id,
-                    field_idx + 1,
-                    prefix,
-                    field_values,
-                    buckets,
-                    sub_agg,
-                    bucket_id_provider,
-                );
-            }
-            packing.pop(prefix, field_idx);
-        }
     }
 
     /// Convert any bucket-map/packing pair to the shared intermediate result.
@@ -687,184 +638,212 @@ where
         docs: &[crate::DocId],
         agg_data: &mut AggregationsSegmentCtx,
     ) -> crate::Result<()> {
-        let num_fields = self.req_data.fields.len();
         let mem_pre = self.get_memory_consumption(parent_bucket_id);
 
         let buckets = &mut self.parent_buckets[parent_bucket_id as usize];
         let sub_agg = &mut self.sub_agg;
         let bucket_id_provider = &mut self.bucket_id_provider;
         let packing = &self.packing;
+        if self.keys_buf.len() < docs.len() {
+            self.keys_buf
+                .resize_with(docs.len(), || packing.new_packing());
+        }
+        for key in &mut self.keys_buf[..docs.len()] {
+            packing.clear_packing(key);
+        }
 
-        if self.use_single_value_path {
-            if self.single_value_keys_buf.len() < docs.len() {
-                self.single_value_keys_buf
-                    .resize_with(docs.len(), || packing.new_packing());
+        let block_accessor = &mut agg_data.column_block_accessor;
+        if self.all_fields_full {
+            // Full columns stay on the minimal one-key-per-document path.
+            let keys_buf = &mut self.keys_buf[..docs.len()];
+            for (field_idx, field) in self.req_data.fields.iter().enumerate() {
+                fetch_field_block(
+                    docs,
+                    field,
+                    self.req_data.missing_accessors[field_idx].as_ref(),
+                    block_accessor,
+                );
+                packing.push_full_values(keys_buf, field_idx, block_accessor.iter_vals());
             }
-            let keys_buf = &mut self.single_value_keys_buf[..docs.len()];
-            for key in keys_buf.iter_mut() {
-                packing.clear_packing(key);
-            }
 
-            let block_accessor = &mut agg_data.column_block_accessor;
-            if self.all_fields_full {
-                // Bulk-decode each full column and build one key per document directly, without
-                // per-document column dispatch or Cartesian recursion.
-                for (field_idx, field) in self.req_data.fields.iter().enumerate() {
-                    fetch_field_block(
-                        docs,
-                        field,
-                        self.req_data.missing_accessors[field_idx].as_ref(),
-                        block_accessor,
-                    );
-                    packing.push_full_values(keys_buf, field_idx, block_accessor.iter_vals());
-                }
-
-                if let Some(sub_agg) = sub_agg {
-                    for (&doc_id, key) in docs.iter().zip(keys_buf.iter()) {
-                        let bucket_id = buckets.term_entry(key.clone(), bucket_id_provider);
-                        sub_agg.push(bucket_id.to_bucket_id(), doc_id);
-                    }
-                } else {
-                    for key in keys_buf.iter() {
-                        buckets.term_entry(key.clone(), bucket_id_provider);
-                    }
+            if let Some(sub_agg) = sub_agg {
+                for (&doc_id, key) in docs.iter().zip(keys_buf) {
+                    let bucket_id = buckets.term_entry(key.clone(), bucket_id_provider);
+                    sub_agg.push(bucket_id.to_bucket_id(), doc_id);
                 }
             } else {
-                // Keep surviving document IDs and their partially built keys at matching indices.
-                // A sparse field is merge-joined with the active document IDs; later fields then
-                // decode only the survivors.
-                self.active_docs.clear();
-                self.active_docs.extend_from_slice(docs);
+                for key in keys_buf {
+                    buckets.term_entry(key.clone(), bucket_id_provider);
+                }
+            }
+        } else {
+            // Keep partial keys grouped by document. A multivalued field expands each group into
+            // packed keys, so later fields use the same packing operations as single values.
+            self.active_docs.clear();
+            self.active_docs.extend_from_slice(docs);
+            self.active_doc_key_counts.clear();
+            let mut keys_expanded = false;
+            let mut num_keys = docs.len();
 
-                for (field_idx, field) in self.req_data.fields.iter().enumerate() {
-                    if self.active_docs.is_empty() {
-                        break;
-                    }
+            for (field_idx, field) in self.req_data.fields.iter().enumerate() {
+                if self.active_docs.is_empty() {
+                    num_keys = 0;
+                    break;
+                }
 
-                    let missing = self.req_data.missing_accessors[field_idx].as_ref();
-                    let has_value_per_doc = fetch_field_block(
-                        self.active_docs.as_slice(),
-                        field,
-                        missing,
-                        block_accessor,
-                    );
-                    if has_value_per_doc {
+                let missing = self.req_data.missing_accessors[field_idx].as_ref();
+                let has_one_value_per_doc =
+                    fetch_field_block(self.active_docs.as_slice(), field, missing, block_accessor);
+                if has_one_value_per_doc {
+                    // Values are aligned with active documents. Before any expansion they are
+                    // also aligned directly with the key buffer and can be packed in bulk.
+                    if !keys_expanded {
                         packing.push_full_values(
-                            &mut keys_buf[..self.active_docs.len()],
+                            &mut self.keys_buf[..num_keys],
                             field_idx,
                             block_accessor.iter_vals(),
                         );
-                        continue;
+                    } else {
+                        let mut key_start = 0usize;
+                        for (&num_doc_keys, value) in self
+                            .active_doc_key_counts
+                            .iter()
+                            .zip(block_accessor.iter_vals())
+                        {
+                            let key_end = key_start + num_doc_keys;
+                            for key in &mut self.keys_buf[key_start..key_end] {
+                                packing.push(key, field_idx, value);
+                            }
+                            key_start = key_end;
+                        }
+                        debug_assert_eq!(key_start, num_keys);
                     }
+                    continue;
+                }
 
-                    debug_assert!(missing.is_none());
-                    debug_assert!(!field.column.get_cardinality().is_full());
+                // Preserve the sparse single-value merge path. Until a multivalued field has
+                // expanded the keys, an optional field can filter and pack in one pass.
+                if !keys_expanded
+                    && !field.column.get_cardinality().is_multivalue()
+                    && missing.is_none()
+                {
                     let mut source_idx = 0usize;
                     let mut target_idx = 0usize;
-                    for (doc_id, value) in block_accessor.iter_docid_vals(docs, &field.column) {
+                    for (&doc_id, &value) in
+                        block_accessor.docids().iter().zip(block_accessor.values())
+                    {
                         while self.active_docs[source_idx] < doc_id {
                             source_idx += 1;
                         }
                         debug_assert_eq!(self.active_docs[source_idx], doc_id);
                         if target_idx != source_idx {
                             self.active_docs[target_idx] = doc_id;
-                            keys_buf.swap(target_idx, source_idx);
+                            self.keys_buf.swap(target_idx, source_idx);
                         }
-                        packing.push(&mut keys_buf[target_idx], field_idx, value);
+                        packing.push(&mut self.keys_buf[target_idx], field_idx, value);
                         source_idx += 1;
                         target_idx += 1;
                     }
                     self.active_docs.truncate(target_idx);
+                    num_keys = target_idx;
+                    continue;
                 }
 
-                let active_keys = &keys_buf[..self.active_docs.len()];
-                if let Some(sub_agg) = sub_agg {
-                    for (&doc_id, key) in self.active_docs.iter().zip(active_keys) {
+                // The accessor returns values grouped by document. Expand each document's current
+                // partial keys directly from those ranges, without retaining per-document value
+                // descriptors between passes.
+                let mut remaining_docids = block_accessor.docids();
+                let mut remaining_values = block_accessor.values();
+                debug_assert_eq!(remaining_docids.len(), remaining_values.len());
+                let use_synthetic_missing =
+                    missing.is_some() && block_missing_value(missing).is_none();
+
+                if !keys_expanded {
+                    self.active_doc_key_counts.resize(self.active_docs.len(), 1);
+                }
+                let mut source_keys = self.keys_buf[..num_keys].iter();
+                let mut num_target_keys = 0usize;
+                for (&doc_id, doc_key_count) in
+                    self.active_docs.iter().zip(&mut self.active_doc_key_counts)
+                {
+                    debug_assert!(remaining_docids
+                        .first()
+                        .is_none_or(|candidate| *candidate >= doc_id));
+                    let num_real_values = remaining_docids
+                        .iter()
+                        .take_while(|candidate| **candidate == doc_id)
+                        .count();
+                    let (values, rest) = remaining_values.split_at(num_real_values);
+                    remaining_docids = &remaining_docids[num_real_values..];
+                    remaining_values = rest;
+                    let synthetic_missing = if values.is_empty() && use_synthetic_missing {
+                        missing_value_for_doc(missing, doc_id)
+                    } else {
+                        None
+                    };
+                    let num_values = values.len() + usize::from(synthetic_missing.is_some());
+                    let num_doc_keys = *doc_key_count;
+                    let num_expanded_keys = num_doc_keys * num_values;
+                    *doc_key_count = num_expanded_keys;
+
+                    let target_key_end = num_target_keys + num_expanded_keys;
+                    if self.next_keys_buf.len() < target_key_end {
+                        self.next_keys_buf
+                            .resize_with(target_key_end, || packing.new_packing());
+                    }
+                    let mut target_keys =
+                        self.next_keys_buf[num_target_keys..target_key_end].iter_mut();
+                    for source_key in source_keys.by_ref().take(num_doc_keys) {
+                        for value in values.iter().copied().chain(synthetic_missing) {
+                            let target_key = target_keys.next().unwrap();
+                            target_key.clone_from(source_key);
+                            packing.push(target_key, field_idx, value);
+                        }
+                    }
+                    debug_assert!(target_keys.next().is_none());
+                    num_target_keys = target_key_end;
+                }
+                debug_assert!(remaining_docids.is_empty());
+                debug_assert!(remaining_values.is_empty());
+                debug_assert!(source_keys.next().is_none());
+
+                {
+                    let mut key_counts = self.active_doc_key_counts.iter();
+                    self.active_docs
+                        .retain(|_| key_counts.next().is_some_and(|&count| count != 0));
+                    debug_assert!(key_counts.next().is_none());
+                }
+                self.active_doc_key_counts
+                    .retain(|&num_doc_keys| num_doc_keys != 0);
+                std::mem::swap(&mut self.keys_buf, &mut self.next_keys_buf);
+                keys_expanded = true;
+                num_keys = num_target_keys;
+            }
+
+            if let Some(sub_agg) = sub_agg {
+                if keys_expanded {
+                    let mut key_start = 0usize;
+                    for (&doc_id, &num_doc_keys) in
+                        self.active_docs.iter().zip(&self.active_doc_key_counts)
+                    {
+                        let key_end = key_start + num_doc_keys;
+                        for key in &self.keys_buf[key_start..key_end] {
+                            let bucket_id = buckets.term_entry(key.clone(), bucket_id_provider);
+                            sub_agg.push(bucket_id.to_bucket_id(), doc_id);
+                        }
+                        key_start = key_end;
+                    }
+                    debug_assert_eq!(key_start, num_keys);
+                } else {
+                    for (&doc_id, key) in self.active_docs.iter().zip(&self.keys_buf[..num_keys]) {
                         let bucket_id = buckets.term_entry(key.clone(), bucket_id_provider);
                         sub_agg.push(bucket_id.to_bucket_id(), doc_id);
                     }
-                } else {
-                    for key in active_keys {
-                        buckets.term_entry(key.clone(), bucket_id_provider);
-                    }
                 }
-            }
-        } else {
-            let required_values = docs.len().checked_mul(num_fields).ok_or_else(|| {
-                TantivyError::AggregationError(crate::aggregation::AggregationError::InternalError(
-                    "multi_terms field-value scratch size overflow".to_string(),
-                ))
-            })?;
-            if self.doc_field_values_buf.len() < required_values {
-                self.doc_field_values_buf
-                    .resize_with(required_values, FieldValues::new);
-            }
-            let doc_field_values = &mut self.doc_field_values_buf[..required_values];
-            for values in doc_field_values.iter_mut() {
-                values.clear();
-            }
-
-            // Retain each field's values until the document's Cartesian combinations are
-            // generated. This also handles mixed-type missing values that need existence checks.
-            let block_accessor = &mut agg_data.column_block_accessor;
-            for (field_idx, field) in self.req_data.fields.iter().enumerate() {
-                let missing = self.req_data.missing_accessors[field_idx].as_ref();
-                fetch_field_block(docs, field, missing, block_accessor);
-                if field.column.get_cardinality().is_full() {
-                    for (doc_idx, value) in block_accessor.iter_vals().enumerate() {
-                        doc_field_values[doc_idx * num_fields + field_idx].push(value);
-                    }
-                } else {
-                    let mut doc_idx = 0usize;
-                    for (doc_id, value) in block_accessor.iter_docid_vals(docs, &field.column) {
-                        while docs
-                            .get(doc_idx)
-                            .is_some_and(|candidate| *candidate < doc_id)
-                        {
-                            doc_idx += 1;
-                        }
-                        debug_assert_eq!(docs.get(doc_idx), Some(&doc_id));
-                        doc_field_values[doc_idx * num_fields + field_idx].push(value);
-                    }
+            } else {
+                for key in &self.keys_buf[..num_keys] {
+                    buckets.term_entry(key.clone(), bucket_id_provider);
                 }
-            }
-
-            // Mixed-type missing handling cannot be delegated to one physical column: only the
-            // designated accessor may emit the fallback, and only when every physical column for
-            // that requested field is absent.
-            for (doc_idx, &doc_id) in docs.iter().enumerate() {
-                for (field_idx, missing) in self.req_data.missing_accessors.iter().enumerate() {
-                    if block_missing_value(missing.as_ref()).is_some() {
-                        continue;
-                    }
-                    let values = &mut doc_field_values[doc_idx * num_fields + field_idx];
-                    if values.is_empty() {
-                        if let Some(missing_value) = missing_value_for_doc(missing.as_ref(), doc_id)
-                        {
-                            values.push(missing_value);
-                        }
-                    }
-                }
-            }
-
-            let mut prefix = packing.new_packing();
-            for (doc_idx, &doc_id) in docs.iter().enumerate() {
-                let start = doc_idx * num_fields;
-                let field_values = &doc_field_values[start..start + num_fields];
-                if field_values.iter().any(FieldValues::is_empty) {
-                    continue;
-                }
-                packing.clear_packing(&mut prefix);
-                Self::collect_field_value_combinations(
-                    packing,
-                    doc_id,
-                    0,
-                    &mut prefix,
-                    field_values,
-                    buckets,
-                    sub_agg,
-                    bucket_id_provider,
-                );
             }
         }
 
@@ -1097,15 +1076,6 @@ where
         .fields
         .iter()
         .all(|field| field.column.get_cardinality().is_full());
-    let use_single_value_path =
-        req_data
-            .fields
-            .iter()
-            .zip(&req_data.missing_accessors)
-            .all(|(field, missing)| {
-                !field.column.get_cardinality().is_multivalue()
-                    && (missing.is_none() || block_missing_value(missing.as_ref()).is_some())
-            });
     Ok(Box::new(SegmentMultiTermsCollector::<
         Packing,
         BucketMap,
@@ -1118,10 +1088,10 @@ where
         packing,
         map_init_value,
         all_fields_full,
-        use_single_value_path,
-        single_value_keys_buf: Vec::new(),
+        keys_buf: Vec::new(),
+        next_keys_buf: Vec::new(),
         active_docs: Vec::new(),
-        doc_field_values_buf: Vec::new(),
+        active_doc_key_counts: Vec::new(),
     }))
 }
 
@@ -2196,7 +2166,7 @@ mod tests {
     }
 
     #[test]
-    fn test_multi_terms_single_value_path_filters_docs_between_fields() -> crate::Result<()> {
+    fn test_multi_terms_filters_single_values_between_fields() -> crate::Result<()> {
         let mut schema_builder = Schema::builder();
         let first_field = schema_builder.add_text_field("first", STRING | FAST);
         let second_field = schema_builder.add_text_field("second", STRING | FAST);
@@ -2234,7 +2204,7 @@ mod tests {
     }
 
     #[test]
-    fn test_multi_terms_u64_array_single_value_path_handles_optional_field() -> crate::Result<()> {
+    fn test_multi_terms_u64_array_packs_optional_field_directly() -> crate::Result<()> {
         // `big` requires 64 bits and `tag` requires another bit, selecting `MultiTermsKey`.
         // `tag` is optional but not multivalued, so collection should still build one key per
         // surviving document directly. Putting it first also exercises validity filtering before
@@ -2511,6 +2481,70 @@ mod tests {
         );
         assert_eq!(buckets[0]["doc_count"], 2);
         assert_eq!(buckets[0]["key_as_string"], "rock|2023-01-01T00:00:00Z");
+        Ok(())
+    }
+
+    #[test]
+    fn test_multi_terms_expands_multiple_multivalued_fields_before_filtering() -> crate::Result<()>
+    {
+        let mut schema_builder = Schema::builder();
+        let first_field = schema_builder.add_text_field("first", STRING | FAST);
+        let second_field = schema_builder.add_text_field("second", STRING | FAST);
+        let last_field = schema_builder.add_text_field("last", STRING | FAST);
+        let index = Index::create_in_ram(schema_builder.build());
+        {
+            let mut writer: IndexWriter = index.writer_with_num_threads(1, 20_000_000)?;
+
+            let mut first_doc = doc!(last_field => "p");
+            for value in ["a", "b"] {
+                first_doc.add_text(first_field, value);
+            }
+            for value in ["x", "y", "z"] {
+                first_doc.add_text(second_field, value);
+            }
+            writer.add_document(first_doc)?;
+
+            // This document builds a partial key, then gets removed by the final optional field.
+            writer.add_document(doc!(first_field => "c", second_field => "q"))?;
+
+            let mut third_doc = doc!(last_field => "u");
+            for value in ["d", "e"] {
+                third_doc.add_text(first_field, value);
+            }
+            for value in ["r", "s"] {
+                third_doc.add_text(second_field, value);
+            }
+            writer.add_document(third_doc)?;
+            writer.commit()?;
+        }
+
+        let agg_req: Aggregations = serde_json::from_value(json!({
+            "mt": {
+                "multi_terms": {
+                    "terms": [
+                        {"field": "first"},
+                        {"field": "second"},
+                        {"field": "last"}
+                    ],
+                    "size": 20,
+                    "order": {"_key": "asc"}
+                }
+            }
+        }))?;
+        let res = exec_request(agg_req, &index)?;
+        let keys: Vec<&str> = res["mt"]["buckets"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|bucket| bucket["key_as_string"].as_str().unwrap())
+            .collect();
+        assert_eq!(
+            keys,
+            [
+                "a|x|p", "a|y|p", "a|z|p", "b|x|p", "b|y|p", "b|z|p", "d|r|u", "d|s|u", "e|r|u",
+                "e|s|u",
+            ]
+        );
         Ok(())
     }
 
