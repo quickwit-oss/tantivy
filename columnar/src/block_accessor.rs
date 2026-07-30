@@ -207,6 +207,18 @@ impl<T: PartialOrd + Copy + std::fmt::Debug + Send + Sync + 'static + Default>
         self.val_cache.truncate(new_len);
     }
 
+    /// Returns the values fetched by the last `fetch_block*` call.
+    #[inline]
+    pub fn values(&self) -> &[T] {
+        &self.val_cache
+    }
+
+    /// Returns the document IDs corresponding to [`Self::values`] for a non-full column.
+    #[inline]
+    pub fn docids(&self) -> &[DocId] {
+        &self.docid_cache
+    }
+
     #[inline]
     pub fn iter_vals(&self) -> impl ExactSizeIterator<Item = T> + '_ {
         self.val_cache.iter().cloned()
