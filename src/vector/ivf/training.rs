@@ -10,7 +10,7 @@ pub trait IvfClusterer: Send + Sync + 'static {
     fn train(
         &self,
         options: &VectorOptions,
-        vectors: IvfVectors<'_>,
+        vectors: IvfTrainingVectors,
         num_centroids: usize,
     ) -> crate::Result<IvfCentroids>;
 
@@ -80,6 +80,19 @@ pub enum IvfCentroids {
 #[derive(Clone, Copy, Debug)]
 pub enum IvfVectors<'a> {
     F32(IvfVectorBatch<'a, f32>),
+}
+
+/// Owned training input: the merge hands its sampled buffers to the clusterer,
+/// which may consume them in place instead of copying.
+#[derive(Clone, Debug)]
+pub enum IvfTrainingVectors {
+    F32(IvfTrainingBatch<f32>),
+}
+
+#[derive(Clone, Debug)]
+pub struct IvfTrainingBatch<T> {
+    pub doc_ids: Vec<DocId>,
+    pub matrix: IvfMatrix<T>,
 }
 
 #[derive(Clone, Debug)]

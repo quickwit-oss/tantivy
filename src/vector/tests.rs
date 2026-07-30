@@ -9,7 +9,8 @@ use crate::query::{AllQuery, TermQuery};
 use crate::schema::{Field, FieldType, IndexRecordOption, Schema, Term, STORED, STRING};
 use crate::vector::ivf::AdaptiveProbeParams;
 use crate::vector::{
-    IvfCentroids, IvfClusterer, IvfMatrix, IvfMergeSettings, IvfVectors, Metric, VectorDType,
+    IvfCentroids, IvfClusterer, IvfMatrix, IvfMergeSettings, IvfTrainingVectors, IvfVectors,
+    Metric, VectorDType,
     VectorOptions,
 };
 use crate::{DocAddress, Index, Score, TantivyDocument};
@@ -198,7 +199,7 @@ impl IvfClusterer for Grid2DClusterer {
     fn train(
         &self,
         options: &VectorOptions,
-        _vectors: IvfVectors<'_>,
+        _vectors: IvfTrainingVectors,
         num_centroids: usize,
     ) -> crate::Result<IvfCentroids> {
         assert_eq!(options.dim(), grid2d::DIM);

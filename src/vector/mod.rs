@@ -38,7 +38,8 @@ pub use flat::FlatVecWriter;
 pub use index_reader::{VectorClusterStats, VectorIndexReader, VectorInfo, VectorStorageFormat};
 pub use ivf::{
     Candidate, Graph, IvfCentroids, IvfClusterer, IvfIndex, IvfMatrix, IvfMatrixView,
-    IvfMergeSettings, IvfSearchMetrics, IvfVectorBatch, IvfVectors, NeighborhoodGraphConfig,
+    IvfMergeSettings, IvfSearchMetrics, IvfTrainingBatch, IvfTrainingVectors, IvfVectorBatch,
+    IvfVectors, NeighborhoodGraphConfig,
     NeighborhoodGraphSearchMetrics, NodeId, RelativeNeighborhoodGraph, ResumableSearchIterator,
     SearchIterator, SearchTerminationReason, Workspace,
 };

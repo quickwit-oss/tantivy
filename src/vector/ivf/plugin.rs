@@ -10,8 +10,8 @@ use std::io::Write;
 use std::time::{Duration, Instant};
 
 use super::{
-    decode_row, encode_vector, IvfCentroids, IvfClusterer, IvfIndex, IvfMatrixView, IvfVectorBatch,
-    IvfVectors, CENTROIDS_EXT,
+    decode_row, encode_vector, IvfCentroids, IvfClusterer, IvfIndex, IvfMatrix, IvfMatrixView,
+    IvfTrainingBatch, IvfTrainingVectors, IvfVectorBatch, IvfVectors, CENTROIDS_EXT,
 };
 use crate::directory::{CompositeWrite, Directory};
 use crate::index::SegmentComponent;
@@ -296,11 +296,12 @@ pub(crate) fn merge_ivf(
                     continue;
                 }
 
-                let training_vectors = IvfVectors::F32(IvfVectorBatch {
-                    doc_ids: &training_doc_ids,
-                    matrix: IvfMatrixView {
-                        values: &training_values,
-                        rows: training_doc_ids.len(),
+                let training_rows = training_doc_ids.len();
+                let training_vectors = IvfTrainingVectors::F32(IvfTrainingBatch {
+                    doc_ids: training_doc_ids,
+                    matrix: IvfMatrix {
+                        values: training_values,
+                        rows: training_rows,
                         dims: opts.dim(),
                     },
                 });

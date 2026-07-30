@@ -744,7 +744,8 @@ mod tests {
     use crate::schema::{IndexRecordOption, Schema, Term, STORED, STRING};
     use crate::vector::tests::{exhaustive_params, TestVectorIndex};
     use crate::vector::{
-        IvfCentroids, IvfClusterer, IvfMatrix, IvfMergeSettings, IvfVectors,
+        IvfCentroids, IvfClusterer, IvfMatrix, IvfMergeSettings, IvfTrainingVectors,
+        IvfVectors,
         NeighborhoodGraphSearchMetrics, SearchTerminationReason, VectorClusterStats, VectorDType,
         VectorInfo, VectorOptions, VectorStorageFormat,
     };
@@ -838,7 +839,7 @@ mod tests {
         fn train(
             &self,
             options: &VectorOptions,
-            _vectors: IvfVectors<'_>,
+            _vectors: IvfTrainingVectors,
             num_centroids: usize,
         ) -> crate::Result<IvfCentroids> {
             assert_eq!(options.dim(), 2);
