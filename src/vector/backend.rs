@@ -19,13 +19,27 @@ use super::distance::Similarity;
 use super::index_reader::VectorIndexReader;
 use super::ivf::{AdaptiveProbeParams, Candidate, IvfIndex, IvfSearchMetrics, Workspace};
 use super::prepared::PreparedQuery;
+use super::tie_break::NoTieBreak;
 use super::VectorElement;
-use crate::collector::sort_key::NaturalComparator;
-use crate::collector::TopNComputer;
+use crate::collector::sort_key::{Comparator, NaturalComparator};
+use crate::collector::{SegmentSortKeyComputer, TopNComputer};
 use crate::fastfield::AliveBitSet;
 use crate::query::Weight;
 use crate::schema::{Field, Metric};
 use crate::{DocAddress, DocId, Score, SegmentOrdinal, SegmentReader, TantivyError};
+
+/// The settled result.
+type TieBreakHits<K> = Vec<(
+    (Score, <K as SegmentSortKeyComputer>::SegmentSortKey),
+    DocAddress,
+)>;
+
+/// The in-flight accumulator.
+type TieBreakHeap<K, CTail> = TopNComputer<
+    (Score, <K as SegmentSortKeyComputer>::SegmentSortKey),
+    DocId,
+    (NaturalComparator, CTail),
+>;
 
 /// Per-segment vector search: the segment's [`VectorIndexReader`] plus the
 /// per-query state. Build via [`VectorBackend::for_segment`].
@@ -69,10 +83,63 @@ impl<T: VectorElement> VectorBackend<T> {
         segment_reader: &SegmentReader,
         top_n: usize,
     ) -> crate::Result<(Vec<(Score, DocAddress)>, ProbeStats)> {
+        let (hits, stats) = self.top_n_by(
+            weight,
+            segment_reader,
+            top_n,
+            &mut NoTieBreak,
+            NaturalComparator,
+        )?;
+        Ok((
+            hits.into_iter()
+                .map(|((score, ()), address)| (score, address))
+                .collect(),
+            stats,
+        ))
+    }
+
+    /// [`Self::top_n`] ordered by `(similarity, tie_break)` rather than
+    /// similarity alone.
+    ///
+    /// The tie-break participates in the heap's eviction decision, not just in
+    /// the ordering of what survives: candidates that tie on similarity at the
+    /// k/k+1 boundary are separated by `tie_break` before `DocId` is consulted.
+    /// Applying a secondary key to the returned rows instead would be too late,
+    /// since the losing ties are already gone.
+    ///
+    /// The similarity component is always compared with [`NaturalComparator`]
+    /// ("higher is better"); `tie_comparator` orders the tail alone.
+    pub fn top_n_by<K, CTail>(
+        &self,
+        weight: &dyn Weight,
+        segment_reader: &SegmentReader,
+        top_n: usize,
+        tie_break: &mut K,
+        tie_comparator: CTail,
+    ) -> crate::Result<(TieBreakHits<K>, ProbeStats)>
+    where
+        K: SegmentSortKeyComputer,
+        CTail: Comparator<K::SegmentSortKey>,
+    {
         let mut stats = ProbeStats::default();
         let hits = match self.reader.index() {
-            Some(index) => self.probe_top_n(index, weight, segment_reader, top_n, &mut stats)?,
-            None => self.exact_top_n(weight, segment_reader, top_n, &mut stats)?,
+            Some(index) => self.approximate_top_n(
+                index,
+                weight,
+                segment_reader,
+                top_n,
+                tie_break,
+                tie_comparator,
+                &mut stats,
+            )?,
+            None => self.exact_top_n(
+                weight,
+                segment_reader,
+                top_n,
+                tie_break,
+                tie_comparator,
+                &mut stats,
+            )?,
         };
         Ok((hits, stats))
     }
@@ -80,22 +147,26 @@ impl<T: VectorElement> VectorBackend<T> {
     /// Flat/exact scan: drain the filter DocSet doc-by-doc, scoring each
     /// survivor from one stride-sized row read. Fills only the
     /// `exact_rows_read` stat.
-    fn exact_top_n(
+    fn exact_top_n<K, CTail>(
         &self,
         weight: &dyn Weight,
         segment_reader: &SegmentReader,
         top_n: usize,
+        tie_break: &mut K,
+        tie_comparator: CTail,
         stats: &mut ProbeStats,
-    ) -> crate::Result<Vec<(Score, DocAddress)>> {
+    ) -> crate::Result<TieBreakHits<K>>
+    where
+        K: SegmentSortKeyComputer,
+        CTail: Comparator<K::SegmentSortKey>,
+    {
         // `for_each_no_score` walks the filter DocSet in ascending doc order,
         // which permits the fast `TopNComputer::push` path (valid only under
         // ascending-doc pushes).
         // `NaturalComparator` because similarity is "higher = better" — see
         // the note on `scan_clusters`.
-        let mut topn = TopNComputer::<Score, DocId, NaturalComparator>::new_with_comparator(
-            top_n,
-            NaturalComparator,
-        );
+        let mut topn =
+            TopNComputer::new_with_comparator(top_n, (NaturalComparator, tie_comparator));
         let alive = segment_reader.alive_bitset();
         let mut rows_read = 0usize;
         // Row reads are ranged and can fail; the `for_each` closure can't
@@ -118,7 +189,10 @@ impl<T: VectorElement> VectorBackend<T> {
                 match self.reader.vector_bytes_for_row(row) {
                     Ok(vbytes) => {
                         rows_read += 1;
-                        topn.push(self.query.score_doc_bytes(&vbytes), doc);
+                        let score = self.query.score_doc_bytes(&vbytes);
+                        if let Some(key) = tie_break_key(&topn, tie_break, score, doc) {
+                            topn.push(key, doc);
+                        }
                     }
                     Err(err) => {
                         read_err = Some(err);
@@ -138,6 +212,35 @@ impl<T: VectorElement> VectorBackend<T> {
             .map(|cd| (cd.sort_key, DocAddress::new(segment_ord, cd.doc)))
             .collect())
     }
+}
+
+/// A candidate's composite heap key, or `None` when its similarity alone
+/// cannot beat the heap threshold, so the tie-break column is read only for
+/// competitive candidates. The caller pushes the key itself, with whichever of
+/// [`TopNComputer::push`]/`push_unordered` its doc arrival order permits.
+///
+/// The skip is exact rather than approximate: `(s, t) < (ts, tt)` requires
+/// either `s < ts`, or `s == ts` with `t < tt`. So a candidate rejected here on
+/// similarity alone could never have survived the full composite comparison,
+/// and the tie-break lookup it would have cost is pure waste. Once the heap has
+/// filled this is the common case.
+#[inline(always)]
+fn tie_break_key<K, CTail>(
+    topn: &TieBreakHeap<K, CTail>,
+    tie_break: &mut K,
+    score: Score,
+    doc: DocId,
+) -> Option<(Score, K::SegmentSortKey)>
+where
+    K: SegmentSortKeyComputer,
+    CTail: Comparator<K::SegmentSortKey>,
+{
+    if let Some(((threshold_score, _), _)) = &topn.threshold {
+        if score < *threshold_score {
+            return None;
+        }
+    }
+    Some((score, tie_break.segment_sort_key(doc, score)))
 }
 
 /// How the probe loop stopped.
@@ -223,14 +326,21 @@ struct Survivor {
 impl<T: VectorElement> VectorBackend<T> {
     /// Top-N by IVF probe. Fills `stats` with this segment's probe-loop
     /// counters.
-    fn probe_top_n(
+    #[allow(clippy::too_many_arguments)]
+    fn approximate_top_n<K, CTail>(
         &self,
         index: &IvfIndex,
         weight: &dyn Weight,
         segment_reader: &SegmentReader,
         top_n: usize,
+        tie_break: &mut K,
+        tie_comparator: CTail,
         stats: &mut ProbeStats,
-    ) -> crate::Result<Vec<(Score, DocAddress)>> {
+    ) -> crate::Result<TieBreakHits<K>>
+    where
+        K: SegmentSortKeyComputer,
+        CTail: Comparator<K::SegmentSortKey>,
+    {
         if top_n == 0 {
             return Ok(Vec::new());
         }
@@ -292,6 +402,8 @@ impl<T: VectorElement> VectorBackend<T> {
             max_doc,
             alive,
             top_n,
+            tie_break,
+            tie_comparator,
             stats,
         )?;
 
@@ -327,7 +439,7 @@ impl<T: VectorElement> VectorBackend<T> {
     /// `score_doc_bytes` cost.
     #[inline(never)]
     #[allow(clippy::too_many_arguments)]
-    fn scan_clusters(
+    fn scan_clusters<K, CTail>(
         &self,
         index: &IvfIndex,
         ranked: impl Iterator<Item = Candidate>,
@@ -338,12 +450,16 @@ impl<T: VectorElement> VectorBackend<T> {
         max_doc: DocId,
         alive: Option<&AliveBitSet>,
         top_n: usize,
+        tie_break: &mut K,
+        tie_comparator: CTail,
         stats: &mut ProbeStats,
-    ) -> crate::Result<TopNComputer<Score, DocId, NaturalComparator>> {
-        let mut topn = TopNComputer::<Score, DocId, NaturalComparator>::new_with_comparator(
-            top_n,
-            NaturalComparator,
-        );
+    ) -> crate::Result<TieBreakHeap<K, CTail>>
+    where
+        K: SegmentSortKeyComputer,
+        CTail: Comparator<K::SegmentSortKey>,
+    {
+        let mut topn =
+            TopNComputer::new_with_comparator(top_n, (NaturalComparator, tie_comparator));
         // `candidates` is the cumulative scored count that drives the gate; the
         // prune counters accumulate into locals and fold into `ProbeStats` once
         // after the loop, keeping the hot per-doc path free of indirection.
@@ -411,7 +527,10 @@ impl<T: VectorElement> VectorBackend<T> {
                 // `vector_bytes_for_row`).
                 for &Survivor { row, doc } in &survivors {
                     let vbytes = self.reader.vector_bytes_for_row(row)?;
-                    topn.push_unordered(self.query.score_doc_bytes(&vbytes), doc);
+                    let score = self.query.score_doc_bytes(&vbytes);
+                    if let Some(key) = tie_break_key(&topn, tie_break, score, doc) {
+                        topn.push_unordered(key, doc);
+                    }
                 }
             }
             candidates += survivors.len();
@@ -1838,7 +1957,7 @@ mod tests {
     /// collector layer rejects `TopDocs::with_limit(0)` before it
     /// reaches the backend, so this test calls the backend directly
     /// via the instrumented seam — the short-circuit lives in
-    /// `probe_top_n`.
+    /// `approximate_top_n`.
     #[test]
     fn ivf_top_n_zero_returns_empty() -> crate::Result<()> {
         let index = TestVectorIndex::builder(VectorDType::F32)

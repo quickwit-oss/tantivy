@@ -645,7 +645,7 @@ where
 }
 
 #[inline(always)]
-fn compare_for_top_k<TSortKey, D: Ord, C: Comparator<TSortKey>>(
+pub(crate) fn compare_for_top_k<TSortKey, D: Ord, C: Comparator<TSortKey>>(
     c: &C,
     lhs: &ComparableDoc<TSortKey, D>,
     rhs: &ComparableDoc<TSortKey, D>,

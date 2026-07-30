@@ -19,6 +19,7 @@ mod header;
 mod index_reader;
 mod plugin;
 mod prepared;
+mod tie_break;
 
 pub mod flat;
 pub mod ivf;
@@ -29,7 +30,7 @@ pub(crate) mod tests;
 pub(crate) const VEC_EXT: &str = "vec";
 
 pub use backend::{ProbeStats, ProbeTermination, VectorBackend};
-pub use collector::{TopDocsByVectorSimilarity, VectorSimilarityFruit};
+pub use collector::{SegmentVectorFruit, TopDocsByVectorSimilarity, VectorSimilarityFruit};
 pub use distance::{
     cosine, cosine_bytes, dot, dot_bytes, l2_squared, l2_squared_bytes, Similarity,
 };
@@ -43,6 +44,7 @@ pub use ivf::{
 };
 pub use plugin::VectorPlugin;
 pub use prepared::PreparedQuery;
+pub use tie_break::NoTieBreak;
 
 // The schema-level vector types are re-exported here so `crate::vector::{...}`
 // resolves for callers and tests that work entirely within the vector module.
