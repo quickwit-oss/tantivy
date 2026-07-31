@@ -31,7 +31,7 @@ use crate::aggregation::intermediate_agg_result::{
 };
 use crate::aggregation::segment_agg_result::{BucketIdProvider, SegmentAggregationCollector};
 use crate::aggregation::{f64_to_fastfield_u64, format_date, BucketId, Key};
-use crate::TantivyError;
+use crate::{DocId, TantivyError};
 
 /// Multi-terms aggregation: one bucket per unique combination of values across N term fields.
 ///
@@ -284,9 +284,9 @@ impl MultiTermsPacking for U64ArrayKeyPacking {
 
     fn push_full_values<I>(&self, keys: &mut [Self::PackingType], field_idx: usize, values: I)
     where I: IntoIterator<Item = u64> {
-        for (key, val) in keys.iter_mut().zip(values) {
+        for (key, value) in keys.iter_mut().zip(values) {
             debug_assert!(key.len() <= field_idx);
-            key.push(val);
+            key.push(value);
         }
     }
 
@@ -318,9 +318,7 @@ impl MultiTermsPacking for PackedU64KeyPacking {
 
     fn push(&self, key: &mut Self::PackingType, field_idx: usize, value: u64) {
         let pack = self.packs[field_idx];
-        let offset = value
-            .checked_sub(pack.min_value)
-            .expect("packed value is not below the field minimum");
+        let offset = value - pack.min_value;
         debug_assert!(offset <= pack.max_offset);
         *key |= shift_packed_bits(offset, pack.shift);
     }
@@ -329,8 +327,8 @@ impl MultiTermsPacking for PackedU64KeyPacking {
     fn push_full_values<I>(&self, keys: &mut [Self::PackingType], field_idx: usize, values: I)
     where I: IntoIterator<Item = u64> {
         let pack = self.packs[field_idx];
-        for (key, val) in keys.iter_mut().zip(values) {
-            let offset = val - pack.min_value;
+        for (key, value) in keys.iter_mut().zip(values) {
+            let offset = value - pack.min_value;
             debug_assert!(offset <= pack.max_offset);
             *key |= shift_packed_bits(offset, pack.shift);
         }
@@ -387,17 +385,15 @@ where
     /// this is the number of keys; for paged/hash maps it is the maximum packed key (or
     /// ignored).
     map_init_value: u64,
-    /// Computed once when building the collector; column cardinality is immutable per segment.
+    /// Computed once because column cardinality is immutable within a segment.
     all_fields_full: bool,
-    /// Partial keys for the current block. Multiple consecutive keys may belong to one document
-    /// after a multivalued field expands the Cartesian product.
+    /// Partial keys for the current block, grouped by document.
     keys_buf: Vec<Packing::PackingType>,
-    /// Reusable destination when a field filters or expands the partial keys.
-    next_keys_buf: Vec<Packing::PackingType>,
-    /// Documents still able to produce a complete key.
-    active_docs: Vec<u32>,
-    /// Number of consecutive keys in `keys_buf` belonging to each entry in `active_docs`.
-    active_doc_key_counts: Vec<usize>,
+    /// Distinct documents represented in `keys_buf`.
+    active_docs: Vec<DocId>,
+    /// One document ID per key after Cartesian expansion. Empty while keys and active documents
+    /// are one-to-one.
+    expanded_key_docs: Vec<DocId>,
 }
 
 /// Validates the field configuration and, when ordering by a sub-aggregation, that the target
@@ -644,18 +640,17 @@ where
         let sub_agg = &mut self.sub_agg;
         let bucket_id_provider = &mut self.bucket_id_provider;
         let packing = &self.packing;
-        if self.keys_buf.len() < docs.len() {
-            self.keys_buf
-                .resize_with(docs.len(), || packing.new_packing());
-        }
-        for key in &mut self.keys_buf[..docs.len()] {
+        self.keys_buf
+            .resize_with(docs.len(), || packing.new_packing());
+        for key in &mut self.keys_buf {
             packing.clear_packing(key);
         }
+        self.active_docs.clear();
+        self.active_docs.extend_from_slice(docs);
+        self.expanded_key_docs.clear();
 
         let block_accessor = &mut agg_data.column_block_accessor;
         if self.all_fields_full {
-            // Full columns stay on the minimal one-key-per-document path.
-            let keys_buf = &mut self.keys_buf[..docs.len()];
             for (field_idx, field) in self.req_data.fields.iter().enumerate() {
                 fetch_field_block(
                     docs,
@@ -663,67 +658,39 @@ where
                     self.req_data.missing_accessors[field_idx].as_ref(),
                     block_accessor,
                 );
-                packing.push_full_values(keys_buf, field_idx, block_accessor.iter_vals());
-            }
-
-            if let Some(sub_agg) = sub_agg {
-                for (&doc_id, key) in docs.iter().zip(keys_buf) {
-                    let bucket_id = buckets.term_entry(key.clone(), bucket_id_provider);
-                    sub_agg.push(bucket_id.to_bucket_id(), doc_id);
-                }
-            } else {
-                for key in keys_buf {
-                    buckets.term_entry(key.clone(), bucket_id_provider);
-                }
+                packing.push_full_values(&mut self.keys_buf, field_idx, block_accessor.iter_vals());
             }
         } else {
-            // Keep partial keys grouped by document. A multivalued field expands each group into
-            // packed keys, so later fields use the same packing operations as single values.
-            self.active_docs.clear();
-            self.active_docs.extend_from_slice(docs);
-            self.active_doc_key_counts.clear();
-            let mut keys_expanded = false;
-            let mut num_keys = docs.len();
-
             for (field_idx, field) in self.req_data.fields.iter().enumerate() {
-                if self.active_docs.is_empty() {
-                    num_keys = 0;
-                    break;
-                }
-
                 let missing = self.req_data.missing_accessors[field_idx].as_ref();
                 let has_one_value_per_doc =
-                    fetch_field_block(self.active_docs.as_slice(), field, missing, block_accessor);
+                    fetch_field_block(&self.active_docs, field, missing, block_accessor);
                 if has_one_value_per_doc {
-                    // Values are aligned with active documents. Before any expansion they are
-                    // also aligned directly with the key buffer and can be packed in bulk.
-                    if !keys_expanded {
+                    if self.expanded_key_docs.is_empty() {
                         packing.push_full_values(
-                            &mut self.keys_buf[..num_keys],
+                            &mut self.keys_buf,
                             field_idx,
                             block_accessor.iter_vals(),
                         );
                     } else {
-                        let mut key_start = 0usize;
-                        for (&num_doc_keys, value) in self
-                            .active_doc_key_counts
-                            .iter()
-                            .zip(block_accessor.iter_vals())
+                        let mut values = block_accessor.iter_vals();
+                        let mut keys = self.keys_buf.iter_mut();
+                        for key_doc_group in
+                            self.expanded_key_docs.chunk_by(|left, right| left == right)
                         {
-                            let key_end = key_start + num_doc_keys;
-                            for key in &mut self.keys_buf[key_start..key_end] {
+                            let value = values.next().unwrap();
+                            for key in keys.by_ref().take(key_doc_group.len()) {
                                 packing.push(key, field_idx, value);
                             }
-                            key_start = key_end;
                         }
-                        debug_assert_eq!(key_start, num_keys);
+                        debug_assert!(values.next().is_none());
+                        debug_assert!(keys.next().is_none());
                     }
                     continue;
                 }
 
-                // Preserve the sparse single-value merge path. Until a multivalued field has
-                // expanded the keys, an optional field can filter and pack in one pass.
-                if !keys_expanded
+                // Until expansion, sparse single-value fields can filter keys in place.
+                if self.expanded_key_docs.is_empty()
                     && !field.column.get_cardinality().is_multivalue()
                     && missing.is_none()
                 {
@@ -745,105 +712,81 @@ where
                         target_idx += 1;
                     }
                     self.active_docs.truncate(target_idx);
-                    num_keys = target_idx;
+                    self.keys_buf.truncate(target_idx);
                     continue;
                 }
 
-                // The accessor returns values grouped by document. Expand each document's current
-                // partial keys directly from those ranges, without retaining per-document value
-                // descriptors between passes.
-                let mut remaining_docids = block_accessor.docids();
-                let mut remaining_values = block_accessor.values();
-                debug_assert_eq!(remaining_docids.len(), remaining_values.len());
-                let use_synthetic_missing =
-                    missing.is_some() && block_missing_value(missing).is_none();
-
-                if !keys_expanded {
-                    self.active_doc_key_counts.resize(self.active_docs.len(), 1);
-                }
-                let mut source_keys = self.keys_buf[..num_keys].iter();
-                let mut num_target_keys = 0usize;
-                for (&doc_id, doc_key_count) in
-                    self.active_docs.iter().zip(&mut self.active_doc_key_counts)
+                // Preserve source keys and IDs as prefixes while appending their expansions.
+                let source_key_count = self.keys_buf.len();
+                let source_doc_count = self.expanded_key_docs.len();
+                debug_assert!(source_doc_count == 0 || source_doc_count == source_key_count);
                 {
-                    debug_assert!(remaining_docids
-                        .first()
-                        .is_none_or(|candidate| *candidate >= doc_id));
-                    let num_real_values = remaining_docids
-                        .iter()
-                        .take_while(|candidate| **candidate == doc_id)
-                        .count();
-                    let (values, rest) = remaining_values.split_at(num_real_values);
-                    remaining_docids = &remaining_docids[num_real_values..];
-                    remaining_values = rest;
-                    let synthetic_missing = if values.is_empty() && use_synthetic_missing {
-                        missing_value_for_doc(missing, doc_id)
-                    } else {
-                        None
-                    };
-                    let num_values = values.len() + usize::from(synthetic_missing.is_some());
-                    let num_doc_keys = *doc_key_count;
-                    let num_expanded_keys = num_doc_keys * num_values;
-                    *doc_key_count = num_expanded_keys;
+                    let mut field_values = block_accessor
+                        .iter_docid_vals(&self.active_docs, &field.column)
+                        .peekable();
+                    let mut current_doc = None;
+                    let mut doc_values = SmallVec::<[u64; 2]>::new();
 
-                    let target_key_end = num_target_keys + num_expanded_keys;
-                    if self.next_keys_buf.len() < target_key_end {
-                        self.next_keys_buf
-                            .resize_with(target_key_end, || packing.new_packing());
-                    }
-                    let mut target_keys =
-                        self.next_keys_buf[num_target_keys..target_key_end].iter_mut();
-                    for source_key in source_keys.by_ref().take(num_doc_keys) {
-                        for value in values.iter().copied().chain(synthetic_missing) {
-                            let target_key = target_keys.next().unwrap();
-                            target_key.clone_from(source_key);
-                            packing.push(target_key, field_idx, value);
+                    for source_idx in 0..source_key_count {
+                        let doc_id = if source_doc_count == 0 {
+                            self.active_docs[source_idx]
+                        } else {
+                            self.expanded_key_docs[source_idx]
+                        };
+                        if current_doc != Some(doc_id) {
+                            current_doc = Some(doc_id);
+                            debug_assert!(field_values
+                                .peek()
+                                .is_none_or(|(value_doc, _)| *value_doc >= doc_id));
+                            doc_values.clear();
+                            while let Some((_, value)) =
+                                field_values.next_if(|(value_doc, _)| *value_doc == doc_id)
+                            {
+                                doc_values.push(value);
+                            }
+                            if doc_values.is_empty() {
+                                if let Some(value) = missing_value_for_doc(missing, doc_id) {
+                                    doc_values.push(value);
+                                }
+                            }
+                        }
+
+                        for &value in &doc_values {
+                            let mut key = self.keys_buf[source_idx].clone();
+                            packing.push(&mut key, field_idx, value);
+                            self.keys_buf.push(key);
+                            self.expanded_key_docs.push(doc_id);
                         }
                     }
-                    debug_assert!(target_keys.next().is_none());
-                    num_target_keys = target_key_end;
+                    debug_assert!(field_values.next().is_none());
                 }
-                debug_assert!(remaining_docids.is_empty());
-                debug_assert!(remaining_values.is_empty());
-                debug_assert!(source_keys.next().is_none());
+                self.keys_buf.drain(..source_key_count);
+                if source_doc_count != 0 {
+                    self.expanded_key_docs.drain(..source_doc_count);
+                }
 
-                {
-                    let mut key_counts = self.active_doc_key_counts.iter();
-                    self.active_docs
-                        .retain(|_| key_counts.next().is_some_and(|&count| count != 0));
-                    debug_assert!(key_counts.next().is_none());
+                self.active_docs.clear();
+                self.active_docs.extend_from_slice(&self.expanded_key_docs);
+                self.active_docs.dedup();
+                if self.expanded_key_docs.len() == self.active_docs.len() {
+                    self.expanded_key_docs.clear();
                 }
-                self.active_doc_key_counts
-                    .retain(|&num_doc_keys| num_doc_keys != 0);
-                std::mem::swap(&mut self.keys_buf, &mut self.next_keys_buf);
-                keys_expanded = true;
-                num_keys = num_target_keys;
             }
+        }
 
-            if let Some(sub_agg) = sub_agg {
-                if keys_expanded {
-                    let mut key_start = 0usize;
-                    for (&doc_id, &num_doc_keys) in
-                        self.active_docs.iter().zip(&self.active_doc_key_counts)
-                    {
-                        let key_end = key_start + num_doc_keys;
-                        for key in &self.keys_buf[key_start..key_end] {
-                            let bucket_id = buckets.term_entry(key.clone(), bucket_id_provider);
-                            sub_agg.push(bucket_id.to_bucket_id(), doc_id);
-                        }
-                        key_start = key_end;
-                    }
-                    debug_assert_eq!(key_start, num_keys);
-                } else {
-                    for (&doc_id, key) in self.active_docs.iter().zip(&self.keys_buf[..num_keys]) {
-                        let bucket_id = buckets.term_entry(key.clone(), bucket_id_provider);
-                        sub_agg.push(bucket_id.to_bucket_id(), doc_id);
-                    }
-                }
+        if let Some(sub_agg) = sub_agg {
+            let key_docs = if self.expanded_key_docs.is_empty() {
+                self.active_docs.as_slice()
             } else {
-                for key in &self.keys_buf[..num_keys] {
-                    buckets.term_entry(key.clone(), bucket_id_provider);
-                }
+                self.expanded_key_docs.as_slice()
+            };
+            for (&doc_id, key) in key_docs.iter().zip(&self.keys_buf) {
+                let bucket_id = buckets.term_entry(key.clone(), bucket_id_provider);
+                sub_agg.push(bucket_id.to_bucket_id(), doc_id);
+            }
+        } else {
+            for key in &self.keys_buf {
+                buckets.term_entry(key.clone(), bucket_id_provider);
             }
         }
 
@@ -1089,9 +1032,8 @@ where
         map_init_value,
         all_fields_full,
         keys_buf: Vec::new(),
-        next_keys_buf: Vec::new(),
         active_docs: Vec::new(),
-        active_doc_key_counts: Vec::new(),
+        expanded_key_docs: Vec::new(),
     }))
 }
 
