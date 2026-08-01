@@ -274,6 +274,16 @@ where
         if target >= TERMINATED {
             return SeekDangerResult::SeekLowerBound(TERMINATED);
         }
+        // Probes at or behind the current doc are answered from the union's own
+        // state: `refill` drained the children past the window, so their
+        // positions would report a lower bound that skips it.
+        if self.doc >= target {
+            return if self.doc == target {
+                SeekDangerResult::Found
+            } else {
+                SeekDangerResult::SeekLowerBound(self.doc)
+            };
+        }
         if self.is_in_horizon(target) {
             // Our value is within the buffered horizon and the docset may already have been
             // processed and removed, so we need to use seek, which uses the regular advance.

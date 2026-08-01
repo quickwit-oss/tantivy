@@ -256,6 +256,15 @@ mod tests {
     }
 
     #[test]
+    fn test_buffered_union_seek_danger_behind_current_doc() {
+        // Two buffered-union horizons of dense docs.
+        let mut union = union_from_docs_list(&[(0..2 * 4096).collect()]);
+        assert_eq!(union.seek(4101), 4101);
+        assert_eq!(union.seek_danger(3), SeekDangerResult::SeekLowerBound(4101));
+        assert_eq!(union.seek_danger(4101), SeekDangerResult::Found);
+    }
+
+    #[test]
     fn test_buffered_union_seek_into_danger_zone_terminated() {
         let scorer1 = ConstScorer::new(VecDocSet::from(vec![1, 2]), 1.0);
         let scorer2 = ConstScorer::new(VecDocSet::from(vec![2, 3]), 1.0);
