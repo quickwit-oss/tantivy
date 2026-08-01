@@ -769,7 +769,7 @@ fn get_test_index_bench(cardinality: Cardinality) -> tantivy::Result<Index> {
         .map(|v| v == "true")
         .unwrap_or(true);
     let index_dir = format!("agg_bench/{cardinality:?}");
-    if reuse_index && std::path::Path::new(&index_dir).exists() {
+    if reuse_index && std::path::Path::new(&index_dir).try_exists()? {
         return Index::open_in_dir(&index_dir);
     }
     let mut schema_builder = Schema::builder();

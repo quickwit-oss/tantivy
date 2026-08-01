@@ -160,6 +160,12 @@ pub use self::tokenizer::{TextAnalyzer, TextAnalyzerBuilder};
 pub use self::tokenizer_manager::TokenizerManager;
 pub use self::whitespace_tokenizer::WhitespaceTokenizer;
 
+/// Name of the default tokenizer registered by [`TokenizerManager::default`].
+pub const DEFAULT_TOKENIZER_NAME: &str = "default";
+
+/// Name of the raw tokenizer, which emits the entire input text as a single token.
+pub const RAW_TOKENIZER_NAME: &str = "raw";
+
 /// Maximum authorized len (in bytes) for a token.
 ///
 /// Tokenizers are in charge of not emitting tokens larger than this value.

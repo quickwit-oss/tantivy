@@ -72,6 +72,7 @@ mod tests_mmap {
     use crate::index::FieldMetadata;
     use crate::query::{AllQuery, QueryParser};
     use crate::schema::{JsonObjectOptions, Schema, Type, FAST, INDEXED, STORED, TEXT};
+    use crate::tokenizer::RAW_TOKENIZER_NAME;
     use crate::{Index, IndexWriter, Term};
 
     #[test]
@@ -453,8 +454,9 @@ mod tests_mmap {
     fn test_json_fields_metadata(expanded_dots: bool, one_segment: bool) {
         use pretty_assertions::assert_eq;
         let mut schema_builder = Schema::builder();
-        let json_options: JsonObjectOptions =
-            JsonObjectOptions::from(TEXT).set_fast(None).set_stored();
+        let json_options: JsonObjectOptions = JsonObjectOptions::from(TEXT)
+            .set_fast(RAW_TOKENIZER_NAME)
+            .set_stored();
         let json_options = if expanded_dots {
             json_options.set_expand_dots_enabled()
         } else {
@@ -636,8 +638,9 @@ mod tests_mmap {
         /// affect the field name itself.
         use pretty_assertions::assert_eq;
         let mut schema_builder = Schema::builder();
-        let json_options: JsonObjectOptions =
-            JsonObjectOptions::from(TEXT).set_fast(None).set_stored();
+        let json_options: JsonObjectOptions = JsonObjectOptions::from(TEXT)
+            .set_fast(RAW_TOKENIZER_NAME)
+            .set_stored();
         // let json_options = json_options.set_expand_dots_enabled();
         let json_field_shadow = schema_builder.add_json_field("json.shadow", json_options.clone());
         let json_field = schema_builder.add_json_field("json", json_options.clone());
