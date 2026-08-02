@@ -95,7 +95,9 @@ mod tests {
         TantivyDocument, TextOptions, FAST, INDEXED, STORED, STRING, TEXT,
     };
     use crate::time::OffsetDateTime;
-    use crate::tokenizer::{LowerCaser, RawTokenizer, TextAnalyzer, TokenizerManager};
+    use crate::tokenizer::{
+        LowerCaser, RawTokenizer, TextAnalyzer, TokenizerManager, RAW_TOKENIZER_NAME,
+    };
     use crate::{Index, IndexWriter, SegmentReader};
 
     pub static SCHEMA: Lazy<Schema> = Lazy::new(|| {
@@ -1087,7 +1089,7 @@ mod tests {
     #[test]
     fn test_fast_field_in_json_field_expand_dots_disabled() {
         let mut schema_builder = Schema::builder();
-        let json_option = JsonObjectOptions::default().set_fast(None);
+        let json_option = JsonObjectOptions::default().set_fast(RAW_TOKENIZER_NAME);
         let json = schema_builder.add_json_field("json", json_option);
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema);
@@ -1113,7 +1115,7 @@ mod tests {
     #[test]
     fn test_fast_field_in_json_field_with_tokenizer() {
         let mut schema_builder = Schema::builder();
-        let json_option = JsonObjectOptions::default().set_fast(Some("default"));
+        let json_option = JsonObjectOptions::default().set_fast("default");
         let json = schema_builder.add_json_field("json", json_option);
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema);
@@ -1139,7 +1141,7 @@ mod tests {
     fn test_fast_field_in_json_field_expand_dots_enabled() {
         let mut schema_builder = Schema::builder();
         let json_option = JsonObjectOptions::default()
-            .set_fast(None)
+            .set_fast(RAW_TOKENIZER_NAME)
             .set_expand_dots_enabled();
         let json = schema_builder.add_json_field("json", json_option);
         let schema = schema_builder.build();
@@ -1207,7 +1209,7 @@ mod tests {
     #[test]
     fn test_fast_field_tokenizer() {
         let mut schema_builder = Schema::builder();
-        let opt = TextOptions::default().set_fast(Some("custom_lowercase"));
+        let opt = TextOptions::default().set_fast("custom_lowercase");
         let text_field = schema_builder.add_text_field("text", opt);
         let schema = schema_builder.build();
         let ff_tokenizer_manager = TokenizerManager::default();
@@ -1243,7 +1245,7 @@ mod tests {
                     .set_index_option(crate::schema::IndexRecordOption::WithFreqs)
                     .set_tokenizer("raw"),
             )
-            .set_fast(Some("default"))
+            .set_fast("default")
             .set_stored();
 
         let log_field = schema_builder.add_text_field("log_level", text_fieldtype);
@@ -1276,7 +1278,7 @@ mod tests {
     fn test_shadowing_fast_field_with_expand_dots() {
         let mut schema_builder = Schema::builder();
         let json_option = JsonObjectOptions::default()
-            .set_fast(None)
+            .set_fast(RAW_TOKENIZER_NAME)
             .set_expand_dots_enabled();
         let json_field = schema_builder.add_json_field("jsonfield", json_option.clone());
         let shadowing_json_field = schema_builder.add_json_field("jsonfield.attr", json_option);

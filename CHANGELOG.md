@@ -1,3 +1,10 @@
+Tantivy 0.27.0
+================================
+
+## Breaking change
+- `.set_fast(..)` now takes a &str. The same behavior as `.set_fast(None)` can be obtained with .set_fast(tantivy::tokenizer::RAW_TOKENIZER_NAME).
+
+
 Tantivy 0.26.1
 ================================
 
