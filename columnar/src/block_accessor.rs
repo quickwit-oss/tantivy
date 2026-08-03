@@ -97,16 +97,19 @@ impl<T: PartialOrd + Copy + std::fmt::Debug + Send + Sync + 'static + Default>
         }
 
         if ordered && !is_multivalue {
-            // Expand backwards so values that have not moved yet are not overwritten.
-            let mut end = docs.len();
-            self.val_cache.resize(end, missing);
-            for hit_idx in (0..self.docid_cache.len()).rev() {
-                let pos = docs[..end].partition_point(|&doc| doc < self.docid_cache[hit_idx]);
-                self.val_cache[pos + 1..end].fill(missing);
-                self.val_cache[pos] = self.val_cache[hit_idx];
-                end = pos;
+            // Rewrite backwards so unread compact values are not overwritten.
+            let mut remaining_hits = self.docid_cache.len();
+            self.val_cache.resize(docs.len(), missing);
+            for (target_idx, &doc) in docs.iter().enumerate().rev() {
+                let value = if remaining_hits > 0 && self.docid_cache[remaining_hits - 1] == doc {
+                    remaining_hits -= 1;
+                    self.val_cache[remaining_hits]
+                } else {
+                    missing
+                };
+                self.val_cache[target_idx] = value;
             }
-            self.val_cache[..end].fill(missing);
+            debug_assert_eq!(remaining_hits, 0);
             self.docid_cache.clear();
             self.docid_cache.extend_from_slice(docs);
             return;
@@ -129,6 +132,8 @@ impl<T: PartialOrd + Copy + std::fmt::Debug + Send + Sync + 'static + Default>
 
         for &doc in &self.missing_docids_cache {
             let pos = self.docid_cache.partition_point(|&hit| hit < doc);
+            // TODO insert by back to avoid shifting the same elements
+            // self.missing_docids_cache.len() times
             self.docid_cache.insert(pos, doc);
             self.val_cache.insert(pos, missing);
         }
