@@ -2532,6 +2532,55 @@ mod tests {
     }
 
     #[test]
+    fn test_multi_terms_expands_three_multivalued_fields() -> crate::Result<()> {
+        let mut schema_builder = Schema::builder();
+        let first_field = schema_builder.add_text_field("first", STRING | FAST);
+        let second_field = schema_builder.add_text_field("second", STRING | FAST);
+        let third_field = schema_builder.add_text_field("third", STRING | FAST);
+        let index = Index::create_in_ram(schema_builder.build());
+        {
+            let mut writer: IndexWriter = index.writer_with_num_threads(1, 20_000_000)?;
+            let mut document = doc!();
+            for value in ["a", "b"] {
+                document.add_text(first_field, value);
+            }
+            for value in ["x", "y"] {
+                document.add_text(second_field, value);
+            }
+            for value in ["p", "q"] {
+                document.add_text(third_field, value);
+            }
+            writer.add_document(document)?;
+            writer.commit()?;
+        }
+
+        let agg_req: Aggregations = serde_json::from_value(json!({
+            "mt": {
+                "multi_terms": {
+                    "terms": [
+                        {"field": "first"},
+                        {"field": "second"},
+                        {"field": "third"}
+                    ],
+                    "order": {"_key": "asc"}
+                }
+            }
+        }))?;
+        let res = exec_request(agg_req, &index)?;
+        let buckets = res["mt"]["buckets"].as_array().unwrap();
+        let keys: Vec<&str> = buckets
+            .iter()
+            .map(|bucket| bucket["key_as_string"].as_str().unwrap())
+            .collect();
+        assert_eq!(
+            keys,
+            ["a|x|p", "a|x|q", "a|y|p", "a|y|q", "b|x|p", "b|x|q", "b|y|p", "b|y|q",]
+        );
+        assert!(buckets.iter().all(|bucket| bucket["doc_count"] == 1));
+        Ok(())
+    }
+
+    #[test]
     fn test_multi_terms_dedups_mixed_repeats_in_multivalued_field() -> crate::Result<()> {
         let mut schema_builder = Schema::builder();
         let genre_field = schema_builder.add_text_field("genre", STRING | FAST);
