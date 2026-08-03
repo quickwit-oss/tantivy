@@ -133,6 +133,8 @@ impl SparseBlock<'_> {
 
     #[inline]
     // Looks for the element in the block. Returns the position if found.
+    // TODO try different implem.
+    // e.g. exponential search into binary search
     fn binary_search(&self, target: u16) -> Result<u16, u16> {
         self.binary_search_from(target, 0)
     }
