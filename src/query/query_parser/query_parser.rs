@@ -1088,6 +1088,7 @@ mod test {
 
     use super::super::logical_ast::*;
     use super::{QueryParser, QueryParserError};
+    use crate::collector::Count;
     use crate::query::Query;
     use crate::schema::{
         FacetOptions, Field, IndexRecordOption, Schema, Term, TextFieldIndexing, TextOptions, FAST,
@@ -2128,5 +2129,53 @@ mod test {
     #[test]
     pub fn test_exists() {
         test_parse_query_to_logical_ast_helper("title:*", "Exists(title)", false);
+    }
+
+    #[test]
+    fn test_exists_query_with_documents() -> crate::Result<()> {
+        let mut schema_builder = Schema::builder();
+        let fast = schema_builder.add_u64_field("fast", FAST);
+        let json = schema_builder.add_json_field("json", TEXT | FAST);
+        let not_fast = schema_builder.add_text_field("not_fast", TEXT);
+        let schema = schema_builder.build();
+        let index = Index::create_in_ram(schema);
+
+        let mut index_writer = index.writer_for_tests()?;
+        index_writer.add_document(doc!(
+            fast => 1u64,
+            json => json!({"nested": {"value": true}}),
+            not_fast => "present",
+        ))?;
+        index_writer.add_document(doc!(json => json!({"other": 2u64})))?;
+        index_writer.add_document(doc!(json => json!({"nested": null})))?;
+        index_writer.add_document(doc!())?;
+        index_writer.commit()?;
+
+        let query_parser = QueryParser::for_index(&index, Vec::new());
+        let searcher = index.reader()?.searcher();
+
+        let fast_exists = query_parser.parse_query("fast:*")?;
+        assert_eq!(searcher.search(&*fast_exists, &Count)?, 1);
+
+        // JSON exists queries include non-null values in subpaths. The document containing only a
+        // null value and the empty document do not match.
+        let json_exists = query_parser.parse_query("json:*")?;
+        assert_eq!(searcher.search(&*json_exists, &Count)?, 2);
+        let nested_exists = query_parser.parse_query("json.nested:*")?;
+        assert_eq!(searcher.search(&*nested_exists, &Count)?, 1);
+
+        let fast_does_not_exist = query_parser.parse_query("* NOT fast:*")?;
+        assert_eq!(searcher.search(&*fast_does_not_exist, &Count)?, 3);
+
+        let not_fast_exists = query_parser.parse_query("not_fast:*")?;
+        assert_eq!(
+            searcher
+                .search(&*not_fast_exists, &Count)
+                .unwrap_err()
+                .to_string(),
+            "Schema error: 'Field not_fast is not a fast field.'"
+        );
+
+        Ok(())
     }
 }
