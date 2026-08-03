@@ -886,6 +886,15 @@ fn prepare_multi_terms_missing(
         get_missing_val_as_u64_lenient(*column_type, column.max_value(), missing, field_name)?;
     }
 
+    // A full physical column means every document has a value for this logical field, so no typed
+    // collector branch can ever emit the configured missing value.
+    if columns
+        .iter()
+        .any(|(column, _)| column.get_cardinality().is_full())
+    {
+        return Ok(None);
+    }
+
     let all_columns = Arc::from(
         columns
             .iter()
@@ -1300,6 +1309,45 @@ mod tests {
             .all(|field| {
                 field.str_dict_column.is_some() == (field.column_type == ColumnType::Str)
             }));
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_multi_terms_skips_missing_when_any_physical_column_is_full() -> crate::Result<()> {
+        let mut schema_builder = crate::schema::Schema::builder();
+        let attrs = schema_builder.add_json_field("attrs", crate::schema::FAST);
+        let index = crate::Index::create_in_ram(schema_builder.build());
+        let mut writer = index.writer_for_tests()?;
+        writer.add_document(crate::doc!(attrs => json!({"value": ["a", 10.5]})))?;
+        writer.add_document(crate::doc!(attrs => json!({"value": "b"})))?;
+        writer.commit()?;
+
+        let agg = agg_from_json(json!({
+            "multi_terms": {
+                "terms": [{"field": "attrs.value", "missing": "MISSING"}]
+            }
+        }));
+        let aggs: Aggregations = vec![("mt".to_string(), agg)].into_iter().collect();
+        let searcher = index.reader()?.searcher();
+        let data = build_aggregations_data_from_req(
+            &aggs,
+            searcher.segment_reader(0),
+            0,
+            Default::default(),
+        )?;
+
+        assert_eq!(data.per_request.multi_terms_req_data.len(), 2);
+        assert!(data
+            .per_request
+            .multi_terms_req_data
+            .iter()
+            .any(|req_data| req_data.fields[0].column.get_cardinality().is_full()));
+        assert!(data
+            .per_request
+            .multi_terms_req_data
+            .iter()
+            .all(|req_data| req_data.missing_accessors.iter().all(Option::is_none)));
 
         Ok(())
     }
