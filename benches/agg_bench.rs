@@ -1027,13 +1027,16 @@ fn get_test_index_bench(cardinality: Cardinality) -> tantivy::Result<Index> {
         let mut filter_rng = StdRng::from_seed([2u8; 32]);
         let mut index_writer = index.writer_with_num_threads(1, 200_000_000)?;
         // 1% steady-state match rate, with random clusters averaging four documents.
+        const MATCH_RATE: f64 = 0.01;
         const CLUSTER_END_PROBABILITY: f64 = 0.25;
+        // Example: 25% ends average 4 matches; 1% requires 396 non-matches, so start at 1/396.
+        let cluster_start_probability = CLUSTER_END_PROBABILITY * MATCH_RATE / (1.0 - MATCH_RATE);
         let mut filter_matches = false;
         let mut add_document = |mut document: tantivy::TantivyDocument| -> tantivy::Result<()> {
             filter_matches = if filter_matches {
                 !filter_rng.random_bool(CLUSTER_END_PROBABILITY)
             } else {
-                filter_rng.random_bool(CLUSTER_END_PROBABILITY / 99.0)
+                filter_rng.random_bool(cluster_start_probability)
             };
             document.add_text(filter_field, if filter_matches { "a" } else { "b" });
             index_writer.add_document(document)?;
