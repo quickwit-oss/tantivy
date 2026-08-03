@@ -49,8 +49,8 @@ impl DynamicColumn {
             DynamicColumn::F64(c) => &c.index,
             DynamicColumn::IpAddr(c) => &c.index,
             DynamicColumn::DateTime(c) => &c.index,
-            DynamicColumn::Bytes(c) => &c.ords().index,
-            DynamicColumn::Str(c) => &c.ords().index,
+            DynamicColumn::Bytes(c) => c.column_index(),
+            DynamicColumn::Str(c) => c.column_index(),
         }
     }
 
@@ -66,8 +66,8 @@ impl DynamicColumn {
             DynamicColumn::F64(c) => c.values.num_vals(),
             DynamicColumn::IpAddr(c) => c.values.num_vals(),
             DynamicColumn::DateTime(c) => c.values.num_vals(),
-            DynamicColumn::Bytes(c) => c.ords().values.num_vals(),
-            DynamicColumn::Str(c) => c.ords().values.num_vals(),
+            DynamicColumn::Bytes(c) => c.num_values(),
+            DynamicColumn::Str(c) => c.num_values(),
         }
     }
 
@@ -264,6 +264,9 @@ impl DynamicColumnHandle {
             ColumnType::Str | ColumnType::Bytes => {
                 let column: BytesColumn =
                     crate::column::open_column_bytes(column_bytes, self.format_version)?;
+                let BytesColumn::DictionaryEncoded(column) = column else {
+                    return Ok(None);
+                };
                 Ok(Some(column.term_ord_column))
             }
             ColumnType::IpAddr => {
@@ -337,8 +340,16 @@ impl DynamicColumnHandle {
         let total_num_bytes = self.num_bytes();
         let dynamic_column = self.open()?;
         let dictionary_num_bytes = match &dynamic_column {
-            DynamicColumn::Bytes(bytes_column) => bytes_column.dictionary().num_bytes(),
-            DynamicColumn::Str(str_column) => str_column.dictionary().num_bytes(),
+            DynamicColumn::Bytes(BytesColumn::DictionaryEncoded(bytes_column)) => {
+                bytes_column.dictionary().num_bytes()
+            }
+            DynamicColumn::Str(StrColumn::DictionaryEncoded(str_column)) => {
+                str_column.dictionary().num_bytes()
+            }
+            DynamicColumn::Bytes(BytesColumn::Plain(_))
+            | DynamicColumn::Str(StrColumn::Plain(_)) => {
+                return Ok(ColumnSpaceUsage::new(self.num_bytes(), None));
+            }
             _ => {
                 return Ok(ColumnSpaceUsage::new(self.num_bytes(), None));
             }

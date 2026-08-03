@@ -291,32 +291,42 @@ impl TopHitsAggregationReq {
                             .values_for_doc(doc_id)
                             .map(FastFieldValue::F64)
                             .collect::<Vec<_>>(),
-                        DynamicColumn::Bytes(accessor) => accessor
-                            .term_ords(doc_id)
-                            .map(|term_ord| {
-                                let mut buffer = vec![];
-                                assert!(
-                                    accessor
-                                        .ord_to_bytes(term_ord, &mut buffer)
-                                        .expect("could not read term dictionary"),
-                                    "term corresponding to term_ord does not exist"
-                                );
-                                FastFieldValue::Bytes(buffer)
-                            })
-                            .collect::<Vec<_>>(),
-                        DynamicColumn::Str(accessor) => accessor
-                            .term_ords(doc_id)
-                            .map(|term_ord| {
-                                let mut buffer = vec![];
-                                assert!(
-                                    accessor
-                                        .ord_to_bytes(term_ord, &mut buffer)
-                                        .expect("could not read term dictionary"),
-                                    "term corresponding to term_ord does not exist"
-                                );
-                                FastFieldValue::Str(String::from_utf8(buffer).unwrap())
-                            })
-                            .collect::<Vec<_>>(),
+                        DynamicColumn::Bytes(accessor) => {
+                            let accessor = accessor.as_dictionary_encoded().expect(
+                                "top hits on plain byte fast fields is not implemented yet",
+                            );
+                            accessor
+                                .term_ords(doc_id)
+                                .map(|term_ord| {
+                                    let mut buffer = vec![];
+                                    assert!(
+                                        accessor
+                                            .ord_to_bytes(term_ord, &mut buffer)
+                                            .expect("could not read term dictionary"),
+                                        "term corresponding to term_ord does not exist"
+                                    );
+                                    FastFieldValue::Bytes(buffer)
+                                })
+                                .collect::<Vec<_>>()
+                        }
+                        DynamicColumn::Str(accessor) => {
+                            let accessor = accessor.as_dictionary_encoded().expect(
+                                "top hits on plain string fast fields is not implemented yet",
+                            );
+                            accessor
+                                .term_ords(doc_id)
+                                .map(|term_ord| {
+                                    let mut buffer = vec![];
+                                    assert!(
+                                        accessor
+                                            .ord_to_bytes(term_ord, &mut buffer)
+                                            .expect("could not read term dictionary"),
+                                        "term corresponding to term_ord does not exist"
+                                    );
+                                    FastFieldValue::Str(String::from_utf8(buffer).unwrap())
+                                })
+                                .collect::<Vec<_>>()
+                        }
                         DynamicColumn::Bool(accessor) => accessor
                             .values_for_doc(doc_id)
                             .map(FastFieldValue::Bool)

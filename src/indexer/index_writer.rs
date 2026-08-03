@@ -1450,6 +1450,7 @@ mod tests {
         let searcher = index_reader.searcher();
         let segment_reader = searcher.segment_reader(0);
         let text_fast_field = segment_reader.fast_fields().str("text").unwrap().unwrap();
+        let text_fast_field = text_fast_field.as_dictionary_encoded().unwrap();
         let mut buffer = String::new();
         assert!(text_fast_field.ord_to_str(0, &mut buffer).unwrap());
         assert_eq!(buffer, "one");
@@ -1471,6 +1472,7 @@ mod tests {
         let segment_reader = searcher.segment_reader(0);
         assert_eq!(segment_reader.max_doc(), 2);
         let text_fast_field = segment_reader.fast_fields().str("text").unwrap().unwrap();
+        let text_fast_field = text_fast_field.as_dictionary_encoded().unwrap();
         let mut buffer = String::new();
         assert!(text_fast_field.ord_to_str(0, &mut buffer).unwrap());
         assert_eq!(buffer, "one");

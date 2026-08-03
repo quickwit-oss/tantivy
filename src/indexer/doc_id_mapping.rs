@@ -777,6 +777,7 @@ mod tests_indexsorting {
         let searcher = index.reader()?.searcher();
         let segment_reader = searcher.segment_reader(0);
         let str_col = segment_reader.fast_fields().str("id")?.unwrap();
+        let str_col = str_col.as_dictionary_encoded().unwrap();
         let mut values = Vec::new();
         for doc in 0..segment_reader.max_doc() {
             if let Some(ord) = str_col.ords().first(doc) {

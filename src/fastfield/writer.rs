@@ -440,7 +440,9 @@ mod tests {
         {
             assert_eq!(columns[0].0, "arr");
             let column_arr_opt: Option<StrColumn> = columns[0].1.open().unwrap().into();
-            assert!(column_arr_opt
+            let column_arr = column_arr_opt.unwrap();
+            assert!(column_arr
+                .as_dictionary_encoded()
                 .unwrap()
                 .term_ords(0)
                 .eq([1, 0, 3, 2].into_iter()));
@@ -472,7 +474,12 @@ mod tests {
         {
             assert_eq!(columns[4].0, "text");
             let column_text_opt: Option<StrColumn> = columns[4].1.open().unwrap().into();
-            assert!(column_text_opt.unwrap().term_ords(0).eq([0].into_iter()));
+            let column_text = column_text_opt.unwrap();
+            assert!(column_text
+                .as_dictionary_encoded()
+                .unwrap()
+                .term_ords(0)
+                .eq([0].into_iter()));
         }
     }
 

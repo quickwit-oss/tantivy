@@ -16,22 +16,22 @@ use crate::column::Column;
 /// the column. These ordinals are small, and sorted in the same order
 /// as the term_ord_column.
 #[derive(Clone)]
-pub struct BytesColumn {
+pub struct DictionaryEncodedBytesColumn {
     pub(crate) dictionary: Arc<Dictionary<VoidSSTable>>,
     pub(crate) term_ord_column: Column<u64>,
 }
 
-impl fmt::Debug for BytesColumn {
+impl fmt::Debug for DictionaryEncodedBytesColumn {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("BytesColumn")
+        f.debug_struct("DictionaryEncodedBytesColumn")
             .field("term_ord_column", &self.term_ord_column)
             .finish()
     }
 }
 
-impl BytesColumn {
-    pub fn empty(num_docs: u32) -> BytesColumn {
-        BytesColumn {
+impl DictionaryEncodedBytesColumn {
+    pub fn empty(num_docs: u32) -> DictionaryEncodedBytesColumn {
+        DictionaryEncodedBytesColumn {
             dictionary: Arc::new(Dictionary::empty()),
             term_ord_column: Column::build_empty_column(num_docs),
         }
@@ -48,6 +48,21 @@ impl BytesColumn {
     /// Returns the number of rows in the column.
     pub fn num_rows(&self) -> RowId {
         self.term_ord_column.num_docs()
+    }
+
+    /// Returns the number of values in the column.
+    pub fn num_values(&self) -> u32 {
+        self.term_ord_column.values.num_vals()
+    }
+
+    /// Returns the column index mapping rows to term ordinals.
+    pub fn column_index(&self) -> &crate::ColumnIndex {
+        &self.term_ord_column.index
+    }
+
+    /// Returns the cardinality of the column.
+    pub fn get_cardinality(&self) -> crate::Cardinality {
+        self.term_ord_column.get_cardinality()
     }
 
     pub fn term_ords(&self, row_id: RowId) -> impl Iterator<Item = u64> + '_ {
@@ -69,23 +84,23 @@ impl BytesColumn {
 }
 
 #[derive(Clone)]
-pub struct StrColumn(BytesColumn);
+pub struct DictionaryEncodedStrColumn(DictionaryEncodedBytesColumn);
 
-impl fmt::Debug for StrColumn {
+impl fmt::Debug for DictionaryEncodedStrColumn {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{:?}", self.term_ord_column)
     }
 }
 
-impl From<StrColumn> for BytesColumn {
-    fn from(str_column: StrColumn) -> BytesColumn {
+impl From<DictionaryEncodedStrColumn> for DictionaryEncodedBytesColumn {
+    fn from(str_column: DictionaryEncodedStrColumn) -> DictionaryEncodedBytesColumn {
         str_column.0
     }
 }
 
-impl StrColumn {
-    pub fn wrap(bytes_column: BytesColumn) -> StrColumn {
-        StrColumn(bytes_column)
+impl DictionaryEncodedStrColumn {
+    pub fn wrap(bytes_column: DictionaryEncodedBytesColumn) -> DictionaryEncodedStrColumn {
+        DictionaryEncodedStrColumn(bytes_column)
     }
 
     pub fn dictionary(&self) -> &Dictionary<VoidSSTable> {
@@ -112,8 +127,8 @@ impl StrColumn {
     }
 }
 
-impl Deref for StrColumn {
-    type Target = BytesColumn;
+impl Deref for DictionaryEncodedStrColumn {
+    type Target = DictionaryEncodedBytesColumn;
 
     fn deref(&self) -> &Self::Target {
         &self.0

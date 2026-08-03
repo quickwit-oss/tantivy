@@ -54,6 +54,7 @@ impl SegmentSortKeyComputer for ByStringColumnSegmentSortKeyComputer {
     #[inline(always)]
     fn segment_sort_key(&mut self, doc: DocId, _score: Score) -> Option<TermOrdinal> {
         let str_column = self.str_column_opt.as_ref()?;
+        let str_column = str_column.as_dictionary_encoded()?;
         str_column.ords().first(doc)
     }
 
@@ -62,6 +63,7 @@ impl SegmentSortKeyComputer for ByStringColumnSegmentSortKeyComputer {
         // decompress the same blocks. See https://github.com/quickwit-oss/tantivy/issues/2776
         let term_ord = term_ord_opt?;
         let str_column = self.str_column_opt.as_ref()?;
+        let str_column = str_column.as_dictionary_encoded()?;
         let mut bytes = Vec::new();
         str_column
             .dictionary()

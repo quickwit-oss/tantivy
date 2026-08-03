@@ -334,6 +334,9 @@ where
     #[inline]
     fn accept_document(&mut self, doc_id: DocId) -> bool {
         if let Some(column) = &self.column_opt {
+            let Some(column) = column.as_dictionary_encoded() else {
+                return false;
+            };
             for ord in column.term_ords(doc_id) {
                 self.buffer.clear();
 
