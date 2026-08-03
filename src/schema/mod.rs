@@ -132,6 +132,7 @@ mod numeric_options;
 mod text_options;
 
 use columnar::ColumnType;
+pub use columnar::PayloadEncoding;
 
 pub use self::bytes_options::BytesOptions;
 pub use self::custom_options::CustomOptions;
@@ -151,7 +152,7 @@ pub use self::named_field_document::NamedFieldDocument;
 pub use self::numeric_options::NumericOptions;
 pub use self::schema::{Schema, SchemaBuilder};
 pub use self::term::{Term, ValueBytes};
-pub use self::text_options::{TextFieldIndexing, TextOptions, STRING, TEXT};
+pub use self::text_options::{FastFieldTextOptions, TextFieldIndexing, TextOptions, STRING, TEXT};
 
 /// Validator for a potential `field_name`.
 /// Returns true if the name can be use for a field name.

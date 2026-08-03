@@ -32,6 +32,7 @@ mod columnar;
 mod dictionary;
 mod dynamic_column;
 mod iterable;
+mod payload_encoding;
 pub(crate) mod utils;
 mod value;
 
@@ -46,6 +47,7 @@ pub use columnar::{
     MergeRowOrder, ShuffleMergeOrder, StackMergeOrder, Version, compute_merged_term_ord_mapping,
     merge_columnar,
 };
+pub use payload_encoding::PayloadEncoding;
 use sstable::VoidSSTable;
 pub use value::{NumericalType, NumericalValue};
 
