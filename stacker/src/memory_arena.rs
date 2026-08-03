@@ -138,11 +138,11 @@ impl MemoryArena {
     }
     #[inline]
     fn get_page(&self, page_id: usize) -> &Page {
-        unsafe { self.pages.get_unchecked(page_id) }
+        &self.pages[page_id]
     }
     #[inline]
     fn get_page_mut(&mut self, page_id: usize) -> &mut Page {
-        unsafe { self.pages.get_unchecked_mut(page_id) }
+        &mut self.pages[page_id]
     }
 
     #[inline]
@@ -216,8 +216,7 @@ impl Page {
 
     #[inline]
     fn slice(&self, local_addr: usize, len: usize) -> &[u8] {
-        let data = &self.slice_from(local_addr);
-        unsafe { data.get_unchecked(..len) }
+        &self.data[local_addr..local_addr + len]
     }
 
     #[inline]
@@ -231,8 +230,7 @@ impl Page {
 
     #[inline]
     fn slice_mut(&mut self, local_addr: usize, len: usize) -> &mut [u8] {
-        let data = &mut self.data[local_addr..];
-        unsafe { data.get_unchecked_mut(..len) }
+        &mut self.data[local_addr..local_addr + len]
     }
 
     #[inline]
@@ -324,5 +322,15 @@ mod tests {
 
         assert_eq!(arena.read::<MyTest>(addr_a), a);
         assert_eq!(arena.read::<MyTest>(addr_b), b);
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_arena_read_out_of_bounds() {
+        use crate::Addr;
+        let arena = MemoryArena::default();
+        // A forged address pointing to a non-existent page
+        let forged = Addr::null_pointer().offset(0x0010_0001);
+        let _x: u64 = arena.read::<u64>(forged);
     }
 }
