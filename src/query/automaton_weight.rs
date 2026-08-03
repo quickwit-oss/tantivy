@@ -110,6 +110,43 @@ where
         Ok(Box::new(const_scorer))
     }
 
+    fn for_each_pruning(
+        &self,
+        mut threshold: Score,
+        reader: &SegmentReader,
+        callback: &mut dyn FnMut(DocId, Score) -> Score,
+    ) -> crate::Result<()> {
+        if threshold >= 1.0 {
+            return Ok(());
+        }
+        let max_doc = reader.max_doc();
+        let mut visited = BitSet::with_max_value(max_doc);
+        let inverted_index = reader.inverted_index(self.field)?;
+        let term_dict = inverted_index.terms();
+        let mut term_stream = self.automaton_stream(term_dict)?;
+        while term_stream.advance() {
+            let term_info = term_stream.value();
+            let mut block_segment_postings = inverted_index
+                .read_block_postings_from_terminfo(term_info, IndexRecordOption::Basic)?;
+            loop {
+                let docs = block_segment_postings.docs();
+                if docs.is_empty() {
+                    break;
+                }
+                for &doc in docs {
+                    if visited.insert(doc) {
+                        threshold = callback(doc, 1.0);
+                        if threshold >= 1.0 {
+                            return Ok(());
+                        }
+                    }
+                }
+                block_segment_postings.advance();
+            }
+        }
+        Ok(())
+    }
+
     fn explain(&self, reader: &SegmentReader, doc: DocId) -> crate::Result<Explanation> {
         let mut scorer = self.scorer(reader, 1.0)?;
         if scorer.seek(doc) == doc {
@@ -195,6 +232,7 @@ mod tests {
         assert_eq!(scorer.advance(), TERMINATED);
         Ok(())
     }
+
 
     #[test]
     fn test_automaton_weight_boost() -> crate::Result<()> {
