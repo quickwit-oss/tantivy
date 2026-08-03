@@ -181,6 +181,10 @@ fn trim_ast(logical_ast: LogicalAst) -> Option<LogicalAst> {
 ///   `"2002-10-02T15:00:00.05Z"` or `some_date_field:[2002-10-02T15:00:00Z TO
 ///   2002-10-02T18:00:00Z}`
 ///
+/// * exists query: `field:*` will match documents that contain a non-null value in the specified
+///   field. The field must be configured as a fast field. For JSON fields, values in subpaths also
+///   count as existing.
+///
 /// * all docs query: A plain `*` will match all documents in the index.
 ///
 /// Parts of the queries can be boosted by appending `^boostfactor`.
