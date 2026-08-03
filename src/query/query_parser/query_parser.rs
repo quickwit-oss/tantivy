@@ -417,7 +417,8 @@ impl QueryParser {
         &self,
         user_input_ast: UserInputAst,
     ) -> (LogicalAst, Vec<QueryParserError>) {
-        let (mut ast, mut err) = self.compute_logical_ast_with_occur_lenient(user_input_ast);
+        let (mut ast, mut err) =
+            self.compute_logical_ast_with_occur_lenient(user_input_ast, true);
         if let LogicalAst::Clause(children) = &ast {
             if children.is_empty() {
                 return (ast, err);
@@ -656,9 +657,22 @@ impl QueryParser {
         }
     }
 
+    /// `top_level` distinguishes the outermost call (from
+    /// `compute_logical_ast_lenient`, which separately reports
+    /// `QueryParserError::AllButQueryForbidden` and rewrites an all-negative
+    /// query) from a nested clause produced while walking down the AST. An
+    /// all-negative clause below the top level (e.g. the `NOT b` group in
+    /// `a AND NOT b`, which parses as `a AND (NOT b)`) has no Must/Should
+    /// clause of its own and would otherwise silently match nothing,
+    /// poisoning any Must/Should that wraps it -- even though the equivalent
+    /// `a AND -b` matches correctly, since `-b` doesn't get wrapped in its
+    /// own clause. Fixing it up here (instead of only at the top level)
+    /// makes `NOT` consistent with `-` at every nesting depth, not just when
+    /// it is the entire query.
     fn compute_logical_ast_with_occur_lenient(
         &self,
         user_input_ast: UserInputAst,
+        top_level: bool,
     ) -> (LogicalAst, Vec<QueryParserError>) {
         match user_input_ast {
             UserInputAst::Clause(sub_queries) => {
@@ -667,15 +681,23 @@ impl QueryParser {
                 let mut errors = Vec::new();
                 for (occur_opt, sub_ast) in sub_queries {
                     let (sub_ast, mut sub_errors) =
-                        self.compute_logical_ast_with_occur_lenient(sub_ast);
+                        self.compute_logical_ast_with_occur_lenient(sub_ast, false);
                     let occur = occur_opt.unwrap_or(default_occur);
                     logical_sub_queries.push((occur, sub_ast));
                     errors.append(&mut sub_errors);
                 }
-                (LogicalAst::Clause(logical_sub_queries), errors)
+                let mut ast = LogicalAst::Clause(logical_sub_queries);
+                if !top_level {
+                    let is_empty = matches!(&ast, LogicalAst::Clause(children) if children.is_empty());
+                    if !is_empty && all_negative(&ast) {
+                        make_non_negative(&mut ast);
+                    }
+                }
+                (ast, errors)
             }
             UserInputAst::Boost(ast, boost) => {
-                let (ast, errors) = self.compute_logical_ast_with_occur_lenient(*ast);
+                let (ast, errors) =
+                    self.compute_logical_ast_with_occur_lenient(*ast, top_level);
                 (ast.boost(boost.into_inner() as Score), errors)
             }
             UserInputAst::Leaf(leaf) => {
@@ -1812,9 +1834,15 @@ mod test {
             true,
         );
 
+        // The inner "(-title:a -title:c)" clause has no Must/Should of its own
+        // (both children are MustNot), so it gets the same "*" (AllQuery,
+        // Should) padding as an all-negative top-level query -- otherwise it
+        // would structurally match zero documents and the enclosing "-(...)"
+        // would silently become a no-op filter. See
+        // test_negation_semantics_of_nested_not_group for the matcher-level check.
         test_parse_query_to_logical_ast_helper(
             "title:b -(-title:a -title:c)",
-            r#"(+Term(field=0, type=Str, "b") -(-Term(field=0, type=Str, "a") -Term(field=0, type=Str, "c")))"#,
+            r#"(+Term(field=0, type=Str, "b") -(-Term(field=0, type=Str, "a") -Term(field=0, type=Str, "c") *))"#,
             true,
         );
     }
@@ -2174,6 +2202,69 @@ mod test {
                 .unwrap_err()
                 .to_string(),
             "Schema error: 'Field not_fast is not a fast field.'"
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_negation_semantics_of_nested_not_group() -> crate::Result<()> {
+        // "title:final -(-title:draft -title:approved)"
+        //   == "final AND NOT(NOT draft AND NOT approved)"
+        //   == "final AND (draft OR approved)"
+        let mut schema_builder = Schema::builder();
+        let title = schema_builder.add_text_field("title", TEXT);
+        let schema = schema_builder.build();
+        let index = Index::create_in_ram(schema);
+
+        let mut index_writer = index.writer_for_tests()?;
+        index_writer.add_document(doc!(title => "final"))?; // 0: neither -> no match
+        index_writer.add_document(doc!(title => "final draft"))?; // 1: match
+        index_writer.add_document(doc!(title => "final approved"))?; // 2: match
+        index_writer.add_document(doc!(title => "final draft approved"))?; // 3: match
+        index_writer.add_document(doc!(title => "draft approved"))?; // 4: no "final" -> no match
+        index_writer.commit()?;
+
+        let query_parser = QueryParser::for_index(&index, Vec::new());
+        let searcher = index.reader()?.searcher();
+
+        let query = query_parser.parse_query("title:final -(-title:draft -title:approved)")?;
+        eprintln!("query: {query:?}");
+        assert_eq!(
+            searcher.search(&*query, &Count)?,
+            3,
+            "expected final-AND-(draft-OR-approved) semantics"
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_nested_and_not_matches_like_dash_negation() -> crate::Result<()> {
+        let mut schema_builder = Schema::builder();
+        let tag = schema_builder.add_text_field("tag", TEXT);
+        let title = schema_builder.add_text_field("title", TEXT);
+        let schema = schema_builder.build();
+        let index = Index::create_in_ram(schema);
+
+        let mut index_writer = index.writer_for_tests()?;
+        // Should match: tagged "invoice", title doesn't contain "draft"
+        index_writer.add_document(doc!(tag => "invoice", title => "final"))?;
+        index_writer.commit()?;
+
+        let query_parser = QueryParser::for_index(&index, Vec::new());
+        let searcher = index.reader()?.searcher();
+
+        let dash = query_parser.parse_query("tag:invoice AND -title:draft")?;
+        eprintln!("dash query: {dash:?}");
+        assert_eq!(searcher.search(&*dash, &Count)?, 1, "dash form should match");
+
+        let not = query_parser.parse_query("tag:invoice AND NOT title:draft")?;
+        eprintln!("not query: {not:?}");
+        assert_eq!(
+            searcher.search(&*not, &Count)?,
+            1,
+            "NOT form should match identically to the dash form"
         );
 
         Ok(())
