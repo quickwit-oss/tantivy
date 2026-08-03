@@ -1,5 +1,6 @@
-use columnar::StrColumn;
+use columnar::{DictionaryEncodedStrColumn, StrColumn};
 
+use crate::error::DataCorruption;
 use crate::schema::Facet;
 use crate::termdict::TermOrdinal;
 use crate::DocId;
@@ -18,7 +19,7 @@ use crate::DocId;
 /// list of facets. This ordinal is segment local and
 /// only makes sense for a given segment.
 pub struct FacetReader {
-    facet_column: StrColumn,
+    facet_column: DictionaryEncodedStrColumn,
 }
 
 impl FacetReader {
@@ -28,8 +29,13 @@ impl FacetReader {
     /// - a `MultiValuedFastFieldReader` that makes it possible to access the list of facet ords for
     ///   a given document.
     /// - a `TermDictionary` that helps associating a facet to an ordinal and vice versa.
-    pub fn new(facet_column: StrColumn) -> FacetReader {
-        FacetReader { facet_column }
+    pub fn new(facet_column: StrColumn) -> crate::Result<FacetReader> {
+        let StrColumn::DictionaryEncoded(facet_column) = facet_column else {
+            return Err(
+                DataCorruption::comment_only("facet columns must be dictionary encoded").into(),
+            );
+        };
+        Ok(FacetReader { facet_column })
     }
 
     /// Returns the size of the sets of facets in the segment.

@@ -664,6 +664,13 @@ impl<S: TermOrdAccumulator + 'static> SegmentAggregationCollector
             // The missing value sentinel will be associated to the hash of the missing value if
             // any.
             if self.coupon_cache.is_none() {
+                let str_dict_column = str_dict_column.as_dictionary_encoded().ok_or_else(|| {
+                    TantivyError::InvalidArgument(
+                        "cardinality aggregation on plain string fast fields is not implemented \
+                         yet"
+                        .to_string(),
+                    )
+                })?;
                 self.coupon_cache = Some(build_coupon_cache(
                     &self.buckets,
                     str_dict_column.dictionary(),

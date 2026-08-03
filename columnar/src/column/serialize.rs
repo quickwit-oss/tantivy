@@ -5,7 +5,9 @@ use std::sync::Arc;
 use common::OwnedBytes;
 use sstable::Dictionary;
 
-use crate::column::{BytesColumn, Column};
+use crate::column::{
+    BytesColumn, Column, DictionaryEncodedBytesColumn, DictionaryEncodedStrColumn,
+};
 use crate::column_index::{SerializableColumnIndex, serialize_column_index};
 use crate::column_values::{
     CodecType, MonotonicallyMappableToU64, MonotonicallyMappableToU128,
@@ -109,13 +111,17 @@ pub fn open_column_bytes(data: OwnedBytes, format_version: Version) -> io::Resul
     let (dictionary_bytes, column_bytes) = body.split(dictionary_len as usize);
     let dictionary = Arc::new(Dictionary::from_bytes(dictionary_bytes)?);
     let term_ord_column = crate::column::open_column_u64::<u64>(column_bytes, format_version)?;
-    Ok(BytesColumn {
+    Ok(DictionaryEncodedBytesColumn {
         dictionary,
         term_ord_column,
-    })
+    }
+    .into())
 }
 
 pub fn open_column_str(data: OwnedBytes, format_version: Version) -> io::Result<StrColumn> {
-    let bytes_column = open_column_bytes(data, format_version)?;
-    Ok(StrColumn::wrap(bytes_column))
+    let BytesColumn::DictionaryEncoded(bytes_column) = open_column_bytes(data, format_version)?
+    else {
+        unreachable!("the current column format only stores dictionary encoded values")
+    };
+    Ok(DictionaryEncodedStrColumn::wrap(bytes_column).into())
 }

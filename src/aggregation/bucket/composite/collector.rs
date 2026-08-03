@@ -441,10 +441,18 @@ fn resolve_term(
 ) -> crate::Result<CompositeIntermediateKey> {
     let key = if *column_type == ColumnType::Str {
         let fallback_dict = Dictionary::empty();
-        let term_dict = str_dict_column
-            .as_ref()
-            .map(|el| el.dictionary())
-            .unwrap_or_else(|| &fallback_dict);
+        let term_dict = match str_dict_column.as_ref() {
+            Some(column) => column
+                .as_dictionary_encoded()
+                .ok_or_else(|| {
+                    TantivyError::InvalidArgument(
+                        "composite aggregation on plain string fast fields is not implemented yet"
+                            .to_string(),
+                    )
+                })?
+                .dictionary(),
+            None => &fallback_dict,
+        };
 
         let mut buffer = Vec::new();
         term_dict.ord_to_term(val, &mut buffer)?;

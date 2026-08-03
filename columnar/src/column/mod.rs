@@ -1,4 +1,6 @@
+mod bytes_or_str;
 mod dictionary_encoded;
+mod plain;
 mod serialize;
 
 use std::fmt::{self, Debug};
@@ -6,8 +8,10 @@ use std::io::Write;
 use std::ops::{Range, RangeInclusive};
 use std::sync::Arc;
 
+pub use bytes_or_str::{BytesColumn, StrColumn};
 use common::BinarySerializable;
-pub use dictionary_encoded::{BytesColumn, StrColumn};
+pub use dictionary_encoded::{DictionaryEncodedBytesColumn, DictionaryEncodedStrColumn};
+pub use plain::{PlainBytesColumn, PlainStrColumn};
 pub use serialize::{
     open_column_bytes, open_column_str, open_column_u64, open_column_u128,
     open_column_u128_as_compact_u64, serialize_column_mappable_to_u64,

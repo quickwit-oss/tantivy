@@ -97,6 +97,13 @@ impl Weight for FastFieldRangeWeight {
                     else {
                         return Ok(Box::new(EmptyScorer));
                     };
+                    let str_dict_column =
+                        str_dict_column.as_dictionary_encoded().ok_or_else(|| {
+                            TantivyError::InvalidArgument(
+                                "range queries on plain string fast fields are not implemented yet"
+                                    .to_string(),
+                            )
+                        })?;
                     let dict = str_dict_column.dictionary();
 
                     let bounds = self.bounds.map_bound(get_value_bytes);
@@ -164,6 +171,11 @@ impl Weight for FastFieldRangeWeight {
             else {
                 return Ok(Box::new(EmptyScorer));
             };
+            let str_dict_column = str_dict_column.as_dictionary_encoded().ok_or_else(|| {
+                TantivyError::InvalidArgument(
+                    "range queries on plain string fast fields are not implemented yet".to_string(),
+                )
+            })?;
             let dict = str_dict_column.dictionary();
 
             let bounds = self.bounds.map_bound(get_value_bytes);
@@ -183,6 +195,11 @@ impl Weight for FastFieldRangeWeight {
             else {
                 return Ok(Box::new(EmptyScorer));
             };
+            let bytes_column = bytes_column.as_dictionary_encoded().ok_or_else(|| {
+                TantivyError::InvalidArgument(
+                    "range queries on plain byte fast fields are not implemented yet".to_string(),
+                )
+            })?;
             let dict = bytes_column.dictionary();
 
             let bounds = self.bounds.map_bound(get_value_bytes);

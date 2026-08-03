@@ -1445,6 +1445,7 @@ mod tests {
                 // NOTE: We can't determine the SegmentIds that will be generated for Segments
                 // ahead of time, so we can't pre-compute the expected `DocAddress`es.
                 let column = searcher.segment_readers()[doc_address.segment_ord as usize].fast_fields().str("city").unwrap().unwrap();
+                let column = column.as_dictionary_encoded().unwrap();
                 let term_ord = column.term_ords(doc_address.doc_id).next().unwrap();
                 let mut city = Vec::new();
                 column.dictionary().ord_to_term(term_ord, &mut city).unwrap();

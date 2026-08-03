@@ -35,7 +35,10 @@ mod payload_encoding;
 pub(crate) mod utils;
 mod value;
 
-pub use column::{BytesColumn, Column, StrColumn};
+pub use column::{
+    BytesColumn, Column, DictionaryEncodedBytesColumn, DictionaryEncodedStrColumn,
+    PlainBytesColumn, PlainStrColumn, StrColumn,
+};
 pub use column_index::ColumnIndex;
 pub use column_values::{
     ColumnValues, EmptyColumnValues, MonotonicallyMappableToU64, MonotonicallyMappableToU128,

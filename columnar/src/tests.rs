@@ -11,8 +11,8 @@ use crate::columnar::{ColumnType, ColumnTypeCategory};
 use crate::dynamic_column::{DynamicColumn, DynamicColumnHandle};
 use crate::value::{Coerce, NumericalValue};
 use crate::{
-    BytesColumn, Cardinality, Column, ColumnarReader, ColumnarWriter, RowAddr, RowId,
-    ShuffleMergeOrder, StackMergeOrder,
+    BytesColumn, Cardinality, Column, ColumnarReader, ColumnarWriter, DictionaryEncodedBytesColumn,
+    RowAddr, RowId, ShuffleMergeOrder, StackMergeOrder,
 };
 
 #[test]
@@ -209,6 +209,11 @@ fn test_dictionary_encoded_str() {
     let DynamicColumn::Str(str_col) = col_handles[0].open().unwrap() else {
         panic!();
     };
+    assert_eq!(
+        str_col.payload_encoding(),
+        crate::PayloadEncoding::Dictionary
+    );
+    let str_col = str_col.as_dictionary_encoded().unwrap();
     let index: Vec<Option<u64>> = (0..5).map(|doc_id| str_col.ords().first(doc_id)).collect();
     assert_eq!(index, &[None, Some(0), None, Some(2), Some(1)]);
     assert_eq!(str_col.num_rows(), 5);
@@ -243,6 +248,11 @@ fn test_dictionary_encoded_bytes() {
     let DynamicColumn::Bytes(bytes_col) = col_handles[0].open().unwrap() else {
         panic!();
     };
+    assert_eq!(
+        bytes_col.payload_encoding(),
+        crate::PayloadEncoding::Dictionary
+    );
+    let bytes_col = bytes_col.as_dictionary_encoded().unwrap();
     let index: Vec<Option<u64>> = (0..5)
         .map(|doc_id| bytes_col.ords().first(doc_id))
         .collect();
@@ -558,6 +568,8 @@ fn assert_column_eq<T: Copy + PartialOrd + Debug + Send + Sync + 'static>(
 }
 
 fn assert_bytes_column_eq(left: &BytesColumn, right: &BytesColumn) {
+    let left = left.as_dictionary_encoded().unwrap();
+    let right = right.as_dictionary_encoded().unwrap();
     assert_eq!(
         left.term_ord_column.get_cardinality(),
         right.term_ord_column.get_cardinality()
@@ -609,7 +621,22 @@ fn assert_dyn_column_eq(
             assert_bytes_column_eq(left_col, right_col);
         }
         (DynamicColumn::Str(left_col), DynamicColumn::Str(right_col)) => {
-            assert_bytes_column_eq(left_col, right_col);
+            assert_column_eq(
+                left_col.as_dictionary_encoded().unwrap().ords(),
+                right_col.as_dictionary_encoded().unwrap().ords(),
+            );
+            assert_eq!(
+                left_col
+                    .as_dictionary_encoded()
+                    .unwrap()
+                    .dictionary()
+                    .num_terms(),
+                right_col
+                    .as_dictionary_encoded()
+                    .unwrap()
+                    .dictionary()
+                    .num_terms()
+            );
         }
         (left, right) => {
             if lenient_on_numerical_value {
@@ -691,7 +718,7 @@ fn assert_column_values<
 }
 
 fn assert_bytes_column_values(
-    col: &BytesColumn,
+    col: &DictionaryEncodedBytesColumn,
     expected: &HashMap<u32, Vec<&ColumnValue>>,
     is_str: bool,
 ) {
@@ -764,9 +791,9 @@ proptest! {
                 DynamicColumn::DateTime(col) =>
                     assert_column_values(col, expected_col_values),
                 DynamicColumn::Bytes(col) =>
-                    assert_bytes_column_values(col, expected_col_values, false),
+                    assert_bytes_column_values(col.as_dictionary_encoded().unwrap(), expected_col_values, false),
                 DynamicColumn::Str(col) =>
-                    assert_bytes_column_values(col, expected_col_values, true),
+                    assert_bytes_column_values(col.as_dictionary_encoded().unwrap(), expected_col_values, true),
             }
         }
     }
@@ -811,9 +838,9 @@ proptest! {
                     DynamicColumn::DateTime(col) =>
                         assert_column_values(col, expected_col_values),
                     DynamicColumn::Bytes(col) =>
-                        assert_bytes_column_values(col, expected_col_values, false),
+                        assert_bytes_column_values(col.as_dictionary_encoded().unwrap(), expected_col_values, false),
                     DynamicColumn::Str(col) =>
-                        assert_bytes_column_values(col, expected_col_values, true),
+                        assert_bytes_column_values(col.as_dictionary_encoded().unwrap(), expected_col_values, true),
                 }
             }
         }
