@@ -769,32 +769,13 @@ fn build_multi_terms_nodes(
         // columns before injecting the fallback, so a value in another type-specific collector is
         // not mistaken for a missing field and a genuinely missing document is not counted once
         // per type.
-        let missing_choice =
+        let missing_accessor =
             prepare_multi_terms_missing(&columns, field_def.missing.as_ref(), field_name)?;
-        let all_columns: Option<Arc<[Column<u64>]>> = missing_choice.as_ref().map(|_| {
-            Arc::from(
-                columns
-                    .iter()
-                    .map(|(column, _)| column.clone())
-                    .collect::<Vec<_>>(),
-            )
-        });
 
         let mut typed_accessors = Vec::with_capacity(columns.len());
         for (column_idx, (column, column_type)) in columns.into_iter().enumerate() {
-            let missing = match (&missing_choice, &all_columns) {
-                (Some((missing_idx, missing_value)), Some(all_columns))
-                    if *missing_idx == column_idx =>
-                {
-                    Some(MultiTermsMissingAccessor {
-                        all_columns: all_columns.clone(),
-                        key: field_def
-                            .missing
-                            .clone()
-                            .expect("missing choice requires a configured missing value"),
-                        missing_value: *missing_value,
-                    })
-                }
+            let missing = match &missing_accessor {
+                Some((missing_idx, missing)) if *missing_idx == column_idx => Some(missing.clone()),
                 _ => None,
             };
             typed_accessors.push((
@@ -859,7 +840,7 @@ fn prepare_multi_terms_missing(
     columns: &[(Column<u64>, ColumnType)],
     missing: Option<&Key>,
     field_name: &str,
-) -> crate::Result<Option<(usize, u64)>> {
+) -> crate::Result<Option<(usize, MultiTermsMissingAccessor)>> {
     let Some(missing) = missing else {
         return Ok(None);
     };
@@ -905,7 +886,20 @@ fn prepare_multi_terms_missing(
         get_missing_val_as_u64_lenient(*column_type, column.max_value(), missing, field_name)?;
     }
 
-    Ok(Some((column_idx, find_missing_sentinel(column))))
+    let all_columns = Arc::from(
+        columns
+            .iter()
+            .map(|(column, _)| column.clone())
+            .collect::<Vec<_>>(),
+    );
+    Ok(Some((
+        column_idx,
+        MultiTermsMissingAccessor {
+            all_columns,
+            key: missing.clone(),
+            missing_value: find_missing_sentinel(column),
+        },
+    )))
 }
 
 /// Returns a value that cannot collide with a value in `column`.
