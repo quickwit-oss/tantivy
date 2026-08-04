@@ -132,7 +132,8 @@ pub struct MultiTermsMissingAccessor {
     pub all_columns: Arc<[Column<u64>]>,
     /// The user-configured fallback key, used to resolve synthetic missing values.
     pub key: Key,
-    /// Collision-free value injected for missing documents.
+    /// Raw value injected for missing documents. This reuses an existing string term ordinal when
+    /// available and otherwise uses a collision-free sentinel.
     pub missing_value: u64,
 }
 
@@ -207,7 +208,7 @@ impl AggregationMapKey for MultiTermsKey {
     }
 }
 
-/// Returns the missing sentinel that can safely be injected while decoding this physical column.
+/// Returns the raw value to inject for missing documents while decoding this physical column.
 /// Mixed-type fields require a later union-of-columns existence check instead.
 #[inline]
 fn block_missing_value(missing: Option<&MultiTermsMissingAccessor>) -> Option<u64> {
@@ -440,7 +441,7 @@ fn validate_multi_terms(
     Ok(())
 }
 
-/// Returns the configured missing sentinel if `doc_id` is absent from every physical column for
+/// Returns the configured missing encoding if `doc_id` is absent from every physical column for
 /// this requested field. `None` means this typed collector branch must drop the document.
 #[inline]
 fn missing_value_for_doc(
@@ -911,7 +912,7 @@ where
 /// Per-field bit layout within a packed `u64` key.
 ///
 /// Field 0 occupies the highest bits, so numeric packed-key order is the same as lexicographic raw
-/// value order. Values are offset by `min_value`; an injectable missing sentinel is part of that
+/// value order. Values are offset by `min_value`; an injectable missing value is part of that
 /// ordinary value range.
 #[derive(Clone, Copy, Debug)]
 struct FieldPack {
@@ -924,7 +925,7 @@ struct FieldPack {
 /// Computes a packed-`u64` layout regardless of column cardinality.
 ///
 /// `None` means that the lossless encoded key needs more than 64 bits. Optional and multivalued
-/// columns remain eligible, and a reachable missing sentinel is included in its field's range.
+/// columns remain eligible, and a reachable missing encoding is included in its field's range.
 fn compute_packed_u64_layout(
     fields: &[MultiTermsFieldAccessor],
     missing_accessors: &[Option<MultiTermsMissingAccessor>],
@@ -1102,7 +1103,9 @@ where
     }))
 }
 
-/// Resolve one raw fast-field value, recognizing the collision-free missing sentinel first.
+/// Resolve one raw fast-field value, recognizing the configured missing encoding first.
+///
+/// When the encoding reuses a string term ordinal, both paths resolve identically by construction.
 fn resolve_key_value(
     value: u64,
     field_acc: &MultiTermsFieldAccessor,
@@ -1660,6 +1663,36 @@ mod tests {
             keys.contains(&"rock|UNKNOWN"),
             "expected rock|UNKNOWN, got {keys:?}"
         );
+        Ok(())
+    }
+
+    #[test]
+    fn test_multi_terms_missing_reuses_existing_term_before_segment_cutoff() -> crate::Result<()> {
+        let index =
+            build_two_field_index(&[("rock", Some("UNKNOWN")), ("rock", None)], &[2, 3], false)?;
+
+        let agg_req: Aggregations = serde_json::from_value(json!({
+            "mt": {
+                "multi_terms": {
+                    "terms": [
+                        {"field": "genre"},
+                        {"field": "product", "missing": "UNKNOWN"}
+                    ],
+                    "size": 1,
+                    "segment_size": 1
+                },
+                "aggs": {
+                    "sum_score": {"sum": {"field": "score"}}
+                }
+            }
+        }))?;
+        let res = exec_request(agg_req, &index)?;
+        let buckets = res["mt"]["buckets"].as_array().unwrap();
+        assert_eq!(buckets.len(), 1, "unexpected buckets: {buckets:?}");
+        assert_eq!(buckets[0]["key_as_string"], "rock|UNKNOWN");
+        assert_eq!(buckets[0]["doc_count"], 2);
+        assert_eq!(buckets[0]["sum_score"]["value"], 5.0);
+        assert_eq!(res["mt"]["sum_other_doc_count"], 0);
         Ok(())
     }
 
