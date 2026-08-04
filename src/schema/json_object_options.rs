@@ -66,6 +66,15 @@ impl JsonObjectOptions {
         self.fast.is_some()
     }
 
+    /// Returns the tokenizer used for the fast field, if the json object
+    /// is a fast field and a tokenizer was configured for it.
+    #[inline]
+    pub fn get_fast_field_tokenizer_name(&self) -> Option<&str> {
+        self.fast
+            .as_ref()
+            .map(|fast_field_options| fast_field_options.tokenizer.as_str())
+    }
+
     /// Returns `true` iff dots in json keys should be expanded.
     ///
     /// When expand_dots is enabled, json object like
