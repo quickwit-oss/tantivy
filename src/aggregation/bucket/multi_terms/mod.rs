@@ -389,8 +389,10 @@ where
     all_fields_full: bool,
     /// Partial keys for the current block, grouped by document.
     keys_buf: Vec<Packing::PackingType>,
-    /// Distinct documents represented in `keys_buf`.
-    unique_docs: Vec<DocId>,
+    /// Documents still able to form a key from the field accessors processed so far. A document
+    /// is removed when a field accessor has no value and no `missing` fallback. IDs remain unique
+    /// even when `keys_buf` contains multiple combinations for the same document.
+    alive_docs: Vec<DocId>,
     /// One document ID per partial Cartesian-product combination in `keys_buf`. Empty while
     /// combinations and unique documents are one-to-one.
     doc_ids_per_partial_combination: Vec<DocId>,
@@ -461,12 +463,12 @@ fn expand_partial_combinations_for_field<Packing: MultiTermsPacking>(
     missing: Option<&MultiTermsMissingAccessor>,
     block_accessor: &ColumnBlockAccessor<u64>,
     keys_buf: &mut Vec<Packing::PackingType>,
-    unique_docs: &mut Vec<DocId>,
+    alive_docs: &mut Vec<DocId>,
     doc_ids_per_partial_combination: &mut Vec<DocId>,
 ) {
     // Keep the current partial combinations as a prefix while appending their expansion.
     let partial_combination_count = keys_buf.len();
-    // In one-to-one mode the input document IDs are implicit in `unique_docs`; otherwise they
+    // In one-to-one mode the input document IDs are implicit in `alive_docs`; otherwise they
     // occupy the prefix of `doc_ids_per_partial_combination`.
     let doc_ids_have_input_prefix = !doc_ids_per_partial_combination.is_empty();
     debug_assert_eq!(
@@ -474,18 +476,18 @@ fn expand_partial_combinations_for_field<Packing: MultiTermsPacking>(
         if doc_ids_have_input_prefix {
             doc_ids_per_partial_combination.len()
         } else {
-            unique_docs.len()
+            alive_docs.len()
         }
     );
 
     {
         let mut field_values = block_accessor
-            .iter_docid_vals(unique_docs, &field.column)
+            .iter_docid_vals(alive_docs, &field.column)
             .peekable();
         let mut doc_values = SmallVec::<[u64; 2]>::new();
         let mut combination_start = 0;
 
-        for &doc_id in unique_docs.iter() {
+        for &doc_id in alive_docs.iter() {
             let num_combinations_for_doc = if doc_ids_have_input_prefix {
                 doc_ids_per_partial_combination[combination_start..partial_combination_count]
                     .iter()
@@ -530,10 +532,10 @@ fn expand_partial_combinations_for_field<Packing: MultiTermsPacking>(
         doc_ids_per_partial_combination.drain(..partial_combination_count);
     }
 
-    unique_docs.clear();
-    unique_docs.extend_from_slice(doc_ids_per_partial_combination);
-    unique_docs.dedup();
-    if doc_ids_per_partial_combination.len() == unique_docs.len() {
+    alive_docs.clear();
+    alive_docs.extend_from_slice(doc_ids_per_partial_combination);
+    alive_docs.dedup();
+    if doc_ids_per_partial_combination.len() == alive_docs.len() {
         doc_ids_per_partial_combination.clear();
     }
 }
@@ -566,6 +568,104 @@ where
 {
     fn get_memory_consumption(&self, parent_bucket_id: BucketId) -> usize {
         self.parent_buckets[parent_bucket_id as usize].get_memory_consumption()
+    }
+
+    fn build_keys_from_full_fields(
+        &mut self,
+        docs: &[DocId],
+        block_accessor: &mut ColumnBlockAccessor<u64>,
+    ) {
+        for (field_idx, field) in self.req_data.fields.iter().enumerate() {
+            fetch_field_block(
+                docs,
+                field,
+                self.req_data.missing_accessors[field_idx].as_ref(),
+                block_accessor,
+            );
+            self.packing.push_full_values(
+                &mut self.keys_buf,
+                field_idx,
+                block_accessor.iter_vals(),
+            );
+        }
+    }
+
+    fn build_keys_from_non_full_fields(
+        &mut self,
+        docs: &[DocId],
+        block_accessor: &mut ColumnBlockAccessor<u64>,
+    ) {
+        self.alive_docs.clear();
+        self.alive_docs.extend_from_slice(docs);
+        self.doc_ids_per_partial_combination.clear();
+
+        for (field_idx, field) in self.req_data.fields.iter().enumerate() {
+            let missing = self.req_data.missing_accessors[field_idx].as_ref();
+            let has_one_value_per_doc =
+                fetch_field_block(&self.alive_docs, field, missing, block_accessor);
+            if has_one_value_per_doc {
+                if self.doc_ids_per_partial_combination.is_empty() {
+                    self.packing.push_full_values(
+                        &mut self.keys_buf,
+                        field_idx,
+                        block_accessor.iter_vals(),
+                    );
+                } else {
+                    let mut values = block_accessor.iter_vals();
+                    let mut keys = self.keys_buf.iter_mut();
+                    for key_doc_group in self
+                        .doc_ids_per_partial_combination
+                        .chunk_by(|left, right| left == right)
+                    {
+                        let value = values.next().unwrap();
+                        for key in keys.by_ref().take(key_doc_group.len()) {
+                            self.packing.push(key, field_idx, value);
+                        }
+                    }
+                    debug_assert!(values.next().is_none());
+                    debug_assert!(keys.next().is_none());
+                }
+                continue;
+            }
+
+            // Until expansion, sparse single-value fields can filter keys in place.
+            if self.doc_ids_per_partial_combination.is_empty()
+                && !field.column.get_cardinality().is_multivalue()
+                && missing.is_none()
+            {
+                let mut source_idx = 0usize;
+                let mut target_idx = 0usize;
+                for (&doc_id, &value) in block_accessor.docids().iter().zip(block_accessor.values())
+                {
+                    while self.alive_docs[source_idx] < doc_id {
+                        source_idx += 1;
+                    }
+                    debug_assert_eq!(self.alive_docs[source_idx], doc_id);
+                    if target_idx != source_idx {
+                        self.alive_docs[target_idx] = doc_id;
+                        self.keys_buf.swap(target_idx, source_idx);
+                    }
+                    self.packing
+                        .push(&mut self.keys_buf[target_idx], field_idx, value);
+                    source_idx += 1;
+                    target_idx += 1;
+                }
+                self.alive_docs.truncate(target_idx);
+                self.keys_buf.truncate(target_idx);
+                continue;
+            }
+
+            expand_partial_combinations_for_field(
+                &self.packing,
+                field_idx,
+                field,
+                missing,
+                block_accessor,
+                &mut self.keys_buf,
+                &mut self.alive_docs,
+                &mut self.doc_ids_per_partial_combination,
+            );
+        }
     }
 
     /// Convert any bucket-map/packing pair to the shared intermediate result.
@@ -721,103 +821,27 @@ where
     ) -> crate::Result<()> {
         let mem_pre = self.get_memory_consumption(parent_bucket_id);
 
-        let buckets = &mut self.parent_buckets[parent_bucket_id as usize];
-        let sub_agg = &mut self.sub_agg;
-        let bucket_id_provider = &mut self.bucket_id_provider;
         let packing = &self.packing;
         self.keys_buf
             .resize_with(docs.len(), || packing.new_packing());
         for key in &mut self.keys_buf {
             packing.clear_packing(key);
         }
-        self.unique_docs.clear();
-        self.unique_docs.extend_from_slice(docs);
-        self.doc_ids_per_partial_combination.clear();
-
         let block_accessor = &mut agg_data.column_block_accessor;
         if self.all_fields_full {
-            for (field_idx, field) in self.req_data.fields.iter().enumerate() {
-                fetch_field_block(
-                    docs,
-                    field,
-                    self.req_data.missing_accessors[field_idx].as_ref(),
-                    block_accessor,
-                );
-                packing.push_full_values(&mut self.keys_buf, field_idx, block_accessor.iter_vals());
-            }
+            self.build_keys_from_full_fields(docs, block_accessor);
         } else {
-            for (field_idx, field) in self.req_data.fields.iter().enumerate() {
-                let missing = self.req_data.missing_accessors[field_idx].as_ref();
-                let has_one_value_per_doc =
-                    fetch_field_block(&self.unique_docs, field, missing, block_accessor);
-                if has_one_value_per_doc {
-                    if self.doc_ids_per_partial_combination.is_empty() {
-                        packing.push_full_values(
-                            &mut self.keys_buf,
-                            field_idx,
-                            block_accessor.iter_vals(),
-                        );
-                    } else {
-                        let mut values = block_accessor.iter_vals();
-                        let mut keys = self.keys_buf.iter_mut();
-                        for key_doc_group in self
-                            .doc_ids_per_partial_combination
-                            .chunk_by(|left, right| left == right)
-                        {
-                            let value = values.next().unwrap();
-                            for key in keys.by_ref().take(key_doc_group.len()) {
-                                packing.push(key, field_idx, value);
-                            }
-                        }
-                        debug_assert!(values.next().is_none());
-                        debug_assert!(keys.next().is_none());
-                    }
-                    continue;
-                }
-
-                // Until expansion, sparse single-value fields can filter keys in place.
-                if self.doc_ids_per_partial_combination.is_empty()
-                    && !field.column.get_cardinality().is_multivalue()
-                    && missing.is_none()
-                {
-                    let mut source_idx = 0usize;
-                    let mut target_idx = 0usize;
-                    for (&doc_id, &value) in
-                        block_accessor.docids().iter().zip(block_accessor.values())
-                    {
-                        while self.unique_docs[source_idx] < doc_id {
-                            source_idx += 1;
-                        }
-                        debug_assert_eq!(self.unique_docs[source_idx], doc_id);
-                        if target_idx != source_idx {
-                            self.unique_docs[target_idx] = doc_id;
-                            self.keys_buf.swap(target_idx, source_idx);
-                        }
-                        packing.push(&mut self.keys_buf[target_idx], field_idx, value);
-                        source_idx += 1;
-                        target_idx += 1;
-                    }
-                    self.unique_docs.truncate(target_idx);
-                    self.keys_buf.truncate(target_idx);
-                    continue;
-                }
-
-                expand_partial_combinations_for_field(
-                    packing,
-                    field_idx,
-                    field,
-                    missing,
-                    block_accessor,
-                    &mut self.keys_buf,
-                    &mut self.unique_docs,
-                    &mut self.doc_ids_per_partial_combination,
-                );
-            }
+            self.build_keys_from_non_full_fields(docs, block_accessor);
         }
 
+        let buckets = &mut self.parent_buckets[parent_bucket_id as usize];
+        let sub_agg = &mut self.sub_agg;
+        let bucket_id_provider = &mut self.bucket_id_provider;
         if let Some(sub_agg) = sub_agg {
-            let doc_ids = if self.doc_ids_per_partial_combination.is_empty() {
-                self.unique_docs.as_slice()
+            let doc_ids = if self.all_fields_full {
+                docs
+            } else if self.doc_ids_per_partial_combination.is_empty() {
+                self.alive_docs.as_slice()
             } else {
                 self.doc_ids_per_partial_combination.as_slice()
             };
@@ -1073,7 +1097,7 @@ where
         map_init_value,
         all_fields_full,
         keys_buf: Vec::new(),
-        unique_docs: Vec::new(),
+        alive_docs: Vec::new(),
         doc_ids_per_partial_combination: Vec::new(),
     }))
 }
