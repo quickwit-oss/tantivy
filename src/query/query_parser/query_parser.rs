@@ -232,6 +232,107 @@ fn all_negative(ast: &LogicalAst) -> bool {
     }
 }
 
+/// True if `ast` carries no real content once nested emptiness is accounted
+/// for: either a literally empty `Clause` (produced when a leaf, e.g. a
+/// reference to an unknown field, fails to parse in lenient mode), or a
+/// `Clause` whose every child is itself effectively empty -- e.g.
+/// `(missing:a OR missing:b)`, where neither branch is a literally-empty
+/// `Clause` on its own children count (there are two of them), but both
+/// resolve to nothing usable. A `Leaf` is never effectively empty (a
+/// successfully-resolved leaf is real content by definition); `Boost` just
+/// delegates to what it wraps.
+fn is_effectively_empty(ast: &LogicalAst) -> bool {
+    match ast {
+        LogicalAst::Leaf(_) => false,
+        LogicalAst::Boost(ref child_ast, _) => is_effectively_empty(child_ast),
+        LogicalAst::Clause(children) => children.iter().all(|(_, child)| is_effectively_empty(child)),
+    }
+}
+
+/// Like `all_negative`, but an effectively empty `Clause` (see
+/// `is_effectively_empty`) counts as neither negative nor positive. Without
+/// this distinction, a nested group whose every branch is invalid would be
+/// indistinguishable from a group that is genuinely all `NOT`/`-`, and
+/// `pad_nested_all_negative_clauses` would pad it into an unconditional match
+/// instead of leaving it to correctly match nothing. This applies to a
+/// `MustNot` target too, at any nesting depth: `NOT <unknown field>` and
+/// `NOT (<unknown field> OR <also unknown>)` both resolve to a `MustNot`
+/// wrapping something effectively empty, and padding either would make the
+/// nested group an unconditional match instead of letting the pre-existing
+/// `trim_ast` pass drop it, same as any other fully-invalid nested group.
+fn all_negative_ignoring_invalid(ast: &LogicalAst) -> bool {
+    match ast {
+        LogicalAst::Leaf(_) => false,
+        LogicalAst::Boost(ref child_ast, _) => all_negative_ignoring_invalid(child_ast),
+        LogicalAst::Clause(children) => {
+            !children.is_empty()
+                && children.iter().all(|(ref occur, child)| {
+                    !is_effectively_empty(child)
+                        && (*occur == Occur::MustNot || all_negative_ignoring_invalid(child))
+                })
+        }
+    }
+}
+
+/// Pads every all-negative `Clause` strictly below the root with an implicit
+/// match-all, the same fix `compute_logical_ast_lenient` already applies at
+/// the root (see `all_negative`/`make_non_negative` there). A nested clause
+/// with no Must/Should of its own -- e.g. the `NOT b` group in `a AND NOT b`,
+/// which parses as `a AND (NOT b)` -- has no way to produce candidates on its
+/// own and would otherwise silently match nothing, poisoning any Must/Should
+/// that wraps it, even though the equivalent `a AND -b` matches correctly
+/// (`-b` doesn't get wrapped in its own clause).
+///
+/// This must run as a separate pass *after* the root already went through its
+/// own `all_negative` check, not be folded into AST construction: padding a
+/// clause bottom-up while still building the tree would make an all-negative
+/// *root* built from several already-padded negative branches (e.g.
+/// `-a OR -b`) look non-negative by the time the root-level check runs on it,
+/// silently defeating `QueryParserError::AllButQueryForbidden`.
+fn pad_nested_all_negative_clauses(ast: &mut LogicalAst, is_root: bool) {
+    match ast {
+        LogicalAst::Leaf(_) => (),
+        LogicalAst::Boost(ref mut child_ast, _) => {
+            pad_nested_all_negative_clauses(child_ast, is_root);
+        }
+        LogicalAst::Clause(children) => {
+            for (_, child) in children.iter_mut() {
+                pad_nested_all_negative_clauses(child, false);
+            }
+            if !is_root && !is_effectively_empty(ast) && all_negative_ignoring_invalid(ast) {
+                make_non_negative_zero_scored(ast);
+            }
+        }
+    }
+}
+
+/// Like `make_non_negative`, but the injected match-all carries a boost of
+/// `0.0` instead of the default `1.0`. Used only by
+/// `pad_nested_all_negative_clauses` (the root-level fix in
+/// `compute_logical_ast_lenient` keeps using `make_non_negative` unchanged).
+///
+/// The root-level padding is only ever applied to what was the *entire*
+/// query, so it's the sole positive contributor and its score is the whole
+/// query's score -- there's no flat form to stay consistent with, so scoring
+/// it at 1.0 (`AllQuery`'s default) is harmless. A *nested* padded clause is
+/// different: it sits alongside a flat `-x` form that scores 0 for the
+/// negation (`MustNot` clauses never contribute to a boolean query's score),
+/// so a naively-scored `(Should, AllQuery)` would add a constant +1.0 to
+/// every match under the `NOT` spelling that the `-` spelling doesn't get,
+/// changing relevance ranking between two queries that should be equivalent.
+/// A zero-boosted match-all still makes the clause satisfiable (so it can
+/// produce candidates) without contributing to its score.
+fn make_non_negative_zero_scored(ast: &mut LogicalAst) {
+    match ast {
+        LogicalAst::Leaf(_) => (),
+        LogicalAst::Boost(ref mut child_ast, _) => make_non_negative_zero_scored(child_ast),
+        LogicalAst::Clause(children) => {
+            let zero_scored_all: LogicalAst = LogicalAst::from(LogicalLiteral::All).boost(0.0);
+            children.push((Occur::Should, zero_scored_all));
+        }
+    }
+}
+
 // Make an all-negative ast into a normal ast. Must not be used on an already okay ast.
 fn make_non_negative(ast: &mut LogicalAst) {
     match ast {
@@ -417,8 +518,7 @@ impl QueryParser {
         &self,
         user_input_ast: UserInputAst,
     ) -> (LogicalAst, Vec<QueryParserError>) {
-        let (mut ast, mut err) =
-            self.compute_logical_ast_with_occur_lenient(user_input_ast, true);
+        let (mut ast, mut err) = self.compute_logical_ast_with_occur_lenient(user_input_ast);
         if let LogicalAst::Clause(children) = &ast {
             if children.is_empty() {
                 return (ast, err);
@@ -428,6 +528,7 @@ impl QueryParser {
             err.push(QueryParserError::AllButQueryForbidden);
             make_non_negative(&mut ast);
         }
+        pad_nested_all_negative_clauses(&mut ast, true);
         (ast, err)
     }
 
@@ -657,22 +758,9 @@ impl QueryParser {
         }
     }
 
-    /// `top_level` distinguishes the outermost call (from
-    /// `compute_logical_ast_lenient`, which separately reports
-    /// `QueryParserError::AllButQueryForbidden` and rewrites an all-negative
-    /// query) from a nested clause produced while walking down the AST. An
-    /// all-negative clause below the top level (e.g. the `NOT b` group in
-    /// `a AND NOT b`, which parses as `a AND (NOT b)`) has no Must/Should
-    /// clause of its own and would otherwise silently match nothing,
-    /// poisoning any Must/Should that wraps it -- even though the equivalent
-    /// `a AND -b` matches correctly, since `-b` doesn't get wrapped in its
-    /// own clause. Fixing it up here (instead of only at the top level)
-    /// makes `NOT` consistent with `-` at every nesting depth, not just when
-    /// it is the entire query.
     fn compute_logical_ast_with_occur_lenient(
         &self,
         user_input_ast: UserInputAst,
-        top_level: bool,
     ) -> (LogicalAst, Vec<QueryParserError>) {
         match user_input_ast {
             UserInputAst::Clause(sub_queries) => {
@@ -681,23 +769,15 @@ impl QueryParser {
                 let mut errors = Vec::new();
                 for (occur_opt, sub_ast) in sub_queries {
                     let (sub_ast, mut sub_errors) =
-                        self.compute_logical_ast_with_occur_lenient(sub_ast, false);
+                        self.compute_logical_ast_with_occur_lenient(sub_ast);
                     let occur = occur_opt.unwrap_or(default_occur);
                     logical_sub_queries.push((occur, sub_ast));
                     errors.append(&mut sub_errors);
                 }
-                let mut ast = LogicalAst::Clause(logical_sub_queries);
-                if !top_level {
-                    let is_empty = matches!(&ast, LogicalAst::Clause(children) if children.is_empty());
-                    if !is_empty && all_negative(&ast) {
-                        make_non_negative(&mut ast);
-                    }
-                }
-                (ast, errors)
+                (LogicalAst::Clause(logical_sub_queries), errors)
             }
             UserInputAst::Boost(ast, boost) => {
-                let (ast, errors) =
-                    self.compute_logical_ast_with_occur_lenient(*ast, top_level);
+                let (ast, errors) = self.compute_logical_ast_with_occur_lenient(*ast);
                 (ast.boost(boost.into_inner() as Score), errors)
             }
             UserInputAst::Leaf(leaf) => {
@@ -1835,14 +1915,18 @@ mod test {
         );
 
         // The inner "(-title:a -title:c)" clause has no Must/Should of its own
-        // (both children are MustNot), so it gets the same "*" (AllQuery,
-        // Should) padding as an all-negative top-level query -- otherwise it
-        // would structurally match zero documents and the enclosing "-(...)"
-        // would silently become a no-op filter. See
-        // test_negation_semantics_of_nested_not_group for the matcher-level check.
+        // (both children are MustNot), so a nested clause gets padded with a
+        // zero-boosted match-all ("*^0", Should) -- otherwise it would
+        // structurally match zero documents and the enclosing "-(...)" would
+        // silently become a no-op filter. The boost is 0 (unlike the "*"
+        // padding used for an all-negative top-level query) so the synthetic
+        // clause doesn't add to this branch's score; see
+        // test_nested_not_scores_identically_to_dash and
+        // test_negation_semantics_of_nested_not_group for the matcher-level
+        // checks.
         test_parse_query_to_logical_ast_helper(
             "title:b -(-title:a -title:c)",
-            r#"(+Term(field=0, type=Str, "b") -(-Term(field=0, type=Str, "a") -Term(field=0, type=Str, "c") *))"#,
+            r#"(+Term(field=0, type=Str, "b") -(-Term(field=0, type=Str, "a") -Term(field=0, type=Str, "c") *^0))"#,
             true,
         );
     }
@@ -2265,6 +2349,162 @@ mod test {
             searcher.search(&*not, &Count)?,
             1,
             "NOT form should match identically to the dash form"
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_invalid_nested_leaves_do_not_become_match_all() -> crate::Result<()> {
+        // A nested OR group whose every branch fails to parse (unknown field)
+        // gets dropped entirely by the pre-existing `trim_ast` pass (invalid
+        // leaves resolve to an empty Clause, and trim_ast removes any clause
+        // that trims down to nothing), so this behaves exactly like plain
+        // `title:invoice` -- matching every "invoice" document, same as on
+        // unmodified upstream tantivy. What must NOT happen is the invalid
+        // group getting padded into a literal `(Should, AllQuery)` clause
+        // instead of being dropped: that would still match every "invoice"
+        // document here, but would also change behavior in queries where the
+        // group isn't otherwise redundant (e.g. no other Must clause).
+        let mut schema_builder = Schema::builder();
+        let title = schema_builder.add_text_field("title", TEXT);
+        let schema = schema_builder.build();
+        let index = Index::create_in_ram(schema);
+
+        let mut index_writer = index.writer_for_tests()?;
+        index_writer.add_document(doc!(title => "invoice"))?;
+        index_writer.commit()?;
+
+        let query_parser = QueryParser::for_index(&index, Vec::new());
+        let searcher = index.reader()?.searcher();
+
+        let (query, errors) =
+            query_parser.parse_query_lenient("title:invoice AND (missing:a OR missing:c)");
+        assert_eq!(errors.len(), 2, "both unknown-field leaves should error");
+        assert_eq!(
+            format!("{query:?}"),
+            r#"BooleanQuery { subqueries: [(Must, TermQuery(Term(field=0, type=Str, "invoice")))], minimum_number_should_match: 0 }"#,
+            "the invalid group should be trimmed away, not padded with an implicit match-all",
+        );
+        assert_eq!(searcher.search(&*query, &Count)?, 1);
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_top_level_negative_or_still_rejected() {
+        // A strict top-level query made only of excluding terms must still be
+        // rejected, however those terms are combined (AND, as already covered
+        // by test_single_negative_term, or OR).
+        let query_parser = make_query_parser();
+        assert_matches!(
+            query_parser.parse_query("-title:a OR -title:b"),
+            Err(QueryParserError::AllButQueryForbidden)
+        );
+    }
+
+    #[test]
+    fn test_nested_not_scores_identically_to_dash() -> crate::Result<()> {
+        // The synthetic match-all padding added for a nested NOT/- clause
+        // must not change ranking: both forms should produce identical
+        // scores for the same matching set. The excluded term ("draft")
+        // must actually appear somewhere in the index for this to be a
+        // meaningful check -- an all-negative clause whose excluded term
+        // matches no document degenerates to a bare AllScorer, which the
+        // boolean scorer strips before combining scores regardless of the
+        // padding's own boost, and would pass even with a scoring bug.
+        let mut schema_builder = Schema::builder();
+        let tag = schema_builder.add_text_field("tag", TEXT);
+        let title = schema_builder.add_text_field("title", TEXT);
+        let schema = schema_builder.build();
+        let index = Index::create_in_ram(schema);
+
+        let mut index_writer = index.writer_for_tests()?;
+        index_writer.add_document(doc!(tag => "invoice", title => "final"))?;
+        index_writer.add_document(doc!(tag => "invoice", title => "final receipt"))?;
+        index_writer.add_document(doc!(tag => "invoice", title => "draft"))?;
+        index_writer.commit()?;
+
+        let query_parser = QueryParser::for_index(&index, Vec::new());
+        let searcher = index.reader()?.searcher();
+
+        let dash = query_parser.parse_query("tag:invoice AND -title:draft")?;
+        let not = query_parser.parse_query("tag:invoice AND NOT title:draft")?;
+
+        let dash_hits = searcher.search(
+            &*dash,
+            &crate::collector::TopDocs::with_limit(10).order_by_score(),
+        )?;
+        let not_hits = searcher.search(
+            &*not,
+            &crate::collector::TopDocs::with_limit(10).order_by_score(),
+        )?;
+        assert_eq!(dash_hits.len(), 2);
+        assert_eq!(dash_hits, not_hits);
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_not_on_invalid_field_does_not_become_match_all() -> crate::Result<()> {
+        // "NOT <unknown field>" resolves to (MustNot, <empty Clause>): the
+        // MustNot target is itself invalid, not a real term. That must not
+        // be padded into an unconditional match either -- it should be
+        // dropped by trim_ast exactly like `(missing:a OR missing:c)` is in
+        // test_invalid_nested_leaves_do_not_become_match_all, leaving only
+        // the other OR branch.
+        let mut schema_builder = Schema::builder();
+        let title = schema_builder.add_text_field("title", TEXT);
+        let schema = schema_builder.build();
+        let index = Index::create_in_ram(schema);
+
+        let mut index_writer = index.writer_for_tests()?;
+        index_writer.add_document(doc!(title => "final"))?;
+        index_writer.add_document(doc!(title => "unrelated"))?;
+        index_writer.commit()?;
+
+        let query_parser = QueryParser::for_index(&index, Vec::new());
+        let searcher = index.reader()?.searcher();
+
+        let (query, errors) = query_parser.parse_query_lenient("title:final OR (NOT missing:a)");
+        assert_eq!(errors.len(), 1, "the unknown-field leaf should error");
+        assert_eq!(
+            searcher.search(&*query, &Count)?,
+            1,
+            "the invalid NOT branch must not become an implicit match-all"
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_not_on_nested_invalid_group_does_not_become_match_all() -> crate::Result<()> {
+        // Same as test_not_on_invalid_field_does_not_become_match_all, but the
+        // NOT target is a parenthesized group that is only *effectively*
+        // empty (both its own branches are invalid), not a literally-empty
+        // Clause. `is_empty_clause`'s original literal-emptiness check missed this
+        // shape: `NOT (missing:a OR missing:b)` still counted as genuine
+        // negation and got padded into an unconditional match.
+        let mut schema_builder = Schema::builder();
+        let title = schema_builder.add_text_field("title", TEXT);
+        let schema = schema_builder.build();
+        let index = Index::create_in_ram(schema);
+
+        let mut index_writer = index.writer_for_tests()?;
+        index_writer.add_document(doc!(title => "final"))?;
+        index_writer.add_document(doc!(title => "unrelated"))?;
+        index_writer.commit()?;
+
+        let query_parser = QueryParser::for_index(&index, Vec::new());
+        let searcher = index.reader()?.searcher();
+
+        let (query, errors) =
+            query_parser.parse_query_lenient("title:final OR (NOT (missing:a OR missing:b))");
+        assert_eq!(errors.len(), 2, "both unknown-field leaves should error");
+        assert_eq!(
+            searcher.search(&*query, &Count)?,
+            1,
+            "an effectively-empty NOT target must not become an implicit match-all"
         );
 
         Ok(())
