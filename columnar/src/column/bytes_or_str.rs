@@ -213,10 +213,7 @@ mod tests {
 
     #[test]
     fn test_plain_column_metadata_and_downcasts() {
-        let plain_bytes = PlainBytesColumn {
-            column_index: ColumnIndex::Full,
-            num_values: 2,
-        };
+        let plain_bytes = PlainBytesColumn::for_test(ColumnIndex::Full, &[b"first", b"second"]);
         let bytes_column = BytesColumn::Plain(plain_bytes.clone());
         assert_eq!(bytes_column.payload_encoding(), PayloadEncoding::Plain);
         assert_eq!(bytes_column.num_rows(), 2);
