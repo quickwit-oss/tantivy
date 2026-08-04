@@ -122,7 +122,7 @@ fn bench_agg(runner: &mut BenchRunner, index: &Index, execute_filtered: Aggregat
         multi_terms_vs_nested.clone(),
     ));
     groups.push((
-        "multi_terms_vs_nested_filtered",
+        "multi_terms_vs_nested_with_1%_term_query",
         execute_filtered,
         multi_terms_vs_nested,
     ));
