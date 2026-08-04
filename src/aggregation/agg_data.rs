@@ -769,8 +769,12 @@ fn build_multi_terms_nodes(
         // columns before injecting the fallback, so a value in another type-specific collector is
         // not mistaken for a missing field and a genuinely missing document is not counted once
         // per type.
-        let missing_accessor =
-            prepare_multi_terms_missing(&columns, field_def.missing.as_ref(), field_name)?;
+        let missing_accessor = prepare_multi_terms_missing(
+            &columns,
+            str_dict_column.as_ref(),
+            field_def.missing.as_ref(),
+            field_name,
+        )?;
 
         let mut typed_accessors = Vec::with_capacity(columns.len());
         for (column_idx, (column, column_type)) in columns.into_iter().enumerate() {
@@ -838,6 +842,7 @@ fn build_multi_terms_nodes(
 
 fn prepare_multi_terms_missing(
     columns: &[(Column<u64>, ColumnType)],
+    str_dict_column: Option<&StrColumn>,
     missing: Option<&Key>,
     field_name: &str,
 ) -> crate::Result<Option<(usize, MultiTermsMissingAccessor)>> {
@@ -880,11 +885,19 @@ fn prepare_multi_terms_missing(
 
     let (column, column_type) = &columns[column_idx];
     if !matches!(missing, Key::Str(_)) && *column_type != ColumnType::Str {
-        // Validate the same lenient numeric coercions as a terms aggregation. The converted value
-        // is deliberately ignored: multi_terms uses a collision-free sentinel and resolves it
-        // back to the request's original missing key.
+        // Validate the same lenient numeric coercions as a terms aggregation.
         get_missing_val_as_u64_lenient(*column_type, column.max_value(), missing, field_name)?;
     }
+
+    // Reuse an existing term ordinal so real and missing values enter the same bucket before the
+    // segment-level cutoff. Non-string columns and missing terms absent from the dictionary keep
+    // using a collision-free sentinel.
+    let existing_term_ord = match (missing, *column_type, str_dict_column) {
+        (Key::Str(missing_str), ColumnType::Str, Some(str_dict_column)) => str_dict_column
+            .dictionary()
+            .term_ord(missing_str.as_bytes())?,
+        _ => None,
+    };
 
     // A full physical column means every document has a value for this logical field, so no typed
     // collector branch can ever emit the configured missing value.
@@ -906,7 +919,7 @@ fn prepare_multi_terms_missing(
         MultiTermsMissingAccessor {
             all_columns,
             key: missing.clone(),
-            missing_value: find_missing_sentinel(column),
+            missing_value: existing_term_ord.unwrap_or_else(|| find_missing_sentinel(column)),
         },
     )))
 }
