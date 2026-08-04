@@ -234,41 +234,53 @@ fn all_negative(ast: &LogicalAst) -> bool {
 
 /// True if `ast` carries no real content once nested emptiness is accounted
 /// for: either a literally empty `Clause` (produced when a leaf, e.g. a
-/// reference to an unknown field, fails to parse in lenient mode), or a
-/// `Clause` whose every child is itself effectively empty -- e.g.
-/// `(missing:a OR missing:b)`, where neither branch is a literally-empty
-/// `Clause` on its own children count (there are two of them), but both
-/// resolve to nothing usable. A `Leaf` is never effectively empty (a
-/// successfully-resolved leaf is real content by definition); `Boost` just
-/// delegates to what it wraps.
+/// reference to an unknown field, fails to parse in lenient mode), a `Set`
+/// leaf with no elements (produced when every element of an `IN [...]`
+/// fails to convert in lenient mode), or a `Clause` whose every child is
+/// itself effectively empty -- e.g. `(missing:a OR missing:b)`, where
+/// neither branch is a literally-empty `Clause` on its own (children count,
+/// there are two of them), but both resolve to nothing usable. Any other
+/// `Leaf` is never effectively empty (a successfully-resolved leaf is real
+/// content by definition); `Boost` just delegates to what it wraps.
 fn is_effectively_empty(ast: &LogicalAst) -> bool {
     match ast {
-        LogicalAst::Leaf(_) => false,
+        LogicalAst::Leaf(leaf) => {
+            matches!(leaf.as_ref(), LogicalLiteral::Set { elements } if elements.is_empty())
+        }
         LogicalAst::Boost(ref child_ast, _) => is_effectively_empty(child_ast),
-        LogicalAst::Clause(children) => children.iter().all(|(_, child)| is_effectively_empty(child)),
+        LogicalAst::Clause(children) => children
+            .iter()
+            .all(|(_, child)| is_effectively_empty(child)),
     }
 }
 
-/// Like `all_negative`, but an effectively empty `Clause` (see
-/// `is_effectively_empty`) counts as neither negative nor positive. Without
-/// this distinction, a nested group whose every branch is invalid would be
-/// indistinguishable from a group that is genuinely all `NOT`/`-`, and
-/// `pad_nested_all_negative_clauses` would pad it into an unconditional match
-/// instead of leaving it to correctly match nothing. This applies to a
-/// `MustNot` target too, at any nesting depth: `NOT <unknown field>` and
-/// `NOT (<unknown field> OR <also unknown>)` both resolve to a `MustNot`
-/// wrapping something effectively empty, and padding either would make the
-/// nested group an unconditional match instead of letting the pre-existing
-/// `trim_ast` pass drop it, same as any other fully-invalid nested group.
+/// Like `all_negative`, but effectively empty children (see
+/// `is_effectively_empty`) are ignored rather than disqualifying the clause.
+/// Without this, a group with both an invalid child and a genuine `MustNot`
+/// child -- e.g. `(missing:a AND -title:draft)`, where `missing:a` fails to
+/// parse into a literally-empty `Clause` -- would look "not all negative"
+/// only because of the invalid sibling, so it wouldn't get padded here; the
+/// pre-existing `trim_ast` pass then drops the empty-`Clause` sibling
+/// afterwards, leaving a bare `MustNot` with no candidate source and no
+/// padding to fix it. Ignoring empty children lets this check see the group
+/// the way it will actually look post-trim. A clause counts as all-negative
+/// only if it has at least one non-empty child and every non-empty child is
+/// `MustNot` or itself all-negative; a clause that is empty once its
+/// effectively-empty children are set aside (i.e. `is_effectively_empty`
+/// would already be true for it) is handled by that separate check instead,
+/// same as any other fully-invalid nested group.
 fn all_negative_ignoring_invalid(ast: &LogicalAst) -> bool {
     match ast {
         LogicalAst::Leaf(_) => false,
         LogicalAst::Boost(ref child_ast, _) => all_negative_ignoring_invalid(child_ast),
         LogicalAst::Clause(children) => {
-            !children.is_empty()
-                && children.iter().all(|(ref occur, child)| {
-                    !is_effectively_empty(child)
-                        && (*occur == Occur::MustNot || all_negative_ignoring_invalid(child))
+            let mut real_children = children
+                .iter()
+                .filter(|(_, child)| !is_effectively_empty(child))
+                .peekable();
+            real_children.peek().is_some()
+                && real_children.all(|(ref occur, child)| {
+                    *occur == Occur::MustNot || all_negative_ignoring_invalid(child)
                 })
         }
     }
@@ -2505,6 +2517,73 @@ mod test {
             searcher.search(&*query, &Count)?,
             1,
             "an effectively-empty NOT target must not become an implicit match-all"
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_and_not_with_invalid_sibling_still_excludes() -> crate::Result<()> {
+        // "title:invoice AND (missing:a AND -title:draft)": the inner group
+        // mixes an invalid leaf (unknown field) with a genuine MustNot. The
+        // invalid sibling must not disqualify the group from being recognized
+        // as all-negative -- it gets trimmed away separately by `trim_ast`,
+        // and if padding is skipped because of it, the surviving MustNot is
+        // left with no candidate source, silently matching zero documents.
+        let mut schema_builder = Schema::builder();
+        let title = schema_builder.add_text_field("title", TEXT);
+        let schema = schema_builder.build();
+        let index = Index::create_in_ram(schema);
+
+        let mut index_writer = index.writer_for_tests()?;
+        index_writer.add_document(doc!(title => "invoice final"))?;
+        index_writer.add_document(doc!(title => "invoice draft"))?;
+        index_writer.commit()?;
+
+        let query_parser = QueryParser::for_index(&index, Vec::new());
+        let searcher = index.reader()?.searcher();
+
+        let (query, errors) =
+            query_parser.parse_query_lenient("title:invoice AND (missing:a AND -title:draft)");
+        assert_eq!(errors.len(), 1, "the unknown-field leaf should error");
+        assert_eq!(
+            searcher.search(&*query, &Count)?,
+            1,
+            "the invalid sibling must not suppress padding of the surviving MustNot clause"
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_not_on_all_invalid_set_elements_does_not_become_match_all() -> crate::Result<()> {
+        // "NOT (unsigned: IN [foo bar])" where every element of the IN list
+        // fails to convert to the field's type resolves to (MustNot,
+        // Leaf(Set { elements: [] })): the Set itself is invalid, not a real
+        // term list. Unlike an unknown-field leaf, this doesn't produce a
+        // literally-empty Clause, so it must be recognized as invalid some
+        // other way -- otherwise it gets padded into an unconditional match.
+        let mut schema_builder = Schema::builder();
+        let title = schema_builder.add_text_field("title", TEXT);
+        schema_builder.add_u64_field("unsigned", INDEXED);
+        let schema = schema_builder.build();
+        let index = Index::create_in_ram(schema);
+
+        let mut index_writer = index.writer_for_tests()?;
+        index_writer.add_document(doc!(title => "final"))?;
+        index_writer.add_document(doc!(title => "unrelated"))?;
+        index_writer.commit()?;
+
+        let query_parser = QueryParser::for_index(&index, Vec::new());
+        let searcher = index.reader()?.searcher();
+
+        let (query, errors) =
+            query_parser.parse_query_lenient("title:final OR (NOT unsigned: IN [foo bar])");
+        assert_eq!(errors.len(), 2, "both invalid set elements should error");
+        assert_eq!(
+            searcher.search(&*query, &Count)?,
+            1,
+            "the invalid NOT-set branch must not become an implicit match-all"
         );
 
         Ok(())
