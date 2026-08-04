@@ -37,7 +37,7 @@ mod value;
 
 pub use column::{
     BytesColumn, Column, DictionaryEncodedBytesColumn, DictionaryEncodedStrColumn,
-    PlainBytesColumn, PlainStrColumn, StrColumn,
+    PlainBytesColumn, PlainBytesColumnAccessor, PlainStrColumn, PlainStrColumnAccessor, StrColumn,
 };
 pub use column_index::ColumnIndex;
 pub use column_values::{

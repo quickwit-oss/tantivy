@@ -11,12 +11,20 @@ use std::sync::Arc;
 pub use bytes_or_str::{BytesColumn, StrColumn};
 use common::BinarySerializable;
 pub use dictionary_encoded::{DictionaryEncodedBytesColumn, DictionaryEncodedStrColumn};
-pub use plain::{PlainBytesColumn, PlainStrColumn};
+pub(crate) use plain::PlainBlockMeta;
+#[cfg(test)]
+pub(crate) use plain::{
+    PLAIN_BLOCK_MAX_NUM_VALUES, PLAIN_BLOCK_RAW_NUM_BYTES_THRESHOLD, serialize_test_block,
+};
+pub use plain::{
+    PlainBytesColumn, PlainBytesColumnAccessor, PlainStrColumn, PlainStrColumnAccessor,
+};
 pub use serialize::{
     open_column_bytes, open_column_str, open_column_u64, open_column_u128,
     open_column_u128_as_compact_u64, serialize_column_mappable_to_u64,
     serialize_column_mappable_to_u128,
 };
+pub(crate) use serialize::{open_column_bytes_from_file_slice, open_column_str_from_file_slice};
 
 use crate::column_index::{ColumnIndex, Set};
 use crate::column_values::monotonic_mapping::StrictlyMonotonicMappingToInternal;
