@@ -6,8 +6,8 @@ Add a user-selectable payload encoding for string and byte fast fields:
 
 ```rust
 pub enum PayloadEncoding {
-    Plain,
     Dictionary,
+    Plain,
 }
 ```
 
@@ -50,9 +50,9 @@ and on-disk format all need it. Re-export it from `tantivy::schema` for normal T
 ```rust
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
 pub enum PayloadEncoding {
-    Plain,
     #[default]
     Dictionary,
+    Plain,
 }
 ```
 
@@ -246,12 +246,47 @@ V3 string and byte payloads start with a stable encoding discriminant:
 encoding tag | encoding-specific payload
 ```
 
-For `Dictionary`, the bytes after the tag use the current dictionary payload layout unchanged.
-For `Plain`, define a versioned layout containing the column index, OnPair16 model, compressed
-payload, offsets, and explicit region lengths in a footer.
+The one-byte encoding tags are fixed independently of the Rust enum declaration order:
 
-The exact ordering should allow `OwnedBytes::split` operations without copying. All serialized
-lengths must be checked before slicing.
+```text
+0 = Dictionary
+1 = Plain
+2..=255 = reserved; readers reject them
+```
+
+For `Dictionary`, the bytes after the tag use the V2 dictionary payload layout unchanged:
+
+```text
+0u8 | dictionary | column index and term ordinals | dictionary_num_bytes:u32 LE
+```
+
+`dictionary_num_bytes` counts only `dictionary`, excluding the encoding tag. For `Plain`, the V3
+layout is:
+
+```text
+1u8
+| column_index
+| onpair16_model
+| compressed_values
+| value_offsets
+| column_index_num_bytes:u32 LE
+| model_num_bytes:u32 LE
+| compressed_values_num_bytes:u64 LE
+| value_offsets_num_bytes:u32 LE
+| num_values:u32 LE
+```
+
+`value_offsets` is a serialized monotonic `u64` column with exactly `num_values + 1` entries. Its
+first entry is zero, its last entry equals `compressed_values_num_bytes`, and every adjacent pair
+delimits one independently compressed value. `onpair16_model` uses the codec's canonical model
+serialization, which must be frozen alongside the standalone plain-column implementation.
+
+The fixed 24-byte footer is read from the end first. The four regions are then split from left to
+right without copying. Checked conversion to `usize`, checked length sums, and region bounds are
+required before any `OwnedBytes::split` call; unrecognized tags and trailing bytes are invalid.
+
+V1 and V2 never consume a tag. V3 always consumes exactly one tag byte for string and byte
+payloads, including dictionary payloads.
 
 Other column types do not need an encoding tag and retain their existing V3 representation unless
 the version implementation requires a uniform envelope.
@@ -259,7 +294,8 @@ the version implementation requires a uniform envelope.
 ### Compatibility tests
 
 Expand `columnar/src/compat_tests.rs` fixtures so V1 and V2 include dictionary-encoded string and
-byte columns for all supported cardinalities. Tests must:
+byte columns for all supported cardinalities. The historical fixtures are
+`v1_string_bytes.columnar` and `v2_string_bytes.columnar`. Tests must:
 
 - Open and read old values through the new enum variants.
 - Assert that old columns become `DictionaryEncoded`.

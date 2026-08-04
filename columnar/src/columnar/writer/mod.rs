@@ -22,7 +22,7 @@ use crate::columnar::writer::column_writers::{
 use crate::columnar::writer::value_index::{IndexBuilder, PreallocatedIndexBuilders};
 use crate::dictionary::{DictionaryBuilder, TermIdMapping, UnorderedId};
 use crate::value::{Coerce, NumericalType, NumericalValue};
-use crate::{Cardinality, RowId};
+use crate::{Cardinality, PayloadEncoding, RowId};
 
 /// This is a set of buffers that are used to temporarily write the values into before passing them
 /// to the fast field codecs.
@@ -532,7 +532,7 @@ fn collect_sort_order_from_ops<V, K: Clone>(
         .collect()
 }
 
-// Serialize [Dictionary, Column, dictionary num bytes U32::LE]
+// V3 serialize [PayloadEncoding, Dictionary, Column, dictionary num bytes U32::LE]
 // Column: [Column Index, Column Values, column index num bytes U32::LE]
 #[expect(clippy::too_many_arguments)]
 fn serialize_bytes_or_str_column(
@@ -550,6 +550,8 @@ fn serialize_bytes_or_str_column(
         u64_values,
         ..
     } = buffers;
+    let mut wrt = wrt;
+    wrt.write_all(&[PayloadEncoding::Dictionary.to_code()])?;
     let mut counting_writer = CountingWriter::wrap(wrt);
     let term_id_mapping: TermIdMapping =
         dictionary_builder.serialize(arena, &mut counting_writer)?;

@@ -7,9 +7,11 @@ use super::term_merger::{TermMerger, TermsWithSegmentOrd};
 use crate::column::serialize_column_mappable_to_u64;
 use crate::column_index::SerializableColumnIndex;
 use crate::iterable::Iterable;
-use crate::{BytesColumn, DictionaryEncodedBytesColumn, MergeRowOrder, ShuffleMergeOrder};
+use crate::{
+    BytesColumn, DictionaryEncodedBytesColumn, MergeRowOrder, PayloadEncoding, ShuffleMergeOrder,
+};
 
-// Serialize [Dictionary, Column, dictionary num bytes U32::LE]
+// V3 serialize [PayloadEncoding, Dictionary, Column, dictionary num bytes U32::LE]
 // Column: [Column Index, Column Values, column index num bytes U32::LE]
 pub fn merge_bytes_or_str_column(
     column_index: SerializableColumnIndex<'_>,
@@ -17,7 +19,9 @@ pub fn merge_bytes_or_str_column(
     merge_row_order: &MergeRowOrder,
     output: &mut impl Write,
 ) -> io::Result<()> {
-    // Serialize dict and generate mapping for values
+    output.write_all(&[PayloadEncoding::Dictionary.to_code()])?;
+    // Serialize dict and generate mapping for values.
+    // The encoding tag is intentionally excluded from `dictionary_num_bytes`.
     let mut output = CountingWriter::wrap(output);
     // TODO !!! Remove useless terms.
     let term_ord_mapping = serialize_merged_dict(bytes_columns, merge_row_order, &mut output)?;

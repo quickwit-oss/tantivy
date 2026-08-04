@@ -14,7 +14,7 @@ use crate::column_values::{
     load_u64_based_column_values, serialize_column_values_u128, serialize_u64_based_column_values,
 };
 use crate::iterable::Iterable;
-use crate::{StrColumn, Version};
+use crate::{PayloadEncoding, StrColumn, Version};
 
 pub fn serialize_column_mappable_to_u128<T: MonotonicallyMappableToU128>(
     column_index: SerializableColumnIndex<'_>,
@@ -106,8 +106,43 @@ pub fn open_column_u128_as_compact_u64(
 }
 
 pub fn open_column_bytes(data: OwnedBytes, format_version: Version) -> io::Result<BytesColumn> {
+    let data = match format_version {
+        Version::V1 | Version::V2 => data,
+        Version::V3 => {
+            if data.is_empty() {
+                return Err(io::Error::new(
+                    io::ErrorKind::InvalidData,
+                    "missing string/byte payload encoding tag",
+                ));
+            }
+            let (encoding_bytes, payload) = data.split(1);
+            let encoding = PayloadEncoding::try_from_code(encoding_bytes.as_slice()[0])
+                .map_err(io::Error::from)?;
+            match encoding {
+                PayloadEncoding::Dictionary => payload,
+                PayloadEncoding::Plain => {
+                    return Err(io::Error::new(
+                        io::ErrorKind::Unsupported,
+                        "plain string/byte column decoding is not implemented yet",
+                    ));
+                }
+            }
+        }
+    };
+    if data.len() < 4 {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            "truncated dictionary string/byte column payload",
+        ));
+    }
     let (body, dictionary_len_bytes) = data.rsplit(4);
     let dictionary_len = u32::from_le_bytes(dictionary_len_bytes.as_slice().try_into().unwrap());
+    if dictionary_len as usize > body.len() {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            "dictionary length exceeds string/byte column payload",
+        ));
+    }
     let (dictionary_bytes, column_bytes) = body.split(dictionary_len as usize);
     let dictionary = Arc::new(Dictionary::from_bytes(dictionary_bytes)?);
     let term_ord_column = crate::column::open_column_u64::<u64>(column_bytes, format_version)?;
@@ -124,4 +159,32 @@ pub fn open_column_str(data: OwnedBytes, format_version: Version) -> io::Result<
         unreachable!("the current column format only stores dictionary encoded values")
     };
     Ok(DictionaryEncodedStrColumn::wrap(bytes_column).into())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_v3_payload_encoding_tag_errors() {
+        let error = open_column_bytes(OwnedBytes::new(Vec::new()), Version::V3).unwrap_err();
+        assert_eq!(error.kind(), io::ErrorKind::InvalidData);
+
+        let error = open_column_bytes(OwnedBytes::new(vec![u8::MAX]), Version::V3).unwrap_err();
+        assert_eq!(error.kind(), io::ErrorKind::InvalidData);
+
+        let error = open_column_bytes(
+            OwnedBytes::new(vec![PayloadEncoding::Plain.to_code()]),
+            Version::V3,
+        )
+        .unwrap_err();
+        assert_eq!(error.kind(), io::ErrorKind::Unsupported);
+
+        let error = open_column_bytes(
+            OwnedBytes::new(vec![PayloadEncoding::Dictionary.to_code()]),
+            Version::V3,
+        )
+        .unwrap_err();
+        assert_eq!(error.kind(), io::ErrorKind::InvalidData);
+    }
 }
