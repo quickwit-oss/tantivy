@@ -1,6 +1,6 @@
 [package]
 name = "tantivy"
-version = "0.26.0"
+version = "0.27.0"
 authors = ["Paul Masurel <paul.masurel@gmail.com>"]
 license = "MIT"
 categories = ["database-implementations", "data-structures"]
@@ -27,7 +27,7 @@ regex = { version = "1.5.5", default-features = false, features = [
 aho-corasick = "1.0"
 tantivy-fst = "0.5"
 memmap2 = { version = "0.9.0", optional = true }
-lz4_flex = { version = "0.13", default-features = false, optional = true }
+lz4_flex = { version = "0.14", default-features = false, optional = true }
 zstd = { version = "0.13", optional = true, default-features = false }
 tempfile = { version = "3.12.0", optional = true }
 log = "0.4.16"
@@ -70,6 +70,7 @@ futures-util = { version = "0.3.28", optional = true }
 futures-channel = { version = "0.3.28", optional = true }
 fnv = "1.0.7"
 typetag = "0.2.21"
+unwrap-infallible = "1.0.0"
 
 [target.'cfg(windows)'.dependencies]
 winapi = "0.3.9"

@@ -2,7 +2,7 @@ use binggan::{black_box, BenchGroup, BenchRunner};
 use rand::prelude::*;
 use rand::rngs::StdRng;
 use rand::SeedableRng;
-use tantivy::collector::{Collector, Count, DocSetCollector, TopDocs};
+use tantivy::collector::{Collector, Count, TopDocs};
 use tantivy::query::{Query, QueryParser};
 use tantivy::schema::{Schema, FAST, INDEXED, TEXT};
 use tantivy::{doc, Index, Order, ReloadPolicy, Searcher};
@@ -110,43 +110,39 @@ fn main() {
     // Prepare corpora with varying scenarios
     let scenarios = vec![
         (
-            "dense and 99% a".to_string(),
-            10_000_000,
-            0.99,
+            "dense and 0.1% a".to_string(),
+            5_000_000,
+            0.001,
             "dense",
             0,
             9,
         ),
+        ("dense and 1% a".to_string(), 5_000_000, 0.01, "dense", 0, 9),
+        ("dense and 10% a".to_string(), 5_000_000, 0.1, "dense", 0, 9),
         (
-            "dense and 99% a".to_string(),
-            10_000_000,
-            0.99,
+            "dense and 50% a".to_string(),
+            5_000_000,
+            0.5,
             "dense",
-            990,
-            999,
+            0,
+            500,
         ),
         (
-            "sparse and 99% a".to_string(),
-            10_000_000,
+            "sparse and 50% a".to_string(),
+            5_000_000,
             0.99,
             "sparse",
             0,
             9,
-        ),
-        (
-            "sparse and 99% a".to_string(),
-            10_000_000,
-            0.99,
-            "sparse",
-            9_999_990,
-            9_999_999,
         ),
     ];
 
     let mut runner = BenchRunner::new();
-    for (scenario_id, n, p_title_a, num_rand_distribution, range_low, range_high) in scenarios {
+    for (scenario_id, num_docs, p_title_a, num_rand_distribution, range_low, range_high) in
+        scenarios
+    {
         // Build index for this scenario
-        let bench_index = build_shared_indices(n, p_title_a, num_rand_distribution);
+        let bench_index = build_shared_indices(num_docs, p_title_a, num_rand_distribution);
 
         // Create benchmark group
         let mut group = runner.new_group();
@@ -157,19 +153,16 @@ fn main() {
         // Define all four field types
         let field_names = ["num_rand", "num_asc", "num_rand_fast", "num_asc_fast"];
 
-        // Define the three terms we want to test with
-        let terms = ["a", "b", "z"];
+        let term = "a";
 
-        // Generate all combinations of terms and field names
+        // Generate all combinations of term and field names
         let mut queries = Vec::new();
-        for &term in &terms {
-            for &field_name in &field_names {
-                let query_str = format!(
-                    "{} AND {}:[{} TO {}]",
-                    term, field_name, range_low, range_high
-                );
-                queries.push((query_str, field_name.to_string()));
-            }
+        for &field_name in &field_names {
+            let query_str = format!(
+                "{} AND {}:[{} TO {}]",
+                term, field_name, range_low, range_high
+            );
+            queries.push((query_str, field_name.to_string()));
         }
 
         let query_str = format!(
@@ -202,8 +195,8 @@ fn run_benchmark_tasks(
         bench_group,
         bench_index,
         query_str,
-        DocSetCollector,
-        "all results",
+        (Count, TopDocs::with_limit(1000).order_by_score()),
+        "all_results",
     );
 
     // Test top 100 by the field (if it's a FAST field)
@@ -269,6 +262,10 @@ impl<C: Collector> SearchTask<C> {
             .downcast_ref::<Vec<(Option<u64>, tantivy::DocAddress)>>()
         {
             top_docs.len()
+        } else if let Some(top_docs_with_count) = (&result as &dyn std::any::Any)
+            .downcast_ref::<(usize, Vec<(f32, tantivy::DocAddress)>)>()
+        {
+            top_docs_with_count.0
         } else if let Some(top_docs) =
             (&result as &dyn std::any::Any).downcast_ref::<Vec<(u64, tantivy::DocAddress)>>()
         {

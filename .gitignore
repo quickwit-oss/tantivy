@@ -8,6 +8,7 @@ target/debug
 target/release
 Cargo.lock
 benchmark
+agg_bench
 .DS_Store
 *.bk
 .idea

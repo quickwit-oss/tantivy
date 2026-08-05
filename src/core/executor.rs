@@ -105,6 +105,7 @@ impl Executor {
     ///
     /// If the task panics, returns `Err(())`.
     #[cfg(feature = "quickwit")]
+    #[allow(clippy::result_unit_err)] // `Err(())` only signals a panic; no error info to convey.
     pub fn spawn_blocking<T: Send + 'static>(
         &self,
         cpu_intensive_task: impl FnOnce() -> T + Send + 'static,

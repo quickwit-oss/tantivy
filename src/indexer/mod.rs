@@ -32,6 +32,7 @@ mod stamper;
 use crossbeam_channel as channel;
 use smallvec::SmallVec;
 
+pub use self::doc_id_mapping::DocIdMapping;
 pub use self::index_writer::{advance_deletes, IndexWriter, IndexWriterOptions};
 pub use self::log_merge_policy::LogMergePolicy;
 pub use self::merge_operation::MergeOperation;
@@ -69,6 +70,7 @@ mod tests_mmap {
     use crate::index::FieldMetadata;
     use crate::query::{AllQuery, QueryParser};
     use crate::schema::{JsonObjectOptions, Schema, Type, FAST, INDEXED, STORED, TEXT};
+    use crate::tokenizer::RAW_TOKENIZER_NAME;
     use crate::{Index, IndexWriter, Term};
 
     #[test]
@@ -196,7 +198,7 @@ mod tests_mmap {
         let index = Index::create_in_ram(schema_builder.build());
         let mut index_writer = index.writer_for_tests().unwrap();
         index_writer
-            .add_document(doc!(field=>json!({format!("{field_name_in}"): "test1", format!("num{field_name_in}"): 10})))
+            .add_document(doc!(field=>json!({field_name_in.to_string(): "test1", format!("num{field_name_in}"): 10})))
             .unwrap();
         index_writer
             .add_document(doc!(field=>json!({format!("a{field_name_in}"): "test2"})))
@@ -450,8 +452,9 @@ mod tests_mmap {
     fn test_json_fields_metadata(expanded_dots: bool, one_segment: bool) {
         use pretty_assertions::assert_eq;
         let mut schema_builder = Schema::builder();
-        let json_options: JsonObjectOptions =
-            JsonObjectOptions::from(TEXT).set_fast(None).set_stored();
+        let json_options: JsonObjectOptions = JsonObjectOptions::from(TEXT)
+            .set_fast(RAW_TOKENIZER_NAME)
+            .set_stored();
         let json_options = if expanded_dots {
             json_options.set_expand_dots_enabled()
         } else {
@@ -633,8 +636,9 @@ mod tests_mmap {
         /// affect the field name itself.
         use pretty_assertions::assert_eq;
         let mut schema_builder = Schema::builder();
-        let json_options: JsonObjectOptions =
-            JsonObjectOptions::from(TEXT).set_fast(None).set_stored();
+        let json_options: JsonObjectOptions = JsonObjectOptions::from(TEXT)
+            .set_fast(RAW_TOKENIZER_NAME)
+            .set_stored();
         // let json_options = json_options.set_expand_dots_enabled();
         let json_field_shadow = schema_builder.add_json_field("json.shadow", json_options.clone());
         let json_field = schema_builder.add_json_field("json", json_options.clone());

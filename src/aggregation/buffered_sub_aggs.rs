@@ -2,7 +2,6 @@ use std::fmt::Debug;
 
 use super::segment_agg_result::SegmentAggregationCollector;
 use crate::aggregation::agg_data::AggregationsSegmentCtx;
-use crate::aggregation::bucket::MAX_NUM_TERMS_FOR_VEC;
 use crate::aggregation::BucketId;
 use crate::DocId;
 
@@ -45,7 +44,6 @@ pub trait SubAggBuffer: Debug {
         &mut self,
         sub_agg: &mut Box<dyn SegmentAggregationCollector>,
         agg_data: &mut AggregationsSegmentCtx,
-        force: bool,
     ) -> crate::Result<()>;
 }
 
@@ -76,7 +74,7 @@ impl<Backend: SubAggBuffer + Debug> BufferedSubAggs<Backend> {
     ) -> crate::Result<()> {
         if self.num_docs >= FLUSH_THRESHOLD {
             self.buffer
-                .flush_local(&mut self.sub_agg_collector, agg_data, false)?;
+                .flush_local(&mut self.sub_agg_collector, agg_data)?;
             self.num_docs = 0;
         }
         Ok(())
@@ -86,7 +84,7 @@ impl<Backend: SubAggBuffer + Debug> BufferedSubAggs<Backend> {
     pub fn flush(&mut self, agg_data: &mut AggregationsSegmentCtx) -> crate::Result<()> {
         if self.num_docs != 0 {
             self.buffer
-                .flush_local(&mut self.sub_agg_collector, agg_data, true)?;
+                .flush_local(&mut self.sub_agg_collector, agg_data)?;
             self.num_docs = 0;
         }
         self.sub_agg_collector.flush(agg_data)?;
@@ -150,7 +148,6 @@ impl SubAggBuffer for HighCardSubAggBuffer {
         &mut self,
         sub_agg: &mut Box<dyn SegmentAggregationCollector>,
         agg_data: &mut AggregationsSegmentCtx,
-        _force: bool,
     ) -> crate::Result<()> {
         let mut max_bucket = 0u32;
         for partition in self.partitions.iter() {
@@ -210,34 +207,11 @@ impl SubAggBuffer for LowCardSubAggBuffer {
         &mut self,
         sub_agg: &mut Box<dyn SegmentAggregationCollector>,
         agg_data: &mut AggregationsSegmentCtx,
-        force: bool,
     ) -> crate::Result<()> {
         // Pre-aggregated: call collect per bucket.
         let max_bucket = (self.per_bucket_docs.len() as BucketId).saturating_sub(1);
         sub_agg.prepare_max_bucket(max_bucket, agg_data)?;
-        // The threshold above which we flush buckets individually.
-        // Note: We need to make sure that we don't lock ourselves into a situation where we hit
-        // the FLUSH_THRESHOLD, but never flush any buckets. (except the final flush)
-        let mut bucket_treshold = FLUSH_THRESHOLD / (self.per_bucket_docs.len().max(1) * 2);
-        const _: () = {
-            // MAX_NUM_TERMS_FOR_VEC threshold is used for term aggregations
-            // Note: There may be other flexible values, for other aggregations, but we can use the
-            // const value here as a upper bound. (better than nothing)
-            let bucket_treshold_limit = FLUSH_THRESHOLD / (MAX_NUM_TERMS_FOR_VEC as usize * 2);
-            assert!(
-                bucket_treshold_limit > 0,
-                "Bucket threshold must be greater than 0"
-            );
-        };
-        if force {
-            bucket_treshold = 0;
-        }
-        for (bucket_id, docs) in self
-            .per_bucket_docs
-            .iter()
-            .enumerate()
-            .filter(|(_, docs)| docs.len() > bucket_treshold)
-        {
+        for (bucket_id, docs) in self.per_bucket_docs.iter().enumerate() {
             sub_agg.collect(bucket_id as BucketId, docs, agg_data)?;
         }
 

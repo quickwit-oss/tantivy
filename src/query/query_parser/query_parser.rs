@@ -16,8 +16,8 @@ use crate::index::Index;
 use crate::json_utils::convert_to_fast_value_and_append_to_json_term;
 use crate::query::range_query::{is_type_valid_for_fastfield_range_query, RangeQuery};
 use crate::query::{
-    AllQuery, BooleanQuery, BoostQuery, EmptyQuery, FuzzyTermQuery, Occur, PhrasePrefixQuery,
-    PhraseQuery, Query, RegexQuery, TermQuery, TermSetQuery,
+    AllQuery, BooleanQuery, BoostQuery, EmptyQuery, ExistsQuery, FuzzyTermQuery, Occur,
+    PhrasePrefixQuery, PhraseQuery, Query, RegexQuery, TermQuery, TermSetQuery,
 };
 use crate::schema::{
     Facet, FacetParseError, Field, FieldType, IndexRecordOption, IntoIpv6Addr, JsonObjectOptions,
@@ -180,6 +180,10 @@ fn trim_ast(logical_ast: LogicalAst) -> Option<LogicalAst> {
 /// * date values: The query parser supports rfc3339 formatted dates. For example
 ///   `"2002-10-02T15:00:00.05Z"` or `some_date_field:[2002-10-02T15:00:00Z TO
 ///   2002-10-02T18:00:00Z}`
+///
+/// * exists query: `field:*` will match documents that contain a non-null value in the specified
+///   field. The field must be configured as a fast field. For JSON fields, values in subpaths also
+///   count as existing.
 ///
 /// * all docs query: A plain `*` will match all documents in the index.
 ///
@@ -866,11 +870,9 @@ impl QueryParser {
                 let logical_ast = LogicalAst::Leaf(Box::new(LogicalLiteral::Set { elements }));
                 (Some(logical_ast), errors)
             }
-            UserInputLeaf::Exists { .. } => (
-                None,
-                vec![QueryParserError::UnsupportedQuery(
-                    "Range query need to target a specific field.".to_string(),
-                )],
+            UserInputLeaf::Exists { field } => (
+                Some(LogicalAst::Leaf(Box::new(LogicalLiteral::Exists { field }))),
+                Vec::new(),
             ),
             UserInputLeaf::Regex { field, pattern } => {
                 if !self.regexes_allowed {
@@ -962,6 +964,7 @@ fn convert_literal_to_query(
         LogicalLiteral::Regex { pattern, field } => {
             Box::new(RegexQuery::from_regex(pattern, field))
         }
+        LogicalLiteral::Exists { field } => Box::new(ExistsQuery::new(field, true)),
     }
 }
 
@@ -1095,6 +1098,7 @@ mod test {
 
     use super::super::logical_ast::*;
     use super::{QueryParser, QueryParserError};
+    use crate::collector::Count;
     use crate::query::Query;
     use crate::schema::{
         FacetOptions, Field, IndexRecordOption, Schema, Term, TextFieldIndexing, TextOptions, FAST,
@@ -2130,5 +2134,58 @@ mod test {
             err.to_string(),
             "Unsupported query: Regex queries are not allowed."
         );
+    }
+
+    #[test]
+    pub fn test_exists() {
+        test_parse_query_to_logical_ast_helper("title:*", "Exists(title)", false);
+    }
+
+    #[test]
+    fn test_exists_query_with_documents() -> crate::Result<()> {
+        let mut schema_builder = Schema::builder();
+        let fast = schema_builder.add_u64_field("fast", FAST);
+        let json = schema_builder.add_json_field("json", TEXT | FAST);
+        let not_fast = schema_builder.add_text_field("not_fast", TEXT);
+        let schema = schema_builder.build();
+        let index = Index::create_in_ram(schema);
+
+        let mut index_writer = index.writer_for_tests()?;
+        index_writer.add_document(doc!(
+            fast => 1u64,
+            json => json!({"nested": {"value": true}}),
+            not_fast => "present",
+        ))?;
+        index_writer.add_document(doc!(json => json!({"other": 2u64})))?;
+        index_writer.add_document(doc!(json => json!({"nested": null})))?;
+        index_writer.add_document(doc!())?;
+        index_writer.commit()?;
+
+        let query_parser = QueryParser::for_index(&index, Vec::new());
+        let searcher = index.reader()?.searcher();
+
+        let fast_exists = query_parser.parse_query("fast:*")?;
+        assert_eq!(searcher.search(&*fast_exists, &Count)?, 1);
+
+        // JSON exists queries include non-null values in subpaths. The document containing only a
+        // null value and the empty document do not match.
+        let json_exists = query_parser.parse_query("json:*")?;
+        assert_eq!(searcher.search(&*json_exists, &Count)?, 2);
+        let nested_exists = query_parser.parse_query("json.nested:*")?;
+        assert_eq!(searcher.search(&*nested_exists, &Count)?, 1);
+
+        let fast_does_not_exist = query_parser.parse_query("* NOT fast:*")?;
+        assert_eq!(searcher.search(&*fast_does_not_exist, &Count)?, 3);
+
+        let not_fast_exists = query_parser.parse_query("not_fast:*")?;
+        assert_eq!(
+            searcher
+                .search(&*not_fast_exists, &Count)
+                .unwrap_err()
+                .to_string(),
+            "Schema error: 'Field not_fast is not a fast field.'"
+        );
+
+        Ok(())
     }
 }

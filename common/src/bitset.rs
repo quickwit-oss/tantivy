@@ -281,12 +281,16 @@ impl BitSet {
     }
 
     /// Inserts an element in the `BitSet`
+    ///
+    /// Returns true if the set changed.
     #[inline]
-    pub fn insert(&mut self, el: u32) {
+    pub fn insert(&mut self, el: u32) -> bool {
         // we do not check saturated els.
         let higher = el / 64u32;
         let lower = el % 64u32;
-        self.len += u64::from(self.tinysets[higher as usize].insert_mut(lower));
+        let changed = self.tinysets[higher as usize].insert_mut(lower);
+        self.len += u64::from(changed);
+        changed
     }
 
     /// Inserts an element in the `BitSet`
@@ -373,8 +377,8 @@ impl ReadOnlyBitSet {
     /// Iterate the tinyset on the fly from serialized data.
     #[inline]
     fn iter_tinysets(&self) -> impl Iterator<Item = TinySet> + '_ {
-        self.data.chunks_exact(8).map(move |chunk| {
-            let tinyset: TinySet = TinySet::deserialize(chunk.try_into().unwrap());
+        self.data.as_chunks::<8>().0.iter().map(move |&chunk| {
+            let tinyset: TinySet = TinySet::deserialize(chunk);
             tinyset
         })
     }

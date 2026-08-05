@@ -3,7 +3,10 @@ use serde_json::Value;
 use crate::aggregation::agg_req::{Aggregation, Aggregations};
 use crate::aggregation::agg_result::AggregationResults;
 use crate::aggregation::collector::AggregationCollector;
-use crate::aggregation::intermediate_agg_result::IntermediateAggregationResults;
+use crate::aggregation::intermediate_agg_result::{
+    IntermediateAggregationResult, IntermediateAggregationResults, IntermediateBucketResult,
+    IntermediateKey, PruneMode,
+};
 use crate::aggregation::tests::{get_test_index_2_segments, get_test_index_from_values_and_terms};
 use crate::aggregation::DistributedAggregationCollector;
 use crate::docset::COLLECT_BLOCK_BUFFER_LEN;
@@ -662,6 +665,82 @@ fn test_aggregation_flushing_variants() {
     test_aggregation_flushing(false, true).unwrap();
     test_aggregation_flushing(true, false).unwrap();
     test_aggregation_flushing(true, true).unwrap();
+}
+
+// Regression test for https://github.com/quickwit-oss/tantivy/issues/2992
+//
+// A skewed terms bucket over <100 terms uses the low-cardinality (Vec) sub-agg buffer. A dominant
+// term keeps crossing the periodic flush threshold (every 2048 docs), which used to drop the
+// cached doc ids of the minority buckets before collecting them — corrupting their metric
+// sub-aggregations while their doc counts stayed exact.
+#[test]
+fn test_terms_sub_agg_flushing_skewed_buckets() -> crate::Result<()> {
+    use std::collections::HashMap;
+
+    // 89 minority terms + 1 dominant term = 90 distinct terms, staying below
+    // MAX_NUM_TERMS_FOR_LOWCARD_SUBAGG (100) so the low-cardinality Vec sub-agg buffer is used.
+    const NUM_MINORITY_TERMS: usize = 89;
+
+    let mut values: Vec<(f64, String)> = Vec::new();
+    let mut minority_idx = 0usize;
+    // Enough docs to cross the 2048 flush threshold multiple times. The minority docs are
+    // sprinkled among the dominant ones so they land in different flush windows.
+    for i in 0..5000u64 {
+        if i % 25 == 0 {
+            let term = format!("minority_{:02}", minority_idx % NUM_MINORITY_TERMS);
+            minority_idx += 1;
+            values.push(((i % 13 + 1) as f64, term));
+        } else {
+            values.push((7.0, "dominant".to_string()));
+        }
+    }
+
+    let mut truth: HashMap<String, (u64, f64)> = HashMap::new();
+    for (score, term) in &values {
+        let entry = truth.entry(term.clone()).or_insert((0, 0.0));
+        entry.0 += 1;
+        entry.1 += *score;
+    }
+    // Sanity check on the shape of the generated data.
+    assert_eq!(truth.len(), NUM_MINORITY_TERMS + 1);
+
+    let index = get_test_index_from_values_and_terms(false, &[values])?;
+    let reader = index.reader()?;
+
+    let agg_req: Aggregations = serde_json::from_value(json!({
+        "my_terms": {
+            "terms": { "field": "string_id", "size": 100 },
+            "aggs": {
+                "sum_score": { "sum": { "field": "score" } }
+            }
+        }
+    }))
+    .unwrap();
+
+    let collector = get_collector(agg_req);
+    let searcher = reader.searcher();
+    let agg_res = searcher.search(&AllQuery, &collector)?;
+    let res: Value = serde_json::from_str(&serde_json::to_string(&agg_res)?)?;
+
+    let buckets = res["my_terms"]["buckets"].as_array().unwrap();
+    // size 100 >= 90 distinct terms, so every bucket is returned.
+    assert_eq!(buckets.len(), truth.len());
+    for bucket in buckets {
+        let key = bucket["key"].as_str().unwrap();
+        let (true_count, true_sum) = truth[key];
+        assert_eq!(
+            bucket["doc_count"].as_u64().unwrap(),
+            true_count,
+            "doc_count mismatch for {key}"
+        );
+        assert_eq!(
+            bucket["sum_score"]["value"].as_f64().unwrap(),
+            true_sum,
+            "sum sub-agg mismatch for {key}"
+        );
+    }
+
+    Ok(())
 }
 
 #[test]
@@ -1478,4 +1557,133 @@ fn test_aggregation_field_validation_helper() {
     let result =
         crate::aggregation::agg_req::validate_aggregation_fields_exist(&agg_req, segment_reader);
     assert!(result.is_ok());
+}
+
+// "a" has low scores (p50 ≈ 1.5), "b" has high scores (p50 ≈ 99.5).
+// With order by p50 desc and segment_size=1, the segment collector should retain only "b".
+#[test]
+fn test_percentile_order_segment_level() -> crate::Result<()> {
+    let index = get_test_index_from_values_and_terms(
+        false,
+        &[vec![
+            (1.0, "a".to_string()),
+            (2.0, "a".to_string()),
+            (99.0, "b".to_string()),
+            (100.0, "b".to_string()),
+        ]],
+    )?;
+
+    let agg_req: Aggregations = serde_json::from_value(serde_json::json!({
+        "my_terms": {
+            "terms": {
+                "field": "string_id",
+                "size": 1,
+                "segment_size": 1,
+                "order": { "my_pct.50": "desc" }
+            },
+            "aggs": {
+                "my_pct": { "percentiles": { "field": "score_f64", "percents": [50] } }
+            }
+        }
+    }))
+    .unwrap();
+
+    let collector = DistributedAggregationCollector::from_aggs(agg_req, Default::default());
+    let reader = index.reader()?;
+    let intermediate = reader.searcher().search(&AllQuery, &collector)?;
+
+    let IntermediateAggregationResult::Bucket(IntermediateBucketResult::Terms { buckets }) =
+        intermediate.aggs_res.get("my_terms").unwrap()
+    else {
+        panic!("expected terms bucket");
+    };
+    assert_eq!(
+        buckets.entries.len(),
+        1,
+        "segment_size=1 should retain only one bucket"
+    );
+    assert!(
+        buckets
+            .entries
+            .contains_key(&IntermediateKey::Str("b".to_string())),
+        "\"b\" (higher p50) should survive, not \"a\""
+    );
+    assert!(
+        buckets.sum_other_doc_count > 0,
+        "pruned docs should be accounted for"
+    );
+
+    Ok(())
+}
+
+// Same setup with two segments. Both terms survive segment-level pruning (segment_size=2).
+// After merging, prune_intermediate_results with size=1 should keep only "b".
+#[test]
+fn test_percentile_order_prune_intermediate() -> crate::Result<()> {
+    let index = get_test_index_from_values_and_terms(
+        false,
+        &[
+            vec![
+                (1.0, "a".to_string()),
+                (2.0, "a".to_string()),
+                (99.0, "b".to_string()),
+                (100.0, "b".to_string()),
+            ],
+            vec![(3.0, "a".to_string()), (98.0, "b".to_string())],
+        ],
+    )?;
+
+    let agg_req: Aggregations = serde_json::from_value(serde_json::json!({
+        "my_terms": {
+            "terms": {
+                "field": "string_id",
+                "size": 1,
+                "segment_size": 2,
+                "order": { "my_pct.50": "desc" }
+            },
+            "aggs": {
+                "my_pct": { "percentiles": { "field": "score_f64", "percents": [50] } }
+            }
+        }
+    }))
+    .unwrap();
+
+    let collector = DistributedAggregationCollector::from_aggs(agg_req.clone(), Default::default());
+    let reader = index.reader()?;
+    let mut intermediate = reader.searcher().search(&AllQuery, &collector)?;
+
+    // Both terms should have survived segment-level pruning (segment_size=2).
+    {
+        let IntermediateAggregationResult::Bucket(IntermediateBucketResult::Terms { buckets }) =
+            intermediate.aggs_res.get("my_terms").unwrap()
+        else {
+            panic!("expected terms bucket");
+        };
+        assert_eq!(
+            buckets.entries.len(),
+            2,
+            "both terms should survive segment-level pruning"
+        );
+    }
+
+    intermediate.prune_intermediate_results(&agg_req, PruneMode::Final)?;
+
+    let IntermediateAggregationResult::Bucket(IntermediateBucketResult::Terms { buckets }) =
+        intermediate.aggs_res.get("my_terms").unwrap()
+    else {
+        panic!("expected terms bucket");
+    };
+    assert_eq!(
+        buckets.entries.len(),
+        1,
+        "size=1 should retain only one bucket"
+    );
+    assert!(
+        buckets
+            .entries
+            .contains_key(&IntermediateKey::Str("b".to_string())),
+        "\"b\" (higher p50) should survive, not \"a\""
+    );
+
+    Ok(())
 }

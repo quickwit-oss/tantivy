@@ -37,7 +37,7 @@ fn compute_slope(y0: u64, y1: u64, num_vals: NonZeroU32) -> u64 {
     } else {
         y0.wrapping_sub(y1)
     };
-    if abs_dy >= 1 << 32 {
+    if abs_dy >= 1 << 31 {
         // This is outside of realm we handle.
         // Let's just bail.
         return 0u64;

@@ -7,7 +7,7 @@ use tokenizer_api::Token;
 use crate::indexer::doc_id_mapping::DocIdMapping;
 use crate::schema::document::{Document, ReferenceValue, ReferenceValueLeaf, Value};
 use crate::schema::{value_type_to_column_type, Field, FieldType, Schema, Type};
-use crate::tokenizer::{TextAnalyzer, TokenizerManager};
+use crate::tokenizer::{TextAnalyzer, TokenizerManager, RAW_TOKENIZER_NAME};
 use crate::{DocId, TantivyError};
 
 /// Only index JSON down to a depth of 20.
@@ -58,26 +58,33 @@ impl FastFieldsWriter {
                 date_precisions[field_id.field_id() as usize] = date_options.get_precision();
             }
             if let FieldType::JsonObject(json_object_options) = field_entry.field_type() {
-                if let Some(tokenizer_name) = json_object_options.get_fast_field_tokenizer_name() {
-                    let text_analyzer = tokenizer_manager.get(tokenizer_name).ok_or_else(|| {
-                        TantivyError::InvalidArgument(format!(
-                            "Tokenizer {tokenizer_name:?} not found"
-                        ))
-                    })?;
-                    per_field_tokenizer[field_id.field_id() as usize] = Some(text_analyzer);
+                if let Some(json_text_fast_field_option) = &json_object_options.fast {
+                    let tokenizer_name = json_text_fast_field_option.tokenizer.as_str();
+                    if tokenizer_name != RAW_TOKENIZER_NAME {
+                        let text_analyzer =
+                            tokenizer_manager.get(tokenizer_name).ok_or_else(|| {
+                                TantivyError::InvalidArgument(format!(
+                                    "Tokenizer {tokenizer_name:?} not found"
+                                ))
+                            })?;
+                        per_field_tokenizer[field_id.field_id() as usize] = Some(text_analyzer);
+                    }
                 }
-
                 expand_dots[field_id.field_id() as usize] =
                     json_object_options.is_expand_dots_enabled();
             }
             if let FieldType::Str(text_options) = field_entry.field_type() {
-                if let Some(tokenizer_name) = text_options.get_fast_field_tokenizer_name() {
-                    let text_analyzer = tokenizer_manager.get(tokenizer_name).ok_or_else(|| {
-                        TantivyError::InvalidArgument(format!(
-                            "Tokenizer {tokenizer_name:?} not found"
-                        ))
-                    })?;
-                    per_field_tokenizer[field_id.field_id() as usize] = Some(text_analyzer);
+                if let Some(fast_field_text_options) = &text_options.fast {
+                    let tokenizer_name = fast_field_text_options.tokenizer.as_str();
+                    if tokenizer_name != RAW_TOKENIZER_NAME {
+                        let text_analyzer =
+                            tokenizer_manager.get(tokenizer_name).ok_or_else(|| {
+                                TantivyError::InvalidArgument(format!(
+                                    "Tokenizer `{tokenizer_name}` not found"
+                                ))
+                            })?;
+                        per_field_tokenizer[field_id.field_id() as usize] = Some(text_analyzer);
+                    }
                 }
             }
 
@@ -377,9 +384,24 @@ mod tests {
     use columnar::{Column, ColumnarReader, ColumnarWriter, StrColumn};
     use common::JsonPathWriter;
 
-    use super::record_json_value_to_columnar_writer;
+    use super::{record_json_value_to_columnar_writer, FastFieldsWriter};
     use crate::fastfield::writer::JSON_DEPTH_LIMIT;
+    use crate::schema::{Schema, FAST};
     use crate::DocId;
+
+    #[test]
+    fn test_raw_fast_fields_bypass_tokenizer() {
+        let mut schema_builder = Schema::builder();
+        let text_field = schema_builder.add_text_field("text", FAST);
+        let json_field = schema_builder.add_json_field("json", FAST);
+        let schema = schema_builder.build();
+
+        // `from_schema` uses an empty tokenizer manager, so this also verifies that the raw
+        // tokenizer is not looked up.
+        let fast_fields_writer = FastFieldsWriter::from_schema(&schema).unwrap();
+        assert!(fast_fields_writer.per_field_tokenizer[text_field.field_id() as usize].is_none());
+        assert!(fast_fields_writer.per_field_tokenizer[json_field.field_id() as usize].is_none());
+    }
 
     fn test_columnar_from_jsons_aux(
         json_docs: &[serde_json::Value],

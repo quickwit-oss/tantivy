@@ -202,6 +202,7 @@ mod tests {
         assert_eq!(&output, &[1, 3, 4, 5, 6, 7, 8]);
     }
 
+    #[allow(clippy::reversed_empty_ranges)] // Intentional: exercises the start > end case.
     fn test_filter_impl_empty_range_aux(filter_impl: FilterImplPerInstructionSet) {
         // start > end: RangeInclusive::contains always returns false; output must be empty.
         // The SVE path's wrapping_sub would otherwise produce a huge range_width.

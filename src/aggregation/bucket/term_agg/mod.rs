@@ -1,4 +1,5 @@
 use std::fmt::Debug;
+use std::hash::Hash;
 use std::net::Ipv6Addr;
 
 use columnar::column_values::CompactSpaceU64Accessor;
@@ -10,15 +11,15 @@ use common::{BitSet, TinySet};
 use rustc_hash::FxHashMap;
 use serde::{Deserialize, Serialize};
 
-use super::{CustomOrder, Order, OrderTarget};
+use super::{BucketIdSlot, CustomOrder, Order, OrderTarget};
 use crate::aggregation::agg_data::{
     build_segment_agg_collectors, AggRefNode, AggregationsSegmentCtx,
 };
 use crate::aggregation::agg_limits::MemoryConsumption;
 use crate::aggregation::agg_req::Aggregations;
 use crate::aggregation::buffered_sub_aggs::{
-    BufferedSubAggs, HighCardSubAggBuffer, LowCardBufferedSubAggs, LowCardSubAggBuffer,
-    SubAggBuffer,
+    BufferedSubAggs, HighCardBufferedSubAggs, HighCardSubAggBuffer, LowCardBufferedSubAggs,
+    LowCardSubAggBuffer, SubAggBuffer,
 };
 use crate::aggregation::intermediate_agg_result::{
     IntermediateAggregationResult, IntermediateAggregationResults, IntermediateBucketResult,
@@ -335,9 +336,51 @@ impl TermsAggregationInternal {
     }
 }
 
-/// The treshold for maximum number of terms to use a Vec-backed bucket storage.
+/// Threshold for using dense `Vec` storage ([`VecTermBuckets`] or
+/// [`LowCardVecTermBuckets`]) for term buckets. Below this many term ordinals the `Vec`
+/// (direct-indexed, no hashing/paging) beats the paged/hashed storages. It preallocates
+/// `num_terms` slots, so the ceiling also bounds its memory.
+///
 /// TODO: Benchmark to validate the threshold
-pub const MAX_NUM_TERMS_FOR_VEC: u64 = 100;
+pub const MAX_NUM_TERMS_FOR_VEC: u64 = 20_000;
+
+/// Threshold below which a terms agg without sub-aggregations uses [`LowCardVecTermBuckets`], whose
+/// independent count lanes improve throughput when many consecutive values address the same few
+/// counters. With sub-aggregations, this threshold selects [`LowCardSubAggBuffer`] (which buffers
+/// docs in a per-bucket `Vec`) while retaining scalar term counters. Both specialized layouts only
+/// pay off for a handful of buckets, so this is far lower than [`MAX_NUM_TERMS_FOR_VEC`].
+pub const MAX_NUM_TERMS_FOR_LOWCARD_SUBAGG: u64 = 100;
+
+/// Threshold for using [`PagedTermMap`] storage; larger term-id spaces use
+/// [`HashMapTermBuckets`] instead.
+pub const MAX_NUM_TERMS_FOR_PAGED_MAP: u64 = 8_000_000;
+
+/// Above this term count, generate sub-aggregation bucket IDs on first use to avoid IDs for unseen
+/// terms.
+///
+/// TODO: Benchmark this threshold.
+pub(crate) const LAZY_BUCKET_ID_GENERATION_THRESHOLD: u64 = 4_096;
+
+/// Average docs-per-bucket below which term counts cluster too tightly (mostly 1s and 2s) for
+/// `select_nth_unstable` to beat `sort_unstable`'s adaptive paths, so we fall back to a full sort.
+/// This is very low on purpose, and meant to catch unique or mostly unique terms.
+const DOCS_PER_BUCKET_QUICKSELECT_THRESHOLD: u64 = 2;
+
+/// Charge a `Vec`-backed term storage's eager, up-front allocation against the memory limit.
+///
+/// The paged/hashed storages grow lazily during `collect` and are charged there via deltas, but
+/// the dense term maps preallocate all `num_terms` slots at construction, so their memory would
+/// otherwise escape the limit entirely (relevant now that the `Vec` threshold reaches
+/// [`MAX_NUM_TERMS_FOR_VEC`]).
+fn add_memory_consumption<M: TermAggregationMap>(
+    term_buckets: &M,
+    req_data: &mut AggregationsSegmentCtx,
+) -> crate::Result<()> {
+    req_data
+        .context
+        .limits
+        .add_memory_consumed(term_buckets.get_memory_consumption() as u64)
+}
 
 /// Build a concrete `SegmentTermCollector` with either a Vec- or HashMap-backed
 /// bucket storage, depending on the column type and aggregation level.
@@ -399,99 +442,225 @@ pub(crate) fn build_segment_term_collector(
 
     let mut bucket_id_provider = BucketIdProvider::default();
     // Decide which bucket storage is best suited for this aggregation.
-    if is_top_level && max_column_val < MAX_NUM_TERMS_FOR_VEC && !has_sub_aggregations {
-        let term_buckets = VecTermBucketsNoAgg::new(max_column_val + 1, &mut bucket_id_provider);
-        let collector: SegmentTermCollector<_, HighCardSubAggBuffer> = SegmentTermCollector {
-            parent_buckets: vec![term_buckets],
-            sub_agg: None,
+    //
+    // Every storage is generic over its `Bucket` id slot (see `BucketIdSlot`): with sub
+    // aggregations it stores a real `BucketId` (to key the buffered sub-aggs), without them the
+    // zero-sized `()`, which shrinks each bucket and turns id assignment into a no-op.
+    //
+    // Only the dense Vec/Paged storages below (all gated to `max_column_val <
+    // MAX_NUM_TERMS_FOR_PAGED_MAP`) use
+    // `num_terms`. `saturating_add` guards the HashMap fallback, where `max_column_val` is a raw
+    // numeric column value that can reach `u64::MAX`; term ordinals never come close.
+    let num_terms = max_column_val.saturating_add(1);
+
+    // Very low cardinality without sub aggregations: cycle writes through independent count lanes,
+    // avoiding a serial read/modify/write dependency when consecutive docs repeatedly hit the same
+    // few terms. With sub aggregations, the per-doc buffer push already breaks that dependency;
+    // lanes only add indexing and a wider bucket layout, so retain one scalar counter and bucket id
+    // per term while pairing it with the `LowCard` doc buffer.
+    if is_top_level && max_column_val < MAX_NUM_TERMS_FOR_LOWCARD_SUBAGG {
+        if has_sub_aggregations {
+            let term_buckets = VecTermBuckets::<BucketId>::new(num_terms, &mut bucket_id_provider);
+            add_memory_consumption(&term_buckets, req_data)?;
+            let collector: SegmentTermCollector<_, LowCardSubAggBuffer> = SegmentTermCollector {
+                parent_buckets: vec![term_buckets],
+                sub_agg: sub_agg_collector.map(LowCardBufferedSubAggs::new),
+                bucket_id_provider,
+                max_term_id: max_column_val,
+                terms_req_data,
+            };
+            return Ok(Box::new(collector));
+        }
+
+        let term_buckets = VecTermBucketsWithLanes::<()>::new(num_terms, &mut bucket_id_provider);
+        add_memory_consumption(&term_buckets, req_data)?;
+        return Ok(boxed_high_card_collector(
+            term_buckets,
+            None,
             bucket_id_provider,
-            max_term_id: max_column_val,
+            max_column_val,
             terms_req_data,
-        };
-        Ok(Box::new(collector))
-    } else if is_top_level && max_column_val < MAX_NUM_TERMS_FOR_VEC {
-        let term_buckets = VecTermBuckets::new(max_column_val + 1, &mut bucket_id_provider);
-        let sub_agg = sub_agg_collector.map(LowCardBufferedSubAggs::new);
-        let collector: SegmentTermCollector<_, LowCardSubAggBuffer> = SegmentTermCollector {
-            parent_buckets: vec![term_buckets],
+        ));
+    }
+
+    // Everything below uses the partitioned `HighCard` sub-agg buffer, so it is built once here.
+    let sub_agg = sub_agg_collector.map(BufferedSubAggs::new);
+    if is_top_level && max_column_val < MAX_NUM_TERMS_FOR_VEC {
+        // Low/moderate cardinality: dense `Vec` storage, direct-indexed by term ordinal — no
+        // hashing or page indirection. Used both with and without sub aggregations.
+        if has_sub_aggregations {
+            // Eager id assignment (branchless `term_entry`) while the bucket count is small;
+            // switch to lazy above the threshold to keep the sub-agg bucket range compact for
+            // large/sparse ordinal spaces. See `LAZY_BUCKET_ID_GENERATION_THRESHOLD`.
+            if num_terms > LAZY_BUCKET_ID_GENERATION_THRESHOLD {
+                let term_buckets =
+                    VecTermBuckets::<BucketId, true>::new(num_terms, &mut bucket_id_provider);
+                add_memory_consumption(&term_buckets, req_data)?;
+                Ok(boxed_high_card_collector(
+                    term_buckets,
+                    sub_agg,
+                    bucket_id_provider,
+                    max_column_val,
+                    terms_req_data,
+                ))
+            } else {
+                let term_buckets =
+                    VecTermBuckets::<BucketId, false>::new(num_terms, &mut bucket_id_provider);
+                add_memory_consumption(&term_buckets, req_data)?;
+                Ok(boxed_high_card_collector(
+                    term_buckets,
+                    sub_agg,
+                    bucket_id_provider,
+                    max_column_val,
+                    terms_req_data,
+                ))
+            }
+        } else {
+            // No sub aggregations: the `()` slot carries no id, so eager vs lazy is moot and
+            // `term_entry` is branchless either way.
+            let term_buckets = VecTermBuckets::<()>::new(num_terms, &mut bucket_id_provider);
+            add_memory_consumption(&term_buckets, req_data)?;
+            Ok(boxed_high_card_collector(
+                term_buckets,
+                sub_agg,
+                bucket_id_provider,
+                max_column_val,
+                terms_req_data,
+            ))
+        }
+    } else if is_top_level && max_column_val < MAX_NUM_TERMS_FOR_PAGED_MAP {
+        if has_sub_aggregations {
+            let term_buckets = PagedTermMap::<BucketId>::new(num_terms, &mut bucket_id_provider);
+            Ok(boxed_high_card_collector(
+                term_buckets,
+                sub_agg,
+                bucket_id_provider,
+                max_column_val,
+                terms_req_data,
+            ))
+        } else {
+            let term_buckets = PagedTermMap::<()>::new(num_terms, &mut bucket_id_provider);
+            Ok(boxed_high_card_collector(
+                term_buckets,
+                sub_agg,
+                bucket_id_provider,
+                max_column_val,
+                terms_req_data,
+            ))
+        }
+    } else if has_sub_aggregations {
+        let term_buckets = HashMapTermBuckets::<BucketId>::default();
+        Ok(boxed_high_card_collector(
+            term_buckets,
             sub_agg,
             bucket_id_provider,
-            max_term_id: max_column_val,
+            max_column_val,
             terms_req_data,
-        };
-        Ok(Box::new(collector))
-    } else if max_column_val < 8_000_000 && is_top_level {
-        let term_buckets: PagedTermMap =
-            PagedTermMap::new(max_column_val + 1, &mut bucket_id_provider);
-        // Build sub-aggregation blueprint (flat pairs)
-        let sub_agg = sub_agg_collector.map(BufferedSubAggs::new);
-        let collector: SegmentTermCollector<PagedTermMap, HighCardSubAggBuffer> =
-            SegmentTermCollector {
-                parent_buckets: vec![term_buckets],
-                sub_agg,
-                bucket_id_provider,
-                max_term_id: max_column_val,
-                terms_req_data,
-            };
-        Ok(Box::new(collector))
+        ))
     } else {
-        let term_buckets: HashMapTermBuckets = HashMapTermBuckets::default();
-        // Build sub-aggregation blueprint (flat pairs)
-        let sub_agg = sub_agg_collector.map(BufferedSubAggs::new);
-        let collector: SegmentTermCollector<HashMapTermBuckets, HighCardSubAggBuffer> =
-            SegmentTermCollector {
-                parent_buckets: vec![term_buckets],
-                sub_agg,
-                bucket_id_provider,
-                max_term_id: max_column_val,
-                terms_req_data,
-            };
-        Ok(Box::new(collector))
+        let term_buckets = HashMapTermBuckets::<()>::default();
+        Ok(boxed_high_card_collector(
+            term_buckets,
+            sub_agg,
+            bucket_id_provider,
+            max_column_val,
+            terms_req_data,
+        ))
     }
 }
 
-#[derive(Debug, Clone, Copy, Default)]
-struct Bucket {
-    pub count: u32,
-    pub bucket_id: BucketId,
+/// Boxes a term collector backed by the high-cardinality sub-agg buffer. Lets the storage branches
+/// above pick the `Bucket` id slot (`BucketId` vs `()`) without repeating the collector literal.
+fn boxed_high_card_collector<M: TermAggregationMap>(
+    term_buckets: M,
+    sub_agg: Option<HighCardBufferedSubAggs>,
+    bucket_id_provider: BucketIdProvider,
+    max_term_id: u64,
+    terms_req_data: TermsAggReqData,
+) -> Box<dyn SegmentAggregationCollector> {
+    Box::new(SegmentTermCollector::<M, HighCardSubAggBuffer> {
+        parent_buckets: vec![term_buckets],
+        sub_agg,
+        bucket_id_provider,
+        max_term_id,
+        terms_req_data,
+    })
 }
 
-impl Bucket {
-    #[inline(always)]
-    fn new(bucket_id: BucketId) -> Self {
+/// A term bucket: its doc count plus a [`BucketIdSlot`] identifying it for sub-aggregations.
+///
+/// `B` is [`BucketId`] when the terms agg has sub aggregations and the zero-sized `()` when it does
+/// not, so `Bucket<()>` is just the count (see [`BucketIdSlot`]).
+#[derive(Debug, Clone, Copy, Default)]
+pub(crate) struct Bucket<B = BucketId> {
+    pub count: u32,
+    pub bucket_id: B,
+}
+
+impl<B: BucketIdSlot> Bucket<B> {
+    /// Creates an empty bucket, assigning it the next id from `bucket_id_provider` (a no-op for the
+    /// `()` slot, which leaves the provider untouched).
+    #[inline]
+    fn new(bucket_id_provider: &mut BucketIdProvider) -> Self {
         Self {
             count: 0,
-            bucket_id,
+            bucket_id: B::assign(bucket_id_provider),
         }
     }
 }
 
-/// Abstraction over the storage used for term buckets (counts only).
-trait TermAggregationMap: Clone + Debug + 'static {
-    /// Create a new instance with a strict upper bound on term ids.
-    fn new(max_term_id: u64, bucket_id_provider: &mut BucketIdProvider) -> Self;
+/// A key accepted by a [`TermAggregationMap`].
+///
+/// The map allocation already includes the inline key object. Implementations report only heap
+/// allocations owned indirectly by the key, such as a spilled `SmallVec`.
+pub(crate) trait AggregationMapKey: Clone + Debug + Eq + Hash + 'static {
+    fn heap_memory_usage(&self) -> usize {
+        0
+    }
+}
+
+impl AggregationMapKey for u64 {}
+
+/// Abstraction over the storage used for aggregation buckets (counts plus a [`BucketIdSlot`]).
+///
+/// Terms aggregations use the default `u64` key. Multi-terms reuses the same abstraction with
+/// either a packed `u64` or a composite key.
+pub(crate) trait TermAggregationMap<K: AggregationMapKey = u64>:
+    Clone + Debug + 'static
+{
+    /// The per-bucket id slot: [`BucketId`] with sub aggregations, `()` without (see
+    /// [`BucketIdSlot`]).
+    type Slot: BucketIdSlot;
+
+    /// Whether `into_vec` returns entries already sorted by key, ascending.
+    const SORTED_BY_KEY: bool;
+
+    /// Create a new instance. Dense and paged maps interpret `map_init_value` as their key-domain
+    /// bound; hash maps ignore it.
+    fn new(map_init_value: u64, bucket_id_provider: &mut BucketIdProvider) -> Self;
 
     /// Estimate the memory consumption of this struct in bytes.
     fn get_memory_consumption(&self) -> usize;
 
-    /// Increments the count and returns the bucket_id associated to a given term_id.
-    fn term_entry(&mut self, term_id: u64, bucket_id_provider: &mut BucketIdProvider) -> BucketId;
+    /// Increments the count and returns the bucket id slot associated with `key`.
+    fn term_entry(&mut self, key: K, bucket_id_provider: &mut BucketIdProvider) -> Self::Slot;
 
-    /// Returns the term aggregation as a vector of (term_id, bucket) pairs,
-    /// in any order.
-    fn into_vec(self) -> Vec<(u64, Bucket)>;
+    /// Returns the aggregation as a vector of `(key, bucket)` pairs, in any order.
+    fn into_vec(self) -> Vec<(K, Bucket<Self::Slot>)>;
 }
 
 #[derive(Clone, Debug)]
-struct HashMapTermBuckets {
-    bucket_map: FxHashMap<u64, Bucket>,
+pub(crate) struct HashMapTermBuckets<B = BucketId, K = u64> {
+    bucket_map: FxHashMap<K, Bucket<B>>,
+    key_heap_memory: usize,
 }
 
-impl Default for HashMapTermBuckets {
-    #[inline(always)]
+impl<B, K> Default for HashMapTermBuckets<B, K> {
+    #[inline]
     fn default() -> Self {
         Self {
             bucket_map: FxHashMap::default(),
+            key_heap_memory: 0,
         }
     }
 }
@@ -502,14 +671,14 @@ const PAGE_MASK: usize = PAGE_SIZE - 1;
 const BITMASK_LEN: usize = PAGE_SIZE / 64;
 
 #[derive(Clone, Debug)]
-struct Page {
+struct Page<B> {
     /// Bitmask indicating which offsets are present.
     /// It is chunked into TinySet words.
     presence: [TinySet; BITMASK_LEN],
-    data: [Bucket; PAGE_SIZE],
+    data: [Bucket<B>; PAGE_SIZE],
 }
 
-impl Page {
+impl<B: BucketIdSlot> Page<B> {
     fn new() -> Self {
         Self {
             presence: [TinySet::empty(); BITMASK_LEN],
@@ -532,7 +701,7 @@ impl Page {
     }
 
     // Flattened iteration logic
-    fn collect_items(&self, base_term_id: u64, result: &mut Vec<(u64, Bucket)>) {
+    fn collect_items(&self, base_term_id: u64, result: &mut Vec<(u64, Bucket<B>)>) {
         for (bucket_pos, &tiny_set) in self.presence.iter().enumerate() {
             let base_offset = bucket_pos * 64;
 
@@ -558,22 +727,24 @@ impl Page {
 /// directories only. Therefore, this implementation is only enabled for top-level aggregations
 /// TODO: pass expected number of buckets from parent instead of strict is_top_level flag.
 #[derive(Clone, Debug, Default)]
-struct PagedTermMap {
+pub(crate) struct PagedTermMap<B = BucketId> {
     // Fixed size vector based on max_term_id
-    pages: Vec<Option<Box<Page>>>,
+    pages: Vec<Option<Box<Page<B>>>>,
     mem_usage: usize,
 }
 
-impl PagedTermMap {}
+impl<B: BucketIdSlot> TermAggregationMap for PagedTermMap<B> {
+    type Slot = B;
 
-impl TermAggregationMap for PagedTermMap {
+    const SORTED_BY_KEY: bool = true;
+
     #[inline]
     fn get_memory_consumption(&self) -> usize {
         self.mem_usage + std::mem::size_of::<Self>()
     }
 
     #[inline]
-    fn term_entry(&mut self, term_id: u64, bucket_id_provider: &mut BucketIdProvider) -> BucketId {
+    fn term_entry(&mut self, term_id: u64, bucket_id_provider: &mut BucketIdProvider) -> B {
         let term_id = term_id as usize;
         let page_idx = term_id >> PAGE_SHIFT;
         let offset = term_id & PAGE_MASK;
@@ -583,7 +754,7 @@ impl TermAggregationMap for PagedTermMap {
             Some(p) => p,
             None => {
                 let new_page = Box::new(Page::new());
-                self.mem_usage += std::mem::size_of::<Page>();
+                self.mem_usage += std::mem::size_of::<Page<B>>();
                 self.pages[page_idx] = Some(new_page);
                 self.pages[page_idx].as_mut().unwrap()
             }
@@ -594,17 +765,15 @@ impl TermAggregationMap for PagedTermMap {
             bucket.count += 1;
             bucket.bucket_id
         } else {
-            let new_id = bucket_id_provider.next_bucket_id();
-            page.data[offset] = Bucket {
-                count: 1,
-                bucket_id: new_id,
-            };
+            let mut bucket = Bucket::new(bucket_id_provider);
+            bucket.count = 1;
+            page.data[offset] = bucket;
             page.set_present(offset);
-            new_id
+            bucket.bucket_id
         }
     }
 
-    fn into_vec(self) -> Vec<(u64, Bucket)> {
+    fn into_vec(self) -> Vec<(u64, Bucket<B>)> {
         // estimate 16 entries per non-empty page
         let estimated_count = self.pages.iter().filter(|p| p.is_some()).count() * 16;
         let mut result = Vec::with_capacity(estimated_count);
@@ -628,113 +797,159 @@ impl TermAggregationMap for PagedTermMap {
         // Memory cost: num_pages * 8 bytes
         let pages = vec![None; num_pages];
 
-        let mem_usage = pages.capacity() * std::mem::size_of::<Option<Box<Page>>>();
+        let mem_usage = pages.capacity() * std::mem::size_of::<Option<Box<Page<B>>>>();
 
         Self { pages, mem_usage }
     }
 }
 
-impl TermAggregationMap for HashMapTermBuckets {
+impl<K: AggregationMapKey, B: BucketIdSlot> TermAggregationMap<K> for HashMapTermBuckets<B, K> {
+    type Slot = B;
+
+    const SORTED_BY_KEY: bool = false;
+
     #[inline]
     fn get_memory_consumption(&self) -> usize {
-        self.bucket_map.memory_consumption()
+        self.bucket_map.memory_consumption() + self.key_heap_memory
     }
 
-    #[inline(always)]
-    fn term_entry(&mut self, term_id: u64, bucket_id_provider: &mut BucketIdProvider) -> BucketId {
-        let bucket = self
-            .bucket_map
-            .entry(term_id)
-            .or_insert_with(|| Bucket::new(bucket_id_provider.next_bucket_id()));
+    #[inline]
+    fn term_entry(&mut self, key: K, bucket_id_provider: &mut BucketIdProvider) -> B {
+        let bucket = match self.bucket_map.entry(key) {
+            std::collections::hash_map::Entry::Occupied(entry) => entry.into_mut(),
+            std::collections::hash_map::Entry::Vacant(entry) => {
+                self.key_heap_memory += entry.key().heap_memory_usage();
+                entry.insert(Bucket::new(bucket_id_provider))
+            }
+        };
         bucket.count += 1;
         bucket.bucket_id
     }
 
-    fn into_vec(self) -> Vec<(u64, Bucket)> {
+    fn into_vec(self) -> Vec<(K, Bucket<B>)> {
         self.bucket_map.into_iter().collect()
     }
 
     #[inline]
-    fn new(_max_term_id: u64, _bucket_id_provider: &mut BucketIdProvider) -> Self {
+    fn new(_map_init_value: u64, _bucket_id_provider: &mut BucketIdProvider) -> Self {
         Self::default()
     }
 }
 
-/// An optimized term map implementation for a compact set of term ordinals.
-#[derive(Clone, Debug)]
-struct VecTermBucketsNoAgg {
-    buckets: Vec<u32>,
+/// Number of independent counters maintained per logical very-low-cardinality term bucket.
+///
+/// Cycling writes across eight counters covers the read/modify/write latency of a counter update
+/// while keeping the entire map small at [`MAX_NUM_TERMS_FOR_LOWCARD_SUBAGG`].
+const NUM_LOW_CARD_COUNT_LANES: usize = 8;
+
+/// A very-low-cardinality term bucket with split count storage and one shared sub-aggregation id.
+/// Only the counters are replicated: `bucket_id` remains unique per logical term.
+#[derive(Clone, Copy, Debug)]
+struct TermBucketWithLanes<B> {
+    count_lanes: [u32; NUM_LOW_CARD_COUNT_LANES],
+    bucket_id: B,
 }
 
-impl TermAggregationMap for VecTermBucketsNoAgg {
-    /// Estimate the memory consumption of this struct in bytes.
-    fn get_memory_consumption(&self) -> usize {
-        // We do not include `std::mem::size_of::<Self>()`
-        // It is already measure by the parent aggregation.
-        //
-        self.buckets.capacity() * std::mem::size_of::<u32>()
-    }
-
-    /// Add an occurrence of the given term id.
+impl<B: BucketIdSlot> TermBucketWithLanes<B> {
     #[inline(always)]
-    fn term_entry(&mut self, term_id: u64, _bucket_id_provider: &mut BucketIdProvider) -> BucketId {
-        let term_id_usize = term_id as usize;
-        debug_assert!(
-            term_id_usize < self.buckets.len(),
-            "term_id {} out of bounds for VecTermBuckets (len={})",
-            term_id,
-            self.buckets.len()
-        );
-        let count = unsafe { self.buckets.get_unchecked_mut(term_id_usize) };
-        *count += 1;
-        0 // unused
-    }
-
-    fn into_vec(self) -> Vec<(u64, Bucket)> {
-        self.buckets
-            .into_iter()
-            .enumerate()
-            .filter(|(_term_id, count)| *count > 0)
-            .map(|(term_id, count)| {
-                (
-                    term_id as u64,
-                    Bucket {
-                        count,
-                        bucket_id: 0, // unused, there are no sub-aggregations
-                    },
-                )
-            })
-            .collect()
-    }
-
-    fn new(num_terms: u64, _bucket_id_provider: &mut BucketIdProvider) -> Self {
+    fn new(bucket_id_provider: &mut BucketIdProvider) -> Self {
         Self {
-            buckets: std::iter::repeat_with(|| 0)
-                .take(num_terms as usize)
-                .collect(),
+            count_lanes: [0; NUM_LOW_CARD_COUNT_LANES],
+            bucket_id: B::assign(bucket_id_provider),
+        }
+    }
+
+    #[inline]
+    fn into_bucket(self) -> Bucket<B> {
+        Bucket {
+            count: self.count_lanes.into_iter().sum(),
+            bucket_id: self.bucket_id,
         }
     }
 }
 
-/// An optimized term map implementation for a compact set of term ordinals.
+/// A dense term map for very low cardinality. Each logical bucket cycles writes over independent
+/// count lanes, which are consolidated when the map is converted into its result representation.
 #[derive(Clone, Debug)]
-struct VecTermBuckets {
-    buckets: Vec<Bucket>,
+struct VecTermBucketsWithLanes<B> {
+    buckets: Vec<TermBucketWithLanes<B>>,
+    next_count_lane: usize,
 }
 
-impl TermAggregationMap for VecTermBuckets {
+impl<B: BucketIdSlot> TermAggregationMap for VecTermBucketsWithLanes<B> {
+    type Slot = B;
+
+    const SORTED_BY_KEY: bool = true;
+
+    fn get_memory_consumption(&self) -> usize {
+        self.buckets.capacity() * std::mem::size_of::<TermBucketWithLanes<B>>()
+    }
+
+    #[inline(always)]
+    fn term_entry(&mut self, term_id: u64, _bucket_id_provider: &mut BucketIdProvider) -> B {
+        let term_id_usize = term_id as usize;
+        debug_assert!(
+            term_id_usize < self.buckets.len(),
+            "term_id {} out of bounds for LowCardVecTermBuckets (len={})",
+            term_id,
+            self.buckets.len()
+        );
+
+        self.next_count_lane = (self.next_count_lane + 1) % NUM_LOW_CARD_COUNT_LANES;
+        let bucket = unsafe { self.buckets.get_unchecked_mut(term_id_usize) };
+        bucket.count_lanes[self.next_count_lane] += 1;
+        bucket.bucket_id
+    }
+
+    fn into_vec(self) -> Vec<(u64, Bucket<B>)> {
+        self.buckets
+            .into_iter()
+            .enumerate()
+            .filter_map(|(term_id, low_card_bucket)| {
+                let bucket = low_card_bucket.into_bucket();
+                (bucket.count > 0).then_some((term_id as u64, bucket))
+            })
+            .collect()
+    }
+
+    fn new(num_terms: u64, bucket_id_provider: &mut BucketIdProvider) -> Self {
+        let buckets = std::iter::repeat_with(|| TermBucketWithLanes::new(bucket_id_provider))
+            .take(num_terms as usize)
+            .collect();
+        Self {
+            buckets,
+            next_count_lane: 0,
+        }
+    }
+}
+
+/// A term map backed by a `Vec`, indexed directly by term ordinal.
+///
+/// `LAZY_BUCKET_ID_GENERATION` defers sub-aggregation bucket ID generation until first use.
+#[derive(Clone, Debug)]
+pub(crate) struct VecTermBuckets<B = BucketId, const LAZY_BUCKET_ID_GENERATION: bool = false> {
+    buckets: Vec<Bucket<B>>,
+}
+
+impl<B: BucketIdSlot, const LAZY_BUCKET_ID_GENERATION: bool> TermAggregationMap
+    for VecTermBuckets<B, LAZY_BUCKET_ID_GENERATION>
+{
+    type Slot = B;
+
+    const SORTED_BY_KEY: bool = true;
+
     /// Estimate the memory consumption of this struct in bytes.
     fn get_memory_consumption(&self) -> usize {
         // We do not include `std::mem::size_of::<Self>()`
         // It is already measure by the parent aggregation.
         //
         // The root aggregation mem size is not measure but we do not care.
-        self.buckets.capacity() * std::mem::size_of::<Bucket>()
+        self.buckets.capacity() * std::mem::size_of::<Bucket<B>>()
     }
 
     /// Add an occurrence of the given term id.
-    #[inline(always)]
-    fn term_entry(&mut self, term_id: u64, _bucket_id_provider: &mut BucketIdProvider) -> BucketId {
+    #[inline]
+    fn term_entry(&mut self, term_id: u64, bucket_id_provider: &mut BucketIdProvider) -> B {
         let term_id_usize = term_id as usize;
         debug_assert!(
             term_id_usize < self.buckets.len(),
@@ -743,11 +958,18 @@ impl TermAggregationMap for VecTermBuckets {
             self.buckets.len()
         );
         let bucket = unsafe { self.buckets.get_unchecked_mut(term_id_usize) };
+        // Lazy mode: assign the id the first time a term is seen (`count == 0`). Both
+        // `LAZY_BUCKET_ID_GENERATION` and `B::ASSIGNS_ID` are consts, so in eager mode (or for the
+        // `()` slot) the whole branch is gated out at monomorphization, leaving just the `count`
+        // bump.
+        if LAZY_BUCKET_ID_GENERATION && B::ASSIGNS_ID && bucket.count == 0 {
+            bucket.bucket_id = B::assign(bucket_id_provider);
+        }
         bucket.count += 1;
         bucket.bucket_id
     }
 
-    fn into_vec(self) -> Vec<(u64, Bucket)> {
+    fn into_vec(self) -> Vec<(u64, Bucket<B>)> {
         self.buckets
             .into_iter()
             .enumerate()
@@ -757,11 +979,17 @@ impl TermAggregationMap for VecTermBuckets {
     }
 
     fn new(num_terms: u64, bucket_id_provider: &mut BucketIdProvider) -> Self {
-        VecTermBuckets {
-            buckets: std::iter::repeat_with(|| Bucket::new(bucket_id_provider.next_bucket_id()))
-                .take(num_terms as usize)
-                .collect(),
-        }
+        let num_terms = num_terms as usize;
+        let buckets = if LAZY_BUCKET_ID_GENERATION {
+            // Empty buckets; ids are assigned lazily in `term_entry`, so the provider is untouched.
+            vec![Bucket::default(); num_terms]
+        } else {
+            // Eager: assign an id to every ordinal up front (a no-op for the `()` slot).
+            std::iter::repeat_with(|| Bucket::new(bucket_id_provider))
+                .take(num_terms)
+                .collect()
+        };
+        VecTermBuckets { buckets }
     }
 }
 
@@ -829,6 +1057,7 @@ impl<TermMap: TermAggregationMap, B: SubAggBuffer> SegmentAggregationCollector
                 docs,
                 &req_data.accessor,
                 req_data.missing_value_for_accessor,
+                false,
             );
 
         if let Some(sub_agg) = &mut self.sub_agg {
@@ -943,17 +1172,20 @@ fn reborrow_opt_collector<'a>(
     }
 }
 
-fn into_intermediate_bucket_entry(
-    bucket: Bucket,
+fn into_intermediate_bucket_entry<B: BucketIdSlot>(
+    bucket: Bucket<B>,
     sub_agg_collector: Option<&mut dyn SegmentAggregationCollector>,
     agg_data: &AggregationsSegmentCtx,
 ) -> crate::Result<IntermediateTermBucketEntry> {
     let mut sub_aggregation_res = IntermediateAggregationResults::default();
     if let Some(sub_agg_collector) = sub_agg_collector {
+        // The `bucket_id` is only read here, when a sub-agg collector is present — which is exactly
+        // when the slot is a real `BucketId` (never `()`), so `to_bucket_id` never hits its
+        // `unreachable!`.
         sub_agg_collector.add_intermediate_aggregation_result(
             agg_data,
             &mut sub_aggregation_res,
-            bucket.bucket_id,
+            bucket.bucket_id.to_bucket_id(),
         )?;
     }
     Ok(IntermediateTermBucketEntry {
@@ -979,21 +1211,42 @@ where
         term_buckets: TermMap,
         agg_data: &AggregationsSegmentCtx,
     ) -> crate::Result<IntermediateBucketResult> {
-        let mut entries: Vec<(u64, Bucket)> = term_buckets.into_vec();
+        let mut entries: Vec<(u64, Bucket<TermMap::Slot>)> = term_buckets.into_vec();
 
+        let segment_size = term_req.req.segment_size as usize;
+
+        // Total doc count over all buckets, computed is some case, and which can be reused by
+        // `cut_off_buckets` to derive `sum_other_doc_count` without a second pass.
+        let mut total_doc_count: Option<u64> = None;
+
+        // select_nth_unstable_by_key(segment_size, ...) places the (k+1)-th element at
+        // entries[segment_size] and guarantees entries[0..segment_size] are the top-k,
+        // unordered. We need this to properly compute term_doc_count_before_cutoff.
+        // In some cases (already sorted entries), we are faster sorting everything and
+        // going through sort_unstable's fast path.
         match &term_req.req.order.target {
             OrderTarget::Key => {
                 // We rely on the fact, that term ordinals match the order of the strings
                 // TODO: We could have a special collector, that keeps only TOP n results at any
                 // time.
-                if term_req.req.order.order == Order::Desc {
-                    entries.sort_unstable_by_key(|bucket| std::cmp::Reverse(bucket.0));
-                } else {
-                    entries.sort_unstable_by_key(|bucket| bucket.0);
+                if TermMap::SORTED_BY_KEY {
+                    // `into_vec` already returned entries sorted by ord ascending, we can just
+                    // revert if we want descending.
+                    if term_req.req.order.order == Order::Desc {
+                        entries.reverse();
+                    }
+                } else if entries.len() > segment_size {
+                    // Unsorted source: use select_nth
+                    if term_req.req.order.order == Order::Desc {
+                        entries
+                            .select_nth_unstable_by_key(segment_size, |b| std::cmp::Reverse(b.0));
+                    } else {
+                        entries.select_nth_unstable_by_key(segment_size, |b| b.0);
+                    }
                 }
             }
             OrderTarget::SubAggregation(sub_agg_path) => {
-                // Peek segment-level metric values, sort, then fall through to
+                // Peek segment-level metric values, select top-k, then fall through to
                 // `cut_off_buckets`. Like Elasticsearch, we always cut off when ordering
                 // by a sub-agg: top-K results are approximate and may differ from the
                 // global ordering, especially for non-monotonic metrics like avg/min.
@@ -1003,38 +1256,67 @@ where
                     ))
                 })?;
                 let (agg_name, agg_prop) = get_agg_name_and_property(sub_agg_path);
-                // Fetch values up-front; otherwise sort would re-compute per comparison
-                let mut keyed: Vec<(f64, (u64, Bucket))> = entries
+                // Fetch values up-front; otherwise sort would re-compute per call
+                let mut keyed: Vec<_> = entries
                     .into_iter()
                     .map(|bucket| {
+                        // Reached only when ordering by a sub-agg, i.e. sub aggregations exist and
+                        // the slot is a real `BucketId`, so `to_bucket_id` never hits
+                        // `unreachable!`.
                         let metric_value = coll
-                            .compute_metric_value(bucket.1.bucket_id, agg_name, agg_prop, agg_data)
+                            .compute_metric_value(
+                                bucket.1.bucket_id.to_bucket_id(),
+                                agg_name,
+                                agg_prop,
+                                agg_data,
+                            )
                             .unwrap_or(0.0);
                         (metric_value, bucket)
                     })
                     .collect();
-                if term_req.req.order.order == Order::Desc {
-                    keyed.sort_unstable_by(|a, b| {
-                        b.0.partial_cmp(&a.0).unwrap_or(std::cmp::Ordering::Equal)
-                    });
-                } else {
-                    keyed.sort_unstable_by(|a, b| {
-                        a.0.partial_cmp(&b.0).unwrap_or(std::cmp::Ordering::Equal)
-                    });
+                if keyed.len() > segment_size {
+                    // there are situations where sort_unstable might be advantageous, but
+                    // detecting them isn't trivial, and these situation should be rare.
+                    if term_req.req.order.order == Order::Desc {
+                        keyed.select_nth_unstable_by(segment_size, |a, b| {
+                            b.0.partial_cmp(&a.0).unwrap_or(std::cmp::Ordering::Equal)
+                        });
+                    } else {
+                        keyed.select_nth_unstable_by(segment_size, |a, b| {
+                            a.0.partial_cmp(&b.0).unwrap_or(std::cmp::Ordering::Equal)
+                        });
+                    }
                 }
                 entries = keyed.into_iter().map(|(_, e)| e).collect();
             }
             OrderTarget::Count => {
-                if term_req.req.order.order == Order::Desc {
-                    entries.sort_unstable_by_key(|bucket| std::cmp::Reverse(bucket.1.count));
-                } else {
-                    entries.sort_unstable_by_key(|bucket| bucket.1.count);
+                if entries.len() > segment_size {
+                    // unique or near-unique fields create big runs of sorted values (ones),
+                    // which is defavorable to quickselect. use the then faster sort_unstable.
+                    let num_buckets = entries.len() as u64;
+                    let num_docs = entries.iter().map(|(_, b)| b.count as u64).sum();
+                    total_doc_count = Some(num_docs);
+                    let many_buckets_with_same_count =
+                        num_docs < num_buckets * DOCS_PER_BUCKET_QUICKSELECT_THRESHOLD;
+                    if term_req.req.order.order == Order::Desc {
+                        if many_buckets_with_same_count {
+                            entries.sort_unstable_by_key(|b| std::cmp::Reverse(b.1.count));
+                        } else {
+                            entries.select_nth_unstable_by_key(segment_size, |b| {
+                                std::cmp::Reverse(b.1.count)
+                            });
+                        }
+                    } else if many_buckets_with_same_count {
+                        entries.sort_unstable_by_key(|b| b.1.count);
+                    } else {
+                        entries.select_nth_unstable_by_key(segment_size, |b| b.1.count);
+                    }
                 }
             }
         }
 
         let (term_doc_count_before_cutoff, sum_other_doc_count) =
-            cut_off_buckets(&mut entries, term_req.req.segment_size as usize);
+            cut_off_buckets(&mut entries, segment_size, total_doc_count);
 
         let mut dict: FxHashMap<IntermediateKey, IntermediateTermBucketEntry> = Default::default();
         dict.reserve(entries.len());
@@ -1060,7 +1342,8 @@ where
             // Sort by term ord
             entries.sort_unstable_by_key(|bucket| bucket.0);
 
-            let (term_ids, buckets): (Vec<u64>, Vec<Bucket>) = entries.into_iter().unzip();
+            let (term_ids, buckets): (Vec<u64>, Vec<Bucket<TermMap::Slot>>) =
+                entries.into_iter().unzip();
 
             let intermediate_entries: Vec<IntermediateTermBucketEntry> = buckets
                 .into_iter()
@@ -1210,8 +1493,10 @@ impl<TermMap: TermAggregationMap, B: SubAggBuffer> SegmentTermCollector<TermMap,
         sub_agg: &mut BufferedSubAggs<B>,
     ) {
         for (doc, term_id) in iter {
+            // This path only runs when a sub-agg buffer is present, so the slot is a real
+            // `BucketId` and `to_bucket_id` never hits `unreachable!`.
             let bucket_id = term_buckets.term_entry(term_id, bucket_id_provider);
-            sub_agg.push(bucket_id, doc);
+            sub_agg.push(bucket_id.to_bucket_id(), doc);
         }
     }
 
@@ -1233,29 +1518,43 @@ pub(crate) trait GetDocCount {
 
 impl GetDocCount for (String, IntermediateTermBucketEntry) {
     fn doc_count(&self) -> u64 {
-        self.1.doc_count as u64
+        self.1.doc_count
     }
 }
 
-impl GetDocCount for (u64, Bucket) {
+impl<B: BucketIdSlot> GetDocCount for (u64, Bucket<B>) {
     fn doc_count(&self) -> u64 {
         self.1.count as u64
     }
 }
 
+/// Truncates `entries` to the top `num_elem` and returns
+/// `(term_doc_count_before_cutoff, sum_other_doc_count)`.
+///
+/// When `total_doc_count` is `Some`, `sum_other_doc_count` is derived as `total - sum(kept)`, which
+/// only sums the `num_elem` kept entries instead of the (potentially far larger) cut-off tail.
 pub(crate) fn cut_off_buckets<T: GetDocCount + Debug>(
     entries: &mut Vec<T>,
     num_elem: usize,
+    total_doc_count: Option<u64>,
 ) -> (u64, u64) {
     let term_doc_count_before_cutoff = entries
         .get(num_elem)
         .map(|entry| entry.doc_count())
         .unwrap_or(0);
 
-    let sum_other_doc_count = entries
-        .get(num_elem..)
-        .map(|cut_off_range| cut_off_range.iter().map(|entry| entry.doc_count()).sum())
-        .unwrap_or(0);
+    let sum_other_doc_count = match total_doc_count {
+        // Reuse the precomputed total: sum_other = total - sum(kept top-k), summing only the
+        // (small) kept slice. Fewer than `num_elem` buckets means nothing is cut off, so 0.
+        Some(total) => entries
+            .get(..num_elem)
+            .map(|kept| total - kept.iter().map(|entry| entry.doc_count()).sum::<u64>())
+            .unwrap_or(0),
+        None => entries
+            .get(num_elem..)
+            .map(|cut_off_range| cut_off_range.iter().map(|entry| entry.doc_count()).sum())
+            .unwrap_or(0),
+    };
 
     entries.truncate(num_elem);
     (term_doc_count_before_cutoff, sum_other_doc_count)
@@ -1269,7 +1568,7 @@ mod tests {
     use common::DateTime;
     use time::{Date, Month};
 
-    use super::{PagedTermMap, TermAggregationMap, PAGE_SIZE};
+    use super::{PagedTermMap, TermAggregationMap, VecTermBucketsWithLanes, PAGE_SIZE};
     use crate::aggregation::agg_req::Aggregations;
     use crate::aggregation::intermediate_agg_result::IntermediateAggregationResults;
     use crate::aggregation::segment_agg_result::BucketIdProvider;
@@ -1277,16 +1576,48 @@ mod tests {
         exec_request, exec_request_with_query, exec_request_with_query_and_memory_limit,
         get_test_index_from_terms, get_test_index_from_values_and_terms,
     };
-    use crate::aggregation::{AggregationLimitsGuard, DistributedAggregationCollector};
+    use crate::aggregation::{AggregationLimitsGuard, BucketId, DistributedAggregationCollector};
     use crate::indexer::NoMergePolicy;
     use crate::query::AllQuery;
     use crate::schema::{IntoIpv6Addr, Schema, FAST, INDEXED, STRING, TEXT};
     use crate::{Index, IndexWriter};
 
     #[test]
+    fn low_card_term_map_consolidates_count_lanes_and_shares_bucket_ids() {
+        let mut bucket_id_provider = BucketIdProvider::default();
+        let mut map = VecTermBucketsWithLanes::<BucketId>::new(3, &mut bucket_id_provider);
+        let mut expected_counts = [0u32; 3];
+
+        // Exercise every lane with a deliberately skewed distribution.
+        for i in 0..10_003usize {
+            let term_id = if i % 101 == 0 {
+                2
+            } else if i % 11 == 0 {
+                1
+            } else {
+                0
+            };
+            let bucket_id = map.term_entry(term_id as u64, &mut bucket_id_provider);
+            assert_eq!(bucket_id, term_id as BucketId);
+            expected_counts[term_id] += 1;
+        }
+
+        // The count lanes do not expand the sub-aggregation bucket-id space.
+        assert_eq!(bucket_id_provider.next_bucket_id(), 3);
+
+        let entries = map.into_vec();
+        assert_eq!(entries.len(), expected_counts.len());
+        for (term_id, bucket) in entries {
+            assert_eq!(bucket.count, expected_counts[term_id as usize]);
+            assert_eq!(bucket.bucket_id, term_id as BucketId);
+        }
+    }
+
+    #[test]
     fn paged_term_map_reuses_buckets_and_counts() {
         let mut bucket_id_provider = BucketIdProvider::default();
-        let mut map = PagedTermMap::new((PAGE_SIZE * 2) as u64, &mut bucket_id_provider);
+        let mut map =
+            PagedTermMap::<BucketId>::new((PAGE_SIZE * 2) as u64, &mut bucket_id_provider);
 
         let bucket_first = map.term_entry(5, &mut bucket_id_provider);
         let bucket_second_page = map.term_entry((PAGE_SIZE + 7) as u64, &mut bucket_id_provider);
@@ -1318,6 +1649,40 @@ mod tests {
             assert_eq!(bucket.bucket_id, expected_bucket_id);
             assert_eq!(bucket.count, expected_count);
         }
+    }
+
+    #[test]
+    fn terms_aggregation_u64_max_value_does_not_overflow() -> crate::Result<()> {
+        // Regression: a numeric fast field whose max value is `u64::MAX` must reach the HashMap
+        // storage without panicking on `max_column_val + 1` (the dense-storage term count), which
+        // overflows in debug builds before that fallback is chosen.
+        let mut schema_builder = Schema::builder();
+        let score_fieldtype = crate::schema::NumericOptions::default().set_fast();
+        let score_field = schema_builder.add_u64_field("score", score_fieldtype);
+        let index = Index::create_in_ram(schema_builder.build());
+        {
+            let mut index_writer = index.writer_with_num_threads(1, 20_000_000)?;
+            index_writer.set_merge_policy(Box::new(NoMergePolicy));
+            index_writer.add_document(doc!(score_field => u64::MAX))?;
+            index_writer.add_document(doc!(score_field => u64::MAX))?;
+            index_writer.add_document(doc!(score_field => 0u64))?;
+            index_writer.commit()?;
+        }
+
+        let agg_req: Aggregations = serde_json::from_value(json!({
+            "my_scores": {
+                "terms": { "field": "score" },
+            }
+        }))
+        .unwrap();
+
+        let res = exec_request(agg_req, &index)?;
+        assert_eq!(res["my_scores"]["buckets"][0]["key"], u64::MAX as f64);
+        assert_eq!(res["my_scores"]["buckets"][0]["doc_count"], 2);
+        assert_eq!(res["my_scores"]["buckets"][1]["key"], 0.0);
+        assert_eq!(res["my_scores"]["buckets"][1]["doc_count"], 1);
+        assert_eq!(res["my_scores"]["sum_other_doc_count"], 0);
+        Ok(())
     }
 
     #[test]
@@ -2440,6 +2805,69 @@ mod tests {
         Ok(())
     }
 
+    // Eager bucket ids: below LAZY_BUCKET_ID_GENERATION_THRESHOLD but above
+    // MAX_NUM_TERMS_FOR_LOWCARD_SUBAGG, so the `Vec` + `HighCard` buffer path assigns ids eagerly.
+    #[test]
+    fn terms_aggregation_sub_agg_vec_highcard_eager_ids() -> crate::Result<()> {
+        terms_agg_sub_agg_bucket_id_linkage(500)
+    }
+
+    // Lazy bucket ids: above LAZY_BUCKET_ID_GENERATION_THRESHOLD (4096), still below
+    // MAX_NUM_TERMS_FOR_VEC, so the `Vec` + `HighCard` path assigns ids lazily on first occurrence.
+    #[test]
+    fn terms_aggregation_sub_agg_vec_highcard_lazy_ids() -> crate::Result<()> {
+        terms_agg_sub_agg_bucket_id_linkage(5000)
+    }
+
+    /// Builds `num_terms` distinct terms (each with a known score and a varying doc count),
+    /// inserted in reverse term order so any lazily-assigned bucket ids (first-seen order) are
+    /// fully de-correlated from the term ordinals (sorted order). Verifies per-term doc counts
+    /// and metric sub-agg values, guarding the bucket-id -> sub-agg linkage on the `Vec` +
+    /// `HighCard` path.
+    fn terms_agg_sub_agg_bucket_id_linkage(num_terms: u64) -> crate::Result<()> {
+        let mut docs: Vec<(f64, String)> = Vec::new();
+        for k in (0..num_terms).rev() {
+            let count = (k % 3) + 1;
+            for _ in 0..count {
+                docs.push((k as f64, format!("term_{k:06}")));
+            }
+        }
+        let index = get_test_index_from_values_and_terms(false, &[docs])?;
+
+        let agg_req: Aggregations = serde_json::from_value(json!({
+            "my_texts": {
+                "terms": {
+                    "field": "string_id",
+                    "size": num_terms,
+                    "order": { "_key": "asc" }
+                },
+                "aggs": {
+                    "sum_score": { "sum": { "field": "score" } },
+                    "avg_score": { "avg": { "field": "score" } }
+                }
+            }
+        }))
+        .unwrap();
+
+        let res = exec_request(agg_req, &index)?;
+        let buckets = &res["my_texts"]["buckets"];
+        for k in 0..num_terms {
+            let count = (k % 3) + 1;
+            let bucket = &buckets[k as usize];
+            assert_eq!(bucket["key"], format!("term_{k:06}"), "key at {k}");
+            assert_eq!(bucket["doc_count"], count, "doc_count at {k}");
+            assert_eq!(
+                bucket["sum_score"]["value"],
+                (k * count) as f64,
+                "sum at {k}"
+            );
+            assert_eq!(bucket["avg_score"]["value"], k as f64, "avg at {k}");
+        }
+        assert_eq!(res["my_texts"]["sum_other_doc_count"], 0);
+
+        Ok(())
+    }
+
     #[test]
     fn terms_aggregation_different_tokenizer_on_ff_test() -> crate::Result<()> {
         let terms = vec!["Hello Hello", "Hallo Hallo", "Hallo Hallo"];
@@ -2609,16 +3037,8 @@ mod tests {
         }))
         .unwrap();
 
-        let res = exec_request_with_query(agg_req, &index, None)?;
-
-        // TODO: Returning an error would be better instead of an empty result, since this is not a
-        // JSON field
-        assert_eq!(
-            res["my_texts"]["buckets"][0]["key"],
-            serde_json::Value::Null
-        );
-        assert_eq!(res["my_texts"]["sum_other_doc_count"], 0);
-        assert_eq!(res["my_texts"]["doc_count_error_upper_bound"], 0);
+        let res = exec_request_with_query(agg_req, &index, None);
+        assert!(res.is_err(), "expected error for Bytes field, got {res:?}");
 
         Ok(())
     }

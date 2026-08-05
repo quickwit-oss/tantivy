@@ -55,6 +55,11 @@ pub struct BufferedUnionScorer<TScorer, TScoreCombiner = DoNothingCombiner> {
     num_docs: u32,
 }
 
+// Keep this helper out-of-line. When LLVM inlines it into
+// `BufferedUnionScorer::advance`, the full traversal path used by combined
+// collectors such as `(TopDocs, Count)` becomes sensitive to unrelated codegen
+// changes and regresses on large unions.
+#[inline(never)]
 fn refill<TScorer: Scorer, TScoreCombiner: ScoreCombiner>(
     scorers: &mut Vec<TScorer>,
     bitsets: &mut [TinySet; HORIZON_NUM_TINYBITSETS],

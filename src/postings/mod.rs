@@ -2,7 +2,7 @@
 
 mod block_search;
 
-pub(crate) use self::block_search::branchless_binary_search;
+pub(crate) use self::block_search::search_block;
 
 mod block_segment_postings;
 pub(crate) mod compression;

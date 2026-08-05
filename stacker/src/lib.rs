@@ -5,6 +5,7 @@ extern crate test;
 
 mod arena_hashmap;
 mod expull;
+#[cfg(not(feature = "compare_hash_only"))]
 mod fastcmp;
 mod fastcpy;
 mod memory_arena;

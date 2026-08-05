@@ -1367,21 +1367,21 @@ mod tests {
                 "{} AND {}:{}",
                 gen_query_inclusive("id", ids[0]..=ids[1]),
                 field_path("id_name"),
-                &id_filter
+                id_filter
             );
             assert_eq!(get_num_hits(query_from_text(&query)), expected_num_hits);
             let query = format!(
                 "{} AND {}:{}",
                 gen_query_inclusive("id_f64", ids[0]..=ids[1]),
                 field_path("id_name"),
-                &id_filter
+                id_filter
             );
             assert_eq!(get_num_hits(query_from_text(&query)), expected_num_hits);
             let query = format!(
                 "{} AND {}:{}",
                 gen_query_inclusive("id_i64", ids[0]..=ids[1]),
                 field_path("id_name"),
-                &id_filter
+                id_filter
             );
             assert_eq!(get_num_hits(query_from_text(&query)), expected_num_hits);
 
@@ -1391,21 +1391,21 @@ mod tests {
                 "{} AND {}:{}",
                 gen_query_inclusive("ids", ids[0]..=ids[1]),
                 field_path("id_name"),
-                &id_filter
+                id_filter
             );
             assert_eq!(get_num_hits(query_from_text(&query)), expected_num_hits);
             let query = format!(
                 "{} AND {}:{}",
                 gen_query_inclusive("ids_f64", ids[0]..=ids[1]),
                 field_path("id_name"),
-                &id_filter
+                id_filter
             );
             assert_eq!(get_num_hits(query_from_text(&query)), expected_num_hits);
             let query = format!(
                 "{} AND {}:{}",
                 gen_query_inclusive("ids_i64", ids[0]..=ids[1]),
                 field_path("id_name"),
-                &id_filter
+                id_filter
             );
             assert_eq!(get_num_hits(query_from_text(&query)), expected_num_hits);
         };
@@ -1654,7 +1654,7 @@ pub(crate) mod ip_range_tests {
             let query = format!(
                 "{} AND id:{}",
                 gen_query_inclusive("ip", &ip_range),
-                &id_filter
+                id_filter
             );
             assert_eq!(get_num_hits(query_from_text(&query)), expected_num_hits);
 
@@ -1663,7 +1663,7 @@ pub(crate) mod ip_range_tests {
             let query = format!(
                 "{} AND id:{}",
                 gen_query_inclusive("ips", &ip_range),
-                &id_filter
+                id_filter
             );
             assert_eq!(get_num_hits(query_from_text(&query)), expected_num_hits);
         };

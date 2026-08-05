@@ -12,6 +12,7 @@ use tantivy::aggregation::agg_result::AggregationResults;
 use tantivy::aggregation::AggregationCollector;
 use tantivy::query::AllQuery;
 use tantivy::schema::{self, IndexRecordOption, Schema, TextFieldIndexing, FAST};
+use tantivy::tokenizer::RAW_TOKENIZER_NAME;
 use tantivy::{Index, IndexWriter, TantivyDocument};
 
 fn main() -> tantivy::Result<()> {
@@ -37,7 +38,7 @@ fn main() -> tantivy::Result<()> {
                 .set_index_option(IndexRecordOption::WithFreqs)
                 .set_tokenizer("raw"),
         )
-        .set_fast(None)
+        .set_fast(RAW_TOKENIZER_NAME)
         .set_stored();
     schema_builder.add_text_field("category", text_fieldtype);
     schema_builder.add_f64_field("stock", FAST);
