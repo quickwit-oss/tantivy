@@ -26,7 +26,7 @@ use crate::indexer::indexing_term::IndexingTerm;
 use crate::json_utils::{index_json_value, IndexingPositionsPerPath};
 use crate::plugin::{PluginMergeContext, PluginWriter, PluginWriterContext, SegmentPlugin};
 use crate::postings::{
-    compute_initial_table_size, serialize_postings, IndexingContext, IndexingPosition,
+    compute_table_memory_size, serialize_postings, IndexingContext, IndexingPosition,
     InvertedIndexSerializer, PerFieldPostingsWriter, Postings, PostingsWriter, SegmentPostings,
 };
 use crate::schema::document::{Document, Value};
@@ -37,6 +37,27 @@ use crate::tokenizer::{FacetTokenizer, PreTokenizedStream, TextAnalyzer, Tokeniz
 use crate::{DocId, InvertedIndexReader, TantivyError};
 
 pub struct InvertedIndexPlugin;
+
+/// Computes the initial size of the term hash table.
+///
+/// Returns the recommended initial table size as a power of 2.
+///
+/// Note this is a very dumb way to compute log2, but it is easier to proofread that way.
+fn compute_initial_table_size(per_thread_memory_budget: usize) -> crate::Result<usize> {
+    let table_memory_upper_bound = per_thread_memory_budget / 3;
+    (10..20) // We cap it at 2^19 = 512K capacity.
+        // TODO: There are cases where this limit causes a
+        // reallocation in the hashmap. Check if this affects performance.
+        .map(|power| 1 << power)
+        .take_while(|capacity| compute_table_memory_size(*capacity) < table_memory_upper_bound)
+        .last()
+        .ok_or_else(|| {
+            crate::TantivyError::InvalidArgument(format!(
+                "per thread memory budget (={per_thread_memory_budget}) is too small. Raise the \
+                 memory budget or lower the number of threads."
+            ))
+        })
+}
 
 impl SegmentPlugin for InvertedIndexPlugin {
     fn extensions(&self) -> &[&str] {
@@ -687,4 +708,19 @@ fn write_postings_merge(
         }
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::compute_initial_table_size;
+
+    #[test]
+    #[cfg(not(feature = "compare_hash_only"))]
+    fn test_hashmap_size() {
+        assert_eq!(compute_initial_table_size(100_000).unwrap(), 1 << 12);
+        assert_eq!(compute_initial_table_size(1_000_000).unwrap(), 1 << 15);
+        assert_eq!(compute_initial_table_size(15_000_000).unwrap(), 1 << 19);
+        assert_eq!(compute_initial_table_size(1_000_000_000).unwrap(), 1 << 19);
+        assert_eq!(compute_initial_table_size(4_000_000_000).unwrap(), 1 << 19);
+    }
 }

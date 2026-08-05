@@ -247,17 +247,6 @@ mod tests {
     };
 
     #[test]
-    #[cfg(not(feature = "compare_hash_only"))]
-    fn test_hashmap_size() {
-        use crate::postings::compute_initial_table_size;
-        assert_eq!(compute_initial_table_size(100_000).unwrap(), 1 << 12);
-        assert_eq!(compute_initial_table_size(1_000_000).unwrap(), 1 << 15);
-        assert_eq!(compute_initial_table_size(15_000_000).unwrap(), 1 << 19);
-        assert_eq!(compute_initial_table_size(1_000_000_000).unwrap(), 1 << 19);
-        assert_eq!(compute_initial_table_size(4_000_000_000).unwrap(), 1 << 19);
-    }
-
-    #[test]
     fn test_prepare_for_store() {
         let mut schema_builder = Schema::builder();
         let text_field = schema_builder.add_text_field("title", TEXT | STORED);

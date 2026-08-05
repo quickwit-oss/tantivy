@@ -223,9 +223,10 @@ impl PluginWriter for StorePluginWriter {
     }
 
     fn mem_usage(&self) -> usize {
-        self.store_writer
-            .as_ref()
-            .map_or(0, |writer| writer.mem_usage())
+        let Some(writer) = self.store_writer.as_ref() else {
+            return 0;
+        };
+        writer.mem_usage()
     }
 
     fn as_any(&self) -> &dyn Any {
