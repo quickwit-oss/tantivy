@@ -1,4 +1,8 @@
+use std::cell::RefCell;
+use std::num::NonZeroUsize;
 use std::sync::Arc;
+
+use lru::LruCache;
 
 use crate::fieldnorm::FieldNormReader;
 use crate::query::Explanation;
@@ -59,13 +63,45 @@ fn cached_tf_component(fieldnorm: u32, average_fieldnorm: Score) -> Score {
     K1 * (1.0 - B + B * fieldnorm as Score / average_fieldnorm)
 }
 
-fn compute_tf_cache(average_fieldnorm: Score) -> Arc<[Score; 256]> {
+const BM25_TF_CACHE_CAPACITY: usize = 64;
+
+fn compute_tf_cache_uncached(average_fieldnorm: Score) -> Arc<[Score; 256]> {
     let mut cache: [Score; 256] = [0.0; 256];
     for (fieldnorm_id, cache_mut) in cache.iter_mut().enumerate() {
         let fieldnorm = FieldNormReader::id_to_fieldnorm(fieldnorm_id as u8);
         *cache_mut = cached_tf_component(fieldnorm, average_fieldnorm);
     }
     Arc::new(cache)
+}
+
+thread_local! {
+    static TF_CACHES: RefCell<LruCache<u32, Arc<[Score; 256]>>> = RefCell::new(LruCache::new(
+        NonZeroUsize::new(BM25_TF_CACHE_CAPACITY).unwrap(),
+    ));
+}
+
+/// The cache is shared across all [Bm25Weight] with the same average fieldnorm on the same thread.
+/// It is stored in a thread local LRU cache.
+///
+/// On one query all terms on the same field will share the same average fieldnorm, and thus the
+/// same cache. This will lower cache pressure.
+///
+/// Even between queries (on the same thread), the cache will be reused, which allows the cache to
+/// better learn the memory address of the cache and access patterns.
+///
+/// Thread local is used in order to be defensive about potential contention on the cache.
+fn compute_tf_cache(average_fieldnorm: Score) -> Arc<[Score; 256]> {
+    let cache_key = average_fieldnorm.to_bits();
+    TF_CACHES.with(|cache_by_average_fieldnorm| {
+        let mut cache_by_average_fieldnorm = cache_by_average_fieldnorm.borrow_mut();
+        if let Some(cache) = cache_by_average_fieldnorm.get(&cache_key) {
+            return cache.clone();
+        }
+
+        let cache = compute_tf_cache_uncached(average_fieldnorm);
+        cache_by_average_fieldnorm.put(cache_key, cache.clone());
+        cache
+    })
 }
 
 /// A struct used for computing BM25 scores.
@@ -229,12 +265,20 @@ impl Bm25Weight {
 #[cfg(test)]
 mod tests {
 
-    use super::idf;
+    use super::{idf, Bm25Weight};
     use crate::{assert_nearly_equals, Score};
 
     #[test]
     fn test_idf() {
         let score: Score = 2.0;
         assert_nearly_equals!(idf(1, 2), score.ln());
+    }
+
+    #[test]
+    fn test_bm25_tf_cache_is_shared_for_same_average_fieldnorm() {
+        let weight1 = Bm25Weight::for_one_term(1, 10, 3.0);
+        let weight2 = Bm25Weight::for_one_term(2, 10, 3.0);
+
+        assert!(std::sync::Arc::ptr_eq(&weight1.cache, &weight2.cache));
     }
 }

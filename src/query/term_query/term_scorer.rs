@@ -1,4 +1,4 @@
-use crate::docset::DocSet;
+use crate::docset::{DocSet, COLLECT_BLOCK_BUFFER_LEN};
 use crate::fieldnorm::FieldNormReader;
 use crate::postings::{BlockSegmentPostings, FreqReadingOption, Postings, SegmentPostings};
 use crate::query::bm25::Bm25Weight;
@@ -146,6 +146,27 @@ impl Scorer for TermScorer {
         let fieldnorm_id = self.fieldnorm_id();
         let term_freq = self.term_freq();
         self.similarity_weight.score(fieldnorm_id, term_freq)
+    }
+
+    #[inline]
+    fn can_score_doc(&self) -> bool {
+        true
+    }
+
+    #[inline]
+    fn score_doc(&mut self, doc: DocId, term_freq: u32) -> Score {
+        let fieldnorm_id = self.fieldnorm_reader.fieldnorm_id(doc);
+        self.similarity_weight.score(fieldnorm_id, term_freq)
+    }
+
+    fn fill_buffer_up_to_with_term_freqs(
+        &mut self,
+        horizon: DocId,
+        docs: &mut [DocId; COLLECT_BLOCK_BUFFER_LEN],
+        term_freqs: &mut [u32; COLLECT_BLOCK_BUFFER_LEN],
+    ) -> usize {
+        self.postings
+            .fill_buffer_up_to_with_term_freqs(horizon, docs, term_freqs)
     }
 }
 

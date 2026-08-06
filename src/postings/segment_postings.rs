@@ -1,6 +1,6 @@
 use common::HasLen;
 
-use crate::docset::DocSet;
+use crate::docset::{DocSet, COLLECT_BLOCK_BUFFER_LEN};
 use crate::fastfield::AliveBitSet;
 use crate::positions::PositionReader;
 use crate::postings::compression::COMPRESSION_BLOCK_SIZE;
@@ -150,6 +150,34 @@ impl SegmentPostings {
             cur: 0, // cursor within the block
             position_reader,
         }
+    }
+
+    pub(crate) fn fill_buffer_up_to_with_term_freqs(
+        &mut self,
+        horizon: DocId,
+        docs: &mut [DocId; COLLECT_BLOCK_BUFFER_LEN],
+        term_freqs: &mut [u32; COLLECT_BLOCK_BUFFER_LEN],
+    ) -> usize {
+        let mut num_elems = 0;
+        while num_elems < COLLECT_BLOCK_BUFFER_LEN && self.doc() < horizon {
+            let copied = self.block_cursor.copy_docs_and_term_freqs(
+                self.cur,
+                horizon,
+                &mut docs[num_elems..],
+                &mut term_freqs[num_elems..],
+            );
+            if copied == 0 {
+                break;
+            }
+            num_elems += copied;
+            self.cur += copied;
+
+            if self.cur == COMPRESSION_BLOCK_SIZE {
+                self.cur = 0;
+                self.block_cursor.advance();
+            }
+        }
+        num_elems
     }
 }
 

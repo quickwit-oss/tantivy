@@ -532,6 +532,16 @@ pub(crate) mod tests {
         fn score(&mut self) -> Score {
             self.0.score()
         }
+
+        #[inline]
+        fn can_score_doc(&self) -> bool {
+            self.0.can_score_doc()
+        }
+
+        #[inline]
+        fn score_doc(&mut self, doc: DocId, term_freq: u32) -> Score {
+            self.0.score_doc(doc, term_freq)
+        }
     }
 
     pub fn test_skip_against_unoptimized<F: Fn() -> Box<dyn DocSet>>(

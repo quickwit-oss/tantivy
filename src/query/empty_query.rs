@@ -59,6 +59,16 @@ impl Scorer for EmptyScorer {
     fn score(&mut self) -> Score {
         0.0
     }
+
+    #[inline]
+    fn can_score_doc(&self) -> bool {
+        true
+    }
+
+    #[inline]
+    fn score_doc(&mut self, _doc: DocId, _term_freq: u32) -> Score {
+        0.0
+    }
 }
 
 #[cfg(test)]

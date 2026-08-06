@@ -145,6 +145,16 @@ impl<TDocSet: DocSet + 'static> Scorer for ConstScorer<TDocSet> {
     fn score(&mut self) -> Score {
         self.score
     }
+
+    #[inline]
+    fn can_score_doc(&self) -> bool {
+        true
+    }
+
+    #[inline]
+    fn score_doc(&mut self, _doc: DocId, _term_freq: u32) -> Score {
+        self.score
+    }
 }
 
 #[cfg(test)]
