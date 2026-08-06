@@ -37,7 +37,26 @@ fs4 = { version = "0.13.1", optional = true }
 levenshtein_automata = "0.2.1"
 uuid = { version = "1.0.0", features = ["v4", "serde"] }
 crossbeam-channel = "0.5.4"
-rust-stemmers = { version = "1.2.0", optional = true }
+frostem = { version = "1.20260804.0", optional = true, default-features = false, features = [
+    "arabic",
+    "danish",
+    "dutch",
+    "english",
+    "finnish",
+    "french",
+    "german",
+    "greek",
+    "hungarian",
+    "italian",
+    "norwegian",
+    "portuguese",
+    "romanian",
+    "russian",
+    "spanish",
+    "swedish",
+    "tamil",
+    "turkish",
+] }
 downcast-rs = "2.0.1"
 bitpacking = { version = "0.9.3", default-features = false, features = [
     "bitpacker4x",
@@ -115,7 +134,7 @@ overflow-checks = true
 
 [features]
 default = ["mmap", "stopwords", "lz4-compression", "columnar-zstd-compression", "stemmer"]
-stemmer = ["rust-stemmers"]
+stemmer = ["frostem"]
 mmap = ["fs4", "tempfile", "memmap2"]
 stopwords = []
 
