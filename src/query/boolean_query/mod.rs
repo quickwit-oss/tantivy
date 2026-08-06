@@ -3,8 +3,8 @@ mod block_wand_union;
 mod boolean_query;
 mod boolean_weight;
 
-pub(crate) use self::block_wand_intersection::block_wand_intersection;
-pub(crate) use self::block_wand_union::{block_wand, block_wand_single_scorer};
+pub use self::block_wand_intersection::BlockWandIntersectionScorer;
+pub use self::block_wand_union::{BlockWandSingleScorer, BlockWandUnionScorer};
 pub use self::boolean_query::BooleanQuery;
 pub use self::boolean_weight::BooleanWeight;
 

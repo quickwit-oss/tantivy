@@ -1,7 +1,21 @@
+use crate::fieldnorm::FieldNormReader;
 use crate::postings::compression::COMPRESSION_BLOCK_SIZE;
+use crate::query::scorer::PruningScorer;
 use crate::query::term_query::TermScorer;
-use crate::query::Scorer;
+use crate::query::{Bm25Weight, Scorer};
 use crate::{DocId, DocSet, Score, TERMINATED};
+
+#[cfg(test)]
+pub(crate) fn block_wand_intersection(
+    scorers: Vec<TermScorer>,
+    threshold: Score,
+    callback: &mut dyn FnMut(DocId, Score) -> Score,
+) {
+    use crate::query::weight::for_each_pruning_scorer;
+
+    let mut scorer = BlockWandIntersectionScorer::new(scorers, threshold);
+    for_each_pruning_scorer(&mut scorer, callback);
+}
 
 /// Block-max pruning for top-K over intersection of term scorers.
 ///
@@ -16,165 +30,250 @@ use crate::{DocId, DocSet, Score, TERMINATED};
 /// # Preconditions
 /// - `scorers` has at least 2 elements
 /// - All scorers read frequencies (`FreqReadingOption::ReadFreq`)
-pub(crate) fn block_wand_intersection(
-    mut scorers: Vec<TermScorer>,
-    mut threshold: Score,
-    callback: &mut dyn FnMut(DocId, Score) -> Score,
-) {
-    assert!(scorers.len() >= 2);
+pub struct BlockWandIntersectionScorer {
+    leader: TermScorer,
+    secondaries: Vec<TermScorer>,
 
-    // Sort by cost (ascending). scorers[0] becomes the "leader" (rarest term).
-    scorers.sort_by_key(TermScorer::size_hint);
+    maximum_possible_score: Score,
+    secondary_block_max_scores: Box<[f32]>,
+    secondary_suffix_block_max: Box<[f32]>,
+    fieldnorm_reader: FieldNormReader,
+    bm25_weight: Bm25Weight,
 
-    let (leader, secondaries) = scorers.split_first_mut().unwrap();
+    candidate_doc_ids: [u32; COMPRESSION_BLOCK_SIZE],
+    candidate_scores: [f32; COMPRESSION_BLOCK_SIZE],
+    num_candidates: usize,
+    candidate_idx: usize,
 
-    // Precompute global max scores for early termination checks.
-    let leader_max_score: Score = leader.max_score();
-    let secondaries_global_max_sum: Score = secondaries.iter().map(TermScorer::max_score).sum();
+    threshold: Score,
+    current: (DocId, Score),
+    internal_doc: DocId,
+    window_end: DocId,
+}
+impl BlockWandIntersectionScorer {
+    /// Construction positions `current` on the first match
+    pub fn new(mut scorers: Vec<TermScorer>, threshold: Score) -> Self {
+        assert!(scorers.len() >= 2);
 
-    // Early exit: no document can possibly beat the threshold.
-    if leader_max_score + secondaries_global_max_sum <= threshold {
-        return;
+        // Sort by cost (ascending). scorers[0] becomes the "leader" (rarest term).
+        scorers.sort_by_key(TermScorer::size_hint);
+        let leader = scorers.remove(0);
+        let secondaries = scorers;
+        let secondaries_len = secondaries.len();
+
+        let secondaries_global_max_sum: Score = secondaries.iter().map(TermScorer::max_score).sum();
+        let maximum_possible_score = leader.max_score() + secondaries_global_max_sum;
+
+        // Borrow fieldnorm reader and BM25 weight before the main loop.
+        // These are immutable references to disjoint fields from block_cursor,
+        // but Rust's borrow checker can't see through method calls, so we
+        // extract them once upfront.
+        let fieldnorm_reader = leader.fieldnorm_reader().clone();
+        let bm25_weight = leader.bm25_weight().clone();
+
+        let internal_doc = leader.doc();
+
+        let mut scorer = Self {
+            leader,
+            secondaries,
+            maximum_possible_score,
+            secondary_block_max_scores: vec![0.0f32; secondaries_len].into_boxed_slice(),
+            secondary_suffix_block_max: vec![0.0f32; secondaries_len].into_boxed_slice(),
+            fieldnorm_reader,
+            bm25_weight,
+            candidate_doc_ids: [0u32; COMPRESSION_BLOCK_SIZE],
+            candidate_scores: [0f32; COMPRESSION_BLOCK_SIZE],
+            num_candidates: 0,
+            candidate_idx: 0,
+            threshold,
+            current: (0, Score::MIN),
+            internal_doc,
+            window_end: 0,
+        };
+        scorer.advance();
+        scorer
     }
 
-    // Borrow fieldnorm reader and BM25 weight before the main loop.
-    // These are immutable references to disjoint fields from block_cursor,
-    // but Rust's borrow checker can't see through method calls, so we
-    // extract them once upfront.
-    let fieldnorm_reader = leader.fieldnorm_reader().clone();
-    let bm25_weight = leader.bm25_weight().clone();
-
-    let mut doc = leader.doc();
-
-    let mut secondary_block_max_scores: Box<[f32]> =
-        vec![0.0f32; secondaries.len()].into_boxed_slice();
-    let mut secondary_suffix_block_max: Box<[f32]> =
-        vec![0.0f32; secondaries.len()].into_boxed_slice();
-
-    while doc < TERMINATED {
-        // --- Phase 1: Block-level pruning ---
-        //
-        // Position all skip readers on the block containing `doc`.
-        // seek_block is cheap: it only advances the skip reader, no block decompression.
-        leader.seek_block(doc);
-        let leader_block_max: Score = leader.block_max_score();
-
-        // Compute the window end as the minimum last_doc_in_block across all scorers.
-        // This ensures the block_max values are valid for all docs in [doc, window_end].
-        // Different scorers have independently aligned blocks, so we must use the
-        // smallest window where all block_max values hold.
-        let mut window_end: DocId = leader.last_doc_in_block();
-
-        let mut secondary_block_max_sum: Score = 0.0;
-        let num_secondaries = secondaries.len();
-        for (idx, secondary) in secondaries.iter_mut().enumerate() {
-            secondary.block_cursor().seek_block(doc);
-            if !secondary.block_cursor().has_remaining_docs() {
-                return;
-            }
-            window_end = window_end.min(secondary.last_doc_in_block());
-            let bms = secondary.block_max_score();
-            secondary_block_max_scores[idx] = bms;
-            secondary_block_max_sum += bms;
-        }
-
-        if leader_block_max + secondary_block_max_sum <= threshold {
-            // The entire window cannot beat the threshold. Skip past it.
-            doc = window_end + 1;
-            continue;
-        }
-
-        // --- Phase 2: Batch processing within the window ---
-        //
-        // Score-first approach: decode the leader's block, filter by threshold,
-        // then check intersection membership only for survivors. This avoids expensive
-        // secondary seeks for docs that can't beat the threshold.
-        let block_cursor = leader.block_cursor();
-        // seek loads the block and returns the in-block index of the first doc >= `doc`.
-        let start_idx = block_cursor.seek(doc);
-
-        // Use the branchless binary search on the doc decoder to find the first
-        // index past window_end.
-        let end_idx = block_cursor
-            .doc_decoder
-            .seek_within_block(window_end + 1)
-            .min(block_cursor.block_len());
-
-        let block_docs = &block_cursor.doc_decoder.output_array()[start_idx..end_idx];
-        let block_freqs = &block_cursor.freq_output_array()[start_idx..end_idx];
-
-        // Pass 1: Batch-compute leader BM25 scores and branchlessly filter
-        // candidates that can't beat the threshold.
-        //
-        // The trick: always write to the buffer at `num_candidates`, then
-        // conditionally advance the count. The compiler can turn this into
-        // a cmov instead of a branch, avoiding misprediction costs.
-        let score_threshold = threshold - secondary_block_max_sum;
-        let mut candidate_doc_ids = [0u32; COMPRESSION_BLOCK_SIZE];
-        let mut candidate_scores = [0.0f32; COMPRESSION_BLOCK_SIZE];
-        let mut num_candidates = 0usize;
-
-        for (candidate_doc, term_freq) in
-            block_docs.iter().copied().zip(block_freqs.iter().copied())
-        {
-            let fieldnorm_id = fieldnorm_reader.fieldnorm_id(candidate_doc);
-            let leader_score = bm25_weight.score(fieldnorm_id, term_freq);
-            candidate_doc_ids[num_candidates] = candidate_doc;
-            candidate_scores[num_candidates] = leader_score;
-            num_candidates += (leader_score > score_threshold) as usize;
-        }
-
-        // Precompute suffix sums: suffix[i] = sum of block_max for secondaries[i+1..].
-        // Used in Phase 2 to prune candidates that can't beat threshold even with
-        // remaining secondaries contributing their block_max.
-        if num_candidates == 0 {
-            doc = window_end + 1;
-            continue;
-        }
-
-        let mut running = 0.0f32;
-        for idx in (0..num_secondaries).rev() {
-            secondary_suffix_block_max[idx] = running;
-            running += secondary_block_max_scores[idx];
-        }
-
+    fn handle_candidates(&mut self) -> Option<DocId> {
         // Pass 2: Check intersection membership only for survivors.
         // score_threshold may be stale (threshold can increase from callbacks),
         // but that's conservative — we may check a few extra candidates, never miss one.
-        'next_candidate: for candidate_idx in 0..num_candidates {
-            let candidate_doc = candidate_doc_ids[candidate_idx];
-            let mut total_score: Score = candidate_scores[candidate_idx];
+        'next_candidate: while self.candidate_idx < self.num_candidates {
+            let candidate_doc = self.candidate_doc_ids[self.candidate_idx];
+            let mut total_score: Score = self.candidate_scores[self.candidate_idx];
 
-            for (secondary_idx, secondary) in secondaries.iter_mut().enumerate() {
+            for (secondary_idx, secondary) in self.secondaries.iter_mut().enumerate() {
                 // If a previous candidate already advanced this secondary past
                 // candidate_doc, the candidate can't be in the intersection.
                 if secondary.doc() > candidate_doc {
+                    self.candidate_idx += 1;
                     continue 'next_candidate;
                 }
                 let seek_result = secondary.seek(candidate_doc);
                 if seek_result != candidate_doc {
+                    self.candidate_idx += 1;
                     continue 'next_candidate;
                 }
                 total_score += secondary.score();
 
                 // Prune: even if all remaining secondaries score at their block max,
                 // can we still beat the threshold?
-                if total_score + secondary_suffix_block_max[secondary_idx] <= threshold {
+                if total_score + self.secondary_suffix_block_max[secondary_idx] <= self.threshold {
+                    self.candidate_idx += 1;
                     continue 'next_candidate;
                 }
             }
 
             // All secondaries matched.
-            if total_score > threshold {
-                threshold = callback(candidate_doc, total_score);
+            if total_score > self.threshold {
+                self.current = (candidate_doc, total_score);
+                self.candidate_idx += 1;
+                return Some(candidate_doc);
+            }
+            self.candidate_idx += 1;
+        }
+        None
+    }
+}
+impl Scorer for BlockWandIntersectionScorer {
+    #[inline]
+    fn score(&mut self) -> Score {
+        self.current.1
+    }
+}
+impl PruningScorer for BlockWandIntersectionScorer {
+    #[inline]
+    fn set_threshold(&mut self, score: Score) {
+        self.threshold = score;
+    }
+}
+impl DocSet for BlockWandIntersectionScorer {
+    fn advance(&mut self) -> DocId {
+        if self.maximum_possible_score <= self.threshold {
+            self.current = (TERMINATED, Score::MIN);
+            return TERMINATED;
+        }
 
-                if leader_max_score + secondaries_global_max_sum <= threshold {
-                    return;
-                }
+        // check for leftover candidates to handle
+        if self.num_candidates > 0 {
+            if let Some(doc_id) = self.handle_candidates() {
+                return doc_id;
+            } else {
+                // no remaining candidates, so reset and advance the internal doc
+                self.num_candidates = 0;
+                self.internal_doc = self.window_end + 1;
             }
         }
 
-        doc = window_end + 1;
+        while self.internal_doc < TERMINATED {
+            // --- Phase 1: Block-level pruning ---
+            //
+            // Position all skip readers on the block containing `doc`.
+            // seek_block is cheap: it only advances the skip reader, no block decompression.
+            self.leader.seek_block(self.internal_doc);
+            let leader_block_max: Score = self.leader.block_max_score();
+
+            // Compute the window end as the minimum last_doc_in_block across all scorers.
+            // This ensures the block_max values are valid for all docs in [doc, window_end].
+            // Different scorers have independently aligned blocks, so we must use the
+            // smallest window where all block_max values hold.
+            self.window_end = self.leader.last_doc_in_block();
+
+            let mut secondary_block_max_sum: Score = 0.0;
+            let num_secondaries = self.secondaries.len();
+            for (idx, secondary) in self.secondaries.iter_mut().enumerate() {
+                secondary.block_cursor().seek_block(self.internal_doc);
+                if !secondary.block_cursor().has_remaining_docs() {
+                    self.current = (TERMINATED, Score::MIN);
+                    return TERMINATED;
+                }
+                self.window_end = self.window_end.min(secondary.last_doc_in_block());
+                let bms = secondary.block_max_score();
+                self.secondary_block_max_scores[idx] = bms;
+                secondary_block_max_sum += bms;
+            }
+
+            if leader_block_max + secondary_block_max_sum <= self.threshold {
+                // The entire window cannot beat the threshold. Skip past it.
+                self.internal_doc = self.window_end + 1;
+                continue;
+            }
+
+            // --- Phase 2: Batch processing within the window ---
+            //
+            // Score-first approach: decode the leader's block, filter by threshold,
+            // then check intersection membership only for survivors. This avoids expensive
+            // secondary seeks for docs that can't beat the threshold.
+            let block_cursor = self.leader.block_cursor();
+            // seek loads the block and returns the in-block index of the first doc >= `doc`.
+            let start_idx = block_cursor.seek(self.internal_doc);
+
+            // Use the branchless binary search on the doc decoder to find the first
+            // index past window_end.
+            let end_idx = block_cursor
+                .doc_decoder
+                .seek_within_block(self.window_end + 1)
+                .min(block_cursor.block_len());
+
+            let block_docs = &block_cursor.doc_decoder.output_array()[start_idx..end_idx];
+            let block_freqs = &block_cursor.freq_output_array()[start_idx..end_idx];
+
+            // Pass 1: Batch-compute leader BM25 scores and branchlessly filter
+            // candidates that can't beat the threshold.
+            //
+            // The trick: always write to the buffer at `num_candidates`, then
+            // conditionally advance the count. The compiler can turn this into
+            // a cmov instead of a branch, avoiding misprediction costs.
+            let score_threshold = self.threshold - secondary_block_max_sum;
+
+            let mut num_candidates = 0usize;
+            for (candidate_doc, term_freq) in
+                block_docs.iter().copied().zip(block_freqs.iter().copied())
+            {
+                let fieldnorm_id = self.fieldnorm_reader.fieldnorm_id(candidate_doc);
+                let leader_score = self.bm25_weight.score(fieldnorm_id, term_freq);
+                self.candidate_doc_ids[num_candidates] = candidate_doc;
+                self.candidate_scores[num_candidates] = leader_score;
+                num_candidates += (leader_score > score_threshold) as usize;
+            }
+            self.num_candidates = num_candidates;
+            self.candidate_idx = 0;
+
+            // Precompute suffix sums: suffix[i] = sum of block_max for secondaries[i+1..].
+            // Used in Phase 2 to prune candidates that can't beat threshold even with
+            // remaining secondaries contributing their block_max.
+            if self.num_candidates == 0 {
+                self.internal_doc = self.window_end + 1;
+                continue;
+            }
+
+            let mut running = 0.0f32;
+            for idx in (0..num_secondaries).rev() {
+                self.secondary_suffix_block_max[idx] = running;
+                running += self.secondary_block_max_scores[idx];
+            }
+
+            if let Some(doc_id) = self.handle_candidates() {
+                return doc_id;
+            }
+            // no candidates left, reset and advance internal doc
+            self.num_candidates = 0;
+            self.internal_doc = self.window_end + 1;
+        }
+
+        self.current = (TERMINATED, Score::MIN);
+        TERMINATED
+    }
+
+    #[inline]
+    fn doc(&self) -> DocId {
+        self.current.0
+    }
+
+    /// The number of elements yielded by a PruningScorer depends on the threshold and cannot be
+    /// computed ahead of time, so just defer to the leader, as it will be the smallest.
+    fn size_hint(&self) -> u32 {
+        self.leader.size_hint()
     }
 }
 
