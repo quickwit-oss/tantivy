@@ -147,7 +147,9 @@ where TValueReader: value::ValueReader
         }
     }
 
-    pub fn from_multiple_blocks(reader: Vec<OwnedBytes>) -> Self {
+    /// Build a reader over slices that may not be contiguous, each labelled with the term
+    /// ordinal of its first term. See [`DeltaReader::take_first_ordinal`].
+    pub fn from_multiple_blocks(reader: Vec<(OwnedBytes, u64)>) -> Self {
         DeltaReader {
             idx: 0,
             common_prefix_len: 0,
@@ -155,6 +157,14 @@ where TValueReader: value::ValueReader
             value_reader: TValueReader::default(),
             block_reader: BlockReader::from_multiple_blocks(reader),
         }
+    }
+
+    /// The first term ordinal of the slice just moved to, returned once per slice.
+    ///
+    /// A caller tracking term ordinals must consult this after every [`DeltaReader::advance`]:
+    /// when an automaton has pruned blocks the ordinal jumps, and only the slice knows where to.
+    pub fn take_first_ordinal(&mut self) -> Option<u64> {
+        self.block_reader.take_first_ordinal()
     }
 
     pub fn empty() -> Self {

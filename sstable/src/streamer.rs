@@ -206,11 +206,16 @@ where
     /// is an uninitialized state.
     pub fn advance(&mut self) -> bool {
         while self.delta_reader.advance().unwrap() {
-            self.term_ord = Some(
-                self.term_ord
+            // An automaton prunes whole blocks, so the ordinal is not simply the previous one
+            // plus one: on entering a new slice it jumps to that slice's first term ordinal.
+            // Counting alone would report a term's position among the blocks actually scanned.
+            self.term_ord = Some(match self.delta_reader.take_first_ordinal() {
+                Some(first_ordinal) => first_ordinal,
+                None => self
+                    .term_ord
                     .map(|term_ord| term_ord + 1u64)
                     .unwrap_or(0u64),
-            );
+            });
             let common_prefix_len = self.delta_reader.common_prefix_len();
             self.states.truncate(common_prefix_len + 1);
             self.key.truncate(common_prefix_len);

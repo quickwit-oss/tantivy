@@ -116,8 +116,14 @@ impl<TSSTable: SSTable> Dictionary<TSSTable> {
             ));
             let data = blocks
                 .map(|block_addr| {
-                    self.sstable_slice
-                        .read_bytes_slice_async(block_addr.byte_range)
+                    let first_ordinal = block_addr.first_ordinal;
+                    async move {
+                        let bytes = self
+                            .sstable_slice
+                            .read_bytes_slice_async(block_addr.byte_range)
+                            .await?;
+                        io::Result::Ok((bytes, first_ordinal))
+                    }
                 })
                 .buffered(5)
                 .try_collect::<Vec<_>>()
@@ -142,7 +148,12 @@ impl<TSSTable: SSTable> Dictionary<TSSTable> {
             // merging across holes
             let blocks = self.get_block_iterator_for_range_and_automaton(key_range, automaton, 0);
             let data = blocks
-                .map(|block_addr| self.sstable_slice.read_bytes_slice(block_addr.byte_range))
+                .map(|block_addr| {
+                    let first_ordinal = block_addr.first_ordinal;
+                    self.sstable_slice
+                        .read_bytes_slice(block_addr.byte_range)
+                        .map(|bytes| (bytes, first_ordinal))
+                })
                 .collect::<Result<Vec<_>, _>>()?;
             Ok(DeltaReader::from_multiple_blocks(data))
         }
@@ -1124,5 +1135,39 @@ mod tests {
         assert!(stream.advance());
         assert_eq!(stream.key(), &[0, 255, 12]);
         assert!(!stream.advance());
+    }
+
+    #[test]
+    fn test_search_term_ord_is_the_dictionary_ordinal_not_a_scan_counter() {
+        // An automaton prunes the blocks it cannot match, so the stream never reads the terms
+        // in them. `term_ord()` must still report the term's ordinal in the whole dictionary;
+        // counting advances alone reports its position among the blocks actually scanned, which
+        // silently mislabels terms for any caller that resolves ordinals back to terms.
+        let (dict, _) = make_test_sstable();
+
+        // Matches exactly one key, far enough in that everything before it is pruned.
+        let late_key = b"3FFFE";
+        let expected_ord: TermOrdinal = 0x3FFFE;
+        assert_eq!(dict.term_ord(late_key).unwrap(), Some(expected_ord));
+
+        let pattern = tantivy_fst::Regex::new("3FFFE").unwrap();
+        let mut stream = dict.search(pattern).into_stream().unwrap();
+        assert!(stream.advance());
+        assert_eq!(stream.key(), late_key);
+        assert_eq!(stream.term_ord(), expected_ord);
+        assert!(!stream.advance());
+
+        // The ordinal a match reports must round-trip back to that same match, for every match
+        // of a pattern whose hits are spread across several pruned-apart blocks.
+        let pattern = tantivy_fst::Regex::new("[0-3]FFFF").unwrap();
+        let mut stream = dict.search(pattern).into_stream().unwrap();
+        let mut seen = 0;
+        while stream.advance() {
+            let key = stream.key().to_vec();
+            let ord = stream.term_ord();
+            assert_eq!(dict.term_ord(&key).unwrap(), Some(ord), "key {key:?}");
+            seen += 1;
+        }
+        assert_eq!(seen, 3); // 0FFFF, 1FFFF, 2FFFF — the dictionary stops below 3FFFF
     }
 }
