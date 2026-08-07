@@ -585,10 +585,25 @@ impl<TScoreCombiner: ScoreCombiner + Sync> Weight for BooleanWeight<TScoreCombin
         callback: &mut dyn FnMut(DocId, Score) -> Score,
     ) -> crate::Result<()> {
         let scorer = self.complex_scorer(reader, 1.0, &self.score_combiner_fn)?;
+        let num_docs = reader.num_docs();
         match scorer {
+            // Block-WAND scores by summing the matching terms, so it may only
+            // drive a combiner that sums. Anything else (dis_max) still needs
+            // every matching term and falls back to the plain union.
             SpecializedScorer::TermUnion(term_scorers) => {
-                super::block_wand(term_scorers, threshold, callback);
+                if TScoreCombiner::SUPPORTS_BLOCK_WAND {
+                    super::block_wand(term_scorers, threshold, callback);
+                } else {
+                    let mut union_scorer =
+                        BufferedUnionScorer::build(term_scorers, &self.score_combiner_fn, num_docs);
+                    for_each_pruning_scorer(&mut union_scorer, threshold, callback);
+                }
             }
+            // An intersection sums its term scores whatever the combiner:
+            // `Intersection::score` hard-codes the sum and `into_box_scorer`
+            // routes `TermIntersection` through it, so the combiner only ever
+            // shapes how *should* clauses combine. Block-WAND's summing
+            // therefore matches the unpruned scorer here for every combiner.
             SpecializedScorer::TermIntersection(term_scorers) => {
                 super::block_wand_intersection(term_scorers, threshold, callback);
             }

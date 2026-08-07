@@ -128,3 +128,133 @@ impl DisjunctionMaxQuery {
         DisjunctionMaxQuery::with_tie_breaker(disjuncts, 0.0)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use crate::collector::TopDocs;
+    use crate::query::{DisjunctionMaxQuery, Query, QueryParser, TermQuery};
+    use crate::schema::{IndexRecordOption, Schema, TEXT};
+    use crate::{Index, Term};
+
+    /// `TopDocs` prunes through `Weight::for_each_pruning`, which hands a union
+    /// of term scorers to Block-WAND. Block-WAND sums the matching terms, so
+    /// driving a dis_max query that way scored a document matching in two
+    /// fields as the sum of both instead of the better of the two.
+    #[test]
+    fn test_dismax_is_not_summed_by_block_wand() -> crate::Result<()> {
+        let mut schema_builder = Schema::builder();
+        let title = schema_builder.add_text_field("title", TEXT);
+        let body = schema_builder.add_text_field("body", TEXT);
+        let schema = schema_builder.build();
+        let index = Index::create_in_ram(schema);
+        let mut writer = index.writer_for_tests()?;
+        // "alpha" appears in two titles and two bodies, so it scores the same
+        // in either field, and doc 1 is the one matching in both
+        writer.add_document(doc!(title => "alpha", body => "beta"))?;
+        writer.add_document(doc!(title => "alpha", body => "alpha"))?;
+        writer.add_document(doc!(title => "beta", body => "alpha"))?;
+        writer.commit()?;
+        let searcher = index.reader()?.searcher();
+
+        let clause = |field| {
+            Box::new(TermQuery::new(
+                Term::from_field_text(field, "alpha"),
+                IndexRecordOption::WithFreqs,
+            )) as Box<dyn Query>
+        };
+        let query = DisjunctionMaxQuery::new(vec![clause(title), clause(body)]);
+        let top = searcher.search(&query, &TopDocs::with_limit(3).order_by_score())?;
+        assert_eq!(top.len(), 3);
+        // every document scores its single best field, so all three tie
+        for (score, _) in &top {
+            assert!(
+                (score - top[0].0).abs() < 1e-5,
+                "dis_max must take the best field, got {top:?}"
+            );
+        }
+
+        // and the tie breaker adds exactly its fraction of the other field
+        let query = DisjunctionMaxQuery::with_tie_breaker(vec![clause(title), clause(body)], 0.3);
+        let top = searcher.search(&query, &TopDocs::with_limit(3).order_by_score())?;
+        assert!(
+            (top[0].0 - top[2].0 * 1.3).abs() < 1e-5,
+            "tie_breaker must add 30% of the other field, got {top:?}"
+        );
+        let _ = QueryParser::for_index(&index, vec![title]);
+        Ok(())
+    }
+
+    /// A `TermIntersection` (all clauses required) sums its term scores on the
+    /// unpruned path whatever the combiner — `Intersection::score` hard-codes
+    /// the sum; the combiner only shapes how *should* clauses combine. The
+    /// pruning path must produce identical scores, which is why
+    /// `block_wand_intersection` may drive a non-summing combiner too.
+    #[test]
+    fn test_term_intersection_pruning_matches_unpruned_scorer() -> crate::Result<()> {
+        use crate::query::score_combiner::DisjunctionMaxCombiner;
+        use crate::query::{BooleanWeight, EnableScoring, Occur, Weight};
+        use crate::schema::Field;
+        use crate::{DocSet, Score, TERMINATED};
+
+        let mut schema_builder = Schema::builder();
+        let text = schema_builder.add_text_field("text", TEXT);
+        let schema = schema_builder.build();
+        let index = Index::create_in_ram(schema);
+        let mut writer = index.writer_for_tests()?;
+        // both terms in every doc, with varying frequencies so scores differ
+        for i in 0..100 {
+            let mut doc_text = String::from("alpha beta");
+            for _ in 0..i % 7 {
+                doc_text.push_str(" alpha");
+            }
+            for _ in 0..i % 3 {
+                doc_text.push_str(" beta");
+            }
+            writer.add_document(doc!(text => doc_text))?;
+        }
+        writer.commit()?;
+        let searcher = index.reader()?.searcher();
+        let reader = searcher.segment_reader(0);
+
+        let clause = |field: Field, term: &str| -> crate::Result<(Occur, Box<dyn Weight>)> {
+            let query = TermQuery::new(
+                Term::from_field_text(field, term),
+                IndexRecordOption::WithFreqs,
+            );
+            Ok((
+                Occur::Must,
+                query.weight(EnableScoring::enabled_from_searcher(&searcher))?,
+            ))
+        };
+        let weight = BooleanWeight::with_minimum_number_should_match(
+            vec![clause(text, "alpha")?, clause(text, "beta")?],
+            0,
+            true,
+            Box::new(|| DisjunctionMaxCombiner::with_tie_breaker(0.3)),
+        );
+
+        let mut unpruned: Vec<(u32, Score)> = Vec::new();
+        let mut scorer = weight.scorer(reader, 1.0)?;
+        while scorer.doc() != TERMINATED {
+            unpruned.push((scorer.doc(), scorer.score()));
+            scorer.advance();
+        }
+        assert_eq!(unpruned.len(), 100);
+
+        let mut pruned: Vec<(u32, Score)> = Vec::new();
+        weight.for_each_pruning(Score::MIN, reader, &mut |doc, score| {
+            pruned.push((doc, score));
+            Score::MIN
+        })?;
+
+        assert_eq!(pruned.len(), unpruned.len());
+        for (&(pruned_doc, pruned_score), &(doc, score)) in pruned.iter().zip(unpruned.iter()) {
+            assert_eq!(pruned_doc, doc);
+            assert!(
+                (pruned_score - score).abs() < 1e-5,
+                "doc {doc}: pruning scored {pruned_score}, plain scorer {score}"
+            );
+        }
+        Ok(())
+    }
+}
