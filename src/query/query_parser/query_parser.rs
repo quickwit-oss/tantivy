@@ -2353,7 +2353,11 @@ mod test {
 
         let dash = query_parser.parse_query("tag:invoice AND -title:draft")?;
         eprintln!("dash query: {dash:?}");
-        assert_eq!(searcher.search(&*dash, &Count)?, 1, "dash form should match");
+        assert_eq!(
+            searcher.search(&*dash, &Count)?,
+            1,
+            "dash form should match"
+        );
 
         let not = query_parser.parse_query("tag:invoice AND NOT title:draft")?;
         eprintln!("not query: {not:?}");
