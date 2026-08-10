@@ -632,14 +632,15 @@ impl<B: BucketIdSlot> SegmentHistogramCollector<B> {
 
 impl SegmentHistogramCollector<()> {
     /// Builds a histogram collector whose parent `t` is a dense histogram filled from
-    /// `counts[t * num_time_buckets .. (t + 1) * num_time_buckets]` (row-major). Used by the fused
-    /// terms×histogram collector to turn its flat 2D counters into the regular intermediate result,
-    /// so cross-segment merging is shared with the general path.
-    pub(crate) fn from_dense_rows(
+    /// `counts[t * num_time_buckets .. (t + 1) * num_time_buckets]` (row-major), consolidating each
+    /// cell's count lanes. Used by the fused terms×histogram collector to turn its flat 2D counters
+    /// into the regular intermediate result, so cross-segment merging is shared with the general
+    /// path.
+    pub(crate) fn from_dense_rows<const LANES: usize>(
         req_data: HistogramAggReqData,
         base_pos: i64,
         num_time_buckets: usize,
-        counts: &[u32],
+        counts: &[[u32; LANES]],
     ) -> Self {
         let interval = req_data.req.interval;
         let offset = req_data.offset;
@@ -650,13 +651,13 @@ impl SegmentHistogramCollector<()> {
                 let buckets = row
                     .iter()
                     .enumerate()
-                    .map(|(b, &doc_count)| SegmentHistogramBucketEntry {
+                    .map(|(b, count_lanes)| SegmentHistogramBucketEntry {
                         key: get_bucket_key_from_pos(
                             (base_pos + b as i64) as f64,
                             interval,
                             offset,
                         ),
-                        doc_count: doc_count as u64,
+                        doc_count: count_lanes.iter().map(|&count| u64::from(count)).sum(),
                         bucket_id: (),
                     })
                     .collect();
