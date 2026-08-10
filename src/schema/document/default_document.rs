@@ -118,6 +118,14 @@ impl CompactDoc {
         self.add_leaf_field_value(field, value);
     }
 
+    /// Add a plugin-defined custom field value.
+    ///
+    /// The bytes are an opaque payload owned by the plugin that consumes this field's custom
+    /// type; tantivy never inspects, indexes, or stores them.
+    pub fn add_custom(&mut self, field: Field, value: &[u8]) {
+        self.add_leaf_field_value(field, ReferenceValueLeaf::Custom(value));
+    }
+
     /// Add a dynamic object field
     pub fn add_object(&mut self, field: Field, object: BTreeMap<String, OwnedValue>) {
         self.add_field_value(field, &OwnedValue::from(object));
@@ -245,6 +253,7 @@ impl CompactDoc {
                 write_bytes_into(&mut self.node_data, bytes.as_bytes())
             }
             ReferenceValueLeaf::Bytes(bytes) => write_bytes_into(&mut self.node_data, bytes),
+            ReferenceValueLeaf::Custom(bytes) => write_bytes_into(&mut self.node_data, bytes),
             ReferenceValueLeaf::U64(num) => write_into(&mut self.node_data, num),
             ReferenceValueLeaf::I64(num) => write_into(&mut self.node_data, num),
             ReferenceValueLeaf::F64(num) => write_into(&mut self.node_data, num),
@@ -432,6 +441,10 @@ impl<'a> CompactDocValue<'a> {
                 let data = self.container.extract_bytes(addr);
                 Ok(ReferenceValueLeaf::Bytes(data).into())
             }
+            ValueType::Custom => {
+                let data = self.container.extract_bytes(addr);
+                Ok(ReferenceValueLeaf::Custom(data).into())
+            }
             ValueType::U64 => self
                 .container
                 .read_from::<u64>(addr)
@@ -542,6 +555,8 @@ pub enum ValueType {
     Object = 11,
     /// Pre-tokenized str type,
     Array = 12,
+    /// Opaque payload of a plugin-defined custom field.
+    Custom = 13,
 }
 
 impl BinarySerializable for ValueType {
@@ -552,7 +567,7 @@ impl BinarySerializable for ValueType {
 
     fn deserialize<R: Read>(reader: &mut R) -> io::Result<Self> {
         let num = u8::deserialize(reader)?;
-        let type_id = if (0..=12).contains(&num) {
+        let type_id = if (0..=13).contains(&num) {
             unsafe { std::mem::transmute::<u8, ValueType>(num) }
         } else {
             return Err(io::Error::new(
@@ -587,6 +602,7 @@ impl<'a> From<&ReferenceValueLeaf<'a>> for ValueType {
             ReferenceValueLeaf::PreTokStr(_) => ValueType::PreTokStr,
             ReferenceValueLeaf::Facet(_) => ValueType::Facet,
             ReferenceValueLeaf::Bytes(_) => ValueType::Bytes,
+            ReferenceValueLeaf::Custom(_) => ValueType::Custom,
         }
     }
 }
@@ -670,6 +686,10 @@ impl Document for CompactDoc {
             slice: self.field_values.iter(),
             container: self,
         }
+    }
+
+    fn into_tantivy_document(self) -> TantivyDocument {
+        self
     }
 }
 

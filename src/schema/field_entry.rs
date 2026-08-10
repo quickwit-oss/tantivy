@@ -2,6 +2,7 @@ use serde::{Deserialize, Serialize};
 
 use super::ip_options::IpAddrOptions;
 use crate::schema::bytes_options::BytesOptions;
+use crate::schema::custom_options::CustomOptions;
 use crate::schema::{
     is_valid_field_name, DateOptions, FacetOptions, FieldType, JsonObjectOptions, NumericOptions,
     TextOptions,
@@ -80,6 +81,11 @@ impl FieldEntry {
         Self::new(field_name, FieldType::JsonObject(json_object_options))
     }
 
+    /// Creates a field entry for a plugin-defined custom field.
+    pub fn new_custom(field_name: String, custom_options: CustomOptions) -> FieldEntry {
+        Self::new(field_name, FieldType::Custom(custom_options))
+    }
+
     /// Returns the name of the field
     pub fn name(&self) -> &str {
         &self.name
@@ -129,6 +135,7 @@ impl FieldEntry {
             FieldType::Bytes(ref options) => options.is_stored(),
             FieldType::JsonObject(ref options) => options.is_stored(),
             FieldType::IpAddr(ref options) => options.is_stored(),
+            FieldType::Custom(_) => false,
         }
     }
 }

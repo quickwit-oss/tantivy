@@ -22,5 +22,6 @@ pub(crate) fn is_type_valid_for_fastfield_range_query(typ: Type) -> bool {
         | Type::IpAddr
         | Type::Bytes => true,
         Type::Facet => false,
+        Type::Custom => false,
     }
 }

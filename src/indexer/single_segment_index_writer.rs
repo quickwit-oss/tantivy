@@ -1,5 +1,6 @@
 use std::marker::PhantomData;
 
+use crate::index::list_segment_files;
 use crate::indexer::operation::AddOperation;
 use crate::indexer::segment_updater::save_metas;
 use crate::indexer::{DocIdMapping, SegmentWriter};
@@ -15,7 +16,7 @@ pub struct SingleSegmentIndexWriter<D: Document = TantivyDocument> {
 }
 
 impl<D: Document> SingleSegmentIndexWriter<D> {
-    pub fn new(index: Index, mem_budget: usize) -> crate::Result<Self> {
+    pub(crate) fn new(index: Index, mem_budget: usize) -> crate::Result<Self> {
         let segment = index.new_segment();
         let segment_writer = SegmentWriter::for_segment(mem_budget, segment.clone())?;
         Ok(Self {
@@ -78,8 +79,15 @@ impl<D: Document> SingleSegmentIndexWriter<D> {
             segment_meta.untrack_temp_docstore();
         }
 
+        let persisted_custom_extensions: Vec<String> = index
+            .custom_plugins()
+            .iter()
+            .flat_map(|plugin| plugin.extensions().iter().copied())
+            .map(str::to_string)
+            .collect();
         let index_meta = IndexMeta {
             index_settings: index.settings().clone(),
+            persisted_custom_extensions,
             segments: vec![segment_meta.clone()],
             schema: index.schema(),
             opstamp: 0,
@@ -90,7 +98,10 @@ impl<D: Document> SingleSegmentIndexWriter<D> {
 
         if did_remapping {
             // Run the garbage collector to remove the temp docstore file from the directory.
-            let mut living_files = segment_meta.list_files();
+            let mut living_files = list_segment_files(
+                std::slice::from_ref(segment_meta),
+                &index_meta.persisted_custom_extensions,
+            );
             living_files.insert(crate::core::META_FILEPATH.to_path_buf());
             index.directory_mut().garbage_collect(|| living_files)?;
         }
