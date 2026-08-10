@@ -136,9 +136,9 @@ where W: Write
                 // Custom fields are never stored (`is_stored() == false`), so the document
                 // serializer never reaches this arm. Guard it explicitly rather than inventing an
                 // on-disk type code for an opaque, plugin-owned payload.
-                ReferenceValueLeaf::Custom(_) => {
-                    Err(io::Error::other("the store does not support custom field types"))
-                }
+                ReferenceValueLeaf::Custom(_) => Err(io::Error::other(
+                    "the store does not support custom field types",
+                )),
             },
             ReferenceValue::Array(elements) => {
                 self.write_type_code(type_codes::ARRAY_CODE)?;

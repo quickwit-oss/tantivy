@@ -623,7 +623,10 @@ mod tests_indexsorting {
         let segment_metas = index.searchable_segment_metas()?;
         let segment_meta = &segment_metas[0];
         let temp_store_path = segment_meta.relative_path(SegmentComponent::TempStore);
-        assert!(!crate::index::list_segment_files(std::slice::from_ref(segment_meta), &[]).contains(&temp_store_path));
+        assert!(
+            !crate::index::list_segment_files(std::slice::from_ref(segment_meta), &[])
+                .contains(&temp_store_path)
+        );
         assert!(!index.directory().exists(&temp_store_path)?);
 
         let mut index_writer = index.writer_for_tests()?;
@@ -659,7 +662,10 @@ mod tests_indexsorting {
         let segment_metas = index.searchable_segment_metas()?;
         let segment_meta = &segment_metas[0];
         let temp_store_path = segment_meta.relative_path(SegmentComponent::TempStore);
-        assert!(!crate::index::list_segment_files(std::slice::from_ref(segment_meta), &[]).contains(&temp_store_path));
+        assert!(
+            !crate::index::list_segment_files(std::slice::from_ref(segment_meta), &[])
+                .contains(&temp_store_path)
+        );
         assert!(!index.directory().exists(&temp_store_path)?);
         Ok(())
     }

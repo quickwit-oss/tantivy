@@ -116,8 +116,7 @@ impl StorePluginWriter {
     pub(crate) fn new(ctx: &PluginWriterContext) -> crate::Result<Self> {
         let settings = ctx.segment.index().settings();
         let directory = ctx.segment.index().directory();
-        let remapping_required =
-            settings.sort_by_field.is_some() || settings.manual_doc_id_mapping;
+        let remapping_required = settings.sort_by_field.is_some() || settings.manual_doc_id_mapping;
 
         let store_writer = if remapping_required {
             let path = ctx.segment.relative_path(SegmentComponent::TempStore);
