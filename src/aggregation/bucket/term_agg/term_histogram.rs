@@ -216,7 +216,6 @@ struct LinearBucketResolver<const NUM_BUCKETS: usize> {
     hist_block: ColumnBlockAccessor<u64>,
     next_count_lane: usize,
     accessor: Column<u64>,
-    is_full: bool,
     boundaries: [u64; NUM_BUCKETS],
     num_buckets: usize,
 }
@@ -248,7 +247,6 @@ impl<const NUM_BUCKETS: usize> LinearBucketResolver<NUM_BUCKETS> {
             hist_block: ColumnBlockAccessor::default(),
             next_count_lane: 0,
             accessor: hist_req_data.accessor.clone(),
-            is_full: hist_req_data.accessor.get_cardinality().is_full(),
             boundaries,
             num_buckets: num_time_buckets,
         })
@@ -268,7 +266,7 @@ impl<const NUM_BUCKETS: usize> BucketResolver for LinearBucketResolver<NUM_BUCKE
     #[inline]
     fn prepare_block(&mut self, docs: &[crate::DocId]) {
         self.hist_block
-            .fetch_block_with_is_full(docs, &self.accessor, self.is_full);
+            .fetch_block_with_is_full(docs, &self.accessor, true);
     }
 
     #[inline]
@@ -742,6 +740,40 @@ mod tests {
             assert_eq!(histo[20], serde_json::Value::Null);
         }
         assert_eq!(res["by_term"]["buckets"][3], serde_json::Value::Null);
+
+        Ok(())
+    }
+
+    /// A histogram whose values all map to one bucket uses the resolver that counts terms without
+    /// reading the histogram column.
+    #[test]
+    fn fused_term_histogram_single_bucket_resolver() -> crate::Result<()> {
+        // The ten distinct values all map to bucket 0 at interval 10. With three terms coprime to
+        // the value count, each term occurs 30 times across the 90 documents.
+        let docs: Vec<(f64, String)> = (0..90usize)
+            .map(|i| ((i % 10) as f64, ["a", "b", "c"][i % 3].to_string()))
+            .collect();
+        let index = get_test_index_from_values_and_terms(true, &[docs])?;
+        let agg_req: Aggregations = serde_json::from_value(serde_json::json!({
+            "by_term": {
+                "terms": { "field": "string_id", "order": { "_key": "asc" } },
+                "aggs": {
+                    "histo": { "histogram": { "field": "score_f64", "interval": 10.0 } }
+                }
+            }
+        }))
+        .unwrap();
+
+        let res = exec_request(agg_req, &index)?;
+        for (term_idx, term) in ["a", "b", "c"].iter().enumerate() {
+            let term_bucket = &res["by_term"]["buckets"][term_idx];
+            assert_eq!(term_bucket["key"], *term);
+            assert_eq!(term_bucket["doc_count"], 30);
+            let histo = &term_bucket["histo"]["buckets"];
+            assert_eq!(histo[0]["key"], 0.0);
+            assert_eq!(histo[0]["doc_count"], 30);
+            assert_eq!(histo[1], serde_json::Value::Null);
+        }
 
         Ok(())
     }

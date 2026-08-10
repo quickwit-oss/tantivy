@@ -352,8 +352,9 @@ const MAX_NUM_BUCKETS_FOR_COUNT_LANES: usize = 100;
 /// consecutive values address the same few counters. With sub-aggregations, this threshold selects
 /// [`LowCardSubAggBuffer`] (which buffers docs in a per-bucket `Vec`) while retaining scalar term
 /// counters. Both specialized layouts only pay off for a handful of buckets, so this is far lower
-/// than [`MAX_NUM_TERMS_FOR_VEC`].
-pub const MAX_NUM_TERMS_FOR_LOWCARD_SUBAGG: u64 = MAX_NUM_BUCKETS_FOR_COUNT_LANES as u64;
+/// than [`MAX_NUM_TERMS_FOR_VEC`]. This threshold is tuned independently from
+/// [`MAX_NUM_BUCKETS_FOR_COUNT_LANES`].
+pub const MAX_NUM_TERMS_FOR_LOWCARD_SUBAGG: u64 = 100;
 
 /// Threshold for using [`PagedTermMap`] storage; larger term-id spaces use
 /// [`HashMapTermBuckets`] instead.
