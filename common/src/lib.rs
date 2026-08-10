@@ -11,6 +11,7 @@ mod datetime;
 pub mod file_slice;
 mod group_by;
 pub mod json_path_writer;
+mod refread;
 mod serialize;
 mod vint;
 mod writer;
@@ -20,7 +21,8 @@ pub use datetime::{DateTime, DateTimePrecision};
 pub use group_by::GroupByIteratorExtended;
 pub use json_path_writer::JsonPathWriter;
 pub use ownedbytes::{OwnedBytes, StableDeref};
-pub use serialize::{BinarySerializable, DeserializeFrom, FixedSize};
+pub use refread::RefReader;
+pub use serialize::{BinaryRefDeserializable, BinarySerializable, DeserializeFrom, FixedSize};
 pub use vint::{
     VInt, VIntU128, read_u32_vint, read_u32_vint_no_advance, serialize_vint_u32, write_u32_vint,
 };

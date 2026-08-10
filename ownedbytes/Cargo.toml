@@ -1,5 +1,8 @@
 [package]
-authors = ["Paul Masurel <paul@quickwit.io>", "Pascal Seitz <pascal@quickwit.io>"]
+authors = [
+    "Paul Masurel <paul@quickwit.io>",
+    "Pascal Seitz <pascal@quickwit.io>",
+]
 name = "ownedbytes"
 version = "0.9.0"
 edition = "2021"

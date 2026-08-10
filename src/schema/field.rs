@@ -1,7 +1,7 @@
 use std::io;
 use std::io::{Read, Write};
 
-use common::BinarySerializable;
+use common::{BinaryRefDeserializable, BinarySerializable, RefReader};
 
 /// `Field` is represented by an unsigned 32-bit integer type.
 /// The schema holds the mapping between field names and `Field` objects.
@@ -29,5 +29,11 @@ impl BinarySerializable for Field {
 
     fn deserialize<R: Read>(reader: &mut R) -> io::Result<Field> {
         u32::deserialize(reader).map(Field)
+    }
+}
+
+impl<'a> BinaryRefDeserializable<'a> for Field {
+    fn deserialize_from_ref<'b: 'a>(reader: &'b RefReader) -> io::Result<Self> {
+        u32::deserialize_from_ref(reader).map(Field)
     }
 }

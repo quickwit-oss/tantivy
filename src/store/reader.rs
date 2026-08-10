@@ -6,7 +6,7 @@ use std::ops::{AddAssign, Range};
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 
-use common::{BinarySerializable, OwnedBytes};
+use common::{BinarySerializable, OwnedBytes, RefReader};
 use lru::LruCache;
 
 use super::footer::DocStoreFooter;
@@ -229,7 +229,7 @@ impl StoreReader {
 
     /// Reads a given document.
     ///
-    /// Calling `.get(doc)` is relatively costly as it requires
+    /// Calling `.get(doc_id)` is relatively costly as it requires
     /// decompressing a compressed block. The store utilizes a LRU cache,
     /// so accessing docs from the same compressed block should be faster.
     /// For that reason a store reader should be kept and reused.
@@ -237,12 +237,22 @@ impl StoreReader {
     /// It should not be called to score documents
     /// for instance.
     pub fn get<D: DocumentDeserialize>(&self, doc_id: DocId) -> crate::Result<D> {
-        let mut doc_bytes = self.get_document_bytes(doc_id)?;
+        let deserializer = self.get_raw(doc_id)?;
+        D::deserialize(&deserializer).map_err(crate::TantivyError::from)
+    }
 
-        let deserializer =
-            BinaryDocumentDeserializer::from_reader(&mut doc_bytes, self.doc_store_version)
-                .map_err(crate::TantivyError::from)?;
-        D::deserialize(deserializer).map_err(crate::TantivyError::from)
+    /// Same as `.get(doc_id)` except it does not deserialize the document and instead returns a
+    /// deserializer with ownership of the raw document bytes.
+    ///
+    /// This allows for deserialization into a type that contains references such as `&str` or
+    /// `&[u8]` via the `DocumentDeserializeRef` trait.
+    ///
+    /// If your type implements `DocumentDeserialize` you should use `.get(doc_id)` instead
+    /// since it's more convenient.
+    pub fn get_raw(&self, doc_id: DocId) -> crate::Result<BinaryDocumentDeserializer> {
+        let doc_bytes = self.get_document_bytes(doc_id)?;
+        BinaryDocumentDeserializer::from_reader(RefReader::new(doc_bytes), self.doc_store_version)
+            .map_err(crate::TantivyError::from)
     }
 
     /// Returns raw bytes of a given document.
@@ -279,12 +289,13 @@ impl StoreReader {
         alive_bitset: Option<&'a AliveBitSet>,
     ) -> impl Iterator<Item = crate::Result<D>> + 'b {
         self.iter_raw(alive_bitset).map(|doc_bytes_res| {
-            let mut doc_bytes = doc_bytes_res?;
+            let doc_bytes = doc_bytes_res?;
+            let reader = RefReader::new(doc_bytes);
 
             let deserializer =
-                BinaryDocumentDeserializer::from_reader(&mut doc_bytes, self.doc_store_version)
+                BinaryDocumentDeserializer::from_reader(reader, self.doc_store_version)
                     .map_err(crate::TantivyError::from)?;
-            D::deserialize(deserializer).map_err(crate::TantivyError::from)
+            D::deserialize(&deserializer).map_err(crate::TantivyError::from)
         })
     }
 
@@ -431,10 +442,12 @@ impl StoreReader {
     ) -> crate::Result<D> {
         let mut doc_bytes = self.get_document_bytes_async(doc_id, executor).await?;
 
-        let deserializer =
-            BinaryDocumentDeserializer::from_reader(&mut doc_bytes, self.doc_store_version)
-                .map_err(crate::TantivyError::from)?;
-        D::deserialize(deserializer).map_err(crate::TantivyError::from)
+        let deserializer = BinaryDocumentDeserializer::from_reader(
+            RefReader::new(doc_bytes),
+            self.doc_store_version,
+        )
+        .map_err(crate::TantivyError::from)?;
+        D::deserialize(&deserializer).map_err(crate::TantivyError::from)
     }
 }
 
