@@ -55,16 +55,13 @@ trait BucketResolver: Debug + 'static {
         counts: &mut [[u32; LANES]],
     );
 
-    /// Bounded variant. Only the computed resolver is constructed for binding hard bounds; the
-    /// default remains useful for the statically unbounded resolvers.
+    /// Resolves values with hard bounds while preserving each term's total document count.
     fn collect_block_with_bounds<const LANES: usize>(
         &mut self,
         term_ids: impl Iterator<Item = u64>,
         counts: &mut [[u32; LANES]],
-        _term_counts: &mut [[u32; LANES]],
-    ) {
-        self.collect_block(term_ids, counts);
-    }
+        term_counts: &mut [[u32; LANES]],
+    );
 }
 
 #[inline]
@@ -108,6 +105,15 @@ impl BucketResolver for SingleBucketResolver {
             self.next_count_lane = (self.next_count_lane + 1) % LANES;
             increment_grid_count(counts, term_id, 0, 1, self.next_count_lane);
         }
+    }
+
+    fn collect_block_with_bounds<const LANES: usize>(
+        &mut self,
+        _term_ids: impl Iterator<Item = u64>,
+        _counts: &mut [[u32; LANES]],
+        _term_counts: &mut [[u32; LANES]],
+    ) {
+        unreachable!("SingleBucketResolver is only constructed without hard bounds");
     }
 }
 
@@ -283,6 +289,18 @@ impl<const NUM_BUCKETS: usize> BucketResolver for LinearBucketResolver<NUM_BUCKE
             self.next_count_lane = (self.next_count_lane + 1) % LANES;
             increment_grid_count(counts, term_id, bucket, num_buckets, self.next_count_lane);
         }
+    }
+
+    fn collect_block_with_bounds<const LANES: usize>(
+        &mut self,
+        _term_ids: impl Iterator<Item = u64>,
+        _counts: &mut [[u32; LANES]],
+        _term_counts: &mut [[u32; LANES]],
+    ) {
+        panic!(
+            "LinearBucketResolver does not support hard bounds and should not be constructed with \
+             them"
+        );
     }
 }
 
@@ -570,7 +588,7 @@ fn build_collector<const LANES: usize>(
     num_time_buckets: usize,
     base_pos: i64,
 ) -> crate::Result<Box<dyn SegmentAggregationCollector>> {
-    assert!(LANES > 0, "a fused grid needs at least one count lane");
+    const { assert!(LANES > 0, "a fused grid needs at least one count lane") };
 
     let all_docs_in_bounds =
         hist_req_data.bounds.min == f64::MIN && hist_req_data.bounds.max == f64::MAX;

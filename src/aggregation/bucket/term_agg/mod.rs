@@ -857,7 +857,7 @@ struct TermBucketWithLanes<B, const LANES: usize> {
 impl<B: BucketIdSlot, const LANES: usize> TermBucketWithLanes<B, LANES> {
     #[inline(always)]
     fn new(bucket_id_provider: &mut BucketIdProvider) -> Self {
-        assert!(LANES > 0, "a term bucket needs at least one count lane");
+        const { assert!(LANES > 0, "a term bucket needs at least one count lane") };
         Self {
             count_lanes: [0; LANES],
             bucket_id: B::assign(bucket_id_provider),
@@ -918,7 +918,7 @@ impl<B: BucketIdSlot, const LANES: usize> TermAggregationMap for VecTermBucketsW
     }
 
     fn new(num_terms: u64, bucket_id_provider: &mut BucketIdProvider) -> Self {
-        assert!(LANES > 0, "a term map needs at least one count lane");
+        const { assert!(LANES > 0, "a term map needs at least one count lane") };
         let buckets =
             std::iter::repeat_with(|| TermBucketWithLanes::<B, LANES>::new(bucket_id_provider))
                 .take(num_terms as usize)
