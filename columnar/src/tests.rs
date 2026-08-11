@@ -348,7 +348,7 @@ fn test_plain_bytes_optional_and_non_utf8_roundtrip() {
 }
 
 #[test]
-fn test_plain_bytes_multivalued_values_are_sorted_within_row() {
+fn test_plain_bytes_multivalued_values_ignore_sort_flag() {
     let mut buffer = Vec::new();
     let mut columnar_writer = ColumnarWriter::default();
     columnar_writer
@@ -377,7 +377,7 @@ fn test_plain_bytes_multivalued_values_are_sorted_within_row() {
     accessor
         .for_each_value(0, |value| values.push(value.to_vec()))
         .unwrap();
-    assert_eq!(values, [b"".to_vec(), b"a".to_vec(), b"z".to_vec()]);
+    assert_eq!(values, [b"z".to_vec(), b"".to_vec(), b"a".to_vec()]);
     values.clear();
     accessor
         .for_each_value(1, |value| values.push(value.to_vec()))

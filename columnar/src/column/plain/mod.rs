@@ -260,9 +260,7 @@ impl PlainBytesColumnAccessor {
 
     /// Decodes the first value associated with `row_id`.
     pub fn first(&mut self, row_id: RowId) -> Option<&[u8]> {
-        let Some(value_ord) = self.column.value_ords(row_id).next() else {
-            return None;
-        };
+        let value_ord = self.column.value_ords(row_id).next()?;
         Some(self.get_val(value_ord))
     }
 
@@ -504,12 +502,12 @@ fn validate_index_num_values(column_index: &ColumnIndex, num_values: u32) -> io:
             Some(start_offsets.get_val(start_offsets.num_vals() - 1))
         }
     };
-    if let Some(expected_num_values) = expected_num_values {
-        if expected_num_values != num_values {
-            return Err(invalid_data(
-                "plain column index value count does not match its block directory",
-            ));
-        }
+    if let Some(expected_num_values) = expected_num_values
+        && expected_num_values != num_values
+    {
+        return Err(invalid_data(
+            "plain column index value count does not match its block directory",
+        ));
     }
     Ok(())
 }
