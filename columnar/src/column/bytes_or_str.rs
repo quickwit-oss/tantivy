@@ -1,9 +1,66 @@
-use std::fmt;
+use std::sync::Arc;
+use std::{fmt, io};
 
+use common::file_slice::FileSlice;
+use common::{HasLen, OwnedBytes};
+
+use super::dictionary_encoding::open_dictionary_bytes_column;
+use super::plain::open_plain_bytes_column;
 use super::{
     DictionaryEncodedBytesColumn, DictionaryEncodedStrColumn, PlainBytesColumn, PlainStrColumn,
 };
-use crate::{Cardinality, ColumnIndex, PayloadEncoding, RowId};
+use crate::{Cardinality, ColumnIndex, PayloadEncoding, RowId, Version};
+
+pub fn open_column_bytes(data: OwnedBytes, format_version: Version) -> io::Result<BytesColumn> {
+    open_column_bytes_from_file_slice(FileSlice::new(Arc::new(data)), format_version)
+}
+
+pub(crate) fn open_column_bytes_from_file_slice(
+    data: FileSlice,
+    format_version: Version,
+) -> io::Result<BytesColumn> {
+    match format_version {
+        Version::V1 | Version::V2 => {
+            open_dictionary_bytes_column(data.read_bytes()?, format_version).map(Into::into)
+        }
+        Version::V3 => {
+            if data.len() < 1 {
+                return Err(invalid_data("missing string/byte payload encoding tag"));
+            }
+            let (encoding_slice, payload) = data.split(1);
+            let encoding_bytes = encoding_slice.read_bytes()?;
+            let encoding =
+                PayloadEncoding::try_from_code(encoding_bytes[0]).map_err(io::Error::from)?;
+            match encoding {
+                PayloadEncoding::Dictionary => {
+                    open_dictionary_bytes_column(payload.read_bytes()?, format_version)
+                        .map(Into::into)
+                }
+                PayloadEncoding::Plain => open_plain_bytes_column(payload).map(Into::into),
+            }
+        }
+    }
+}
+
+pub fn open_column_str(data: OwnedBytes, format_version: Version) -> io::Result<StrColumn> {
+    open_column_str_from_file_slice(FileSlice::new(Arc::new(data)), format_version)
+}
+
+pub(crate) fn open_column_str_from_file_slice(
+    data: FileSlice,
+    format_version: Version,
+) -> io::Result<StrColumn> {
+    match open_column_bytes_from_file_slice(data, format_version)? {
+        BytesColumn::DictionaryEncoded(bytes_column) => {
+            Ok(DictionaryEncodedStrColumn::wrap(bytes_column).into())
+        }
+        BytesColumn::Plain(bytes_column) => Ok(PlainStrColumn::wrap(bytes_column).into()),
+    }
+}
+
+fn invalid_data(message: &'static str) -> io::Error {
+    io::Error::new(io::ErrorKind::InvalidData, message)
+}
 
 /// A byte column, independently of its payload encoding.
 #[derive(Clone)]
@@ -191,6 +248,29 @@ impl From<StrColumn> for BytesColumn {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_v3_payload_encoding_tag_errors() {
+        let error = open_column_bytes(OwnedBytes::new(Vec::new()), Version::V3).unwrap_err();
+        assert_eq!(error.kind(), io::ErrorKind::InvalidData);
+
+        let error = open_column_bytes(OwnedBytes::new(vec![u8::MAX]), Version::V3).unwrap_err();
+        assert_eq!(error.kind(), io::ErrorKind::InvalidData);
+
+        let error = open_column_bytes(
+            OwnedBytes::new(vec![PayloadEncoding::Plain.to_code()]),
+            Version::V3,
+        )
+        .unwrap_err();
+        assert_eq!(error.kind(), io::ErrorKind::InvalidData);
+
+        let error = open_column_bytes(
+            OwnedBytes::new(vec![PayloadEncoding::Dictionary.to_code()]),
+            Version::V3,
+        )
+        .unwrap_err();
+        assert_eq!(error.kind(), io::ErrorKind::InvalidData);
+    }
 
     #[test]
     fn test_dictionary_encoded_column_metadata_and_downcasts() {

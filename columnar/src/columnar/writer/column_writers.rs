@@ -1,10 +1,11 @@
 use std::cmp::Ordering;
+use std::mem::size_of;
 
 use stacker::{ExpUnrolledLinkedList, MemoryArena};
 
 use crate::columnar::writer::column_operation::{ColumnOperation, SymbolValue};
-use crate::dictionary::{DictionaryBuilder, UnorderedId};
-use crate::{Cardinality, NumericalType, NumericalValue, RowId};
+use crate::dictionary::DictionaryBuilder;
+use crate::{Cardinality, NumericalType, NumericalValue, PayloadEncoding, RowId};
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 #[repr(u8)]
@@ -242,8 +243,7 @@ impl NumericalColumnWriter {
 
 #[derive(Copy, Clone)]
 pub(crate) struct StrOrBytesColumnWriter {
-    pub(crate) dictionary_id: u32,
-    pub(crate) column_writer: ColumnWriter,
+    payload: PayloadColumnWriter,
     // If true, when facing a multivalued cardinality,
     // values associated to a given document will be sorted.
     //
@@ -254,12 +254,90 @@ pub(crate) struct StrOrBytesColumnWriter {
     pub(crate) sort_values_within_row: bool,
 }
 
+#[derive(Copy, Clone)]
+pub(crate) enum PayloadColumnWriter {
+    Dictionary(DictionaryEncodedColumnWriter),
+    Plain(PlainColumnWriter),
+}
+
+#[derive(Copy, Clone)]
+pub(crate) struct DictionaryEncodedColumnWriter {
+    pub(crate) dictionary_id: u32,
+    column_writer: ColumnWriter,
+}
+
+#[derive(Copy, Clone, Default)]
+pub(crate) struct PlainColumnWriter {
+    column_writer: ColumnWriter,
+    pub(crate) value_store_id: u32,
+}
+
+#[derive(Default)]
+pub(crate) struct PlainValueStore {
+    concatenated_payloads: Vec<u8>,
+    end_offsets: Vec<usize>,
+}
+
+impl PlainValueStore {
+    fn push(&mut self, value: &[u8]) -> u32 {
+        let value_id = self.end_offsets.len() as u32;
+        self.concatenated_payloads.extend_from_slice(value);
+        self.end_offsets.push(self.concatenated_payloads.len());
+        value_id
+    }
+
+    pub(crate) fn get(&self, value_id: u32) -> &[u8] {
+        let value_id = value_id as usize;
+        let end = self.end_offsets[value_id];
+        let start = if value_id == 0 {
+            0
+        } else {
+            self.end_offsets[value_id - 1]
+        };
+        &self.concatenated_payloads[start..end]
+    }
+
+    pub(crate) fn mem_usage(&self) -> usize {
+        self.concatenated_payloads.capacity() + self.end_offsets.capacity() * size_of::<usize>()
+    }
+}
+
 impl StrOrBytesColumnWriter {
-    pub(crate) fn with_dictionary_id(dictionary_id: u32) -> StrOrBytesColumnWriter {
+    pub(crate) fn dictionary(dictionary_id: u32) -> StrOrBytesColumnWriter {
         StrOrBytesColumnWriter {
-            dictionary_id,
-            column_writer: Default::default(),
+            payload: PayloadColumnWriter::Dictionary(DictionaryEncodedColumnWriter {
+                dictionary_id,
+                column_writer: ColumnWriter::default(),
+            }),
             sort_values_within_row: false,
+        }
+    }
+
+    pub(crate) fn plain(value_store_id: u32) -> StrOrBytesColumnWriter {
+        StrOrBytesColumnWriter {
+            payload: PayloadColumnWriter::Plain(PlainColumnWriter {
+                value_store_id,
+                ..PlainColumnWriter::default()
+            }),
+            sort_values_within_row: false,
+        }
+    }
+
+    pub(crate) fn encoding(self) -> PayloadEncoding {
+        match self.payload {
+            PayloadColumnWriter::Dictionary(_) => PayloadEncoding::Dictionary,
+            PayloadColumnWriter::Plain(_) => PayloadEncoding::Plain,
+        }
+    }
+
+    pub(crate) fn payload(self) -> PayloadColumnWriter {
+        self.payload
+    }
+
+    pub(crate) fn column_writer(self) -> ColumnWriter {
+        match self.payload {
+            PayloadColumnWriter::Dictionary(writer) => writer.column_writer,
+            PayloadColumnWriter::Plain(writer) => writer.column_writer,
         }
     }
 
@@ -268,11 +346,20 @@ impl StrOrBytesColumnWriter {
         doc: RowId,
         bytes: &[u8],
         dictionaries: &mut [DictionaryBuilder],
+        plain_value_stores: &mut [PlainValueStore],
         arena: &mut MemoryArena,
     ) {
-        let unordered_id =
-            dictionaries[self.dictionary_id as usize].get_or_allocate_id(bytes, arena);
-        self.column_writer.record(doc, unordered_id, arena);
+        match &mut self.payload {
+            PayloadColumnWriter::Dictionary(writer) => {
+                let unordered_id =
+                    dictionaries[writer.dictionary_id as usize].get_or_allocate_id(bytes, arena);
+                writer.column_writer.record(doc, unordered_id.0, arena);
+            }
+            PayloadColumnWriter::Plain(writer) => {
+                let value_id = plain_value_stores[writer.value_store_id as usize].push(bytes);
+                writer.column_writer.record(doc, value_id, arena);
+            }
+        }
     }
 
     pub(super) fn operation_iterator<'a>(
@@ -280,8 +367,8 @@ impl StrOrBytesColumnWriter {
         arena: &MemoryArena,
         old_to_new_ids: Option<&[RowId]>,
         byte_buffer: &'a mut Vec<u8>,
-    ) -> impl Iterator<Item = ColumnOperation<UnorderedId>> + 'a + use<'a> {
-        self.column_writer
+    ) -> impl Iterator<Item = ColumnOperation<u32>> + 'a + use<'a> {
+        self.column_writer()
             .operation_iterator(arena, old_to_new_ids, byte_buffer)
     }
 }
@@ -300,6 +387,20 @@ mod tests {
         assert_eq!(delta_with_last_doc(Some(1u32), 2u32), DocumentStep::Next);
         assert_eq!(delta_with_last_doc(Some(1u32), 3u32), DocumentStep::Skipped);
         assert_eq!(delta_with_last_doc(Some(1u32), 4u32), DocumentStep::Skipped);
+    }
+
+    #[test]
+    fn test_plain_value_store() {
+        let mut store = PlainValueStore::default();
+        let first = store.push(b"same");
+        let empty = store.push(b"");
+        let duplicate = store.push(b"same");
+
+        assert_eq!((first, empty, duplicate), (0, 1, 2));
+        assert_eq!(store.get(first), b"same");
+        assert_eq!(store.get(empty), b"");
+        assert_eq!(store.get(duplicate), b"same");
+        assert!(store.mem_usage() >= 8);
     }
 
     #[track_caller]

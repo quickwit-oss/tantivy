@@ -211,7 +211,7 @@ name = "bool_queries_with_range"
 harness = false
 
 [[bench]]
-name = "str_search_and_get"
+name = "dictionary_encoded_str_search_and_get"
 harness = false
 
 [[bench]]

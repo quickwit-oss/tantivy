@@ -7,6 +7,10 @@ use sstable::{Dictionary, VoidSSTable};
 use crate::RowId;
 use crate::column::Column;
 
+mod open;
+
+pub(crate) use open::open_dictionary_bytes_column;
+
 /// Dictionary encoded column.
 ///
 /// The column simply gives access to a regular u64-column that, in
@@ -22,7 +26,7 @@ pub struct DictionaryEncodedBytesColumn {
 }
 
 impl fmt::Debug for DictionaryEncodedBytesColumn {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         f.debug_struct("DictionaryEncodedBytesColumn")
             .field("term_ord_column", &self.term_ord_column)
             .finish()
