@@ -170,29 +170,23 @@ The equivalent methods should exist on `StrColumn`.
 
 ### Plain value access
 
-OnPair16 decompression needs an output buffer, so use caller-owned scratch space and return a
-slice borrowed from it:
+OnPair16 decompression needs an output buffer, so create a mutable accessor that owns both its
+decode buffer and its most recently parsed block:
 
 ```rust
-fn get_val<'a>(
-    &self,
-    value_ord: u32,
-    output: &'a mut Vec<u8>,
-) -> io::Result<&'a [u8]>;
+let mut accessor = column.accessor();
 
-fn first<'a>(
-    &self,
-    row_id: RowId,
-    output: &'a mut Vec<u8>,
-) -> io::Result<Option<&'a [u8]>>;
+accessor.get_val(value_ord) -> io::Result<&[u8]>;
+accessor.first(row_id) -> io::Result<Option<&[u8]>>;
 ```
 
-`PlainStrColumn` exposes the corresponding methods returning `&str`.
+`PlainStrColumnAccessor` exposes the corresponding methods returning `&str`. Returned values are
+valid until the next mutable call on that accessor.
 
 A normal `Iterator<Item = &[u8]>` cannot safely reuse a single mutable decompression buffer for a
 multivalued row. Offer either:
 
-- a callback-based `for_each_value(row_id, scratch, callback)` API, or
+- a callback-based `for_each_value(row_id, callback)` API, or
 - an iterator over physical value ordinals plus `get_val()`.
 
 The callback API is preferable for the common case because it does not expose ordinals as a
@@ -203,26 +197,31 @@ logical part of the plain-column API.
 `PlainBytesColumn` contains:
 
 - A `ColumnIndex` mapping document rows to physical value positions.
-- The OnPair16 decoder/model shared by the column.
-- Concatenated independently compressed payloads.
-- A monotonic offsets column containing `num_values + 1` entries.
+- A range-readable `FileSlice` containing independently trained OnPair blocks.
+- A resident block directory storing cumulative byte and value endpoints in separate boxed slices.
+
+Each mutable accessor owns its most recently parsed, still-compressed block and reusable output
+buffer. The underlying column remains immutable and shareable.
 
 To read value `i`:
 
-1. Read offsets `i` and `i + 1`.
-2. Slice that range from the compressed payload.
-3. Decode it into the caller's scratch buffer.
-4. Return `&[u8]`, or validate and return `&str` through `PlainStrColumn`.
+1. Binary-search the directory's contiguous cumulative `end_value` slice.
+2. Range-read the selected block unless it is the cached block.
+3. Read the block-local offsets for `i` and slice its native `u16` OnPair codes.
+4. Decode only that value into the accessor's output buffer.
+5. Return `&[u8]`, or validate and return `&str` through `PlainStrColumn`.
 
-The values must be compressed independently so accessing one row does not require decoding an
-entire block or neighboring values. This matches OnPair16's random-access model.
+Fetching a value downloads its containing block but does not decompress the entire block or any
+neighboring value. Column clones share the immutable block directory, while accessors have
+independent caches.
 
 ### Validation
 
 Opening or reading a plain column must reject:
 
 - Unknown encoding discriminants.
-- Truncated model or payload regions.
+- Truncated directories, blocks, or native OnPair buffers.
+- Non-contiguous block byte ranges or non-increasing cumulative value ordinals.
 - Non-monotonic or out-of-range offsets.
 - An offsets count inconsistent with the column index/value count.
 - Invalid OnPair16 tokens or model references.
@@ -266,24 +265,52 @@ layout is:
 ```text
 1u8
 | column_index
-| onpair16_model
-| compressed_values
-| value_offsets
+| onpair_block_0 ... onpair_block_n
+| block_directory[]
 | column_index_num_bytes:u32 LE
-| model_num_bytes:u32 LE
-| compressed_values_num_bytes:u64 LE
-| value_offsets_num_bytes:u32 LE
-| num_values:u32 LE
+| num_blocks:u32 LE
 ```
 
-`value_offsets` is a serialized monotonic `u64` column with exactly `num_values + 1` entries. Its
-first entry is zero, its last entry equals `compressed_values_num_bytes`, and every adjacent pair
-delimits one independently compressed value. `onpair16_model` uses the codec's canonical model
-serialization, which must be frozen alongside the standalone plain-column implementation.
+Each eight-byte block-directory entry is:
 
-The fixed 24-byte footer is read from the end first. The four regions are then split from left to
-right without copying. Checked conversion to `usize`, checked length sums, and region bounds are
-required before any `OwnedBytes::split` call; unrecognized tags and trailing bytes are invalid.
+```text
+block_num_bytes:u32 LE | end_value:u32 LE
+```
+
+`block_num_bytes` is the serialized size of one independently loadable block. Block addresses are
+derived by checked cumulative addition, so the entire column may exceed `u32::MAX` bytes even
+though an individual block may not. `end_value` is the exclusive cumulative physical value
+ordinal. The final entry yields the column's value count, so it is not serialized separately. An
+empty column has no blocks.
+
+Each OnPair block is:
+
+```text
+dictionary_bytes_with_read_padding
+| dictionary_offsets:u32 LE[]
+| codes:u16 LE[]
+| value_offsets:u32 LE[]
+| dictionary_bytes_num_bytes:u32 LE
+| dictionary_offsets_num_bytes:u32 LE
+| codes_num_bytes:u32 LE
+```
+
+The directory determines the block's value count, so `value_offsets` must contain exactly one more
+entry than the block has values. Its entries index the native code stream and its final entry equals
+the number of codes. Native buffers are copied into aligned typed vectors after the block is fetched
+because a `FileSlice` result does not guarantee `u16` or `u32` alignment.
+
+Opening reads the fixed eight-byte footer and directory from the end, then eagerly opens only the
+global column index. Block region lengths, cumulative addresses, native-buffer alignment, OnPair
+invariants, codes, and local offsets are validated before decoding.
+
+Blocks close after appending a complete value when they reach either
+`PLAIN_BLOCK_RAW_NUM_BYTES_THRESHOLD` (10 MiB of uncompressed value bytes) or
+`PLAIN_BLOCK_MAX_NUM_VALUES` (262,144 values). Lowering the byte threshold reduces point-read
+downloads and can improve compression when sorting makes blocks locally homogeneous, but produces
+more dictionaries, directory entries, and block seeks. Raising it amortizes those costs over more
+values, while increasing point-read downloads and potentially diluting sorting locality and its
+compression benefit. The value-count cap independently bounds offsets for short or empty values.
 
 V1 and V2 never consume a tag. V3 always consumes exactly one tag byte for string and byte
 payloads, including dictionary payloads.
@@ -331,23 +358,25 @@ encodings.
 
 ### Plain writer flow
 
-1. Store raw input values in the memory arena rather than interning them in the term dictionary.
-2. Continue recording new-document/value operations so the existing cardinality and column-index
-   builders can be reused.
+1. Store raw input values in a dedicated contiguous per-column store rather than interning them in
+   the term dictionary. Keep cumulative offsets beside the bytes so sorting and block serialization
+   can borrow values directly without copying the entire column out of the memory arena.
+2. Continue recording new-document/value operations in the memory arena so the existing
+   cardinality and column-index builders can be reused.
 3. Apply `old_to_new_row_ids` before serialization.
 4. Sort values lexicographically within a row when requested.
-5. Train the OnPair16 model from the field values or the codec's prescribed sample.
-6. Compress each value independently in physical value order.
-7. Append each compressed value and record the next offset.
-8. Serialize the index, model, payload, offsets, footer, and V3 encoding tag.
+5. Accumulate complete physical values until the 10 MiB raw-byte threshold or 262,144-value cap is
+   reached.
+6. Train and encode an independent native OnPair column for the block.
+7. Serialize the block and append its byte length and cumulative `end_value` to the directory.
+8. Serialize the index, blocks, directory, footer, and V3 encoding tag.
 
 Include raw value storage, OnPair training structures, compressed buffers, and offsets in
 `mem_usage()`.
 
-There is currently no OnPair dependency in the workspace. Implementation therefore requires
-either adding the intended Rust codec dependency or introducing a small internal codec module. The
-column implementation should depend on a narrow train/serialize/open/compress/decompress interface
-so the storage code is not coupled to training internals.
+Tantivy and `tantivy-columnar` use Rust 1.91 and depend on OnPair 0.2. The reader preserves OnPair's
+native dictionary, `u16` code, and `u32` block-local offset representation and uses its validation
+and random-access decoder.
 
 ## 6. Tantivy writer integration
 
@@ -361,8 +390,8 @@ During `FastFieldsWriter::from_schema_and_tokenizer_manager`:
 Tokenizer behavior is independent of payload encoding: tokenization happens first, and each
 resulting token is then recorded using the selected encoding.
 
-Index-time sorting also runs before serialization. The plain writer should compare raw arena bytes
-directly, while the dictionary writer retains the current ordered-term-ID optimization.
+Index-time sorting also runs before serialization. The plain writer should compare raw value-store
+bytes directly, while the dictionary writer retains the current ordered-term-ID optimization.
 
 ## 7. Columnar and segment merging
 
@@ -529,6 +558,12 @@ cost separately from value compression.
 10. Adapt ordinal-dependent queries, collectors, sorting, and aggregations according to that
     audit.
 11. Complete corruption tests, compatibility-index tests, and benchmarks.
+12. Improve cold OnPair block-opening performance. Profile the cost of range acquisition,
+    native-buffer materialization, and validation separately; avoid eagerly copying and validating
+    the entire code and value-offset streams for a point lookup; investigate retaining the block as
+    `OwnedBytes`, lazily reading only the selected value's offsets and codes, borrowing dictionary
+    bytes, and adding an alignment-independent zero-copy serialized view to OnPair if partial
+    zero-copy is insufficient.
 
 ## Existing worktree note
 
