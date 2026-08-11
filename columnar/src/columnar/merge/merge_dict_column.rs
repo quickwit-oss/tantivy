@@ -7,17 +7,21 @@ use super::term_merger::{TermMerger, TermsWithSegmentOrd};
 use crate::column::serialize_column_mappable_to_u64;
 use crate::column_index::SerializableColumnIndex;
 use crate::iterable::Iterable;
-use crate::{BytesColumn, MergeRowOrder, ShuffleMergeOrder};
+use crate::{
+    BytesColumn, DictionaryEncodedBytesColumn, MergeRowOrder, PayloadEncoding, ShuffleMergeOrder,
+};
 
-// Serialize [Dictionary, Column, dictionary num bytes U32::LE]
+// V3 serialize [PayloadEncoding, Dictionary, Column, dictionary num bytes U32::LE]
 // Column: [Column Index, Column Values, column index num bytes U32::LE]
 pub fn merge_bytes_or_str_column(
     column_index: SerializableColumnIndex<'_>,
-    bytes_columns: &[Option<BytesColumn>],
+    bytes_columns: &[Option<DictionaryEncodedBytesColumn>],
     merge_row_order: &MergeRowOrder,
     output: &mut impl Write,
 ) -> io::Result<()> {
-    // Serialize dict and generate mapping for values
+    output.write_all(&[PayloadEncoding::Dictionary.to_code()])?;
+    // Serialize dict and generate mapping for values.
+    // The encoding tag is intentionally excluded from `dictionary_num_bytes`.
     let mut output = CountingWriter::wrap(output);
     // TODO !!! Remove useless terms.
     let term_ord_mapping = serialize_merged_dict(bytes_columns, merge_row_order, &mut output)?;
@@ -45,15 +49,27 @@ pub fn merge_bytes_or_str_column(
 pub fn compute_merged_term_ord_mapping(
     bytes_columns: &[BytesColumn],
 ) -> io::Result<Vec<Vec<TermOrdinal>>> {
-    let bytes_columns_opt: Vec<Option<BytesColumn>> =
-        bytes_columns.iter().cloned().map(Some).collect();
+    let bytes_columns_opt: Vec<Option<DictionaryEncodedBytesColumn>> = bytes_columns
+        .iter()
+        .map(|column| {
+            column.as_dictionary_encoded().cloned().ok_or_else(|| {
+                io::Error::new(
+                    io::ErrorKind::Unsupported,
+                    "term ordinal mapping requires dictionary encoded columns",
+                )
+            })
+        })
+        .collect::<io::Result<Vec<_>>>()?
+        .into_iter()
+        .map(Some)
+        .collect();
     let term_ord_mapping =
         merge_dict_and_compute_term_ord_mapping(&bytes_columns_opt, |_| true, |_| Ok(()))?;
     Ok(term_ord_mapping.into_per_segment_new_term_ordinals())
 }
 
 struct RemappedTermOrdinalsValues<'a> {
-    bytes_columns: &'a [Option<BytesColumn>],
+    bytes_columns: &'a [Option<DictionaryEncodedBytesColumn>],
     term_ord_mapping: &'a TermOrdinalMapping,
     merge_row_order: &'a MergeRowOrder,
 }
@@ -113,7 +129,10 @@ impl RemappedTermOrdinalsValues<'_> {
     }
 }
 
-fn compute_term_bitset(column: &BytesColumn, row_bitset: &ReadOnlyBitSet) -> BitSet {
+fn compute_term_bitset(
+    column: &DictionaryEncodedBytesColumn,
+    row_bitset: &ReadOnlyBitSet,
+) -> BitSet {
     let num_terms = column.dictionary().num_terms();
     let mut term_bitset = BitSet::with_max_value(num_terms as u32);
     for row_id in row_bitset.iter() {
@@ -138,7 +157,7 @@ fn is_term_present(bitsets: &[Option<BitSet>], term_merger: &TermMerger) -> bool
 }
 
 fn merge_dict_and_compute_term_ord_mapping(
-    bytes_columns: &[Option<BytesColumn>],
+    bytes_columns: &[Option<DictionaryEncodedBytesColumn>],
     mut should_keep_term: impl FnMut(&TermMerger) -> bool,
     mut emit_term: impl FnMut(&[u8]) -> io::Result<()>,
 ) -> io::Result<TermOrdinalMapping> {
@@ -176,7 +195,7 @@ fn merge_dict_and_compute_term_ord_mapping(
 }
 
 fn serialize_merged_dict(
-    bytes_columns: &[Option<BytesColumn>],
+    bytes_columns: &[Option<DictionaryEncodedBytesColumn>],
     merge_row_order: &MergeRowOrder,
     output: &mut impl Write,
 ) -> io::Result<TermOrdinalMapping> {

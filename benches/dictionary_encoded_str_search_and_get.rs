@@ -372,6 +372,7 @@ impl FetchAllStringsSearchTask {
             let str_column_opt = segment_reader.fast_fields().str("str_fast");
 
             if let Ok(Some(str_column)) = str_column_opt {
+                let str_column = str_column.as_dictionary_encoded().unwrap();
                 let doc_id = doc_address.doc_id;
                 let term_ord = str_column.term_ords(doc_id).next().unwrap();
                 let mut str_buffer = String::new();

@@ -1171,7 +1171,7 @@ fn resolve_column_value(
             let fallback_dict = Dictionary::empty();
             let term_dict = str_dict_column
                 .as_ref()
-                .map(|c| c.dictionary())
+                .map(|c| c.as_dictionary_encoded().unwrap().dictionary()) //< TODO
                 .unwrap_or_else(|| &fallback_dict);
             let mut buffer = Vec::new();
             term_dict.ord_to_term(val, &mut buffer)?;

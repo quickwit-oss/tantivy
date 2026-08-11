@@ -2,6 +2,7 @@
 name = "tantivy-columnar"
 version = "0.7.0"
 edition = "2024"
+rust-version = "1.91"
 license = "MIT"
 homepage = "https://github.com/quickwit-oss/tantivy"
 repository = "https://github.com/quickwit-oss/tantivy"
@@ -16,8 +17,9 @@ stacker = { version= "0.7", path = "../stacker", package="tantivy-stacker"}
 sstable = { version= "0.7", path = "../sstable", package = "tantivy-sstable" }
 common = { version= "0.11", path = "../common", package = "tantivy-common" }
 tantivy-bitpacker = { version= "0.10", path = "../bitpacker/" }
-serde = "1.0.152"
+serde = { version = "1.0.152", features = ["derive"] }
 downcast-rs = "2.0.1"
+onpair = "0.2"
 
 [dev-dependencies]
 proptest = "1"

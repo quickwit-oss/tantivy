@@ -492,6 +492,7 @@ mod tests {
             let segment_reader = searcher.segment_reader(0);
             let fast_fields = segment_reader.fast_fields();
             let str_column = fast_fields.str("text").unwrap().unwrap();
+            let str_column = str_column.as_dictionary_encoded().unwrap();
             assert!(str_column.ords().values_for_doc(0u32).eq([1, 0]),);
             assert!(str_column.ords().values_for_doc(1u32).next().is_none());
             assert!(str_column.ords().values_for_doc(2u32).eq([0]),);
@@ -534,6 +535,7 @@ mod tests {
             let segment_reader = searcher.segment_reader(1);
             let fast_fields = segment_reader.fast_fields();
             let text_fast_field = fast_fields.str("text").unwrap().unwrap();
+            let text_fast_field = text_fast_field.as_dictionary_encoded().unwrap();
 
             assert_eq!(&get_vals_for_docs(text_fast_field.ords(), 0..2), &[0, 1]);
         }
@@ -552,6 +554,7 @@ mod tests {
         let segment_reader = searcher.segment_reader(0);
         let fast_fields = segment_reader.fast_fields();
         let text_column = fast_fields.str("text").unwrap().unwrap();
+        let text_column = text_column.as_dictionary_encoded().unwrap();
 
         assert_eq!(
             get_vals_for_docs(text_column.ords(), 0..8),
@@ -571,6 +574,7 @@ mod tests {
         let searcher = index.reader().unwrap().searcher();
         let segment_reader = searcher.segment_reader(0);
         let str_column = segment_reader.fast_fields().str("text").unwrap().unwrap();
+        let str_column = str_column.as_dictionary_encoded().unwrap();
         // The string values are not sorted here.
         let term_ords: Vec<u64> = str_column.term_ords(0u32).collect();
         assert_eq!(&term_ords, &[1, 0]);
@@ -630,6 +634,7 @@ mod tests {
             let segment_reader = searcher.segment_reader(0);
             let fast_fields = segment_reader.fast_fields();
             let text_col = fast_fields.str("text").unwrap().unwrap();
+            let text_col = text_col.as_dictionary_encoded().unwrap();
 
             assert_eq!(get_vals_for_docs(text_col.ords(), 0..6), vec![1, 0, 0, 2]);
 
@@ -661,6 +666,7 @@ mod tests {
             let segment_reader = searcher.segment_reader(1);
             let fast_fields = segment_reader.fast_fields();
             let text_fast_field = fast_fields.str("text").unwrap().unwrap();
+            let text_fast_field = text_fast_field.as_dictionary_encoded().unwrap();
 
             assert_eq!(&get_vals_for_docs(text_fast_field.ords(), 0..2), &[0, 1]);
         }
@@ -677,6 +683,7 @@ mod tests {
         let segment_reader = searcher.segment_reader(0);
         let fast_fields = segment_reader.fast_fields();
         let text_fast_field = fast_fields.str("text").unwrap().unwrap();
+        let text_fast_field = text_fast_field.as_dictionary_encoded().unwrap();
 
         assert_eq!(
             get_vals_for_docs(text_fast_field.ords(), 0..9),
@@ -1082,6 +1089,7 @@ mod tests {
         assert!(column_without_opt.is_err());
         let column_with_opt: Option<StrColumn> = fast_fields.str("with.hello").unwrap();
         let column_with: StrColumn = column_with_opt.unwrap();
+        let column_with = column_with.as_dictionary_encoded().unwrap();
         assert!(column_with.term_ords(0).next().is_none());
         assert!(column_with.term_ords(1).eq([0]));
         assert!(column_with.term_ords(2).eq([2]));
@@ -1134,6 +1142,7 @@ mod tests {
         let fast_fields = searcher.segment_reader(0u32).fast_fields();
 
         let ff_str = fast_fields.str("json.age").unwrap().unwrap();
+        let ff_str = ff_str.as_dictionary_encoded().unwrap();
         let mut output = String::new();
         ff_str.ord_to_str(0, &mut output).unwrap();
         assert_eq!(output, "new");
@@ -1232,6 +1241,7 @@ mod tests {
         let searcher = index.reader().unwrap().searcher();
         let fast_field_reader = searcher.segment_reader(0u32).fast_fields();
         let column = fast_field_reader.str("text").unwrap().unwrap();
+        let column = column.as_dictionary_encoded().unwrap();
         let mut out = String::new();
         column.ord_to_str(0u64, &mut out).unwrap();
         assert_eq!(&out, "test1 test2");
@@ -1265,6 +1275,7 @@ mod tests {
         let fast_field_reader = searcher.segment_reader(0u32).fast_fields();
 
         let text_fast_field = fast_field_reader.str("log_level").unwrap().unwrap();
+        let text_fast_field = text_fast_field.as_dictionary_encoded().unwrap();
         let mut buffer = String::new();
         assert!(text_fast_field.ord_to_str(0, &mut buffer).unwrap());
         assert_eq!(buffer, "info");

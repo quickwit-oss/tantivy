@@ -430,6 +430,7 @@ pub(crate) mod tests {
             let all_results = searcher.search(&AllQuery, &DocSetCollector)?.into_iter().map(|doc_address| {
                 // Get the term for this address.
                 let column = searcher.segment_readers()[doc_address.segment_ord as usize].fast_fields().str("city").unwrap().unwrap();
+                let column = column.as_dictionary_encoded().unwrap();
                 let value = column.term_ords(doc_address.doc_id).next().map(|term_ord| {
                     let mut city = Vec::new();
                     column.dictionary().ord_to_term(term_ord, &mut city).unwrap();

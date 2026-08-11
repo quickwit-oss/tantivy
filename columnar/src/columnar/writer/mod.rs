@@ -1,9 +1,12 @@
 mod column_operation;
 mod column_writers;
+mod dictionary_encoding;
+mod plain;
 mod serializer;
 mod value_index;
 
 use std::io;
+use std::mem::size_of;
 use std::net::Ipv6Addr;
 
 use column_operation::ColumnOperation;
@@ -13,16 +16,20 @@ use common::json_path_writer::JSON_END_OF_PATH;
 pub(crate) use serializer::ColumnarSerializer;
 use stacker::{Addr, ArenaHashMap, MemoryArena};
 
-use crate::column_index::{SerializableColumnIndex, SerializableOptionalIndex};
+use crate::column_index::{
+    SerializableColumnIndex, SerializableOptionalIndex, serialize_column_index,
+};
 use crate::column_values::{MonotonicallyMappableToU64, MonotonicallyMappableToU128};
 use crate::columnar::column_type::ColumnType;
-use crate::columnar::writer::column_writers::{
-    ColumnWriter, NumericalColumnWriter, StrOrBytesColumnWriter,
+use crate::columnar::writer::column_writers::{ColumnWriter, NumericalColumnWriter};
+use crate::columnar::writer::dictionary_encoding::{
+    DictionaryEncodedColumnWriter, DictionaryEncodedColumnsWriter,
 };
+use crate::columnar::writer::plain::{PlainColumnWriter, PlainColumnsWriter, PlainValueStore};
 use crate::columnar::writer::value_index::{IndexBuilder, PreallocatedIndexBuilders};
 use crate::dictionary::{DictionaryBuilder, TermIdMapping, UnorderedId};
 use crate::value::{Coerce, NumericalType, NumericalValue};
-use crate::{Cardinality, RowId};
+use crate::{Cardinality, PayloadEncoding, RowId};
 
 /// This is a set of buffers that are used to temporarily write the values into before passing them
 /// to the fast field codecs.
@@ -31,6 +38,24 @@ struct SpareBuffers {
     value_index_builders: PreallocatedIndexBuilders,
     u64_values: Vec<u64>,
     ip_addr_values: Vec<Ipv6Addr>,
+    plain_value_ids: Vec<u32>,
+    plain_block_raw_values: Vec<u8>,
+    plain_block_offsets: Vec<u32>,
+    plain_block_end_bytes: Vec<u32>,
+    plain_block_end_values: Vec<u32>,
+}
+
+impl SpareBuffers {
+    fn mem_usage(&self) -> usize {
+        self.value_index_builders.mem_usage()
+            + self.u64_values.capacity() * size_of::<u64>()
+            + self.ip_addr_values.capacity() * size_of::<Ipv6Addr>()
+            + self.plain_value_ids.capacity() * size_of::<u32>()
+            + self.plain_block_raw_values.capacity()
+            + self.plain_block_offsets.capacity() * size_of::<u32>()
+            + self.plain_block_end_bytes.capacity() * size_of::<u32>()
+            + self.plain_block_end_values.capacity() * size_of::<u32>()
+    }
 }
 
 /// Makes it possible to create a new columnar.
@@ -52,11 +77,9 @@ pub struct ColumnarWriter {
     datetime_field_hash_map: ArenaHashMap,
     bool_field_hash_map: ArenaHashMap,
     ip_addr_field_hash_map: ArenaHashMap,
-    bytes_field_hash_map: ArenaHashMap,
-    str_field_hash_map: ArenaHashMap,
+    dictionary_encoded_columns: DictionaryEncodedColumnsWriter,
+    plain_columns: PlainColumnsWriter,
     arena: MemoryArena,
-    // Dictionaries used to store dictionary-encoded values.
-    dictionaries: Vec<DictionaryBuilder>,
     buffers: SpareBuffers,
 }
 
@@ -65,15 +88,11 @@ impl ColumnarWriter {
         self.arena.mem_usage()
             + self.numerical_field_hash_map.mem_usage()
             + self.bool_field_hash_map.mem_usage()
-            + self.bytes_field_hash_map.mem_usage()
-            + self.str_field_hash_map.mem_usage()
             + self.ip_addr_field_hash_map.mem_usage()
             + self.datetime_field_hash_map.mem_usage()
-            + self
-                .dictionaries
-                .iter()
-                .map(|dict| dict.mem_usage())
-                .sum::<usize>()
+            + self.dictionary_encoded_columns.mem_usage()
+            + self.plain_columns.mem_usage()
+            + self.buffers.mem_usage()
     }
 
     /// Returns the list of doc ids from 0..num_docs sorted by the `sort_field`
@@ -93,29 +112,66 @@ impl ColumnarWriter {
                     .get::<NumericalColumnWriter>(sort_field.as_bytes())
             })
         else {
-            let str_or_bytes_column_opt = self
-                .str_field_hash_map
-                .get::<StrOrBytesColumnWriter>(sort_field.as_bytes())
-                .or_else(|| {
-                    self.bytes_field_hash_map
-                        .get::<StrOrBytesColumnWriter>(sort_field.as_bytes())
-                });
-            let Some(str_or_bytes_column) = str_or_bytes_column_opt else {
-                return Vec::new();
-            };
-
-            let dictionary_builder = &self.dictionaries[str_or_bytes_column.dictionary_id as usize];
-            let term_id_mapping = dictionary_builder.build_term_id_mapping(&self.arena);
-            let mut symbols_buffer = Vec::new();
-
-            return collect_sort_order_from_ops(
-                str_or_bytes_column.operation_iterator(&self.arena, None, &mut symbols_buffer),
-                num_docs,
-                reversed,
-                |uid| Some(term_id_mapping.to_ord(uid).0),
-                None,
-                |a, b| a.cmp(b),
-            );
+            let column_name = sort_field.as_bytes();
+            if let Some(writer) = self
+                .dictionary_encoded_columns
+                .str_columns
+                .get::<DictionaryEncodedColumnWriter>(column_name)
+            {
+                let dictionary_builder =
+                    &self.dictionary_encoded_columns.dictionaries[writer.dictionary_id as usize];
+                return collect_dictionary_sort_order(
+                    writer,
+                    dictionary_builder,
+                    &self.arena,
+                    num_docs,
+                    reversed,
+                );
+            }
+            if let Some(writer) = self
+                .plain_columns
+                .str_columns
+                .get::<PlainColumnWriter>(column_name)
+            {
+                let value_store = &self.plain_columns.value_stores[writer.value_store_id as usize];
+                return collect_plain_sort_order(
+                    writer,
+                    value_store,
+                    &self.arena,
+                    num_docs,
+                    reversed,
+                );
+            }
+            if let Some(writer) = self
+                .dictionary_encoded_columns
+                .bytes_columns
+                .get::<DictionaryEncodedColumnWriter>(column_name)
+            {
+                let dictionary_builder =
+                    &self.dictionary_encoded_columns.dictionaries[writer.dictionary_id as usize];
+                return collect_dictionary_sort_order(
+                    writer,
+                    dictionary_builder,
+                    &self.arena,
+                    num_docs,
+                    reversed,
+                );
+            }
+            if let Some(writer) = self
+                .plain_columns
+                .bytes_columns
+                .get::<PlainColumnWriter>(column_name)
+            {
+                let value_store = &self.plain_columns.value_stores[writer.value_store_id as usize];
+                return collect_plain_sort_order(
+                    writer,
+                    value_store,
+                    &self.arena,
+                    num_docs,
+                    reversed,
+                );
+            }
+            return Vec::new();
         };
         let mut symbols_buffer = Vec::new();
         collect_sort_order_from_ops(
@@ -156,50 +212,116 @@ impl ColumnarWriter {
         column_type: ColumnType,
         sort_values_within_row: bool,
     ) {
+        self.record_column_type_with_encoding(
+            column_name,
+            column_type,
+            sort_values_within_row,
+            PayloadEncoding::Dictionary,
+        )
+        .expect("column was already registered with a conflicting payload encoding");
+    }
+
+    /// Records a column type and the payload encoding for a string or byte column.
+    ///
+    /// Dictionary encoding is the only valid encoding for other column types. Re-registering a
+    /// string or byte column with a different encoding returns an error. Plain payloads preserve
+    /// the recorded value order and ignore `sort_values_within_row`.
+    pub fn record_column_type_with_encoding(
+        &mut self,
+        column_name: &str,
+        column_type: ColumnType,
+        sort_values_within_row: bool,
+        encoding: PayloadEncoding,
+    ) -> io::Result<()> {
         if sort_values_within_row {
-            assert!(
-                column_type == ColumnType::Bytes || column_type == ColumnType::Str,
-                "sort_values_within_row is only allowed for Bytes and Str columns",
-            );
+            match column_type {
+                ColumnType::Bytes | ColumnType::Str => {}
+                _ => {
+                    return Err(invalid_input(
+                        "sort_values_within_row is only allowed for Bytes and Str columns",
+                    ));
+                }
+            }
         }
         match column_type {
             ColumnType::Str | ColumnType::Bytes => {
-                let (hash_map, dictionaries) = (
-                    if column_type == ColumnType::Str {
-                        &mut self.str_field_hash_map
-                    } else {
-                        &mut self.bytes_field_hash_map
-                    },
-                    &mut self.dictionaries,
-                );
-                hash_map.mutate_or_create(
-                    column_name.as_bytes(),
-                    |column_opt: Option<StrOrBytesColumnWriter>| {
-                        let mut column_writer = if let Some(column_writer) = column_opt {
-                            column_writer
-                        } else {
-                            let dictionary_id = dictionaries.len() as u32;
-                            dictionaries.push(DictionaryBuilder::default());
-                            StrOrBytesColumnWriter::with_dictionary_id(dictionary_id)
-                        };
-                        column_writer.sort_values_within_row = sort_values_within_row;
-                        column_writer
-                    },
-                );
+                let DictionaryEncodedColumnsWriter {
+                    bytes_columns: dictionary_bytes_columns,
+                    str_columns: dictionary_str_columns,
+                    dictionaries,
+                } = &mut self.dictionary_encoded_columns;
+                let PlainColumnsWriter {
+                    bytes_columns: plain_bytes_columns,
+                    str_columns: plain_str_columns,
+                    value_stores,
+                } = &mut self.plain_columns;
+                let (dictionary_columns, plain_columns) = if column_type == ColumnType::Str {
+                    (dictionary_str_columns, plain_str_columns)
+                } else {
+                    (dictionary_bytes_columns, plain_bytes_columns)
+                };
+
+                match encoding {
+                    PayloadEncoding::Dictionary => {
+                        if plain_columns
+                            .get::<PlainColumnWriter>(column_name.as_bytes())
+                            .is_some()
+                        {
+                            return Err(invalid_input(
+                                "column was already registered with a different payload encoding",
+                            ));
+                        }
+                        dictionary_columns.mutate_or_create(
+                            column_name.as_bytes(),
+                            |column_opt: Option<DictionaryEncodedColumnWriter>| {
+                                let mut column_writer = column_opt.unwrap_or_else(|| {
+                                    let dictionary_id = dictionaries.len() as u32;
+                                    dictionaries.push(DictionaryBuilder::default());
+                                    DictionaryEncodedColumnWriter::new(dictionary_id)
+                                });
+                                column_writer.sort_values_within_row = sort_values_within_row;
+                                column_writer
+                            },
+                        );
+                    }
+                    PayloadEncoding::Plain => {
+                        if dictionary_columns
+                            .get::<DictionaryEncodedColumnWriter>(column_name.as_bytes())
+                            .is_some()
+                        {
+                            return Err(invalid_input(
+                                "column was already registered with a different payload encoding",
+                            ));
+                        }
+                        plain_columns.mutate_or_create(
+                            column_name.as_bytes(),
+                            |column_opt: Option<PlainColumnWriter>| {
+                                column_opt.unwrap_or_else(|| {
+                                    let value_store_id = value_stores.len() as u32;
+                                    value_stores.push(PlainValueStore::default());
+                                    PlainColumnWriter::new(value_store_id)
+                                })
+                            },
+                        );
+                    }
+                }
             }
             ColumnType::Bool => {
+                require_dictionary_encoding(encoding)?;
                 self.bool_field_hash_map.mutate_or_create(
                     column_name.as_bytes(),
                     |column_opt: Option<ColumnWriter>| column_opt.unwrap_or_default(),
                 );
             }
             ColumnType::DateTime => {
+                require_dictionary_encoding(encoding)?;
                 self.datetime_field_hash_map.mutate_or_create(
                     column_name.as_bytes(),
                     |column_opt: Option<ColumnWriter>| column_opt.unwrap_or_default(),
                 );
             }
             ColumnType::I64 | ColumnType::F64 | ColumnType::U64 => {
+                require_dictionary_encoding(encoding)?;
                 let numerical_type = column_type.numerical_type().unwrap();
                 self.numerical_field_hash_map.mutate_or_create(
                     column_name.as_bytes(),
@@ -210,11 +332,15 @@ impl ColumnarWriter {
                     },
                 );
             }
-            ColumnType::IpAddr => self.ip_addr_field_hash_map.mutate_or_create(
-                column_name.as_bytes(),
-                |column_opt: Option<ColumnWriter>| column_opt.unwrap_or_default(),
-            ),
+            ColumnType::IpAddr => {
+                require_dictionary_encoding(encoding)?;
+                self.ip_addr_field_hash_map.mutate_or_create(
+                    column_name.as_bytes(),
+                    |column_opt: Option<ColumnWriter>| column_opt.unwrap_or_default(),
+                );
+            }
         }
+        Ok(())
     }
 
     pub fn record_numerical<T: Into<NumericalValue> + Copy>(
@@ -275,46 +401,64 @@ impl ColumnarWriter {
     }
 
     pub fn record_str(&mut self, doc: RowId, column_name: &str, value: &str) {
-        let (hash_map, arena, dictionaries) = (
-            &mut self.str_field_hash_map,
-            &mut self.arena,
-            &mut self.dictionaries,
-        );
-        hash_map.mutate_or_create(
+        self.record_bytes_or_str(doc, column_name, value.as_bytes(), ColumnType::Str);
+    }
+
+    pub fn record_bytes(&mut self, doc: RowId, column_name: &str, value: &[u8]) {
+        self.record_bytes_or_str(doc, column_name, value, ColumnType::Bytes);
+    }
+
+    fn record_bytes_or_str(
+        &mut self,
+        doc: RowId,
+        column_name: &str,
+        value: &[u8],
+        column_type: ColumnType,
+    ) {
+        let DictionaryEncodedColumnsWriter {
+            bytes_columns: dictionary_bytes_columns,
+            str_columns: dictionary_str_columns,
+            dictionaries,
+        } = &mut self.dictionary_encoded_columns;
+        let PlainColumnsWriter {
+            bytes_columns: plain_bytes_columns,
+            str_columns: plain_str_columns,
+            value_stores,
+        } = &mut self.plain_columns;
+        let (dictionary_columns, plain_columns) = if column_type == ColumnType::Str {
+            (dictionary_str_columns, plain_str_columns)
+        } else {
+            (dictionary_bytes_columns, plain_bytes_columns)
+        };
+        if plain_columns
+            .get::<PlainColumnWriter>(column_name.as_bytes())
+            .is_some()
+        {
+            plain_columns.mutate_or_create(
+                column_name.as_bytes(),
+                |column_opt: Option<PlainColumnWriter>| {
+                    let mut column = column_opt.unwrap();
+                    column.record_bytes(doc, value, value_stores, &mut self.arena);
+                    column
+                },
+            );
+            return;
+        }
+
+        dictionary_columns.mutate_or_create(
             column_name.as_bytes(),
-            |column_opt: Option<StrOrBytesColumnWriter>| {
-                let mut column: StrOrBytesColumnWriter = column_opt.unwrap_or_else(|| {
-                    // Each column has its own dictionary
+            |column_opt: Option<DictionaryEncodedColumnWriter>| {
+                let mut column = column_opt.unwrap_or_else(|| {
                     let dictionary_id = dictionaries.len() as u32;
                     dictionaries.push(DictionaryBuilder::default());
-                    StrOrBytesColumnWriter::with_dictionary_id(dictionary_id)
+                    DictionaryEncodedColumnWriter::new(dictionary_id)
                 });
-                column.record_bytes(doc, value.as_bytes(), dictionaries, arena);
+                column.record_bytes(doc, value, dictionaries, &mut self.arena);
                 column
             },
         );
     }
 
-    pub fn record_bytes(&mut self, doc: RowId, column_name: &str, value: &[u8]) {
-        let (hash_map, arena, dictionaries) = (
-            &mut self.bytes_field_hash_map,
-            &mut self.arena,
-            &mut self.dictionaries,
-        );
-        hash_map.mutate_or_create(
-            column_name.as_bytes(),
-            |column_opt: Option<StrOrBytesColumnWriter>| {
-                let mut column: StrOrBytesColumnWriter = column_opt.unwrap_or_else(|| {
-                    // Each column has its own dictionary
-                    let dictionary_id = dictionaries.len() as u32;
-                    dictionaries.push(DictionaryBuilder::default());
-                    StrOrBytesColumnWriter::with_dictionary_id(dictionary_id)
-                });
-                column.record_bytes(doc, value, dictionaries, arena);
-                column
-            },
-        );
-    }
     pub fn serialize(
         &mut self,
         num_docs: RowId,
@@ -323,45 +467,86 @@ impl ColumnarWriter {
     ) -> io::Result<()> {
         let mut serializer = ColumnarSerializer::new(wrt);
 
-        let mut columns: Vec<(&[u8], ColumnType, Addr)> = self
+        let mut columns: Vec<(&[u8], ColumnType, Option<PayloadEncoding>, Addr)> = self
             .numerical_field_hash_map
             .iter()
             .map(|(column_name, addr)| {
                 let numerical_column_writer: NumericalColumnWriter =
                     self.numerical_field_hash_map.read(addr);
                 let column_type = numerical_column_writer.numerical_type().into();
-                (column_name, column_type, addr)
+                (column_name, column_type, None, addr)
             })
             .collect();
+        columns.extend(self.dictionary_encoded_columns.bytes_columns.iter().map(
+            |(column_name, addr)| {
+                (
+                    column_name,
+                    ColumnType::Bytes,
+                    Some(PayloadEncoding::Dictionary),
+                    addr,
+                )
+            },
+        ));
+        columns.extend(self.dictionary_encoded_columns.str_columns.iter().map(
+            |(column_name, addr)| {
+                (
+                    column_name,
+                    ColumnType::Str,
+                    Some(PayloadEncoding::Dictionary),
+                    addr,
+                )
+            },
+        ));
         columns.extend(
-            self.bytes_field_hash_map
+            self.plain_columns
+                .bytes_columns
                 .iter()
-                .map(|(column_name, addr)| (column_name, ColumnType::Bytes, addr)),
+                .map(|(column_name, addr)| {
+                    (
+                        column_name,
+                        ColumnType::Bytes,
+                        Some(PayloadEncoding::Plain),
+                        addr,
+                    )
+                }),
         );
         columns.extend(
-            self.str_field_hash_map
+            self.plain_columns
+                .str_columns
                 .iter()
-                .map(|(column_name, addr)| (column_name, ColumnType::Str, addr)),
+                .map(|(column_name, addr)| {
+                    (
+                        column_name,
+                        ColumnType::Str,
+                        Some(PayloadEncoding::Plain),
+                        addr,
+                    )
+                }),
         );
         columns.extend(
             self.bool_field_hash_map
                 .iter()
-                .map(|(column_name, addr)| (column_name, ColumnType::Bool, addr)),
+                .map(|(column_name, addr)| (column_name, ColumnType::Bool, None, addr)),
         );
         columns.extend(
             self.ip_addr_field_hash_map
                 .iter()
-                .map(|(column_name, addr)| (column_name, ColumnType::IpAddr, addr)),
+                .map(|(column_name, addr)| (column_name, ColumnType::IpAddr, None, addr)),
         );
         columns.extend(
             self.datetime_field_hash_map
                 .iter()
-                .map(|(column_name, addr)| (column_name, ColumnType::DateTime, addr)),
+                .map(|(column_name, addr)| (column_name, ColumnType::DateTime, None, addr)),
         );
-        columns.sort_unstable_by_key(|(column_name, col_type, _)| (*column_name, *col_type));
-        let (arena, buffers, dictionaries) = (&self.arena, &mut self.buffers, &self.dictionaries);
+        columns.sort_unstable_by_key(|(column_name, col_type, _, _)| (*column_name, *col_type));
+        let (arena, buffers, dictionaries, plain_value_stores) = (
+            &self.arena,
+            &mut self.buffers,
+            &self.dictionary_encoded_columns.dictionaries,
+            &self.plain_columns.value_stores,
+        );
         let mut symbol_byte_buffer: Vec<u8> = Vec::new();
-        for (column_name, column_type, addr) in columns {
+        for (column_name, column_type, payload_encoding, addr) in columns {
             if column_name.contains(&JSON_END_OF_PATH) {
                 // Tantivy uses b'0' as a separator for nested fields in JSON.
                 // Column names with a b'0' are not simply ignored by the columnar (and the inverted
@@ -406,33 +591,55 @@ impl ColumnarWriter {
                     column_serializer.finalize()?;
                 }
                 ColumnType::Bytes | ColumnType::Str => {
-                    let str_or_bytes_column_writer: StrOrBytesColumnWriter =
-                        if column_type == ColumnType::Bytes {
-                            self.bytes_field_hash_map.read(addr)
-                        } else {
-                            self.str_field_hash_map.read(addr)
-                        };
-                    let dictionary_builder =
-                        &dictionaries[str_or_bytes_column_writer.dictionary_id as usize];
-                    let cardinality = str_or_bytes_column_writer
-                        .column_writer
-                        .get_cardinality(num_docs);
                     let mut column_serializer =
                         serializer.start_serialize_column(column_name, column_type);
-                    serialize_bytes_or_str_column(
-                        cardinality,
-                        num_docs,
-                        str_or_bytes_column_writer.sort_values_within_row,
-                        dictionary_builder,
-                        str_or_bytes_column_writer.operation_iterator(
-                            arena,
-                            old_to_new_row_ids,
-                            &mut symbol_byte_buffer,
-                        ),
-                        buffers,
-                        &self.arena,
-                        &mut column_serializer,
-                    )?;
+                    match payload_encoding.unwrap() {
+                        PayloadEncoding::Dictionary => {
+                            let writer: DictionaryEncodedColumnWriter =
+                                if column_type == ColumnType::Bytes {
+                                    self.dictionary_encoded_columns.bytes_columns.read(addr)
+                                } else {
+                                    self.dictionary_encoded_columns.str_columns.read(addr)
+                                };
+                            let cardinality = writer.column_writer.get_cardinality(num_docs);
+                            let dictionary_builder = &dictionaries[writer.dictionary_id as usize];
+                            serialize_dictionary_bytes_or_str_column(
+                                cardinality,
+                                num_docs,
+                                writer.sort_values_within_row,
+                                dictionary_builder,
+                                writer.operation_iterator(
+                                    arena,
+                                    old_to_new_row_ids,
+                                    &mut symbol_byte_buffer,
+                                ),
+                                buffers,
+                                arena,
+                                &mut column_serializer,
+                            )?;
+                        }
+                        PayloadEncoding::Plain => {
+                            let writer: PlainColumnWriter = if column_type == ColumnType::Bytes {
+                                self.plain_columns.bytes_columns.read(addr)
+                            } else {
+                                self.plain_columns.str_columns.read(addr)
+                            };
+                            let cardinality = writer.column_writer.get_cardinality(num_docs);
+                            let value_store = &plain_value_stores[writer.value_store_id as usize];
+                            serialize_plain_bytes_or_str_column(
+                                cardinality,
+                                num_docs,
+                                value_store,
+                                writer.operation_iterator(
+                                    arena,
+                                    old_to_new_row_ids,
+                                    &mut symbol_byte_buffer,
+                                ),
+                                buffers,
+                                &mut column_serializer,
+                            )?;
+                        }
+                    }
                     column_serializer.finalize()?;
                 }
                 ColumnType::F64 | ColumnType::I64 | ColumnType::U64 => {
@@ -480,6 +687,43 @@ impl ColumnarWriter {
         serializer.finalize(num_docs)?;
         Ok(())
     }
+}
+
+fn collect_dictionary_sort_order(
+    writer: DictionaryEncodedColumnWriter,
+    dictionary_builder: &DictionaryBuilder,
+    arena: &MemoryArena,
+    num_docs: RowId,
+    reversed: bool,
+) -> Vec<RowId> {
+    let term_id_mapping = dictionary_builder.build_term_id_mapping(arena);
+    let mut symbols_buffer = Vec::new();
+    collect_sort_order_from_ops(
+        writer.operation_iterator(arena, None, &mut symbols_buffer),
+        num_docs,
+        reversed,
+        |unordered_id| Some(term_id_mapping.to_ord(UnorderedId(unordered_id)).0),
+        None,
+        |a, b| a.cmp(b),
+    )
+}
+
+fn collect_plain_sort_order(
+    writer: PlainColumnWriter,
+    value_store: &PlainValueStore,
+    arena: &MemoryArena,
+    num_docs: RowId,
+    reversed: bool,
+) -> Vec<RowId> {
+    let mut symbols_buffer = Vec::new();
+    collect_sort_order_from_ops(
+        writer.operation_iterator(arena, None, &mut symbols_buffer),
+        num_docs,
+        reversed,
+        Some,
+        None,
+        |left, right| compare_optional_plain_values(*left, *right, value_store),
+    )
 }
 
 /// Shared sorting pattern for both numeric and Str/Bytes sort fields.
@@ -532,15 +776,15 @@ fn collect_sort_order_from_ops<V, K: Clone>(
         .collect()
 }
 
-// Serialize [Dictionary, Column, dictionary num bytes U32::LE]
+// V3 serialize [PayloadEncoding, Dictionary, Column, dictionary num bytes U32::LE]
 // Column: [Column Index, Column Values, column index num bytes U32::LE]
 #[expect(clippy::too_many_arguments)]
-fn serialize_bytes_or_str_column(
+fn serialize_dictionary_bytes_or_str_column(
     cardinality: Cardinality,
     num_docs: RowId,
     sort_values_within_row: bool,
     dictionary_builder: &DictionaryBuilder,
-    operation_it: impl Iterator<Item = ColumnOperation<UnorderedId>>,
+    operation_it: impl Iterator<Item = ColumnOperation<u32>>,
     buffers: &mut SpareBuffers,
     arena: &MemoryArena,
     wrt: impl io::Write,
@@ -550,16 +794,18 @@ fn serialize_bytes_or_str_column(
         u64_values,
         ..
     } = buffers;
+    let mut wrt = wrt;
+    wrt.write_all(&[PayloadEncoding::Dictionary.to_code()])?;
     let mut counting_writer = CountingWriter::wrap(wrt);
     let term_id_mapping: TermIdMapping =
         dictionary_builder.serialize(arena, &mut counting_writer)?;
     let dictionary_num_bytes: u32 = counting_writer.written_bytes() as u32;
     let mut wrt = counting_writer.finish();
-    let operation_iterator = operation_it.map(|symbol: ColumnOperation<UnorderedId>| {
+    let operation_iterator = operation_it.map(|symbol: ColumnOperation<u32>| {
         // We map unordered ids to ordered ids.
         match symbol {
             ColumnOperation::Value(unordered_id) => {
-                let ordered_id = term_id_mapping.to_ord(unordered_id);
+                let ordered_id = term_id_mapping.to_ord(UnorderedId(unordered_id));
                 ColumnOperation::Value(ordered_id.0 as u64)
             }
             ColumnOperation::NewDoc(doc) => ColumnOperation::NewDoc(doc),
@@ -576,6 +822,170 @@ fn serialize_bytes_or_str_column(
     )?;
     wrt.write_all(&dictionary_num_bytes.to_le_bytes()[..])?;
     Ok(())
+}
+
+fn serialize_plain_bytes_or_str_column(
+    cardinality: Cardinality,
+    num_docs: RowId,
+    value_store: &PlainValueStore,
+    operation_it: impl Iterator<Item = ColumnOperation<u32>>,
+    buffers: &mut SpareBuffers,
+    mut wrt: impl io::Write,
+) -> io::Result<()> {
+    let SpareBuffers {
+        value_index_builders,
+        plain_value_ids,
+        plain_block_raw_values,
+        plain_block_offsets,
+        plain_block_end_bytes,
+        plain_block_end_values,
+        ..
+    } = buffers;
+    plain_value_ids.clear();
+
+    wrt.write_all(&[PayloadEncoding::Plain.to_code()])?;
+    let serializable_column_index = match cardinality {
+        Cardinality::Full => {
+            consume_operation_iterator(
+                operation_it,
+                value_index_builders.borrow_required_index_builder(),
+                plain_value_ids,
+            );
+            SerializableColumnIndex::Full
+        }
+        Cardinality::Optional => {
+            let optional_index_builder = value_index_builders.borrow_optional_index_builder();
+            consume_operation_iterator(operation_it, optional_index_builder, plain_value_ids);
+            let optional_index = optional_index_builder.finish(num_docs);
+            SerializableColumnIndex::Optional(SerializableOptionalIndex {
+                non_null_row_ids: Box::new(optional_index),
+                num_rows: num_docs,
+            })
+        }
+        Cardinality::Multivalued => {
+            let multivalued_index_builder = value_index_builders.borrow_multivalued_index_builder();
+            consume_operation_iterator(operation_it, multivalued_index_builder, plain_value_ids);
+            let serializable_multivalued_index = multivalued_index_builder.finish(num_docs);
+            SerializableColumnIndex::Multivalued(serializable_multivalued_index)
+        }
+    };
+    let column_index_num_bytes = serialize_column_index(serializable_column_index, &mut wrt)?;
+
+    serialize_plain_blocks(
+        plain_value_ids,
+        value_store,
+        plain_block_raw_values,
+        plain_block_offsets,
+        plain_block_end_bytes,
+        plain_block_end_values,
+        &mut wrt,
+    )?;
+    debug_assert_eq!(plain_block_end_bytes.len(), plain_block_end_values.len());
+    // Keep the serialized layout identical to PlainBlockIndex: all byte endpoints first,
+    // followed by all value endpoints.
+    for &end_byte in plain_block_end_bytes.iter() {
+        wrt.write_all(&end_byte.to_le_bytes())?;
+    }
+    for &end_value in plain_block_end_values.iter() {
+        wrt.write_all(&end_value.to_le_bytes())?;
+    }
+    let num_blocks = u32::try_from(plain_block_end_bytes.len())
+        .map_err(|_| invalid_input("plain column contains more than u32::MAX blocks"))?;
+    wrt.write_all(&column_index_num_bytes.to_le_bytes())?;
+    wrt.write_all(&num_blocks.to_le_bytes())?;
+    Ok(())
+}
+
+fn serialize_plain_blocks(
+    value_ids: &[u32],
+    value_store: &PlainValueStore,
+    block_raw_values: &mut Vec<u8>,
+    block_offsets: &mut Vec<u32>,
+    block_end_bytes: &mut Vec<u32>,
+    block_end_values: &mut Vec<u32>,
+    output: &mut impl io::Write,
+) -> io::Result<()> {
+    block_raw_values.clear();
+    block_offsets.clear();
+    block_offsets.push(0);
+    block_end_bytes.clear();
+    block_end_values.clear();
+    let mut end_byte = 0u32;
+    let mut end_value = 0u32;
+
+    for &value_id in value_ids {
+        let value = value_store.get(value_id);
+        block_raw_values.extend_from_slice(value);
+        let block_end = u32::try_from(block_raw_values.len())
+            .map_err(|_| invalid_input("plain value exceeds the OnPair block size limit"))?;
+        block_offsets.push(block_end);
+        let block_num_values = block_offsets.len() - 1;
+        if block_raw_values.len() >= crate::column::PLAIN_BLOCK_RAW_NUM_BYTES_THRESHOLD
+            || block_num_values >= crate::column::PLAIN_BLOCK_MAX_NUM_VALUES
+        {
+            flush_plain_block(
+                block_raw_values,
+                block_offsets,
+                &mut end_byte,
+                &mut end_value,
+                block_end_bytes,
+                block_end_values,
+                output,
+            )?;
+        }
+    }
+    if block_offsets.len() > 1 {
+        flush_plain_block(
+            block_raw_values,
+            block_offsets,
+            &mut end_byte,
+            &mut end_value,
+            block_end_bytes,
+            block_end_values,
+            output,
+        )?;
+    }
+    Ok(())
+}
+
+fn flush_plain_block(
+    block_raw_values: &mut Vec<u8>,
+    block_offsets: &mut Vec<u32>,
+    end_byte: &mut u32,
+    end_value: &mut u32,
+    block_end_bytes: &mut Vec<u32>,
+    block_end_values: &mut Vec<u32>,
+    output: &mut impl io::Write,
+) -> io::Result<()> {
+    let block_num_values = u32::try_from(block_offsets.len() - 1)
+        .map_err(|_| invalid_input("plain OnPair block contains too many values"))?;
+    let block_num_bytes =
+        crate::column::serialize_onpair_block(block_raw_values, block_offsets, output)?;
+    *end_byte = end_byte
+        .checked_add(block_num_bytes)
+        .ok_or_else(|| invalid_input("plain column block data exceeds u32::MAX bytes"))?;
+    *end_value = end_value
+        .checked_add(block_num_values)
+        .ok_or_else(|| invalid_input("plain column contains more than u32::MAX values"))?;
+    block_end_bytes.push(*end_byte);
+    block_end_values.push(*end_value);
+    block_raw_values.clear();
+    block_offsets.clear();
+    block_offsets.push(0);
+    Ok(())
+}
+
+fn compare_optional_plain_values(
+    left: Option<u32>,
+    right: Option<u32>,
+    value_store: &PlainValueStore,
+) -> std::cmp::Ordering {
+    match (left, right) {
+        (None, None) => std::cmp::Ordering::Equal,
+        (None, Some(_)) => std::cmp::Ordering::Less,
+        (Some(_), None) => std::cmp::Ordering::Greater,
+        (Some(left), Some(right)) => value_store.get(left).cmp(value_store.get(right)),
+    }
 }
 
 fn serialize_numerical_column(
@@ -815,12 +1225,44 @@ fn consume_operation_iterator<T: Ord, TIndexBuilder: IndexBuilder>(
     }
 }
 
+fn require_dictionary_encoding(encoding: PayloadEncoding) -> io::Result<()> {
+    if encoding == PayloadEncoding::Dictionary {
+        return Ok(());
+    }
+    Err(invalid_input(
+        "plain payload encoding is only supported for Bytes and Str columns",
+    ))
+}
+
+fn invalid_input(message: &'static str) -> io::Error {
+    io::Error::new(io::ErrorKind::InvalidInput, message)
+}
+
 #[cfg(test)]
 mod tests {
     use stacker::MemoryArena;
 
     use crate::columnar::writer::column_operation::ColumnOperation;
-    use crate::{Cardinality, NumericalValue};
+    use crate::{Cardinality, ColumnType, NumericalValue, PayloadEncoding};
+
+    #[test]
+    fn test_sort_values_within_row_is_stored_for_dictionary_encoding() {
+        let mut writer = super::ColumnarWriter::default();
+        writer
+            .record_column_type_with_encoding(
+                "dictionary",
+                ColumnType::Str,
+                true,
+                PayloadEncoding::Dictionary,
+            )
+            .unwrap();
+        let dictionary_writer: super::DictionaryEncodedColumnWriter = writer
+            .dictionary_encoded_columns
+            .str_columns
+            .get(b"dictionary")
+            .unwrap();
+        assert!(dictionary_writer.sort_values_within_row);
+    }
 
     #[test]
     fn test_column_writer_required_simple() {

@@ -1331,11 +1331,18 @@ where
 
         if term_req.column_type == ColumnType::Str {
             let fallback_dict = Dictionary::empty();
-            let term_dict = term_req
-                .str_dict_column
-                .as_ref()
-                .map(|el| el.dictionary())
-                .unwrap_or_else(|| &fallback_dict);
+            let term_dict = match term_req.str_dict_column.as_ref() {
+                Some(column) => column
+                    .as_dictionary_encoded()
+                    .ok_or_else(|| {
+                        TantivyError::InvalidArgument(
+                            "terms aggregation on plain string fast fields is not implemented yet"
+                                .to_string(),
+                        )
+                    })?
+                    .dictionary(),
+                None => &fallback_dict,
+            };
 
             if let Some((intermediate_key, bucket)) = extract_missing_value(&mut entries, term_req)
             {

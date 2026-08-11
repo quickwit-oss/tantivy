@@ -267,6 +267,7 @@ impl SegmentCollector for BytesFastFieldSegmentCollector {
 
     fn collect(&mut self, doc: DocId, _score: Score) {
         if let Some(column) = self.column_opt.as_ref() {
+            let column = column.as_dictionary_encoded().unwrap();
             for term_ord in column.term_ords(doc) {
                 let (vals, buffer) = (&mut self.vals, &mut self.buffer);
                 if column.ord_to_bytes(term_ord, buffer).unwrap() {

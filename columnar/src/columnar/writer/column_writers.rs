@@ -3,7 +3,6 @@ use std::cmp::Ordering;
 use stacker::{ExpUnrolledLinkedList, MemoryArena};
 
 use crate::columnar::writer::column_operation::{ColumnOperation, SymbolValue};
-use crate::dictionary::{DictionaryBuilder, UnorderedId};
 use crate::{Cardinality, NumericalType, NumericalValue, RowId};
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
@@ -237,52 +236,6 @@ impl NumericalColumnWriter {
     ) -> impl Iterator<Item = ColumnOperation<NumericalValue>> + 'a + use<'a> {
         self.column_writer
             .operation_iterator(arena, old_to_new_ids, buffer)
-    }
-}
-
-#[derive(Copy, Clone)]
-pub(crate) struct StrOrBytesColumnWriter {
-    pub(crate) dictionary_id: u32,
-    pub(crate) column_writer: ColumnWriter,
-    // If true, when facing a multivalued cardinality,
-    // values associated to a given document will be sorted.
-    //
-    // This is useful for facets.
-    //
-    // If false, the order of appearance in the document will be
-    // observed.
-    pub(crate) sort_values_within_row: bool,
-}
-
-impl StrOrBytesColumnWriter {
-    pub(crate) fn with_dictionary_id(dictionary_id: u32) -> StrOrBytesColumnWriter {
-        StrOrBytesColumnWriter {
-            dictionary_id,
-            column_writer: Default::default(),
-            sort_values_within_row: false,
-        }
-    }
-
-    pub(crate) fn record_bytes(
-        &mut self,
-        doc: RowId,
-        bytes: &[u8],
-        dictionaries: &mut [DictionaryBuilder],
-        arena: &mut MemoryArena,
-    ) {
-        let unordered_id =
-            dictionaries[self.dictionary_id as usize].get_or_allocate_id(bytes, arena);
-        self.column_writer.record(doc, unordered_id, arena);
-    }
-
-    pub(super) fn operation_iterator<'a>(
-        &self,
-        arena: &MemoryArena,
-        old_to_new_ids: Option<&[RowId]>,
-        byte_buffer: &'a mut Vec<u8>,
-    ) -> impl Iterator<Item = ColumnOperation<UnorderedId>> + 'a + use<'a> {
-        self.column_writer
-            .operation_iterator(arena, old_to_new_ids, byte_buffer)
     }
 }
 

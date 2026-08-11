@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use columnar::{Column, ColumnBlockAccessor, ColumnType, StrColumn};
+use columnar::{Column, ColumnBlockAccessor, ColumnType, DictionaryEncodedStrColumn, StrColumn};
 use common::BitSet;
 use rustc_hash::FxHashSet;
 use serde::Serialize;
@@ -894,6 +894,8 @@ fn prepare_multi_terms_missing(
     // using a collision-free sentinel.
     let existing_term_ord = match (missing, *column_type, str_dict_column) {
         (Key::Str(missing_str), ColumnType::Str, Some(str_dict_column)) => str_dict_column
+            .as_dictionary_encoded()
+            .unwrap() //< FIXME
             .dictionary()
             .term_ord(missing_str.as_bytes())?,
         _ => None,
@@ -1174,6 +1176,12 @@ fn build_allowed_term_ids_for_str(
     exclude: &Option<IncludeExcludeParam>,
     reserve_missing_sentinel: bool,
 ) -> crate::Result<Option<BitSet>> {
+    let str_col = str_col.as_dictionary_encoded().ok_or_else(|| {
+        crate::TantivyError::InvalidArgument(
+            "include/exclude filtering on plain string fast fields is not implemented yet"
+                .to_string(),
+        )
+    })?;
     let mut allowed: Option<BitSet> = None;
     let missing_sentinel_adjustment = if reserve_missing_sentinel { 1 } else { 0 };
     let allowed_capacity = str_col.dictionary().num_terms() as u32 + missing_sentinel_adjustment;
@@ -1200,7 +1208,7 @@ fn build_allowed_term_ids_for_str(
 
 /// Apply a callback to each matching term ordinal for the given include/exclude parameter.
 fn for_each_matching_term_ord(
-    str_col: &StrColumn,
+    str_col: &DictionaryEncodedStrColumn,
     param: &IncludeExcludeParam,
     mut cb: impl FnMut(u32),
 ) -> crate::Result<()> {

@@ -17,7 +17,7 @@ pub use serialize::{
     SerializableColumnIndex, SerializableOptionalIndex, open_column_index, serialize_column_index,
 };
 
-use crate::column_index::multivalued_index::MultiValueIndex;
+pub(crate) use crate::column_index::multivalued_index::MultiValueIndex;
 use crate::{Cardinality, DocId, RowId};
 
 #[derive(Clone, Debug)]

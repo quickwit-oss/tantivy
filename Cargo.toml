@@ -11,7 +11,7 @@ repository = "https://github.com/quickwit-oss/tantivy"
 readme = "README.md"
 keywords = ["search", "information", "retrieval"]
 edition = "2021"
-rust-version = "1.86"
+rust-version = "1.91"
 exclude = ["benches/*.json", "benches/*.txt"]
 
 [dependencies]
@@ -211,7 +211,7 @@ name = "bool_queries_with_range"
 harness = false
 
 [[bench]]
-name = "str_search_and_get"
+name = "dictionary_encoded_str_search_and_get"
 harness = false
 
 [[bench]]

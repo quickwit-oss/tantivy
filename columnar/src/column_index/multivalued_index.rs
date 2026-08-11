@@ -55,7 +55,7 @@ pub fn open_multivalued_index(
                 start_index_column,
             }))
         }
-        Version::V2 => {
+        Version::V2 | Version::V3 => {
             let (body_bytes, optional_index_len) = bytes.rsplit(4);
             let optional_index_len =
                 u32::from_le_bytes(optional_index_len.as_slice().try_into().unwrap());

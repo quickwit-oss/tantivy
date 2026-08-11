@@ -11,8 +11,8 @@ use crate::columnar::{ColumnType, ColumnTypeCategory};
 use crate::dynamic_column::{DynamicColumn, DynamicColumnHandle};
 use crate::value::{Coerce, NumericalValue};
 use crate::{
-    BytesColumn, Cardinality, Column, ColumnarReader, ColumnarWriter, RowAddr, RowId,
-    ShuffleMergeOrder, StackMergeOrder,
+    BytesColumn, Cardinality, Column, ColumnarReader, ColumnarWriter, DictionaryEncodedBytesColumn,
+    RowAddr, RowId, ShuffleMergeOrder, StackMergeOrder,
 };
 
 #[test]
@@ -26,7 +26,7 @@ fn test_dataframe_writer_str() {
     assert_eq!(columnar.num_columns(), 1);
     let cols: Vec<DynamicColumnHandle> = columnar.read_columns("my_string").unwrap();
     assert_eq!(cols.len(), 1);
-    assert_eq!(cols[0].num_bytes(), 73);
+    assert_eq!(cols[0].num_bytes(), 74);
 }
 
 #[test]
@@ -40,7 +40,7 @@ fn test_dataframe_writer_bytes() {
     assert_eq!(columnar.num_columns(), 1);
     let cols: Vec<DynamicColumnHandle> = columnar.read_columns("my_string").unwrap();
     assert_eq!(cols.len(), 1);
-    assert_eq!(cols[0].num_bytes(), 73);
+    assert_eq!(cols[0].num_bytes(), 74);
 }
 
 #[test]
@@ -209,6 +209,11 @@ fn test_dictionary_encoded_str() {
     let DynamicColumn::Str(str_col) = col_handles[0].open().unwrap() else {
         panic!();
     };
+    assert_eq!(
+        str_col.payload_encoding(),
+        crate::PayloadEncoding::Dictionary
+    );
+    let str_col = str_col.as_dictionary_encoded().unwrap();
     let index: Vec<Option<u64>> = (0..5).map(|doc_id| str_col.ords().first(doc_id)).collect();
     assert_eq!(index, &[None, Some(0), None, Some(2), Some(1)]);
     assert_eq!(str_col.num_rows(), 5);
@@ -243,6 +248,11 @@ fn test_dictionary_encoded_bytes() {
     let DynamicColumn::Bytes(bytes_col) = col_handles[0].open().unwrap() else {
         panic!();
     };
+    assert_eq!(
+        bytes_col.payload_encoding(),
+        crate::PayloadEncoding::Dictionary
+    );
+    let bytes_col = bytes_col.as_dictionary_encoded().unwrap();
     let index: Vec<Option<u64>> = (0..5)
         .map(|doc_id| bytes_col.ords().first(doc_id))
         .collect();
@@ -270,6 +280,198 @@ fn test_dictionary_encoded_bytes() {
         .ord_to_term(1u64, &mut term_buffer)
         .unwrap();
     assert_eq!(term_buffer, b"b");
+}
+
+#[test]
+fn test_plain_str_roundtrip_with_row_mapping() {
+    let mut buffer = Vec::new();
+    let mut columnar_writer = ColumnarWriter::default();
+    columnar_writer
+        .record_column_type_with_encoding(
+            "plain",
+            ColumnType::Str,
+            false,
+            crate::PayloadEncoding::Plain,
+        )
+        .unwrap();
+    columnar_writer.record_str(0, "plain", "zero");
+    columnar_writer.record_str(1, "plain", "one");
+    columnar_writer.record_str(2, "plain", "two");
+    columnar_writer
+        .serialize(3, Some(&[2, 0, 1]), &mut buffer)
+        .unwrap();
+
+    let columnar_reader = ColumnarReader::open(buffer).unwrap();
+    let columns = columnar_reader.read_columns("plain").unwrap();
+    let DynamicColumn::Str(column) = columns[0].open().unwrap() else {
+        panic!();
+    };
+    assert_eq!(column.payload_encoding(), crate::PayloadEncoding::Plain);
+    let column = column.as_plain().unwrap();
+    assert_eq!(column.num_rows(), 3);
+    assert_eq!(column.get_cardinality(), Cardinality::Full);
+    let mut accessor = column.accessor();
+    assert_eq!(accessor.first(0), Some("one"));
+    assert_eq!(accessor.first(1), Some("two"));
+    assert_eq!(accessor.first(2), Some("zero"));
+}
+
+#[test]
+fn test_plain_bytes_optional_and_non_utf8_roundtrip() {
+    let mut buffer = Vec::new();
+    let mut columnar_writer = ColumnarWriter::default();
+    columnar_writer
+        .record_column_type_with_encoding(
+            "plain",
+            ColumnType::Bytes,
+            false,
+            crate::PayloadEncoding::Plain,
+        )
+        .unwrap();
+    columnar_writer.record_bytes(1, "plain", b"");
+    columnar_writer.record_bytes(3, "plain", &[0, 255]);
+    columnar_writer.serialize(5, None, &mut buffer).unwrap();
+
+    let columnar_reader = ColumnarReader::open(buffer).unwrap();
+    let columns = columnar_reader.read_columns("plain").unwrap();
+    let DynamicColumn::Bytes(column) = columns[0].open().unwrap() else {
+        panic!();
+    };
+    let column = column.as_plain().unwrap();
+    assert_eq!(column.get_cardinality(), Cardinality::Optional);
+    let mut accessor = column.accessor();
+    assert_eq!(accessor.first(0), None);
+    assert_eq!(accessor.first(1), Some(&b""[..]));
+    assert_eq!(accessor.first(2), None);
+    assert_eq!(accessor.first(3), Some(&[0, 255][..]));
+    assert_eq!(accessor.first(4), None);
+}
+
+#[test]
+fn test_plain_bytes_multivalued_values_ignore_sort_flag() {
+    let mut buffer = Vec::new();
+    let mut columnar_writer = ColumnarWriter::default();
+    columnar_writer
+        .record_column_type_with_encoding(
+            "plain",
+            ColumnType::Bytes,
+            true,
+            crate::PayloadEncoding::Plain,
+        )
+        .unwrap();
+    columnar_writer.record_bytes(0, "plain", b"z");
+    columnar_writer.record_bytes(0, "plain", b"");
+    columnar_writer.record_bytes(0, "plain", b"a");
+    columnar_writer.record_bytes(2, "plain", b"last");
+    columnar_writer.serialize(3, None, &mut buffer).unwrap();
+
+    let columnar_reader = ColumnarReader::open(buffer).unwrap();
+    let columns = columnar_reader.read_columns("plain").unwrap();
+    let DynamicColumn::Bytes(column) = columns[0].open().unwrap() else {
+        panic!();
+    };
+    let column = column.as_plain().unwrap();
+    assert_eq!(column.get_cardinality(), Cardinality::Multivalued);
+    let mut accessor = column.accessor();
+    let mut values = Vec::new();
+    accessor
+        .for_each_value(0, |value| values.push(value.to_vec()))
+        .unwrap();
+    assert_eq!(values, [b"z".to_vec(), b"".to_vec(), b"a".to_vec()]);
+    values.clear();
+    accessor
+        .for_each_value(1, |value| values.push(value.to_vec()))
+        .unwrap();
+    assert!(values.is_empty());
+    assert_eq!(accessor.first(2), Some(&b"last"[..]));
+}
+
+#[test]
+fn test_plain_empty_column_roundtrip() {
+    let mut buffer = Vec::new();
+    let mut columnar_writer = ColumnarWriter::default();
+    columnar_writer
+        .record_column_type_with_encoding(
+            "plain",
+            ColumnType::Str,
+            false,
+            crate::PayloadEncoding::Plain,
+        )
+        .unwrap();
+    columnar_writer.serialize(3, None, &mut buffer).unwrap();
+
+    let columnar_reader = ColumnarReader::open(buffer).unwrap();
+    let columns = columnar_reader.read_columns("plain").unwrap();
+    let DynamicColumn::Str(column) = columns[0].open().unwrap() else {
+        panic!();
+    };
+    let column = column.as_plain().unwrap();
+    assert_eq!(column.num_values(), 0);
+    assert_eq!(column.accessor().first(0), None);
+}
+
+#[test]
+fn test_plain_column_registration_rejects_conflicting_encoding() {
+    let mut columnar_writer = ColumnarWriter::default();
+    columnar_writer
+        .record_column_type_with_encoding(
+            "plain",
+            ColumnType::Str,
+            false,
+            crate::PayloadEncoding::Plain,
+        )
+        .unwrap();
+    columnar_writer
+        .record_column_type_with_encoding(
+            "plain",
+            ColumnType::Str,
+            true,
+            crate::PayloadEncoding::Plain,
+        )
+        .unwrap();
+    assert_eq!(
+        columnar_writer
+            .record_column_type_with_encoding(
+                "plain",
+                ColumnType::Str,
+                false,
+                crate::PayloadEncoding::Dictionary,
+            )
+            .unwrap_err()
+            .kind(),
+        std::io::ErrorKind::InvalidInput
+    );
+    assert_eq!(
+        columnar_writer
+            .record_column_type_with_encoding(
+                "number",
+                ColumnType::U64,
+                false,
+                crate::PayloadEncoding::Plain,
+            )
+            .unwrap_err()
+            .kind(),
+        std::io::ErrorKind::InvalidInput
+    );
+}
+
+#[test]
+fn test_sort_order_plain_str() {
+    let mut columnar_writer = ColumnarWriter::default();
+    columnar_writer
+        .record_column_type_with_encoding(
+            "plain",
+            ColumnType::Str,
+            false,
+            crate::PayloadEncoding::Plain,
+        )
+        .unwrap();
+    columnar_writer.record_str(0, "plain", "z");
+    columnar_writer.record_str(2, "plain", "a");
+    columnar_writer.record_str(3, "plain", "m");
+
+    assert_eq!(columnar_writer.sort_order("plain", 4, false), [1, 2, 3, 0]);
+    assert_eq!(columnar_writer.sort_order("plain", 4, true), [0, 3, 2, 1]);
 }
 
 #[test]
@@ -558,6 +760,8 @@ fn assert_column_eq<T: Copy + PartialOrd + Debug + Send + Sync + 'static>(
 }
 
 fn assert_bytes_column_eq(left: &BytesColumn, right: &BytesColumn) {
+    let left = left.as_dictionary_encoded().unwrap();
+    let right = right.as_dictionary_encoded().unwrap();
     assert_eq!(
         left.term_ord_column.get_cardinality(),
         right.term_ord_column.get_cardinality()
@@ -609,7 +813,22 @@ fn assert_dyn_column_eq(
             assert_bytes_column_eq(left_col, right_col);
         }
         (DynamicColumn::Str(left_col), DynamicColumn::Str(right_col)) => {
-            assert_bytes_column_eq(left_col, right_col);
+            assert_column_eq(
+                left_col.as_dictionary_encoded().unwrap().ords(),
+                right_col.as_dictionary_encoded().unwrap().ords(),
+            );
+            assert_eq!(
+                left_col
+                    .as_dictionary_encoded()
+                    .unwrap()
+                    .dictionary()
+                    .num_terms(),
+                right_col
+                    .as_dictionary_encoded()
+                    .unwrap()
+                    .dictionary()
+                    .num_terms()
+            );
         }
         (left, right) => {
             if lenient_on_numerical_value {
@@ -691,7 +910,7 @@ fn assert_column_values<
 }
 
 fn assert_bytes_column_values(
-    col: &BytesColumn,
+    col: &DictionaryEncodedBytesColumn,
     expected: &HashMap<u32, Vec<&ColumnValue>>,
     is_str: bool,
 ) {
@@ -764,9 +983,9 @@ proptest! {
                 DynamicColumn::DateTime(col) =>
                     assert_column_values(col, expected_col_values),
                 DynamicColumn::Bytes(col) =>
-                    assert_bytes_column_values(col, expected_col_values, false),
+                    assert_bytes_column_values(col.as_dictionary_encoded().unwrap(), expected_col_values, false),
                 DynamicColumn::Str(col) =>
-                    assert_bytes_column_values(col, expected_col_values, true),
+                    assert_bytes_column_values(col.as_dictionary_encoded().unwrap(), expected_col_values, true),
             }
         }
     }
@@ -811,9 +1030,9 @@ proptest! {
                     DynamicColumn::DateTime(col) =>
                         assert_column_values(col, expected_col_values),
                     DynamicColumn::Bytes(col) =>
-                        assert_bytes_column_values(col, expected_col_values, false),
+                        assert_bytes_column_values(col.as_dictionary_encoded().unwrap(), expected_col_values, false),
                     DynamicColumn::Str(col) =>
-                        assert_bytes_column_values(col, expected_col_values, true),
+                        assert_bytes_column_values(col.as_dictionary_encoded().unwrap(), expected_col_values, true),
                 }
             }
         }

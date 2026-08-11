@@ -1,17 +1,26 @@
-mod dictionary_encoded;
-mod serialize;
+mod bytes_or_str;
+mod dictionary_encoding;
+mod numerical;
+mod plain;
 
 use std::fmt::{self, Debug};
 use std::io::Write;
 use std::ops::{Range, RangeInclusive};
 use std::sync::Arc;
 
+pub use bytes_or_str::{BytesColumn, StrColumn, open_column_bytes, open_column_str};
+pub(crate) use bytes_or_str::{open_column_bytes_from_file_slice, open_column_str_from_file_slice};
 use common::BinarySerializable;
-pub use dictionary_encoded::{BytesColumn, StrColumn};
-pub use serialize::{
-    open_column_bytes, open_column_str, open_column_u64, open_column_u128,
-    open_column_u128_as_compact_u64, serialize_column_mappable_to_u64,
-    serialize_column_mappable_to_u128,
+pub use dictionary_encoding::{DictionaryEncodedBytesColumn, DictionaryEncodedStrColumn};
+pub use numerical::{
+    open_column_u64, open_column_u128, open_column_u128_as_compact_u64,
+    serialize_column_mappable_to_u64, serialize_column_mappable_to_u128,
+};
+pub(crate) use plain::{
+    PLAIN_BLOCK_MAX_NUM_VALUES, PLAIN_BLOCK_RAW_NUM_BYTES_THRESHOLD, serialize_onpair_block,
+};
+pub use plain::{
+    PlainBytesColumn, PlainBytesColumnAccessor, PlainStrColumn, PlainStrColumnAccessor,
 };
 
 use crate::column_index::{ColumnIndex, Set};

@@ -3,13 +3,16 @@ use std::ops::BitOr;
 use serde::{Deserialize, Serialize};
 
 use super::flags::{FastFlag, IndexedFlag, SchemaFlagList, StoredFlag};
+use crate::schema::PayloadEncoding;
+
 /// Define how a bytes field should be handled by tantivy.
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(from = "BytesOptionsDeser")]
 pub struct BytesOptions {
     indexed: bool,
     fieldnorms: bool,
-    fast: bool,
+    #[serde(serialize_with = "bytes_fast_field_options_serde::serialize")]
+    fast: Option<PayloadEncoding>,
     stored: bool,
 }
 
@@ -23,7 +26,11 @@ struct BytesOptionsDeser {
     indexed: bool,
     #[serde(default)]
     fieldnorms: Option<bool>,
-    fast: bool,
+    #[serde(
+        default,
+        deserialize_with = "bytes_fast_field_options_serde::deserialize"
+    )]
+    fast: Option<PayloadEncoding>,
     stored: bool,
 }
 
@@ -34,6 +41,45 @@ impl From<BytesOptionsDeser> for BytesOptions {
             fieldnorms: deser.fieldnorms.unwrap_or(deser.indexed),
             fast: deser.fast,
             stored: deser.stored,
+        }
+    }
+}
+
+mod bytes_fast_field_options_serde {
+    use serde::{Deserialize, Deserializer, Serialize, Serializer};
+
+    use crate::schema::PayloadEncoding;
+
+    #[derive(Serialize, Deserialize)]
+    #[serde(untagged)]
+    enum WireFormat {
+        IsEnabled(bool),
+        EnabledWithEncoding { encoding: PayloadEncoding },
+    }
+
+    pub fn serialize<S>(
+        fast_field_encoding: &Option<PayloadEncoding>,
+        serializer: S,
+    ) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        let wire_format = match fast_field_encoding {
+            None => WireFormat::IsEnabled(false),
+            Some(PayloadEncoding::Dictionary) => WireFormat::IsEnabled(true),
+            Some(encoding) => WireFormat::EnabledWithEncoding {
+                encoding: *encoding,
+            },
+        };
+        wire_format.serialize(serializer)
+    }
+
+    pub fn deserialize<'de, D>(deserializer: D) -> Result<Option<PayloadEncoding>, D::Error>
+    where D: Deserializer<'de> {
+        match WireFormat::deserialize(deserializer)? {
+            WireFormat::IsEnabled(false) => Ok(None),
+            WireFormat::IsEnabled(true) => Ok(Some(PayloadEncoding::Dictionary)),
+            WireFormat::EnabledWithEncoding { encoding } => Ok(Some(encoding)),
         }
     }
 }
@@ -54,6 +100,12 @@ impl BytesOptions {
     /// Returns true if the value is a fast field.
     #[inline]
     pub fn is_fast(&self) -> bool {
+        self.fast.is_some()
+    }
+
+    /// Returns the payload encoding if this is a fast field.
+    #[inline]
+    pub fn get_fast_field_encoding(&self) -> Option<PayloadEncoding> {
         self.fast
     }
 
@@ -88,7 +140,14 @@ impl BytesOptions {
     /// Fast fields are designed for random access.
     #[must_use]
     pub fn set_fast(mut self) -> BytesOptions {
-        self.fast = true;
+        self.fast = Some(PayloadEncoding::Dictionary);
+        self
+    }
+
+    /// Sets the field as a fast field using the supplied payload encoding.
+    #[must_use]
+    pub fn set_fast_with_encoding(mut self, encoding: PayloadEncoding) -> BytesOptions {
+        self.fast = Some(encoding);
         self
     }
 
@@ -112,7 +171,15 @@ impl<T: Into<BytesOptions>> BitOr<T> for BytesOptions {
             indexed: self.indexed | other.indexed,
             fieldnorms: self.fieldnorms | other.fieldnorms,
             stored: self.stored | other.stored,
-            fast: self.fast | other.fast,
+            fast: match (self.fast, other.fast) {
+                (Some(PayloadEncoding::Plain), _) | (_, Some(PayloadEncoding::Plain)) => {
+                    Some(PayloadEncoding::Plain)
+                }
+                (Some(PayloadEncoding::Dictionary), _) | (_, Some(PayloadEncoding::Dictionary)) => {
+                    Some(PayloadEncoding::Dictionary)
+                }
+                (None, None) => None,
+            },
         }
     }
 }
@@ -129,7 +196,7 @@ impl From<FastFlag> for BytesOptions {
             indexed: false,
             fieldnorms: false,
             stored: false,
-            fast: true,
+            fast: Some(PayloadEncoding::Dictionary),
         }
     }
 }
@@ -140,7 +207,7 @@ impl From<StoredFlag> for BytesOptions {
             indexed: false,
             fieldnorms: false,
             stored: true,
-            fast: false,
+            fast: None,
         }
     }
 }
@@ -151,7 +218,7 @@ impl From<IndexedFlag> for BytesOptions {
             indexed: true,
             fieldnorms: true,
             stored: false,
-            fast: false,
+            fast: None,
         }
     }
 }
@@ -169,7 +236,7 @@ where
 
 #[cfg(test)]
 mod tests {
-    use crate::schema::{BytesOptions, FAST, INDEXED, STORED};
+    use crate::schema::{BytesOptions, PayloadEncoding, FAST, INDEXED, STORED};
 
     #[test]
     fn test_bytes_option_fast_flag() {
@@ -227,7 +294,7 @@ mod tests {
             &BytesOptions {
                 indexed: true,
                 fieldnorms: true,
-                fast: false,
+                fast: None,
                 stored: false
             }
         );
@@ -246,7 +313,7 @@ mod tests {
             &BytesOptions {
                 indexed: false,
                 fieldnorms: false,
-                fast: false,
+                fast: None,
                 stored: false
             }
         );
@@ -266,7 +333,7 @@ mod tests {
             &BytesOptions {
                 indexed: true,
                 fieldnorms: false,
-                fast: false,
+                fast: None,
                 stored: false
             }
         );
@@ -287,9 +354,42 @@ mod tests {
             &BytesOptions {
                 indexed: false,
                 fieldnorms: true,
-                fast: false,
+                fast: None,
                 stored: false
             }
         );
+    }
+
+    #[test]
+    fn test_bytes_fast_encoding_serde() {
+        let dictionary = BytesOptions::default().set_fast();
+        let dictionary_json = serde_json::to_value(&dictionary).unwrap();
+        assert_eq!(dictionary_json["fast"], serde_json::json!(true));
+        assert_eq!(
+            serde_json::from_value::<BytesOptions>(dictionary_json).unwrap(),
+            dictionary
+        );
+
+        let plain = BytesOptions::default().set_fast_with_encoding(PayloadEncoding::Plain);
+        let plain_json = serde_json::to_value(&plain).unwrap();
+        assert_eq!(
+            plain_json["fast"],
+            serde_json::json!({ "encoding": "plain" })
+        );
+        assert_eq!(
+            serde_json::from_value::<BytesOptions>(plain_json).unwrap(),
+            plain
+        );
+    }
+
+    #[test]
+    fn test_fast_flag_does_not_override_plain_encoding() {
+        let plain = BytesOptions::default().set_fast_with_encoding(PayloadEncoding::Plain);
+        for options in [plain.clone() | FAST, BytesOptions::from(FAST) | plain] {
+            assert_eq!(
+                options.get_fast_field_encoding(),
+                Some(PayloadEncoding::Plain)
+            );
+        }
     }
 }

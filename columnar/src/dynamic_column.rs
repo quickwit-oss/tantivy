@@ -3,13 +3,13 @@ use std::sync::Arc;
 use std::{fmt, io};
 
 use common::file_slice::FileSlice;
-use common::{ByteCount, DateTime, OwnedBytes};
+use common::{ByteCount, DateTime, HasLen, OwnedBytes};
 use serde::{Deserialize, Serialize};
 
 use crate::column::{BytesColumn, Column, StrColumn};
 use crate::column_values::{StrictlyMonotonicFn, monotonic_map_column};
 use crate::columnar::ColumnType;
-use crate::{Cardinality, ColumnIndex, ColumnValues, NumericalType, Version};
+use crate::{Cardinality, ColumnIndex, ColumnValues, NumericalType, PayloadEncoding, Version};
 
 #[derive(Clone)]
 pub enum DynamicColumn {
@@ -49,8 +49,8 @@ impl DynamicColumn {
             DynamicColumn::F64(c) => &c.index,
             DynamicColumn::IpAddr(c) => &c.index,
             DynamicColumn::DateTime(c) => &c.index,
-            DynamicColumn::Bytes(c) => &c.ords().index,
-            DynamicColumn::Str(c) => &c.ords().index,
+            DynamicColumn::Bytes(c) => c.column_index(),
+            DynamicColumn::Str(c) => c.column_index(),
         }
     }
 
@@ -66,8 +66,8 @@ impl DynamicColumn {
             DynamicColumn::F64(c) => c.values.num_vals(),
             DynamicColumn::IpAddr(c) => c.values.num_vals(),
             DynamicColumn::DateTime(c) => c.values.num_vals(),
-            DynamicColumn::Bytes(c) => c.ords().values.num_vals(),
-            DynamicColumn::Str(c) => c.ords().values.num_vals(),
+            DynamicColumn::Bytes(c) => c.num_values(),
+            DynamicColumn::Str(c) => c.num_values(),
         }
     }
 
@@ -239,6 +239,23 @@ pub struct DynamicColumnHandle {
 impl DynamicColumnHandle {
     // TODO rename load
     pub fn open(&self) -> io::Result<DynamicColumn> {
+        match self.column_type {
+            ColumnType::Bytes => {
+                return crate::column::open_column_bytes_from_file_slice(
+                    self.file_slice.clone(),
+                    self.format_version,
+                )
+                .map(Into::into);
+            }
+            ColumnType::Str => {
+                return crate::column::open_column_str_from_file_slice(
+                    self.file_slice.clone(),
+                    self.format_version,
+                )
+                .map(Into::into);
+            }
+            _ => {}
+        }
         let column_bytes: OwnedBytes = self.file_slice.read_bytes()?;
         self.open_internal(column_bytes)
     }
@@ -259,14 +276,32 @@ impl DynamicColumnHandle {
     /// If not, the fastfield reader will returns the u64-value associated with the original
     /// FastValue.
     pub fn open_u64_lenient(&self) -> io::Result<Option<Column<u64>>> {
-        let column_bytes = self.file_slice.read_bytes()?;
         match self.column_type {
             ColumnType::Str | ColumnType::Bytes => {
+                if self.format_version == Version::V3 {
+                    if self.file_slice.len() < 1 {
+                        return Err(io::Error::new(
+                            io::ErrorKind::InvalidData,
+                            "missing string/byte payload encoding tag",
+                        ));
+                    }
+                    let encoding = self.file_slice.read_bytes_slice(0..1)?;
+                    let encoding =
+                        PayloadEncoding::try_from_code(encoding[0]).map_err(io::Error::from)?;
+                    if encoding == PayloadEncoding::Plain {
+                        return Ok(None);
+                    }
+                }
+                let column_bytes = self.file_slice.read_bytes()?;
                 let column: BytesColumn =
                     crate::column::open_column_bytes(column_bytes, self.format_version)?;
+                let BytesColumn::DictionaryEncoded(column) = column else {
+                    return Ok(None);
+                };
                 Ok(Some(column.term_ord_column))
             }
             ColumnType::IpAddr => {
+                let column_bytes = self.file_slice.read_bytes()?;
                 let column = crate::column::open_column_u128_as_compact_u64(
                     column_bytes,
                     self.format_version,
@@ -278,6 +313,7 @@ impl DynamicColumnHandle {
             | ColumnType::U64
             | ColumnType::F64
             | ColumnType::DateTime => {
+                let column_bytes = self.file_slice.read_bytes()?;
                 let column =
                     crate::column::open_column_u64::<u64>(column_bytes, self.format_version)?;
                 Ok(Some(column))
@@ -337,8 +373,16 @@ impl DynamicColumnHandle {
         let total_num_bytes = self.num_bytes();
         let dynamic_column = self.open()?;
         let dictionary_num_bytes = match &dynamic_column {
-            DynamicColumn::Bytes(bytes_column) => bytes_column.dictionary().num_bytes(),
-            DynamicColumn::Str(str_column) => str_column.dictionary().num_bytes(),
+            DynamicColumn::Bytes(BytesColumn::DictionaryEncoded(bytes_column)) => {
+                bytes_column.dictionary().num_bytes()
+            }
+            DynamicColumn::Str(StrColumn::DictionaryEncoded(str_column)) => {
+                str_column.dictionary().num_bytes()
+            }
+            DynamicColumn::Bytes(BytesColumn::Plain(_))
+            | DynamicColumn::Str(StrColumn::Plain(_)) => {
+                return Ok(ColumnSpaceUsage::new(self.num_bytes(), None));
+            }
             _ => {
                 return Ok(ColumnSpaceUsage::new(self.num_bytes(), None));
             }

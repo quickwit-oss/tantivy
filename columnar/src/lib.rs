@@ -32,11 +32,15 @@ mod columnar;
 mod dictionary;
 mod dynamic_column;
 mod iterable;
+mod payload_encoding;
 pub(crate) mod utils;
 mod value;
 
 pub use block_accessor::ColumnBlockAccessor;
-pub use column::{BytesColumn, Column, StrColumn};
+pub use column::{
+    BytesColumn, Column, DictionaryEncodedBytesColumn, DictionaryEncodedStrColumn,
+    PlainBytesColumn, PlainBytesColumnAccessor, PlainStrColumn, PlainStrColumnAccessor, StrColumn,
+};
 pub use column_index::ColumnIndex;
 pub use column_values::{
     ColumnValues, EmptyColumnValues, MonotonicallyMappableToU64, MonotonicallyMappableToU128,
@@ -46,6 +50,7 @@ pub use columnar::{
     MergeRowOrder, ShuffleMergeOrder, StackMergeOrder, Version, compute_merged_term_ord_mapping,
     merge_columnar,
 };
+pub use payload_encoding::PayloadEncoding;
 use sstable::VoidSSTable;
 pub use value::{NumericalType, NumericalValue};
 

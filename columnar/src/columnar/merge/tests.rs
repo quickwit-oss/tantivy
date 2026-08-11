@@ -249,6 +249,7 @@ fn test_merge_columnar_texts() {
     let DynamicColumn::Str(vals) = dynamic_column else {
         panic!()
     };
+    let vals = vals.as_dictionary_encoded().unwrap();
     assert_eq!(vals.ords().get_cardinality(), Cardinality::Optional);
 
     let get_str_for_ord = |ord| {
@@ -298,6 +299,7 @@ fn test_merge_columnar_byte() {
     let DynamicColumn::Bytes(vals) = dynamic_column else {
         panic!()
     };
+    let vals = vals.as_dictionary_encoded().unwrap();
     let get_bytes_for_ord = |ord| {
         let mut out = Vec::new();
         vals.ord_to_bytes(ord, &mut out).unwrap();
@@ -354,6 +356,7 @@ fn test_merge_columnar_byte_with_missing() {
     let DynamicColumn::Bytes(vals) = dynamic_column else {
         panic!()
     };
+    let vals = vals.as_dictionary_encoded().unwrap();
     let get_bytes_for_ord = |ord| {
         let mut out = Vec::new();
         vals.ord_to_bytes(ord, &mut out).unwrap();
@@ -420,6 +423,7 @@ fn test_merge_columnar_different_types() {
     let DynamicColumn::Str(vals) = dynamic_column else {
         panic!()
     };
+    let vals = vals.as_dictionary_encoded().unwrap();
     assert_eq!(vals.ords().get_cardinality(), Cardinality::Optional);
     let get_str_for_ord = |ord| {
         let mut out = String::new();
