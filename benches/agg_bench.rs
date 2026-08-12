@@ -8,6 +8,7 @@ use rand_distr::Distribution;
 use serde_json::json;
 use tantivy::aggregation::agg_req::Aggregations;
 use tantivy::aggregation::AggregationCollector;
+use tantivy::indexer::NoMergePolicy;
 use tantivy::query::{AllQuery, Query, TermQuery};
 use tantivy::schema::{IndexRecordOption, Schema, TextFieldIndexing, FAST, STRING};
 use tantivy::{doc, DateTime, Index, Term};
@@ -52,6 +53,46 @@ fn main() {
         runner.set_name(input_name);
         bench_agg(&mut runner, &index, execute_filtered);
     }
+
+    bench_many_segments();
+}
+
+fn bench_many_segments() {
+    let mut runner = BenchRunner::new();
+    runner.add_plugin(PeakMemAllocPlugin::new(GLOBAL));
+    let index =
+        get_test_index_bench_with_num_segments(Cardinality::Full, 100).unwrap();
+    let mut group = runner.new_group();
+    group.set_name("100_segments");
+    for (benchmark_name, agg_req) in [
+        (
+            "terms_7",
+            terms_on_field("text_few_terms_status"),
+        ),
+        (
+            "terms_zipfs_1000",
+            terms_on_field("text_1000_terms_zipf"),
+        ),
+        (
+            "terms_150_000",
+            terms_on_field("text_many_terms"),
+        ),
+        (
+            "terms_all_unique",
+            terms_on_field("text_all_unique_terms"),
+        ),
+    ] {
+        group.register_with_input(benchmark_name, &index, move |index| {
+            execute_agg(index, agg_req.clone())
+        });
+    }
+    group.run();
+}
+
+fn terms_on_field(field: &str) -> AggregationRequest {
+    json!({
+        "terms": { "terms": { "field": field, "size": 100 } }
+    })
 }
 
 fn bench_agg(runner: &mut BenchRunner, index: &Index, execute_filtered: AggregationExecutor) {
@@ -985,12 +1026,26 @@ fn get_collector(agg_req: Aggregations) -> AggregationCollector {
 }
 
 fn get_test_index_bench(cardinality: Cardinality) -> tantivy::Result<Index> {
-    // Flag to reuse an on-disk index across runs. The generated data differs per cardinality, so
-    // the path must include the cardinality — otherwise one cardinality reuses another's index.
+    get_test_index_bench_with_num_segments(cardinality, 1)
+}
+
+fn get_test_index_bench_with_num_segments(
+    cardinality: Cardinality,
+    num_segments: usize,
+) -> tantivy::Result<Index> {
+    assert!(num_segments > 0);
+    assert!(num_segments == 1 || cardinality == Cardinality::Full);
+    assert_eq!(1_000_000 % num_segments, 0);
+    // Flag to reuse an on-disk index across runs. The generated data differs per cardinality and
+    // segment count, so the path must include both.
     let reuse_index = std::env::var("REUSE_AGG_BENCH_INDEX")
         .map(|v| v == "true")
         .unwrap_or(true);
-    let index_dir = format!("agg_bench/{cardinality:?}");
+    let index_dir = if num_segments == 1 {
+        format!("agg_bench/{cardinality:?}")
+    } else {
+        format!("agg_bench/{cardinality:?}_{num_segments}_segments")
+    };
     let mut schema_builder = Schema::builder();
     let text_fieldtype = tantivy::schema::TextOptions::default()
         .set_indexing_options(
@@ -1020,7 +1075,7 @@ fn get_test_index_bench(cardinality: Cardinality) -> tantivy::Result<Index> {
 
     if reuse_index && std::path::Path::new(&index_dir).try_exists()? {
         let index = Index::open_in_dir(&index_dir)?;
-        if index.schema() == schema {
+        if index.schema() == schema && index.searchable_segment_ids()?.len() == num_segments {
             return Ok(index);
         }
         drop(index);
@@ -1068,7 +1123,12 @@ fn get_test_index_bench(cardinality: Cardinality) -> tantivy::Result<Index> {
     {
         let mut rng = StdRng::from_seed([1u8; 32]);
         let mut filter_rng = StdRng::from_seed([2u8; 32]);
-        let mut index_writer = index.writer_with_num_threads(1, 200_000_000)?;
+        let mut index_writer = index.writer_with_num_threads(1, 400_000_000)?;
+        if num_segments > 1 {
+            index_writer.set_merge_policy(Box::new(NoMergePolicy));
+        }
+        let docs_per_segment = 1_000_000 / num_segments;
+        let mut num_indexed_docs = 0usize;
         // 1% steady-state match rate, with random clusters averaging four documents.
         const MATCH_RATE: f64 = 0.01;
         const CLUSTER_END_PROBABILITY: f64 = 0.25;
@@ -1083,6 +1143,10 @@ fn get_test_index_bench(cardinality: Cardinality) -> tantivy::Result<Index> {
             };
             document.add_text(filter_field, if filter_matches { "a" } else { "b" });
             index_writer.add_document(document)?;
+            num_indexed_docs += 1;
+            if num_segments > 1 && num_indexed_docs.is_multiple_of(docs_per_segment) {
+                index_writer.commit()?;
+            }
             Ok(())
         };
         // To make the different test cases comparable we just change one doc to force the
@@ -1170,6 +1234,7 @@ fn get_test_index_bench(cardinality: Cardinality) -> tantivy::Result<Index> {
         index_writer.commit()?;
     }
 
+    assert_eq!(index.searchable_segment_ids()?.len(), num_segments);
     Ok(index)
 }
 
