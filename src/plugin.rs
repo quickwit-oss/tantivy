@@ -113,7 +113,10 @@ pub trait PluginWriter: Send + Any {
     // Downcast support for accessing component-specific APIs. Once the crate MSRV
     // reaches Rust 1.86, these can be dropped: trait upcasting lets callers coerce
     // `&dyn PluginWriter` to `&dyn Any` and call `downcast_ref`/`downcast_mut` directly.
+    /// Returns this writer as [`Any`] for immutable downcasting.
     fn as_any(&self) -> &dyn Any;
+
+    /// Returns this writer as [`Any`] for mutable downcasting.
     fn as_any_mut(&mut self) -> &mut dyn Any;
 }
 
@@ -131,10 +134,15 @@ pub struct PluginWriterContext<'a> {
 
 /// Context provided to [`SegmentPlugin::merge`].
 pub struct PluginMergeContext<'a> {
+    /// Readers for the source segments being merged.
     pub readers: &'a [SegmentReader],
+    /// Mapping from target document IDs to source segment document IDs.
     pub doc_id_mapping: &'a SegmentDocIdMapping,
+    /// Segment that receives the merged plugin data.
     pub target_segment: &'a Segment,
+    /// Schema of the target index.
     pub schema: &'a Schema,
+    /// Settings of the target index.
     pub settings: &'a IndexSettings,
 }
 
@@ -613,9 +621,9 @@ mod tests {
         let with_marker = build(true)?;
         let without_marker = build(false)?;
 
-        let err = merge_indices(&[with_marker, without_marker], RamDirectory::create())
-            .err()
-            .expect("merge should fail when source indices register different plugin sets");
+        let Err(err) = merge_indices(&[with_marker, without_marker], RamDirectory::create()) else {
+            panic!("merge should fail when source indices register different plugin sets");
+        };
         assert!(
             matches!(err, TantivyError::InvalidArgument(ref msg) if msg.contains("plugin sets")),
             "expected InvalidArgument about plugin sets, got {err:?}"

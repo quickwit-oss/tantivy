@@ -18,6 +18,7 @@ use crate::space_usage::{ComponentSpaceUsage, STORE};
 use crate::store::{StoreReader, StoreWriter};
 use crate::Segment;
 
+/// Built-in segment plugin that stores and merges stored documents.
 pub struct StorePlugin;
 
 impl SegmentPlugin for StorePlugin {
@@ -107,6 +108,7 @@ impl SegmentPlugin for StorePlugin {
     }
 }
 
+/// Accumulates and serializes stored documents for a segment.
 pub struct StorePluginWriter {
     store_writer: Option<StoreWriter>,
     remapping_required: bool,
@@ -147,6 +149,7 @@ impl StorePluginWriter {
         })
     }
 
+    /// Serializes and stores a document according to the supplied schema.
     pub fn store<D: Document>(&mut self, document: &D, schema: &Schema) -> crate::Result<()> {
         if let Some(ref mut writer) = self.store_writer {
             writer
@@ -156,6 +159,7 @@ impl StorePluginWriter {
         Ok(())
     }
 
+    /// Stores an already serialized document.
     pub fn store_bytes(&mut self, serialized_document: &[u8]) -> crate::Result<()> {
         if let Some(ref mut writer) = self.store_writer {
             writer

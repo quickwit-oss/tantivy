@@ -354,7 +354,7 @@ mod tests {
             ALL_U64_CODEC_TYPES, serialize_and_load_u64_based_column_values,
         };
 
-        let vals = vec![10u64, 40, 70];
+        let vals = [10u64, 40, 70];
         let values =
             serialize_and_load_u64_based_column_values::<u64>(&&vals[..], &ALL_U64_CODEC_TYPES);
         let column = Column {

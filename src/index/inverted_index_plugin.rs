@@ -36,6 +36,7 @@ use crate::termdict::{TermMerger, TermOrdinal};
 use crate::tokenizer::{FacetTokenizer, PreTokenizedStream, TextAnalyzer, Tokenizer};
 use crate::{DocId, InvertedIndexReader, TantivyError};
 
+/// Built-in segment plugin that stores and merges the inverted index.
 pub struct InvertedIndexPlugin;
 
 /// Computes the initial size of the term hash table.
@@ -129,6 +130,7 @@ impl SegmentPlugin for InvertedIndexPlugin {
 
 // --- Plugin writer ---
 
+/// Accumulates and serializes inverted-index data for a segment.
 pub struct InvertedIndexPluginWriter {
     schema: Schema,
     per_field_postings_writers: PerFieldPostingsWriter,
