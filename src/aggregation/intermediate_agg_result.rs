@@ -787,10 +787,7 @@ impl IntermediateBucketResult {
                     buckets: term_res_right,
                 },
             ) => {
-                merge_maps(&mut term_res_left.entries, term_res_right.entries)?;
-                term_res_left.sum_other_doc_count += term_res_right.sum_other_doc_count;
-                term_res_left.doc_count_error_upper_bound +=
-                    term_res_right.doc_count_error_upper_bound;
+                term_res_left.merge(term_res_right)?;
             }
 
             (
@@ -888,17 +885,71 @@ pub struct IntermediateRangeBucketResult {
     pub(crate) column_type: Option<ColumnType>,
 }
 
-#[derive(Default, Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Default, Clone, Debug, Serialize, Deserialize)]
 /// Term aggregation including error counts
 pub struct IntermediateTermBucketResult {
-    pub(crate) entries: FxHashMap<IntermediateKey, IntermediateTermBucketEntry>,
+    /// Bucket entries as a flat `Vec`, in unspecified order. The final result is sorted by the
+    /// requested order (see `into_final_result`).
+    pub(crate) entries: Vec<(IntermediateKey, IntermediateTermBucketEntry)>,
     pub(crate) sum_other_doc_count: u64,
     pub(crate) doc_count_error_upper_bound: u64,
+    /// Transient `key -> position in entries` index, populated lazily on the first merge so that
+    /// folding many segment results stays O(total entries) instead of rebuilding a dictionary on
+    /// every pairwise merge. Not serialized; rebuilt on demand.
+    #[serde(skip)]
+    pub(crate) key_to_idx_in_entries: FxHashMap<IntermediateKey, u32>,
+}
+
+// `key_to_idx_in_entries` is a transient acceleration structure and is excluded from equality.
+impl PartialEq for IntermediateTermBucketResult {
+    fn eq(&self, other: &Self) -> bool {
+        self.entries == other.entries
+            && self.sum_other_doc_count == other.sum_other_doc_count
+            && self.doc_count_error_upper_bound == other.doc_count_error_upper_bound
+    }
 }
 
 impl IntermediateTermBucketResult {
-    /// Returns a reference to the map of bucket entries keyed by [`IntermediateKey`].
-    pub fn entries(&self) -> &FxHashMap<IntermediateKey, IntermediateTermBucketEntry> {
+    /// Merge `other` into `self` in place.
+    ///
+    /// The first merge builds `self.key_to_idx_in_entries` (`key -> position`) once; subsequent
+    /// merges reuse it, so
+    /// each entry is hashed once and the accumulator grows incrementally. This keeps both the
+    /// per-segment fold and the cross-node `merge_fruits` fold linear in the total number of
+    /// entries. Output order is first-seen: existing keys merge in place, new keys are appended.
+    fn merge(&mut self, other: IntermediateTermBucketResult) -> crate::Result<()> {
+        self.sum_other_doc_count += other.sum_other_doc_count;
+        self.doc_count_error_upper_bound += other.doc_count_error_upper_bound;
+        if other.entries.is_empty() {
+            return Ok(());
+        }
+        if self.entries.is_empty() {
+            self.entries = other.entries;
+            return Ok(());
+        }
+        if self.key_to_idx_in_entries.is_empty() {
+            self.key_to_idx_in_entries
+                .reserve(self.entries.len() + other.entries.len());
+            for (idx, (key, _)) in self.entries.iter().enumerate() {
+                self.key_to_idx_in_entries.insert(key.clone(), idx as u32);
+            }
+        }
+        for (key, bucket) in other.entries {
+            if let Some(&idx_in_entries) = self.key_to_idx_in_entries.get(&key) {
+                let entry = &mut self.entries[idx_in_entries as usize].1;
+                entry.doc_count += bucket.doc_count;
+                entry.sub_aggregation.merge_fruits(bucket.sub_aggregation)?;
+            } else {
+                self.key_to_idx_in_entries
+                    .insert(key.clone(), self.entries.len() as u32);
+                self.entries.push((key, bucket));
+            }
+        }
+        Ok(())
+    }
+
+    /// Returns the bucket entries. Order is unspecified.
+    pub fn entries(&self) -> &[(IntermediateKey, IntermediateTermBucketEntry)] {
         &self.entries
     }
 
@@ -955,10 +1006,26 @@ impl IntermediateTermBucketResult {
                 });
             }
             OrderTarget::Count => {
+                // Tie-break equal counts by key ascending so the output is deterministic
+                // regardless of the merge's (insertion-order) output.
+                let key_tie = |left: &BucketEntry, right: &BucketEntry| {
+                    left.key
+                        .partial_cmp(&right.key)
+                        .expect("expected type string, which is always sortable")
+                };
                 if req.order.order == Order::Desc {
-                    buckets.sort_unstable_by_key(|bucket| std::cmp::Reverse(bucket.doc_count()));
+                    buckets.sort_unstable_by(|left, right| {
+                        right
+                            .doc_count()
+                            .cmp(&left.doc_count())
+                            .then_with(|| key_tie(left, right))
+                    });
                 } else {
-                    buckets.sort_unstable_by_key(|bucket| bucket.doc_count());
+                    buckets.sort_unstable_by(|left, right| {
+                        left.doc_count()
+                            .cmp(&right.doc_count())
+                            .then_with(|| key_tie(left, right))
+                    });
                 }
             }
             OrderTarget::SubAggregation(name) => {
@@ -1013,17 +1080,19 @@ impl IntermediateTermBucketResult {
         mode: PruneMode,
     ) -> crate::Result<()> {
         let req_internal = TermsAggregationInternal::from_req(req);
+        // Pruning changes entry positions, invalidating the transient merge index.
+        self.key_to_idx_in_entries.clear();
         let size = if mode == PruneMode::Final {
             let min_doc_count = req_internal.min_doc_count;
-            self.entries.retain(|_, e| e.doc_count >= min_doc_count);
+            self.entries
+                .retain(|(_, entry)| entry.doc_count >= min_doc_count);
             req_internal.size as usize
         } else {
             req_internal.segment_size as usize
         };
 
         if self.entries.len() > size {
-            let mut entries: Vec<(IntermediateKey, IntermediateTermBucketEntry)> =
-                self.entries.drain().collect();
+            let mut entries = std::mem::take(&mut self.entries);
 
             match &req_internal.order.target {
                 OrderTarget::SubAggregation(sub_agg_path) => {
@@ -1087,10 +1156,10 @@ impl IntermediateTermBucketResult {
                 self.doc_count_error_upper_bound += cutoff_doc_count;
             }
             entries.truncate(size);
-            self.entries = entries.into_iter().collect();
+            self.entries = entries;
         }
 
-        for entry in self.entries.values_mut() {
+        for (_, entry) in &mut self.entries {
             entry
                 .sub_aggregation
                 .prune_intermediate_results(sub_aggregation_req, mode)?;
@@ -1533,9 +1602,8 @@ mod tests {
             );
         }
         let mut term_result = IntermediateTermBucketResult {
-            entries: buckets,
-            sum_other_doc_count: 0,
-            doc_count_error_upper_bound: 0,
+            entries: buckets.into_iter().collect(),
+            ..Default::default()
         };
 
         let req: TermsAggregation =
@@ -1548,10 +1616,12 @@ mod tests {
         assert_eq!(term_result.entries.len(), 2);
         assert!(term_result
             .entries
-            .contains_key(&IntermediateKey::Str("c".to_string())));
+            .iter()
+            .any(|(key, _)| key == &IntermediateKey::Str("c".to_string())));
         assert!(term_result
             .entries
-            .contains_key(&IntermediateKey::Str("e".to_string())));
+            .iter()
+            .any(|(key, _)| key == &IntermediateKey::Str("e".to_string())));
         assert_eq!(term_result.sum_other_doc_count, 10 + 5 + 1);
         // final-size cutoff doesn't contribute to error bound
         assert_eq!(term_result.doc_count_error_upper_bound, 0);
@@ -1573,9 +1643,8 @@ mod tests {
             );
         }
         let mut term_result = IntermediateTermBucketResult {
-            entries: buckets,
-            sum_other_doc_count: 0,
-            doc_count_error_upper_bound: 0,
+            entries: buckets.into_iter().collect(),
+            ..Default::default()
         };
 
         let req: TermsAggregation =
@@ -1588,7 +1657,8 @@ mod tests {
         assert_eq!(term_result.entries.len(), 4);
         assert!(!term_result
             .entries
-            .contains_key(&IntermediateKey::Str("d".to_string())));
+            .iter()
+            .any(|(key, _)| key == &IntermediateKey::Str("d".to_string())));
         assert_eq!(term_result.sum_other_doc_count, 1);
         assert_eq!(term_result.doc_count_error_upper_bound, 1);
     }
@@ -1611,9 +1681,8 @@ mod tests {
             "my_terms".to_string(),
             IntermediateAggregationResult::Bucket(IntermediateBucketResult::Terms {
                 buckets: IntermediateTermBucketResult {
-                    entries: buckets,
-                    sum_other_doc_count: 0,
-                    doc_count_error_upper_bound: 0,
+                    entries: buckets.into_iter().collect(),
+                    ..Default::default()
                 },
             }),
         );
@@ -1634,7 +1703,8 @@ mod tests {
         assert_eq!(buckets.entries.len(), 1);
         assert!(buckets
             .entries
-            .contains_key(&IntermediateKey::Str("x".to_string())));
+            .iter()
+            .any(|(key, _)| key == &IntermediateKey::Str("x".to_string())));
         assert_eq!(buckets.sum_other_doc_count, 60); // y(50) + z(10)
     }
 
@@ -1654,9 +1724,8 @@ mod tests {
             );
         }
         let mut term_result = IntermediateTermBucketResult {
-            entries: buckets,
-            sum_other_doc_count: 0,
-            doc_count_error_upper_bound: 0,
+            entries: buckets.into_iter().collect(),
+            ..Default::default()
         };
 
         let req: TermsAggregation =
@@ -1670,10 +1739,12 @@ mod tests {
         assert_eq!(term_result.entries.len(), 2);
         assert!(term_result
             .entries
-            .contains_key(&IntermediateKey::Str("a".to_string())));
+            .iter()
+            .any(|(key, _)| key == &IntermediateKey::Str("a".to_string())));
         assert!(term_result
             .entries
-            .contains_key(&IntermediateKey::Str("b".to_string())));
+            .iter()
+            .any(|(key, _)| key == &IntermediateKey::Str("b".to_string())));
     }
 
     #[test]

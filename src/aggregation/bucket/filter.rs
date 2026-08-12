@@ -1335,14 +1335,14 @@ mod tests {
                 "brands": {
                     "buckets": [
                         {
-                            "key": "samsung",
-                            "doc_count": 1,
-                            "avg_price": { "value": 799.0 }
-                        },
-                        {
                             "key": "apple",
                             "doc_count": 1,
                             "avg_price": { "value": 999.0 }
+                        },
+                        {
+                            "key": "samsung",
+                            "doc_count": 1,
+                            "avg_price": { "value": 799.0 }
                         }
                     ],
                     "sum_other_doc_count": 0,

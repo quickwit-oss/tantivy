@@ -1325,8 +1325,11 @@ where
         let (term_doc_count_before_cutoff, sum_other_doc_count) =
             cut_off_buckets(&mut entries, segment_size, total_doc_count);
 
-        let mut dict: FxHashMap<IntermediateKey, IntermediateTermBucketEntry> = Default::default();
-        dict.reserve(entries.len());
+        // Collected entries, in unspecified order. The cross-segment merge keys entries by their
+        // own dictionary and the final result is sorted by the requested order, so segment-side
+        // order does not matter here.
+        let mut out: Vec<(IntermediateKey, IntermediateTermBucketEntry)> =
+            Vec::with_capacity(entries.len());
 
         if term_req.column_type == ColumnType::Str {
             let fallback_dict = Dictionary::empty();
@@ -1335,6 +1338,14 @@ where
                 .as_ref()
                 .map(|el| el.dictionary())
                 .unwrap_or_else(|| &fallback_dict);
+
+            // Collect into a map to dedup by key, then flush into `out`. Two cases need it: a real
+            // term may equal the `missing` placeholder, and the min_doc_count==0 fill must skip
+            // already-collected terms. A single-segment query returns this result directly (the
+            // cross-segment merge that would otherwise dedup never runs), so duplicate keys here
+            // would reach the final result unmerged.
+            let mut dict: FxHashMap<IntermediateKey, IntermediateTermBucketEntry> =
+                FxHashMap::with_capacity_and_hasher(entries.len(), Default::default());
 
             if let Some((intermediate_key, bucket)) = extract_missing_value(&mut entries, term_req)
             {
@@ -1405,6 +1416,8 @@ where
                         });
                 }
             }
+
+            out.extend(dict);
         } else if term_req.column_type == ColumnType::DateTime {
             for (val, doc_count) in entries {
                 let intermediate_entry = into_intermediate_bucket_entry(
@@ -1414,7 +1427,7 @@ where
                 )?;
                 let val = i64::from_u64(val);
                 let date = format_date(val)?;
-                dict.insert(IntermediateKey::Str(date), intermediate_entry);
+                out.push((IntermediateKey::Str(date), intermediate_entry));
             }
         } else if term_req.column_type == ColumnType::Bool {
             for (val, doc_count) in entries {
@@ -1424,7 +1437,7 @@ where
                     agg_data,
                 )?;
                 let val = bool::from_u64(val);
-                dict.insert(IntermediateKey::Bool(val), intermediate_entry);
+                out.push((IntermediateKey::Bool(val), intermediate_entry));
             }
         } else if term_req.column_type == ColumnType::IpAddr {
             let compact_space_accessor = term_req
@@ -1449,7 +1462,7 @@ where
                 )?;
                 let val: u128 = compact_space_accessor.compact_to_u128(val as u32);
                 let val = Ipv6Addr::from_u128(val);
-                dict.insert(IntermediateKey::IpAddr(val), intermediate_entry);
+                out.push((IntermediateKey::IpAddr(val), intermediate_entry));
             }
         } else {
             for (key_val_u64, doc_count) in entries {
@@ -1470,15 +1483,16 @@ where
                     }
                 };
                 let key = IntermediateKey::from(key_val.normalize());
-                dict.insert(key, intermediate_entry);
+                out.push((key, intermediate_entry));
             }
         };
 
         Ok(IntermediateBucketResult::Terms {
             buckets: IntermediateTermBucketResult {
-                entries: dict,
+                entries: out,
                 sum_other_doc_count,
                 doc_count_error_upper_bound: term_doc_count_before_cutoff,
+                ..Default::default()
             },
         })
     }
