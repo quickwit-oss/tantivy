@@ -529,7 +529,6 @@ impl CompactSpaceDecompressor {
 #[cfg(test)]
 mod tests {
 
-    use common::file_slice::FileSlice;
     use itertools::Itertools;
 
     use super::*;

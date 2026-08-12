@@ -207,6 +207,9 @@ impl IndexBuilder {
         self
     }
 
+    /// Registers a custom segment plugin on the index being built.
+    ///
+    /// Custom plugins run after the built-in plugins, in registration order.
     #[must_use]
     pub fn register_plugin(mut self, plugin: Arc<dyn SegmentPlugin>) -> Self {
         self.custom_plugins.push(plugin);

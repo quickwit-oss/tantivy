@@ -10,10 +10,14 @@ use super::SegmentWriter;
 use crate::schema::{Field, Schema};
 use crate::{DocAddress, DocId, IndexSortByField, TantivyError};
 
+/// Describes how source segment document IDs are mapped into a merged segment.
 #[derive(Copy, Clone, Eq, PartialEq)]
 pub enum MappingType {
+    /// Source segments are concatenated without omitting any documents.
     Stacked,
+    /// Source segments are concatenated while deleted documents are omitted.
     StackedWithDeletes,
+    /// Documents are reordered instead of preserving source segment order.
     Shuffled,
 }
 
@@ -38,6 +42,7 @@ impl SegmentDocIdMapping {
         }
     }
 
+    /// Returns how source document IDs are arranged in the merged segment.
     pub fn mapping_type(&self) -> MappingType {
         self.mapping_type
     }

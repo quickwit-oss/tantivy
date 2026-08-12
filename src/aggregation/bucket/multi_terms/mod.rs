@@ -457,6 +457,7 @@ fn missing_value_for_doc(
 }
 
 /// Expands the existing partial combinations with every value of one field.
+#[allow(clippy::too_many_arguments)]
 fn expand_partial_combinations_for_field<Packing: MultiTermsPacking>(
     packing: &Packing,
     field_idx: usize,

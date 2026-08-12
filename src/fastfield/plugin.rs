@@ -22,6 +22,7 @@ use crate::schema::{value_type_to_column_type, Schema};
 use crate::space_usage::{ComponentSpaceUsage, FAST_FIELDS};
 use crate::Segment;
 
+/// Built-in segment plugin that stores and merges fast-field columns.
 pub struct FastFieldsPlugin;
 
 impl SegmentPlugin for FastFieldsPlugin {
@@ -78,7 +79,9 @@ impl SegmentPlugin for FastFieldsPlugin {
     }
 }
 
+/// Accumulates and serializes fast-field values for a segment.
 pub struct FastFieldsPluginWriter {
+    /// Underlying fast-field writer.
     pub writer: FastFieldsWriter,
     fast_field_write: WritePtr,
 }
@@ -108,10 +111,12 @@ impl FastFieldsPluginWriter {
         self.writer.add_document(doc)
     }
 
+    /// Returns mutable access to the underlying fast-field writer.
     pub fn writer_mut(&mut self) -> &mut FastFieldsWriter {
         &mut self.writer
     }
 
+    /// Returns the underlying fast-field writer.
     pub fn writer(&self) -> &FastFieldsWriter {
         &self.writer
     }
