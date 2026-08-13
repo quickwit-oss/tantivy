@@ -1,33 +1,14 @@
-use std::collections::HashSet;
+mod literal;
+mod typed_expr;
+mod untyped_expr;
 
-mod boilerplate;
+use std::collections::HashMap;
 
-/// A literal supported by the first expression-language milestone.
-#[derive(Clone, Debug, PartialEq)]
-pub enum Literal {
-    Bool(bool),
-    I64(i64),
-    F64(f64),
-    String(String),
-}
+pub use literal::Literal;
+pub use typed_expr::TypedExpr;
+pub use untyped_expr::UntypedExpr;
 
-/// An expression independent from its protobuf representation.
-#[derive(Clone, Debug, PartialEq)]
-pub enum Expr {
-    Literal(Literal),
-    Variable(String),
-    Call { function: Function, args: Vec<Expr> },
-}
-
-impl Expr {
-    pub fn literal(val: impl Into<Literal>) -> Expr {
-        Expr::Literal(val.into())
-    }
-
-    pub fn variable(variable_name: impl ToString) -> Expr {
-        Expr::Variable(variable_name.to_string())
-    }
-}
+use crate::types::VarType;
 
 /// A function supported by the first expression-language milestone.
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
@@ -36,28 +17,25 @@ pub enum Function {
 }
 
 impl Function {
-    pub fn call_expr(&self, args: Vec<Expr>) -> Expr {
-        Expr::Call {
+    pub fn call_typed_expr(&self, args: Vec<TypedExpr>) -> TypedExpr {
+        TypedExpr::Call {
+            function: *self,
+            args,
+        }
+    }
+
+    pub fn call_untyped_expr(&self, args: Vec<UntypedExpr>) -> UntypedExpr {
+        UntypedExpr::Call {
             function: *self,
             args,
         }
     }
 }
 
-impl Expr {
-    pub fn list_variable_names(&self) -> HashSet<String> {
-        let mut names = HashSet::new();
-        match self {
-            Expr::Literal(_) => {}
-            Expr::Variable(name) => {
-                names.insert(name.clone());
-            }
-            Expr::Call { args, .. } => {
-                for arg in args {
-                    names.extend(arg.list_variable_names());
-                }
-            }
-        }
-        names
-    }
+/// If a variable is missing from variable_types, it will be treated as if its value is None.
+pub fn apply_types(
+    untyped_expr: &UntypedExpr,
+    variable_types: HashMap<&str, VarType>,
+) -> TypedExpr {
+    todo!()
 }

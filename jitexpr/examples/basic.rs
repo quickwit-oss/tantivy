@@ -1,42 +1,33 @@
 use std::collections::HashMap;
 use std::error::Error;
 
-use jitexpr::ast::{Expr, Function, Literal};
+use jitexpr::ast::{Function, TypedExpr, UntypedExpr, apply_types};
+use jitexpr::types::VarType;
+use jitexpr::{InferredTypeSet, infer_types};
 
 fn main() -> Result<(), Box<dyn Error>> {
     // A simple expression that goes:
     // my_column + 1
-    let expression = Function::Add.call_expr(vec![Expr::variable("my_col"), Expr::literal(1.0f64)]);
-
-    let argument_names = expression.list_argument_names();
-    println!("referenced fields: {argument_names:?}");
-
-    // An integrating crate would obtain these entries by looking up the
-    // referenced fields in Tantivy's columnar schema.
-    let available_types = HashMap::from([
-        (
-            "request_size".to_string(),
-            AvailableVarTypes {
-                numerical: Some(NumericalType::U64),
-                boolean: false,
-                string: false,
-            },
-        ),
-        (
-            "elapsed".to_string(),
-            AvailableVarTypes {
-                numerical: Some(NumericalType::U64),
-                boolean: false,
-                string: false,
-            },
-        ),
+    let untyped_expr = Function::Add.call_untyped_expr(vec![
+        UntypedExpr::variable("my_col"),
+        UntypedExpr::literal(1.0f64),
     ]);
 
-    let selected_types = infer_types(&expression, &available_types)?;
-    let function = compile(&expression, selected_types)?;
+    let inferred_types = infer_types(&untyped_expr)?;
+    assert_eq!(
+        inferred_types.get("my_col").unwrap(),
+        &InferredTypeSet::NUMERICAL
+    );
 
-    assert_eq!(evaluate(&function, 100, 4), 25.0);
-    assert_eq!(evaluate(&function, 100, 0), 0.0);
+    let variable_types: HashMap<&str, VarType> =
+        std::iter::once(("my_col", VarType::F64)).collect();
+
+    let typed_expr: TypedExpr = apply_types(&untyped_expr, variable_types);
+
+    // let function = compile(&expression, selected_types)?;
+
+    // assert_eq!(evaluate(&function, 100, 4), 25.0);
+    // assert_eq!(evaluate(&function, 100, 0), 0.0);
     Ok(())
 }
 

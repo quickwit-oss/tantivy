@@ -7,6 +7,7 @@ pub enum VarType {
     U64,
     F64,
     Str,
+    None,
     // TODO: add other types.
 }
 
