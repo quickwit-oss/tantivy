@@ -998,21 +998,16 @@ impl IntermediateTermBucketResult {
             OrderTarget::Key => {
                 buckets.sort_by(|left, right| {
                     if req.order.order == Order::Asc {
-                        left.key.partial_cmp(&right.key)
+                        left.key.cmp(&right.key)
                     } else {
-                        right.key.partial_cmp(&left.key)
+                        right.key.cmp(&left.key)
                     }
-                    .expect("expected type string, which is always sortable")
                 });
             }
             OrderTarget::Count => {
                 // Tie-break equal counts by key ascending so the output is deterministic
                 // regardless of the merge's (insertion-order) output.
-                let key_tie = |left: &BucketEntry, right: &BucketEntry| {
-                    left.key
-                        .partial_cmp(&right.key)
-                        .expect("expected type string, which is always sortable")
-                };
+                let key_tie = |left: &BucketEntry, right: &BucketEntry| left.key.cmp(&right.key);
                 if req.order.order == Order::Desc {
                     buckets.sort_unstable_by(|left, right| {
                         right
@@ -1125,15 +1120,9 @@ impl IntermediateTermBucketResult {
                             .map(|entry| (entry.0.clone().into(), entry))
                             .collect();
                     if req_internal.order.order == Order::Desc {
-                        keyed.select_nth_unstable_by(size, |(k1, _), (k2, _)| {
-                            k2.partial_cmp(k1)
-                                .expect("expected type string, which is always sortable")
-                        });
+                        keyed.select_nth_unstable_by(size, |(k1, _), (k2, _)| k2.cmp(k1));
                     } else {
-                        keyed.select_nth_unstable_by(size, |(k1, _), (k2, _)| {
-                            k1.partial_cmp(k2)
-                                .expect("expected type string, which is always sortable")
-                        });
+                        keyed.select_nth_unstable_by(size, |(k1, _), (k2, _)| k1.cmp(k2));
                     }
                     entries = keyed.into_iter().map(|(_, entry)| entry).collect();
                 }

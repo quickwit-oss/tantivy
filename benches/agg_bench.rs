@@ -60,27 +60,14 @@ fn main() {
 fn bench_many_segments() {
     let mut runner = BenchRunner::new();
     runner.add_plugin(PeakMemAllocPlugin::new(GLOBAL));
-    let index =
-        get_test_index_bench_with_num_segments(Cardinality::Full, 100).unwrap();
+    let index = get_test_index_bench_with_num_segments(Cardinality::Full, 100).unwrap();
     let mut group = runner.new_group();
     group.set_name("100_segments");
     for (benchmark_name, agg_req) in [
-        (
-            "terms_7",
-            terms_on_field("text_few_terms_status"),
-        ),
-        (
-            "terms_zipfs_1000",
-            terms_on_field("text_1000_terms_zipf"),
-        ),
-        (
-            "terms_150_000",
-            terms_on_field("text_many_terms"),
-        ),
-        (
-            "terms_all_unique",
-            terms_on_field("text_all_unique_terms"),
-        ),
+        ("terms_7", terms_on_field("text_few_terms_status")),
+        ("terms_zipfs_1000", terms_on_field("text_1000_terms_zipf")),
+        ("terms_150_000", terms_on_field("text_many_terms")),
+        ("terms_all_unique", terms_on_field("text_all_unique_terms")),
     ] {
         group.register_with_input(benchmark_name, &index, move |index| {
             execute_agg(index, agg_req.clone())
