@@ -2025,6 +2025,46 @@ mod test {
     }
 
     #[test]
+    fn test_phrase_prefix_and_slop_on_json_field_with_documents() -> crate::Result<()> {
+        use serde_json::json;
+
+        use crate::collector::Count;
+
+        let mut schema_builder = Schema::builder();
+        let json = schema_builder.add_json_field("json", TEXT);
+        let schema = schema_builder.build();
+        let index = Index::create_in_ram(schema);
+
+        let mut index_writer = index.writer_for_tests()?;
+        index_writer.add_document(doc!(json => json!({"attr": "big bad wolf"})))?;
+        index_writer.add_document(doc!(json => json!({"attr": "big bad world"})))?;
+        index_writer.add_document(doc!(json => json!({"attr": "big bad"})))?;
+        index_writer.add_document(doc!(json => json!({"attr": "small bad wolf"})))?;
+        index_writer.add_document(doc!(json => json!({"attr": "big angry bad wolf"})))?;
+        index_writer.commit()?;
+
+        let query_parser = QueryParser::for_index(&index, Vec::new());
+        let searcher = index.reader()?.searcher();
+
+        // Phrase prefix: matches "big bad wolf" and "big bad world", but not "big bad" (no term
+        // after the phrase to expand) nor "small bad wolf" (phrase does not match).
+        let phrase_prefix = query_parser.parse_query("json.attr:\"big bad wo\"*")?;
+        assert_eq!(searcher.search(&*phrase_prefix, &Count)?, 2);
+
+        // Without the trailing `*` the same input is an exact phrase and matches nothing.
+        let exact_phrase = query_parser.parse_query("json.attr:\"big bad wo\"")?;
+        assert_eq!(searcher.search(&*exact_phrase, &Count)?, 0);
+
+        // Slop: "big angry bad wolf" only matches "big bad" once a slop of 1 is allowed.
+        let phrase = query_parser.parse_query("json.attr:\"big bad\"")?;
+        assert_eq!(searcher.search(&*phrase, &Count)?, 3);
+        let phrase_slop = query_parser.parse_query("json.attr:\"big bad\"~1")?;
+        assert_eq!(searcher.search(&*phrase_slop, &Count)?, 4);
+
+        Ok(())
+    }
+
+    #[test]
     pub fn test_term_set_query() {
         test_parse_query_to_logical_ast_helper(
             "title: IN [a b cd]",
