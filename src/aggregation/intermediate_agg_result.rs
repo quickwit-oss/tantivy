@@ -51,7 +51,7 @@ pub struct IntermediateAggregationResults {
     pub(crate) aggs_res: FxHashMap<String, IntermediateAggregationResult>,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize, PartialOrd, PartialEq)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 /// The key to identify a bucket.
 /// This might seem redundant with `Key`, but the point is to have a different
 /// Serialize implementation.
@@ -70,16 +70,56 @@ pub enum IntermediateKey {
     U64(u64),
 }
 
-impl From<NumericalValue> for IntermediateKey {
-    fn from(value: NumericalValue) -> Self {
-        match value {
-            NumericalValue::I64(i64_val) => IntermediateKey::I64(i64_val),
-            NumericalValue::U64(u64_val) => IntermediateKey::U64(u64_val),
-            NumericalValue::F64(f64_val) => IntermediateKey::F64(f64_val),
+impl IntermediateKey {
+    fn variant_ord(&self) -> u8 {
+        match self {
+            Self::IpAddr(_) => 0,
+            Self::Bool(_) => 1,
+            Self::Str(_) => 2,
+            Self::F64(_) => 3,
+            Self::I64(_) => 4,
+            Self::U64(_) => 5,
         }
     }
 }
 
+impl Ord for IntermediateKey {
+    fn cmp(&self, other: &Self) -> Ordering {
+        match (self, other) {
+            (Self::IpAddr(left), Self::IpAddr(right)) => left.cmp(right),
+            (Self::Bool(left), Self::Bool(right)) => left.cmp(right),
+            (Self::Str(left), Self::Str(right)) => left.cmp(right),
+            (Self::F64(left), Self::F64(right)) => left.total_cmp(right),
+            (Self::I64(left), Self::I64(right)) => left.cmp(right),
+            (Self::U64(left), Self::U64(right)) => left.cmp(right),
+            (left, right) => left.variant_ord().cmp(&right.variant_ord()),
+        }
+    }
+}
+
+impl PartialOrd for IntermediateKey {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl PartialEq for IntermediateKey {
+    fn eq(&self, other: &Self) -> bool {
+        self.cmp(other) == Ordering::Equal
+    }
+}
+
+impl Eq for IntermediateKey {}
+
+impl From<NumericalValue> for IntermediateKey {
+    fn from(value: NumericalValue) -> Self {
+        match value {
+            NumericalValue::U64(value) => Self::U64(value),
+            NumericalValue::I64(value) => Self::I64(value),
+            NumericalValue::F64(value) => Self::F64(value),
+        }
+    }
+}
 impl From<Key> for IntermediateKey {
     fn from(value: Key) -> Self {
         match value {
@@ -109,8 +149,6 @@ impl From<IntermediateKey> for Key {
         }
     }
 }
-
-impl Eq for IntermediateKey {}
 
 impl std::fmt::Display for IntermediateKey {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -1126,6 +1164,35 @@ impl IntermediateTermBucketResult {
                     }
                     entries = keyed.into_iter().map(|(_, entry)| entry).collect();
                 }
+                OrderTarget::Count if mode == PruneMode::Final => {
+                    // Match the final result ordering: equal counts are ordered by key ascending.
+                    let mut keyed: Vec<(Key, (IntermediateKey, IntermediateTermBucketEntry))> =
+                        entries
+                            .into_iter()
+                            .map(|entry| (entry.0.clone().into(), entry))
+                            .collect();
+                    if req_internal.order.order == Order::Desc {
+                        keyed.select_nth_unstable_by(
+                            size,
+                            |(left_key, (_, left)), (right_key, (_, right))| {
+                                right
+                                    .doc_count
+                                    .cmp(&left.doc_count)
+                                    .then_with(|| left_key.cmp(right_key))
+                            },
+                        );
+                    } else {
+                        keyed.select_nth_unstable_by(
+                            size,
+                            |(left_key, (_, left)), (right_key, (_, right))| {
+                                left.doc_count
+                                    .cmp(&right.doc_count)
+                                    .then_with(|| left_key.cmp(right_key))
+                            },
+                        );
+                    }
+                    entries = keyed.into_iter().map(|(_, entry)| entry).collect();
+                }
                 OrderTarget::Count => {
                     if req_internal.order.order == Order::Desc {
                         entries.select_nth_unstable_by_key(size, |(_, e)| {
@@ -1614,6 +1681,45 @@ mod tests {
         assert_eq!(term_result.sum_other_doc_count, 10 + 5 + 1);
         // final-size cutoff doesn't contribute to error bound
         assert_eq!(term_result.doc_count_error_upper_bound, 0);
+    }
+
+    #[test]
+    fn test_prune_intermediate_results_final_count_ties_by_key() {
+        use crate::aggregation::bucket::TermsAggregation;
+
+        for order in ["asc", "desc"] {
+            let entries = ["z", "y", "a"]
+                .into_iter()
+                .map(|key| {
+                    (
+                        IntermediateKey::Str(key.to_string()),
+                        IntermediateTermBucketEntry {
+                            doc_count: 1,
+                            sub_aggregation: Default::default(),
+                        },
+                    )
+                })
+                .collect();
+            let mut term_result = IntermediateTermBucketResult {
+                entries,
+                ..Default::default()
+            };
+            let req: TermsAggregation = serde_json::from_value(serde_json::json!({
+                "field": "myfield",
+                "size": 1,
+                "order": { "_count": order },
+            }))
+            .unwrap();
+
+            term_result
+                .prune_intermediate_results(&req, &Default::default(), PruneMode::Final)
+                .unwrap();
+
+            assert_eq!(
+                term_result.entries[0].0,
+                IntermediateKey::Str("a".to_string())
+            );
+        }
     }
 
     #[test]

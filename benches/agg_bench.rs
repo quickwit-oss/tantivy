@@ -78,7 +78,7 @@ fn bench_many_segments() {
 
 fn terms_on_field(field: &str) -> AggregationRequest {
     json!({
-        "terms": { "terms": { "field": field, "size": 100 } }
+        "terms": { "terms": { "field": field, "size": 1000 } }
     })
 }
 

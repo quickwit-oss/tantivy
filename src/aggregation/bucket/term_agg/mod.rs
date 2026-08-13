@@ -1464,17 +1464,40 @@ where
                 let val = Ipv6Addr::from_u128(val);
                 out.push((IntermediateKey::IpAddr(val), intermediate_entry));
             }
-        } else {
-            for (key_val_u64, doc_count) in entries {
+        } else if term_req.column_type == ColumnType::F64 {
+            // Distinct f64 encodings can normalize to the same public key, notably -0.0 and +0.0.
+            let normalized_key = |val: u64| -> IntermediateKey {
+                NumericalValue::from(f64::from_u64(val)).normalize().into()
+            };
+            entries.sort_unstable_by_key(|(val, _)| normalized_key(*val));
+
+            for (val, bucket) in entries {
+                let key = normalized_key(val);
                 let intermediate_entry = into_intermediate_bucket_entry(
-                    doc_count,
+                    bucket,
+                    reborrow_opt_collector(&mut sub_agg_collector),
+                    agg_data,
+                )?;
+                match out.last_mut() {
+                    Some((previous_key, existing)) if previous_key == &key => {
+                        existing.doc_count += intermediate_entry.doc_count;
+                        existing
+                            .sub_aggregation
+                            .merge_fruits(intermediate_entry.sub_aggregation)?;
+                    }
+                    _ => out.push((key, intermediate_entry)),
+                }
+            }
+        } else {
+            for (val, bucket) in entries {
+                let intermediate_entry = into_intermediate_bucket_entry(
+                    bucket,
                     reborrow_opt_collector(&mut sub_agg_collector),
                     agg_data,
                 )?;
                 let key_val: NumericalValue = match term_req.column_type {
-                    ColumnType::U64 => key_val_u64.into(),
-                    ColumnType::I64 => i64::from_u64(key_val_u64).into(),
-                    ColumnType::F64 => f64::from_u64(key_val_u64).into(),
+                    ColumnType::U64 => val.into(),
+                    ColumnType::I64 => i64::from_u64(val).into(),
                     _ => {
                         return Err(TantivyError::SchemaError(format!(
                             "unknown key type: {}",
@@ -1482,8 +1505,7 @@ where
                         )))
                     }
                 };
-                let key = IntermediateKey::from(key_val.normalize());
-                out.push((key, intermediate_entry));
+                out.push((key_val.normalize().into(), intermediate_entry));
             }
         };
 
@@ -1756,6 +1778,43 @@ mod tests {
                 json!({"key": 1, "doc_count": 2}),
             ]
         );
+    }
+
+    #[test]
+    fn terms_aggregation_merges_normalized_f64_buckets_with_sub_aggregations() -> crate::Result<()>
+    {
+        let index = get_test_index_from_values_and_terms(
+            true,
+            &[vec![
+                (-0.0, "negative_zero".to_string()),
+                (0.0, "positive_zero".to_string()),
+            ]],
+        )?;
+        let agg_req: Aggregations = serde_json::from_value(json!({
+            "zeros": {
+                "terms": { "field": "score_f64" },
+                "aggs": {
+                    "signs": { "terms": { "field": "string_id" } }
+                }
+            }
+        }))?;
+
+        let result = exec_request(agg_req, &index)?;
+        let zero_buckets = result["zeros"]["buckets"].as_array().unwrap();
+        assert_eq!(zero_buckets.len(), 1, "unexpected result: {result}");
+        assert_eq!(zero_buckets[0]["key"], 0);
+        assert_eq!(zero_buckets[0]["doc_count"], 2);
+
+        let sign_buckets = zero_buckets[0]["signs"]["buckets"].as_array().unwrap();
+        assert_eq!(sign_buckets.len(), 2, "unexpected result: {result}");
+        for sign in ["negative_zero", "positive_zero"] {
+            let bucket = sign_buckets
+                .iter()
+                .find(|bucket| bucket["key"] == sign)
+                .unwrap_or_else(|| panic!("missing {sign:?} bucket in {result}"));
+            assert_eq!(bucket["doc_count"], 1);
+        }
+        Ok(())
     }
 
     #[test]
