@@ -77,6 +77,7 @@ arc-swap = "1.5.0"
 bon = "3.3.1"
 
 columnar = { version = "0.7", path = "./columnar", package = "tantivy-columnar" }
+jitexpr = { version = "0.1", path = "./jitexpr", optional = true }
 sstable = { version = "0.7", path = "./sstable", package = "tantivy-sstable", optional = true }
 stacker = { version = "0.7", path = "./stacker", package = "tantivy-stacker" }
 query-grammar = { version = "0.26.0", path = "./query-grammar", package = "tantivy-query-grammar" }
@@ -164,6 +165,7 @@ members = [
     "sstable",
     "tokenizer-api",
     "columnar",
+    "jitexpr",
 ]
 
 # Following the "fail" crate best practises, we isolate
