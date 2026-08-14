@@ -14,15 +14,15 @@ pub enum VarType {
 /// A borrowed UTF-8 string descriptor passed opaquely through generated code.
 ///
 /// The pointer can either refer to:
-/// - an input str, if it is representing an arg
-/// or if it is a return value that is a slice of an input str (e.g. a regex group).
+/// - an input str, if it is representing an arg or if it is a return value that is a slice of an
+///   input str (e.g. a regex group).
 /// - a literal from the original expression
-/// - the arena passed to the function if the function "constructs"  a new string
-/// (e.g. when calling uppercase).
+/// - the arena passed to the function if the function "constructs"  a new string (e.g. when calling
+///   uppercase).
 ///
 /// Either way, its lifetime / ownership is controlled by the called of the function.
 #[repr(C)]
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct StringRef {
     data: *const u8,
     len: usize,
@@ -77,4 +77,20 @@ pub union VariableValue {
     pub int_u64: u64,
     pub int_i64: i64,
     pub string: *mut StringRef, //< this has to be mut for results.
+}
+
+impl Default for VariableValue {
+    fn default() -> VariableValue {
+        VariableValue { int_u64: 0u64 }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::types::VariableValue;
+
+    #[test]
+    fn test_variable_value_size() {
+        assert_eq!(std::mem::size_of::<VariableValue>(), 8);
+    }
 }

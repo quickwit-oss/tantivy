@@ -2,48 +2,113 @@ use std::collections::HashMap;
 use std::collections::hash_map::Entry;
 
 use crate::ast::{Function, Literal, UntypedExpr};
+use crate::types::VarType;
 
 #[derive(Default, Copy, Clone, Debug, Eq, PartialEq)]
 pub struct InferredTypeSet {
-    string: bool,
-    numerical: bool,
-    boolean: bool,
+    pub string: bool,
+    pub i64: bool,
+    pub u64: bool,
+    pub f64: bool,
+    pub boolean: bool,
 }
 
 impl InferredTypeSet {
     pub const NONE: InferredTypeSet = InferredTypeSet {
         string: false,
-        numerical: false,
+        i64: false,
+        u64: false,
+        f64: false,
         boolean: false,
     };
 
     pub const ALL: InferredTypeSet = InferredTypeSet {
         string: true,
-        numerical: true,
+        i64: true,
+        u64: true,
+        f64: true,
         boolean: true,
     };
 
     pub const NUMERICAL: InferredTypeSet = InferredTypeSet {
-        numerical: true,
+        i64: true,
+        u64: true,
+        f64: true,
         boolean: false,
         string: false,
     };
 
-    pub const STRING: InferredTypeSet = InferredTypeSet {
-        numerical: false,
-        boolean: false,
-        string: true,
+    pub const I64: InferredTypeSet = InferredTypeSet {
+        i64: true,
+        ..Self::NONE
     };
 
-    fn is_none(self) -> bool {
+    pub const U64: InferredTypeSet = InferredTypeSet {
+        u64: true,
+        ..Self::NONE
+    };
+
+    pub const F64: InferredTypeSet = InferredTypeSet {
+        f64: true,
+        ..Self::NONE
+    };
+
+    pub const STRING: InferredTypeSet = InferredTypeSet {
+        string: true,
+        ..Self::NONE
+    };
+
+    pub const BOOLEAN: InferredTypeSet = InferredTypeSet {
+        boolean: true,
+        ..Self::NONE
+    };
+
+    pub(crate) fn is_none(self) -> bool {
         self == Self::NONE
     }
 
-    fn intersect(self, target_inferred_type: InferredTypeSet) -> InferredTypeSet {
+    pub fn singleton(var_type: VarType) -> InferredTypeSet {
+        match var_type {
+            VarType::Bool => Self::BOOLEAN,
+            VarType::F64 => Self::F64,
+            VarType::U64 => Self::U64,
+            VarType::I64 => Self::I64,
+            VarType::Str => Self::STRING,
+            VarType::None => Self::NONE,
+        }
+    }
+
+    pub(crate) fn intersect(self, target_inferred_type: InferredTypeSet) -> InferredTypeSet {
         InferredTypeSet {
             string: self.string && target_inferred_type.string,
-            numerical: self.numerical && target_inferred_type.numerical,
+            i64: self.i64 && target_inferred_type.i64,
+            u64: self.u64 && target_inferred_type.u64,
+            f64: self.f64 && target_inferred_type.f64,
             boolean: self.boolean && target_inferred_type.boolean,
+        }
+    }
+
+    pub fn contains(&self, var_type: VarType) -> bool {
+        match var_type {
+            VarType::Bool => self.boolean,
+            VarType::F64 => self.f64,
+            VarType::U64 => self.u64,
+            VarType::I64 => self.i64,
+            VarType::Str => self.string,
+            VarType::None => self.is_none(),
+        }
+    }
+}
+
+impl From<VarType> for InferredTypeSet {
+    fn from(var_type: VarType) -> Self {
+        match var_type {
+            VarType::Bool => Self::BOOLEAN,
+            VarType::F64 => Self::F64,
+            VarType::U64 => Self::U64,
+            VarType::I64 => Self::I64,
+            VarType::Str => Self::STRING,
+            VarType::None => Self::NONE,
         }
     }
 }
@@ -54,8 +119,14 @@ impl std::fmt::Display for InferredTypeSet {
         if self.string {
             types.push("string");
         }
-        if self.numerical {
-            types.push("numerical");
+        if self.i64 {
+            types.push("i64");
+        }
+        if self.u64 {
+            types.push("u64");
+        }
+        if self.f64 {
+            types.push("f64");
         }
         if self.boolean {
             types.push("boolean");
@@ -66,10 +137,17 @@ impl std::fmt::Display for InferredTypeSet {
 
 #[derive(Debug, thiserror::Error)]
 pub enum TypeError {
-    #[error("function `{function:?}` returns a number, expected `{expected}`")]
+    #[error("function `{function:?}` returns `{got}`, expected `{expected}`")]
     WrongFunctionReturnType {
         function: Function,
         expected: InferredTypeSet,
+        got: InferredTypeSet,
+    },
+    #[error("function `{function:?}` expects `{expected}` args, was passed `{got}`")]
+    InvalidNumberOfArguments {
+        function: Function,
+        expected: usize,
+        got: usize,
     },
     #[error("expected `{expected}` , got `{literal:?}`")]
     InvalidLiteralType {
@@ -79,23 +157,20 @@ pub enum TypeError {
 }
 
 /// Infer the accepted types for the different variables present in the formula.
-pub fn infer_types<'a>(
-    expr: &'a UntypedExpr,
-) -> Result<HashMap<&'a str, InferredTypeSet>, TypeError> {
+pub fn infer_types(expr: &UntypedExpr) -> Result<HashMap<&str, InferredTypeSet>, TypeError> {
     let mut inferred_type_res = HashMap::default();
     infer_types_aux(expr, InferredTypeSet::ALL, &mut inferred_type_res)?;
     Ok(inferred_type_res)
 }
 
-fn infer_types_aux<'a>(
+pub(crate) fn infer_types_aux<'a>(
     expr: &'a UntypedExpr,
     target_inferred_type: InferredTypeSet,
     inferred_types_res: &mut HashMap<&'a str, InferredTypeSet>,
 ) -> Result<InferredTypeSet, TypeError> {
     match expr {
         UntypedExpr::Literal(literal) => {
-            let literal_type: InferredTypeSet =
-                target_inferred_type.intersect(literal_types(literal));
+            let literal_type: InferredTypeSet = target_inferred_type.intersect(literal.types());
             if literal_type.is_none() {
                 return Err(TypeError::InvalidLiteralType {
                     literal: literal.clone(),
@@ -104,122 +179,61 @@ fn infer_types_aux<'a>(
             }
             Ok(literal_type)
         }
-        UntypedExpr::Variable(variable_name) => match inferred_types_res.entry(&*variable_name) {
-            Entry::Occupied(mut occupied_entry) => {
-                let inferred_types = occupied_entry.get().intersect(target_inferred_type);
-                occupied_entry.insert(inferred_types);
-                Ok(inferred_types)
+        UntypedExpr::Variable(variable_name) => {
+            match inferred_types_res.entry(variable_name.as_ref()) {
+                Entry::Occupied(mut occupied_entry) => {
+                    let inferred_types = occupied_entry.get().intersect(target_inferred_type);
+                    occupied_entry.insert(inferred_types);
+                    Ok(inferred_types)
+                }
+                Entry::Vacant(vacant_entry) => {
+                    vacant_entry.insert_entry(target_inferred_type);
+                    Ok(target_inferred_type)
+                }
             }
-            Entry::Vacant(vacant_entry) => {
-                vacant_entry.insert_entry(target_inferred_type);
-                Ok(target_inferred_type)
-            }
-        },
-        UntypedExpr::Call { function, args } => infer_types_function_aux(
-            *function,
-            &args[..],
-            target_inferred_type,
-            inferred_types_res,
-        ),
-    }
-}
-
-fn infer_types_function_aux<'a>(
-    function: Function,
-    args: &'a [UntypedExpr],
-    target_inferred_type: InferredTypeSet,
-    inferred_types_res: &mut HashMap<&'a str, InferredTypeSet>,
-) -> Result<InferredTypeSet, TypeError> {
-    match function {
-        Function::Add => {
-            // This is valid for all functions taking a bunch of number and returning a number.
-            if !target_inferred_type.numerical {
-                return Err(TypeError::WrongFunctionReturnType {
-                    function,
-                    expected: target_inferred_type,
-                });
-            }
-            for arg in args {
-                infer_types_aux(arg, InferredTypeSet::NUMERICAL, inferred_types_res)?;
-            }
-            Ok(InferredTypeSet::NUMERICAL)
+        }
+        UntypedExpr::Call { function, args } => {
+            function.infer_types(args, target_inferred_type, inferred_types_res)
         }
     }
 }
 
-fn literal_types<'a>(literal: &'a Literal) -> InferredTypeSet {
-    match literal {
-        Literal::None => InferredTypeSet::ALL,
-        Literal::Bool(_) => InferredTypeSet {
-            boolean: true,
-            ..Default::default()
-        },
-        Literal::I64(_) | Literal::U64(_) | Literal::F64(_) => InferredTypeSet::NUMERICAL,
-        Literal::String(_) => InferredTypeSet::STRING,
+pub(crate) fn infer_type_with_variable_types(
+    expr: &UntypedExpr,
+    target_inferred_type: InferredTypeSet,
+    variable_types: &HashMap<&str, VarType>,
+) -> Result<InferredTypeSet, TypeError> {
+    let mut inferred_types = HashMap::new();
+    seed_variable_types(expr, variable_types, &mut inferred_types);
+    infer_types_aux(expr, target_inferred_type, &mut inferred_types)
+}
+
+fn seed_variable_types<'a>(
+    expr: &'a UntypedExpr,
+    variable_types: &HashMap<&str, VarType>,
+    inferred_types: &mut HashMap<&'a str, InferredTypeSet>,
+) {
+    match expr {
+        UntypedExpr::Literal(_) => {}
+        UntypedExpr::Variable(variable_name) => {
+            let inferred_type = variable_types
+                .get(variable_name.as_ref())
+                .copied()
+                .map(InferredTypeSet::from)
+                .unwrap_or(InferredTypeSet::NONE);
+            inferred_types.insert(variable_name.as_ref(), inferred_type);
+        }
+        UntypedExpr::Call { args, .. } => {
+            for arg in args {
+                seed_variable_types(arg, variable_types, inferred_types);
+            }
+        }
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use std::assert_matches;
-
     use super::*;
-    use crate::ast::{Function, Literal, UntypedExpr};
-
-    #[test]
-    fn test_infer_types_add_string_and_float_returns_error() {
-        // add(1.0, "hello") should fail because a string cannot be numerical.
-        let expr = Function::Add.call_untyped_expr(vec![
-            UntypedExpr::literal(1.0),
-            UntypedExpr::literal("hello"),
-        ]);
-        let err = infer_types(&expr).unwrap_err();
-        assert_matches!(
-            err,
-            TypeError::InvalidLiteralType {
-                literal: Literal::String(_),
-                expected: InferredTypeSet {
-                    string: false,
-                    numerical: true,
-                    boolean: false,
-                },
-            }
-        );
-    }
-
-    #[test]
-    fn test_infer_types_add_literal_and_variable() {
-        // add(1, a) should infer that `a` is numerical.
-        let expr = Function::Add
-            .call_untyped_expr(vec![UntypedExpr::literal(1i64), UntypedExpr::variable("a")]);
-        let inferred_types = infer_types(&expr).unwrap();
-        let a_types = inferred_types.get("a").unwrap();
-        assert!(a_types.numerical);
-        assert!(!a_types.string);
-        assert!(!a_types.boolean);
-    }
-
-    #[test]
-    fn test_infer_types_add_heterogenous_literals() {
-        let expr = Function::Add.call_untyped_expr(vec![
-            UntypedExpr::literal(1.2f64),
-            UntypedExpr::literal(2u64),
-        ]);
-        assert!(infer_types(&expr).is_ok());
-    }
-
-    #[test]
-    fn test_infer_types_add_two_variables() {
-        // add(a, b) should infer that both `a` and `b` are numerical.
-        let expr = Function::Add
-            .call_untyped_expr(vec![UntypedExpr::variable("a"), UntypedExpr::variable("b")]);
-        let inferred_types = infer_types(&expr).unwrap();
-
-        let a_types = inferred_types.get("a").unwrap();
-        assert_eq!(a_types, &InferredTypeSet::NUMERICAL);
-        let b_types = inferred_types.get("b").unwrap();
-        assert_eq!(b_types, &InferredTypeSet::NUMERICAL);
-    }
 
     #[test]
     fn test_infer_types_bare_variable_accepts_all() {
@@ -228,5 +242,44 @@ mod tests {
         let inferred_types = infer_types(&expr).unwrap();
         let a_types = inferred_types.get("a").unwrap();
         assert_eq!(a_types, &InferredTypeSet::ALL);
+    }
+
+    #[test]
+    fn test_infer_type_uses_concrete_variable_types() {
+        let expr = Function::Add.call_untyped_expr(vec![
+            UntypedExpr::variable("my_col"),
+            UntypedExpr::literal(1i64),
+        ]);
+        let variable_types = HashMap::from([("my_col", VarType::U64)]);
+
+        let inferred_type =
+            infer_type_with_variable_types(&expr, InferredTypeSet::NUMERICAL, &variable_types)
+                .unwrap();
+
+        assert_eq!(inferred_type, InferredTypeSet::U64);
+    }
+
+    #[test]
+    fn test_infer_type_falls_back_to_f64_for_disjoint_numeric_types() {
+        let expr = Function::Add.call_untyped_expr(vec![
+            UntypedExpr::variable("unsigned"),
+            UntypedExpr::variable("signed"),
+        ]);
+        let variable_types = HashMap::from([("unsigned", VarType::U64), ("signed", VarType::I64)]);
+
+        let inferred_type =
+            infer_type_with_variable_types(&expr, InferredTypeSet::NUMERICAL, &variable_types)
+                .unwrap();
+
+        assert_eq!(inferred_type, InferredTypeSet::F64);
+    }
+
+    #[test]
+    fn test_inferred_type_set_display_lists_concrete_numeric_types() {
+        assert_eq!(
+            InferredTypeSet::ALL.to_string(),
+            "{string, i64, u64, f64, boolean}"
+        );
+        assert_eq!(InferredTypeSet::NUMERICAL.to_string(), "{i64, u64, f64}");
     }
 }

@@ -2,8 +2,10 @@ use std::sync::Arc;
 
 use crate::ast::{Function, Literal};
 
-/// An expression independent from its protobuf representation.
-#[derive(Clone, Debug, PartialEq)]
+/// An expression AST.
+///
+/// The expression at this point is untyped and not necessarily valid.
+#[derive(Clone, PartialEq)]
 pub enum UntypedExpr {
     Literal(Literal),
     Variable(Arc<str>),

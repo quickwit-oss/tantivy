@@ -1,161 +1,84 @@
-mod apply_types;
+mod compile_fn_builder;
+mod compiled_fn;
+mod error;
 mod typed_expr;
 
+use std::cell::UnsafeCell;
 use std::collections::HashMap;
-use std::mem::{self, size_of};
+use std::mem::size_of;
 
-pub use apply_types::apply_types;
-use cranelift::codegen::ir::{MemFlagsData, UserFuncName};
+pub(crate) use compile_fn_builder::{CompileFnBuilder, RegexRef};
+pub use compiled_fn::CompiledFn;
+use cranelift::codegen::ir::MemFlagsData;
 use cranelift::prelude::*;
-use cranelift_jit::{JITBuilder, JITModule};
-use cranelift_module::{Module, default_libcall_names};
-pub use typed_expr::{TypedExpr, TypedExprAst, TypedVariable};
+pub use error::CompileError;
+pub(crate) use typed_expr::{TypedExpr, TypedExprAst, TypedLiteral, TypedVariable};
 
-use crate::ast::{Function, Literal, UntypedExpr};
+use crate::ast::UntypedExpr;
+use crate::functions::NativeFunctions;
 use crate::types::{StringRef, VarType, VariableValue};
-
-/// An expression compiled to native machine code.
-///
-/// This object owns the JIT module containing its executable memory.
-pub struct CompiledFunction {
-    pub(crate) entry: JitEntry,
-    pub(crate) _module: JITModule,
-    // String literals are addressed directly by the generated code. Keeping
-    // their descriptors here gives those addresses the lifetime of the JIT.
-    pub(crate) _literal_strings: Box<[StringRef]>,
-    pub input_vars: Vec<TypedVariable>,
-    pub typed_expr: TypedExpr,
-}
-
-impl CompiledFunction {
-    /// Evaluate the compiled expression.
-    ///
-    /// # Safety
-    ///
-    /// `args` must follow `input_vars` exactly: every slot must contain the
-    /// union member corresponding to that variable's type. `result` must be a
-    /// valid writable slot and any referenced strings must remain alive for
-    /// the duration of this call.
-    pub unsafe fn call(&self, args: &[VariableValue], result: &mut VariableValue) {
-        debug_assert_eq!(args.len(), self.input_vars.len());
-        // SAFETY: Guaranteed by the caller.
-        unsafe { (self.entry)(args.as_ptr(), result) };
-    }
-}
-
-type JitEntry = unsafe extern "C" fn(*const VariableValue, *mut VariableValue);
-
-#[derive(Debug, thiserror::Error)]
-pub enum CompileError {
-    #[error("JIT compilation failed: {0}")]
-    Module(#[source] Box<cranelift_module::ModuleError>),
-    #[error("input variable {variable_id} has an address offset that is too large")]
-    InputOffsetOverflow { variable_id: usize },
-    #[error("cannot coerce an expression from {from_type:?} to {target:?}")]
-    UnsupportedCoercion { from_type: VarType, target: VarType },
-    #[error("cannot compile {function:?} with result type {return_type:?}")]
-    UnsupportedFunctionType {
-        function: Function,
-        return_type: VarType,
-    },
-}
-
-impl From<cranelift_module::ModuleError> for CompileError {
-    fn from(error: cranelift_module::ModuleError) -> Self {
-        CompileError::Module(Box::new(error))
-    }
-}
 
 pub fn compile(
     untyped_expr: &UntypedExpr,
     var_types: &HashMap<&str, VarType>,
-) -> Result<CompiledFunction, CompileError> {
-    let (typed_expr, input_vars) = apply_types(untyped_expr, var_types);
-    compile_typed_expr(typed_expr, input_vars)
+) -> Result<CompiledFn, CompileError> {
+    let mut builder = CompileFnBuilder::new(var_types);
+    let typed_expr = builder.build_typed_expr(untyped_expr)?;
+    builder.compile_typed_expr(typed_expr)
 }
 
-fn compile_typed_expr(
-    expression: TypedExpr,
-    input_vars: Vec<TypedVariable>,
-) -> Result<CompiledFunction, CompileError> {
-    let jit_builder = JITBuilder::new(default_libcall_names())?;
-    let mut module = JITModule::new(jit_builder);
-    let target_config = module.target_config();
-    let pointer_type = target_config.pointer_type();
+/// Compiles an expression and returns Cranelift's assembly listing for the host target.
+pub fn compile_to_assembly(
+    untyped_expr: &UntypedExpr,
+    var_types: &HashMap<&str, VarType>,
+) -> Result<String, CompileError> {
+    let mut builder = CompileFnBuilder::new(var_types);
+    let typed_expr = builder.build_typed_expr(untyped_expr)?;
+    builder.compile_typed_expr_to_assembly(typed_expr)
+}
 
-    // The native entry point mirrors JitEntry: both arguments are pointers and
-    // the expression result is written into the second one.
-    let mut signature = module.make_signature();
-    signature.params.push(AbiParam::new(pointer_type));
-    signature.params.push(AbiParam::new(pointer_type));
-    let function_id = module.declare_anonymous_function(&signature)?;
+pub(crate) struct LoweringContext<'a> {
+    args_ptr: Value,
+    regexes_ptr: Value,
+    pointer_type: Type,
+    regex_match_results: &'a [UnsafeCell<StringRef>],
+    native_functions: &'a NativeFunctions,
+}
 
-    let mut context = module.make_context();
-    context.func.signature = signature;
-    context.func.name = UserFuncName::user(0, function_id.as_u32());
-
-    let mut function_builder_context = FunctionBuilderContext::new();
-    let literal_strings = collect_literal_strings(&expression).into_boxed_slice();
-    let mut next_literal_string = 0;
-    {
-        let mut builder = FunctionBuilder::new(&mut context.func, &mut function_builder_context);
-        let entry_block = builder.create_block();
-        builder.append_block_params_for_function_params(entry_block);
-        builder.switch_to_block(entry_block);
-        builder.seal_block(entry_block);
-
-        let args_ptr = builder.block_params(entry_block)[0];
-        let result_ptr = builder.block_params(entry_block)[1];
-        let value = lower_expr(
-            &expression,
-            args_ptr,
-            pointer_type,
-            &literal_strings,
-            &mut next_literal_string,
-            &mut builder,
-        )?;
-        debug_assert_eq!(next_literal_string, literal_strings.len());
-        builder
-            .ins()
-            .store(MemFlagsData::trusted(), value, result_ptr, 0);
-        builder.ins().return_(&[]);
-        builder.finalize(target_config);
+impl LoweringContext<'_> {
+    pub(crate) fn lower_expr(
+        &mut self,
+        expression: &TypedExpr,
+        builder: &mut FunctionBuilder<'_>,
+    ) -> Result<Value, CompileError> {
+        lower_expr(expression, self, builder)
     }
 
-    module.define_function(function_id, &mut context)?;
-    module.finalize_definitions()?;
+    pub(crate) fn pointer_type(&self) -> Type {
+        self.pointer_type
+    }
 
-    let code = module.get_finalized_function(function_id);
-    // SAFETY: `code` is the finalized entry point for the function whose ABI
-    // was built above to exactly match `JitEntry`. The module is retained by
-    // `CompiledFunction`, so its executable allocation outlives `entry`.
-    let entry = unsafe { mem::transmute::<*const u8, JitEntry>(code) };
+    pub(crate) fn regexes_ptr(&self) -> Value {
+        self.regexes_ptr
+    }
 
-    Ok(CompiledFunction {
-        entry,
-        _module: module,
-        _literal_strings: literal_strings,
-        input_vars,
-        typed_expr: expression,
-    })
+    pub(crate) fn native_functions(&self) -> &NativeFunctions {
+        self.native_functions
+    }
+
+    pub(crate) fn regex_match_result(&self, regex_ref: RegexRef) -> *mut StringRef {
+        self.regex_match_results[regex_ref.index()].get()
+    }
 }
 
+/// Produce cranelift IR from the function
 fn lower_expr(
     expression: &TypedExpr,
-    args_ptr: Value,
-    pointer_type: Type,
-    literal_strings: &[StringRef],
-    next_literal_string: &mut usize,
+    context: &mut LoweringContext<'_>,
     builder: &mut FunctionBuilder<'_>,
 ) -> Result<Value, CompileError> {
     match &expression.ast {
-        TypedExprAst::Literal(literal) => Ok(lower_literal(
-            literal,
-            pointer_type,
-            literal_strings,
-            next_literal_string,
-            builder,
-        )),
+        TypedExprAst::Literal(literal) => Ok(lower_literal(literal, context, builder)),
         TypedExprAst::Variable(variable) => {
             let byte_offset = variable
                 .variable_id
@@ -165,56 +88,37 @@ fn lower_expr(
                     variable_id: variable.variable_id,
                 })?;
             Ok(builder.ins().load(
-                cranelift_type(variable.r#type, pointer_type),
+                cranelift_type(variable.r#type, context.pointer_type),
                 MemFlagsData::trusted(),
-                args_ptr,
+                context.args_ptr,
                 byte_offset,
             ))
         }
         TypedExprAst::Coerce { target_type, expr } => {
             let source_type = expr.return_type;
-            let value = lower_expr(
-                expr,
-                args_ptr,
-                pointer_type,
-                literal_strings,
-                next_literal_string,
-                builder,
-            )?;
+            let value = lower_expr(expr, context, builder)?;
             lower_coercion(value, source_type, *target_type, builder)
         }
-        TypedExprAst::Call { function, args } => match function {
-            Function::Add => lower_add(
-                args,
-                expression.return_type,
-                args_ptr,
-                pointer_type,
-                literal_strings,
-                next_literal_string,
-                builder,
-            ),
-        },
+        TypedExprAst::FnCall(fn_call) => fn_call.lower(expression.return_type, context, builder),
     }
 }
 
 fn lower_literal(
-    literal: &Literal,
-    pointer_type: Type,
-    literal_strings: &[StringRef],
-    next_literal_string: &mut usize,
+    literal: &TypedLiteral,
+    context: &mut LoweringContext<'_>,
     builder: &mut FunctionBuilder<'_>,
 ) -> Value {
     match literal {
-        Literal::None => builder.ins().iconst(types::I64, 0),
-        Literal::Bool(value) => builder.ins().iconst(types::I8, i64::from(*value)),
-        Literal::U64(value) => builder.ins().iconst(types::I64, *value as i64),
-        Literal::I64(value) => builder.ins().iconst(types::I64, *value),
-        Literal::F64(value) => builder.ins().f64const(Ieee64::with_bits(value.to_bits())),
-        Literal::String(_) => {
-            let string_ref = &literal_strings[*next_literal_string];
-            *next_literal_string += 1;
+        TypedLiteral::None => builder.ins().iconst(types::I64, 0),
+        TypedLiteral::Bool(value) => builder.ins().iconst(types::I8, i64::from(*value)),
+        TypedLiteral::U64(value) => builder.ins().iconst(types::I64, *value as i64),
+        TypedLiteral::I64(value) => builder.ins().iconst(types::I64, *value),
+        TypedLiteral::F64(value) => builder.ins().f64const(Ieee64::with_bits(value.to_bits())),
+        TypedLiteral::String(string_ref) => {
             let string_ref_ptr = (string_ref as *const StringRef) as usize;
-            builder.ins().iconst(pointer_type, string_ref_ptr as i64)
+            builder
+                .ins()
+                .iconst(context.pointer_type, string_ref_ptr as i64)
         }
     }
 }
@@ -242,65 +146,6 @@ fn lower_coercion(
     Ok(coerced)
 }
 
-fn lower_add(
-    args: &[TypedExpr],
-    return_type: VarType,
-    args_ptr: Value,
-    pointer_type: Type,
-    literal_strings: &[StringRef],
-    next_literal_string: &mut usize,
-    builder: &mut FunctionBuilder<'_>,
-) -> Result<Value, CompileError> {
-    let mut sum = match return_type {
-        VarType::U64 | VarType::I64 => builder.ins().iconst(types::I64, 0),
-        VarType::F64 => builder.ins().f64const(Ieee64::with_bits(0)),
-        _ => {
-            return Err(CompileError::UnsupportedFunctionType {
-                function: Function::Add,
-                return_type,
-            });
-        }
-    };
-
-    for arg in args {
-        let value = lower_expr(
-            arg,
-            args_ptr,
-            pointer_type,
-            literal_strings,
-            next_literal_string,
-            builder,
-        )?;
-        sum = match return_type {
-            VarType::U64 | VarType::I64 => builder.ins().iadd(sum, value),
-            VarType::F64 => builder.ins().fadd(sum, value),
-            _ => unreachable!("the return type was checked above"),
-        };
-    }
-    Ok(sum)
-}
-
-fn collect_literal_strings(expression: &TypedExpr) -> Vec<StringRef> {
-    let mut literal_strings = Vec::new();
-    collect_literal_strings_aux(expression, &mut literal_strings);
-    literal_strings
-}
-
-fn collect_literal_strings_aux(expression: &TypedExpr, literal_strings: &mut Vec<StringRef>) {
-    match &expression.ast {
-        TypedExprAst::Literal(Literal::String(value)) => {
-            literal_strings.push(StringRef::new(value));
-        }
-        TypedExprAst::Literal(_) | TypedExprAst::Variable(_) => {}
-        TypedExprAst::Coerce { expr, .. } => collect_literal_strings_aux(expr, literal_strings),
-        TypedExprAst::Call { args, .. } => {
-            for arg in args {
-                collect_literal_strings_aux(arg, literal_strings);
-            }
-        }
-    }
-}
-
 fn cranelift_type(var_type: VarType, pointer_type: Type) -> Type {
     match var_type {
         VarType::Bool => types::I8,
@@ -317,87 +162,6 @@ mod tests {
     use super::*;
     use crate::ast::{Function, UntypedExpr};
     use crate::types::VarType;
-
-    #[test]
-    fn test_compile_signed_add() {
-        let untyped_expr = Function::Add.call_untyped_expr(vec![
-            UntypedExpr::literal(-4i64),
-            UntypedExpr::variable("myfield"),
-        ]);
-        let variable_types = HashMap::from([("myfield", VarType::I64)]);
-        let compiled_fn = compile(&untyped_expr, &variable_types).unwrap();
-        let input = [VariableValue { int_i64: -8 }];
-        let mut output = VariableValue { int_i64: 0 };
-
-        unsafe { compiled_fn.call(&input, &mut output) };
-
-        assert_eq!(unsafe { output.int_i64 }, -12);
-    }
-
-    #[test]
-    fn test_compile_add_coerces_integers_to_float() {
-        let untyped_expr = Function::Add.call_untyped_expr(vec![
-            UntypedExpr::variable("myfield"),
-            UntypedExpr::literal(-2i64),
-            UntypedExpr::literal(0.5f64),
-        ]);
-        let variable_types = HashMap::from([("myfield", VarType::U64)]);
-        let compiled_fn = compile(&untyped_expr, &variable_types).unwrap();
-        let input = [VariableValue { int_u64: 10 }];
-        let mut output = VariableValue { float: 0.0 };
-
-        unsafe { compiled_fn.call(&input, &mut output) };
-
-        assert_eq!(unsafe { output.float }, 8.5);
-    }
-
-    #[test]
-    fn test_compile_add_loads_multiple_variable_slots() {
-        let untyped_expr = Function::Add
-            .call_untyped_expr(vec![UntypedExpr::variable("x"), UntypedExpr::variable("y")]);
-        let variable_types = HashMap::from([("x", VarType::U64), ("y", VarType::F64)]);
-        let compiled_fn = compile(&untyped_expr, &variable_types).unwrap();
-        let input = [VariableValue { int_u64: 10 }, VariableValue { float: 0.5 }];
-        let mut output = VariableValue { float: 0.0 };
-
-        unsafe { compiled_fn.call(&input, &mut output) };
-
-        assert_eq!(unsafe { output.float }, 10.5);
-    }
-
-    #[test]
-    fn test_compile_u64_to_float_coercion_is_unsigned() {
-        let untyped_expr = Function::Add.call_untyped_expr(vec![
-            UntypedExpr::variable("x"),
-            UntypedExpr::literal(0.0f64),
-        ]);
-        let variable_types = HashMap::from([("x", VarType::U64)]);
-        let compiled_fn = compile(&untyped_expr, &variable_types).unwrap();
-        let input = [VariableValue { int_u64: u64::MAX }];
-        let mut output = VariableValue { float: 0.0 };
-
-        unsafe { compiled_fn.call(&input, &mut output) };
-
-        assert_eq!(unsafe { output.float }, u64::MAX as f64);
-    }
-
-    #[test]
-    fn test_compile_reuses_repeated_variable_slot() {
-        let untyped_expr = Function::Add.call_untyped_expr(vec![
-            UntypedExpr::variable("x"),
-            UntypedExpr::variable("x"),
-            UntypedExpr::literal(1u64),
-        ]);
-        let variable_types = HashMap::from([("x", VarType::U64)]);
-        let compiled_fn = compile(&untyped_expr, &variable_types).unwrap();
-        let input = [VariableValue { int_u64: 4 }];
-        let mut output = VariableValue { int_u64: 0 };
-
-        unsafe { compiled_fn.call(&input, &mut output) };
-
-        assert_eq!(compiled_fn.input_vars.len(), 1);
-        assert_eq!(unsafe { output.int_u64 }, 9);
-    }
 
     #[test]
     fn test_compile_bool_variable() {
@@ -428,13 +192,28 @@ mod tests {
     }
 
     #[test]
-    fn test_compile_empty_add_uses_zero_identity() {
-        let untyped_expr = Function::Add.call_untyped_expr(Vec::new());
-        let compiled_fn = compile(&untyped_expr, &HashMap::new()).unwrap();
-        let mut output = VariableValue { int_u64: 1 };
+    fn test_compile_to_assembly() {
+        let untyped_expr = UntypedExpr::variable("value");
+        let variable_types = HashMap::from([("value", VarType::F64)]);
 
-        unsafe { compiled_fn.call(&[], &mut output) };
+        let assembly = compile_to_assembly(&untyped_expr, &variable_types).unwrap();
 
-        assert_eq!(unsafe { output.int_u64 }, 0);
+        assert!(assembly.contains("block0:"));
+        assert!(!assembly.trim().is_empty());
+    }
+
+    #[test]
+    fn test_compile_native_call_to_assembly() {
+        let untyped_expr = Function::RegexpExtract.call_untyped_expr(vec![
+            UntypedExpr::variable("message"),
+            UntypedExpr::literal("([a-z]+)"),
+            UntypedExpr::literal(0u64),
+        ]);
+        let variable_types = HashMap::from([("message", VarType::Str)]);
+
+        let assembly = compile_to_assembly(&untyped_expr, &variable_types).unwrap();
+
+        assert!(assembly.contains("block0:"));
+        assert!(!assembly.trim().is_empty());
     }
 }

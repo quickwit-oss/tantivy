@@ -1,90 +1,148 @@
 use std::sync::Arc;
 
-use crate::ast::{Function, Literal};
-use crate::types::VarType;
+#[cfg(test)]
+use crate::ast::Literal;
+use crate::functions::FnCallEnum;
+use crate::types::{StringRef, VarType};
 
 #[derive(Clone, PartialEq)]
-pub struct TypedVariable {
+pub(crate) struct TypedVariable {
     pub(super) variable_name: Arc<str>,
     pub(super) r#type: VarType,
     pub(super) variable_id: usize, //< offset in the input array.
 }
 
 #[derive(Clone, PartialEq)]
-pub struct TypedExpr {
-    pub return_type: VarType,
-    pub ast: TypedExprAst,
+pub(crate) struct TypedExpr {
+    pub(crate) return_type: VarType,
+    pub(crate) ast: TypedExprAst,
 }
 
 impl TypedExpr {
-    pub fn coerce(self, target_type: VarType) -> TypedExpr {
+    pub(crate) fn coerce(self, target_type: VarType) -> TypedExpr {
         if target_type == self.return_type {
             self
         } else {
+            let TypedExpr { return_type, ast } = self;
+            let ast = match (ast, target_type) {
+                (TypedExprAst::Literal(TypedLiteral::U64(value)), VarType::I64)
+                    if value <= i64::MAX as u64 =>
+                {
+                    TypedExprAst::Literal(TypedLiteral::I64(value as i64))
+                }
+                (TypedExprAst::Literal(TypedLiteral::U64(value)), VarType::F64) => {
+                    TypedExprAst::Literal(TypedLiteral::F64(value as f64))
+                }
+                (TypedExprAst::Literal(TypedLiteral::I64(value)), VarType::U64) if value >= 0 => {
+                    TypedExprAst::Literal(TypedLiteral::U64(value as u64))
+                }
+                (TypedExprAst::Literal(TypedLiteral::I64(value)), VarType::F64) => {
+                    TypedExprAst::Literal(TypedLiteral::F64(value as f64))
+                }
+                (TypedExprAst::Literal(TypedLiteral::F64(value)), VarType::U64)
+                    if value.is_finite()
+                        && value.fract() == 0.0
+                        && value >= 0.0
+                        && value < u64::MAX as f64 =>
+                {
+                    TypedExprAst::Literal(TypedLiteral::U64(value as u64))
+                }
+                (TypedExprAst::Literal(TypedLiteral::F64(value)), VarType::I64)
+                    if value.is_finite()
+                        && value.fract() == 0.0
+                        && value >= i64::MIN as f64
+                        && value < -(i64::MIN as f64) =>
+                {
+                    TypedExprAst::Literal(TypedLiteral::I64(value as i64))
+                }
+                (ast, target_type) => TypedExprAst::Coerce {
+                    target_type,
+                    expr: Box::new(TypedExpr { return_type, ast }),
+                },
+            };
             TypedExpr {
                 return_type: target_type,
-                ast: TypedExprAst::Coerce {
-                    target_type,
-                    expr: Box::new(self),
-                },
+                ast,
             }
         }
     }
 
-    pub fn none() -> TypedExpr {
+    pub(crate) fn none() -> TypedExpr {
         TypedExpr {
             return_type: VarType::None,
-            ast: TypedExprAst::Literal(Literal::None),
+            ast: TypedExprAst::Literal(TypedLiteral::None),
         }
     }
 
-    pub fn literal(val: impl Into<Literal>) -> TypedExpr {
+    #[cfg(test)]
+    pub(crate) fn literal(val: impl Into<Literal>) -> TypedExpr {
         let literal: Literal = val.into();
         let r#type = literal.r#type();
+        let literal = match literal {
+            Literal::None => TypedLiteral::None,
+            Literal::Bool(value) => TypedLiteral::Bool(value),
+            Literal::U64(value) => TypedLiteral::U64(value),
+            Literal::I64(value) => TypedLiteral::I64(value),
+            Literal::F64(value) => TypedLiteral::F64(value),
+            Literal::String(_) => panic!("typed string literals require registered backing data"),
+        };
         TypedExprAst::Literal(literal).with_type(r#type)
     }
 }
 
+#[derive(Clone, Debug, PartialEq)]
+pub(crate) enum TypedLiteral {
+    None,
+    Bool(bool),
+    U64(u64),
+    I64(i64),
+    F64(f64),
+    String(StringRef),
+}
+
+impl TypedLiteral {
+    pub(crate) fn r#type(&self) -> VarType {
+        match self {
+            TypedLiteral::None => VarType::None,
+            TypedLiteral::Bool(_) => VarType::Bool,
+            TypedLiteral::U64(_) => VarType::U64,
+            TypedLiteral::I64(_) => VarType::I64,
+            TypedLiteral::F64(_) => VarType::F64,
+            TypedLiteral::String(_) => VarType::Str,
+        }
+    }
+}
+
 #[derive(Clone, PartialEq)]
-pub enum TypedExprAst {
-    Literal(Literal),
+pub(crate) enum TypedExprAst {
+    Literal(TypedLiteral),
     Variable(TypedVariable),
     Coerce {
         target_type: VarType,
         expr: Box<TypedExpr>,
     },
-    Call {
-        function: Function,
-        args: Vec<TypedExpr>,
-    },
+    FnCall(FnCallEnum),
 }
 
 impl TypedExprAst {
-    pub fn with_type(self, return_type: VarType) -> TypedExpr {
+    #[cfg(test)]
+    pub(crate) fn with_type(self, return_type: VarType) -> TypedExpr {
         TypedExpr {
             return_type,
             ast: self,
         }
     }
 
-    pub fn literal(val: impl Into<Literal>) -> TypedExprAst {
-        TypedExprAst::Literal(val.into())
-    }
-
-    pub fn variable(variable_name: impl ToString, r#type: VarType) -> TypedExprAst {
+    pub(crate) fn variable(variable_name: impl ToString, r#type: VarType) -> TypedExprAst {
         TypedExprAst::Variable(TypedVariable {
             variable_name: Arc::from(variable_name.to_string()),
             r#type,
             variable_id: 0,
         })
     }
-}
 
-// ---------- boilerplate ---------
-
-impl From<Literal> for TypedExprAst {
-    fn from(literal: Literal) -> Self {
-        TypedExprAst::Literal(literal)
+    pub(crate) fn from_call(fn_call: impl Into<FnCallEnum>) -> TypedExprAst {
+        TypedExprAst::FnCall(fn_call.into())
     }
 }
 
@@ -102,15 +160,8 @@ impl std::fmt::Debug for TypedExprAst {
             TypedExprAst::Coerce { target_type, expr } => {
                 write!(f, "coerce({:?} as {:?})", expr, target_type)
             }
-            TypedExprAst::Call { function, args } => {
-                write!(f, "{:?}(", function)?;
-                for (i, arg) in args.iter().enumerate() {
-                    if i > 0 {
-                        write!(f, ", ")?;
-                    }
-                    write!(f, "{:?}", arg)?;
-                }
-                write!(f, ")")
+            TypedExprAst::FnCall(fn_call) => {
+                write!(f, "{fn_call:?}")
             }
         }
     }
