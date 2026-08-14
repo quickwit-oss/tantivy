@@ -1,24 +1,31 @@
 use std::collections::HashMap;
 use std::error::Error;
 
-use jitexpr::ast::{Function, InferredTypeSet, UntypedExpr, apply_types, infer_types};
+use jitexpr::ast::{Function, InferredTypeSet, UntypedExpr, infer_types};
 use jitexpr::compile::{CompiledFunction, compile};
 use jitexpr::types::VarType;
 
 fn main() -> Result<(), Box<dyn Error>> {
     // A simple expression that goes:
     // my_column + 1
+
     let untyped_expr = Function::Add.call_untyped_expr(vec![
         UntypedExpr::variable("my_col"),
         UntypedExpr::literal(1.0f64),
     ]);
 
-    let inferred_types = infer_types(&untyped_expr)?;
+    // Infer types does not return specific types, but instead a set of acceptable
+    // types for each variables.
+    let inferred_types: HashMap<&str, InferredTypeSet> = infer_types(&untyped_expr)?;
     assert_eq!(
         inferred_types.get("my_col").unwrap(),
         &InferredTypeSet::NUMERICAL
     );
 
+    // This is then up to us to decide the actual type for each variable.
+    // In tantivy, this means picking the first column with a type in inferred_types.
+    //
+    // If none match then we should use the VarType::None.
     let variable_types: HashMap<&str, VarType> =
         std::iter::once(("my_col", VarType::F64)).collect();
 

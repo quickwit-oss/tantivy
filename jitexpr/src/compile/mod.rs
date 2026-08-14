@@ -1,14 +1,17 @@
+mod apply_types;
+mod typed_expr;
+
 use std::collections::HashMap;
 use std::mem::{self, size_of};
 
+pub use apply_types::apply_types;
 use cranelift::codegen::ir::{MemFlagsData, UserFuncName};
 use cranelift::prelude::*;
 use cranelift_jit::{JITBuilder, JITModule};
 use cranelift_module::{Module, default_libcall_names};
+pub use typed_expr::{TypedExpr, TypedExprAst, TypedVariable};
 
-use crate::ast::{
-    Function, Literal, TypedExpr, TypedExprAst, TypedVariable, UntypedExpr, apply_types,
-};
+use crate::ast::{Function, Literal, UntypedExpr};
 use crate::types::{StringRef, VarType, VariableValue};
 
 /// An expression compiled to native machine code.

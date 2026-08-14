@@ -1,8 +1,8 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use crate::ast::typed_expr::TypedVariable;
-use crate::ast::{Function, Literal, TypedExpr, TypedExprAst, UntypedExpr};
+use super::typed_expr::{TypedExpr, TypedExprAst, TypedVariable};
+use crate::ast::{Function, Literal, UntypedExpr};
 use crate::types::VarType;
 
 /// If a variable is missing from variable_types, it will be treated as if its value is None.
@@ -25,17 +25,21 @@ fn apply_types_aux(
             ast: TypedExprAst::Literal(literal.clone()),
         },
         UntypedExpr::Variable(variable_name) => {
-            if let Some(variable_type) = variable_types.get(variable_name.as_ref()).copied() {
-                TypedExpr {
-                    return_type: variable_type,
-                    ast: TypedExprAst::variable(variable_name, variable_type),
-                }
-            } else {
+            let variable_type: VarType = variable_types
+                .get(variable_name.as_ref())
+                .copied()
                 // a missing column is treated as if it was there with a constant
                 // None value.
+                .unwrap_or(VarType::None);
+            if variable_type == VarType::None {
                 TypedExpr {
                     return_type: VarType::None,
                     ast: TypedExprAst::Literal(Literal::None),
+                }
+            } else {
+                TypedExpr {
+                    return_type: variable_type,
+                    ast: TypedExprAst::variable(variable_name, variable_type),
                 }
             }
         }

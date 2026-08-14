@@ -6,8 +6,8 @@ use crate::types::VarType;
 #[derive(Clone, PartialEq)]
 pub struct TypedVariable {
     pub(super) variable_name: Arc<str>,
-    pub(crate) r#type: VarType,
-    pub(crate) variable_id: usize, //< offset in the input array.
+    pub(super) r#type: VarType,
+    pub(super) variable_id: usize, //< offset in the input array.
 }
 
 #[derive(Clone, PartialEq)]
