@@ -149,6 +149,7 @@ fn infer_types_function_aux<'a>(
 
 fn literal_types<'a>(literal: &'a Literal) -> InferredTypeSet {
     match literal {
+        Literal::None => InferredTypeSet::ALL,
         Literal::Bool(_) => InferredTypeSet {
             boolean: true,
             ..Default::default()

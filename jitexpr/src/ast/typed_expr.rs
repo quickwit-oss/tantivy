@@ -15,31 +15,50 @@ impl std::fmt::Debug for TypedVariable {
     }
 }
 
-#[derive(Clone, Debug, PartialEq)]
-pub enum TypedExpr {
+#[derive(Clone, PartialEq)]
+pub struct TypedExpr {
+    pub return_type: VarType,
+    pub ast: TypedExprAst,
+}
+
+impl TypedExpr {
+    pub fn none() -> TypedExpr {
+        TypedExpr {
+            return_type: VarType::None,
+            ast: TypedExprAst::Literal(Literal::None),
+        }
+    }
+}
+
+#[derive(Clone, PartialEq)]
+pub enum TypedExprAst {
     Literal(Literal),
     Variable(TypedVariable),
+    Coerce {
+        target_type: VarType,
+        expr: Box<TypedExpr>,
+    },
     Call {
         function: Function,
         args: Vec<TypedExpr>,
     },
 }
 
-impl TypedExpr {
-    pub fn literal(val: impl Into<Literal>) -> TypedExpr {
-        TypedExpr::Literal(val.into())
+impl TypedExprAst {
+    pub fn literal(val: impl Into<Literal>) -> TypedExprAst {
+        TypedExprAst::Literal(val.into())
     }
 
-    pub fn variable(variable_name: impl ToString, r#type: VarType) -> TypedExpr {
-        TypedExpr::Variable(TypedVariable {
+    pub fn variable(variable_name: impl ToString, r#type: VarType) -> TypedExprAst {
+        TypedExprAst::Variable(TypedVariable {
             variable_name: Arc::from(variable_name.to_string()),
             r#type,
         })
     }
 }
 
-impl From<Literal> for TypedExpr {
+impl From<Literal> for TypedExprAst {
     fn from(literal: Literal) -> Self {
-        TypedExpr::Literal(literal)
+        TypedExprAst::Literal(literal)
     }
 }

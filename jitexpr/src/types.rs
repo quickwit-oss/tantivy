@@ -1,14 +1,14 @@
 //! Source types and nullable runtime value representations.
 
 /// A value type supported by compiled expressions.
-#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq, Ord, PartialOrd)]
 pub enum VarType {
     Bool,
-    U64,
     F64,
+    U64,
+    I64,
     Str,
-    None,
-    // TODO: add other types.
+    None, // TODO: add other types.
 }
 
 /// A borrowed UTF-8 string descriptor passed opaquely through generated code.
