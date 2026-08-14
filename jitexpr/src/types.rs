@@ -74,21 +74,7 @@ pub struct Signature {
 pub union VariableValue {
     pub boolean: bool,
     pub float: f64,
+    pub int_u64: u64,
+    pub int_i64: u64,
     pub string: *mut StringRef, //< this has to be mut for results.
 }
-
-// pub enum NumericalType {
-//     U64,
-//     F64,
-// }
-
-// /// The physical column types Tantivy can offer for one field name.
-// ///
-// /// A name can identify both a boolean column and a numerical column. It can
-// /// have at most one numerical representation.
-// #[derive(Debug, Copy, Clone, Eq, PartialEq)]
-// pub struct AvailableVarTypes {
-//     pub numerical: Option<NumericalType>,
-//     pub boolean: bool,
-//     pub string: bool,
-// }

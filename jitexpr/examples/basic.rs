@@ -1,9 +1,8 @@
 use std::collections::HashMap;
 use std::error::Error;
 
-use jitexpr::ast::{
-    Function, InferredTypeSet, TypedExprAst, UntypedExpr, apply_types, infer_types,
-};
+use jitexpr::ast::{Function, InferredTypeSet, UntypedExpr, apply_types, infer_types};
+use jitexpr::compile::{CompiledFunction, compile};
 use jitexpr::types::VarType;
 
 fn main() -> Result<(), Box<dyn Error>> {
@@ -23,14 +22,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     let variable_types: HashMap<&str, VarType> =
         std::iter::once(("my_col", VarType::F64)).collect();
 
-    let typed_expr: TypedExprAst = apply_types(&untyped_expr, variable_types);
-    assert_eq!(
-        typed_expr,
-        Function::Add.call_typed_expr(vec![
-            TypedExprAst::variable("my_col", VarType::F64),
-            TypedExprAst::literal(1.0f64),
-        ])
-    );
+    let compiled_fn: CompiledFunction = compile(&untyped_expr, &variable_types).unwrap();
 
     // let function = compile(&expression, selected_types)?;
 

@@ -5,14 +5,9 @@ use crate::types::VarType;
 
 #[derive(Clone, PartialEq)]
 pub struct TypedVariable {
-    variable_name: Arc<str>,
-    r#type: VarType,
-}
-
-impl std::fmt::Debug for TypedVariable {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{{{}:{:?}}}", self.variable_name, self.r#type)
-    }
+    pub(super) variable_name: Arc<str>,
+    pub(super) r#type: VarType,
+    pub(super) variable_id: usize, //< offset in the input array.
 }
 
 #[derive(Clone, PartialEq)]
@@ -42,6 +37,12 @@ impl TypedExpr {
             ast: TypedExprAst::Literal(Literal::None),
         }
     }
+
+    pub fn literal(val: impl Into<Literal>) -> TypedExpr {
+        let literal: Literal = val.into();
+        let r#type = literal.r#type();
+        TypedExprAst::Literal(literal).with_type(r#type)
+    }
 }
 
 #[derive(Clone, PartialEq)]
@@ -59,6 +60,13 @@ pub enum TypedExprAst {
 }
 
 impl TypedExprAst {
+    pub fn with_type(self, return_type: VarType) -> TypedExpr {
+        TypedExpr {
+            return_type,
+            ast: self,
+        }
+    }
+
     pub fn literal(val: impl Into<Literal>) -> TypedExprAst {
         TypedExprAst::Literal(val.into())
     }
@@ -67,12 +75,49 @@ impl TypedExprAst {
         TypedExprAst::Variable(TypedVariable {
             variable_name: Arc::from(variable_name.to_string()),
             r#type,
+            variable_id: 0,
         })
     }
 }
 
+// ---------- boilerplate ---------
+
 impl From<Literal> for TypedExprAst {
     fn from(literal: Literal) -> Self {
         TypedExprAst::Literal(literal)
+    }
+}
+
+impl std::fmt::Debug for TypedExpr {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(f, "({:?} : {:?})", self.ast, self.return_type)
+    }
+}
+
+impl std::fmt::Debug for TypedExprAst {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match self {
+            TypedExprAst::Literal(literal) => write!(f, "{:?}", literal),
+            TypedExprAst::Variable(variable) => write!(f, "{:?}", variable),
+            TypedExprAst::Coerce { target_type, expr } => {
+                write!(f, "coerce({:?} as {:?})", expr, target_type)
+            }
+            TypedExprAst::Call { function, args } => {
+                write!(f, "{:?}(", function)?;
+                for (i, arg) in args.iter().enumerate() {
+                    if i > 0 {
+                        write!(f, ", ")?;
+                    }
+                    write!(f, "{:?}", arg)?;
+                }
+                write!(f, ")")
+            }
+        }
+    }
+}
+
+impl std::fmt::Debug for TypedVariable {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(f, "{{{}:{:?}}}", self.variable_name, self.r#type)
     }
 }
