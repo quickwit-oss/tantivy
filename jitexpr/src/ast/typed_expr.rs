@@ -22,6 +22,20 @@ pub struct TypedExpr {
 }
 
 impl TypedExpr {
+    pub fn coerce(self, target_type: VarType) -> TypedExpr {
+        if target_type == self.return_type {
+            self
+        } else {
+            TypedExpr {
+                return_type: target_type,
+                ast: TypedExprAst::Coerce {
+                    target_type,
+                    expr: Box::new(self),
+                },
+            }
+        }
+    }
+
     pub fn none() -> TypedExpr {
         TypedExpr {
             return_type: VarType::None,

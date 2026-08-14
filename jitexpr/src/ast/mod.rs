@@ -99,6 +99,10 @@ fn apply_types_add_aux(args: &[UntypedExpr], variable_types: &HashMap<&str, VarT
     } else {
         VarType::F64
     };
+    let typed_args: Vec<TypedExpr> = typed_args
+        .into_iter()
+        .map(|typed_arg| typed_arg.coerce(return_type))
+        .collect();
     TypedExpr {
         return_type,
         ast: Function::Add.call_typed_expr(typed_args),
