@@ -75,6 +75,6 @@ pub union VariableValue {
     pub boolean: bool,
     pub float: f64,
     pub int_u64: u64,
-    pub int_i64: u64,
+    pub int_i64: i64,
     pub string: *mut StringRef, //< this has to be mut for results.
 }
