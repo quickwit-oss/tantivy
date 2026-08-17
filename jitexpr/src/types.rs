@@ -57,18 +57,10 @@ impl StringRef {
     }
 }
 
-/// The source-level signature of a compiled expression.
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct Signature {
-    pub args: Vec<VarType>,
-    pub result: VarType,
-}
-
 /// The payload of a nullable argument or result slot.
 ///
-/// This union is deliberately untagged. [`Variable`] carries nullness, while
-/// the corresponding [`Signature`] or [`crate::NamedInput`] identifies the
-/// active payload field.
+/// This union is deliberately untagged. The corresponding
+/// [`crate::compile::TypedVariable`] identifies the active payload field.
 #[repr(C)]
 #[derive(Clone, Copy)]
 pub union VariableValue {

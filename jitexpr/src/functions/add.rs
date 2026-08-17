@@ -420,7 +420,11 @@ mod tests {
 
         unsafe { compiled.call(&input, &mut output) };
 
-        assert_eq!(compiled.input_vars.len(), 1);
+        assert_eq!(compiled.inputs.len(), 1);
+        assert_eq!(compiled.inputs[0].variable_name.as_ref(), "x");
+        assert_eq!(compiled.inputs[0].r#type, VarType::U64);
+        assert_eq!(compiled.inputs[0].variable_id, 0);
+        assert_eq!(compiled.result_type(), VarType::U64);
         assert_eq!(unsafe { output.int_u64 }, 9);
     }
 
@@ -435,7 +439,11 @@ mod tests {
         let input = [VariableValue { int_u64: 4 }];
         let mut output = VariableValue::default();
         unsafe { compiled.call(&input, &mut output) };
-        assert_eq!(compiled.input_vars.len(), 1);
+        assert_eq!(compiled.inputs.len(), 1);
+        assert_eq!(compiled.inputs[0].variable_name.as_ref(), "x");
+        assert_eq!(compiled.inputs[0].r#type, VarType::U64);
+        assert_eq!(compiled.inputs[0].variable_id, 0);
+        assert_eq!(compiled.result_type(), VarType::F64);
         assert_eq!(unsafe { output.float }, 5.2f64);
     }
 

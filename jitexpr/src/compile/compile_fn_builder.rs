@@ -323,14 +323,13 @@ impl LoweredFunction {
         // was built above to exactly match `JitEntry`. The module is retained by
         // `CompiledFn`, so its executable allocation outlives `entry`.
         let entry = unsafe { mem::transmute::<*const u8, JitEntry>(code) };
-
         Ok(CompiledFn {
             entry,
             _module: module,
             _string_literals: string_literals,
             regexes,
             _regex_match_results: regex_match_results,
-            input_vars,
+            inputs: input_vars,
             _typed_expr: expression,
         })
     }

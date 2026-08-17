@@ -6,10 +6,13 @@ use crate::functions::FnCallEnum;
 use crate::types::{StringRef, VarType};
 
 #[derive(Clone, PartialEq)]
-pub(crate) struct TypedVariable {
-    pub(super) variable_name: Arc<str>,
-    pub(super) r#type: VarType,
-    pub(super) variable_id: usize, //< offset in the input array.
+pub struct TypedVariable {
+    /// The source-level variable name.
+    pub variable_name: Arc<str>,
+    /// The concrete type expected in this input slot.
+    pub r#type: VarType,
+    /// The position in the compiled input array.
+    pub variable_id: usize,
 }
 
 #[derive(Clone, PartialEq)]

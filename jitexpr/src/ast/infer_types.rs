@@ -158,8 +158,16 @@ pub enum TypeError {
 
 /// Infer the accepted types for the different variables present in the formula.
 pub fn infer_types(expr: &UntypedExpr) -> Result<HashMap<&str, InferredTypeSet>, TypeError> {
+    infer_types_with_target(expr, InferredTypeSet::ALL)
+}
+
+/// Infer the accepted variable types while constraining the expression's result type.
+pub fn infer_types_with_target(
+    expr: &UntypedExpr,
+    target_type: InferredTypeSet,
+) -> Result<HashMap<&str, InferredTypeSet>, TypeError> {
     let mut inferred_type_res = HashMap::default();
-    infer_types_aux(expr, InferredTypeSet::ALL, &mut inferred_type_res)?;
+    infer_types_aux(expr, target_type, &mut inferred_type_res)?;
     Ok(inferred_type_res)
 }
 

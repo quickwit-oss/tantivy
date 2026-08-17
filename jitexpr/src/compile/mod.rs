@@ -12,7 +12,8 @@ pub use compiled_fn::CompiledFn;
 use cranelift::codegen::ir::MemFlagsData;
 use cranelift::prelude::*;
 pub use error::CompileError;
-pub(crate) use typed_expr::{TypedExpr, TypedExprAst, TypedLiteral, TypedVariable};
+pub use typed_expr::TypedVariable;
+pub(crate) use typed_expr::{TypedExpr, TypedExprAst, TypedLiteral};
 
 use crate::ast::UntypedExpr;
 use crate::functions::NativeFunctions;
