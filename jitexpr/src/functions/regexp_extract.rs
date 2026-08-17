@@ -213,7 +213,7 @@ mod tests {
     use super::*;
     use crate::ast::{self, infer_types};
     use crate::compile::compile;
-    use crate::types::{VariableOpt, VariableValue};
+    use crate::types::VariableOpt;
 
     #[test]
     fn test_infer_types_constrains_haystack_to_string() {
@@ -236,11 +236,7 @@ mod tests {
         let haystack = "prefix user-123 suffix";
         let mut haystack_ref = StringRef::new(haystack);
         let input = [VariableOpt::some(&mut haystack_ref)];
-        let mut output = VariableOpt::some(VariableValue {
-            string: std::ptr::null_mut(),
-        });
-
-        unsafe { compiled.call(&input, &mut output) };
+        let output = unsafe { compiled.call(&input) };
 
         assert_eq!(compiled.regexes.len(), 1);
         assert_eq!(compiled.regexes[0].as_str(), r"([a-z]+)-(\d+)");
@@ -257,11 +253,7 @@ mod tests {
         let compiled = compile(&expression, &variable_types).unwrap();
         let mut haystack = StringRef::new("user-123");
         let input = [VariableOpt::some(&mut haystack)];
-        let mut output = VariableOpt::some(VariableValue {
-            string: std::ptr::null_mut(),
-        });
-
-        unsafe { compiled.call(&input, &mut output) };
+        let output = unsafe { compiled.call(&input) };
 
         assert_eq!(unsafe { output.as_str() }, Some("123"));
     }
@@ -274,9 +266,7 @@ mod tests {
         let compiled = compile(&expression, &variable_types).unwrap();
         let mut haystack = StringRef::new("no digits here");
         let input = [VariableOpt::some(&mut haystack)];
-        let mut output = VariableOpt::none();
-
-        unsafe { compiled.call(&input, &mut output) };
+        let output = unsafe { compiled.call(&input) };
 
         assert_eq!(unsafe { output.as_str() }, None);
     }
@@ -287,11 +277,7 @@ mod tests {
         let variable_types = HashMap::from([("message", VarType::Str)]);
         let compiled = compile(&expression, &variable_types).unwrap();
         let input = [VariableOpt::none()];
-        let mut output = VariableOpt::some(VariableValue {
-            string: std::ptr::dangling_mut(),
-        });
-
-        unsafe { compiled.call(&input, &mut output) };
+        let output = unsafe { compiled.call(&input) };
 
         assert_eq!(unsafe { output.as_str() }, None);
     }
@@ -300,9 +286,7 @@ mod tests {
     fn test_compile_propagates_compile_time_none_haystack() {
         let expression = ast::deserialize(r#"(REGEXP_EXTRACT missing "([a-z]+)" 0u64)"#).unwrap();
         let compiled = compile(&expression, &HashMap::new()).unwrap();
-        let mut output = VariableOpt::default();
-
-        unsafe { compiled.call(&[], &mut output) };
+        let output = unsafe { compiled.call(&[]) };
 
         assert_eq!(compiled.result_type(), VarType::None);
         assert_eq!(unsafe { output.as_str() }, None);
@@ -312,11 +296,7 @@ mod tests {
     fn test_compile_distinguishes_empty_capture_from_none() {
         let expression = ast::deserialize(r#"(REGEXP_EXTRACT "b" "(a*)b" 1u64)"#).unwrap();
         let compiled = compile(&expression, &HashMap::new()).unwrap();
-        let mut output = VariableOpt::some(VariableValue {
-            string: std::ptr::null_mut(),
-        });
-
-        unsafe { compiled.call(&[], &mut output) };
+        let output = unsafe { compiled.call(&[]) };
 
         assert_eq!(unsafe { output.as_str() }, Some(""));
     }
@@ -329,11 +309,7 @@ mod tests {
         let compiled = compile(&expression, &variable_types).unwrap();
         let mut haystack = StringRef::new("prefix user-123 suffix");
         let input = [VariableOpt::some(&mut haystack)];
-        let mut output = VariableOpt::some(VariableValue {
-            string: std::ptr::null_mut(),
-        });
-
-        unsafe { compiled.call(&input, &mut output) };
+        let output = unsafe { compiled.call(&input) };
 
         assert_eq!(unsafe { output.as_str() }, Some("user-123"));
     }
@@ -351,11 +327,7 @@ mod tests {
         let compiled = compile(&expression, &variable_types).unwrap();
         let mut haystack = StringRef::new("id=user-123!");
         let input = [VariableOpt::some(&mut haystack)];
-        let mut output = VariableOpt::some(VariableValue {
-            string: std::ptr::null_mut(),
-        });
-
-        unsafe { compiled.call(&input, &mut output) };
+        let output = unsafe { compiled.call(&input) };
 
         assert_eq!(compiled.regexes.len(), 2);
         assert_eq!(unsafe { output.as_str() }, Some("user"));

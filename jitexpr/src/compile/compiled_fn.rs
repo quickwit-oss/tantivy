@@ -42,13 +42,14 @@ impl CompiledFn {
     ///
     /// `args` must follow [`CompiledFn::inputs`] exactly: every present slot must
     /// contain the union member corresponding to that variable's type. The
-    /// payload of an absent slot is ignored. `result` must be a valid writable
-    /// slot and any referenced strings must remain alive for the duration of
-    /// this call. A string result descriptor remains valid until the next call
-    /// to this `CompiledFn`.
-    pub unsafe fn call(&self, args: &[VariableOpt], result: &mut VariableOpt) {
+    /// payload of an absent slot is ignored, and any referenced strings must
+    /// remain alive for the duration of this call. A string result descriptor
+    /// remains valid until the next call to this `CompiledFn`.
+    pub unsafe fn call(&self, args: &[VariableOpt]) -> VariableOpt {
         debug_assert_eq!(args.len(), self.inputs.len());
+        let mut result = VariableOpt::default();
         // SAFETY: Guaranteed by the caller.
-        unsafe { (self.entry)(args.as_ptr(), result, self.regexes.as_ptr()) };
+        unsafe { (self.entry)(args.as_ptr(), &mut result, self.regexes.as_ptr()) };
+        result
     }
 }

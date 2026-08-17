@@ -34,9 +34,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     // For present values, it is up to us to populate the correct union member.
     // Not doing so is UB.
     let input: Box<[VariableOpt]> = vec![VariableOpt::from(1.2f64)].into_boxed_slice();
-    // The initialization does not really matter.
-    let mut output = VariableOpt::default();
-    unsafe { compiled_fn.call(&input[..], &mut output) };
+    let output = unsafe { compiled_fn.call(&input[..]) };
     assert_eq!(unsafe { output.as_f64() }, Some(1.2f64 + 1.0f64));
 
     Ok(())

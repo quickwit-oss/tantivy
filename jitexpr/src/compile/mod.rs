@@ -188,9 +188,7 @@ mod tests {
         let variable_types = HashMap::from([("flag", VarType::Bool)]);
         let compiled_fn = compile(&untyped_expr, &variable_types).unwrap();
         let input = [VariableOpt::some(VariableValue { boolean: true })];
-        let mut output = VariableOpt::some(VariableValue { boolean: false });
-
-        unsafe { compiled_fn.call(&input, &mut output) };
+        let output = unsafe { compiled_fn.call(&input) };
 
         assert_eq!(unsafe { output.as_bool() }, Some(true));
     }
@@ -201,9 +199,7 @@ mod tests {
         let variable_types = HashMap::from([("value", VarType::U64)]);
         let compiled_fn = compile(&untyped_expr, &variable_types).unwrap();
         let input = [VariableOpt::none()];
-        let mut output = VariableOpt::some(VariableValue { int_u64: 7 });
-
-        unsafe { compiled_fn.call(&input, &mut output) };
+        let output = unsafe { compiled_fn.call(&input) };
 
         assert_eq!(compiled_fn.result_type(), VarType::U64);
         assert_eq!(unsafe { output.as_u64() }, None);
@@ -214,8 +210,7 @@ mod tests {
         let untyped_expr = UntypedExpr::literal("hello");
         let compiled_fn = compile(&untyped_expr, &HashMap::new()).unwrap();
         drop(untyped_expr);
-        let mut output = VariableOpt::none();
-        unsafe { compiled_fn.call(&[], &mut output) };
+        let output = unsafe { compiled_fn.call(&[]) };
 
         assert_eq!(unsafe { output.as_str() }, Some("hello"));
     }
@@ -224,9 +219,7 @@ mod tests {
     fn test_compile_none_literal_returns_absent_value() {
         let untyped_expr = UntypedExpr::literal(crate::ast::Literal::None);
         let compiled_fn = compile(&untyped_expr, &HashMap::new()).unwrap();
-        let mut output = VariableOpt::some(7u64);
-
-        unsafe { compiled_fn.call(&[], &mut output) };
+        let output = unsafe { compiled_fn.call(&[]) };
 
         assert_eq!(compiled_fn.result_type(), VarType::None);
         assert_eq!(unsafe { output.as_u64() }, None);

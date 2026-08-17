@@ -272,9 +272,7 @@ mod tests {
     fn eval(expression: &str) -> bool {
         let expression = ast::deserialize(expression).unwrap();
         let compiled = compile(&expression, &HashMap::new()).unwrap();
-        let mut output = VariableOpt::some(VariableValue { boolean: false });
-
-        unsafe { compiled.call(&[], &mut output) };
+        let output = unsafe { compiled.call(&[]) };
 
         unsafe { output.as_bool() }.unwrap()
     }
@@ -328,8 +326,7 @@ mod tests {
                 VariableOpt::some(VariableValue { int_i64: signed }),
                 VariableOpt::some(VariableValue { int_u64: unsigned }),
             ];
-            let mut output = VariableOpt::some(VariableValue { boolean: false });
-            unsafe { compiled.call(&input, &mut output) };
+            let output = unsafe { compiled.call(&input) };
             assert_eq!(unsafe { output.as_bool() }, Some(expected));
         }
     }
@@ -352,8 +349,7 @@ mod tests {
                 VariableOpt::some(VariableValue { float }),
                 VariableOpt::some(VariableValue { int_i64: integer }),
             ];
-            let mut output = VariableOpt::some(VariableValue { boolean: false });
-            unsafe { compiled.call(&input, &mut output) };
+            let output = unsafe { compiled.call(&input) };
             assert_eq!(unsafe { output.as_bool() }, Some(expected));
         }
     }
@@ -376,8 +372,7 @@ mod tests {
                 VariableOpt::some(VariableValue { float }),
                 VariableOpt::some(VariableValue { int_u64: integer }),
             ];
-            let mut output = VariableOpt::some(VariableValue { boolean: false });
-            unsafe { compiled.call(&input, &mut output) };
+            let output = unsafe { compiled.call(&input) };
             assert_eq!(unsafe { output.as_bool() }, Some(expected));
         }
     }
@@ -392,9 +387,7 @@ mod tests {
         let mut left = StringRef::new(&left_value);
         let mut right = StringRef::new(&right_value);
         let input = [VariableOpt::some(&mut left), VariableOpt::some(&mut right)];
-        let mut output = VariableOpt::some(VariableValue { boolean: false });
-
-        unsafe { compiled.call(&input, &mut output) };
+        let output = unsafe { compiled.call(&input) };
 
         assert_eq!(unsafe { output.as_bool() }, Some(true));
 
@@ -404,11 +397,11 @@ mod tests {
             VariableOpt::some(&mut left),
             VariableOpt::some(&mut different),
         ];
-        unsafe { compiled.call(&input, &mut output) };
+        let output = unsafe { compiled.call(&input) };
         assert_eq!(unsafe { output.as_bool() }, Some(false));
 
         let none_input = [VariableOpt::none(), VariableOpt::none()];
-        unsafe { compiled.call(&none_input, &mut output) };
+        let output = unsafe { compiled.call(&none_input) };
         assert_eq!(unsafe { output.as_bool() }, Some(true));
     }
 
@@ -423,19 +416,14 @@ mod tests {
         let expression = ast::deserialize("(EQ left right)").unwrap();
         let variable_types = HashMap::from([("left", VarType::U64), ("right", VarType::U64)]);
         let compiled = compile(&expression, &variable_types).unwrap();
-        let mut output = VariableOpt::default();
-
-        unsafe { compiled.call(&[VariableOpt::none(), VariableOpt::none()], &mut output) };
+        let output = unsafe { compiled.call(&[VariableOpt::none(), VariableOpt::none()]) };
         assert_eq!(unsafe { output.as_bool() }, Some(true));
 
-        unsafe {
-            compiled.call(
-                &[
-                    VariableOpt::none(),
-                    VariableOpt::some(VariableValue { int_u64: 0 }),
-                ],
-                &mut output,
-            )
+        let output = unsafe {
+            compiled.call(&[
+                VariableOpt::none(),
+                VariableOpt::some(VariableValue { int_u64: 0 }),
+            ])
         };
         assert_eq!(unsafe { output.as_bool() }, Some(false));
     }
@@ -445,9 +433,7 @@ mod tests {
         let expression = ast::deserialize("(EQ value none)").unwrap();
         let variable_types = HashMap::from([("value", VarType::U64)]);
         let compiled = compile(&expression, &variable_types).unwrap();
-        let mut output = VariableOpt::default();
-
-        unsafe { compiled.call(&[VariableOpt::none()], &mut output) };
+        let output = unsafe { compiled.call(&[VariableOpt::none()]) };
 
         assert_eq!(unsafe { output.as_bool() }, Some(true));
     }
