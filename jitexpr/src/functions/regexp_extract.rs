@@ -13,7 +13,7 @@
 
 use std::collections::HashMap;
 
-use cranelift::codegen::ir::{FuncRef, Function as CraneliftFunction, Type, Value, types};
+use cranelift::codegen::ir::{FuncRef, Function as CraneliftFunction, Type, types};
 use cranelift::frontend::FunctionBuilder;
 use cranelift::prelude::{AbiParam, InstBuilder};
 use cranelift_jit::{JITBuilder, JITModule};
@@ -22,7 +22,8 @@ use regex::Regex;
 
 use crate::ast::{Function, InferredTypeSet, Literal, TypeError, UntypedExpr};
 use crate::compile::{
-    CompileError, CompileFnBuilder, LoweringContext, RegexRef, TypedExpr, TypedExprAst,
+    CompileError, CompileFnBuilder, LoweredValue, LoweringContext, RegexRef, TypedExpr,
+    TypedExprAst,
 };
 use crate::functions::{FnCall, FnCallEnum};
 use crate::types::{StringRef, VarType};
@@ -70,6 +71,9 @@ impl FnCall for RegexpExtractFnCall {
         assert_eq!(args.len(), 3, "Expected 3 args for regexp_extract");
 
         let haystack = context.apply_types(&args[0], target_type_set)?;
+        if haystack.return_type == VarType::None {
+            return Ok(TypedExpr::none());
+        }
         assert_eq!(haystack.return_type, VarType::Str);
 
         let UntypedExpr::Literal(Literal::String(pattern)) = &args[1] else {
@@ -105,10 +109,14 @@ impl FnCall for RegexpExtractFnCall {
         return_type: VarType,
         context: &mut LoweringContext<'_>,
         builder: &mut FunctionBuilder<'_>,
-    ) -> Result<Value, CompileError> {
+    ) -> Result<LoweredValue, CompileError> {
         debug_assert_eq!(return_type, VarType::Str);
 
         let haystack = context.compile_expr(&self.haystack, builder)?;
+        let null = builder.ins().iconst(context.pointer_type(), 0);
+        let haystack_ptr = builder
+            .ins()
+            .select(haystack.is_present, haystack.value, null);
         let regex_index = builder
             .ins()
             .iconst(context.pointer_type(), self.regex_ref.index() as i64);
@@ -122,12 +130,16 @@ impl FnCall for RegexpExtractFnCall {
             &[
                 context.regexes_ptr(),
                 regex_index,
-                haystack,
+                haystack_ptr,
                 capture_index,
                 match_result,
             ],
         );
-        Ok(builder.inst_results(call)[0])
+        let value = builder.inst_results(call)[0];
+        let is_present = builder
+            .ins()
+            .icmp_imm_u(cranelift::prelude::IntCC::NotEqual, value, 0);
+        Ok(LoweredValue { value, is_present })
     }
 }
 
@@ -201,7 +213,7 @@ mod tests {
     use super::*;
     use crate::ast::{self, infer_types};
     use crate::compile::compile;
-    use crate::types::VariableValue;
+    use crate::types::{VariableOpt, VariableValue};
 
     #[test]
     fn test_infer_types_constrains_haystack_to_string() {
@@ -223,20 +235,16 @@ mod tests {
         let compiled = compile(&expression, &variable_types).unwrap();
         let haystack = "prefix user-123 suffix";
         let mut haystack_ref = StringRef::new(haystack);
-        let input = [VariableValue {
-            string: &mut haystack_ref,
-        }];
-        let mut output = VariableValue {
+        let input = [VariableOpt::some(&mut haystack_ref)];
+        let mut output = VariableOpt::some(VariableValue {
             string: std::ptr::null_mut(),
-        };
+        });
 
         unsafe { compiled.call(&input, &mut output) };
 
         assert_eq!(compiled.regexes.len(), 1);
         assert_eq!(compiled.regexes[0].as_str(), r"([a-z]+)-(\d+)");
-        let output = unsafe { output.string };
-        assert!(!output.is_null());
-        let extracted = unsafe { (*output).as_str() };
+        let extracted = unsafe { output.as_str() }.unwrap();
         assert_eq!(extracted, "user");
         assert_eq!(extracted.as_ptr(), haystack[7..].as_ptr());
     }
@@ -248,67 +256,69 @@ mod tests {
         let variable_types = HashMap::from([("message", VarType::Str)]);
         let compiled = compile(&expression, &variable_types).unwrap();
         let mut haystack = StringRef::new("user-123");
-        let input = [VariableValue {
-            string: &mut haystack,
-        }];
-        let mut output = VariableValue {
+        let input = [VariableOpt::some(&mut haystack)];
+        let mut output = VariableOpt::some(VariableValue {
             string: std::ptr::null_mut(),
-        };
+        });
 
         unsafe { compiled.call(&input, &mut output) };
 
-        assert_eq!(unsafe { (*output.string).as_str() }, "123");
+        assert_eq!(unsafe { output.as_str() }, Some("123"));
     }
 
     #[test]
-    fn test_compile_returns_null_without_capture() {
+    fn test_compile_returns_none_without_capture() {
         let expression =
             ast::deserialize(r#"(REGEXP_EXTRACT message "([a-z]+)-(\\d+)" 0u64)"#).unwrap();
         let variable_types = HashMap::from([("message", VarType::Str)]);
         let compiled = compile(&expression, &variable_types).unwrap();
         let mut haystack = StringRef::new("no digits here");
-        let input = [VariableValue {
-            string: &mut haystack,
-        }];
-        let mut output = VariableValue {
-            string: std::ptr::dangling_mut(),
-        };
+        let input = [VariableOpt::some(&mut haystack)];
+        let mut output = VariableOpt::none();
 
         unsafe { compiled.call(&input, &mut output) };
 
-        assert!(unsafe { output.string }.is_null());
+        assert_eq!(unsafe { output.as_str() }, None);
     }
 
     #[test]
-    fn test_compile_propagates_null_haystack() {
+    fn test_compile_propagates_none_haystack() {
         let expression = ast::deserialize(r#"(REGEXP_EXTRACT message "([a-z]+)" 0u64)"#).unwrap();
         let variable_types = HashMap::from([("message", VarType::Str)]);
         let compiled = compile(&expression, &variable_types).unwrap();
-        let input = [VariableValue {
-            string: std::ptr::null_mut(),
-        }];
-        let mut output = VariableValue {
+        let input = [VariableOpt::none()];
+        let mut output = VariableOpt::some(VariableValue {
             string: std::ptr::dangling_mut(),
-        };
+        });
 
         unsafe { compiled.call(&input, &mut output) };
 
-        assert!(unsafe { output.string }.is_null());
+        assert_eq!(unsafe { output.as_str() }, None);
     }
 
     #[test]
-    fn test_compile_distinguishes_empty_capture_from_null() {
-        let expression = ast::deserialize(r#"(REGEXP_EXTRACT "b" "(a*)b" 1u64)"#).unwrap();
+    fn test_compile_propagates_compile_time_none_haystack() {
+        let expression = ast::deserialize(r#"(REGEXP_EXTRACT missing "([a-z]+)" 0u64)"#).unwrap();
         let compiled = compile(&expression, &HashMap::new()).unwrap();
-        let mut output = VariableValue {
-            string: std::ptr::null_mut(),
-        };
+        let mut output = VariableOpt::default();
 
         unsafe { compiled.call(&[], &mut output) };
 
-        let output = unsafe { output.string };
-        assert!(!output.is_null());
-        assert_eq!(unsafe { (*output).as_str() }, "");
+        assert_eq!(compiled.result_type(), VarType::None);
+        assert_eq!(unsafe { output.as_str() }, None);
+    }
+
+    #[test]
+    fn test_compile_distinguishes_empty_capture_from_none() {
+        let expression = ast::deserialize(r#"(REGEXP_EXTRACT "b" "(a*)b" 1u64)"#).unwrap();
+        let compiled = compile(&expression, &HashMap::new()).unwrap();
+        let mut output = VariableOpt::some(VariableValue {
+            string: std::ptr::null_mut(),
+        });
+
+        unsafe { compiled.call(&[], &mut output) };
+
+        assert_eq!(unsafe { output.as_str() }, Some(""));
     }
 
     #[test]
@@ -318,16 +328,14 @@ mod tests {
         let variable_types = HashMap::from([("message", VarType::Str)]);
         let compiled = compile(&expression, &variable_types).unwrap();
         let mut haystack = StringRef::new("prefix user-123 suffix");
-        let input = [VariableValue {
-            string: &mut haystack,
-        }];
-        let mut output = VariableValue {
+        let input = [VariableOpt::some(&mut haystack)];
+        let mut output = VariableOpt::some(VariableValue {
             string: std::ptr::null_mut(),
-        };
+        });
 
         unsafe { compiled.call(&input, &mut output) };
 
-        assert_eq!(unsafe { (*output.string).as_str() }, "user-123");
+        assert_eq!(unsafe { output.as_str() }, Some("user-123"));
     }
 
     #[test]
@@ -342,17 +350,15 @@ mod tests {
         let variable_types = HashMap::from([("message", VarType::Str)]);
         let compiled = compile(&expression, &variable_types).unwrap();
         let mut haystack = StringRef::new("id=user-123!");
-        let input = [VariableValue {
-            string: &mut haystack,
-        }];
-        let mut output = VariableValue {
+        let input = [VariableOpt::some(&mut haystack)];
+        let mut output = VariableOpt::some(VariableValue {
             string: std::ptr::null_mut(),
-        };
+        });
 
         unsafe { compiled.call(&input, &mut output) };
 
         assert_eq!(compiled.regexes.len(), 2);
-        assert_eq!(unsafe { (*output.string).as_str() }, "user");
+        assert_eq!(unsafe { output.as_str() }, Some("user"));
     }
 
     #[test]

@@ -8,15 +8,17 @@ use std::collections::HashMap;
 
 pub(crate) use compile_fn_builder::{CompileFnBuilder, RegexRef};
 pub use compiled_fn::CompiledFn;
-use cranelift::codegen::ir::MemFlagsData;
-use cranelift::prelude::*;
+use cranelift::codegen::ir::{
+    InstBuilder as _, MemFlagsData, Type, Value as CraneliftValue, types as cranelift_types,
+};
+use cranelift::frontend::FunctionBuilder;
 pub use error::CompileError;
 pub use typed_expr::TypedVariable;
 pub(crate) use typed_expr::{TypedExpr, TypedExprAst, TypedLiteral};
 
 use crate::ast::UntypedExpr;
 use crate::functions::NativeFunctions;
-use crate::types::{StringRef, VarType, VariableValue};
+use crate::types::{StringRef, VarType, VariableOpt};
 
 pub fn compile(
     untyped_expr: &UntypedExpr,
@@ -38,11 +40,18 @@ pub fn compile_to_assembly(
 }
 
 pub(crate) struct LoweringContext<'a> {
-    args_ptr: Value,
-    regexes_ptr: Value,
+    args_ptr: CraneliftValue,
+    regexes_ptr: CraneliftValue,
     pointer_type: Type,
     regex_match_results: &'a [UnsafeCell<StringRef>],
     native_functions: &'a NativeFunctions,
+}
+
+/// The two SSA values used to represent a nullable expression result.
+#[derive(Clone, Copy)]
+pub(crate) struct LoweredValue {
+    pub(crate) value: CraneliftValue,
+    pub(crate) is_present: CraneliftValue,
 }
 
 impl LoweringContext<'_> {
@@ -50,23 +59,36 @@ impl LoweringContext<'_> {
         &mut self,
         expression: &TypedExpr,
         builder: &mut FunctionBuilder<'_>,
-    ) -> Result<Value, CompileError> {
+    ) -> Result<LoweredValue, CompileError> {
         match &expression.ast {
             TypedExprAst::Literal(literal) => Ok(lower_literal(literal, self, builder)),
             TypedExprAst::Variable(variable) => {
-                let byte_offset =
-                    (variable.variable_id * std::mem::size_of::<VariableValue>()) as i32;
-                Ok(builder.ins().load(
+                let slot_offset = variable.variable_id * std::mem::size_of::<VariableOpt>();
+                let value_offset = (slot_offset + std::mem::offset_of!(VariableOpt, value)) as i32;
+                let presence_offset =
+                    (slot_offset + std::mem::offset_of!(VariableOpt, is_present)) as i32;
+                let value = builder.ins().load(
                     cranelift_type(variable.r#type, self.pointer_type),
                     MemFlagsData::trusted(),
                     self.args_ptr,
-                    byte_offset,
-                ))
+                    value_offset,
+                );
+                let is_present = builder.ins().load(
+                    cranelift_types::I8,
+                    MemFlagsData::trusted(),
+                    self.args_ptr,
+                    presence_offset,
+                );
+                Ok(LoweredValue { value, is_present })
             }
             TypedExprAst::Coerce { target_type, expr } => {
                 let source_type = expr.return_type;
-                let value = self.compile_expr(expr, builder)?;
-                lower_coercion(value, source_type, *target_type, builder)
+                let lowered = self.compile_expr(expr, builder)?;
+                let value = lower_coercion(lowered.value, source_type, *target_type, builder)?;
+                Ok(LoweredValue {
+                    value,
+                    is_present: lowered.is_present,
+                })
             }
             TypedExprAst::FnCall(fn_call) => fn_call.lower(expression.return_type, self, builder),
         }
@@ -76,7 +98,7 @@ impl LoweringContext<'_> {
         self.pointer_type
     }
 
-    pub(crate) fn regexes_ptr(&self) -> Value {
+    pub(crate) fn regexes_ptr(&self) -> CraneliftValue {
         self.regexes_ptr
     }
 
@@ -93,32 +115,43 @@ fn lower_literal(
     literal: &TypedLiteral,
     context: &mut LoweringContext<'_>,
     builder: &mut FunctionBuilder<'_>,
-) -> Value {
-    match literal {
-        TypedLiteral::None => builder.ins().iconst(types::I64, 0),
-        TypedLiteral::Bool(value) => builder.ins().iconst(types::I8, i64::from(*value)),
-        TypedLiteral::U64(value) => builder.ins().iconst(types::I64, *value as i64),
-        TypedLiteral::I64(value) => builder.ins().iconst(types::I64, *value),
-        TypedLiteral::F64(value) => builder.ins().f64const(Ieee64::with_bits(value.to_bits())),
+) -> LoweredValue {
+    let value = match literal {
+        TypedLiteral::None => builder.ins().iconst(cranelift_types::I64, 0),
+        TypedLiteral::Bool(value) => builder.ins().iconst(cranelift_types::I8, i64::from(*value)),
+        TypedLiteral::U64(value) => builder.ins().iconst(cranelift_types::I64, *value as i64),
+        TypedLiteral::I64(value) => builder.ins().iconst(cranelift_types::I64, *value),
+        TypedLiteral::F64(value) => {
+            builder
+                .ins()
+                .f64const(cranelift::codegen::ir::immediates::Ieee64::with_bits(
+                    value.to_bits(),
+                ))
+        }
         TypedLiteral::String(string_ref) => {
             let string_ref_ptr = (string_ref as *const StringRef) as usize;
             builder
                 .ins()
                 .iconst(context.pointer_type, string_ref_ptr as i64)
         }
-    }
+    };
+    let is_present = builder.ins().iconst(
+        cranelift_types::I8,
+        i64::from(!matches!(literal, TypedLiteral::None)),
+    );
+    LoweredValue { value, is_present }
 }
 
 fn lower_coercion(
-    value: Value,
+    value: CraneliftValue,
     source: VarType,
     target: VarType,
     builder: &mut FunctionBuilder<'_>,
-) -> Result<Value, CompileError> {
+) -> Result<CraneliftValue, CompileError> {
     let coerced = match (source, target) {
         (source, target) if source == target => value,
-        (VarType::U64, VarType::F64) => builder.ins().fcvt_from_uint(types::F64, value),
-        (VarType::I64, VarType::F64) => builder.ins().fcvt_from_sint(types::F64, value),
+        (VarType::U64, VarType::F64) => builder.ins().fcvt_from_uint(cranelift_types::F64, value),
+        (VarType::I64, VarType::F64) => builder.ins().fcvt_from_sint(cranelift_types::F64, value),
         // Cranelift integers do not carry signedness. These two coercions have
         // the same machine representation and therefore need no instruction.
         (VarType::U64, VarType::I64) | (VarType::I64, VarType::U64) => value,
@@ -134,9 +167,9 @@ fn lower_coercion(
 
 fn cranelift_type(var_type: VarType, pointer_type: Type) -> Type {
     match var_type {
-        VarType::Bool => types::I8,
-        VarType::F64 => types::F64,
-        VarType::U64 | VarType::I64 | VarType::None => types::I64,
+        VarType::Bool => cranelift_types::I8,
+        VarType::F64 => cranelift_types::F64,
+        VarType::U64 | VarType::I64 | VarType::None => cranelift_types::I64,
         VarType::Str => pointer_type,
     }
 }
@@ -147,19 +180,33 @@ mod tests {
 
     use super::*;
     use crate::ast::{Function, UntypedExpr};
-    use crate::types::VarType;
+    use crate::types::{VarType, VariableValue};
 
     #[test]
     fn test_compile_bool_variable() {
         let untyped_expr = UntypedExpr::variable("flag");
         let variable_types = HashMap::from([("flag", VarType::Bool)]);
         let compiled_fn = compile(&untyped_expr, &variable_types).unwrap();
-        let input = [VariableValue { boolean: true }];
-        let mut output = VariableValue { boolean: false };
+        let input = [VariableOpt::some(VariableValue { boolean: true })];
+        let mut output = VariableOpt::some(VariableValue { boolean: false });
 
         unsafe { compiled_fn.call(&input, &mut output) };
 
-        assert!(unsafe { output.boolean });
+        assert_eq!(unsafe { output.as_bool() }, Some(true));
+    }
+
+    #[test]
+    fn test_compile_none_variable() {
+        let untyped_expr = UntypedExpr::variable("value");
+        let variable_types = HashMap::from([("value", VarType::U64)]);
+        let compiled_fn = compile(&untyped_expr, &variable_types).unwrap();
+        let input = [VariableOpt::none()];
+        let mut output = VariableOpt::some(VariableValue { int_u64: 7 });
+
+        unsafe { compiled_fn.call(&input, &mut output) };
+
+        assert_eq!(compiled_fn.result_type(), VarType::U64);
+        assert_eq!(unsafe { output.as_u64() }, None);
     }
 
     #[test]
@@ -167,14 +214,22 @@ mod tests {
         let untyped_expr = UntypedExpr::literal("hello");
         let compiled_fn = compile(&untyped_expr, &HashMap::new()).unwrap();
         drop(untyped_expr);
-        let mut output = VariableValue {
-            string: std::ptr::null_mut(),
-        };
+        let mut output = VariableOpt::none();
+        unsafe { compiled_fn.call(&[], &mut output) };
+
+        assert_eq!(unsafe { output.as_str() }, Some("hello"));
+    }
+
+    #[test]
+    fn test_compile_none_literal_returns_absent_value() {
+        let untyped_expr = UntypedExpr::literal(crate::ast::Literal::None);
+        let compiled_fn = compile(&untyped_expr, &HashMap::new()).unwrap();
+        let mut output = VariableOpt::some(7u64);
 
         unsafe { compiled_fn.call(&[], &mut output) };
 
-        let output_string = unsafe { &*output.string };
-        assert_eq!(unsafe { output_string.as_str() }, "hello");
+        assert_eq!(compiled_fn.result_type(), VarType::None);
+        assert_eq!(unsafe { output.as_u64() }, None);
     }
 
     #[test]

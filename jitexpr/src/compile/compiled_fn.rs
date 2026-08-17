@@ -5,10 +5,9 @@ use cranelift_jit::JITModule;
 use regex::Regex;
 
 use super::{TypedExpr, TypedVariable};
-use crate::types::{StringRef, VarType, VariableValue};
+use crate::types::{StringRef, VarType, VariableOpt};
 
-pub(crate) type JitEntry =
-    unsafe extern "C" fn(*const VariableValue, *mut VariableValue, *const Regex);
+pub(crate) type JitEntry = unsafe extern "C" fn(*const VariableOpt, *mut VariableOpt, *const Regex);
 
 /// An expression compiled to native machine code.
 ///
@@ -41,12 +40,13 @@ impl CompiledFn {
     ///
     /// # Safety
     ///
-    /// `args` must follow [`CompiledFn::inputs`] exactly: every slot must contain the
-    /// union member corresponding to that variable's type. `result` must be a
-    /// valid writable slot and any referenced strings must remain alive for
-    /// the duration of this call. A string result descriptor remains valid
-    /// until the next call to this `CompiledFn`.
-    pub unsafe fn call(&self, args: &[VariableValue], result: &mut VariableValue) {
+    /// `args` must follow [`CompiledFn::inputs`] exactly: every present slot must
+    /// contain the union member corresponding to that variable's type. The
+    /// payload of an absent slot is ignored. `result` must be a valid writable
+    /// slot and any referenced strings must remain alive for the duration of
+    /// this call. A string result descriptor remains valid until the next call
+    /// to this `CompiledFn`.
+    pub unsafe fn call(&self, args: &[VariableOpt], result: &mut VariableOpt) {
         debug_assert_eq!(args.len(), self.inputs.len());
         // SAFETY: Guaranteed by the caller.
         unsafe { (self.entry)(args.as_ptr(), result, self.regexes.as_ptr()) };

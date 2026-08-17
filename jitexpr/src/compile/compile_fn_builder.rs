@@ -17,7 +17,7 @@ use super::{
 };
 use crate::ast::{InferredTypeSet, Literal, UntypedExpr};
 use crate::functions::{declare_native_functions, register_jit_symbols};
-use crate::types::{StringRef, VarType};
+use crate::types::{StringRef, VarType, VariableOpt};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) struct RegexRef(usize);
@@ -265,10 +265,19 @@ impl<'types, 'names> CompileFnBuilder<'types, 'names> {
                 regex_match_results: &regex_match_results,
                 native_functions: &native_functions,
             };
-            let value = lowering_context.compile_expr(&expression, &mut builder)?;
-            builder
-                .ins()
-                .store(MemFlagsData::trusted(), value, result_ptr, 0);
+            let lowered = lowering_context.compile_expr(&expression, &mut builder)?;
+            builder.ins().store(
+                MemFlagsData::trusted(),
+                lowered.value,
+                result_ptr,
+                std::mem::offset_of!(VariableOpt, value) as i32,
+            );
+            builder.ins().store(
+                MemFlagsData::trusted(),
+                lowered.is_present,
+                result_ptr,
+                std::mem::offset_of!(VariableOpt, is_present) as i32,
+            );
             builder.ins().return_(&[]);
             builder.finalize(target_config);
         }

@@ -3,7 +3,7 @@ use std::error::Error;
 
 use jitexpr::ast::{Function, InferredTypeSet, UntypedExpr, infer_types};
 use jitexpr::compile::{CompiledFn, compile};
-use jitexpr::types::{VarType, VariableValue};
+use jitexpr::types::{VarType, VariableOpt};
 
 fn main() -> Result<(), Box<dyn Error>> {
     // A simple expression that goes:
@@ -30,13 +30,14 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     let compiled_fn: CompiledFn = compile(&untyped_expr, &variable_types)?;
 
-    // We use a union to pass typed variables to the function.
-    // It is up to us to correctly populate it. Not doing so is UB.
-    let input: Box<[VariableValue]> = vec![VariableValue { float: 1.2f64 }].into_boxed_slice();
+    // We use a nullable wrapper around the value union to pass typed variables.
+    // For present values, it is up to us to populate the correct union member.
+    // Not doing so is UB.
+    let input: Box<[VariableOpt]> = vec![VariableOpt::from(1.2f64)].into_boxed_slice();
     // The initialization does not really matter.
-    let mut output: VariableValue = VariableValue { int_u64: 0u64 };
+    let mut output = VariableOpt::default();
     unsafe { compiled_fn.call(&input[..], &mut output) };
-    assert_eq!(unsafe { output.float }, 1.2f64 + 1.0f64);
+    assert_eq!(unsafe { output.as_f64() }, Some(1.2f64 + 1.0f64));
 
     Ok(())
 }

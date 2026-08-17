@@ -14,7 +14,7 @@ pub(crate) use self::native_function::{
 };
 pub(crate) use self::regexp_extract::RegexpExtractFnCall;
 use crate::ast::{InferredTypeSet, TypeError, UntypedExpr};
-use crate::compile::{CompileError, CompileFnBuilder, LoweringContext, TypedExpr};
+use crate::compile::{CompileError, CompileFnBuilder, LoweredValue, LoweringContext, TypedExpr};
 use crate::types::VarType;
 
 /// A function supported by the first expression-language milestone.
@@ -89,7 +89,7 @@ impl FnCallEnum {
         return_type: VarType,
         context: &mut LoweringContext<'_>,
         builder: &mut FunctionBuilder<'_>,
-    ) -> Result<cranelift::codegen::ir::Value, CompileError> {
+    ) -> Result<LoweredValue, CompileError> {
         match self {
             FnCallEnum::Add(call) => call.emit_cranelift_ir(return_type, context, builder),
             FnCallEnum::Eq(call) => call.emit_cranelift_ir(return_type, context, builder),
@@ -151,5 +151,5 @@ pub(crate) trait FnCall: std::fmt::Debug + Into<FnCallEnum> {
         return_type: VarType,
         context: &mut LoweringContext<'_>,
         builder: &mut FunctionBuilder<'_>,
-    ) -> Result<cranelift::codegen::ir::Value, CompileError>;
+    ) -> Result<LoweredValue, CompileError>;
 }

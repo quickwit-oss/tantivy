@@ -12,14 +12,18 @@
 
 use std::collections::HashMap;
 
-use cranelift::codegen::ir::{FuncRef, Function as CraneliftFunction, Type, Value, types};
+use cranelift::codegen::ir::{
+    FuncRef, Function as CraneliftFunction, Type, Value as CraneliftValue, types,
+};
 use cranelift::frontend::FunctionBuilder;
 use cranelift::prelude::{AbiParam, FloatCC, InstBuilder, IntCC};
 use cranelift_jit::{JITBuilder, JITModule};
 use cranelift_module::{Linkage, Module};
 
 use crate::ast::{Function, InferredTypeSet, TypeError, UntypedExpr};
-use crate::compile::{CompileError, CompileFnBuilder, LoweringContext, TypedExpr, TypedExprAst};
+use crate::compile::{
+    CompileError, CompileFnBuilder, LoweredValue, LoweringContext, TypedExpr, TypedExprAst,
+};
 use crate::functions::{FnCall, FnCallEnum};
 use crate::types::{StringRef, VarType};
 
@@ -95,46 +99,80 @@ impl FnCall for EqFnCall {
         return_type: VarType,
         context: &mut LoweringContext<'_>,
         builder: &mut FunctionBuilder<'_>,
-    ) -> Result<Value, CompileError> {
+    ) -> Result<LoweredValue, CompileError> {
         debug_assert_eq!(return_type, VarType::Bool);
         let lhs_type = self.args[0].return_type;
         let rhs_type = self.args[1].return_type;
+        let lhs = context.compile_expr(&self.args[0], builder)?;
+        let rhs = context.compile_expr(&self.args[1], builder)?;
+        let is_present = builder.ins().iconst(types::I8, 1);
 
         if lhs_type == VarType::None || rhs_type == VarType::None {
-            let equal = lhs_type == VarType::None && rhs_type == VarType::None;
-            return Ok(builder.ins().iconst(types::I8, i64::from(equal)));
+            let value = builder
+                .ins()
+                .icmp(IntCC::Equal, lhs.is_present, rhs.is_present);
+            return Ok(LoweredValue { value, is_present });
         }
 
         if lhs_type == VarType::Str && rhs_type == VarType::Str {
-            let lhs = context.compile_expr(&self.args[0], builder)?;
-            let rhs = context.compile_expr(&self.args[1], builder)?;
+            let null = builder.ins().iconst(context.pointer_type(), 0);
+            let lhs_ptr = builder.ins().select(lhs.is_present, lhs.value, null);
+            let rhs_ptr = builder.ins().select(rhs.is_present, rhs.value, null);
             let call = builder
                 .ins()
-                .call(context.native_functions().string_eq(), &[lhs, rhs]);
-            return Ok(builder.inst_results(call)[0]);
+                .call(context.native_functions().string_eq(), &[lhs_ptr, rhs_ptr]);
+            return Ok(LoweredValue {
+                value: builder.inst_results(call)[0],
+                is_present,
+            });
         }
 
         if !types_are_comparable(lhs_type, rhs_type) {
-            return Ok(builder.ins().iconst(types::I8, 0));
+            let value = both_absent(lhs.is_present, rhs.is_present, builder);
+            return Ok(LoweredValue { value, is_present });
         }
 
-        let lhs = context.compile_expr(&self.args[0], builder)?;
-        let rhs = context.compile_expr(&self.args[1], builder)?;
-        let equal = match (lhs_type, rhs_type) {
+        let values_equal = match (lhs_type, rhs_type) {
             (VarType::Bool, VarType::Bool)
             | (VarType::I64, VarType::I64)
-            | (VarType::U64, VarType::U64) => builder.ins().icmp(IntCC::Equal, lhs, rhs),
-            (VarType::F64, VarType::F64) => builder.ins().fcmp(FloatCC::Equal, lhs, rhs),
-            (VarType::I64, VarType::U64) => emit_signed_unsigned_eq(lhs, rhs, builder),
-            (VarType::U64, VarType::I64) => emit_signed_unsigned_eq(rhs, lhs, builder),
-            (VarType::F64, VarType::I64) => emit_float_integer_eq(lhs, rhs, VarType::I64, builder),
-            (VarType::I64, VarType::F64) => emit_float_integer_eq(rhs, lhs, VarType::I64, builder),
-            (VarType::F64, VarType::U64) => emit_float_integer_eq(lhs, rhs, VarType::U64, builder),
-            (VarType::U64, VarType::F64) => emit_float_integer_eq(rhs, lhs, VarType::U64, builder),
+            | (VarType::U64, VarType::U64) => {
+                builder.ins().icmp(IntCC::Equal, lhs.value, rhs.value)
+            }
+            (VarType::F64, VarType::F64) => {
+                builder.ins().fcmp(FloatCC::Equal, lhs.value, rhs.value)
+            }
+            (VarType::I64, VarType::U64) => emit_signed_unsigned_eq(lhs.value, rhs.value, builder),
+            (VarType::U64, VarType::I64) => emit_signed_unsigned_eq(rhs.value, lhs.value, builder),
+            (VarType::F64, VarType::I64) => {
+                emit_float_integer_eq(lhs.value, rhs.value, VarType::I64, builder)
+            }
+            (VarType::I64, VarType::F64) => {
+                emit_float_integer_eq(rhs.value, lhs.value, VarType::I64, builder)
+            }
+            (VarType::F64, VarType::U64) => {
+                emit_float_integer_eq(lhs.value, rhs.value, VarType::U64, builder)
+            }
+            (VarType::U64, VarType::F64) => {
+                emit_float_integer_eq(rhs.value, lhs.value, VarType::U64, builder)
+            }
             _ => unreachable!("the operand types were checked above"),
         };
-        Ok(equal)
+        let both_present = builder.ins().band(lhs.is_present, rhs.is_present);
+        let present_and_equal = builder.ins().band(both_present, values_equal);
+        let both_absent = both_absent(lhs.is_present, rhs.is_present, builder);
+        let value = builder.ins().bor(both_absent, present_and_equal);
+        Ok(LoweredValue { value, is_present })
     }
+}
+
+fn both_absent(
+    lhs_is_present: CraneliftValue,
+    rhs_is_present: CraneliftValue,
+    builder: &mut FunctionBuilder<'_>,
+) -> CraneliftValue {
+    let lhs_absent = builder.ins().bxor_imm_u(lhs_is_present, 1);
+    let rhs_absent = builder.ins().bxor_imm_u(rhs_is_present, 1);
+    builder.ins().band(lhs_absent, rhs_absent)
 }
 
 fn types_are_comparable(lhs: VarType, rhs: VarType) -> bool {
@@ -146,10 +184,10 @@ fn is_numerical(var_type: VarType) -> bool {
 }
 
 fn emit_signed_unsigned_eq(
-    signed: Value,
-    unsigned: Value,
+    signed: CraneliftValue,
+    unsigned: CraneliftValue,
     builder: &mut FunctionBuilder<'_>,
-) -> Value {
+) -> CraneliftValue {
     let nonnegative = builder
         .ins()
         .icmp_imm_s(IntCC::SignedGreaterThanOrEqual, signed, 0);
@@ -158,11 +196,11 @@ fn emit_signed_unsigned_eq(
 }
 
 fn emit_float_integer_eq(
-    float: Value,
-    integer: Value,
+    float: CraneliftValue,
+    integer: CraneliftValue,
     integer_type: VarType,
     builder: &mut FunctionBuilder<'_>,
-) -> Value {
+) -> CraneliftValue {
     let (lower_bound, upper_bound) = match integer_type {
         VarType::I64 => (i64::MIN as f64, -(i64::MIN as f64)),
         VarType::U64 => (0.0, (u64::MAX as f64)),
@@ -229,16 +267,16 @@ mod tests {
     use super::*;
     use crate::ast::{self, infer_types};
     use crate::compile::compile;
-    use crate::types::VariableValue;
+    use crate::types::{VariableOpt, VariableValue};
 
     fn eval(expression: &str) -> bool {
         let expression = ast::deserialize(expression).unwrap();
         let compiled = compile(&expression, &HashMap::new()).unwrap();
-        let mut output = VariableValue { boolean: false };
+        let mut output = VariableOpt::some(VariableValue { boolean: false });
 
         unsafe { compiled.call(&[], &mut output) };
 
-        unsafe { output.boolean }
+        unsafe { output.as_bool() }.unwrap()
     }
 
     #[test]
@@ -287,12 +325,12 @@ mod tests {
 
         for (signed, unsigned, expected) in [(7i64, 7u64, true), (-1, u64::MAX, false)] {
             let input = [
-                VariableValue { int_i64: signed },
-                VariableValue { int_u64: unsigned },
+                VariableOpt::some(VariableValue { int_i64: signed }),
+                VariableOpt::some(VariableValue { int_u64: unsigned }),
             ];
-            let mut output = VariableValue { boolean: false };
+            let mut output = VariableOpt::some(VariableValue { boolean: false });
             unsafe { compiled.call(&input, &mut output) };
-            assert_eq!(unsafe { output.boolean }, expected);
+            assert_eq!(unsafe { output.as_bool() }, Some(expected));
         }
     }
 
@@ -310,10 +348,13 @@ mod tests {
         ];
 
         for (float, integer, expected) in cases {
-            let input = [VariableValue { float }, VariableValue { int_i64: integer }];
-            let mut output = VariableValue { boolean: false };
+            let input = [
+                VariableOpt::some(VariableValue { float }),
+                VariableOpt::some(VariableValue { int_i64: integer }),
+            ];
+            let mut output = VariableOpt::some(VariableValue { boolean: false });
             unsafe { compiled.call(&input, &mut output) };
-            assert_eq!(unsafe { output.boolean }, expected);
+            assert_eq!(unsafe { output.as_bool() }, Some(expected));
         }
     }
 
@@ -331,10 +372,13 @@ mod tests {
         ];
 
         for (float, integer, expected) in cases {
-            let input = [VariableValue { float }, VariableValue { int_u64: integer }];
-            let mut output = VariableValue { boolean: false };
+            let input = [
+                VariableOpt::some(VariableValue { float }),
+                VariableOpt::some(VariableValue { int_u64: integer }),
+            ];
+            let mut output = VariableOpt::some(VariableValue { boolean: false });
             unsafe { compiled.call(&input, &mut output) };
-            assert_eq!(unsafe { output.boolean }, expected);
+            assert_eq!(unsafe { output.as_bool() }, Some(expected));
         }
     }
 
@@ -347,43 +391,65 @@ mod tests {
         let right_value = String::from("same contents");
         let mut left = StringRef::new(&left_value);
         let mut right = StringRef::new(&right_value);
-        let input = [
-            VariableValue { string: &mut left },
-            VariableValue { string: &mut right },
-        ];
-        let mut output = VariableValue { boolean: false };
+        let input = [VariableOpt::some(&mut left), VariableOpt::some(&mut right)];
+        let mut output = VariableOpt::some(VariableValue { boolean: false });
 
         unsafe { compiled.call(&input, &mut output) };
 
-        assert!(unsafe { output.boolean });
+        assert_eq!(unsafe { output.as_bool() }, Some(true));
 
         let different_value = String::from("different contents");
         let mut different = StringRef::new(&different_value);
         let input = [
-            VariableValue { string: &mut left },
-            VariableValue {
-                string: &mut different,
-            },
+            VariableOpt::some(&mut left),
+            VariableOpt::some(&mut different),
         ];
         unsafe { compiled.call(&input, &mut output) };
-        assert!(!unsafe { output.boolean });
+        assert_eq!(unsafe { output.as_bool() }, Some(false));
 
-        let null_input = [
-            VariableValue {
-                string: std::ptr::null_mut(),
-            },
-            VariableValue {
-                string: std::ptr::null_mut(),
-            },
-        ];
-        unsafe { compiled.call(&null_input, &mut output) };
-        assert!(unsafe { output.boolean });
+        let none_input = [VariableOpt::none(), VariableOpt::none()];
+        unsafe { compiled.call(&none_input, &mut output) };
+        assert_eq!(unsafe { output.as_bool() }, Some(true));
     }
 
     #[test]
     fn test_compile_none_equality() {
         assert!(eval("(EQ none none)"));
         assert!(!eval("(EQ none false)"));
+    }
+
+    #[test]
+    fn test_compile_runtime_none_equality() {
+        let expression = ast::deserialize("(EQ left right)").unwrap();
+        let variable_types = HashMap::from([("left", VarType::U64), ("right", VarType::U64)]);
+        let compiled = compile(&expression, &variable_types).unwrap();
+        let mut output = VariableOpt::default();
+
+        unsafe { compiled.call(&[VariableOpt::none(), VariableOpt::none()], &mut output) };
+        assert_eq!(unsafe { output.as_bool() }, Some(true));
+
+        unsafe {
+            compiled.call(
+                &[
+                    VariableOpt::none(),
+                    VariableOpt::some(VariableValue { int_u64: 0 }),
+                ],
+                &mut output,
+            )
+        };
+        assert_eq!(unsafe { output.as_bool() }, Some(false));
+    }
+
+    #[test]
+    fn test_compile_none_literal_equals_absent_variable() {
+        let expression = ast::deserialize("(EQ value none)").unwrap();
+        let variable_types = HashMap::from([("value", VarType::U64)]);
+        let compiled = compile(&expression, &variable_types).unwrap();
+        let mut output = VariableOpt::default();
+
+        unsafe { compiled.call(&[VariableOpt::none()], &mut output) };
+
+        assert_eq!(unsafe { output.as_bool() }, Some(true));
     }
 
     #[test]

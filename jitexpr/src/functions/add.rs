@@ -13,7 +13,9 @@ use std::collections::HashMap;
 use cranelift::prelude::{FunctionBuilder, InstBuilder, types};
 
 use crate::ast::{Function, InferredTypeSet, TypeError, UntypedExpr};
-use crate::compile::{CompileError, CompileFnBuilder, LoweringContext, TypedExpr, TypedExprAst};
+use crate::compile::{
+    CompileError, CompileFnBuilder, LoweredValue, LoweringContext, TypedExpr, TypedExprAst,
+};
 use crate::functions::{FnCall, FnCallEnum};
 use crate::types::VarType;
 
@@ -95,7 +97,7 @@ impl FnCall for AddFnCall {
         return_type: VarType,
         context: &mut LoweringContext<'_>,
         builder: &mut FunctionBuilder<'_>,
-    ) -> Result<cranelift::codegen::ir::Value, CompileError> {
+    ) -> Result<LoweredValue, CompileError> {
         let mut sum = match return_type {
             VarType::U64 | VarType::I64 => builder.ins().iconst(types::I64, 0),
             VarType::F64 => builder.ins().f64const(0.0),
@@ -106,16 +108,21 @@ impl FnCall for AddFnCall {
                 });
             }
         };
+        let mut is_present = builder.ins().iconst(types::I8, 1);
 
         for arg in &self.args {
-            let value = context.compile_expr(arg, builder)?;
+            let lowered = context.compile_expr(arg, builder)?;
             sum = match return_type {
-                VarType::U64 | VarType::I64 => builder.ins().iadd(sum, value),
-                VarType::F64 => builder.ins().fadd(sum, value),
+                VarType::U64 | VarType::I64 => builder.ins().iadd(sum, lowered.value),
+                VarType::F64 => builder.ins().fadd(sum, lowered.value),
                 _ => unreachable!("the return type was checked above"),
             };
+            is_present = builder.ins().band(is_present, lowered.is_present);
         }
-        Ok(sum)
+        Ok(LoweredValue {
+            value: sum,
+            is_present,
+        })
     }
 }
 
@@ -155,7 +162,7 @@ mod tests {
     use super::*;
     use crate::ast::{Literal, infer_types};
     use crate::compile::{TypedExprAst, compile};
-    use crate::types::VariableValue;
+    use crate::types::{VariableOpt, VariableValue};
 
     #[test]
     fn test_infer_types_rejects_string_argument() {
@@ -283,10 +290,10 @@ mod tests {
         );
 
         let compiled = compile(&expression, &variable_types).unwrap();
-        let mut output = VariableValue { int_u64: 0 };
+        let mut output = VariableOpt::some(0u64);
         unsafe { compiled.call(&[], &mut output) };
 
-        assert_eq!(unsafe { output.int_u64 }, 9223372036854775808u64);
+        assert_eq!(unsafe { output.as_u64() }, Some(9223372036854775808u64));
     }
 
     #[test]
@@ -315,12 +322,12 @@ mod tests {
         ]);
         let variable_types = HashMap::from([("myfield", VarType::I64)]);
         let compiled = compile(&expression, &variable_types).unwrap();
-        let input = [VariableValue { int_i64: -8 }];
-        let mut output = VariableValue { int_i64: 0 };
+        let input = [VariableOpt::some(-8i64)];
+        let mut output = VariableOpt::some(0u64);
 
         unsafe { compiled.call(&input, &mut output) };
 
-        assert_eq!(unsafe { output.int_i64 }, -12);
+        assert_eq!(unsafe { output.as_i64() }, Some(-12));
     }
 
     #[test]
@@ -334,12 +341,10 @@ mod tests {
         for args in argument_orders {
             let expression = Function::Add.call_untyped_expr(args);
             let compiled = compile(&expression, &variable_types).unwrap();
-            let input = [VariableValue { int_u64: 41 }];
-            let mut output = VariableValue { int_u64: 0 };
-
+            let input = [VariableOpt::some(41u64)];
+            let mut output = VariableOpt::some(0u64);
             unsafe { compiled.call(&input, &mut output) };
-
-            assert_eq!(unsafe { output.int_u64 }, 42);
+            assert_eq!(unsafe { output.as_u64() }, Some(42));
         }
     }
 
@@ -351,12 +356,12 @@ mod tests {
             .call_untyped_expr(vec![UntypedExpr::variable("myfield"), nested_literals]);
         let variable_types = HashMap::from([("myfield", VarType::U64)]);
         let compiled = compile(&expression, &variable_types).unwrap();
-        let input = [VariableValue { int_u64: 39 }];
-        let mut output = VariableValue { int_u64: 0 };
+        let input = [VariableOpt::some(39u64)];
+        let mut output = VariableOpt::some(0u64);
 
         unsafe { compiled.call(&input, &mut output) };
 
-        assert_eq!(unsafe { output.int_u64 }, 42);
+        assert_eq!(unsafe { output.as_u64() }, Some(42));
     }
 
     #[test]
@@ -368,12 +373,12 @@ mod tests {
         ]);
         let variable_types = HashMap::from([("myfield", VarType::U64)]);
         let compiled = compile(&expression, &variable_types).unwrap();
-        let input = [VariableValue { int_u64: 10 }];
-        let mut output = VariableValue { float: 0.0 };
+        let input = [VariableOpt::some(10u64)];
+        let mut output = VariableOpt::some(0.0f64);
 
         unsafe { compiled.call(&input, &mut output) };
 
-        assert_eq!(unsafe { output.float }, 8.5);
+        assert_eq!(unsafe { output.as_f64() }, Some(8.5));
     }
 
     #[test]
@@ -382,12 +387,25 @@ mod tests {
             .call_untyped_expr(vec![UntypedExpr::variable("x"), UntypedExpr::variable("y")]);
         let variable_types = HashMap::from([("x", VarType::U64), ("y", VarType::F64)]);
         let compiled = compile(&expression, &variable_types).unwrap();
-        let input = [VariableValue { int_u64: 10 }, VariableValue { float: 0.5 }];
-        let mut output = VariableValue { float: 0.0 };
+        let input = [VariableOpt::some(10u64), VariableOpt::some(0.5f64)];
+        let mut output = VariableOpt::some(VariableValue { float: 0.0 });
 
         unsafe { compiled.call(&input, &mut output) };
 
-        assert_eq!(unsafe { output.float }, 10.5);
+        assert_eq!(unsafe { output.as_f64() }, Some(10.5));
+    }
+
+    #[test]
+    fn test_compile_add_propagates_none_input() {
+        let expression = crate::ast::deserialize(r#"(ADD x 0.5f64)"#).unwrap();
+        let variable_types = HashMap::from([("x", VarType::U64)]);
+        let compiled = compile(&expression, &variable_types).unwrap();
+        let input = [VariableOpt::none()];
+        let mut output = VariableOpt::some(1u64);
+        // We make sure there was an initialization
+        assert_eq!(unsafe { output.as_u64() }, Some(1));
+        unsafe { compiled.call(&input, &mut output) };
+        assert_eq!(unsafe { output.as_f64() }, None);
     }
 
     #[test]
@@ -398,12 +416,12 @@ mod tests {
         ]);
         let variable_types = HashMap::from([("x", VarType::U64)]);
         let compiled = compile(&expression, &variable_types).unwrap();
-        let input = [VariableValue { int_u64: u64::MAX }];
-        let mut output = VariableValue { float: 0.0 };
+        let input = [VariableOpt::some(u64::MAX)];
+        let mut output = VariableOpt::some(0.0f64);
 
         unsafe { compiled.call(&input, &mut output) };
 
-        assert_eq!(unsafe { output.float }, u64::MAX as f64 + 0.5);
+        assert_eq!(unsafe { output.as_f64() }, Some(u64::MAX as f64 + 0.5));
     }
 
     #[test]
@@ -415,8 +433,8 @@ mod tests {
         ]);
         let variable_types = HashMap::from([("x", VarType::U64)]);
         let compiled = compile(&expression, &variable_types).unwrap();
-        let input = [VariableValue { int_u64: 4 }];
-        let mut output = VariableValue { int_u64: 0 };
+        let input = [VariableOpt::some(4i64)];
+        let mut output = VariableOpt::some(0u64);
 
         unsafe { compiled.call(&input, &mut output) };
 
@@ -425,7 +443,7 @@ mod tests {
         assert_eq!(compiled.inputs[0].r#type, VarType::U64);
         assert_eq!(compiled.inputs[0].variable_id, 0);
         assert_eq!(compiled.result_type(), VarType::U64);
-        assert_eq!(unsafe { output.int_u64 }, 9);
+        assert_eq!(unsafe { output.as_u64() }, Some(9));
     }
 
     #[test]
@@ -436,15 +454,15 @@ mod tests {
         ]);
         let variable_types = HashMap::from([("x", VarType::U64)]);
         let compiled = compile(&expression, &variable_types).unwrap();
-        let input = [VariableValue { int_u64: 4 }];
-        let mut output = VariableValue::default();
+        let input = [VariableOpt::some(4u64)];
+        let mut output = VariableOpt::default();
         unsafe { compiled.call(&input, &mut output) };
         assert_eq!(compiled.inputs.len(), 1);
         assert_eq!(compiled.inputs[0].variable_name.as_ref(), "x");
         assert_eq!(compiled.inputs[0].r#type, VarType::U64);
         assert_eq!(compiled.inputs[0].variable_id, 0);
         assert_eq!(compiled.result_type(), VarType::F64);
-        assert_eq!(unsafe { output.float }, 5.2f64);
+        assert_eq!(unsafe { output.as_f64() }, Some(5.2f64));
     }
 
     #[test]
@@ -455,11 +473,11 @@ mod tests {
 
         let expression = Function::Add.call_untyped_expr(Vec::new());
         let compiled = compile(&expression, &HashMap::new()).unwrap();
-        let mut output = VariableValue { int_i64: 1 };
+        let mut output = VariableOpt::some(1i64);
 
         unsafe { compiled.call(&[], &mut output) };
 
-        assert_eq!(unsafe { output.int_i64 }, 0);
+        assert_eq!(unsafe { output.as_i64() }, Some(0));
     }
 
     #[test]
@@ -470,8 +488,8 @@ mod tests {
         assert_eq!(typed_expr.return_type, VarType::F64);
         let expression = Function::Add.call_untyped_expr(args);
         let compiled = compile(&expression, &HashMap::new()).unwrap();
-        let mut output = VariableValue { int_i64: 1 };
+        let mut output = VariableOpt::some(VariableValue { int_i64: 1 });
         unsafe { compiled.call(&[], &mut output) };
-        assert_eq!(unsafe { output.float }, 2.2f64);
+        assert_eq!(unsafe { output.as_f64() }, Some(2.2f64));
     }
 }
