@@ -13,8 +13,7 @@ use regex::Regex;
 
 use super::compiled_fn::JitEntry;
 use super::{
-    CompileError, CompiledFn, LoweringContext, TypedExpr, TypedExprAst, TypedLiteral,
-    TypedVariable, lower_expr,
+    CompileError, CompiledFn, LoweringContext, TypedExpr, TypedExprAst, TypedLiteral, TypedVariable,
 };
 use crate::ast::{InferredTypeSet, Literal, UntypedExpr};
 use crate::functions::{declare_native_functions, register_jit_symbols};
@@ -266,7 +265,7 @@ impl<'types, 'names> CompileFnBuilder<'types, 'names> {
                 regex_match_results: &regex_match_results,
                 native_functions: &native_functions,
             };
-            let value = lower_expr(&expression, &mut lowering_context, &mut builder)?;
+            let value = lowering_context.compile_expr(&expression, &mut builder)?;
             builder
                 .ins()
                 .store(MemFlagsData::trusted(), value, result_ptr, 0);

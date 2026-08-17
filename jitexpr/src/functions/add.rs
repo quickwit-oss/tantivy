@@ -108,7 +108,7 @@ impl FnCall for AddFnCall {
         };
 
         for arg in &self.args {
-            let value = context.lower_expr(arg, builder)?;
+            let value = context.compile_expr(arg, builder)?;
             sum = match return_type {
                 VarType::U64 | VarType::I64 => builder.ins().iadd(sum, value),
                 VarType::F64 => builder.ins().fadd(sum, value),
@@ -268,10 +268,25 @@ mod tests {
     #[test]
     fn test_call_with_types_uses_u64_when_i64_is_not_possible() {
         let variable_types = HashMap::new();
+        let expression = crate::ast::deserialize("(ADD 9223372036854775808u64)").unwrap();
         let typed_expr =
             crate::typed_expr_from_str("(ADD 9223372036854775808u64)", &variable_types);
-
         assert_eq!(typed_expr.return_type, VarType::U64);
+        assert_eq!(
+            typed_expr,
+            TypedExpr {
+                return_type: VarType::U64,
+                ast: TypedExprAst::from_call(AddFnCall {
+                    args: vec![TypedExpr::literal(9223372036854775808u64)].into_boxed_slice(),
+                }),
+            }
+        );
+
+        let compiled = compile(&expression, &variable_types).unwrap();
+        let mut output = VariableValue { int_u64: 0 };
+        unsafe { compiled.call(&[], &mut output) };
+
+        assert_eq!(unsafe { output.int_u64 }, 9223372036854775808u64);
     }
 
     #[test]

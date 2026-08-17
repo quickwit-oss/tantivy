@@ -46,12 +46,35 @@ pub(crate) struct LoweringContext<'a> {
 }
 
 impl LoweringContext<'_> {
-    pub(crate) fn lower_expr(
+    pub(crate) fn compile_expr(
         &mut self,
         expression: &TypedExpr,
         builder: &mut FunctionBuilder<'_>,
     ) -> Result<Value, CompileError> {
-        lower_expr(expression, self, builder)
+        match &expression.ast {
+            TypedExprAst::Literal(literal) => Ok(lower_literal(literal, self, builder)),
+            TypedExprAst::Variable(variable) => {
+                let byte_offset = variable
+                    .variable_id
+                    .checked_mul(size_of::<VariableValue>())
+                    .and_then(|offset| i32::try_from(offset).ok())
+                    .ok_or(CompileError::InputOffsetOverflow {
+                        variable_id: variable.variable_id,
+                    })?;
+                Ok(builder.ins().load(
+                    cranelift_type(variable.r#type, self.pointer_type),
+                    MemFlagsData::trusted(),
+                    self.args_ptr,
+                    byte_offset,
+                ))
+            }
+            TypedExprAst::Coerce { target_type, expr } => {
+                let source_type = expr.return_type;
+                let value = self.compile_expr(expr, builder)?;
+                lower_coercion(value, source_type, *target_type, builder)
+            }
+            TypedExprAst::FnCall(fn_call) => fn_call.lower(expression.return_type, self, builder),
+        }
     }
 
     pub(crate) fn pointer_type(&self) -> Type {
@@ -68,38 +91,6 @@ impl LoweringContext<'_> {
 
     pub(crate) fn regex_match_result(&self, regex_ref: RegexRef) -> *mut StringRef {
         self.regex_match_results[regex_ref.index()].get()
-    }
-}
-
-/// Produce cranelift IR from the function
-fn lower_expr(
-    expression: &TypedExpr,
-    context: &mut LoweringContext<'_>,
-    builder: &mut FunctionBuilder<'_>,
-) -> Result<Value, CompileError> {
-    match &expression.ast {
-        TypedExprAst::Literal(literal) => Ok(lower_literal(literal, context, builder)),
-        TypedExprAst::Variable(variable) => {
-            let byte_offset = variable
-                .variable_id
-                .checked_mul(size_of::<VariableValue>())
-                .and_then(|offset| i32::try_from(offset).ok())
-                .ok_or(CompileError::InputOffsetOverflow {
-                    variable_id: variable.variable_id,
-                })?;
-            Ok(builder.ins().load(
-                cranelift_type(variable.r#type, context.pointer_type),
-                MemFlagsData::trusted(),
-                context.args_ptr,
-                byte_offset,
-            ))
-        }
-        TypedExprAst::Coerce { target_type, expr } => {
-            let source_type = expr.return_type;
-            let value = lower_expr(expr, context, builder)?;
-            lower_coercion(value, source_type, *target_type, builder)
-        }
-        TypedExprAst::FnCall(fn_call) => fn_call.lower(expression.return_type, context, builder),
     }
 }
 

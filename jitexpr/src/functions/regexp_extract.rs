@@ -1,7 +1,11 @@
 // RegexpExtract extracts a regular-expression match from a string.
 //
-// It takes three arguments: the input string, a regular-expression pattern literal, and a u64
-// capture index literal. Capture index 0 returns the full match, while indexes 1 and above return
+// It takes three arguments:
+// - string: the input string
+// - const string: a regular-expression pattern literal. This one CANNOT be the result of another
+//   expression
+// - const u64: capture index literal. Capture index 0 returns the full match, while indexes 1 and
+//   above return
 // the corresponding explicit capture group.
 //
 // It returns None when the input is None, the pattern does not match, or the requested capture
@@ -104,7 +108,7 @@ impl FnCall for RegexpExtractFnCall {
     ) -> Result<Value, CompileError> {
         debug_assert_eq!(return_type, VarType::Str);
 
-        let haystack = context.lower_expr(&self.haystack, builder)?;
+        let haystack = context.compile_expr(&self.haystack, builder)?;
         let regex_index = builder
             .ins()
             .iconst(context.pointer_type(), self.regex_ref.index() as i64);

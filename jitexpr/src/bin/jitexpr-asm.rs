@@ -7,9 +7,10 @@
 use std::collections::HashMap;
 use std::io::{self, BufRead, Write};
 use std::process::ExitCode;
+use std::time::{Duration, Instant};
 
 use jitexpr::ast::{DeserializeError, InferredTypeSet, TypeError, deserialize, infer_types};
-use jitexpr::compile::{CompileError, compile_to_assembly};
+use jitexpr::compile::{CompileError, compile, compile_to_assembly};
 use jitexpr::types::VarType;
 
 #[derive(Debug, thiserror::Error)]
@@ -20,6 +21,11 @@ enum ExpressionError {
     Type(#[from] TypeError),
     #[error(transparent)]
     Compile(#[from] CompileError),
+}
+
+struct LineOutput {
+    assembly: String,
+    codegen_duration: Duration,
 }
 
 fn main() -> ExitCode {
@@ -52,12 +58,17 @@ fn process_lines(
         }
 
         match compile_line(&line) {
-            Ok(assembly) => {
+            Ok(line_output) => {
                 if wrote_assembly {
                     writeln!(output)?;
                 }
-                output.write_all(assembly.as_bytes())?;
-                if !assembly.ends_with('\n') {
+                writeln!(
+                    output,
+                    "Code generation time: {:?}",
+                    line_output.codegen_duration
+                )?;
+                output.write_all(line_output.assembly.as_bytes())?;
+                if !line_output.assembly.ends_with('\n') {
                     writeln!(output)?;
                 }
                 wrote_assembly = true;
@@ -72,14 +83,24 @@ fn process_lines(
     Ok(all_succeeded)
 }
 
-fn compile_line(line: &str) -> Result<String, ExpressionError> {
+fn compile_line(line: &str) -> Result<LineOutput, ExpressionError> {
     let expression = deserialize(line)?;
     let inferred_types = infer_types(&expression)?;
     let variable_types = inferred_types
         .into_iter()
         .map(|(name, inferred_type)| (name, concrete_type(inferred_type)))
         .collect::<HashMap<_, _>>();
-    Ok(compile_to_assembly(&expression, &variable_types)?)
+
+    let codegen_start = Instant::now();
+    let compiled_fn = compile(&expression, &variable_types)?;
+    let codegen_duration = codegen_start.elapsed();
+    drop(compiled_fn);
+
+    let assembly = compile_to_assembly(&expression, &variable_types)?;
+    Ok(LineOutput {
+        assembly,
+        codegen_duration,
+    })
 }
 
 fn concrete_type(inferred_type: InferredTypeSet) -> VarType {
@@ -108,10 +129,10 @@ mod tests {
 
     #[test]
     fn test_compile_line_infers_variable_type() {
-        let assembly = compile_line("(ADD 1i64 my_col)").unwrap();
+        let line_output = compile_line("(ADD 1i64 my_col)").unwrap();
 
-        assert!(assembly.contains("block0:"));
-        assert!(!assembly.trim().is_empty());
+        assert!(line_output.assembly.contains("block0:"));
+        assert!(!line_output.assembly.trim().is_empty());
     }
 
     #[test]
@@ -133,6 +154,7 @@ mod tests {
 
         assert!(!all_succeeded);
         let output = String::from_utf8(output).unwrap();
+        assert_eq!(output.matches("Code generation time:").count(), 2);
         assert_eq!(output.matches("block0:").count(), 2);
         assert!(String::from_utf8(errors).unwrap().contains("line 2:"));
     }

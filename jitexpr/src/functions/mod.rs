@@ -112,9 +112,11 @@ pub(crate) trait FnCall: std::fmt::Debug + Into<FnCallEnum> {
 
     /// Builds the typed call after concrete variable types have been supplied.
     ///
-    /// `target_type_set` communicates the result types preferred by the parent call. The
+    /// `target_type_set` communicates the result types set accepted by the parent call. The
     /// implementation selects a concrete result type, applies compatible target types to its
     /// arguments through `context`, and registers any compilation resources owned by the call.
+    ///
+    /// The type of the returned is given to the caller in the TypedExpr object.
     fn call_with_types(
         args: &[UntypedExpr],
         target_type_set: InferredTypeSet,
@@ -127,6 +129,8 @@ pub(crate) trait FnCall: std::fmt::Debug + Into<FnCallEnum> {
     ///
     /// This is only used, to assign and deduplicate variable input slots. Compile-time
     /// configuration stored directly on a call does not need to be returned.
+    ///
+    /// Today this is only used as a cheap visitor to allocate variable ids.
     fn args_mut(&mut self) -> &mut [TypedExpr];
 
     /// Emits Cranelift IR for an already typed call and returns its result SSA value.
