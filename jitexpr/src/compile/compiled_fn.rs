@@ -7,7 +7,17 @@ use regex::Regex;
 use super::{TypedExpr, TypedVariable};
 use crate::types::{StringRef, VarType, VariableOpt};
 
-pub(crate) type JitEntry = unsafe extern "C" fn(*const VariableOpt, *mut VariableOpt, *const Regex);
+#[cfg(not(any(
+    all(target_arch = "x86_64", not(target_os = "windows")),
+    target_arch = "aarch64"
+)))]
+compile_error!(
+    "the direct VariableOpt JIT return ABI is only implemented for x86-64 System V and AArch64"
+);
+
+// On the supported targets, VariableOpt's two eightbytes are returned in two
+// integer registers by the platform C ABI.
+pub(crate) type JitEntry = unsafe extern "C" fn(*const VariableOpt, *const Regex) -> VariableOpt;
 
 /// An expression compiled to native machine code.
 ///
@@ -47,9 +57,7 @@ impl CompiledFn {
     /// remains valid until the next call to this `CompiledFn`.
     pub unsafe fn call(&self, args: &[VariableOpt]) -> VariableOpt {
         debug_assert_eq!(args.len(), self.inputs.len());
-        let mut result = VariableOpt::default();
         // SAFETY: Guaranteed by the caller.
-        unsafe { (self.entry)(args.as_ptr(), &mut result, self.regexes.as_ptr()) };
-        result
+        unsafe { (self.entry)(args.as_ptr(), self.regexes.as_ptr()) }
     }
 }

@@ -17,7 +17,7 @@ use super::{
 };
 use crate::ast::{InferredTypeSet, Literal, UntypedExpr};
 use crate::functions::{declare_native_functions, register_jit_symbols};
-use crate::types::{StringRef, VarType, VariableOpt};
+use crate::types::{StringRef, VarType};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) struct RegexRef(usize);
@@ -232,12 +232,14 @@ impl<'types, 'names> CompileFnBuilder<'types, 'names> {
         let target_config = module.target_config();
         let pointer_type = target_config.pointer_type();
 
-        // The native entry point mirrors JitEntry: the first two arguments are the
-        // input and output slots, and the third points to CompiledFn::regexes.
+        // The native entry point mirrors JitEntry: the two arguments point to the
+        // input slots and CompiledFn::regexes. VariableOpt is returned as two
+        // integer-class values according to the native C ABI.
         let mut signature = module.make_signature();
         signature.params.push(AbiParam::new(pointer_type));
         signature.params.push(AbiParam::new(pointer_type));
-        signature.params.push(AbiParam::new(pointer_type));
+        signature.returns.push(AbiParam::new(types::I64));
+        signature.returns.push(AbiParam::new(types::I8));
         let function_id = module.declare_anonymous_function(&signature)?;
 
         let mut context = module.make_context();
@@ -256,8 +258,7 @@ impl<'types, 'names> CompileFnBuilder<'types, 'names> {
             builder.seal_block(entry_block);
 
             let args_ptr = builder.block_params(entry_block)[0];
-            let result_ptr = builder.block_params(entry_block)[1];
-            let regexes_ptr = builder.block_params(entry_block)[2];
+            let regexes_ptr = builder.block_params(entry_block)[1];
             let mut lowering_context = LoweringContext {
                 args_ptr,
                 regexes_ptr,
@@ -266,19 +267,16 @@ impl<'types, 'names> CompileFnBuilder<'types, 'names> {
                 native_functions: &native_functions,
             };
             let lowered = lowering_context.compile_expr(&expression, &mut builder)?;
-            builder.ins().store(
-                MemFlagsData::trusted(),
-                lowered.value,
-                result_ptr,
-                std::mem::offset_of!(VariableOpt, value) as i32,
-            );
-            builder.ins().store(
-                MemFlagsData::trusted(),
-                lowered.is_present,
-                result_ptr,
-                std::mem::offset_of!(VariableOpt, is_present) as i32,
-            );
-            builder.ins().return_(&[]);
+            let value_bits = match expression.return_type {
+                VarType::Bool => builder.ins().uextend(types::I64, lowered.value),
+                VarType::F64 => {
+                    builder
+                        .ins()
+                        .bitcast(types::I64, MemFlagsData::new(), lowered.value)
+                }
+                VarType::U64 | VarType::I64 | VarType::Str | VarType::None => lowered.value,
+            };
+            builder.ins().return_(&[value_bits, lowered.is_present]);
             builder.finalize(target_config);
         }
 
@@ -494,5 +492,28 @@ mod tests {
         assert_eq!(var_args[1].variable_name.as_ref(), "y");
         assert_eq!(var_args[1].r#type, VarType::U64);
         assert_eq!(var_args[1].variable_id, 1);
+    }
+
+    #[test]
+    fn test_jit_entry_returns_variable_opt_as_two_abi_values() {
+        let variable_types = HashMap::new();
+        let mut builder = CompileFnBuilder::new(&variable_types);
+        let expression = builder
+            .build_typed_expr(&UntypedExpr::literal(1u64))
+            .unwrap();
+
+        let lowered = builder.lower_typed_expr(expression).unwrap();
+        let signature = &lowered.context.func.signature;
+
+        assert_eq!(signature.params.len(), 2);
+        assert!(
+            signature
+                .params
+                .iter()
+                .all(|param| param.value_type == types::I64)
+        );
+        assert_eq!(signature.returns.len(), 2);
+        assert_eq!(signature.returns[0].value_type, types::I64);
+        assert_eq!(signature.returns[1].value_type, types::I8);
     }
 }
