@@ -7,8 +7,6 @@ pub enum CompileError {
     TypeInference(#[from] TypeError),
     #[error("JIT compilation failed: {0}")]
     Module(#[source] Box<cranelift_module::ModuleError>),
-    #[error("input variable {variable_id} has an address offset that is too large")]
-    InputOffsetOverflow { variable_id: usize },
     #[error("cannot coerce an expression from {from_type:?} to {target:?}")]
     UnsupportedCoercion { from_type: VarType, target: VarType },
     #[error("cannot compile {function:?} with result type {return_type:?}")]

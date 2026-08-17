@@ -5,7 +5,6 @@ mod typed_expr;
 
 use std::cell::UnsafeCell;
 use std::collections::HashMap;
-use std::mem::size_of;
 
 pub(crate) use compile_fn_builder::{CompileFnBuilder, RegexRef};
 pub use compiled_fn::CompiledFn;
@@ -55,13 +54,8 @@ impl LoweringContext<'_> {
         match &expression.ast {
             TypedExprAst::Literal(literal) => Ok(lower_literal(literal, self, builder)),
             TypedExprAst::Variable(variable) => {
-                let byte_offset = variable
-                    .variable_id
-                    .checked_mul(size_of::<VariableValue>())
-                    .and_then(|offset| i32::try_from(offset).ok())
-                    .ok_or(CompileError::InputOffsetOverflow {
-                        variable_id: variable.variable_id,
-                    })?;
+                let byte_offset =
+                    (variable.variable_id * std::mem::size_of::<VariableValue>()) as i32;
                 Ok(builder.ins().load(
                     cranelift_type(variable.r#type, self.pointer_type),
                     MemFlagsData::trusted(),

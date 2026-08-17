@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use columnar::{Column, ColumnType, DynamicColumn, StrColumn};
+use columnar::{ColumnType, DynamicColumn};
 use jitexpr::ast::{infer_types_with_target, InferredTypeSet, TypeError, UntypedExpr};
 use jitexpr::compile::{compile, CompiledFn};
 use jitexpr::types::{StringRef, VarType, VariableValue};
@@ -64,7 +64,13 @@ impl Weight for CalculatedPredicateWeight {
 
         for (name, accepted_types) in &self.inferred_inputs {
             if let Some(column) = open_input_column(reader, name, *accepted_types)? {
-                variable_types.insert(name.as_str(), column.var_type());
+                let var_type = var_type_for_column_type(column.column_type()).ok_or_else(|| {
+                    TantivyError::InternalError(format!(
+                        "unsupported calculated-predicate column type {}",
+                        column.column_type()
+                    ))
+                })?;
+                variable_types.insert(name.as_str(), var_type);
                 opened_columns.insert(name.clone(), column);
             }
         }
@@ -91,12 +97,16 @@ impl Weight for CalculatedPredicateWeight {
                         input.variable_name
                     ))
                 })?;
-            if column.var_type() != input.r#type {
+            let column_type = var_type_for_column_type(column.column_type()).ok_or_else(|| {
+                TantivyError::InternalError(format!(
+                    "unsupported calculated-predicate column type {}",
+                    column.column_type()
+                ))
+            })?;
+            if column_type != input.r#type {
                 return Err(TantivyError::InternalError(format!(
                     "compiled input `{}` expects {:?}, but its column has type {:?}",
-                    input.variable_name,
-                    input.r#type,
-                    column.var_type()
+                    input.variable_name, input.r#type, column_type
                 )));
             }
             columns.push(column);
@@ -123,7 +133,7 @@ fn open_input_column(
     reader: &SegmentReader,
     name: &str,
     accepted_types: InferredTypeSet,
-) -> crate::Result<Option<InputColumn>> {
+) -> crate::Result<Option<DynamicColumn>> {
     let handles = reader.fast_fields().dynamic_column_handles(name)?;
     for handle in handles {
         let Some(var_type) = var_type_for_column_type(handle.column_type()) else {
@@ -132,9 +142,7 @@ fn open_input_column(
         if !accepted_types.contains(var_type) {
             continue;
         }
-        let dynamic_column = handle.open()?;
-        let input_column = InputColumn::from_dynamic(dynamic_column);
-        Ok(Some(input_column))
+        return Ok(Some(handle.open()?));
     }
     Ok(None)
 }
@@ -150,119 +158,53 @@ fn var_type_for_column_type(column_type: ColumnType) -> Option<VarType> {
     }
 }
 
-enum InputColumn {
-    Bool(Column<bool>),
-    I64(Column<i64>),
-    U64(Column<u64>),
-    F64(Column<f64>),
-    Str {
-        column: StrColumn,
-        value: String,
-        value_ref: Box<StringRef>,
-    },
+struct StringInput {
+    value: String,
+    value_ref: Box<StringRef>,
 }
 
-impl InputColumn {
-    fn from_dynamic(column: DynamicColumn) -> crate::Result<Self> {
-        match column {
-            DynamicColumn::Bool(column) => Ok(Self::Bool(column)),
-            DynamicColumn::I64(column) => Ok(Self::I64(column)),
-            DynamicColumn::U64(column) => Ok(Self::U64(column)),
-            DynamicColumn::F64(column) => Ok(Self::F64(column)),
-            DynamicColumn::Str(column) => Ok(Self::Str {
-                column,
-                value: String::new(),
-                value_ref: Box::new(StringRef::new("")),
-            }),
-            column => Err(TantivyError::InternalError(format!(
-                "unsupported calculated-predicate column type {}",
-                column.column_type()
-            ))),
+impl StringInput {
+    fn new() -> Self {
+        Self {
+            value: String::new(),
+            value_ref: Box::new(StringRef::new("")),
         }
-    }
-
-    fn var_type(&self) -> VarType {
-        match self {
-            InputColumn::Bool(_) => VarType::Bool,
-            InputColumn::I64(_) => VarType::I64,
-            InputColumn::U64(_) => VarType::U64,
-            InputColumn::F64(_) => VarType::F64,
-            InputColumn::Str { .. } => VarType::Str,
-        }
-    }
-
-    fn populate(&mut self, doc: DocId, input_value: &mut VariableValue) -> bool {
-        match self {
-            InputColumn::Bool(column) => {
-                let Some(value) = column.first(doc) else {
-                    return false;
-                };
-                *input_value = VariableValue { boolean: value };
-            }
-            InputColumn::I64(column) => {
-                let Some(value) = column.first(doc) else {
-                    return false;
-                };
-                *input_value = VariableValue { int_i64: value };
-            }
-            InputColumn::U64(column) => {
-                let Some(value) = column.first(doc) else {
-                    return false;
-                };
-                *input_value = VariableValue { int_u64: value };
-            }
-            InputColumn::F64(column) => {
-                let Some(value) = column.first(doc) else {
-                    return false;
-                };
-                *input_value = VariableValue { float: value };
-            }
-            InputColumn::Str {
-                column,
-                value,
-                value_ref,
-            } => {
-                let Some(term_ord) = column.ords().first(doc) else {
-                    return false;
-                };
-                value.clear();
-                let found = column
-                    .ord_to_str(term_ord, value)
-                    .expect("a fast-field string dictionary became unreadable after opening");
-                if !found {
-                    return false;
-                }
-                **value_ref = StringRef::new(value);
-                *input_value = VariableValue {
-                    string: value_ref.as_mut(),
-                };
-            }
-        }
-        true
     }
 }
 
 struct CalculatedPredicateScorer {
     compiled: CompiledFn,
-    columns: Vec<InputColumn>,
+    columns: Vec<DynamicColumn>,
+    string_inputs: Vec<StringInput>,
     input_values: Vec<VariableValue>,
     doc: DocId,
     max_doc: DocId,
     score: Score,
 }
 
-// SAFETY: Every pointer stored in `input_values` points to a boxed `StringRef`
-// owned by the corresponding entry in `columns`. The boxes and all resources
+// SAFETY: Every string pointer stored in `input_values` points to a boxed
+// `StringRef` owned by `string_inputs`. The boxes and all resources
 // referenced by `compiled` remain alive when the scorer is moved. `DocSet`
 // access requires `&mut self`, so evaluation cannot happen concurrently.
 unsafe impl Send for CalculatedPredicateScorer {}
 
 impl CalculatedPredicateScorer {
-    fn new(compiled: CompiledFn, columns: Vec<InputColumn>, max_doc: DocId, score: Score) -> Self {
+    fn new(
+        compiled: CompiledFn,
+        columns: Vec<DynamicColumn>,
+        max_doc: DocId,
+        score: Score,
+    ) -> Self {
         let input_values = vec![VariableValue::default(); columns.len()];
+        let string_inputs = columns
+            .iter()
+            .filter(|column| matches!(column, DynamicColumn::Str(_)))
+            .map(|_| StringInput::new())
+            .collect();
         let mut scorer = Self {
             compiled,
             columns,
+            string_inputs,
             input_values,
             doc: 0,
             max_doc,
@@ -270,6 +212,61 @@ impl CalculatedPredicateScorer {
         };
         scorer.doc = scorer.find_match(0);
         scorer
+    }
+
+    fn populate_inputs(&mut self, doc: DocId) -> bool {
+        let mut string_inputs = self.string_inputs.iter_mut();
+        for (column, input_value) in self.columns.iter().zip(&mut self.input_values) {
+            match column {
+                DynamicColumn::Bool(column) => {
+                    let Some(value) = column.first(doc) else {
+                        return false;
+                    };
+                    *input_value = VariableValue { boolean: value };
+                }
+                DynamicColumn::I64(column) => {
+                    let Some(value) = column.first(doc) else {
+                        return false;
+                    };
+                    *input_value = VariableValue { int_i64: value };
+                }
+                DynamicColumn::U64(column) => {
+                    let Some(value) = column.first(doc) else {
+                        return false;
+                    };
+                    *input_value = VariableValue { int_u64: value };
+                }
+                DynamicColumn::F64(column) => {
+                    let Some(value) = column.first(doc) else {
+                        return false;
+                    };
+                    *input_value = VariableValue { float: value };
+                }
+                DynamicColumn::Str(column) => {
+                    let Some(string_input) = string_inputs.next() else {
+                        unreachable!("every string column has a string input buffer");
+                    };
+                    let Some(term_ord) = column.ords().first(doc) else {
+                        return false;
+                    };
+                    string_input.value.clear();
+                    let found = column
+                        .ord_to_str(term_ord, &mut string_input.value)
+                        .expect("a fast-field string dictionary became unreadable after opening");
+                    if !found {
+                        return false;
+                    }
+                    *string_input.value_ref = StringRef::new(&string_input.value);
+                    *input_value = VariableValue {
+                        string: string_input.value_ref.as_mut(),
+                    };
+                }
+                DynamicColumn::Bytes(_) | DynamicColumn::IpAddr(_) | DynamicColumn::DateTime(_) => {
+                    unreachable!("unsupported columns are filtered before compilation")
+                }
+            }
+        }
+        true
     }
 
     fn find_match(&mut self, mut target: DocId) -> DocId {
@@ -310,10 +307,10 @@ impl DocSet for CalculatedPredicateScorer {
             return SeekDangerResult::SeekLowerBound(TERMINATED);
         }
 
-        for (column, input_value) in self.columns.iter_mut().zip(&mut self.input_values) {
-            if !column.populate(target, input_value) {
-                return SeekDangerResult::SeekLowerBound(target + 1);
-            }
+        // TODO: fix me. With predicate,it is actually often acceptable to have Null populated here.
+        //
+        if !self.populate_inputs(target) {
+            return SeekDangerResult::SeekLowerBound(target + 1);
         }
         let mut result = VariableValue { boolean: false };
         // SAFETY: `columns` and `input_values` were built in `compiled.inputs`

@@ -10,3 +10,26 @@ grok parsing rules. That means they typically have more groups than actually nec
 For that iteration at least, we embrace the "event query" way and deal with all REGEXP_EXTRACT calls as if they were independent and do not compute
 them jointly for optimization. Still, we should make sure we remove the needless groups before compiling the regex.
 - cache compilation (column types should be part of the cache key)
+- calculated predicate scorer intiialization.
+
+
+==========================
+* protobuf conversion to untypedexpr 
+
+* building query object -(pomsky)-> query ast (quickwit) -(quickwit)-> tantivy query 
+
+* populate warmup info
+
+* integration of expr into aggregation
+  * rewrite query over calculated field as predicate
+
+* implement fetch one
+  * fetch one UI subtlety risk:!? there might be some subtlety we are missing here. calculated fields seem to be loaded in a second time. I expect
+this is just an extra projection parameter we can just ignore.
+
+* expression computation:
+  * handle null
+  * add functions
+  * handle string arena
+
+* implement the plain string column format
