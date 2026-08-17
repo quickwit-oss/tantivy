@@ -1,4 +1,5 @@
 mod add;
+mod eq;
 mod native_function;
 mod regexp_extract;
 
@@ -7,6 +8,7 @@ use std::collections::HashMap;
 use cranelift::frontend::FunctionBuilder;
 
 pub(crate) use self::add::AddFnCall;
+pub(crate) use self::eq::EqFnCall;
 pub(crate) use self::native_function::{
     NativeFunctions, declare_native_functions, register_jit_symbols,
 };
@@ -20,6 +22,8 @@ use crate::types::VarType;
 pub enum Function {
     /// Adds zero or more numerical expressions.
     Add,
+    /// Compares two expressions for value equality.
+    Eq,
     /// Extracts a capture group from a string using a constant regular expression.
     RegexpExtract,
 }
@@ -33,6 +37,7 @@ impl Function {
     ) -> Result<TypedExpr, CompileError> {
         match self {
             Function::Add => <AddFnCall as FnCall>::call_with_types(args, target_type_set, context),
+            Function::Eq => <EqFnCall as FnCall>::call_with_types(args, target_type_set, context),
             Function::RegexpExtract => {
                 <RegexpExtractFnCall as FnCall>::call_with_types(args, target_type_set, context)
             }
@@ -47,6 +52,7 @@ impl Function {
     ) -> Result<InferredTypeSet, TypeError> {
         match self {
             Function::Add => <AddFnCall as FnCall>::infer_types(args, target_type, inferred_types),
+            Function::Eq => <EqFnCall as FnCall>::infer_types(args, target_type, inferred_types),
             Function::RegexpExtract => {
                 <RegexpExtractFnCall as FnCall>::infer_types(args, target_type, inferred_types)
             }
@@ -64,6 +70,7 @@ impl Function {
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) enum FnCallEnum {
     Add(AddFnCall),
+    Eq(EqFnCall),
     RegexpExtract(RegexpExtractFnCall),
 }
 
@@ -71,6 +78,7 @@ impl FnCallEnum {
     pub(crate) fn args_mut(&mut self) -> &mut [TypedExpr] {
         match self {
             FnCallEnum::Add(call) => call.args_mut(),
+            FnCallEnum::Eq(call) => call.args_mut(),
             FnCallEnum::RegexpExtract(call) => call.args_mut(),
         }
     }
@@ -84,6 +92,7 @@ impl FnCallEnum {
     ) -> Result<cranelift::codegen::ir::Value, CompileError> {
         match self {
             FnCallEnum::Add(call) => call.emit_cranelift_ir(return_type, context, builder),
+            FnCallEnum::Eq(call) => call.emit_cranelift_ir(return_type, context, builder),
             FnCallEnum::RegexpExtract(call) => {
                 call.emit_cranelift_ir(return_type, context, builder)
             }

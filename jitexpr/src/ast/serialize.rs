@@ -119,6 +119,7 @@ fn format_string(value: &str, formatter: &mut fmt::Formatter<'_>) -> fmt::Result
 fn function_name(function: Function) -> &'static str {
     match function {
         Function::Add => "ADD",
+        Function::Eq => "EQ",
         Function::RegexpExtract => "REGEXP_EXTRACT",
     }
 }
@@ -126,6 +127,7 @@ fn function_name(function: Function) -> &'static str {
 fn parse_function(name: &str, offset: usize) -> Result<Function, DeserializeError> {
     match name {
         "ADD" => Ok(Function::Add),
+        "EQ" => Ok(Function::Eq),
         "REGEXP_EXTRACT" => Ok(Function::RegexpExtract),
         _ if !is_function_name(name) => Err(DeserializeError::new(
             offset,
@@ -407,6 +409,15 @@ mod tests {
         assert_eq!(serialize(&expr), "(ADD 1i64 my_col)");
         assert_eq!(format!("{expr}"), "(ADD 1i64 my_col)");
         assert_eq!(format!("{expr:?}"), "(ADD 1i64 my_col)");
+    }
+
+    #[test]
+    fn test_eq_round_trip() {
+        let expr = Function::Eq
+            .call_untyped_expr(vec![UntypedExpr::literal(1u64), UntypedExpr::literal(1i64)]);
+
+        assert_eq!(serialize(&expr), "(EQ 1u64 1i64)");
+        assert_eq!(deserialize("(EQ 1u64 1i64)").unwrap(), expr);
     }
 
     #[test]
