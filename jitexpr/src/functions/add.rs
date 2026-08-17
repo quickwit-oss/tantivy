@@ -4,9 +4,14 @@
 // We consider the possible types of all arguments, make an intersection of those, and
 // pick the first available type with the order of priority i64, u64, f64.
 //
-// For instance (ADD mycol 1f64) where mycol is i64 will actually automatically coerce
-// 1f64 to 1i64 (because we have detected that the conversion was lossless), and the operation will
-// run over integer.
+// For instance (ADD mycol 1f64) where mycol is i64 will coerce
+// 1f64 to 1i64 at compile time (because we have detected that the conversion was lossless), and the
+// operation will run over integer.
+//
+// On the other hand, (ADD mycol 1.2f64) where mycol is i64 will coerce
+// mycol to float dynamically (because 1.2f64 cannot be converted to u64 with loss).
+//
+// If any of the values of the arguments is NaN, the function return NaN.
 
 use std::collections::HashMap;
 
@@ -170,9 +175,7 @@ mod tests {
             UntypedExpr::literal(1.0),
             UntypedExpr::literal("hello"),
         ]);
-
         let error = infer_types(&expr).unwrap_err();
-
         assert!(matches!(
             error,
             TypeError::InvalidLiteralType {
@@ -186,9 +189,7 @@ mod tests {
     fn test_infer_types_constrains_variables_to_numerical() {
         let expr = Function::Add
             .call_untyped_expr(vec![UntypedExpr::variable("a"), UntypedExpr::variable("b")]);
-
         let inferred_types = infer_types(&expr).unwrap();
-
         assert_eq!(inferred_types.get("a"), Some(&InferredTypeSet::NUMERICAL));
         assert_eq!(inferred_types.get("b"), Some(&InferredTypeSet::NUMERICAL));
     }
@@ -197,7 +198,6 @@ mod tests {
     fn test_call_with_types_preserves_u64() {
         let variable_types = HashMap::from([("present", VarType::U64)]);
         let typed_expr = crate::typed_expr_from_str("(ADD present 1u64)", &variable_types);
-
         assert_eq!(typed_expr.return_type, VarType::U64);
         assert_eq!(
             typed_expr,
@@ -473,10 +473,8 @@ mod tests {
 
         let expression = Function::Add.call_untyped_expr(Vec::new());
         let compiled = compile(&expression, &HashMap::new()).unwrap();
-        let mut output = VariableOpt::some(1i64);
-
+        let mut output = VariableOpt::default();
         unsafe { compiled.call(&[], &mut output) };
-
         assert_eq!(unsafe { output.as_i64() }, Some(0));
     }
 
