@@ -51,7 +51,7 @@ excluded from this pass, or is complex enough to warrant a separate implementati
 | 35 | `SQRT` | out-of-scope |
 | 38 | `MIN` | done |
 | 39 | `MAX` | done |
-| 40 | `LEFT` | pending |
+| 40 | `LEFT` | out-of-scope |
 | 41 | `RIGHT` | pending |
 | 42 | `SUBSTRING` | pending |
 | 43 | `SPLIT_BEFORE` | pending |
@@ -76,7 +76,7 @@ excluded from this pass, or is complex enough to warrant a separate implementati
 | 79 | `SUBSTRING_COUNT` | pending |
 | 80 | `REGEXP_LIKE` | pending |
 
-Progress: **25 / 41 in-scope** functions implemented; **14** functions are out-of-scope.
+Progress: **25 / 40 in-scope** functions implemented; **15** functions are out-of-scope.
 
 ## Deferred implementation notes
 
@@ -102,3 +102,6 @@ Progress: **25 / 41 in-scope** functions implemented; **14** functions are out-o
 - `SQRT` has a contradictory production type contract: the dd-go type checker returns the selected
   input type (including integer), while the registry declares a `float64` output and both integer
   and float kernels write `float64`. It is deferred until one of those contracts is chosen.
+- `LEFT` counts raw UTF-8 bytes and may split a code point. Representing its exact output as
+  jitexpr's valid Rust `str` would be unsound, while rounding to a character boundary would diverge
+  from production.
