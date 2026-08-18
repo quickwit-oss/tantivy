@@ -7,6 +7,9 @@ use super::ColumnValues;
 use super::line::Line;
 use crate::RowId;
 use crate::column_values::VecColumn;
+use crate::column_values::u64_based::block_decode::{
+    BLOCK_LEN, BlockDecode, DecodeCost, decode_block, min_batch_rows, partial_block_min_rows,
+};
 use crate::column_values::u64_based::{ColumnCodec, ColumnCodecEstimator, ColumnStats};
 
 const HALF_SPACE: u64 = u64::MAX / 2;
@@ -19,6 +22,31 @@ pub struct LinearReader {
     data: OwnedBytes,
     linear_params: LinearParams,
     stats: ColumnStats,
+    /// See `BitpackedReader::partial_min_rows`: one stream-wide bit width.
+    partial_min_rows: usize,
+}
+
+impl BlockDecode for LinearReader {
+    fn num_full_blocks(&self) -> usize {
+        self.stats.num_rows as usize / BLOCK_LEN
+    }
+
+    #[inline]
+    fn partial_min_rows(&self, _block_idx: usize) -> usize {
+        self.partial_min_rows
+    }
+
+    #[inline]
+    fn decode_block_mapped(&self, block_idx: usize, out: &mut [u64; BLOCK_LEN]) {
+        let bit_width = self.linear_params.bit_unpacker.bit_width();
+        let byte_offset = block_idx * BLOCK_LEN * bit_width as usize / 8;
+        decode_block(bit_width, &self.data[byte_offset..], out);
+        let base = (block_idx * BLOCK_LEN) as u32;
+        let line = self.linear_params.line;
+        for (i, o) in out.iter_mut().enumerate() {
+            *o = line.eval(base + i as u32).wrapping_add(*o);
+        }
+    }
 }
 
 impl ColumnValues for LinearReader {
@@ -27,6 +55,20 @@ impl ColumnValues for LinearReader {
         let interpoled_val: u64 = self.linear_params.line.eval(doc);
         let bitpacked_diff = self.linear_params.bit_unpacker.get(doc, &self.data);
         interpoled_val.wrapping_add(bitpacked_diff)
+    }
+
+    #[inline]
+    fn get_range(&self, start: u64, output: &mut [u64]) {
+        self.decode_range(start, output);
+    }
+
+    // No `get_row_ids_for_value_range` override on purpose: this codec's
+    // `get_val` is a line eval plus one load/shift/mask on a single flat
+    // stream, cheap enough that batching the filter measured slower.
+
+    #[inline]
+    fn min_batch_rows(&self) -> usize {
+        min_batch_rows(DecodeCost::Flat)
     }
 
     #[inline(always)]
@@ -193,7 +235,9 @@ impl ColumnCodec for LinearCodec {
     fn load(mut data: OwnedBytes) -> io::Result<Self::ColumnValues> {
         let stats = ColumnStats::deserialize(&mut data)?;
         let linear_params = LinearParams::deserialize(&mut data)?;
+        let bit_width = linear_params.bit_unpacker.bit_width();
         Ok(LinearReader {
+            partial_min_rows: partial_block_min_rows(bit_width),
             stats,
             linear_params,
             data,

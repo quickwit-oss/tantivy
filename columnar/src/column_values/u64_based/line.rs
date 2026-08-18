@@ -122,6 +122,20 @@ impl Line {
         line
     }
 
+    /// Same as [`Line::train`], for values already materialized in a slice:
+    /// avoids the boxed iterator per pass the `&dyn ColumnValues` form pays.
+    pub fn train_slice(ys: &[u64]) -> Self {
+        let (Some(&first_val), Some(&last_val)) = (ys.first(), ys.last()) else {
+            return Line::default();
+        };
+        Self::train_from(
+            first_val,
+            last_val,
+            ys.len() as u32,
+            ys.iter().enumerate().map(|(pos, &val)| (pos as u64, val)),
+        )
+    }
+
     /// Returns a line that attempts to approximate a function
     /// f: i in 0..[ys.num_vals()) -> ys[i].
     ///

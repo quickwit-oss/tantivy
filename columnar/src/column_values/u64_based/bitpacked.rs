@@ -6,6 +6,9 @@ use common::{BinarySerializable, OwnedBytes};
 use fastdivide::DividerU64;
 use tantivy_bitpacker::{BitPacker, BitUnpacker, compute_num_bits};
 
+use crate::column_values::u64_based::block_decode::{
+    BLOCK_LEN, BlockDecode, DecodeCost, decode_block, min_batch_rows, partial_block_min_rows,
+};
 use crate::column_values::u64_based::{ColumnCodec, ColumnCodecEstimator, ColumnStats};
 use crate::{ColumnValues, RowId};
 
@@ -16,6 +19,9 @@ pub struct BitpackedReader {
     data: OwnedBytes,
     bit_unpacker: BitUnpacker,
     stats: ColumnStats,
+    /// One stream-wide bit width, so this is fixed for the column and
+    /// resolved at load time (see `BlockDecode::partial_min_rows`).
+    partial_min_rows: usize,
 }
 
 #[inline(always)]
@@ -48,19 +54,57 @@ fn transform_range_before_linear_transformation(
     Some(start_before_gcd_multiplication..=end_before_gcd_multiplication)
 }
 
+impl BlockDecode for BitpackedReader {
+    fn num_full_blocks(&self) -> usize {
+        self.stats.num_rows as usize / BLOCK_LEN
+    }
+
+    fn partial_min_rows(&self, _block_idx: usize) -> usize {
+        self.partial_min_rows
+    }
+
+    #[inline]
+    fn decode_block_mapped(&self, block_idx: usize, out: &mut [u64; BLOCK_LEN]) {
+        let bit_width = self.bit_unpacker.bit_width();
+        let byte_offset = block_idx * BLOCK_LEN * bit_width as usize / 8;
+        decode_block(bit_width, &self.data[byte_offset..], out);
+        let (min_value, gcd) = (self.stats.min_value, self.stats.gcd.get());
+        if gcd == 1 {
+            for o in out.iter_mut() {
+                *o += min_value;
+            }
+        } else {
+            for o in out.iter_mut() {
+                *o = min_value + gcd * *o;
+            }
+        }
+    }
+}
+
 impl ColumnValues for BitpackedReader {
     #[inline(always)]
     fn get_val(&self, doc: u32) -> u64 {
         self.stats.min_value + self.stats.gcd.get() * self.bit_unpacker.get(doc, &self.data)
     }
+
+    fn get_range(&self, start: u64, output: &mut [u64]) {
+        self.decode_range(start, output);
+    }
+
+    fn min_batch_rows(&self) -> usize {
+        min_batch_rows(DecodeCost::Flat)
+    }
+
     #[inline]
     fn min_value(&self) -> u64 {
         self.stats.min_value
     }
+
     #[inline]
     fn max_value(&self) -> u64 {
         self.stats.max_value
     }
+
     #[inline]
     fn num_vals(&self) -> RowId {
         self.stats.num_rows
@@ -132,6 +176,7 @@ impl ColumnCodec for BitpackedCodec {
         let num_bits = num_bits(&stats);
         let bit_unpacker = BitUnpacker::new(num_bits);
         Ok(BitpackedReader {
+            partial_min_rows: partial_block_min_rows(bit_unpacker.bit_width()),
             data,
             bit_unpacker,
             stats,
@@ -162,6 +207,125 @@ mod tests {
             data.reverse();
             create_and_validate::<BitpackedCodec>(&data, name);
         }
+    }
+
+    /// Every bit width, every offset class: batch `get_range` and `iter` must
+    /// agree with the per-value `get_val` they replace.
+    #[test]
+    fn test_bitpacked_batch_decode_all_widths() {
+        for w in 0..=64u32 {
+            let max = if w == 64 { u64::MAX } else { (1u64 << w) - 1 };
+            // Lengths around block boundaries: no full block, exact multiples,
+            // and partial trailing blocks.
+            for num_vals in [1usize, 127, 128, 129, 255, 256, 300, 512, 517] {
+                let vals: Vec<u64> = (0..num_vals as u64)
+                    .map(|i| i.wrapping_mul(0x9E3779B97F4A7C15) & max)
+                    .collect();
+                let mut buffer = Vec::new();
+                let stats = {
+                    let mut collector = crate::column_values::u64_based::StatsCollector::default();
+                    for &v in &vals {
+                        collector.collect(v);
+                    }
+                    collector.stats()
+                };
+                BitpackedCodecEstimator
+                    .serialize(&stats, &mut vals.iter().copied(), &mut buffer)
+                    .unwrap();
+                let reader = BitpackedCodec::load(OwnedBytes::new(buffer)).unwrap();
+
+                let mut out = vec![0u64; num_vals];
+                reader.get_range(0, &mut out);
+                assert_eq!(out, vals, "get_range(0) w={w} n={num_vals}");
+
+                // Every start offset in the first two blocks plus the tail,
+                // so the entrance ramp and the partial-block exit both run.
+                for &start in &[1usize, 7, 63, 127, 128, 129, 200] {
+                    if start >= num_vals {
+                        continue;
+                    }
+                    let mut out = vec![0u64; num_vals - start];
+                    reader.get_range(start as u64, &mut out);
+                    assert_eq!(out, vals[start..], "get_range({start}) w={w} n={num_vals}");
+                    // Short ranges that end inside a full block.
+                    let short = (num_vals - start).min(5);
+                    let mut out = vec![0u64; short];
+                    reader.get_range(start as u64, &mut out);
+                    assert_eq!(
+                        out,
+                        vals[start..start + short],
+                        "get_range({start}, {short}) w={w} n={num_vals}"
+                    );
+                }
+            }
+        }
+    }
+
+    /// The gcd transformation must survive the batch path, including the
+    /// trailing partial block that stays per-value.
+    #[test]
+    fn test_bitpacked_batch_decode_gcd() {
+        let vals: Vec<u64> = (0..1000u64).map(|i| 5_000 + i * 1_000).collect();
+        let mut buffer = Vec::new();
+        let stats = {
+            let mut collector = crate::column_values::u64_based::StatsCollector::default();
+            for &v in &vals {
+                collector.collect(v);
+            }
+            collector.stats()
+        };
+        assert!(stats.gcd.get() > 1, "test needs a gcd column");
+        BitpackedCodecEstimator
+            .serialize(&stats, &mut vals.iter().copied(), &mut buffer)
+            .unwrap();
+        let reader = BitpackedCodec::load(OwnedBytes::new(buffer)).unwrap();
+        let mut out = vec![0u64; vals.len()];
+        reader.get_range(0, &mut out);
+        assert_eq!(out, vals);
+        // A range that starts in a full block and ends in the partial one.
+        let mut out = vec![0u64; vals.len() - 900];
+        reader.get_range(900, &mut out);
+        assert_eq!(out, vals[900..]);
+    }
+
+    /// The monotonic wrapper forwards `get_range` on two paths (in-place when
+    /// the mapping is type-preserving, buffered otherwise). Exercise both
+    /// through the public load path.
+    #[test]
+    fn test_bitpacked_wrapped_get_range() {
+        use crate::column_values::{
+            CodecType, load_u64_based_column_values, serialize_u64_based_column_values,
+        };
+
+        let vals: Vec<u64> = (0..5000u64).map(|i| i * 3 + (i % 17)).collect();
+        let mut buffer = Vec::new();
+        serialize_u64_based_column_values(&&vals[..], &[CodecType::Bitpacked], &mut buffer)
+            .unwrap();
+        let col = load_u64_based_column_values::<u64>(OwnedBytes::new(buffer)).unwrap();
+        let mut out = vec![0u64; 3000];
+        col.get_range(137, &mut out);
+        assert_eq!(&vals[137..137 + 3000], &out[..]);
+        let mut out = vec![0u64; 5000];
+        col.get_range(0, &mut out);
+        assert_eq!(&vals[..], &out[..]);
+        // Ends inside the trailing partial block.
+        let mut out = vec![0u64; 200];
+        col.get_range(4800, &mut out);
+        assert_eq!(&vals[4800..], &out[..]);
+        // Short ranges go through the fused per-value path.
+        let mut out = vec![0u64; 5];
+        col.get_range(4990, &mut out);
+        assert_eq!(&vals[4990..4995], &out[..]);
+
+        // f64 takes the buffered path (Input u64 != Output f64).
+        let vals: Vec<f64> = (0..3000u64).map(|i| (i as f64) * 0.25 - 100.0).collect();
+        let mut buffer = Vec::new();
+        serialize_u64_based_column_values(&&vals[..], &[CodecType::Bitpacked], &mut buffer)
+            .unwrap();
+        let col = load_u64_based_column_values::<f64>(OwnedBytes::new(buffer)).unwrap();
+        let mut out = vec![0f64; 2000];
+        col.get_range(11, &mut out);
+        assert_eq!(&vals[11..11 + 2000], &out[..]);
     }
 
     #[test]

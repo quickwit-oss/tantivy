@@ -34,6 +34,12 @@ impl<T: PartialOrd + Copy + std::fmt::Debug + Send + Sync + 'static + Default>
             if self.val_cache.len() != docs.len() {
                 self.val_cache.resize(docs.len(), T::default());
             }
+            // A direct `get_val` skips the `get_range` machinery, whose
+            // per-call setup outweighs one row.
+            if docs.len() == 1 {
+                self.val_cache[0] = accessor.values.get_val(docs[0]);
+                return;
+            }
             // When the docs form a contiguous ascending run we can fetch the values
             // as a single range. This lets codecs (e.g. bitpacked) bulk-decode the
             // slice instead of gathering value-by-value, and avoids per-value dynamic

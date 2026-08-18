@@ -27,7 +27,7 @@ mod monotonic_column;
 pub(crate) use merge::MergedColumnValues;
 pub use stats::ColumnStats;
 pub use u64_based::{
-    ALL_U64_CODEC_TYPES, CodecType, load_u64_based_column_values,
+    ALL_U64_CODEC_TYPES, CodecType, load_u64_based_column_values, load_u64_based_column_values_raw,
     serialize_and_load_u64_based_column_values, serialize_u64_based_column_values,
 };
 pub use u128_based::{
@@ -43,8 +43,11 @@ use crate::RowId;
 ///
 /// `Column` are just a wrapper over `ColumnValues` and a `ColumnIndex`.
 ///
-/// Any methods with a default and specialized implementation need to be called in the
-/// wrappers that implement the trait: Arc and MonotonicMappingColumn
+/// Any method with both a default and specialized implementations must be
+/// forwarded by every wrapper that implements the trait (`Arc<dyn
+/// ColumnValues>` below and `MonotonicMappingColumn`): a missing forward
+/// silently serves the default and only a benchmark notices.
+/// `tests::specializations_survive_arc` pins the set.
 pub trait ColumnValues<T: PartialOrd = u64>: Send + Sync + DowncastSync {
     /// Return the value associated with the given idx.
     ///
@@ -126,6 +129,11 @@ pub trait ColumnValues<T: PartialOrd = u64>: Send + Sync + DowncastSync {
         }
     }
 
+    /// Always use batching
+    fn min_batch_rows(&self) -> usize {
+        usize::MAX
+    }
+
     /// Get the row ids of values which are in the provided value range.
     ///
     /// Note that position == docid for single value fast fields
@@ -204,6 +212,11 @@ impl<T: Copy + PartialOrd + Debug + 'static> ColumnValues<T> for Arc<dyn ColumnV
     }
 
     #[inline(always)]
+    fn get_vals(&self, indexes: &[u32], output: &mut [T]) {
+        self.as_ref().get_vals(indexes, output)
+    }
+
+    #[inline(always)]
     fn get_vals_opt(&self, indexes: &[u32], output: &mut [Option<T>]) {
         self.as_ref().get_vals_opt(indexes, output)
     }
@@ -234,6 +247,11 @@ impl<T: Copy + PartialOrd + Debug + 'static> ColumnValues<T> for Arc<dyn ColumnV
     }
 
     #[inline(always)]
+    fn min_batch_rows(&self) -> usize {
+        self.as_ref().min_batch_rows()
+    }
+
+    #[inline(always)]
     fn get_row_ids_for_value_range(
         &self,
         range: RangeInclusive<T>,
@@ -242,5 +260,91 @@ impl<T: Copy + PartialOrd + Debug + 'static> ColumnValues<T> for Arc<dyn ColumnV
     ) {
         self.as_ref()
             .get_row_ids_for_value_range(range, doc_id_range, positions)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Every specializable method must survive the `Arc` wrapper -- see the
+    /// note on `ColumnValues`.
+    #[test]
+    fn specializations_survive_arc() {
+        struct Specialized;
+        impl ColumnValues<u64> for Specialized {
+            fn get_val(&self, idx: u32) -> u64 {
+                u64::from(idx)
+            }
+            fn get_vals(&self, _indexes: &[u32], output: &mut [u64]) {
+                output.fill(11);
+            }
+            fn get_vals_opt(&self, _indexes: &[u32], output: &mut [Option<u64>]) {
+                output.fill(Some(22));
+            }
+            fn get_range(&self, _start: u64, output: &mut [u64]) {
+                output.fill(33);
+            }
+            fn min_batch_rows(&self) -> usize {
+                44
+            }
+            fn iter(&self) -> Box<dyn Iterator<Item = u64> + '_> {
+                Box::new(std::iter::once(55))
+            }
+            fn get_row_ids_for_value_range(
+                &self,
+                _value_range: RangeInclusive<u64>,
+                _row_id_range: Range<RowId>,
+                row_id_hits: &mut Vec<RowId>,
+            ) {
+                row_id_hits.push(66);
+            }
+            fn min_value(&self) -> u64 {
+                0
+            }
+            fn max_value(&self) -> u64 {
+                100
+            }
+            fn num_vals(&self) -> u32 {
+                10
+            }
+        }
+
+        let column: Arc<dyn ColumnValues<u64>> = Arc::new(Specialized);
+
+        let mut out = [0u64; 2];
+        column.get_vals(&[0, 1], &mut out);
+        assert_eq!(out, [11, 11], "get_vals is not forwarded");
+
+        let mut out_opt = [None; 2];
+        column.get_vals_opt(&[0, 1], &mut out_opt);
+        assert_eq!(
+            out_opt,
+            [Some(22), Some(22)],
+            "get_vals_opt is not forwarded"
+        );
+
+        let mut out = [0u64; 2];
+        column.get_range(0, &mut out);
+        assert_eq!(out, [33, 33], "get_range is not forwarded");
+
+        assert_eq!(
+            column.min_batch_rows(),
+            44,
+            "min_batch_rows is not forwarded"
+        );
+        assert_eq!(
+            column.iter().collect::<Vec<_>>(),
+            vec![55],
+            "iter is not forwarded"
+        );
+
+        let mut hits = Vec::new();
+        column.get_row_ids_for_value_range(0..=100, 0..10, &mut hits);
+        assert_eq!(
+            hits,
+            vec![66],
+            "get_row_ids_for_value_range is not forwarded"
+        );
     }
 }

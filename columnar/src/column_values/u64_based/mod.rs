@@ -1,4 +1,5 @@
 mod bitpacked;
+mod block_decode;
 mod blockwise_linear;
 mod line;
 mod linear;
@@ -19,7 +20,34 @@ pub use crate::column_values::u64_based::linear::LinearCodec;
 pub use crate::column_values::u64_based::stats_collector::StatsCollector;
 use crate::column_values::{ColumnStats, monotonic_map_column};
 use crate::iterable::Iterable;
-use crate::{ColumnValues, MonotonicallyMappableToU64};
+use crate::{ColumnValues, MonotonicallyMappableToU64, RowId};
+
+/// Batched `get_row_ids_for_value_range`: decode chunks via `get_range` and
+/// filter, instead of one `get_val` per row.
+pub(crate) fn get_row_ids_for_value_range_batched<C: ColumnValues<u64> + ?Sized>(
+    column: &C,
+    value_range: std::ops::RangeInclusive<u64>,
+    row_id_range: std::ops::Range<RowId>,
+    row_id_hits: &mut Vec<RowId>,
+) {
+    // Multiple of BLOCK_LEN (128) so that after the first (possibly
+    // unaligned) chunk, the codec decodes whole blocks.
+    const CHUNK: usize = 512;
+    let end = row_id_range.end.min(column.num_vals());
+    let mut start = row_id_range.start;
+    let mut buf = [0u64; CHUNK];
+    while start < end {
+        let chunk_end = (((start as usize / CHUNK) + 1) * CHUNK).min(end as usize) as u32;
+        let len = (chunk_end - start) as usize;
+        column.get_range(u64::from(start), &mut buf[..len]);
+        for (offset, &val) in buf[..len].iter().enumerate() {
+            if value_range.contains(&val) {
+                row_id_hits.push(start + offset as u32);
+            }
+        }
+        start = chunk_end;
+    }
+}
 
 /// A `ColumnCodecEstimator` is in charge of gathering all
 /// data required to serialize a column.
@@ -95,9 +123,25 @@ pub const ALL_U64_CODEC_TYPES: [CodecType; 3] = [
     CodecType::BlockwiseLinear,
 ];
 
+impl std::fmt::Display for CodecType {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        let name = match self {
+            CodecType::Bitpacked => "bitpacked",
+            CodecType::Linear => "linear",
+            CodecType::BlockwiseLinear => "blockwise_linear",
+        };
+        f.write_str(name)
+    }
+}
+
 impl CodecType {
     fn to_code(self) -> u8 {
         self as u8
+    }
+
+    /// Recovers the codec from the code byte a serialized column starts with.
+    pub fn from_code(code: u8) -> Option<CodecType> {
+        Self::try_from_code(code)
     }
 
     fn try_from_code(code: u8) -> Option<CodecType> {
@@ -198,6 +242,25 @@ pub fn load_u64_based_column_values<T: MonotonicallyMappableToU64>(
         .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidData, "Failed to read codec type"))?;
     bytes.advance(1);
     codec_type.load(bytes)
+}
+
+/// Loads u64 column values without the (identity) monotonic-mapping wrapper:
+/// same bytes as [`load_u64_based_column_values`], one less virtual hop.
+#[doc(hidden)]
+pub fn load_u64_based_column_values_raw(
+    mut bytes: OwnedBytes,
+) -> io::Result<Arc<dyn ColumnValues<u64>>> {
+    let codec_type: CodecType = bytes
+        .first()
+        .copied()
+        .and_then(CodecType::try_from_code)
+        .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidData, "Failed to read codec type"))?;
+    bytes.advance(1);
+    match codec_type {
+        CodecType::Bitpacked => Ok(Arc::new(BitpackedCodec::load(bytes)?)),
+        CodecType::Linear => Ok(Arc::new(LinearCodec::load(bytes)?)),
+        CodecType::BlockwiseLinear => Ok(Arc::new(BlockwiseLinearCodec::load(bytes)?)),
+    }
 }
 
 /// Helper function to serialize a column (autodetect from all codecs) and then open it

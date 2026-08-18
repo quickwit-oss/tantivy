@@ -6,12 +6,18 @@ use common::{BinarySerializable, CountingWriter, DeserializeFrom, OwnedBytes};
 use fastdivide::DividerU64;
 use tantivy_bitpacker::{BitPacker, BitUnpacker, compute_num_bits};
 
-use crate::MonotonicallyMappableToU64;
+use crate::{MonotonicallyMappableToU64, RowId};
+use crate::column_values::u64_based::block_decode::{
+    BLOCK_LEN, BlockDecode, DecodeCost, decode_block, min_batch_rows, partial_block_min_rows,
+};
 use crate::column_values::u64_based::line::Line;
 use crate::column_values::u64_based::{ColumnCodec, ColumnCodecEstimator, ColumnStats};
-use crate::column_values::{ColumnValues, VecColumn};
+use crate::column_values::ColumnValues;
 
 const BLOCK_SIZE: u32 = 512u32;
+// A 512-value block is exactly 4 decode groups, so a group never straddles
+// two blocks (and their different bit widths / data offsets).
+const _: () = assert!((BLOCK_SIZE as usize).is_multiple_of(BLOCK_LEN));
 
 #[derive(Debug, Default)]
 struct Block {
@@ -63,9 +69,7 @@ impl BlockwiseLinearEstimator {
         if self.block.is_empty() {
             return;
         }
-        let column = VecColumn::from(std::mem::take(&mut self.block));
-        let line = Line::train(&column);
-        self.block = column.into();
+        let line = Line::train_slice(&self.block);
 
         let mut max_value = 0u64;
         for (i, buffer_val) in self.block.iter().enumerate() {
@@ -128,7 +132,7 @@ impl ColumnCodecEstimator for BlockwiseLinearEstimator {
                 *buffer_val = gcd_divider.divide(*buffer_val - stats.min_value);
             }
 
-            let line = Line::train(&VecColumn::from(buffer.to_vec()));
+            let line = Line::train_slice(&buffer);
 
             assert!(!buffer.is_empty());
 
@@ -201,6 +205,35 @@ pub struct BlockwiseLinearReader {
     stats: ColumnStats,
 }
 
+impl BlockDecode for BlockwiseLinearReader {
+    fn num_full_blocks(&self) -> usize {
+        self.stats.num_rows as usize / BLOCK_LEN
+    }
+
+    fn partial_min_rows(&self, group_idx: usize) -> usize {
+        let block = &self.blocks[group_idx * BLOCK_LEN / BLOCK_SIZE as usize];
+        partial_block_min_rows(block.bit_unpacker.bit_width())
+    }
+
+    #[inline]
+    fn decode_block_mapped(&self, group_idx: usize, out: &mut [u64; BLOCK_LEN]) {
+        let row = group_idx * BLOCK_LEN;
+        let block = &self.blocks[row / BLOCK_SIZE as usize];
+        let idx_within_block = (row % BLOCK_SIZE as usize) as u32;
+        let bit_width = block.bit_unpacker.bit_width();
+        // `idx_within_block` is a multiple of 128, so this byte offset is
+        // exact and group-aligned within the block's stream.
+        let byte_offset =
+            block.data_start_offset + idx_within_block as usize * bit_width as usize / 8;
+        decode_block(bit_width, &self.data[byte_offset..], out);
+        let (min_value, gcd) = (self.stats.min_value, self.stats.gcd.get());
+        for (i, o) in out.iter_mut().enumerate() {
+            let interpolated_val = block.line.eval(idx_within_block + i as u32);
+            *o = min_value + gcd.wrapping_mul(interpolated_val.wrapping_add(*o));
+        }
+    }
+}
+
 impl ColumnValues for BlockwiseLinearReader {
     #[inline(always)]
     fn get_val(&self, idx: u32) -> u64 {
@@ -218,6 +251,26 @@ impl ColumnValues for BlockwiseLinearReader {
                 .gcd
                 .get()
                 .wrapping_mul(interpoled_val.wrapping_add(bitpacked_diff))
+    }
+
+    fn get_range(&self, start: u64, output: &mut [u64]) {
+        self.decode_range(start, output);
+    }
+
+    /// Decode-then-filter: the offset is a per-block line evaluated at the
+    /// row, so there is no fixed residual range a value range could be pushed
+    /// down to.
+    fn get_row_ids_for_value_range(
+        &self,
+        value_range: std::ops::RangeInclusive<u64>,
+        row_id_range: std::ops::Range<RowId>,
+        row_id_hits: &mut Vec<RowId>,
+    ) {
+        super::get_row_ids_for_value_range_batched(self, value_range, row_id_range, row_id_hits)
+    }
+
+    fn min_batch_rows(&self) -> usize {
+        min_batch_rows(DecodeCost::Flat)
     }
 
     #[inline(always)]

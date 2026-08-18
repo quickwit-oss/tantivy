@@ -127,14 +127,17 @@ pub(crate) fn create_and_validate<TColumnCodec: ColumnCodec>(
     reader.get_range(0, &mut buffer);
     assert_eq!(vals, buffer, "get_range (full) mismatch in data set {name}");
     if vals.len() >= 2 {
-        let start = 1usize;
-        buffer.resize(vals.len() - start, 0);
-        reader.get_range(start as u64, &mut buffer);
-        assert_eq!(
-            &vals[start..],
-            &buffer[..],
-            "get_range (sub-range) mismatch in data set {name}"
-        );
+        // Offset 1 exercises the entrance ramp of a batch decode; the
+        // mid-column offset lands on different alignments as lengths vary.
+        for start in [1usize, vals.len() / 2] {
+            buffer.resize(vals.len() - start, 0);
+            reader.get_range(start as u64, &mut buffer);
+            assert_eq!(
+                &vals[start..],
+                &buffer[..],
+                "get_range (start {start}) mismatch in data set {name}"
+            );
+        }
     }
 
     if !vals.is_empty() {
@@ -152,6 +155,24 @@ pub(crate) fn create_and_validate<TColumnCodec: ColumnCodec>(
             &mut positions,
         );
         assert_eq!(expected_positions, positions);
+    }
+    // Range filter on a sub row-range with a proper value range, against a
+    // naive filter.
+    if vals.len() >= 3 {
+        let lo = *vals.iter().min().unwrap();
+        let hi = *vals.iter().max().unwrap();
+        let value_lo = lo + (hi - lo) / 4;
+        let value_hi = lo + (hi - lo) / 4 * 3;
+        let row_range = 1u32..(vals.len() as u32 - 1);
+        let expected: Vec<u32> = (row_range.start..row_range.end)
+            .filter(|&row| (value_lo..=value_hi).contains(&vals[row as usize]))
+            .collect();
+        let mut positions = Vec::new();
+        reader.get_row_ids_for_value_range(value_lo..=value_hi, row_range, &mut positions);
+        assert_eq!(
+            expected, positions,
+            "get_row_ids_for_value_range mismatch in data set {name}"
+        );
     }
     if actual_compression > 1000 {
         assert!(relative_difference(estimation, actual_compression) < 0.10f32);
@@ -272,6 +293,324 @@ fn test_codec_interpolation() {
 #[test]
 fn test_codec_multi_interpolation() {
     test_codec::<BlockwiseLinearCodec>();
+}
+
+/// Data shapes long enough to span several 128-value blocks, including a
+/// trailing partial one.
+fn multi_block_datasets() -> Vec<(Vec<u64>, &'static str)> {
+    use rand::SeedableRng;
+    let mut rng = rand::rngs::StdRng::from_seed([9u8; 32]);
+    vec![
+        ((0..600u64).map(|i| i * 3 + 7).collect(), "monotonic"),
+        (
+            (0..600).map(|_| rng.random_range(0..1_000_000)).collect(),
+            "random",
+        ),
+        (vec![42u64; 600], "constant"),
+        (
+            (0..600u64)
+                .map(|i| if i % 97 == 0 { u64::MAX / 2 } else { i })
+                .collect(),
+            "outliers",
+        ),
+        (
+            (0..600u64).map(|i| 1_700_000_000_000 + i * 1_000).collect(),
+            "timestamps",
+        ),
+        // Decimal f64 values, stored as the u64 bit-mapping the codecs see.
+        (
+            (0..600u64)
+                .map(|i| f64::to_u64((i as f64) / 100.0))
+                .collect(),
+            "decimals",
+        ),
+    ]
+}
+
+/// Names of every codec, so a test can prove it actually exercised all of
+/// them rather than skipping some via a `continue`.
+fn all_codec_names() -> Vec<String> {
+    let mut names: Vec<String> = ALL_U64_CODEC_TYPES
+        .iter()
+        .map(|c| format!("{c:?}"))
+        .collect();
+    names.sort();
+    names
+}
+
+/// What `DateTimePrecision` is worth on a date fast field: truncation keeps
+/// values in nanoseconds, so the saving comes entirely from
+/// `ColumnStats::gcd` dividing the common factor out.
+///
+/// ```text
+/// cargo test --release -p tantivy-columnar --lib date_precision_sizes \
+///     -- --ignored --nocapture
+/// ```
+#[test]
+#[ignore]
+fn date_precision_sizes() {
+    const N: usize = 500_000;
+    // Millisecond-resolution timestamps, as they arrive.
+    let ms: Vec<u64> = (0..N as u64)
+        .map(|i| 1_700_000_000_000 + i * 250 + (i.wrapping_mul(2_654_435_761) % 4_000))
+        .collect();
+
+    println!(
+        "\n{:>14} {:>10} {:>16} {:>8} {:>9}",
+        "precision", "gcd", "chosen", "b/val", "MB"
+    );
+    for (label, unit_ns) in [
+        ("nanoseconds", 1u64),
+        ("microseconds", 1_000),
+        ("milliseconds", 1_000_000),
+        ("seconds", 1_000_000_000),
+    ] {
+        // to_u64 is nanos; truncate() zeroes below the precision, so every
+        // value stays in nanos and becomes a multiple of `unit_ns`.
+        let nanos: Vec<u64> = ms
+            .iter()
+            .map(|&v| (v * 1_000_000 / unit_ns) * unit_ns)
+            .collect();
+        let mut collector = StatsCollector::default();
+        for &v in &nanos {
+            collector.collect(v);
+        }
+        let gcd = collector.stats().gcd.get();
+        let mut buf = Vec::new();
+        serialize_u64_based_column_values(&&nanos[..], &ALL_U64_CODEC_TYPES, &mut buf).unwrap();
+        println!(
+            "{label:>14} {gcd:>10} {:>16} {:>8.2} {:>9.2}",
+            format!("{:?}", CodecType::try_from_code(buf[0]).unwrap()),
+            buf.len() as f64 * 8.0 / N as f64,
+            buf.len() as f64 / 1e6,
+        );
+    }
+}
+
+/// Calibration harness for the `get_row_ids_for_value_range` overrides:
+/// batched decode-then-filter vs the `ColumnValues` per-value default. Run
+/// this before adding or removing an override -- which codecs win is not
+/// obvious and does not generalize.
+///
+/// ```text
+/// cargo test --release -p tantivy-columnar --lib range_filter_ab \
+///     -- --ignored --nocapture
+/// ```
+#[test]
+#[ignore]
+fn range_filter_ab() {
+    use std::time::Instant;
+
+    use crate::column_values::u64_based::{BlockwiseLinearCodec, LinearCodec};
+
+    const N: usize = 1 << 16;
+
+    /// The `ColumnValues::get_row_ids_for_value_range` default, verbatim.
+    fn per_value<C: ColumnValues<u64>>(
+        col: &C,
+        value_range: std::ops::RangeInclusive<u64>,
+        row_id_range: std::ops::Range<u32>,
+        hits: &mut Vec<u32>,
+    ) {
+        let row_id_range = row_id_range.start..row_id_range.end.min(col.num_vals());
+        for idx in row_id_range {
+            if value_range.contains(&col.get_val(idx)) {
+                hits.push(idx);
+            }
+        }
+    }
+
+    fn ab<C: ColumnCodec<u64>>(label: &str, bytes: Vec<u8>, spread: u64) {
+        let col = C::load(OwnedBytes::new(bytes)).unwrap();
+        println!("\n=== {label} ===");
+        println!(
+            "{:>12} {:>10} {:>12} {:>8}",
+            "selectivity", "batch_ns", "pervalue_ns", "ratio"
+        );
+        for (sel, frac) in [("1%", 100u64), ("25%", 4), ("50%", 2), ("100%", 1)] {
+            let hi = spread / frac;
+            let mut batched = Vec::with_capacity(N);
+            let mut naive = Vec::with_capacity(N);
+            // Correctness guard: an A/B that measures two different answers is
+            // measuring nothing.
+            batched.clear();
+            naive.clear();
+            col.get_row_ids_for_value_range(0..=hi, 0..N as u32, &mut batched);
+            per_value(&col, 0..=hi, 0..N as u32, &mut naive);
+            assert_eq!(batched, naive, "{label} {sel}: arms disagree");
+
+            const REPS: usize = 60;
+            for _ in 0..8 {
+                batched.clear();
+                col.get_row_ids_for_value_range(0..=hi, 0..N as u32, &mut batched);
+                naive.clear();
+                per_value(&col, 0..=hi, 0..N as u32, &mut naive);
+            }
+            let t0 = Instant::now();
+            for _ in 0..REPS {
+                batched.clear();
+                col.get_row_ids_for_value_range(0..=hi, 0..N as u32, &mut batched);
+                std::hint::black_box(batched.len());
+            }
+            let batch_ns = t0.elapsed().as_nanos() as f64 / (REPS * N) as f64;
+            let t1 = Instant::now();
+            for _ in 0..REPS {
+                naive.clear();
+                per_value(&col, 0..=hi, 0..N as u32, &mut naive);
+                std::hint::black_box(naive.len());
+            }
+            let pv_ns = t1.elapsed().as_nanos() as f64 / (REPS * N) as f64;
+            println!(
+                "{sel:>12} {batch_ns:>10.4} {pv_ns:>12.4} {:>8.2}",
+                pv_ns / batch_ns
+            );
+        }
+    }
+
+    // A noisy ramp: what Linear is actually chosen for.
+    const SPREAD: u64 = 1 << 20;
+    let vals: Vec<u64> = (0..N as u64)
+        .map(|i| i * 16 + (i.wrapping_mul(2_654_435_761) % SPREAD))
+        .collect();
+
+    let mut buf = Vec::new();
+    serialize_u64_based_column_values(&&vals[..], &[CodecType::Linear], &mut buf).unwrap();
+    ab::<LinearCodec>("Linear", buf[1..].to_vec(), vals[N - 1]);
+
+    let mut buf = Vec::new();
+    serialize_u64_based_column_values(&&vals[..], &[CodecType::BlockwiseLinear], &mut buf).unwrap();
+    ab::<BlockwiseLinearCodec>("BlockwiseLinear", buf[1..].to_vec(), vals[N - 1]);
+}
+
+/// Every packed residual width reaches a SIMD unpack kernel, so `Linear`
+/// reports the same threshold at all of them. Nothing about the *values*
+/// changes with the threshold, so only an assertion on the threshold itself
+/// notices if a width silently drops back to scalar.
+#[test]
+fn test_linear_batches_at_every_width() {
+    use crate::column_values::u64_based::block_decode::{DecodeCost, min_batch_rows};
+
+    // Residuals run several bits wider than the noise term, so these straddle
+    // the narrow/wide kernel boundary with margin on both sides.
+    for noise_bits in [4u32, 12, 30, 48] {
+        let vals: Vec<u64> = (0..2_000u64)
+            .map(|i| i * 16 + (i.wrapping_mul(2_654_435_761) % (1u64 << noise_bits)))
+            .collect();
+        let mut buffer = Vec::new();
+        if serialize_u64_based_column_values(&&vals[..], &[CodecType::Linear], &mut buffer).is_err()
+        {
+            continue;
+        }
+        let column = load_u64_based_column_values_raw(OwnedBytes::new(buffer)).unwrap();
+        assert_eq!(
+            column.min_batch_rows(),
+            min_batch_rows(DecodeCost::Flat),
+            "noise_bits={noise_bits} must report the Flat threshold"
+        );
+        let mut out = vec![0u64; 300];
+        column.get_range(137, &mut out);
+        for (i, o) in out.iter().enumerate() {
+            assert_eq!(*o, vals[137 + i], "noise_bits={noise_bits} i={i}");
+        }
+    }
+}
+
+/// The per-codec `min_batch_rows` family assignment. Value-equality tests
+/// cannot see this: picking the wrong `DecodeCost` only changes *which* path
+/// produces a value, never the value.
+#[test]
+fn test_min_batch_rows_per_codec() {
+    use crate::column_values::u64_based::block_decode::{DecodeCost, min_batch_rows};
+
+    let mut covered: Vec<String> = Vec::new();
+    for (vals, _shape) in multi_block_datasets() {
+        for codec in ALL_U64_CODEC_TYPES {
+            let mut buffer = Vec::new();
+            if serialize_u64_based_column_values(&&vals[..], &[codec], &mut buffer).is_err() {
+                continue;
+            }
+            covered.push(format!("{codec:?}"));
+            let column = load_u64_based_column_values_raw(OwnedBytes::new(buffer)).unwrap();
+            assert_eq!(
+                column.min_batch_rows(),
+                min_batch_rows(DecodeCost::Flat),
+                "{codec:?} reports the wrong DecodeCost family"
+            );
+        }
+    }
+    covered.sort();
+    covered.dedup();
+    assert_eq!(covered, all_codec_names(), "a codec was skipped");
+}
+
+/// `get_range` must agree with the source values at every phase relative to
+/// the 128-value block grid, on every codec that can encode the data.
+/// `load_u64_based_column_values_raw` is deliberate: it skips the monotonic
+/// wrapper, so the codec's batch path is reached at every length rather than
+/// only above the wrapper's `min_batch_rows` gate.
+#[test]
+fn test_get_range_all_codecs_all_block_phases() {
+    let mut covered: Vec<String> = Vec::new();
+    for (vals, shape) in multi_block_datasets() {
+        for codec in ALL_U64_CODEC_TYPES {
+            let mut buffer = Vec::new();
+            if serialize_u64_based_column_values(&&vals[..], &[codec], &mut buffer).is_err() {
+                continue;
+            }
+            covered.push(format!("{codec:?}"));
+            let column = load_u64_based_column_values_raw(OwnedBytes::new(buffer.clone())).unwrap();
+            assert_eq!(column.num_vals() as usize, vals.len(), "{codec:?}/{shape}");
+
+            // Every phase of the block grid, and lengths straddling the block
+            // size, the partial-block floor, and the trailing partial block.
+            for start in 0..140usize {
+                for len in [1usize, 2, 47, 48, 79, 80, 128, 129, 256, 400] {
+                    if start + len > vals.len() {
+                        continue;
+                    }
+                    let mut output = vec![0u64; len];
+                    column.get_range(start as u64, &mut output);
+                    assert_eq!(
+                        output,
+                        vals[start..start + len],
+                        "{codec:?}/{shape}: get_range(start={start}, len={len})"
+                    );
+                }
+            }
+
+            // Ranges that end exactly at the column end, i.e. run through the
+            // trailing partial block.
+            for len in [1usize, 64, 128, 200, 600] {
+                let start = vals.len() - len;
+                let mut output = vec![0u64; len];
+                column.get_range(start as u64, &mut output);
+                assert_eq!(
+                    output,
+                    vals[start..],
+                    "{codec:?}/{shape}: tail get_range(start={start}, len={len})"
+                );
+            }
+
+            // The same data through the wrapper, which gates short takes onto
+            // the per-value loop: both routes must agree.
+            let wrapped: Arc<dyn ColumnValues<u64>> =
+                load_u64_based_column_values(OwnedBytes::new(buffer)).unwrap();
+            for start in [0usize, 1, 63, 127, 128, 129] {
+                for len in [1usize, 47, 96, 128, 300] {
+                    if start + len > vals.len() {
+                        continue;
+                    }
+                    let mut output = vec![0u64; len];
+                    wrapped.get_range(start as u64, &mut output);
+                    assert_eq!(
+                        output,
+                        vals[start..start + len],
+                        "{codec:?}/{shape}: wrapped get_range(start={start}, len={len})"
+                    );
+                }
+            }
+        }
+    }
 }
 
 use super::*;

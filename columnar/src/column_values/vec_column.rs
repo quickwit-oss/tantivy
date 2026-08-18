@@ -35,6 +35,10 @@ impl<T: Copy + PartialOrd + Send + Sync + Debug + 'static> ColumnValues<T> for V
     fn get_range(&self, start: u64, output: &mut [T]) {
         output.copy_from_slice(&self.values[start as usize..][..output.len()])
     }
+
+    fn min_batch_rows(&self) -> usize {
+        1
+    }
 }
 
 impl<T: Copy + PartialOrd + Default> From<Vec<T>> for VecColumn<T> {
