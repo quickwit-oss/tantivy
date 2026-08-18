@@ -142,6 +142,7 @@ fn function_name(function: Function) -> &'static str {
         Function::RegexpExtract => "REGEXP_EXTRACT",
         Function::Subtract => "SUBTRACT",
         Function::TextJoin => "TEXT_JOIN",
+        Function::Trim => "TRIM",
         Function::Upper => "UPPER",
     }
 }
@@ -172,6 +173,7 @@ fn parse_function(name: &str, offset: usize) -> Result<Function, DeserializeErro
         "REGEXP_EXTRACT" => Ok(Function::RegexpExtract),
         "SUBTRACT" => Ok(Function::Subtract),
         "TEXT_JOIN" => Ok(Function::TextJoin),
+        "TRIM" => Ok(Function::Trim),
         "UPPER" => Ok(Function::Upper),
         _ if !is_function_name(name) => Err(DeserializeError::new(
             offset,

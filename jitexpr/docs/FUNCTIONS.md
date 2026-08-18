@@ -57,7 +57,7 @@ excluded from this pass, or is complex enough to warrant a separate implementati
 | 43 | `SPLIT_BEFORE` | out-of-scope |
 | 44 | `SPLIT_AFTER` | out-of-scope |
 | 50 | `REGEXP_EXTRACT` | done |
-| 54 | `TRIM` | pending |
+| 54 | `TRIM` | done |
 | 55 | `IF` | pending |
 | 56 | `COALESCE` | pending |
 | 61 | `TRY_CAST_INT` | pending |
@@ -76,7 +76,7 @@ excluded from this pass, or is complex enough to warrant a separate implementati
 | 79 | `SUBSTRING_COUNT` | pending |
 | 80 | `REGEXP_LIKE` | pending |
 
-Progress: **25 / 36 in-scope** functions implemented; **19** functions are out-of-scope.
+Progress: **26 / 36 in-scope** functions implemented; **19** functions are out-of-scope.
 
 ## Deferred implementation notes
 

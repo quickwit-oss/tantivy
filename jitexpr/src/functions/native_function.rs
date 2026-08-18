@@ -1,7 +1,7 @@
 use cranelift::codegen::ir::{FuncRef, Function as CraneliftFunction, Type};
 use cranelift_jit::{JITBuilder, JITModule};
 
-use super::{comparison, concat, eq, int_mod, lower, pow, regexp_extract, upper};
+use super::{comparison, concat, eq, int_mod, lower, pow, regexp_extract, trim, upper};
 use crate::compile::CompileError;
 
 /// References to native functions imported into the current Cranelift function.
@@ -9,6 +9,7 @@ pub(crate) struct NativeFunctions {
     string_eq: FuncRef,
     string_lowercase: FuncRef,
     string_uppercase: FuncRef,
+    string_trim: FuncRef,
     string_concat: FuncRef,
     float_mod: FuncRef,
     float_pow: FuncRef,
@@ -29,6 +30,9 @@ impl NativeFunctions {
 
     pub(crate) fn string_uppercase(&self) -> FuncRef {
         self.string_uppercase
+    }
+    pub(crate) fn string_trim(&self) -> FuncRef {
+        self.string_trim
     }
 
     pub(crate) fn string_concat(&self) -> FuncRef {
@@ -66,6 +70,7 @@ pub(crate) fn register_jit_symbols(jit_builder: &mut JITBuilder) {
     comparison::register_jit_symbols(jit_builder);
     lower::register_jit_symbol(jit_builder);
     upper::register_jit_symbol(jit_builder);
+    trim::register_jit_symbol(jit_builder);
     concat::register_jit_symbol(jit_builder);
     int_mod::register_jit_symbol(jit_builder);
     pow::register_jit_symbol(jit_builder);
@@ -83,6 +88,7 @@ pub(crate) fn declare_native_functions(
         string_eq: eq::declare_native_function(module, function, pointer_type)?,
         string_lowercase: lower::declare_native_function(module, function, pointer_type)?,
         string_uppercase: upper::declare_native_function(module, function, pointer_type)?,
+        string_trim: trim::declare_native_function(module, function, pointer_type)?,
         string_concat: concat::declare_native_function(module, function, pointer_type)?,
         float_mod: int_mod::declare_native_function(module, function)?,
         float_pow: pow::declare_native_function(module, function)?,

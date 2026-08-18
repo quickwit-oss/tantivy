@@ -24,6 +24,7 @@ mod pow;
 mod regexp_extract;
 mod subtract;
 mod text_join;
+mod trim;
 mod upper;
 
 use std::collections::HashMap;
@@ -57,6 +58,7 @@ pub(crate) use self::pow::PowFnCall;
 pub(crate) use self::regexp_extract::RegexpExtractFnCall;
 pub(crate) use self::subtract::SubtractFnCall;
 pub(crate) use self::text_join::TextJoinFnCall;
+pub(crate) use self::trim::TrimFnCall;
 pub(crate) use self::upper::UpperFnCall;
 use crate::ast::{InferredTypeSet, TypeError, UntypedExpr};
 use crate::compile::{CompileError, CompileFnBuilder, LoweredValue, LoweringContext, TypedExpr};
@@ -113,6 +115,8 @@ pub enum Function {
     Subtract,
     /// Joins scalar strings with the same semantics as `CONCAT`.
     TextJoin,
+    /// Removes a whole delimiter from selected ends of a string.
+    Trim,
     /// Converts a string to Unicode uppercase.
     Upper,
 }
@@ -172,6 +176,9 @@ impl Function {
             }
             Function::TextJoin => {
                 <TextJoinFnCall as FnCall>::call_with_types(args, target_type_set, context)
+            }
+            Function::Trim => {
+                <TrimFnCall as FnCall>::call_with_types(args, target_type_set, context)
             }
             Function::Upper => {
                 <UpperFnCall as FnCall>::call_with_types(args, target_type_set, context)
@@ -234,6 +241,9 @@ impl Function {
             Function::TextJoin => {
                 <TextJoinFnCall as FnCall>::infer_types(args, target_type, inferred_types)
             }
+            Function::Trim => {
+                <TrimFnCall as FnCall>::infer_types(args, target_type, inferred_types)
+            }
             Function::Upper => {
                 <UpperFnCall as FnCall>::infer_types(args, target_type, inferred_types)
             }
@@ -274,6 +284,7 @@ pub(crate) enum FnCallEnum {
     RegexpExtract(RegexpExtractFnCall),
     Subtract(SubtractFnCall),
     TextJoin(TextJoinFnCall),
+    Trim(TrimFnCall),
     Upper(UpperFnCall),
 }
 
@@ -304,6 +315,7 @@ impl FnCallEnum {
             FnCallEnum::RegexpExtract(call) => call.args_mut(),
             FnCallEnum::Subtract(call) => call.args_mut(),
             FnCallEnum::TextJoin(call) => call.args_mut(),
+            FnCallEnum::Trim(call) => call.args_mut(),
             FnCallEnum::Upper(call) => call.args_mut(),
         }
     }
@@ -342,6 +354,7 @@ impl FnCallEnum {
             }
             FnCallEnum::Subtract(call) => call.emit_cranelift_ir(return_type, context, builder),
             FnCallEnum::TextJoin(call) => call.emit_cranelift_ir(return_type, context, builder),
+            FnCallEnum::Trim(call) => call.emit_cranelift_ir(return_type, context, builder),
             FnCallEnum::Upper(call) => call.emit_cranelift_ir(return_type, context, builder),
         }
     }
