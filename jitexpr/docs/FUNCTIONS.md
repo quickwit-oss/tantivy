@@ -73,10 +73,10 @@ excluded from this pass, or is complex enough to warrant a separate implementati
 | 76 | `ARRAY_CONTAINS_NULLABLE` | out-of-scope |
 | 77 | `LEVENSHTEIN_DISTANCE` | out-of-scope |
 | 78 | `ENTROPY` | out-of-scope |
-| 79 | `SUBSTRING_COUNT` | pending |
+| 79 | `SUBSTRING_COUNT` | done |
 | 80 | `REGEXP_LIKE` | pending |
 
-Progress: **27 / 29 in-scope** functions implemented; **26** functions are out-of-scope.
+Progress: **28 / 29 in-scope** functions implemented; **26** functions are out-of-scope.
 
 ## Deferred implementation notes
 
