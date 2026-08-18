@@ -44,7 +44,7 @@ excluded from this pass, or is complex enough to warrant a separate implementati
 | 22 | `NEQ` | done |
 | 24 | `INT_MOD` | done |
 | 25 | `ABS` | done |
-| 27 | `ROUND` | pending |
+| 27 | `ROUND` | out-of-scope |
 | 28 | `FLOOR` | pending |
 | 29 | `CEIL` | pending |
 | 34 | `POW` | pending |
@@ -76,7 +76,7 @@ excluded from this pass, or is complex enough to warrant a separate implementati
 | 79 | `SUBSTRING_COUNT` | pending |
 | 80 | `REGEXP_LIKE` | pending |
 
-Progress: **22 / 45 in-scope** functions implemented; **10** functions are out-of-scope.
+Progress: **22 / 44 in-scope** functions implemented; **11** functions are out-of-scope.
 
 ## Deferred implementation notes
 
@@ -90,3 +90,7 @@ Progress: **22 / 45 in-scope** functions implemented; **10** functions are out-o
 - Calculated-field `IN` is lowered by logs-backend to dd-go's `ARRAY_CONTAINS`; it is distinct from
   the query-language `InExprNode` set-membership path and is deferred with the other array
   functions.
+- `ROUND` has a literal-value-dependent return type, four integer/float input-output paths, an
+  aborting float-to-int overflow case, and an observable production defect where integer input at
+  precision zero leaves the lazily allocated output unwritten. It needs a separate parity decision
+  and implementation pass.
