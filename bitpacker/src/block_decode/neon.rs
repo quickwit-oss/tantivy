@@ -2,6 +2,41 @@ use std::arch::aarch64::*;
 
 use super::{BLOCK_LEN, Lane};
 
+/// Stores 4 unpacked values held in `u32` lanes at `out`, widening when the
+/// output lane is `u64`. The branch folds away at monomorphization.
+///
+/// # Safety
+/// `out` must be writable for 4 elements.
+#[inline(always)]
+unsafe fn store_u32x4<L: Lane>(out: *mut L, vals: uint32x4_t) {
+    unsafe {
+        if L::IS_U64 {
+            let out = out as *mut u64;
+            vst1q_u64(out, vmovl_u32(vget_low_u32(vals)));
+            vst1q_u64(out.add(2), vmovl_high_u32(vals));
+        } else {
+            vst1q_u32(out as *mut u32, vals);
+        }
+    }
+}
+
+/// Stores 2 unpacked values held in `u64` lanes at `out`, narrowing when the
+/// output lane is `u32`. The branch folds away at monomorphization.
+///
+/// # Safety
+/// `out` must be writable for 2 elements, and every lane must fit `L` (the
+/// `u32` lane is only ever used at widths `<= 32`).
+#[inline(always)]
+unsafe fn store_u64x2<L: Lane>(out: *mut L, vals: uint64x2_t) {
+    unsafe {
+        if L::IS_U64 {
+            vst1q_u64(out as *mut u64, vals);
+        } else {
+            vst1_u32(out as *mut u32, vmovn_u64(vals));
+        }
+    }
+}
+
 /// NEON unpack for bit widths 1..=25.
 ///
 /// 8 consecutive values occupy exactly `w` bytes and always start
@@ -58,8 +93,8 @@ pub(super) unsafe fn decode_block_neon<L: Lane>(w: usize, data: &[u8], out: &mut
                 ),
                 mask,
             );
-            L::store_u32x4(out_ptr, lo);
-            L::store_u32x4(out_ptr.add(4), hi);
+            store_u32x4::<L>(out_ptr, lo);
+            store_u32x4::<L>(out_ptr.add(4), hi);
             ptr = ptr.add(w);
             out_ptr = out_ptr.add(8);
         }
@@ -117,7 +152,7 @@ pub(super) unsafe fn decode_block_neon_wide<L: Lane>(
                     vshlq_u64(vreinterpretq_u64_u8(vqtbl1q_u8(bytes, idx_v[p])), sh_v[p]),
                     mask,
                 );
-                L::store_u64x2(out_ptr.add(2 * p), vals);
+                store_u64x2::<L>(out_ptr.add(2 * p), vals);
             }
             ptr = ptr.add(w);
             out_ptr = out_ptr.add(8);

@@ -1,7 +1,7 @@
 use std::io;
 use std::ops::{Range, RangeInclusive};
 
-use crate::block_decode::{BLOCK_LEN, Lane, decode_block_lanes};
+use crate::block_decode::{decode_range, decode_value};
 
 pub struct BitPacker {
     mini_buffer: u64,
@@ -94,36 +94,13 @@ impl BitUnpacker {
 
     #[inline]
     pub fn get(&self, idx: u32, data: &[u8]) -> u64 {
-        let addr_in_bits = idx as usize * self.num_bits;
-        let addr = addr_in_bits >> 3;
-        if addr + 8 > data.len() {
-            if self.num_bits == 0 {
-                return 0;
-            }
-            let bit_shift = addr_in_bits & 7;
-            return self.get_slow_path(addr, bit_shift as u32, data);
-        }
-        let bit_shift = addr_in_bits & 7;
-        let bytes: [u8; 8] = (&data[addr..addr + 8]).try_into().unwrap();
-        let val_unshifted_unmasked: u64 = u64::from_le_bytes(bytes);
-        let val_shifted = val_unshifted_unmasked >> bit_shift;
-        val_shifted & self.mask
+        decode_value(self.num_bits, self.mask, idx as usize, data)
     }
 
-    #[inline(never)]
-    fn get_slow_path(&self, addr: usize, bit_shift: u32, data: &[u8]) -> u64 {
-        let mut bytes: [u8; 8] = [0u8; 8];
-        let available_bytes = data.len() - addr;
-        // This function is meant to only be called if we did not have 8 bytes to load.
-        debug_assert!(available_bytes < 8);
-        bytes[..available_bytes].copy_from_slice(&data[addr..]);
-        let val_unshifted_unmasked: u64 = u64::from_le_bytes(bytes);
-        let val_shifted = val_unshifted_unmasked >> bit_shift;
-        val_shifted & self.mask
-    }
-
+    /// Decodes `[start_idx, start_idx + output.len())` into `output`. See
+    /// [`crate::block_decode::decode_range`].
     pub fn get_batch(&self, start_idx: u32, data: &[u8], output: &mut [u64]) {
-        self.get_batch_lanes(start_idx, data, output);
+        decode_range(self.bit_width(), start_idx as usize, data, output);
     }
 
     // Decodes the range of bitpacked `u32` values with idx
@@ -137,46 +114,7 @@ impl BitUnpacker {
             self.bit_width() <= 32,
             "Bitwidth must be <= 32 to use this method."
         );
-        self.get_batch_lanes(start_idx, data, output);
-    }
-
-    /// Decodes `[start_idx, start_idx + output.len())` into `output`, routing
-    /// whole aligned blocks through [`crate::block_decode::decode_block`] and
-    /// the two edges through [`Self::get`].
-    ///
-    /// A block only starts byte-aligned -- which the kernels require -- when
-    /// its first index is a multiple of 8, since 8 values occupy exactly
-    /// `num_bits` bytes. So the block loop is preceded by an entrance ramp of
-    /// up to 7 values, and followed by an exit ramp of up to `BLOCK_LEN - 1`.
-    fn get_batch_lanes<L: Lane>(&self, start_idx: u32, data: &[u8], output: &mut [L]) {
-        // `usize` throughout to avoid overflow issues.
-        let end_idx = start_idx as usize + output.len();
-        assert!(
-            (end_idx * self.num_bits).div_ceil(8) <= data.len(),
-            "Requested index is out of bounds."
-        );
-
-        let ramp = ((8 - start_idx % 8) % 8) as usize;
-        let mut cursor = if ramp + BLOCK_LEN <= output.len() {
-            ramp
-        } else {
-            output.len()
-        };
-        for (i, out) in output[..cursor].iter_mut().enumerate() {
-            *out = L::from_u64(self.get(start_idx + i as u32, data));
-        }
-        while cursor + BLOCK_LEN <= output.len() {
-            let block_start_bytes = (start_idx as usize + cursor) * self.num_bits / 8;
-            let block: &mut [L; BLOCK_LEN] = (&mut output[cursor..cursor + BLOCK_LEN])
-                .try_into()
-                .unwrap();
-            decode_block_lanes(self.num_bits as u8, &data[block_start_bytes..], block);
-            cursor += BLOCK_LEN;
-        }
-        for (i, out) in output[cursor..].iter_mut().enumerate() {
-            let idx = start_idx + (cursor + i) as u32;
-            *out = L::from_u64(self.get(idx, data));
-        }
+        decode_range(self.bit_width(), start_idx as usize, data, output);
     }
 
     pub fn get_ids_for_value_range(
