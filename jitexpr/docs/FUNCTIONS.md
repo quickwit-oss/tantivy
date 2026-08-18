@@ -15,8 +15,8 @@ does not register or execute it. Reader-only functions rejected by the CalcNode 
 excluded.
 
 Status legend: **done** is implemented and covered by unit tests; **pending** is in the queue;
-**out-of-scope** is deliberately deferred because it requires array support or was explicitly
-excluded from this pass.
+**out-of-scope** is deliberately deferred because it requires array support, was explicitly
+excluded from this pass, or is complex enough to warrant a separate implementation pass.
 
 | Tag | Function | Status |
 |---:|---|---|
@@ -34,7 +34,7 @@ excluded from this pass.
 | 12 | `LT_EQ` | done |
 | 13 | `IS_NULL` | done |
 | 14 | `IS_NOT_NULL` | done |
-| 15 | `CIDR` | pending |
+| 15 | `CIDR` | out-of-scope |
 | 16 | `UPPER` | pending |
 | 17 | `LOWER` | done |
 | 18 | `PROPER` | pending |
@@ -76,4 +76,11 @@ excluded from this pass.
 | 79 | `SUBSTRING_COUNT` | pending |
 | 80 | `REGEXP_LIKE` | pending |
 
-Progress: **16 / 48 in-scope** functions implemented; **7** functions are out-of-scope.
+Progress: **16 / 47 in-scope** functions implemented; **8** functions are out-of-scope.
+
+## Deferred implementation notes
+
+- `CIDR` requires compile-time parsing of variadic IPv4/IPv6 network masks, exact IP parsing
+  compatibility (including IPv6 zone-index stripping), and structural enforcement that argument 0
+  is a bare column while every remaining argument is a string constant. It is deferred as a
+  complex function rather than expanding this scalar-function pass.
