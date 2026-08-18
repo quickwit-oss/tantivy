@@ -1,6 +1,6 @@
 use cranelift_jit::JITModule;
 
-use super::{TypedExpr, TypedVariable};
+use super::{StringArena, TypedExpr, TypedVariable};
 use crate::types::{VarType, VariableValue};
 
 #[cfg(not(any(
@@ -18,7 +18,7 @@ compile_error!(
 // types.rs, not an interface intended for C callers.
 #[allow(improper_ctypes_definitions)]
 pub(crate) type JitEntry =
-    for<'a> unsafe extern "C" fn(*const VariableValue<'a>) -> VariableValue<'a>;
+    for<'a> unsafe extern "C" fn(*const VariableValue<'a>, *mut StringArena) -> VariableValue<'a>;
 
 /// An expression compiled to native machine code.
 ///
@@ -29,6 +29,7 @@ pub struct CompiledFn {
     pub(crate) _module: JITModule,
     /// Input slots in the exact order expected by [`CompiledFn::call`].
     pub inputs: Vec<TypedVariable>,
+    pub(crate) string_arena: StringArena,
     // This AST owns the Arc-backed literals and regexes embedded in generated code.
     pub(crate) _typed_expr: Box<TypedExpr>,
 }
@@ -41,6 +42,9 @@ impl CompiledFn {
 
     /// Evaluate the compiled expression.
     ///
+    /// The mutable borrow prevents another evaluation from clearing the string
+    /// arena while an arena-backed result from this call is still live.
+    ///
     /// # Safety
     ///
     /// `args` must follow [`CompiledFn::inputs`] exactly: every present slot must
@@ -49,9 +53,9 @@ impl CompiledFn {
     /// remain alive for the duration of this call.
     ///
     /// The result cannot outlive the compiled function nor the passed
-    /// arguments's lifetime.
+    /// arguments' lifetime.
     pub unsafe fn call<'args, 'compiled, 'output>(
-        &'compiled self,
+        &'compiled mut self,
         args: &[VariableValue<'args>],
     ) -> VariableValue<'output>
     where
@@ -60,8 +64,10 @@ impl CompiledFn {
     {
         debug_assert_eq!(args.len(), self.inputs.len());
         let args: &[VariableValue<'output>] = args;
+        self.string_arena.clear();
+        let string_arena = &raw mut self.string_arena;
         // SAFETY: Guaranteed by the caller. Both the input and compiled-function
         // lifetimes outlive the lifetime selected for the returned value.
-        unsafe { (self.entry)(args.as_ptr()) }
+        unsafe { (self.entry)(args.as_ptr(), string_arena) }
     }
 }

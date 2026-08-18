@@ -106,7 +106,7 @@ mod tests {
 
     fn eval_without_args(expression: &str) -> (bool, Option<bool>) {
         let expression = deserialize(expression).unwrap();
-        let compiled = compile(&expression, &HashMap::new()).unwrap();
+        let mut compiled = compile(&expression, &HashMap::new()).unwrap();
         assert!(compiled.inputs.is_empty());
         // SAFETY: The compiled expression has no inputs.
         let output = unsafe { compiled.call(&[]) };
@@ -118,7 +118,7 @@ mod tests {
     fn eval_variable(var_type: VarType, input: VariableValue<'_>) -> (bool, Option<bool>) {
         let expression = deserialize("(IS_NOT_NULL value)").unwrap();
         let variable_types = HashMap::from([("value", var_type)]);
-        let compiled = compile(&expression, &variable_types).unwrap();
+        let mut compiled = compile(&expression, &variable_types).unwrap();
         // SAFETY: `input` is constructed with the union member matching `var_type`
         // at each call site, or is absent and therefore has no active payload.
         let output = unsafe { compiled.call(&[input]) };

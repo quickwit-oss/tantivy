@@ -11,7 +11,8 @@ use cranelift_module::{FuncId, Module, ModuleError, default_libcall_names};
 
 use super::compiled_fn::JitEntry;
 use super::{
-    CompileError, CompiledFn, LoweringContext, TypedExpr, TypedExprAst, TypedLiteral, TypedVariable,
+    CompileError, CompiledFn, LoweringContext, StringArena, TypedExpr, TypedExprAst, TypedLiteral,
+    TypedVariable,
 };
 use crate::ast::{InferredTypeSet, Literal, UntypedExpr};
 use crate::functions::{declare_native_functions, register_jit_symbols};
@@ -187,10 +188,11 @@ impl<'types, 'names> CompileFnBuilder<'types, 'names> {
         let target_config = module.target_config();
         let pointer_type = target_config.pointer_type();
 
-        // The native entry point mirrors JitEntry: its argument points to the
-        // input slots, and VariableValue is returned as two integer-class values
-        // according to the native C ABI.
+        // The native entry point mirrors JitEntry: its arguments point to the
+        // input slots and call-scoped string arena. VariableValue is returned as
+        // two integer-class values according to the native C ABI.
         let mut signature = module.make_signature();
+        signature.params.push(AbiParam::new(pointer_type));
         signature.params.push(AbiParam::new(pointer_type));
         signature.returns.push(AbiParam::new(types::I64));
         signature.returns.push(AbiParam::new(types::I64));
@@ -212,8 +214,10 @@ impl<'types, 'names> CompileFnBuilder<'types, 'names> {
             builder.seal_block(entry_block);
 
             let args_ptr = builder.block_params(entry_block)[0];
+            let string_arena_ptr = builder.block_params(entry_block)[1];
             let mut lowering_context = LoweringContext {
                 args_ptr,
+                string_arena_ptr,
                 pointer_type,
                 native_functions: &native_functions,
             };
@@ -284,6 +288,7 @@ impl LoweredFunction {
             entry,
             _module: module,
             inputs: input_vars,
+            string_arena: StringArena::new(),
             _typed_expr: expression,
         })
     }
@@ -452,7 +457,7 @@ mod tests {
         let lowered = builder.lower_typed_expr(expression).unwrap();
         let signature = &lowered.context.func.signature;
 
-        assert_eq!(signature.params.len(), 1);
+        assert_eq!(signature.params.len(), 2);
         assert!(
             signature
                 .params

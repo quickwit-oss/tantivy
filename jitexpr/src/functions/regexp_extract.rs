@@ -257,7 +257,7 @@ mod tests {
         let expression =
             ast::deserialize(r#"(REGEXP_EXTRACT message "([a-z]+)-(\\d+)" 1u64)"#).unwrap();
         let variable_types = HashMap::from([("message", VarType::Str)]);
-        let compiled = compile(&expression, &variable_types).unwrap();
+        let mut compiled = compile(&expression, &variable_types).unwrap();
         let haystack = "prefix user-123 suffix";
         let input = [VariableValue::some(haystack)];
         let output = unsafe { compiled.call(&input) };
@@ -272,7 +272,7 @@ mod tests {
         let expression =
             ast::deserialize(r#"(REGEXP_EXTRACT message "([a-z]+)-(\\d+)" 2u64)"#).unwrap();
         let variable_types = HashMap::from([("message", VarType::Str)]);
-        let compiled = compile(&expression, &variable_types).unwrap();
+        let mut compiled = compile(&expression, &variable_types).unwrap();
         let input = [VariableValue::some("user-123")];
         let output = unsafe { compiled.call(&input) };
 
@@ -284,7 +284,7 @@ mod tests {
         let expression =
             ast::deserialize(r#"(REGEXP_EXTRACT message "([a-z]+)-(\\d+)" 0u64)"#).unwrap();
         let variable_types = HashMap::from([("message", VarType::Str)]);
-        let compiled = compile(&expression, &variable_types).unwrap();
+        let mut compiled = compile(&expression, &variable_types).unwrap();
         let input = [VariableValue::some("no digits here")];
         let output = unsafe { compiled.call(&input) };
 
@@ -295,7 +295,7 @@ mod tests {
     fn test_compile_propagates_none_haystack() {
         let expression = ast::deserialize(r#"(REGEXP_EXTRACT message "([a-z]+)" 0u64)"#).unwrap();
         let variable_types = HashMap::from([("message", VarType::Str)]);
-        let compiled = compile(&expression, &variable_types).unwrap();
+        let mut compiled = compile(&expression, &variable_types).unwrap();
         let input = [VariableValue::none()];
         let output = unsafe { compiled.call(&input) };
 
@@ -305,17 +305,17 @@ mod tests {
     #[test]
     fn test_compile_propagates_compile_time_none_haystack() {
         let expression = ast::deserialize(r#"(REGEXP_EXTRACT missing "([a-z]+)" 0u64)"#).unwrap();
-        let compiled = compile(&expression, &HashMap::new()).unwrap();
+        let mut compiled = compile(&expression, &HashMap::new()).unwrap();
+        assert_eq!(compiled.result_type(), VarType::None);
         let output = unsafe { compiled.call(&[]) };
 
-        assert_eq!(compiled.result_type(), VarType::None);
         assert_eq!(unsafe { output.as_str() }, None);
     }
 
     #[test]
     fn test_compile_distinguishes_empty_capture_from_none() {
         let expression = ast::deserialize(r#"(REGEXP_EXTRACT "b" "(a*)b" 1u64)"#).unwrap();
-        let compiled = compile(&expression, &HashMap::new()).unwrap();
+        let mut compiled = compile(&expression, &HashMap::new()).unwrap();
         let output = unsafe { compiled.call(&[]) };
 
         assert_eq!(unsafe { output.as_str() }, Some(""));
@@ -326,7 +326,7 @@ mod tests {
         let expression =
             ast::deserialize(r#"(REGEXP_EXTRACT message "[a-z]+-\\d+" 0u64)"#).unwrap();
         let variable_types = HashMap::from([("message", VarType::Str)]);
-        let compiled = compile(&expression, &variable_types).unwrap();
+        let mut compiled = compile(&expression, &variable_types).unwrap();
         let input = [VariableValue::some("prefix user-123 suffix")];
         let output = unsafe { compiled.call(&input) };
 
@@ -343,7 +343,7 @@ mod tests {
         )
         .unwrap();
         let variable_types = HashMap::from([("message", VarType::Str)]);
-        let compiled = compile(&expression, &variable_types).unwrap();
+        let mut compiled = compile(&expression, &variable_types).unwrap();
         let input = [VariableValue::some("id=user-123!")];
         let output = unsafe { compiled.call(&input) };
 

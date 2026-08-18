@@ -28,7 +28,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     let variable_types: HashMap<&str, VarType> =
         std::iter::once(("my_col", VarType::F64)).collect();
 
-    let compiled_fn: CompiledFn = compile(&untyped_expr, &variable_types)?;
+    let mut compiled_fn: CompiledFn = compile(&untyped_expr, &variable_types)?;
 
     // We use a nullable wrapper around the value union to pass typed variables.
     // For present values, it is up to us to populate the correct union member.

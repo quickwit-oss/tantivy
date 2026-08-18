@@ -1,6 +1,7 @@
 mod compile_fn_builder;
 mod compiled_fn;
 mod error;
+mod string_arena;
 mod typed_expr;
 
 use std::collections::HashMap;
@@ -12,6 +13,9 @@ use cranelift::codegen::ir::{
 };
 use cranelift::frontend::FunctionBuilder;
 pub use error::CompileError;
+#[cfg(test)]
+pub(crate) use string_arena::STRING_ARENA_CAPACITY;
+pub(crate) use string_arena::StringArena;
 pub use typed_expr::TypedVariable;
 pub(crate) use typed_expr::{TypedExpr, TypedExprAst, TypedLiteral};
 
@@ -40,6 +44,7 @@ pub fn compile_to_assembly(
 
 pub(crate) struct LoweringContext<'a> {
     args_ptr: CraneliftValue,
+    string_arena_ptr: CraneliftValue,
     pointer_type: Type,
     native_functions: &'a NativeFunctions,
 }
@@ -115,6 +120,10 @@ impl LoweringContext<'_> {
 
     pub(crate) fn pointer_type(&self) -> Type {
         self.pointer_type
+    }
+
+    pub(crate) fn string_arena_ptr(&self) -> CraneliftValue {
+        self.string_arena_ptr
     }
 
     pub(crate) fn native_functions(&self) -> &NativeFunctions {
@@ -207,7 +216,7 @@ mod tests {
     fn test_compile_bool_variable() {
         let untyped_expr = UntypedExpr::variable("flag");
         let variable_types = HashMap::from([("flag", VarType::Bool)]);
-        let compiled_fn = compile(&untyped_expr, &variable_types).unwrap();
+        let mut compiled_fn = compile(&untyped_expr, &variable_types).unwrap();
         let input = [VariableValue::some(true)];
         let output = unsafe { compiled_fn.call(&input) };
 
@@ -218,18 +227,18 @@ mod tests {
     fn test_compile_none_variable() {
         let untyped_expr = UntypedExpr::variable("value");
         let variable_types = HashMap::from([("value", VarType::U64)]);
-        let compiled_fn = compile(&untyped_expr, &variable_types).unwrap();
+        let mut compiled_fn = compile(&untyped_expr, &variable_types).unwrap();
         let input = [VariableValue::none()];
+        assert_eq!(compiled_fn.result_type(), VarType::U64);
         let output = unsafe { compiled_fn.call(&input) };
 
-        assert_eq!(compiled_fn.result_type(), VarType::U64);
         assert_eq!(unsafe { output.as_u64() }, None);
     }
 
     #[test]
     fn test_compile_string_literal_keeps_backing_data_alive() {
         let untyped_expr = UntypedExpr::literal("hello");
-        let compiled_fn = compile(&untyped_expr, &HashMap::new()).unwrap();
+        let mut compiled_fn = compile(&untyped_expr, &HashMap::new()).unwrap();
         drop(untyped_expr);
         let output = unsafe { compiled_fn.call(&[]) };
 
@@ -240,7 +249,7 @@ mod tests {
     fn test_compile_returns_borrowed_string_variable_directly() {
         let untyped_expr = UntypedExpr::variable("value");
         let variable_types = HashMap::from([("value", VarType::Str)]);
-        let compiled_fn = compile(&untyped_expr, &variable_types).unwrap();
+        let mut compiled_fn = compile(&untyped_expr, &variable_types).unwrap();
         let value = String::from("hello from an input");
         let input = [VariableValue::some(value.as_str())];
         let output = unsafe { compiled_fn.call(&input) };
@@ -253,10 +262,10 @@ mod tests {
     #[test]
     fn test_compile_none_literal_returns_absent_value() {
         let untyped_expr = UntypedExpr::literal(crate::ast::Literal::None);
-        let compiled_fn = compile(&untyped_expr, &HashMap::new()).unwrap();
+        let mut compiled_fn = compile(&untyped_expr, &HashMap::new()).unwrap();
+        assert_eq!(compiled_fn.result_type(), VarType::None);
         let output = unsafe { compiled_fn.call(&[]) };
 
-        assert_eq!(compiled_fn.result_type(), VarType::None);
         assert_eq!(unsafe { output.as_u64() }, None);
     }
 
