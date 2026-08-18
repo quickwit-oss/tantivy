@@ -38,6 +38,11 @@ const RAW_INPUT_SIZE: usize = size_of::<RawInput>();
 
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) struct ConcatFnCall {
+    arguments: JoinArguments,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub(super) struct JoinArguments {
     delimiter: Arc<str>,
     ignore_empty: bool,
     values: Box<[TypedExpr]>,
@@ -49,24 +54,7 @@ impl FnCall for ConcatFnCall {
         target_type: InferredTypeSet,
         inferred_types: &mut HashMap<&'a str, InferredTypeSet>,
     ) -> Result<InferredTypeSet, TypeError> {
-        if target_type.intersect(InferredTypeSet::STRING).is_none() {
-            return Err(TypeError::WrongFunctionReturnType {
-                function: Function::Concat,
-                expected: target_type,
-                got: InferredTypeSet::STRING,
-            });
-        }
-        if args.len() < 4 {
-            return Err(TypeError::InvalidNumberOfArguments {
-                function: Function::Concat,
-                expected: 4,
-                got: args.len(),
-            });
-        }
-        for arg in args {
-            crate::ast::infer_types_aux(arg, InferredTypeSet::STRING, inferred_types)?;
-        }
-        Ok(InferredTypeSet::STRING)
+        infer_join_types(Function::Concat, args, target_type, inferred_types)
     }
 
     fn call_with_types(
@@ -74,38 +62,17 @@ impl FnCall for ConcatFnCall {
         _target_type_set: InferredTypeSet,
         context: &mut CompileFnBuilder<'_, '_>,
     ) -> Result<TypedExpr, CompileError> {
-        assert!(args.len() >= 4, "expected at least 4 args for CONCAT");
-        let UntypedExpr::Literal(Literal::String(delimiter)) = &args[0] else {
-            panic!("CONCAT delimiter must be a string literal");
-        };
-        let UntypedExpr::Literal(Literal::String(ignore_empty)) = &args[1] else {
-            panic!("CONCAT ignore-empty flag must be a string literal");
-        };
-
-        let values = args[2..]
-            .iter()
-            .map(|arg| context.apply_types(arg, InferredTypeSet::STRING))
-            .collect::<Result<Vec<_>, _>>()?;
-        if values
-            .iter()
-            .any(|value| value.return_type == VarType::None)
-        {
+        let Some(arguments) = apply_join_types("CONCAT", args, context)? else {
             return Ok(TypedExpr::none());
-        }
-        debug_assert!(values.iter().all(|value| value.return_type == VarType::Str));
-
+        };
         Ok(TypedExpr {
             return_type: VarType::Str,
-            ast: TypedExprAst::from_call(ConcatFnCall {
-                delimiter: Arc::from(delimiter.as_ref()),
-                ignore_empty: ignore_empty.eq_ignore_ascii_case("true"),
-                values: values.into_boxed_slice(),
-            }),
+            ast: TypedExprAst::from_call(ConcatFnCall { arguments }),
         })
     }
 
     fn args_mut(&mut self) -> &mut [TypedExpr] {
-        &mut self.values
+        self.arguments.args_mut()
     }
 
     fn emit_cranelift_ir(
@@ -115,6 +82,81 @@ impl FnCall for ConcatFnCall {
         builder: &mut FunctionBuilder<'_>,
     ) -> Result<LoweredValue, CompileError> {
         debug_assert_eq!(return_type, VarType::Str);
+        self.arguments.emit_cranelift_ir(context, builder)
+    }
+}
+
+pub(super) fn infer_join_types<'a>(
+    function: Function,
+    args: &'a [UntypedExpr],
+    target_type: InferredTypeSet,
+    inferred_types: &mut HashMap<&'a str, InferredTypeSet>,
+) -> Result<InferredTypeSet, TypeError> {
+    if target_type.intersect(InferredTypeSet::STRING).is_none() {
+        return Err(TypeError::WrongFunctionReturnType {
+            function,
+            expected: target_type,
+            got: InferredTypeSet::STRING,
+        });
+    }
+    if args.len() < 4 {
+        return Err(TypeError::InvalidNumberOfArguments {
+            function,
+            expected: 4,
+            got: args.len(),
+        });
+    }
+    for arg in args {
+        crate::ast::infer_types_aux(arg, InferredTypeSet::STRING, inferred_types)?;
+    }
+    Ok(InferredTypeSet::STRING)
+}
+
+pub(super) fn apply_join_types(
+    function_name: &str,
+    args: &[UntypedExpr],
+    context: &mut CompileFnBuilder<'_, '_>,
+) -> Result<Option<JoinArguments>, CompileError> {
+    assert!(
+        args.len() >= 4,
+        "expected at least 4 args for {function_name}"
+    );
+    let UntypedExpr::Literal(Literal::String(delimiter)) = &args[0] else {
+        panic!("{function_name} delimiter must be a string literal");
+    };
+    let UntypedExpr::Literal(Literal::String(ignore_empty)) = &args[1] else {
+        panic!("{function_name} ignore-empty flag must be a string literal");
+    };
+
+    let values = args[2..]
+        .iter()
+        .map(|arg| context.apply_types(arg, InferredTypeSet::STRING))
+        .collect::<Result<Vec<_>, _>>()?;
+    if values
+        .iter()
+        .any(|value| value.return_type == VarType::None)
+    {
+        return Ok(None);
+    }
+    debug_assert!(values.iter().all(|value| value.return_type == VarType::Str));
+
+    Ok(Some(JoinArguments {
+        delimiter: Arc::from(delimiter.as_ref()),
+        ignore_empty: ignore_empty.eq_ignore_ascii_case("true"),
+        values: values.into_boxed_slice(),
+    }))
+}
+
+impl JoinArguments {
+    pub(super) fn args_mut(&mut self) -> &mut [TypedExpr] {
+        &mut self.values
+    }
+
+    pub(super) fn emit_cranelift_ir(
+        &self,
+        context: &mut LoweringContext<'_>,
+        builder: &mut FunctionBuilder<'_>,
+    ) -> Result<LoweredValue, CompileError> {
         let stack_size = self
             .values
             .len()

@@ -17,6 +17,7 @@ mod not;
 mod or;
 mod regexp_extract;
 mod subtract;
+mod text_join;
 mod upper;
 
 use std::collections::HashMap;
@@ -43,6 +44,7 @@ pub(crate) use self::not::NotFnCall;
 pub(crate) use self::or::OrFnCall;
 pub(crate) use self::regexp_extract::RegexpExtractFnCall;
 pub(crate) use self::subtract::SubtractFnCall;
+pub(crate) use self::text_join::TextJoinFnCall;
 pub(crate) use self::upper::UpperFnCall;
 use crate::ast::{InferredTypeSet, TypeError, UntypedExpr};
 use crate::compile::{CompileError, CompileFnBuilder, LoweredValue, LoweringContext, TypedExpr};
@@ -85,6 +87,8 @@ pub enum Function {
     RegexpExtract,
     /// Subtracts the second numeric argument from the first.
     Subtract,
+    /// Joins scalar strings with the same semantics as `CONCAT`.
+    TextJoin,
     /// Converts a string to Unicode uppercase.
     Upper,
 }
@@ -133,6 +137,9 @@ impl Function {
             }
             Function::Subtract => {
                 <SubtractFnCall as FnCall>::call_with_types(args, target_type_set, context)
+            }
+            Function::TextJoin => {
+                <TextJoinFnCall as FnCall>::call_with_types(args, target_type_set, context)
             }
             Function::Upper => {
                 <UpperFnCall as FnCall>::call_with_types(args, target_type_set, context)
@@ -184,6 +191,9 @@ impl Function {
             Function::Subtract => {
                 <SubtractFnCall as FnCall>::infer_types(args, target_type, inferred_types)
             }
+            Function::TextJoin => {
+                <TextJoinFnCall as FnCall>::infer_types(args, target_type, inferred_types)
+            }
             Function::Upper => {
                 <UpperFnCall as FnCall>::infer_types(args, target_type, inferred_types)
             }
@@ -217,6 +227,7 @@ pub(crate) enum FnCallEnum {
     Or(OrFnCall),
     RegexpExtract(RegexpExtractFnCall),
     Subtract(SubtractFnCall),
+    TextJoin(TextJoinFnCall),
     Upper(UpperFnCall),
 }
 
@@ -240,6 +251,7 @@ impl FnCallEnum {
             FnCallEnum::Or(call) => call.args_mut(),
             FnCallEnum::RegexpExtract(call) => call.args_mut(),
             FnCallEnum::Subtract(call) => call.args_mut(),
+            FnCallEnum::TextJoin(call) => call.args_mut(),
             FnCallEnum::Upper(call) => call.args_mut(),
         }
     }
@@ -271,6 +283,7 @@ impl FnCallEnum {
                 call.emit_cranelift_ir(return_type, context, builder)
             }
             FnCallEnum::Subtract(call) => call.emit_cranelift_ir(return_type, context, builder),
+            FnCallEnum::TextJoin(call) => call.emit_cranelift_ir(return_type, context, builder),
             FnCallEnum::Upper(call) => call.emit_cranelift_ir(return_type, context, builder),
         }
     }

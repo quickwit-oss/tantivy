@@ -39,7 +39,7 @@ excluded from this pass, or is complex enough to warrant a separate implementati
 | 17 | `LOWER` | done |
 | 18 | `PROPER` | out-of-scope |
 | 19 | `CONCAT` | done |
-| 20 | `TEXT_JOIN` | pending |
+| 20 | `TEXT_JOIN` | done |
 | 21 | `IN` | pending |
 | 22 | `NEQ` | pending |
 | 24 | `INT_MOD` | pending |
@@ -76,7 +76,7 @@ excluded from this pass, or is complex enough to warrant a separate implementati
 | 79 | `SUBSTRING_COUNT` | pending |
 | 80 | `REGEXP_LIKE` | pending |
 
-Progress: **18 / 46 in-scope** functions implemented; **9** functions are out-of-scope.
+Progress: **19 / 46 in-scope** functions implemented; **9** functions are out-of-scope.
 
 ## Deferred implementation notes
 
