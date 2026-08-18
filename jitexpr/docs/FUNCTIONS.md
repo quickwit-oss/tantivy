@@ -14,13 +14,15 @@ surface, emitted by `ExprNodeToProto`, and backed by the dd-go reader implementa
 does not register or execute it. Reader-only functions rejected by the CalcNode producer are also
 excluded.
 
-Status legend: **done** is implemented and covered by unit tests; **pending** is in the queue.
+Status legend: **done** is implemented and covered by unit tests; **pending** is in the queue;
+**out-of-scope** is deliberately deferred because it requires array support or was explicitly
+excluded from this pass.
 
 | Tag | Function | Status |
 |---:|---|---|
 | 1 | `AND` | pending |
 | 2 | `OR` | pending |
-| 3 | `NOT` | pending |
+| 3 | `NOT` | done |
 | 4 | `ADD` | done |
 | 5 | `SUBTRACT` | pending |
 | 6 | `MULTIPLY` | pending |
@@ -63,15 +65,15 @@ Status legend: **done** is implemented and covered by unit tests; **pending** is
 | 65 | `TO_TIMESTAMP` | pending |
 | 66 | `EXTRACT` | pending |
 | 67 | `SEMVER` | pending |
-| 70 | `ARRAY_CONTAINS` | pending |
-| 71 | `ARRAY_SUM` | pending |
-| 72 | `ARRAY_AVG` | pending |
-| 73 | `ARRAY_OF` | pending |
+| 70 | `ARRAY_CONTAINS` | out-of-scope |
+| 71 | `ARRAY_SUM` | out-of-scope |
+| 72 | `ARRAY_AVG` | out-of-scope |
+| 73 | `ARRAY_OF` | out-of-scope |
 | 74 | `TIMESTAMP_DIFF` | pending |
-| 76 | `ARRAY_CONTAINS_NULLABLE` | pending |
-| 77 | `LEVENSHTEIN_DISTANCE` | pending |
-| 78 | `ENTROPY` | pending |
+| 76 | `ARRAY_CONTAINS_NULLABLE` | out-of-scope |
+| 77 | `LEVENSHTEIN_DISTANCE` | out-of-scope |
+| 78 | `ENTROPY` | out-of-scope |
 | 79 | `SUBSTRING_COUNT` | pending |
 | 80 | `REGEXP_LIKE` | pending |
 
-Progress: **6 / 55** implemented.
+Progress: **7 / 48 in-scope** functions implemented; **7** functions are out-of-scope.
