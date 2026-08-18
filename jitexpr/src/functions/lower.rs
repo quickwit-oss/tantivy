@@ -1,4 +1,13 @@
-//! `LOWER` constructs the Unicode-lowercase form of a string in the call arena.
+//! `LOWER` constructs the Unicode-lowercase form of a scalar string.
+//!
+//! It accepts exactly one string and returns a newly allocated string without mutating its input.
+//! Production uses Go's `bytes.ToLower`, which applies one-to-one Unicode simple case mappings.
+//! This matters for `İ`: Go returns plain `i`, rather than Rust's full lowercase mapping of `i`
+//! followed by a combining dot. Null input returns null, while empty input remains present.
+//!
+//! dd-go broadcasts this operation over multivalued inputs. Arrays are outside jitexpr's current
+//! scalar type model, so this implementation covers the scalar behavior only. Constructed bytes
+//! live in `CompiledFn`'s fixed-capacity call arena; arena exhaustion returns null.
 
 use std::collections::HashMap;
 
@@ -150,12 +159,11 @@ unsafe extern "C" fn string_lowercase(
         };
         let mut output_len = 0usize;
         for character in input.chars() {
-            for lowercase in character.to_lowercase() {
-                let Some(next_len) = output_len.checked_add(lowercase.len_utf8()) else {
-                    return RawStr::none();
-                };
-                output_len = next_len;
-            }
+            let lowercase = simple_lowercase(character);
+            let Some(next_len) = output_len.checked_add(lowercase.len_utf8()) else {
+                return RawStr::none();
+            };
+            output_len = next_len;
         }
         output_len
     };
@@ -173,26 +181,27 @@ unsafe extern "C" fn string_lowercase(
         unsafe { std::str::from_utf8_unchecked(std::slice::from_raw_parts(input_ptr, input_len)) };
     let mut written = 0usize;
     for character in input.chars() {
-        for lowercase in character.to_lowercase() {
-            let mut encoded = [0; 4];
-            let encoded = lowercase.encode_utf8(&mut encoded).as_bytes();
-            // SAFETY: output_len was computed from this exact transformation,
-            // and StringArena reserved that many bytes.
-            unsafe {
-                std::ptr::copy_nonoverlapping(
-                    encoded.as_ptr(),
-                    output_ptr.add(written),
-                    encoded.len(),
-                );
-            }
-            written += encoded.len();
+        let lowercase = simple_lowercase(character);
+        let mut encoded = [0; 4];
+        let encoded = lowercase.encode_utf8(&mut encoded).as_bytes();
+        // SAFETY: output_len was computed from this exact transformation,
+        // and StringArena reserved that many bytes.
+        unsafe {
+            std::ptr::copy_nonoverlapping(encoded.as_ptr(), output_ptr.add(written), encoded.len());
         }
+        written += encoded.len();
     }
     debug_assert_eq!(written, output_len);
     RawStr {
         ptr: output_ptr,
         len: output_len,
     }
+}
+
+/// Rust's full lowercase mapping expands `İ` to two code points. Go's `unicode.ToLower` uses the
+/// corresponding one-rune simple mapping, which is the first code point returned by Rust here.
+fn simple_lowercase(character: char) -> char {
+    character.to_lowercase().next().unwrap_or(character)
 }
 
 impl From<LowerFnCall> for FnCallEnum {
@@ -243,7 +252,7 @@ mod tests {
 
         let output = unsafe { compiled.call(&input) };
 
-        assert_eq!(unsafe { output.as_str() }, Some("café i\u{307}stanbul"));
+        assert_eq!(unsafe { output.as_str() }, Some("café istanbul"));
         assert_eq!(input_string, "CAFÉ İSTANBUL");
     }
 
