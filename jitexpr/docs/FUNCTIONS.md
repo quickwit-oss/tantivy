@@ -37,7 +37,7 @@ excluded from this pass, or is complex enough to warrant a separate implementati
 | 15 | `CIDR` | out-of-scope |
 | 16 | `UPPER` | done |
 | 17 | `LOWER` | done |
-| 18 | `PROPER` | pending |
+| 18 | `PROPER` | out-of-scope |
 | 19 | `CONCAT` | pending |
 | 20 | `TEXT_JOIN` | pending |
 | 21 | `IN` | pending |
@@ -76,7 +76,7 @@ excluded from this pass, or is complex enough to warrant a separate implementati
 | 79 | `SUBSTRING_COUNT` | pending |
 | 80 | `REGEXP_LIKE` | pending |
 
-Progress: **17 / 47 in-scope** functions implemented; **8** functions are out-of-scope.
+Progress: **17 / 46 in-scope** functions implemented; **9** functions are out-of-scope.
 
 ## Deferred implementation notes
 
@@ -84,3 +84,6 @@ Progress: **17 / 47 in-scope** functions implemented; **8** functions are out-of
   compatibility (including IPv6 zone-index stripping), and structural enforcement that argument 0
   is a bare column while every remaining argument is a string constant. It is deferred as a
   complex function rather than expanding this scalar-function pass.
+- `PROPER` is locale-aware title casing using Go's `cases.Title(language.AmericanEnglish)`. Exact
+  compatibility requires Unicode word segmentation, American-English title-case rules, and the
+  matching Unicode data version; Rust's standard library does not provide this operation.
