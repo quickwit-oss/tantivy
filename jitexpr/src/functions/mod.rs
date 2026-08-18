@@ -1,4 +1,5 @@
 mod add;
+mod and;
 mod eq;
 mod is_not_null;
 mod is_null;
@@ -12,6 +13,7 @@ use std::collections::HashMap;
 use cranelift::frontend::FunctionBuilder;
 
 pub(crate) use self::add::AddFnCall;
+pub(crate) use self::and::AndFnCall;
 pub(crate) use self::eq::EqFnCall;
 pub(crate) use self::is_not_null::IsNotNullFnCall;
 pub(crate) use self::is_null::IsNullFnCall;
@@ -28,6 +30,8 @@ use crate::types::VarType;
 /// A function supported by the first expression-language milestone.
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub enum Function {
+    /// Conjoins one or more booleans with strict null propagation.
+    And,
     /// Adds zero or more numerical expressions.
     Add,
     /// Compares two expressions for value equality.
@@ -52,6 +56,7 @@ impl Function {
         context: &mut CompileFnBuilder<'_, '_>,
     ) -> Result<TypedExpr, CompileError> {
         match self {
+            Function::And => <AndFnCall as FnCall>::call_with_types(args, target_type_set, context),
             Function::Add => <AddFnCall as FnCall>::call_with_types(args, target_type_set, context),
             Function::Eq => <EqFnCall as FnCall>::call_with_types(args, target_type_set, context),
             Function::IsNotNull => {
@@ -77,6 +82,7 @@ impl Function {
         inferred_types: &mut HashMap<&'a str, InferredTypeSet>,
     ) -> Result<InferredTypeSet, TypeError> {
         match self {
+            Function::And => <AndFnCall as FnCall>::infer_types(args, target_type, inferred_types),
             Function::Add => <AddFnCall as FnCall>::infer_types(args, target_type, inferred_types),
             Function::Eq => <EqFnCall as FnCall>::infer_types(args, target_type, inferred_types),
             Function::IsNotNull => {
@@ -105,6 +111,7 @@ impl Function {
 
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) enum FnCallEnum {
+    And(AndFnCall),
     Add(AddFnCall),
     Eq(EqFnCall),
     IsNull(IsNullFnCall),
@@ -117,6 +124,7 @@ pub(crate) enum FnCallEnum {
 impl FnCallEnum {
     pub(crate) fn args_mut(&mut self) -> &mut [TypedExpr] {
         match self {
+            FnCallEnum::And(call) => call.args_mut(),
             FnCallEnum::Add(call) => call.args_mut(),
             FnCallEnum::Eq(call) => call.args_mut(),
             FnCallEnum::IsNull(call) => call.args_mut(),
@@ -135,6 +143,7 @@ impl FnCallEnum {
         builder: &mut FunctionBuilder<'_>,
     ) -> Result<LoweredValue, CompileError> {
         match self {
+            FnCallEnum::And(call) => call.emit_cranelift_ir(return_type, context, builder),
             FnCallEnum::Add(call) => call.emit_cranelift_ir(return_type, context, builder),
             FnCallEnum::Eq(call) => call.emit_cranelift_ir(return_type, context, builder),
             FnCallEnum::IsNull(call) => call.emit_cranelift_ir(return_type, context, builder),
