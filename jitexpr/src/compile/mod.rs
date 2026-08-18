@@ -43,7 +43,7 @@ pub(crate) struct LoweringContext<'a> {
     args_ptr: CraneliftValue,
     regexes_ptr: CraneliftValue,
     pointer_type: Type,
-    regex_match_results: &'a [UnsafeCell<StringRef>],
+    regex_match_results: &'a [UnsafeCell<StringRef<'static>>],
     native_functions: &'a NativeFunctions,
 }
 
@@ -106,7 +106,7 @@ impl LoweringContext<'_> {
         self.native_functions
     }
 
-    pub(crate) fn regex_match_result(&self, regex_ref: RegexRef) -> *mut StringRef {
+    pub(crate) fn regex_match_result(&self, regex_ref: RegexRef) -> *mut StringRef<'static> {
         self.regex_match_results[regex_ref.index()].get()
     }
 }

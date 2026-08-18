@@ -32,7 +32,7 @@ pub(crate) struct CompileFnBuilder<'types, 'names> {
     variable_types: &'types HashMap<&'names str, VarType>,
     input_vars: Vec<TypedVariable>,
     regexes: Vec<Regex>,
-    regex_match_results: Vec<UnsafeCell<StringRef>>,
+    regex_match_results: Vec<UnsafeCell<StringRef<'static>>>,
     string_literals: Vec<Arc<str>>,
 }
 
@@ -42,7 +42,7 @@ struct LoweredFunction {
     function_id: FuncId,
     input_vars: Vec<TypedVariable>,
     regexes: Box<[Regex]>,
-    regex_match_results: Box<[UnsafeCell<StringRef>]>,
+    regex_match_results: Box<[UnsafeCell<StringRef<'static>>]>,
     string_literals: Box<[Arc<str>]>,
     expression: Box<TypedExpr>,
 }
@@ -70,10 +70,14 @@ impl<'types, 'names> CompileFnBuilder<'types, 'names> {
         regex_ref
     }
 
-    pub(crate) fn register_string_literal(&mut self, value: Arc<str>) -> StringRef {
-        let string_ref = StringRef::new(&value);
+    pub(crate) fn register_string_literal(&mut self, value: Arc<str>) -> StringRef<'static> {
+        let value_ptr = Arc::as_ptr(&value);
         self.string_literals.push(value);
-        string_ref
+        // SAFETY: `value_ptr` points into the Arc now owned by
+        // `self.string_literals`. The fake `'static` lifetime is only used in
+        // the internal typed AST; `CompiledFn::call` narrows it to the borrow
+        // of the compiled function before exposing it to callers.
+        StringRef::new(unsafe { &*value_ptr })
     }
 
     /// If a variable is missing from `variable_types`, it is treated as `None`.
@@ -432,7 +436,7 @@ mod tests {
         let TypedExprAst::Literal(TypedLiteral::String(string_ref)) = typed_expr.ast else {
             panic!("expected a typed string literal");
         };
-        assert_eq!(unsafe { string_ref.as_str() }, "hello");
+        assert_eq!(string_ref.as_str(), "hello");
     }
 
     #[test]

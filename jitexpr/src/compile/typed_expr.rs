@@ -100,7 +100,7 @@ pub(crate) enum TypedLiteral {
     U64(u64),
     I64(i64),
     F64(f64),
-    String(StringRef),
+    String(StringRef<'static>),
 }
 
 impl TypedLiteral {

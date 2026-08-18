@@ -171,10 +171,10 @@ pub(super) fn declare_native_function(
 unsafe extern "C" fn regexp_extract(
     regexes: *const Regex,
     regex_index: usize,
-    haystack: *const StringRef,
+    haystack: *const StringRef<'static>,
     capture_index: u64,
-    match_result: *mut StringRef,
-) -> *mut StringRef {
+    match_result: *mut StringRef<'static>,
+) -> *mut StringRef<'static> {
     if haystack.is_null() {
         return std::ptr::null_mut();
     }

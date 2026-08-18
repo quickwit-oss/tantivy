@@ -1,4 +1,5 @@
 use std::cell::UnsafeCell;
+use std::mem;
 use std::sync::Arc;
 
 use cranelift_jit::JITModule;
@@ -17,7 +18,8 @@ compile_error!(
 
 // On the supported targets, VariableOpt's two eightbytes are returned in two
 // integer registers by the platform C ABI.
-pub(crate) type JitEntry = unsafe extern "C" fn(*const VariableOpt, *const Regex) -> VariableOpt;
+pub(crate) type JitEntry =
+    unsafe extern "C" fn(*const VariableOpt<'static>, *const Regex) -> VariableOpt<'static>;
 
 /// An expression compiled to native machine code.
 ///
@@ -33,7 +35,7 @@ pub struct CompiledFn {
     // Each regex call site owns stable storage for the StringRef descriptor it
     // returns. UnsafeCell makes the mutation performed by the Rust helper
     // explicit and prevents CompiledFn from being shared between threads.
-    pub(crate) _regex_match_results: Box<[UnsafeCell<StringRef>]>,
+    pub(crate) _regex_match_results: Box<[UnsafeCell<StringRef<'static>>]>,
     /// Input slots in the exact order expected by [`CompiledFn::call`].
     pub inputs: Vec<TypedVariable>,
     // Generated code embeds addresses of StringRef descriptors in this AST.
@@ -55,9 +57,30 @@ impl CompiledFn {
     /// payload of an absent slot is ignored, and any referenced strings must
     /// remain alive for the duration of this call. A string result descriptor
     /// remains valid until the next call to this `CompiledFn`.
-    pub unsafe fn call(&self, args: &[VariableOpt]) -> VariableOpt {
+    ///
+    /// The result cannot outlive the compiled function nor the passed
+    /// arguments's lifetime.
+    pub unsafe fn call<'args, 'compiled, 'output>(
+        &'compiled self,
+        args: &[VariableOpt<'args>],
+    ) -> VariableOpt<'output>
+    where
+        'args: 'output,
+        'compiled: 'output,
+    {
         debug_assert_eq!(args.len(), self.inputs.len());
-        // SAFETY: Guaranteed by the caller.
-        unsafe { (self.entry)(args.as_ptr(), self.regexes.as_ptr()) }
+        // The JIT ABI erases Rust lifetimes. Internally it uses `'static` as a
+        // placeholder; the public bounds above narrow the returned value to a
+        // lifetime outlived by both possible sources of string data.
+        let result = unsafe {
+            (self.entry)(
+                args.as_ptr().cast::<VariableOpt<'static>>(),
+                self.regexes.as_ptr(),
+            )
+        };
+        // SAFETY: `VariableOpt` has the same representation for every
+        // lifetime. The call contract guarantees live inputs, and both input
+        // and compiled-function lifetimes outlive `'output`.
+        unsafe { mem::transmute::<VariableOpt<'static>, VariableOpt<'output>>(result) }
     }
 }

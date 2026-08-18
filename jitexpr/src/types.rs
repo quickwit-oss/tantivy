@@ -13,7 +13,7 @@ pub enum VarType {
 
 /// A borrowed UTF-8 string descriptor passed opaquely through generated code.
 ///
-/// This is a transparent wrapper around Rust's `*const str` fat pointer, which
+/// This is a transparent wrapper around Rust's `&str` fat pointer, which
 /// carries both the address and byte length.
 ///
 /// The pointer can either refer to:
@@ -26,33 +26,25 @@ pub enum VarType {
 /// Either way, its lifetime / ownership is controlled by the caller of the function.
 #[repr(transparent)]
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub struct StringRef {
-    value: *const str,
+pub struct StringRef<'a> {
+    value: &'a str,
 }
 
-impl StringRef {
-    pub fn new(value: &str) -> Self {
+impl<'a> StringRef<'a> {
+    pub fn new(value: &'a str) -> Self {
         Self { value }
     }
 
     pub fn len(&self) -> usize {
-        (self.value as *const [u8]).len()
+        self.value.len()
     }
 
     pub fn is_empty(&self) -> bool {
         self.len() == 0
     }
 
-    /// Read the referenced UTF-8 string.
-    ///
-    /// # Safety
-    ///
-    /// The bytes used to construct this descriptor must still be alive and
-    /// unchanged.
-    pub unsafe fn as_str(&self) -> &str {
-        // SAFETY: Guaranteed by the caller. StringRef can only be constructed
-        // safely from a valid str.
-        unsafe { &*self.value }
+    pub fn as_str(&self) -> &'a str {
+        self.value
     }
 }
 
@@ -62,46 +54,53 @@ impl StringRef {
 /// [`crate::compile::TypedVariable`] identifies the active payload field.
 #[repr(C)]
 #[derive(Clone, Copy)]
-pub union VariableValue {
+pub union VariableValue<'a> {
     pub boolean: bool,
     pub float: f64,
     pub int_u64: u64,
     pub int_i64: i64,
-    pub string: *mut StringRef, //< this has to be mut for results.
+    pub string: *mut StringRef<'a>, //< this has to be mut for results.
 }
 
-impl From<bool> for VariableValue {
+impl<'a> From<bool> for VariableValue<'a> {
     fn from(value: bool) -> Self {
         VariableValue { boolean: value }
     }
 }
 
-impl From<f64> for VariableValue {
+impl<'a> From<f64> for VariableValue<'a> {
     fn from(value: f64) -> Self {
         VariableValue { float: value }
     }
 }
 
-impl From<u64> for VariableValue {
+impl<'a> From<u64> for VariableValue<'a> {
     fn from(value: u64) -> Self {
         VariableValue { int_u64: value }
     }
 }
 
-impl From<i64> for VariableValue {
+impl<'a> From<i64> for VariableValue<'a> {
     fn from(value: i64) -> Self {
         VariableValue { int_i64: value }
     }
 }
 
-impl From<&mut StringRef> for VariableValue {
-    fn from(value: &mut StringRef) -> Self {
-        VariableValue { string: value }
+impl<'value, 'string> From<&'value mut StringRef<'string>> for VariableValue<'value>
+where 'string: 'value
+{
+    fn from(value: &'value mut StringRef<'string>) -> Self {
+        // `StringRef` is covariant in its backing string lifetime, so it is
+        // valid to shorten `'string` to `'value`. The raw mutable pointer is
+        // invariant, however, and therefore needs an explicit cast.
+        VariableValue {
+            string: (value as *mut StringRef<'string>).cast::<StringRef<'value>>(),
+        }
     }
 }
 
-impl Default for VariableValue {
-    fn default() -> VariableValue {
+impl<'a> Default for VariableValue<'a> {
+    fn default() -> VariableValue<'a> {
         VariableValue { int_u64: 0u64 }
     }
 }
@@ -112,14 +111,14 @@ impl Default for VariableValue {
 /// The payload is only meaningful when `is_present` is true.
 #[repr(C)]
 #[derive(Clone, Copy, Default)]
-pub struct VariableOpt {
-    pub value: VariableValue,
+pub struct VariableOpt<'a> {
+    pub value: VariableValue<'a>,
     pub is_present: bool,
 }
 
-impl VariableOpt {
+impl<'a> VariableOpt<'a> {
     /// Wraps a present runtime value.
-    pub fn some(value: impl Into<VariableValue>) -> Self {
+    pub fn some(value: impl Into<VariableValue<'a>>) -> Self {
         Self {
             value: value.into(),
             is_present: true,
@@ -194,19 +193,18 @@ impl VariableOpt {
     /// When present, the active [`VariableValue`] member must be `string` and
     /// point to a live [`StringRef`]. Its backing string must remain valid for
     /// the returned reference's lifetime.
-    pub unsafe fn as_str<'a>(self) -> Option<&'a str> {
+    pub unsafe fn as_str(self) -> Option<&'a str> {
         if self.is_present {
             // SAFETY: Guaranteed by the caller.
             let string_ref: &'a StringRef = unsafe { &*self.value.string };
-            // SAFETY: Guaranteed by the caller.
-            Some(unsafe { string_ref.as_str() })
+            Some(string_ref.as_str())
         } else {
             None
         }
     }
 }
 
-impl<T: Into<VariableValue>> From<T> for VariableOpt {
+impl<'a, T: Into<VariableValue<'a>>> From<T> for VariableOpt<'a> {
     fn from(value: T) -> Self {
         Self::some(value.into())
     }
@@ -222,7 +220,7 @@ mod tests {
         assert_eq!(std::mem::size_of::<StringRef>(), 16);
         assert_eq!(string_ref.len(), 5);
         assert!(!string_ref.is_empty());
-        assert_eq!(unsafe { string_ref.as_str() }, "hello");
+        assert_eq!(string_ref.as_str(), "hello");
     }
 
     #[test]

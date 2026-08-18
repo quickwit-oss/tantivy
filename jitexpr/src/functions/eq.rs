@@ -248,10 +248,13 @@ pub(super) fn declare_native_function(
     Ok(module.declare_func_in_func(function_id, function))
 }
 
-unsafe extern "C" fn string_eq(lhs: *const StringRef, rhs: *const StringRef) -> u8 {
+unsafe extern "C" fn string_eq(
+    lhs: *const StringRef<'static>,
+    rhs: *const StringRef<'static>,
+) -> u8 {
     match (unsafe { lhs.as_ref() }, unsafe { rhs.as_ref() }) {
         (None, None) => 1,
-        (Some(lhs), Some(rhs)) => u8::from(unsafe { lhs.as_str() } == unsafe { rhs.as_str() }),
+        (Some(lhs), Some(rhs)) => u8::from(lhs.as_str() == rhs.as_str()),
         _ => 0,
     }
 }
