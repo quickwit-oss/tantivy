@@ -9,6 +9,7 @@ mod is_not_null;
 mod is_null;
 mod lower;
 mod lt;
+mod lt_eq;
 mod multiply;
 mod native_function;
 mod not;
@@ -30,6 +31,7 @@ pub(crate) use self::is_not_null::IsNotNullFnCall;
 pub(crate) use self::is_null::IsNullFnCall;
 pub(crate) use self::lower::LowerFnCall;
 pub(crate) use self::lt::LtFnCall;
+pub(crate) use self::lt_eq::LtEqFnCall;
 pub(crate) use self::multiply::MultiplyFnCall;
 pub(crate) use self::native_function::{
     NativeFunctions, declare_native_functions, register_jit_symbols,
@@ -59,6 +61,8 @@ pub enum Function {
     GtEq,
     /// Tests whether the first ordered value is less than the second.
     Lt,
+    /// Tests whether the first ordered value is less than or equal to the second.
+    LtEq,
     /// Tests whether an expression produced a present value.
     IsNotNull,
     /// Tests whether an expression produced an absent value.
@@ -96,6 +100,9 @@ impl Function {
                 <GtEqFnCall as FnCall>::call_with_types(args, target_type_set, context)
             }
             Function::Lt => <LtFnCall as FnCall>::call_with_types(args, target_type_set, context),
+            Function::LtEq => {
+                <LtEqFnCall as FnCall>::call_with_types(args, target_type_set, context)
+            }
             Function::IsNotNull => {
                 <IsNotNullFnCall as FnCall>::call_with_types(args, target_type_set, context)
             }
@@ -137,6 +144,9 @@ impl Function {
                 <GtEqFnCall as FnCall>::infer_types(args, target_type, inferred_types)
             }
             Function::Lt => <LtFnCall as FnCall>::infer_types(args, target_type, inferred_types),
+            Function::LtEq => {
+                <LtEqFnCall as FnCall>::infer_types(args, target_type, inferred_types)
+            }
             Function::IsNotNull => {
                 <IsNotNullFnCall as FnCall>::infer_types(args, target_type, inferred_types)
             }
@@ -177,6 +187,7 @@ pub(crate) enum FnCallEnum {
     Gt(GtFnCall),
     GtEq(GtEqFnCall),
     Lt(LtFnCall),
+    LtEq(LtEqFnCall),
     IsNull(IsNullFnCall),
     IsNotNull(IsNotNullFnCall),
     Lower(LowerFnCall),
@@ -197,6 +208,7 @@ impl FnCallEnum {
             FnCallEnum::Gt(call) => call.args_mut(),
             FnCallEnum::GtEq(call) => call.args_mut(),
             FnCallEnum::Lt(call) => call.args_mut(),
+            FnCallEnum::LtEq(call) => call.args_mut(),
             FnCallEnum::IsNull(call) => call.args_mut(),
             FnCallEnum::IsNotNull(call) => call.args_mut(),
             FnCallEnum::Lower(call) => call.args_mut(),
@@ -223,6 +235,7 @@ impl FnCallEnum {
             FnCallEnum::Gt(call) => call.emit_cranelift_ir(return_type, context, builder),
             FnCallEnum::GtEq(call) => call.emit_cranelift_ir(return_type, context, builder),
             FnCallEnum::Lt(call) => call.emit_cranelift_ir(return_type, context, builder),
+            FnCallEnum::LtEq(call) => call.emit_cranelift_ir(return_type, context, builder),
             FnCallEnum::IsNull(call) => call.emit_cranelift_ir(return_type, context, builder),
             FnCallEnum::IsNotNull(call) => call.emit_cranelift_ir(return_type, context, builder),
             FnCallEnum::Lower(call) => call.emit_cranelift_ir(return_type, context, builder),

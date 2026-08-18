@@ -29,7 +29,6 @@ const ORDERED_TYPES: InferredTypeSet = InferredTypeSet {
 };
 
 #[derive(Clone, Copy)]
-#[allow(dead_code)] // Variants become live as the four comparison functions are added separately.
 pub(super) enum OrderedComparison {
     GreaterThan,
     LessThan,
