@@ -46,7 +46,7 @@ excluded from this pass, or is complex enough to warrant a separate implementati
 | 25 | `ABS` | done |
 | 27 | `ROUND` | out-of-scope |
 | 28 | `FLOOR` | out-of-scope |
-| 29 | `CEIL` | pending |
+| 29 | `CEIL` | out-of-scope |
 | 34 | `POW` | pending |
 | 35 | `SQRT` | pending |
 | 38 | `MIN` | pending |
@@ -76,7 +76,7 @@ excluded from this pass, or is complex enough to warrant a separate implementati
 | 79 | `SUBSTRING_COUNT` | pending |
 | 80 | `REGEXP_LIKE` | pending |
 
-Progress: **22 / 43 in-scope** functions implemented; **12** functions are out-of-scope.
+Progress: **22 / 42 in-scope** functions implemented; **13** functions are out-of-scope.
 
 ## Deferred implementation notes
 
@@ -97,3 +97,5 @@ Progress: **22 / 43 in-scope** functions implemented; **12** functions are out-o
 - `FLOOR` has the same unwritten lazy-output defect for integer inputs. Its float path converts
   NaN, infinities, and out-of-range results directly to `int64`, whose exact Go result is
   architecture-dependent. It is deferred pending an explicit production-parity policy.
+- `CEIL` shares `FLOOR`'s unwritten integer-output defect and architecture-dependent exceptional
+  float-to-`int64` conversions, so it is deferred under the same parity policy.
