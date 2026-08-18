@@ -52,7 +52,7 @@ excluded from this pass, or is complex enough to warrant a separate implementati
 | 38 | `MIN` | done |
 | 39 | `MAX` | done |
 | 40 | `LEFT` | done |
-| 41 | `RIGHT` | out-of-scope |
+| 41 | `RIGHT` | done |
 | 42 | `SUBSTRING` | done |
 | 43 | `SPLIT_BEFORE` | out-of-scope |
 | 44 | `SPLIT_AFTER` | out-of-scope |
@@ -76,7 +76,7 @@ excluded from this pass, or is complex enough to warrant a separate implementati
 | 79 | `SUBSTRING_COUNT` | done |
 | 80 | `REGEXP_LIKE` | done |
 
-Progress: **31 / 31 in-scope** functions implemented; **24** functions are out-of-scope.
+Progress: **32 / 32 in-scope** functions implemented; **23** functions are out-of-scope.
 
 ## Deferred implementation notes
 
@@ -102,8 +102,6 @@ Progress: **31 / 31 in-scope** functions implemented; **24** functions are out-o
 - `SQRT` has a contradictory production type contract: the dd-go type checker returns the selected
   input type (including integer), while the registry declares a `float64` output and both integer
   and float kernels write `float64`. It is deferred until one of those contracts is chosen.
-- `RIGHT` has the same raw-byte slicing issue as `LEFT` and can begin its result inside a UTF-8 code
-  point, which cannot be represented safely by jitexpr's string value type.
 - `SPLIT_BEFORE` does not stop after handling a negative occurrence. Its scalar kernel continues
   and can construct a negative slice bound, aborting the query. It is deferred until negative
   occurrence semantics are defined explicitly.
