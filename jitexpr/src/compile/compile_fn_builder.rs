@@ -31,6 +31,34 @@ struct LoweredFunction {
     expression: Box<TypedExpr>,
 }
 
+fn make_jit_builder() -> Result<JITBuilder, CompileError> {
+    let mut shared_flags = settings::builder();
+    shared_flags
+        .set("opt_level", "speed")
+        .map_err(ModuleError::from)?;
+    shared_flags
+        .set("use_colocated_libcalls", "false")
+        .map_err(ModuleError::from)?;
+    shared_flags
+        .set("is_pic", "false")
+        .map_err(ModuleError::from)?;
+
+    let mut isa_builder = cranelift_native::builder().unwrap_or_else(|message| {
+        panic!("host machine is not supported: {message}");
+    });
+    isa_builder
+        .set("sign_return_address", "false")
+        .map_err(ModuleError::from)?;
+    isa_builder
+        .set("sign_return_address_all", "false")
+        .map_err(ModuleError::from)?;
+    let isa = isa_builder
+        .finish(settings::Flags::new(shared_flags))
+        .map_err(ModuleError::from)?;
+
+    Ok(JITBuilder::with_isa(isa, default_libcall_names()))
+}
+
 impl<'types, 'names> CompileFnBuilder<'types, 'names> {
     pub(crate) fn new(variable_types: &'types HashMap<&'names str, VarType>) -> Self {
         CompileFnBuilder {
@@ -181,8 +209,7 @@ impl<'types, 'names> CompileFnBuilder<'types, 'names> {
         let CompileFnBuilder { input_vars, .. } = self;
         let expression = Box::new(expression);
 
-        let mut jit_builder =
-            JITBuilder::with_flags(&[("opt_level", "speed")], default_libcall_names())?;
+        let mut jit_builder = make_jit_builder()?;
         register_jit_symbols(&mut jit_builder);
         let mut module = JITModule::new(jit_builder);
         let target_config = module.target_config();

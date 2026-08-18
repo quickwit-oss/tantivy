@@ -307,4 +307,16 @@ mod tests {
         assert!(assembly.contains("block0:"));
         assert!(!assembly.trim().is_empty());
     }
+
+    #[cfg(target_arch = "aarch64")]
+    #[test]
+    fn test_compile_to_assembly_does_not_sign_return_address() {
+        let untyped_expr = Function::Lower.call_untyped_expr(vec![UntypedExpr::variable("value")]);
+        let variable_types = HashMap::from([("value", VarType::Str)]);
+
+        let assembly = compile_to_assembly(&untyped_expr, &variable_types).unwrap();
+
+        assert!(!assembly.contains("pacibsp"));
+        assert!(!assembly.contains("retabsp"));
+    }
 }
