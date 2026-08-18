@@ -1,3 +1,4 @@
+mod abs;
 mod add;
 mod and;
 mod comparison;
@@ -26,6 +27,7 @@ use std::collections::HashMap;
 
 use cranelift::frontend::FunctionBuilder;
 
+pub(crate) use self::abs::AbsFnCall;
 pub(crate) use self::add::AddFnCall;
 pub(crate) use self::and::AndFnCall;
 pub(crate) use self::concat::ConcatFnCall;
@@ -57,6 +59,8 @@ use crate::types::VarType;
 /// A function supported by the first expression-language milestone.
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub enum Function {
+    /// Computes the absolute value of a scalar number.
+    Abs,
     /// Conjoins one or more booleans with strict null propagation.
     And,
     /// Joins scalar strings using a literal delimiter and empty-value policy.
@@ -109,6 +113,7 @@ impl Function {
         context: &mut CompileFnBuilder<'_, '_>,
     ) -> Result<TypedExpr, CompileError> {
         match self {
+            Function::Abs => <AbsFnCall as FnCall>::call_with_types(args, target_type_set, context),
             Function::And => <AndFnCall as FnCall>::call_with_types(args, target_type_set, context),
             Function::Concat => {
                 <ConcatFnCall as FnCall>::call_with_types(args, target_type_set, context)
@@ -166,6 +171,7 @@ impl Function {
         inferred_types: &mut HashMap<&'a str, InferredTypeSet>,
     ) -> Result<InferredTypeSet, TypeError> {
         match self {
+            Function::Abs => <AbsFnCall as FnCall>::infer_types(args, target_type, inferred_types),
             Function::And => <AndFnCall as FnCall>::infer_types(args, target_type, inferred_types),
             Function::Concat => {
                 <ConcatFnCall as FnCall>::infer_types(args, target_type, inferred_types)
@@ -226,6 +232,7 @@ impl Function {
 
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) enum FnCallEnum {
+    Abs(AbsFnCall),
     And(AndFnCall),
     Concat(ConcatFnCall),
     Add(AddFnCall),
@@ -252,6 +259,7 @@ pub(crate) enum FnCallEnum {
 impl FnCallEnum {
     pub(crate) fn args_mut(&mut self) -> &mut [TypedExpr] {
         match self {
+            FnCallEnum::Abs(call) => call.args_mut(),
             FnCallEnum::And(call) => call.args_mut(),
             FnCallEnum::Concat(call) => call.args_mut(),
             FnCallEnum::Add(call) => call.args_mut(),
@@ -284,6 +292,7 @@ impl FnCallEnum {
         builder: &mut FunctionBuilder<'_>,
     ) -> Result<LoweredValue, CompileError> {
         match self {
+            FnCallEnum::Abs(call) => call.emit_cranelift_ir(return_type, context, builder),
             FnCallEnum::And(call) => call.emit_cranelift_ir(return_type, context, builder),
             FnCallEnum::Concat(call) => call.emit_cranelift_ir(return_type, context, builder),
             FnCallEnum::Add(call) => call.emit_cranelift_ir(return_type, context, builder),

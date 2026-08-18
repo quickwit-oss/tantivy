@@ -43,7 +43,7 @@ excluded from this pass, or is complex enough to warrant a separate implementati
 | 21 | `IN` | out-of-scope |
 | 22 | `NEQ` | done |
 | 24 | `INT_MOD` | done |
-| 25 | `ABS` | pending |
+| 25 | `ABS` | done |
 | 27 | `ROUND` | pending |
 | 28 | `FLOOR` | pending |
 | 29 | `CEIL` | pending |
@@ -76,7 +76,7 @@ excluded from this pass, or is complex enough to warrant a separate implementati
 | 79 | `SUBSTRING_COUNT` | pending |
 | 80 | `REGEXP_LIKE` | pending |
 
-Progress: **21 / 45 in-scope** functions implemented; **10** functions are out-of-scope.
+Progress: **22 / 45 in-scope** functions implemented; **10** functions are out-of-scope.
 
 ## Deferred implementation notes
 
