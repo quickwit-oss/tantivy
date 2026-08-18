@@ -1,17 +1,11 @@
-//! `SUBSTRING(input, start, length)` returns a byte-indexed slice of a scalar string.
+//! `SUBSTRING(input, start, length)` returns a byte-indexed string slice.
 //!
 //! The start and length arguments must be integer constants. They count UTF-8 bytes, not Unicode
 //! scalar values or grapheme clusters. For example, `SUBSTRING("éclair", 2, 5)` returns `"clair"`
 //! because `é` occupies bytes 0 and 1. The end is clamped to the input length, an out-of-range
 //! start or zero length returns an empty string, and null input propagates.
 //!
-//! The scalar dd-go kernel has an observable quirk: it returns empty whenever `start == length`,
-//! even though those values do not normally describe an empty range. This implementation preserves
-//! that behavior. dd-go rejects negative bounds at execution; jitexpr represents them as null
-//! because its call API has no runtime query-error channel. A range that splits a UTF-8 code point
-//! also returns null: dd-go can carry the resulting arbitrary bytes, but jitexpr's `Str` contract
-//! requires valid UTF-8. Production applies the operation to every array element; arrays are
-//! outside jitexpr's scalar model.
+//! Negative bounds and ranges that split a UTF-8 code point return null.
 
 use std::collections::HashMap;
 
@@ -201,16 +195,8 @@ unsafe extern "C" fn substring(
     // SAFETY: CompiledFn's call contract guarantees a live UTF-8 string pointer and exact length.
     let input =
         unsafe { std::str::from_utf8_unchecked(std::slice::from_raw_parts(input_ptr, input_len)) };
-
-    if start == length {
-        return RawStr::some(&input[..0]);
-    }
-    let end = (start as i64).wrapping_add(length as i64);
-    let Ok(end) = usize::try_from(end) else {
-        return RawStr::some(&input[..0]);
-    };
-    let end = end.min(input.len());
-    if start >= input.len() || start >= end {
+    let end = start.saturating_add(length).min(input.len());
+    if start >= end {
         return RawStr::some(&input[..0]);
     }
     if !input.is_char_boundary(start) || !input.is_char_boundary(end) {
@@ -263,13 +249,11 @@ mod tests {
     }
 
     #[test]
-    fn test_empty_clamping_and_scalar_quirk() {
+    fn test_empty_and_clamping() {
         assert_eq!(eval("(SUBSTRING \"abc\" 1i64 99i64)"), Some("bc".into()));
+        assert_eq!(eval("(SUBSTRING \"abc\" 3i64 1i64)"), Some(String::new()));
         assert_eq!(eval("(SUBSTRING \"abc\" 9i64 1i64)"), Some(String::new()));
-        assert_eq!(
-            eval("(SUBSTRING \"abcdef\" 2i64 2i64)"),
-            Some(String::new())
-        );
+        assert_eq!(eval("(SUBSTRING \"abcdef\" 2i64 2i64)"), Some("cd".into()));
         assert_eq!(eval("(SUBSTRING \"abc\" 1i64 0i64)"), Some(String::new()));
     }
 
