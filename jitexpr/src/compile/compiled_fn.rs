@@ -1,5 +1,4 @@
 use cranelift_jit::JITModule;
-use regex::Regex;
 
 use super::{TypedExpr, TypedVariable};
 use crate::types::{VarType, VariableValue};
@@ -19,7 +18,7 @@ compile_error!(
 // types.rs, not an interface intended for C callers.
 #[allow(improper_ctypes_definitions)]
 pub(crate) type JitEntry =
-    for<'a> unsafe extern "C" fn(*const VariableValue<'a>, *const Regex) -> VariableValue<'a>;
+    for<'a> unsafe extern "C" fn(*const VariableValue<'a>) -> VariableValue<'a>;
 
 /// An expression compiled to native machine code.
 ///
@@ -28,11 +27,9 @@ pub(crate) type JitEntry =
 pub struct CompiledFn {
     pub(crate) entry: JitEntry,
     pub(crate) _module: JITModule,
-    // Generated code selects a compiled regex by its index in this array.
-    pub(crate) regexes: Box<[Regex]>,
     /// Input slots in the exact order expected by [`CompiledFn::call`].
     pub inputs: Vec<TypedVariable>,
-    // This AST owns the Arc-backed string literals embedded in generated code.
+    // This AST owns the Arc-backed literals and regexes embedded in generated code.
     pub(crate) _typed_expr: Box<TypedExpr>,
 }
 
@@ -65,6 +62,6 @@ impl CompiledFn {
         let args: &[VariableValue<'output>] = args;
         // SAFETY: Guaranteed by the caller. Both the input and compiled-function
         // lifetimes outlive the lifetime selected for the returned value.
-        unsafe { (self.entry)(args.as_ptr(), self.regexes.as_ptr()) }
+        unsafe { (self.entry)(args.as_ptr()) }
     }
 }

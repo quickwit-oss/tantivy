@@ -136,7 +136,7 @@ pub(crate) trait FnCall: std::fmt::Debug + Into<FnCallEnum> {
     ///
     /// `target_type_set` communicates the result types set accepted by the parent call. The
     /// implementation selects a concrete result type, applies compatible target types to its
-    /// arguments through `context`, and registers any compilation resources owned by the call.
+    /// arguments through `context`, and stores any compilation resources on the typed call.
     ///
     /// The type of the returned is given to the caller in the TypedExpr object.
     fn call_with_types(

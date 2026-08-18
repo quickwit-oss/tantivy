@@ -12,6 +12,7 @@
 // group is absent or did not participate in the match.
 
 use std::collections::HashMap;
+use std::sync::Arc;
 
 use cranelift::codegen::ir::{FuncRef, Function as CraneliftFunction, Type, types};
 use cranelift::frontend::FunctionBuilder;
@@ -22,19 +23,26 @@ use regex::Regex;
 
 use crate::ast::{Function, InferredTypeSet, Literal, TypeError, UntypedExpr};
 use crate::compile::{
-    CompileError, CompileFnBuilder, LoweredValue, LoweringContext, RegexRef, TypedExpr,
-    TypedExprAst,
+    CompileError, CompileFnBuilder, LoweredValue, LoweringContext, TypedExpr, TypedExprAst,
 };
 use crate::functions::{FnCall, FnCallEnum};
 use crate::types::VarType;
 
 const SYMBOL: &str = "jitexpr_regexp_extract";
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug)]
 pub(crate) struct RegexpExtractFnCall {
-    regex_ref: RegexRef,
+    regex: Arc<Regex>,
     haystack: Box<TypedExpr>,
     capture_index: u64,
+}
+
+impl PartialEq for RegexpExtractFnCall {
+    fn eq(&self, other: &Self) -> bool {
+        self.regex.as_str() == other.regex.as_str()
+            && self.haystack == other.haystack
+            && self.capture_index == other.capture_index
+    }
 }
 
 impl FnCall for RegexpExtractFnCall {
@@ -79,11 +87,12 @@ impl FnCall for RegexpExtractFnCall {
         let UntypedExpr::Literal(Literal::String(pattern)) = &args[1] else {
             panic!("regexp_extract pattern must be a string literal");
         };
-        let regex = Regex::new(pattern).map_err(|source| CompileError::InvalidRegex {
-            pattern: pattern.to_string(),
-            source,
-        })?;
-        let regex_ref = context.register_regex(regex);
+        let regex = Arc::new(
+            Regex::new(pattern).map_err(|source| CompileError::InvalidRegex {
+                pattern: pattern.to_string(),
+                source,
+            })?,
+        );
 
         let UntypedExpr::Literal(Literal::U64(capture_index)) = &args[2] else {
             panic!("regexp_extract capture index must be a u64 literal");
@@ -92,7 +101,7 @@ impl FnCall for RegexpExtractFnCall {
         Ok(TypedExpr {
             return_type: VarType::Str,
             ast: TypedExprAst::from_call(RegexpExtractFnCall {
-                regex_ref,
+                regex,
                 haystack: Box::new(haystack),
                 capture_index: *capture_index,
             }),
@@ -117,19 +126,13 @@ impl FnCall for RegexpExtractFnCall {
         let haystack_ptr = builder
             .ins()
             .select(haystack.is_present, haystack.value, null);
-        let regex_index = builder
+        let regex_ptr = builder
             .ins()
-            .iconst(context.pointer_type(), self.regex_ref.index() as i64);
+            .iconst(context.pointer_type(), Arc::as_ptr(&self.regex) as i64);
         let capture_index = builder.ins().iconst(types::I64, self.capture_index as i64);
         let call = builder.ins().call(
             context.native_functions().regexp_extract(),
-            &[
-                context.regexes_ptr(),
-                regex_index,
-                haystack_ptr,
-                haystack.string_len,
-                capture_index,
-            ],
+            &[regex_ptr, haystack_ptr, haystack.string_len, capture_index],
         );
         let value = builder.inst_results(call)[0];
         let string_len = builder.inst_results(call)[1];
@@ -156,7 +159,7 @@ pub(super) fn declare_native_function(
     let mut signature = module.make_signature();
     signature
         .params
-        .extend(std::iter::repeat_n(AbiParam::new(pointer_type), 3));
+        .extend(std::iter::repeat_n(AbiParam::new(pointer_type), 2));
     signature.params.push(AbiParam::new(types::I64));
     signature.params.push(AbiParam::new(types::I64));
     signature.returns.push(AbiParam::new(pointer_type));
@@ -193,8 +196,7 @@ impl RawStr {
 /// The JIT forwards a nullable UTF-8 pointer and byte length. The returned
 /// pointer and length borrow directly from the haystack.
 unsafe extern "C" fn regexp_extract(
-    regexes: *const Regex,
-    regex_index: usize,
+    regex: *const Regex,
     haystack_ptr: *const u8,
     haystack_len: usize,
     capture_index: u64,
@@ -205,9 +207,9 @@ unsafe extern "C" fn regexp_extract(
     let Ok(capture_index) = usize::try_from(capture_index) else {
         return RawStr::none();
     };
-    // SAFETY: Generated code passes CompiledFn::regexes and an index
-    // assigned while constructing that same array.
-    let regex = unsafe { &*regexes.add(regex_index) };
+    // SAFETY: Generated code embeds a pointer to the Arc-owned Regex stored in
+    // the typed expression retained by CompiledFn.
+    let regex = unsafe { &*regex };
     // SAFETY: The contract of CompiledFn::call requires a live UTF-8 string
     // pointer and its exact byte length for every present string input.
     let haystack = unsafe {
@@ -260,8 +262,6 @@ mod tests {
         let input = [VariableValue::some(haystack)];
         let output = unsafe { compiled.call(&input) };
 
-        assert_eq!(compiled.regexes.len(), 1);
-        assert_eq!(compiled.regexes[0].as_str(), r"([a-z]+)-(\d+)");
         let extracted = unsafe { output.as_str() }.unwrap();
         assert_eq!(extracted, "user");
         assert_eq!(extracted.as_ptr(), haystack[7..].as_ptr());
@@ -334,7 +334,7 @@ mod tests {
     }
 
     #[test]
-    fn test_compile_nested_calls_use_distinct_regexes() {
+    fn test_compile_nested_calls_use_their_own_regexes() {
         let expression = ast::deserialize(
             r#"(REGEXP_EXTRACT
             (REGEXP_EXTRACT message "([a-z]+-\\d+)" 1u64)
@@ -347,7 +347,6 @@ mod tests {
         let input = [VariableValue::some("id=user-123!")];
         let output = unsafe { compiled.call(&input) };
 
-        assert_eq!(compiled.regexes.len(), 2);
         assert_eq!(unsafe { output.as_str() }, Some("user"));
     }
 

@@ -8,7 +8,6 @@ use cranelift::codegen::ir::{MemFlagsData, UserFuncName};
 use cranelift::prelude::*;
 use cranelift_jit::{JITBuilder, JITModule};
 use cranelift_module::{FuncId, Module, ModuleError, default_libcall_names};
-use regex::Regex;
 
 use super::compiled_fn::JitEntry;
 use super::{
@@ -18,19 +17,9 @@ use crate::ast::{InferredTypeSet, Literal, UntypedExpr};
 use crate::functions::{declare_native_functions, register_jit_symbols};
 use crate::types::VarType;
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(crate) struct RegexRef(usize);
-
-impl RegexRef {
-    pub(crate) fn index(self) -> usize {
-        self.0
-    }
-}
-
 pub(crate) struct CompileFnBuilder<'types, 'names> {
     variable_types: &'types HashMap<&'names str, VarType>,
     input_vars: Vec<TypedVariable>,
-    regexes: Vec<Regex>,
 }
 
 struct LoweredFunction {
@@ -38,7 +27,6 @@ struct LoweredFunction {
     context: CodegenContext,
     function_id: FuncId,
     input_vars: Vec<TypedVariable>,
-    regexes: Box<[Regex]>,
     expression: Box<TypedExpr>,
 }
 
@@ -47,18 +35,11 @@ impl<'types, 'names> CompileFnBuilder<'types, 'names> {
         CompileFnBuilder {
             variable_types,
             input_vars: Vec::new(),
-            regexes: Vec::new(),
         }
     }
 
     pub(crate) fn variable_types(&self) -> &HashMap<&'names str, VarType> {
         self.variable_types
-    }
-
-    pub(crate) fn register_regex(&mut self, regex: Regex) -> RegexRef {
-        let regex_ref = RegexRef(self.regexes.len());
-        self.regexes.push(regex);
-        regex_ref
     }
 
     /// If a variable is missing from `variable_types`, it is treated as `None`.
@@ -196,12 +177,7 @@ impl<'types, 'names> CompileFnBuilder<'types, 'names> {
     }
 
     fn lower_typed_expr(self, expression: TypedExpr) -> Result<LoweredFunction, CompileError> {
-        let CompileFnBuilder {
-            input_vars,
-            regexes,
-            ..
-        } = self;
-        let regexes = regexes.into_boxed_slice();
+        let CompileFnBuilder { input_vars, .. } = self;
         let expression = Box::new(expression);
 
         let mut jit_builder =
@@ -211,11 +187,10 @@ impl<'types, 'names> CompileFnBuilder<'types, 'names> {
         let target_config = module.target_config();
         let pointer_type = target_config.pointer_type();
 
-        // The native entry point mirrors JitEntry: the two arguments point to the
-        // input slots and CompiledFn::regexes. VariableValue is returned as two
-        // integer-class values according to the native C ABI.
+        // The native entry point mirrors JitEntry: its argument points to the
+        // input slots, and VariableValue is returned as two integer-class values
+        // according to the native C ABI.
         let mut signature = module.make_signature();
-        signature.params.push(AbiParam::new(pointer_type));
         signature.params.push(AbiParam::new(pointer_type));
         signature.returns.push(AbiParam::new(types::I64));
         signature.returns.push(AbiParam::new(types::I64));
@@ -237,10 +212,8 @@ impl<'types, 'names> CompileFnBuilder<'types, 'names> {
             builder.seal_block(entry_block);
 
             let args_ptr = builder.block_params(entry_block)[0];
-            let regexes_ptr = builder.block_params(entry_block)[1];
             let mut lowering_context = LoweringContext {
                 args_ptr,
-                regexes_ptr,
                 pointer_type,
                 native_functions: &native_functions,
             };
@@ -268,7 +241,6 @@ impl<'types, 'names> CompileFnBuilder<'types, 'names> {
             context,
             function_id,
             input_vars,
-            regexes,
             expression,
         })
     }
@@ -297,7 +269,6 @@ impl LoweredFunction {
             mut context,
             function_id,
             input_vars,
-            regexes,
             expression,
         } = self;
 
@@ -312,7 +283,6 @@ impl LoweredFunction {
         Ok(CompiledFn {
             entry,
             _module: module,
-            regexes,
             inputs: input_vars,
             _typed_expr: expression,
         })
@@ -482,7 +452,7 @@ mod tests {
         let lowered = builder.lower_typed_expr(expression).unwrap();
         let signature = &lowered.context.func.signature;
 
-        assert_eq!(signature.params.len(), 2);
+        assert_eq!(signature.params.len(), 1);
         assert!(
             signature
                 .params

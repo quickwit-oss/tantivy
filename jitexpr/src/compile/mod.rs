@@ -5,7 +5,7 @@ mod typed_expr;
 
 use std::collections::HashMap;
 
-pub(crate) use compile_fn_builder::{CompileFnBuilder, RegexRef};
+pub(crate) use compile_fn_builder::CompileFnBuilder;
 pub use compiled_fn::CompiledFn;
 use cranelift::codegen::ir::{
     InstBuilder as _, MemFlagsData, Type, Value as CraneliftValue, types as cranelift_types,
@@ -40,7 +40,6 @@ pub fn compile_to_assembly(
 
 pub(crate) struct LoweringContext<'a> {
     args_ptr: CraneliftValue,
-    regexes_ptr: CraneliftValue,
     pointer_type: Type,
     native_functions: &'a NativeFunctions,
 }
@@ -116,10 +115,6 @@ impl LoweringContext<'_> {
 
     pub(crate) fn pointer_type(&self) -> Type {
         self.pointer_type
-    }
-
-    pub(crate) fn regexes_ptr(&self) -> CraneliftValue {
-        self.regexes_ptr
     }
 
     pub(crate) fn native_functions(&self) -> &NativeFunctions {
