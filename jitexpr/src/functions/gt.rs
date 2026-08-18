@@ -1,13 +1,11 @@
-//! `GT` tests whether one scalar value is greater than another.
+//! `GT` tests whether one value is greater than another.
 //!
-//! It accepts exactly two operands. Ordered production operands are strings or numbers; booleans
-//! are rejected. Strings use Rust/Go's lexicographic UTF-8 ordering. Numeric comparisons support
-//! `i64`, `u64`, and `f64` combinations without converting large integers through a lossy `f64`.
-//! IEEE unordered comparisons involving NaN return `false`.
+//! It accepts exactly two operands. Ordered operands are strings or numbers; booleans are rejected.
+//! Strings use lexicographic UTF-8 ordering. Numeric comparisons support `i64`, `u64`, and `f64`
+//! combinations without converting large integers through a lossy `f64`. IEEE unordered
+//! comparisons involving NaN return `false`.
 //!
-//! Null propagation is strict: if either operand is absent, the result is absent. This follows
-//! dd-go's predicate path (`arrayCOMPARE` followed by `propagateNullsPredicateLazy`). Multivalued
-//! comparison uses existential semantics in dd-go but is outside jitexpr's scalar type model.
+//! Null propagation is strict: if either operand is absent, the result is absent.
 
 use std::collections::HashMap;
 

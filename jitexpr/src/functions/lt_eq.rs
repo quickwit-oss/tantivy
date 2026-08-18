@@ -1,13 +1,11 @@
-//! `LT_EQ` tests whether one scalar value is less than or equal to another.
+//! `LT_EQ` tests whether one value is less than or equal to another.
 //!
-//! It accepts exactly two operands. Ordered production operands are strings or numbers; booleans
-//! are rejected. Strings use lexicographic UTF-8 ordering. Numeric comparisons support `i64`,
-//! `u64`, and `f64` combinations without converting large integers through a lossy `f64`. IEEE
-//! unordered comparisons involving NaN return `false`, including `NaN <= NaN`.
+//! It accepts exactly two operands. Ordered operands are strings or numbers; booleans are rejected.
+//! Strings use lexicographic UTF-8 ordering. Numeric comparisons support `i64`, `u64`, and `f64`
+//! combinations without converting large integers through a lossy `f64`. IEEE unordered
+//! comparisons involving NaN return `false`, including `NaN <= NaN`.
 //!
-//! Null propagation is strict: if either operand is absent, the result is absent. This follows
-//! dd-go's predicate path (`arrayCOMPARE` followed by `propagateNullsPredicateLazy`). Multivalued
-//! comparison uses existential semantics in dd-go but is outside jitexpr's scalar type model.
+//! Null propagation is strict: if either operand is absent, the result is absent.
 
 use std::collections::HashMap;
 

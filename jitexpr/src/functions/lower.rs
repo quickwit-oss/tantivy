@@ -1,13 +1,12 @@
-//! `LOWER` constructs the Unicode-lowercase form of a scalar string.
+//! `LOWER` constructs the Unicode-lowercase form of a string.
 //!
 //! It accepts exactly one string and returns a newly allocated string without mutating its input.
-//! Production uses Go's `bytes.ToLower`, which applies one-to-one Unicode simple case mappings.
-//! This matters for `İ`: Go returns plain `i`, rather than Rust's full lowercase mapping of `i`
-//! followed by a combining dot. Null input returns null, while empty input remains present.
+//! It applies one-to-one Unicode simple case mappings. In particular, `İ` maps to plain `i` rather
+//! than expanding to `i` followed by a combining dot. Null input returns null, while empty input
+//! remains present.
 //!
-//! dd-go broadcasts this operation over multivalued inputs. Arrays are outside jitexpr's current
-//! scalar type model, so this implementation covers the scalar behavior only. Constructed bytes
-//! live in `CompiledFn`'s fixed-capacity call arena; arena exhaustion returns null.
+//! Constructed bytes live in `CompiledFn`'s fixed-capacity call arena; arena exhaustion returns
+//! null.
 
 use std::collections::HashMap;
 
@@ -198,8 +197,7 @@ unsafe extern "C" fn string_lowercase(
     }
 }
 
-/// Rust's full lowercase mapping expands `İ` to two code points. Go's `unicode.ToLower` uses the
-/// corresponding one-rune simple mapping, which is the first code point returned by Rust here.
+/// Use the first code point from a full lowercase mapping to keep the result one-to-one.
 fn simple_lowercase(character: char) -> char {
     character.to_lowercase().next().unwrap_or(character)
 }

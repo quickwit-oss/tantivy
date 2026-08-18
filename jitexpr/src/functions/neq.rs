@@ -1,14 +1,12 @@
-//! `NEQ` tests two values for inequality by composing production's `NOT(EQ(...))` semantics.
+//! `NEQ` tests two values for inequality by composing `NOT(EQ(...))` semantics.
 //!
-//! It accepts exactly two operands of any scalar type. Values of the same type compare normally,
+//! It accepts exactly two operands of any supported type. Values of the same type compare normally,
 //! numeric types compare across `i64`, `u64`, and `f64`, and unrelated present types are unequal.
 //! NaN is unequal to every value, including itself.
 //!
 //! This is deliberately not a strict-null primitive. `EQ` first produces null when either operand
-//! is null; production `NOT` then converts that null result to present `true`. Consequently
-//! `NEQ(null, value)`, `NEQ(value, null)`, and `NEQ(null, null)` are all present and true. On
-//! arrays production means “no left-side element equals the right value”; arrays are outside
-//! jitexpr's scalar model.
+//! is null; `NOT` then converts that null result to present `true`. Consequently `NEQ(null,
+//! value)`, `NEQ(value, null)`, and `NEQ(null, null)` are all present and true.
 
 use std::collections::HashMap;
 

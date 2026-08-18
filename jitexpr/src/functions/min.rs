@@ -1,10 +1,9 @@
-//! `MIN` returns the least scalar value among one or more numeric arguments.
+//! `MIN` returns the least value among one or more numeric arguments.
 //!
-//! This is dd-go's `MIN_EXPR`, not an aggregate. All arguments are coerced to one numeric type and
-//! the result has that type. Any null argument makes the result null. The float implementation
+//! This is an expression function, not an aggregate. All arguments are coerced to one numeric type
+//! and the result has that type. Any null argument makes the result null. The float implementation
 //! starts at positive infinity and replaces it only on `<`, so NaNs are ignored; if every argument
-//! is NaN, the result is positive infinity. Production also scans all elements of multivalued
-//! arguments, while arrays are outside jitexpr's scalar model.
+//! is NaN, the result is positive infinity.
 
 use std::collections::HashMap;
 

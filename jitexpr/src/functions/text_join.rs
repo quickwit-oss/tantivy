@@ -1,14 +1,12 @@
-//! `TEXT_JOIN` is production's second name for the `CONCAT` string-joining operation.
+//! `TEXT_JOIN` is another name for the `CONCAT` string-joining operation.
 //!
 //! It accepts `TEXT_JOIN(delimiter, ignore_empty, value1, value2, ...)`, with at least four total
 //! arguments. The first two arguments must be string literals. Only a case-insensitive `"true"`
-//! enables empty-value skipping; other flag strings mean false. Any null scalar value makes the
+//! enables empty-value skipping; other flag strings mean false. Any null value makes the
 //! result null. Delimiters are inserted only after nonempty output bytes have been written, so a
 //! leading empty value does not produce a leading delimiter even when empty values are retained.
 //!
-//! dd-go dispatches `TEXT_JOIN` and `CONCAT` to the same kernel. Its multivalued positional-zip
-//! behavior is outside jitexpr's scalar model. Constructed bytes use the fixed call arena and
-//! arena exhaustion returns null.
+//! Constructed bytes use the fixed call arena and arena exhaustion returns null.
 
 use std::collections::HashMap;
 
@@ -104,7 +102,7 @@ mod tests {
     }
 
     #[test]
-    fn test_matches_concat_scalar_behavior() {
+    fn test_matches_concat_behavior() {
         assert_eq!(
             eval(r#"(TEXT_JOIN " / " "TRUE" "one" "" "two")"#).as_deref(),
             Some("one / two")

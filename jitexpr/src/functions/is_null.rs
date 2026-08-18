@@ -3,11 +3,6 @@
 //! It accepts exactly one expression of any supported type and always returns a present boolean:
 //! `true` when its argument is absent and `false` when it is present. Payload values such as
 //! `false`, zero, `NaN`, and the empty string are present and therefore return `false`.
-//!
-//! The production logs-backend lowering defines this operation as `NOT(IS_NOT_NULL(x))`
-//! (`ExprNodeToReaderQL.java`). dd-go's `NOT_NULL` runtime operation clears nullability before the
-//! negation, so the result itself is never null. This implementation emits that equivalent result
-//! directly from the child's presence bit.
 
 use std::collections::HashMap;
 

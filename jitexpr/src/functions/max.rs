@@ -1,10 +1,9 @@
-//! `MAX` returns the greatest scalar value among one or more numeric arguments.
+//! `MAX` returns the greatest value among one or more numeric arguments.
 //!
-//! This is dd-go's `MAX_EXPR`, not an aggregate. All arguments are coerced to one numeric type and
-//! the result has that type. Any null argument makes the result null. The float implementation
+//! This is an expression function, not an aggregate. All arguments are coerced to one numeric type
+//! and the result has that type. Any null argument makes the result null. The float implementation
 //! starts at negative infinity and replaces it only on `>`, so NaNs are ignored; if every argument
-//! is NaN, the result is negative infinity. Production also scans multivalued arguments; arrays are
-//! outside jitexpr's scalar model.
+//! is NaN, the result is negative infinity.
 
 use std::collections::HashMap;
 

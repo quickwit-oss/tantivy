@@ -1,13 +1,11 @@
-//! `ABS` computes the absolute value of one scalar numeric argument.
+//! `ABS` computes the absolute value of one numeric argument.
 //!
 //! It accepts exactly one number and preserves its selected input type. For signed integers,
-//! negative values are negated with 64-bit wrapping, so `ABS(i64::MIN)` remains `i64::MIN` just as
-//! in dd-go. Unsigned values are unchanged. Floating-point values are negated only when `< 0.0`;
+//! negative values are negated with 64-bit wrapping, so `ABS(i64::MIN)` remains `i64::MIN`.
+//! Unsigned values are unchanged. Floating-point values are negated only when `< 0.0`;
 //! this preserves negative zero and leaves NaN (including its payload/sign bits) untouched.
 //!
-//! Null input returns null. Production broadcasts `ABS` over multivalued inputs; arrays are outside
-//! jitexpr's scalar type model. dd-go can additionally parse some string columns as numbers during
-//! type resolution, which is outside jitexpr's native scalar types.
+//! Null input returns null.
 
 use std::collections::HashMap;
 

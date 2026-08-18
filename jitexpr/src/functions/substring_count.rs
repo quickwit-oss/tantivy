@@ -2,8 +2,7 @@
 //!
 //! Both arguments are strings and null propagates. Matching is case-sensitive and byte-based;
 //! `SUBSTRING_COUNT("aaaa", "aa")` is 2. An empty needle returns zero rather than counting string
-//! boundaries. Production uses only the first element of multivalued inputs; arrays are outside
-//! jitexpr's scalar model.
+//! boundaries.
 
 use std::collections::HashMap;
 

@@ -4,10 +4,8 @@
 //! rule is intentionally unlike SQL: the result is absent only when every operand is absent.
 //! Therefore `TRUE OR NULL = TRUE`, `FALSE OR NULL = FALSE`, and `NULL OR NULL = NULL`.
 //!
-//! dd-go implements this by intersecting operand null sets, then removing rows whose result bit is
-//! true (`interpreter/vector.go`, `propagateNullsBoolean`). In scalar form this is equivalent to
-//! OR-ing the operands' presence bits and ignoring the unspecified payload of absent operands. The
-//! production type checker accepts one or more boolean operands.
+//! One or more operands are required. The implementation combines their presence bits and ignores
+//! the unspecified payload of absent operands.
 
 use std::collections::HashMap;
 

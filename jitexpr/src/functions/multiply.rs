@@ -5,10 +5,7 @@
 //! integer type represents both operands. Integer multiplication wraps at 64 bits; floating-point
 //! multiplication follows IEEE-754, including NaN and infinity behavior.
 //!
-//! Null propagation is strict: if either operand is absent, the result is absent. This matches
-//! dd-go's scalar arithmetic path (`checkScalar` in `expression_type_checker.go` and the
-//! `arithmeticMULTIPLY` kernels in `vector_generated.go`). Multivalued inputs are outside
-//! jitexpr's scalar type model.
+//! Null propagation is strict: if either operand is absent, the result is absent.
 
 use std::collections::HashMap;
 

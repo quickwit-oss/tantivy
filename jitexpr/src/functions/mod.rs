@@ -75,11 +75,11 @@ use crate::types::VarType;
 /// A function supported by the first expression-language milestone.
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub enum Function {
-    /// Computes the absolute value of a scalar number.
+    /// Computes the absolute value of a number.
     Abs,
     /// Conjoins one or more booleans with strict null propagation.
     And,
-    /// Joins scalar strings using a literal delimiter and empty-value policy.
+    /// Joins strings using a literal delimiter and empty-value policy.
     Concat,
     /// Adds zero or more numerical expressions.
     Add,
@@ -105,9 +105,9 @@ pub enum Function {
     IsNull,
     /// Constructs the Unicode-lowercase form of a string.
     Lower,
-    /// Returns the greatest of one or more scalar numbers.
+    /// Returns the greatest of one or more numbers.
     Max,
-    /// Returns the least of one or more scalar numbers.
+    /// Returns the least of one or more numbers.
     Min,
     /// Multiplies two numeric arguments.
     Multiply,
@@ -121,15 +121,15 @@ pub enum Function {
     Pow,
     /// Extracts a capture group from a string using a constant regular expression.
     RegexpExtract,
-    /// Tests whether a constant regular expression matches a scalar string.
+    /// Tests whether a constant regular expression matches a string.
     RegexpLike,
     /// Subtracts the second numeric argument from the first.
     Subtract,
-    /// Returns a byte-indexed slice of a scalar string.
+    /// Returns a byte-indexed string slice.
     Substring,
     /// Counts non-overlapping occurrences of one string in another.
     SubstringCount,
-    /// Joins scalar strings with the same semantics as `CONCAT`.
+    /// Joins strings with the same semantics as `CONCAT`.
     TextJoin,
     /// Removes a whole delimiter from selected ends of a string.
     Trim,

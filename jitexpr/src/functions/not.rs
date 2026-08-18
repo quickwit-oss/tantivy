@@ -4,9 +4,8 @@
 //! are inverted normally; an absent input returns `true`. In particular, `NOT(NULL) = TRUE`, not
 //! NULL as it would under SQL three-valued logic.
 //!
-//! This behavior is intentional in dd-go's unary interpreter (`expression_unary.go`): it preserves
-//! the historical behavior where a negated predicate also matches documents for which the field is
-//! absent. The implementation must therefore select `true` from the child's presence bit instead
+//! This preserves the behavior where a negated predicate also matches documents for which the field
+//! is absent. The implementation must therefore select `true` from the child's presence bit instead
 //! of reading or negating the unspecified payload of an absent runtime value.
 
 use std::collections::HashMap;

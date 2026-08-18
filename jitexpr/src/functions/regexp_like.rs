@@ -1,10 +1,10 @@
 //! `REGEXP_LIKE(input, pattern)` tests whether a regular expression matches anywhere in a string.
 //!
-//! The normal production path requires a constant pattern. Before compilation, dd-go's current
-//! placeholder ICU converter removes Java-style named-group names (`(?<name>` becomes `(`) and
-//! changes atomic groups (`(?>` becomes `(?:`). Invalid patterns fail compilation. Null input and
-//! definitively non-string input both return present `false`; this deliberate mismatch behavior is
-//! different from ordinary strict functions. Multivalued input tests only its first value.
+//! The pattern must be constant. Before compilation, the placeholder ICU converter removes
+//! Java-style named-group names (`(?<name>` becomes `(`) and changes atomic groups (`(?>` becomes
+//! `(?:`). Invalid patterns fail compilation. Null input and definitively non-string input both
+//! return present `false`; this deliberate mismatch behavior is different from ordinary strict
+//! functions.
 
 use std::collections::HashMap;
 use std::sync::Arc;

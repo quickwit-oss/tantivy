@@ -1,14 +1,12 @@
-//! `INT_MOD` computes production's floating-point `MOD` operation.
+//! `INT_MOD` computes a floating-point modulo.
 //!
 //! Despite its calculated-field name, it accepts exactly two numeric arguments and always returns
 //! `f64`. Integer inputs are converted to `f64` before the operation. The remainder is adjusted to
-//! have the divisor's sign: for example `INT_MOD(-5, 3) = 1` and `INT_MOD(5, -3) = -1`. This is
-//! dd-go's `modFloat` behavior, not Rust's unadjusted `%` result.
+//! have the divisor's sign: for example `INT_MOD(-5, 3) = 1` and `INT_MOD(5, -3) = -1`.
 //!
 //! A positive or negative zero divisor returns null. Null operands propagate. Other IEEE values
 //! remain present: NaN produces NaN, while infinities follow the combination of floating remainder
-//! and the sign adjustment. Production treats multivalued arithmetic inputs as null; arrays are
-//! outside jitexpr's scalar model.
+//! and the sign adjustment.
 
 use std::collections::HashMap;
 

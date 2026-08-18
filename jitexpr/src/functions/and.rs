@@ -2,13 +2,8 @@
 //!
 //! All arguments must be boolean. With present inputs it is ordinary conjunction. Null handling is
 //! deliberately stricter than SQL: if any argument is absent, the result is absent even when
-//! another argument is already `false`. Thus `FALSE AND NULL = NULL`. Null result rows carry a
-//! false payload, matching dd-go's bitset representation.
-//!
-//! dd-go implements this by unioning the operands' null sets and clearing result bits at every null
-//! row (`interpreter/vector.go`, `propagateNullsBoolean`). The production type checker accepts one
-//! or more boolean operands. Evaluation order and short-circuiting are query-engine concerns; this
-//! scalar implementation evaluates every child expression.
+//! another argument is already `false`. Thus `FALSE AND NULL = NULL`. Null results carry a false
+//! payload. One or more operands are required, and every child expression is evaluated.
 
 use std::collections::HashMap;
 

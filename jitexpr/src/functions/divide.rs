@@ -1,15 +1,11 @@
 //! `DIVIDE` performs floating-point division.
 //!
 //! It accepts exactly two numeric arguments and always coerces both to `f64`, even when both are
-//! integers. This avoids the surprising integer-division behavior explicitly called out by the
-//! dd-go type checker (`BinaryExpression_DIVIDE` in `expression_type_checker.go`). jitexpr's
-//! scalar API accepts its native numeric types; the reader's additional string-parsing coercion is
-//! outside the current expression type model.
+//! integers.
 //!
 //! The result is absent if either operand is absent or if the divisor is positive or negative
 //! zero. Division by zero therefore yields NULL rather than infinity or NaN. Otherwise IEEE-754
-//! behavior applies, including propagation of NaN and infinities. This matches the zero guard and
-//! null propagation in dd-go's `arithmeticDIVIDE` kernels (`vector_generated.go`).
+//! behavior applies, including propagation of NaN and infinities.
 
 use std::collections::HashMap;
 

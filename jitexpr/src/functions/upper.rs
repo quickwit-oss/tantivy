@@ -1,13 +1,12 @@
-//! `UPPER` constructs the Unicode-uppercase form of a scalar string.
+//! `UPPER` constructs the Unicode-uppercase form of a string.
 //!
 //! It accepts exactly one string and returns a newly allocated string without mutating its input.
-//! Production uses Go's `bytes.ToUpper`, which applies one-to-one Unicode simple case mappings;
-//! mappings that would expand one character into several (for example `ß` to `SS`) are not
-//! applied. Null input returns null, while an empty input returns a present empty string.
+//! It applies one-to-one Unicode simple case mappings; mappings that would expand one character
+//! into several (for example `ß` to `SS`) are not applied. Null input returns null, while an empty
+//! input returns a present empty string.
 //!
-//! dd-go broadcasts this operation over multivalued inputs. Arrays are outside jitexpr's current
-//! scalar type model, so this implementation covers the scalar behavior only. Constructed bytes
-//! live in `CompiledFn`'s fixed-capacity call arena; arena exhaustion returns null.
+//! Constructed bytes live in `CompiledFn`'s fixed-capacity call arena; arena exhaustion returns
+//! null.
 
 use std::collections::HashMap;
 
@@ -195,8 +194,7 @@ unsafe extern "C" fn string_uppercase(
     }
 }
 
-/// Rust exposes full uppercase mappings, while Go's `unicode.ToUpper` returns one rune. Retaining
-/// the input when Rust reports an expansion reproduces Go's simple-mapping behavior.
+/// Retain the input when the uppercase mapping expands to preserve one-to-one mappings.
 fn simple_uppercase(character: char) -> char {
     let mut uppercase = character.to_uppercase();
     let first = uppercase.next().unwrap_or(character);

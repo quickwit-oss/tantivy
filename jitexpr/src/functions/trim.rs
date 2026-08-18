@@ -1,10 +1,9 @@
-//! `TRIM` removes a whole delimiter once from selected ends of a scalar string.
+//! `TRIM` removes a whole delimiter once from selected ends of a string.
 //!
 //! It takes `(input, delimiter, mode)`, where the latter two arguments are string literals emitted
 //! by the calculated-field producer. Mode is case-insensitive `leading`, `trailing`, or `both`.
 //! Unlike SQL character-set trimming, `"xy"` is removed only as one complete prefix/suffix and at
 //! most once per selected side. Null input propagates; an empty delimiter leaves the input intact.
-//! Production applies the operation to every array element; arrays are outside jitexpr's model.
 
 use std::collections::HashMap;
 use std::sync::Arc;

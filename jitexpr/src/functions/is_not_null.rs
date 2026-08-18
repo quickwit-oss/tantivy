@@ -4,13 +4,6 @@
 //! present boolean: `false` when its argument is absent and `true` when it is
 //! present. The payload is irrelevant, so present values such as `false`, zero,
 //! `NaN`, and the empty string all return `true`.
-//!
-//! This matches dd-go's `NOT_NULL` unary runtime operator
-//! (`interpreter/expression_unary.go` and `arrayNOTNULL`): unlike ordinary
-//! expressions, it clears output nullability. dd-go additionally applies
-//! context-sensitive type selection to bare columns before this runtime
-//! operation; that query-level column resolution is outside this local
-//! expression node.
 
 use std::collections::HashMap;
 

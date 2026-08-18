@@ -1,12 +1,11 @@
-//! `POW` raises a scalar numeric base to a scalar numeric exponent.
+//! `POW` raises a numeric base to a numeric exponent.
 //!
 //! It accepts exactly two numeric arguments. Both are converted to `f64`, and the result is always
 //! `f64`. A negative base with a non-integral exponent represents a complex result and is returned
-//! as null, matching dd-go's explicit `powIsNaN` check. Null operands propagate.
+//! as null. Null operands propagate.
 //!
 //! Other IEEE-754 results remain present: overflow may produce infinity, and a NaN base may
-//! produce NaN. Production returns null for multivalued arithmetic inputs; arrays are outside
-//! jitexpr's scalar type model.
+//! produce NaN.
 
 use std::collections::HashMap;
 

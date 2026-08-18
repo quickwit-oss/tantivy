@@ -3,13 +3,10 @@
 //! It accepts exactly two numeric arguments, `left` and `right`, and computes `left - right`.
 //! Both operands are coerced to one common numeric type using the same rules as `ADD`: prefer a
 //! common `i64`, then `u64`, and fall back to `f64` when the operands cannot be represented by one
-//! integer type. Integer arithmetic uses two's-complement wrapping, matching Cranelift and Go's
-//! fixed-width arithmetic; floating-point arithmetic preserves IEEE values such as NaN.
+//! integer type. Integer arithmetic uses two's-complement wrapping at 64 bits; floating-point
+//! arithmetic preserves IEEE values such as NaN.
 //!
-//! Null propagation is strict: if either operand is absent, the result is absent. This matches
-//! dd-go's scalar arithmetic path (`checkScalar` in `expression_type_checker.go` and the
-//! `arithmeticSUBTRACT` kernels in `vector_generated.go`). Multivalued inputs are outside
-//! jitexpr's scalar type model and are deliberately not handled here.
+//! Null propagation is strict: if either operand is absent, the result is absent.
 
 use std::collections::HashMap;
 

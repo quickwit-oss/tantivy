@@ -1,9 +1,9 @@
-//! `IF(condition, when_true, when_false)` selects one scalar branch.
+//! `IF(condition, when_true, when_false)` selects one branch.
 //!
 //! The condition must be boolean and both branches are coerced to one common bool, string, or
 //! numeric type. A null condition returns null. Otherwise only the selected branch's presence bit
-//! controls the result; a null in the unselected branch is ignored. Production evaluates the input
-//! expressions before vector selection, so eager lowering is equivalent for these pure functions.
+//! controls the result; a null in the unselected branch is ignored. Both branch expressions are
+//! lowered eagerly.
 
 use std::collections::HashMap;
 

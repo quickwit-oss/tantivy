@@ -1,18 +1,17 @@
-//! `CONCAT` joins two or more scalar strings with configurable delimiter behavior.
+//! `CONCAT` joins two or more strings with configurable delimiter behavior.
 //!
-//! Its production signature is `CONCAT(delimiter, ignore_empty, value1, value2, ...)`, with at
-//! least four total arguments. `delimiter` and `ignore_empty` must be string literals. The second
-//! literal enables skipping empty values only when it equals `"true"` case-insensitively; every
-//! other spelling behaves as false. All remaining arguments are strings.
+//! Its signature is `CONCAT(delimiter, ignore_empty, value1, value2, ...)`, with at least four
+//! total arguments. `delimiter` and `ignore_empty` must be string literals. The second literal
+//! enables skipping empty values only when it equals `"true"` case-insensitively; every other
+//! spelling behaves as false. All remaining arguments are strings.
 //!
 //! Null propagation across value arguments is strict: any null value makes the result null. When
-//! empty strings are not ignored, production inserts a delimiter only after output bytes have
-//! already been written. Consequently `CONCAT(",", "false", "", "b")` is `"b"`, while the
-//! reversed values produce `"b,"`. Empty output is present, not null.
+//! empty strings are not ignored, a delimiter is inserted only after output bytes have already been
+//! written. Consequently `CONCAT(",", "false", "", "b")` is `"b"`, while the reversed values
+//! produce `"b,"`. Empty output is present, not null.
 //!
-//! dd-go positionally zips multivalued arguments and returns null on cardinality mismatch. Arrays
-//! are outside jitexpr's scalar type model. Constructed bytes live in `CompiledFn`'s fixed-capacity
-//! call arena; arena exhaustion returns null.
+//! Constructed bytes live in `CompiledFn`'s fixed-capacity call arena; arena exhaustion returns
+//! null.
 
 use std::collections::HashMap;
 use std::sync::Arc;
