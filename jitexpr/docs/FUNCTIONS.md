@@ -50,7 +50,7 @@ excluded from this pass, or is complex enough to warrant a separate implementati
 | 34 | `POW` | done |
 | 35 | `SQRT` | out-of-scope |
 | 38 | `MIN` | done |
-| 39 | `MAX` | pending |
+| 39 | `MAX` | done |
 | 40 | `LEFT` | pending |
 | 41 | `RIGHT` | pending |
 | 42 | `SUBSTRING` | pending |
@@ -76,7 +76,7 @@ excluded from this pass, or is complex enough to warrant a separate implementati
 | 79 | `SUBSTRING_COUNT` | pending |
 | 80 | `REGEXP_LIKE` | pending |
 
-Progress: **24 / 41 in-scope** functions implemented; **14** functions are out-of-scope.
+Progress: **25 / 41 in-scope** functions implemented; **14** functions are out-of-scope.
 
 ## Deferred implementation notes
 

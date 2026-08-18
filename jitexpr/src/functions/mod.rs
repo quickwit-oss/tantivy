@@ -13,6 +13,7 @@ mod is_null;
 mod lower;
 mod lt;
 mod lt_eq;
+mod max;
 mod min;
 mod multiply;
 mod native_function;
@@ -43,6 +44,7 @@ pub(crate) use self::is_null::IsNullFnCall;
 pub(crate) use self::lower::LowerFnCall;
 pub(crate) use self::lt::LtFnCall;
 pub(crate) use self::lt_eq::LtEqFnCall;
+pub(crate) use self::max::MaxFnCall;
 pub(crate) use self::min::MinFnCall;
 pub(crate) use self::multiply::MultiplyFnCall;
 pub(crate) use self::native_function::{
@@ -91,6 +93,8 @@ pub enum Function {
     IsNull,
     /// Constructs the Unicode-lowercase form of a string.
     Lower,
+    /// Returns the greatest of one or more scalar numbers.
+    Max,
     /// Returns the least of one or more scalar numbers.
     Min,
     /// Multiplies two numeric arguments.
@@ -151,6 +155,7 @@ impl Function {
             Function::Lower => {
                 <LowerFnCall as FnCall>::call_with_types(args, target_type_set, context)
             }
+            Function::Max => <MaxFnCall as FnCall>::call_with_types(args, target_type_set, context),
             Function::Min => <MinFnCall as FnCall>::call_with_types(args, target_type_set, context),
             Function::Multiply => {
                 <MultiplyFnCall as FnCall>::call_with_types(args, target_type_set, context)
@@ -211,6 +216,7 @@ impl Function {
             Function::Lower => {
                 <LowerFnCall as FnCall>::infer_types(args, target_type, inferred_types)
             }
+            Function::Max => <MaxFnCall as FnCall>::infer_types(args, target_type, inferred_types),
             Function::Min => <MinFnCall as FnCall>::infer_types(args, target_type, inferred_types),
             Function::Multiply => {
                 <MultiplyFnCall as FnCall>::infer_types(args, target_type, inferred_types)
@@ -258,6 +264,7 @@ pub(crate) enum FnCallEnum {
     IsNull(IsNullFnCall),
     IsNotNull(IsNotNullFnCall),
     Lower(LowerFnCall),
+    Max(MaxFnCall),
     Min(MinFnCall),
     Multiply(MultiplyFnCall),
     Neq(NeqFnCall),
@@ -287,6 +294,7 @@ impl FnCallEnum {
             FnCallEnum::IsNull(call) => call.args_mut(),
             FnCallEnum::IsNotNull(call) => call.args_mut(),
             FnCallEnum::Lower(call) => call.args_mut(),
+            FnCallEnum::Max(call) => call.args_mut(),
             FnCallEnum::Min(call) => call.args_mut(),
             FnCallEnum::Multiply(call) => call.args_mut(),
             FnCallEnum::Neq(call) => call.args_mut(),
@@ -322,6 +330,7 @@ impl FnCallEnum {
             FnCallEnum::IsNull(call) => call.emit_cranelift_ir(return_type, context, builder),
             FnCallEnum::IsNotNull(call) => call.emit_cranelift_ir(return_type, context, builder),
             FnCallEnum::Lower(call) => call.emit_cranelift_ir(return_type, context, builder),
+            FnCallEnum::Max(call) => call.emit_cranelift_ir(return_type, context, builder),
             FnCallEnum::Min(call) => call.emit_cranelift_ir(return_type, context, builder),
             FnCallEnum::Multiply(call) => call.emit_cranelift_ir(return_type, context, builder),
             FnCallEnum::Neq(call) => call.emit_cranelift_ir(return_type, context, builder),
