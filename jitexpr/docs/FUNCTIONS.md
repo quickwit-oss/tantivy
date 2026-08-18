@@ -69,14 +69,14 @@ excluded from this pass, or is complex enough to warrant a separate implementati
 | 71 | `ARRAY_SUM` | out-of-scope |
 | 72 | `ARRAY_AVG` | out-of-scope |
 | 73 | `ARRAY_OF` | out-of-scope |
-| 74 | `TIMESTAMP_DIFF` | pending |
+| 74 | `TIMESTAMP_DIFF` | out-of-scope |
 | 76 | `ARRAY_CONTAINS_NULLABLE` | out-of-scope |
 | 77 | `LEVENSHTEIN_DISTANCE` | out-of-scope |
 | 78 | `ENTROPY` | out-of-scope |
 | 79 | `SUBSTRING_COUNT` | pending |
 | 80 | `REGEXP_LIKE` | pending |
 
-Progress: **27 / 30 in-scope** functions implemented; **25** functions are out-of-scope.
+Progress: **27 / 29 in-scope** functions implemented; **26** functions are out-of-scope.
 
 ## Deferred implementation notes
 
@@ -133,3 +133,6 @@ Progress: **27 / 30 in-scope** functions implemented; **25** functions are out-o
 - `SEMVER` requires argument 0 to remain a bare column, parses a constant comparison expression,
   and has uncharacterized malformed-version behavior. Its tag also collides with
   `TIMESTAMP_DIFF` in the stale pomsky schema, so it is deferred as a compatibility feature.
+- `TIMESTAMP_DIFF` depends on the temporal string parser/formatter and its live tag is unknown to
+  the stale pomsky schema (whose tag 67 decodes as `TIMESTAMP_DIFF` instead of `SEMVER`). It is
+  deferred with the other temporal compatibility work.
