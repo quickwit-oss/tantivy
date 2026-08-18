@@ -60,7 +60,7 @@ excluded from this pass, or is complex enough to warrant a separate implementati
 | 54 | `TRIM` | done |
 | 55 | `IF` | done |
 | 56 | `COALESCE` | out-of-scope |
-| 61 | `TRY_CAST_INT` | pending |
+| 61 | `TRY_CAST_INT` | out-of-scope |
 | 63 | `TRY_CAST_FLOAT` | pending |
 | 65 | `TO_TIMESTAMP` | pending |
 | 66 | `EXTRACT` | pending |
@@ -76,7 +76,7 @@ excluded from this pass, or is complex enough to warrant a separate implementati
 | 79 | `SUBSTRING_COUNT` | pending |
 | 80 | `REGEXP_LIKE` | pending |
 
-Progress: **27 / 35 in-scope** functions implemented; **20** functions are out-of-scope.
+Progress: **27 / 34 in-scope** functions implemented; **21** functions are out-of-scope.
 
 ## Deferred implementation notes
 
@@ -119,3 +119,6 @@ Progress: **27 / 35 in-scope** functions implemented; **20** functions are out-o
 - `COALESCE` uses dd-go's distinct n-ary common-type algorithm, including an ordinal fallback that
   can choose string where the binary `IF` unifier chooses numeric. Implementing it correctly needs
   a broader coercion-policy change rather than only a new call node.
+- `TRY_CAST_INT` participates in dd-go's cast-elision/tree-rewrite system and uses the custom
+  `IsLikelyInt` heuristic (including leading-zero rejection), plus architecture-sensitive
+  float-to-integer edge behavior. It is deferred as a separate coercion pass.
