@@ -55,7 +55,7 @@ excluded from this pass, or is complex enough to warrant a separate implementati
 | 41 | `RIGHT` | out-of-scope |
 | 42 | `SUBSTRING` | out-of-scope |
 | 43 | `SPLIT_BEFORE` | out-of-scope |
-| 44 | `SPLIT_AFTER` | pending |
+| 44 | `SPLIT_AFTER` | out-of-scope |
 | 50 | `REGEXP_EXTRACT` | done |
 | 54 | `TRIM` | pending |
 | 55 | `IF` | pending |
@@ -76,7 +76,7 @@ excluded from this pass, or is complex enough to warrant a separate implementati
 | 79 | `SUBSTRING_COUNT` | pending |
 | 80 | `REGEXP_LIKE` | pending |
 
-Progress: **25 / 37 in-scope** functions implemented; **18** functions are out-of-scope.
+Progress: **25 / 36 in-scope** functions implemented; **19** functions are out-of-scope.
 
 ## Deferred implementation notes
 
@@ -113,3 +113,6 @@ Progress: **25 / 37 in-scope** functions implemented; **18** functions are out-o
 - `SPLIT_BEFORE` does not stop after handling a negative occurrence. Its scalar kernel continues
   and can construct a negative slice bound, aborting the query. It is deferred until negative
   occurrence semantics are defined explicitly.
+- `SPLIT_AFTER` shares the negative-occurrence double-append defect with `SPLIT_BEFORE`; its scalar
+  result can contain both an empty value and the unsplit input even though the function is expected
+  to be scalar.
