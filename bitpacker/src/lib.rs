@@ -1,4 +1,5 @@
 mod bitpacker;
+pub mod block_decode;
 mod blocked_bitpacker;
 mod filter_vec;
 

@@ -1,7 +1,7 @@
 use std::io;
 use std::ops::{Range, RangeInclusive};
 
-use bitpacking::{BitPacker as ExternalBitPackerTrait, BitPacker1x};
+use crate::block_decode::{BLOCK_LEN, Lane, decode_block_lanes};
 
 pub struct BitPacker {
     mini_buffer: u64,
@@ -122,6 +122,10 @@ impl BitUnpacker {
         val_shifted & self.mask
     }
 
+    pub fn get_batch(&self, start_idx: u32, data: &[u8], output: &mut [u64]) {
+        self.get_batch_lanes(start_idx, data, output);
+    }
+
     // Decodes the range of bitpacked `u32` values with idx
     // in [start_idx, start_idx + output.len()).
     //
@@ -133,64 +137,46 @@ impl BitUnpacker {
             self.bit_width() <= 32,
             "Bitwidth must be <= 32 to use this method."
         );
+        self.get_batch_lanes(start_idx, data, output);
+    }
 
-        let end_idx: u32 = start_idx + output.len() as u32;
-
-        // We use `usize` here to avoid overflow issues.
-        let end_bit_read = (end_idx as usize) * self.num_bits;
-        let end_byte_read = end_bit_read.div_ceil(8);
+    /// Decodes `[start_idx, start_idx + output.len())` into `output`, routing
+    /// whole aligned blocks through [`crate::block_decode::decode_block`] and
+    /// the two edges through [`Self::get`].
+    ///
+    /// A block only starts byte-aligned -- which the kernels require -- when
+    /// its first index is a multiple of 8, since 8 values occupy exactly
+    /// `num_bits` bytes. So the block loop is preceded by an entrance ramp of
+    /// up to 7 values, and followed by an exit ramp of up to `BLOCK_LEN - 1`.
+    fn get_batch_lanes<L: Lane>(&self, start_idx: u32, data: &[u8], output: &mut [L]) {
+        // `usize` throughout to avoid overflow issues.
+        let end_idx = start_idx as usize + output.len();
         assert!(
-            end_byte_read <= data.len(),
+            (end_idx * self.num_bits).div_ceil(8) <= data.len(),
             "Requested index is out of bounds."
         );
 
-        // Simple slow implementation of get_batch_u32s, to deal with our ramps.
-        let get_batch_ramp = |start_idx: u32, output: &mut [u32]| {
-            for (out, idx) in output.iter_mut().zip(start_idx..) {
-                *out = self.get(idx, data) as u32;
-            }
+        let ramp = ((8 - start_idx % 8) % 8) as usize;
+        let mut cursor = if ramp + BLOCK_LEN <= output.len() {
+            ramp
+        } else {
+            output.len()
         };
-
-        // We use an unrolled routine to decode 32 values at once.
-        // We therefore decompose our range of values to decode into three ranges:
-        // - Entrance ramp: [start_idx, fast_track_start) (up to 31 values)
-        // - Highway: [fast_track_start, fast_track_end) (a length multiple of 32s)
-        // - Exit ramp: [fast_track_end, start_idx + output.len()) (up to 31 values)
-
-        // We want the start of the fast track to start align with bytes.
-        // A sufficient condition is to start with an idx that is a multiple of 8,
-        // so highway start is the closest multiple of 8 that is >= start_idx.
-        let entrance_ramp_len: u32 = 8 - (start_idx % 8) % 8;
-
-        let highway_start: u32 = start_idx + entrance_ramp_len;
-
-        if highway_start + (BitPacker1x::BLOCK_LEN as u32) > end_idx {
-            // We don't have enough values to have even a single block of highway.
-            // Let's just supply the values the simple way.
-            get_batch_ramp(start_idx, output);
-            return;
+        for (i, out) in output[..cursor].iter_mut().enumerate() {
+            *out = L::from_u64(self.get(start_idx + i as u32, data));
         }
-
-        let num_blocks: usize = (end_idx - highway_start) as usize / BitPacker1x::BLOCK_LEN;
-
-        // Entrance ramp
-        get_batch_ramp(start_idx, &mut output[..entrance_ramp_len as usize]);
-
-        // Highway
-        let mut offset = (highway_start as usize * self.num_bits) / 8;
-        let mut output_cursor = (highway_start - start_idx) as usize;
-        for _ in 0..num_blocks {
-            offset += BitPacker1x.decompress(
-                &data[offset..],
-                &mut output[output_cursor..],
-                self.num_bits as u8,
-            );
-            output_cursor += 32;
+        while cursor + BLOCK_LEN <= output.len() {
+            let block_start_bytes = (start_idx as usize + cursor) * self.num_bits / 8;
+            let block: &mut [L; BLOCK_LEN] = (&mut output[cursor..cursor + BLOCK_LEN])
+                .try_into()
+                .unwrap();
+            decode_block_lanes(self.num_bits as u8, &data[block_start_bytes..], block);
+            cursor += BLOCK_LEN;
         }
-
-        // Exit ramp
-        let highway_end: u32 = highway_start + (num_blocks * BitPacker1x::BLOCK_LEN) as u32;
-        get_batch_ramp(highway_end, &mut output[output_cursor..]);
+        for (i, out) in output[cursor..].iter_mut().enumerate() {
+            let idx = start_idx + (cursor + i) as u32;
+            *out = L::from_u64(self.get(idx, data));
+        }
     }
 
     pub fn get_ids_for_value_range(
@@ -348,6 +334,11 @@ mod test {
         bitunpacker.get_batch_u32s(8 * 4 - 2, &[0u8, 0u8, 0u8, 0u8], &mut output[..]);
     }
 
+    /// Lengths that straddle the block grid: none, one and several whole
+    /// blocks, plus both ramps.
+    const BATCH_LENS: [usize; 12] = [0, 1, 2, 32, 33, 64, 127, 128, 129, 135, 256, 300];
+    const NUM_VALS: u64 = 600;
+
     proptest::proptest! {
         #[test]
         fn test_get_batch_u32s_proptest(num_bits in 0u8..=32u8) {
@@ -359,19 +350,50 @@ mod test {
                 };
             let mut buffer: Vec<u8> = Vec::new();
             let mut bitpacker = BitPacker::new();
-            for val in 0..100 {
+            for val in 0..NUM_VALS {
                 bitpacker.write(val & mask as u64, num_bits, &mut buffer).unwrap();
             }
             bitpacker.flush(&mut buffer).unwrap();
             let bitunpacker = BitUnpacker::new(num_bits);
             let mut output: Vec<u32> = Vec::new();
-            for len in [0, 1, 2, 32, 33, 34, 64] {
+            for len in BATCH_LENS {
                 for start_idx in 0u32..32u32 {
                     output.resize(len, 0);
                     bitunpacker.get_batch_u32s(start_idx, &buffer, &mut output);
                     for (i, output_byte) in output.iter().enumerate() {
                         let expected = (start_idx + i as u32) & mask;
                         assert_eq!(*output_byte, expected);
+                    }
+                }
+            }
+        }
+    }
+
+    proptest::proptest! {
+        #[test]
+        fn test_get_batch_proptest((num_bits, _vals) in vals_strategy()) {
+            let mask = if num_bits == 64 { u64::MAX } else { (1u64 << num_bits) - 1 };
+            // Values fill the whole width, so a kernel dropping high bits
+            // cannot pass.
+            let vals: Vec<u64> = (0..NUM_VALS)
+                .map(|i| i.wrapping_mul(0x9E37_79B9_7F4A_7C15) & mask)
+                .collect();
+            let mut buffer: Vec<u8> = Vec::new();
+            let mut bitpacker = BitPacker::new();
+            for &val in &vals {
+                bitpacker.write(val, num_bits, &mut buffer).unwrap();
+            }
+            bitpacker.flush(&mut buffer).unwrap();
+            let bitunpacker = BitUnpacker::new(num_bits);
+            let mut output: Vec<u64> = Vec::new();
+            for len in BATCH_LENS {
+                for start_idx in 0u32..32u32 {
+                    output.resize(len, 0);
+                    bitunpacker.get_batch(start_idx, &buffer, &mut output);
+                    for (i, got) in output.iter().enumerate() {
+                        let idx = start_idx + i as u32;
+                        assert_eq!(*got, vals[idx as usize], "num_bits {num_bits} len {len} idx {idx}");
+                        assert_eq!(*got, bitunpacker.get(idx, &buffer));
                     }
                 }
             }

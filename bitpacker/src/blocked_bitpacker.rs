@@ -1,8 +1,9 @@
 use super::bitpacker::BitPacker;
 use super::compute_num_bits;
+use crate::block_decode::{BLOCK_LEN, decode_block};
 use crate::{BitUnpacker, minmax};
 
-const BLOCK_SIZE: usize = 128;
+const BLOCK_SIZE: usize = BLOCK_LEN;
 
 /// `BlockedBitpacker` compresses data in blocks of
 /// 128 elements, while keeping an index on it
@@ -138,11 +139,18 @@ impl BlockedBitpacker {
     }
 
     pub fn iter(&self) -> impl Iterator<Item = u64> + '_ {
-        // todo performance: we could decompress a whole block and cache it instead
-        let bitpacked_elems = self.offset_and_bits.len() * BLOCK_SIZE;
-
-        (0..bitpacked_elems)
-            .map(move |idx| self.get(idx))
+        self.offset_and_bits
+            .iter()
+            .flat_map(move |metadata| {
+                let mut block = [0u64; BLOCK_SIZE];
+                decode_block(
+                    metadata.num_bits(),
+                    &self.compressed_blocks[metadata.offset() as usize..],
+                    &mut block,
+                );
+                let base_value = metadata.base_value();
+                block.into_iter().map(move |val| val + base_value)
+            })
             .chain(self.buffer.iter().cloned())
     }
 }
