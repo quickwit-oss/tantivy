@@ -294,6 +294,10 @@ fn test_codec_interpolation() {
 fn test_codec_multi_interpolation() {
     test_codec::<BlockwiseLinearCodec>();
 }
+#[test]
+fn test_codec_block_for() {
+    test_codec::<BlockForCodec>();
+}
 
 /// Data shapes long enough to span several 128-value blocks, including a
 /// trailing partial one.
@@ -383,6 +387,87 @@ fn date_precision_sizes() {
             format!("{:?}", CodecType::try_from_code(buf[0]).unwrap()),
             buf.len() as f64 * 8.0 / N as f64,
             buf.len() as f64 / 1e6,
+        );
+    }
+}
+
+/// Range-filter cost on a *sorted* column: `BlockFor` prunes blocks by their
+/// metadata, `BlockwiseLinear` decodes every block in range and filters --
+/// and on a sorted column the selection prefers `BlockwiseLinear` on size.
+///
+/// ```text
+/// cargo test --release -p tantivy-columnar --lib sorted_range_filter_ab \
+///     -- --ignored --nocapture
+/// ```
+#[test]
+#[ignore]
+fn sorted_range_filter_ab() {
+    use std::hint::black_box;
+    use std::time::Instant;
+
+    use crate::column_values::u64_based::{BlockForCodec, BlockwiseLinearCodec};
+
+    const N: usize = 2_000_000;
+    // Timestamps in an index sorted by that timestamp.
+    let mut vals: Vec<u64> = (0..N as u64)
+        .map(|i| 1_700_000_000_000 + i * 250 + (i.wrapping_mul(2_654_435_761) % 4_000))
+        .collect();
+    vals.sort_unstable();
+    let (lo, hi) = (vals[0], *vals.last().unwrap());
+
+    fn bytes_of(vals: &[u64], codec: CodecType) -> Vec<u8> {
+        let mut buf = Vec::new();
+        serialize_u64_based_column_values(&&vals[..], &[codec], &mut buf).unwrap();
+        buf[1..].to_vec()
+    }
+    let mut chosen = Vec::new();
+    serialize_u64_based_column_values(&&vals[..], &ALL_U64_CODEC_TYPES, &mut chosen).unwrap();
+    println!(
+        "\nsorted column, {N} rows: selection picks {:?} at {:.2} b/val",
+        CodecType::try_from_code(chosen[0]).unwrap(),
+        chosen.len() as f64 * 8.0 / N as f64
+    );
+
+    let bwl =
+        BlockwiseLinearCodec::load(OwnedBytes::new(bytes_of(&vals, CodecType::BlockwiseLinear)))
+            .unwrap();
+    let bfor = BlockForCodec::load(OwnedBytes::new(bytes_of(&vals, CodecType::BlockFor))).unwrap();
+
+    println!(
+        "{:>12} {:>10} {:>12} {:>9} {:>10}",
+        "selectivity", "bwl_us", "blockfor_us", "ratio", "hits"
+    );
+    let mut hits: Vec<u32> = Vec::with_capacity(N);
+    for (label, frac) in [("0.1%", 1000u64), ("1%", 100), ("10%", 10), ("100%", 1)] {
+        let span = (hi - lo) / frac;
+        let start = (lo + (hi - lo) / 2).min(hi - span);
+        let range = start..=start + span;
+
+        let mut time = |run: &mut dyn FnMut(&mut Vec<u32>)| {
+            for _ in 0..2 {
+                hits.clear();
+                run(&mut hits);
+            }
+            const REPS: usize = 5;
+            let t0 = Instant::now();
+            for _ in 0..REPS {
+                hits.clear();
+                run(&mut hits);
+                black_box(hits.len());
+            }
+            (
+                t0.elapsed().as_nanos() as f64 / REPS as f64 / 1000.0,
+                hits.len(),
+            )
+        };
+        let (bwl_us, n_bwl) =
+            time(&mut |h| bwl.get_row_ids_for_value_range(range.clone(), 0..N as u32, h));
+        let (bf_us, n_bf) =
+            time(&mut |h| bfor.get_row_ids_for_value_range(range.clone(), 0..N as u32, h));
+        assert_eq!(n_bwl, n_bf, "{label}: codecs disagree on hit count");
+        println!(
+            "{label:>12} {bwl_us:>10.0} {bf_us:>12.0} {:>9.2} {n_bwl:>10}",
+            bwl_us / bf_us
         );
     }
 }
@@ -482,6 +567,106 @@ fn range_filter_ab() {
     ab::<BlockwiseLinearCodec>("BlockwiseLinear", buf[1..].to_vec(), vals[N - 1]);
 }
 
+/// Bits per value per codec on timestamp shapes, including gaps; answers what
+/// a delta codec would be worth over the existing set.
+///
+/// ```text
+/// cargo test --release -p tantivy-columnar --lib timestamp_sizes \
+///     -- --ignored --nocapture
+/// ```
+#[test]
+#[ignore]
+fn timestamp_sizes() {
+    const N: usize = 100_000;
+    const DAY_MS: u64 = 86_400_000;
+
+    /// Bits/value if consecutive deltas were bitpacked per 128-value block at
+    /// each block's own width -- an upper bound on what a delta codec could
+    /// do, ignoring the per-block metadata it would also need.
+    fn delta_bound(vals: &[u64]) -> f64 {
+        let mut bits = 0u64;
+        for block in vals.chunks(128) {
+            let mut prev = block[0];
+            let mut max_delta = 0u64;
+            for &v in &block[1..] {
+                max_delta = max_delta.max(v.wrapping_sub(prev));
+                prev = v;
+            }
+            bits += 64 + tantivy_bitpacker::compute_num_bits(max_delta) as u64 * 128;
+        }
+        bits as f64 / vals.len() as f64
+    }
+
+    let dense: Vec<u64> = (0..N as u64)
+        .map(|i| 1_700_000_000_000 + i * 250 + (i.wrapping_mul(2_654_435_761) % 4_000))
+        .collect();
+    // One day of silence in the middle: the shape the question is about.
+    let one_gap: Vec<u64> = dense
+        .iter()
+        .enumerate()
+        .map(|(i, &v)| if i >= N / 2 { v + DAY_MS } else { v })
+        .collect();
+    // A gap every 10k rows, e.g. a nightly batch job.
+    let many_gaps: Vec<u64> = dense
+        .iter()
+        .enumerate()
+        .map(|(i, &v)| v + DAY_MS * (i / 10_000) as u64)
+        .collect();
+    // Bursty arrivals: no steady rate for a line to fit.
+    let bursty: Vec<u64> = {
+        let mut t = 1_700_000_000_000u64;
+        (0..N as u64)
+            .map(|i| {
+                t += if i % 997 == 0 { DAY_MS } else { i % 40 };
+                t
+            })
+            .collect()
+    };
+
+    println!(
+        "{:>12} {:>10} {:>8} {:>8} {:>8} {:>8} {:>10}",
+        "shape", "codec", "Bitpckd", "Linear", "BWL", "BlockFor", "delta_bnd"
+    );
+    // Coarser granularities: what an index that stores seconds or minutes
+    // rather than milliseconds hands the codec.
+    let by_second: Vec<u64> = dense.iter().map(|v| v / 1_000 * 1_000).collect();
+    let by_minute: Vec<u64> = dense.iter().map(|v| v / 60_000 * 60_000).collect();
+
+    for (name, vals) in [
+        ("dense", &dense),
+        ("one day gap", &one_gap),
+        ("gap/10k", &many_gaps),
+        ("bursty", &bursty),
+        ("by second", &by_second),
+        ("by minute", &by_minute),
+    ] {
+        let mut bits = Vec::new();
+        for codec in [
+            CodecType::Bitpacked,
+            CodecType::Linear,
+            CodecType::BlockwiseLinear,
+            CodecType::BlockFor,
+        ] {
+            let mut buf = Vec::new();
+            serialize_u64_based_column_values(&&vals[..], &[codec], &mut buf).unwrap();
+            bits.push(buf.len() as f64 * 8.0 / vals.len() as f64);
+        }
+        // What the selection actually ships.
+        let mut buf = Vec::new();
+        serialize_u64_based_column_values(&&vals[..], &ALL_U64_CODEC_TYPES, &mut buf).unwrap();
+        let chosen = CodecType::try_from_code(buf[0]).unwrap();
+        println!(
+            "{name:>12} {:>10} {:>8.2} {:>8.2} {:>8.2} {:>8.2} {:>10.2}",
+            format!("{chosen:?}"),
+            bits[0],
+            bits[1],
+            bits[2],
+            bits[3],
+            delta_bound(vals)
+        );
+    }
+}
+
 /// Every packed residual width reaches a SIMD unpack kernel, so `Linear`
 /// reports the same threshold at all of them. Nothing about the *values*
 /// changes with the threshold, so only an assertion on the threshold itself
@@ -531,9 +716,17 @@ fn test_min_batch_rows_per_codec() {
             }
             covered.push(format!("{codec:?}"));
             let column = load_u64_based_column_values_raw(OwnedBytes::new(buffer)).unwrap();
+            let got = column.min_batch_rows();
+            let expect_flat = matches!(
+                codec,
+                CodecType::Bitpacked | CodecType::Linear | CodecType::BlockwiseLinear
+            );
+            let flat = min_batch_rows(DecodeCost::Flat);
+            let blocked = min_batch_rows(DecodeCost::Blocked);
+            assert!(flat > blocked, "Flat must cross over later than Blocked");
+            let expected = if expect_flat { flat } else { blocked };
             assert_eq!(
-                column.min_batch_rows(),
-                min_batch_rows(DecodeCost::Flat),
+                got, expected,
                 "{codec:?} reports the wrong DecodeCost family"
             );
         }
@@ -670,7 +863,7 @@ fn test_fast_field_codec_type_to_code() {
             count_codec += 1;
         }
     }
-    assert_eq!(count_codec, 3);
+    assert_eq!(count_codec, 4);
 }
 
 fn test_fastfield_gcd_i64_with_codec(codec_type: CodecType, num_vals: usize) -> io::Result<()> {

@@ -31,6 +31,9 @@ pub(crate) enum DecodeCost {
     /// `get_val` is a load, shift and mask, so the loop stays competitive for
     /// a long time.
     Flat,
+    /// Per-block metadata re-read on every `get_val` (`BlockFor`, `Alp`), so
+    /// the loop falls behind sooner.
+    Blocked,
 }
 
 /// Minimum rows a whole `get_range` call must cover before routing it through
@@ -47,6 +50,8 @@ pub(crate) fn min_batch_rows(cost: DecodeCost) -> usize {
     match (cost, simd_enabled()) {
         (DecodeCost::Flat, true) => 96,
         (DecodeCost::Flat, false) => 128,
+        (DecodeCost::Blocked, true) => 48,
+        (DecodeCost::Blocked, false) => 96,
     }
 }
 

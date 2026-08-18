@@ -1,5 +1,6 @@
 mod bitpacked;
 mod block_decode;
+mod block_for;
 mod blockwise_linear;
 mod line;
 mod linear;
@@ -15,6 +16,7 @@ use crate::column_values::monotonic_mapping::{
     StrictlyMonotonicMappingInverter, StrictlyMonotonicMappingToInternal,
 };
 pub use crate::column_values::u64_based::bitpacked::BitpackedCodec;
+pub use crate::column_values::u64_based::block_for::BlockForCodec;
 pub use crate::column_values::u64_based::blockwise_linear::BlockwiseLinearCodec;
 pub use crate::column_values::u64_based::linear::LinearCodec;
 pub use crate::column_values::u64_based::stats_collector::StatsCollector;
@@ -23,7 +25,8 @@ use crate::iterable::Iterable;
 use crate::{ColumnValues, MonotonicallyMappableToU64, RowId};
 
 /// Batched `get_row_ids_for_value_range`: decode chunks via `get_range` and
-/// filter, instead of one `get_val` per row.
+/// filter, instead of one `get_val` per row. `BlockFor` has its own version
+/// that also prunes blocks by their metadata.
 pub(crate) fn get_row_ids_for_value_range_batched<C: ColumnValues<u64> + ?Sized>(
     column: &C,
     value_range: std::ops::RangeInclusive<u64>,
@@ -114,13 +117,17 @@ pub enum CodecType {
     Linear = 1u8,
     /// Same as [`CodecType::Linear`], but encodes in blocks of 512 elements.
     BlockwiseLinear = 2u8,
+    /// Per-block (128 values) frame-of-reference: each block stores its own
+    /// minimum and bit width.
+    BlockFor = 3u8,
 }
 
 /// List of all available u64-base codecs.
-pub const ALL_U64_CODEC_TYPES: [CodecType; 3] = [
+pub const ALL_U64_CODEC_TYPES: [CodecType; 4] = [
     CodecType::Bitpacked,
     CodecType::Linear,
     CodecType::BlockwiseLinear,
+    CodecType::BlockFor,
 ];
 
 impl std::fmt::Display for CodecType {
@@ -129,6 +136,7 @@ impl std::fmt::Display for CodecType {
             CodecType::Bitpacked => "bitpacked",
             CodecType::Linear => "linear",
             CodecType::BlockwiseLinear => "blockwise_linear",
+            CodecType::BlockFor => "block_for",
         };
         f.write_str(name)
     }
@@ -149,6 +157,7 @@ impl CodecType {
             0u8 => Some(CodecType::Bitpacked),
             1u8 => Some(CodecType::Linear),
             2u8 => Some(CodecType::BlockwiseLinear),
+            3u8 => Some(CodecType::BlockFor),
             _ => None,
         }
     }
@@ -161,6 +170,7 @@ impl CodecType {
             CodecType::Bitpacked => load_specific_codec::<BitpackedCodec, T>(bytes),
             CodecType::Linear => load_specific_codec::<LinearCodec, T>(bytes),
             CodecType::BlockwiseLinear => load_specific_codec::<BlockwiseLinearCodec, T>(bytes),
+            CodecType::BlockFor => load_specific_codec::<BlockForCodec, T>(bytes),
         }
     }
 }
@@ -183,7 +193,22 @@ impl CodecType {
             CodecType::Bitpacked => BitpackedCodec::boxed_estimator(),
             CodecType::Linear => LinearCodec::boxed_estimator(),
             CodecType::BlockwiseLinear => BlockwiseLinearCodec::boxed_estimator(),
+            CodecType::BlockFor => BlockForCodec::boxed_estimator(),
         }
+    }
+}
+
+/// Selection penalty for `BlockFor`: its random access is pricier (block-meta
+/// load on top of the unpack), so it must win on size by >= ~7.7%.
+const BLOCK_CODEC_PENALTY_NUM: u64 = 13;
+const BLOCK_CODEC_PENALTY_DEN: u64 = 12;
+
+fn selection_cost(codec_type: CodecType, estimated_num_bytes: u64) -> u64 {
+    match codec_type {
+        CodecType::BlockFor => {
+            estimated_num_bytes * BLOCK_CODEC_PENALTY_NUM / BLOCK_CODEC_PENALTY_DEN
+        }
+        _ => estimated_num_bytes,
     }
 }
 
@@ -214,9 +239,9 @@ pub fn serialize_u64_based_column_values<T: MonotonicallyMappableToU64>(
         .into_iter()
         .flat_map(|(codec_type, estimator)| {
             let num_bytes = estimator.estimate(&stats)?;
-            Some((num_bytes, codec_type, estimator))
+            Some((selection_cost(codec_type, num_bytes), codec_type, estimator))
         })
-        .min_by_key(|(num_bytes, _, _)| *num_bytes)
+        .min_by_key(|(selection_cost, _, _)| *selection_cost)
         .ok_or_else(|| {
             io::Error::new(io::ErrorKind::InvalidData, "No available applicable codec.")
         })?;
@@ -260,6 +285,7 @@ pub fn load_u64_based_column_values_raw(
         CodecType::Bitpacked => Ok(Arc::new(BitpackedCodec::load(bytes)?)),
         CodecType::Linear => Ok(Arc::new(LinearCodec::load(bytes)?)),
         CodecType::BlockwiseLinear => Ok(Arc::new(BlockwiseLinearCodec::load(bytes)?)),
+        CodecType::BlockFor => Ok(Arc::new(BlockForCodec::load(bytes)?)),
     }
 }
 

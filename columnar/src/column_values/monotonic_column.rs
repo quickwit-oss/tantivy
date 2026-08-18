@@ -371,7 +371,7 @@ mod tests {
             StrictlyMonotonicMappingInverter, StrictlyMonotonicMappingToInternal,
         };
         use crate::column_values::u64_based::{
-            BitpackedCodec, BlockwiseLinearCodec, ColumnCodec, LinearCodec,
+            BitpackedCodec, BlockForCodec, BlockwiseLinearCodec, ColumnCodec, LinearCodec,
         };
         use crate::column_values::{CodecType, serialize_u64_based_column_values};
 
@@ -516,6 +516,10 @@ mod tests {
         serialize_u64_based_column_values(&&ints[..], &[CodecType::Bitpacked], &mut buf).unwrap();
         sweep::<BitpackedCodec>("Bitpacked", buf[1..].to_vec());
 
+        let mut buf = Vec::new();
+        serialize_u64_based_column_values(&&ints[..], &[CodecType::BlockFor], &mut buf).unwrap();
+        sweep::<BlockForCodec>("BlockFor", buf[1..].to_vec());
+
         // A noisy ramp, which is what the two line codecs are chosen for.
         let ramp: Vec<u64> = (0..N as u64)
             .map(|i| i * 16 + (i.wrapping_mul(2_654_435_761) % (1 << 20)))
@@ -584,5 +588,9 @@ mod tests {
         let mut buf = Vec::new();
         serialize_u64_based_column_values(&&ints[..], &[CodecType::Bitpacked], &mut buf).unwrap();
         sweep_buffered::<BitpackedCodec>("Bitpacked", buf[1..].to_vec());
+
+        let mut buf = Vec::new();
+        serialize_u64_based_column_values(&&ints[..], &[CodecType::BlockFor], &mut buf).unwrap();
+        sweep_buffered::<BlockForCodec>("BlockFor", buf[1..].to_vec());
     }
 }
