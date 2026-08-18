@@ -18,6 +18,7 @@ mod native_function;
 mod neq;
 mod not;
 mod or;
+mod pow;
 mod regexp_extract;
 mod subtract;
 mod text_join;
@@ -48,6 +49,7 @@ pub(crate) use self::native_function::{
 pub(crate) use self::neq::NeqFnCall;
 pub(crate) use self::not::NotFnCall;
 pub(crate) use self::or::OrFnCall;
+pub(crate) use self::pow::PowFnCall;
 pub(crate) use self::regexp_extract::RegexpExtractFnCall;
 pub(crate) use self::subtract::SubtractFnCall;
 pub(crate) use self::text_join::TextJoinFnCall;
@@ -95,6 +97,8 @@ pub enum Function {
     Not,
     /// Disjoins one or more booleans, remaining present if any operand is present.
     Or,
+    /// Raises a numeric base to a numeric exponent and returns a float.
+    Pow,
     /// Extracts a capture group from a string using a constant regular expression.
     RegexpExtract,
     /// Subtracts the second numeric argument from the first.
@@ -149,6 +153,7 @@ impl Function {
             Function::Neq => <NeqFnCall as FnCall>::call_with_types(args, target_type_set, context),
             Function::Not => <NotFnCall as FnCall>::call_with_types(args, target_type_set, context),
             Function::Or => <OrFnCall as FnCall>::call_with_types(args, target_type_set, context),
+            Function::Pow => <PowFnCall as FnCall>::call_with_types(args, target_type_set, context),
             Function::RegexpExtract => {
                 <RegexpExtractFnCall as FnCall>::call_with_types(args, target_type_set, context)
             }
@@ -207,6 +212,7 @@ impl Function {
             Function::Neq => <NeqFnCall as FnCall>::infer_types(args, target_type, inferred_types),
             Function::Not => <NotFnCall as FnCall>::infer_types(args, target_type, inferred_types),
             Function::Or => <OrFnCall as FnCall>::infer_types(args, target_type, inferred_types),
+            Function::Pow => <PowFnCall as FnCall>::infer_types(args, target_type, inferred_types),
             Function::RegexpExtract => {
                 <RegexpExtractFnCall as FnCall>::infer_types(args, target_type, inferred_types)
             }
@@ -250,6 +256,7 @@ pub(crate) enum FnCallEnum {
     Neq(NeqFnCall),
     Not(NotFnCall),
     Or(OrFnCall),
+    Pow(PowFnCall),
     RegexpExtract(RegexpExtractFnCall),
     Subtract(SubtractFnCall),
     TextJoin(TextJoinFnCall),
@@ -277,6 +284,7 @@ impl FnCallEnum {
             FnCallEnum::Neq(call) => call.args_mut(),
             FnCallEnum::Not(call) => call.args_mut(),
             FnCallEnum::Or(call) => call.args_mut(),
+            FnCallEnum::Pow(call) => call.args_mut(),
             FnCallEnum::RegexpExtract(call) => call.args_mut(),
             FnCallEnum::Subtract(call) => call.args_mut(),
             FnCallEnum::TextJoin(call) => call.args_mut(),
@@ -310,6 +318,7 @@ impl FnCallEnum {
             FnCallEnum::Neq(call) => call.emit_cranelift_ir(return_type, context, builder),
             FnCallEnum::Not(call) => call.emit_cranelift_ir(return_type, context, builder),
             FnCallEnum::Or(call) => call.emit_cranelift_ir(return_type, context, builder),
+            FnCallEnum::Pow(call) => call.emit_cranelift_ir(return_type, context, builder),
             FnCallEnum::RegexpExtract(call) => {
                 call.emit_cranelift_ir(return_type, context, builder)
             }

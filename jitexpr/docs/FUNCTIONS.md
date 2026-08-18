@@ -47,7 +47,7 @@ excluded from this pass, or is complex enough to warrant a separate implementati
 | 27 | `ROUND` | out-of-scope |
 | 28 | `FLOOR` | out-of-scope |
 | 29 | `CEIL` | out-of-scope |
-| 34 | `POW` | pending |
+| 34 | `POW` | done |
 | 35 | `SQRT` | pending |
 | 38 | `MIN` | pending |
 | 39 | `MAX` | pending |
@@ -76,7 +76,7 @@ excluded from this pass, or is complex enough to warrant a separate implementati
 | 79 | `SUBSTRING_COUNT` | pending |
 | 80 | `REGEXP_LIKE` | pending |
 
-Progress: **22 / 42 in-scope** functions implemented; **13** functions are out-of-scope.
+Progress: **23 / 42 in-scope** functions implemented; **13** functions are out-of-scope.
 
 ## Deferred implementation notes
 
