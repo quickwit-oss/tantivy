@@ -53,7 +53,7 @@ excluded from this pass, or is complex enough to warrant a separate implementati
 | 39 | `MAX` | done |
 | 40 | `LEFT` | out-of-scope |
 | 41 | `RIGHT` | out-of-scope |
-| 42 | `SUBSTRING` | pending |
+| 42 | `SUBSTRING` | out-of-scope |
 | 43 | `SPLIT_BEFORE` | pending |
 | 44 | `SPLIT_AFTER` | pending |
 | 50 | `REGEXP_EXTRACT` | done |
@@ -76,7 +76,7 @@ excluded from this pass, or is complex enough to warrant a separate implementati
 | 79 | `SUBSTRING_COUNT` | pending |
 | 80 | `REGEXP_LIKE` | pending |
 
-Progress: **25 / 39 in-scope** functions implemented; **16** functions are out-of-scope.
+Progress: **25 / 38 in-scope** functions implemented; **17** functions are out-of-scope.
 
 ## Deferred implementation notes
 
@@ -107,3 +107,6 @@ Progress: **25 / 39 in-scope** functions implemented; **16** functions are out-o
   from production.
 - `RIGHT` has the same raw-byte slicing issue as `LEFT` and can begin its result inside a UTF-8 code
   point, which cannot be represented safely by jitexpr's string value type.
+- `SUBSTRING` slices raw UTF-8 byte offsets and can therefore produce an invalid `str`. Its scalar
+  kernel also has an observable defect that returns empty whenever `start == length`, rather than
+  only when the computed start and end are equal.
