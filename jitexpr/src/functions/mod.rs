@@ -1,7 +1,9 @@
 mod add;
 mod and;
+mod comparison;
 mod divide;
 mod eq;
+mod gt;
 mod is_not_null;
 mod is_null;
 mod lower;
@@ -20,6 +22,7 @@ pub(crate) use self::add::AddFnCall;
 pub(crate) use self::and::AndFnCall;
 pub(crate) use self::divide::DivideFnCall;
 pub(crate) use self::eq::EqFnCall;
+pub(crate) use self::gt::GtFnCall;
 pub(crate) use self::is_not_null::IsNotNullFnCall;
 pub(crate) use self::is_null::IsNullFnCall;
 pub(crate) use self::lower::LowerFnCall;
@@ -46,6 +49,8 @@ pub enum Function {
     Divide,
     /// Compares two expressions for value equality.
     Eq,
+    /// Tests whether the first ordered value is greater than the second.
+    Gt,
     /// Tests whether an expression produced a present value.
     IsNotNull,
     /// Tests whether an expression produced an absent value.
@@ -78,6 +83,7 @@ impl Function {
                 <DivideFnCall as FnCall>::call_with_types(args, target_type_set, context)
             }
             Function::Eq => <EqFnCall as FnCall>::call_with_types(args, target_type_set, context),
+            Function::Gt => <GtFnCall as FnCall>::call_with_types(args, target_type_set, context),
             Function::IsNotNull => {
                 <IsNotNullFnCall as FnCall>::call_with_types(args, target_type_set, context)
             }
@@ -114,6 +120,7 @@ impl Function {
                 <DivideFnCall as FnCall>::infer_types(args, target_type, inferred_types)
             }
             Function::Eq => <EqFnCall as FnCall>::infer_types(args, target_type, inferred_types),
+            Function::Gt => <GtFnCall as FnCall>::infer_types(args, target_type, inferred_types),
             Function::IsNotNull => {
                 <IsNotNullFnCall as FnCall>::infer_types(args, target_type, inferred_types)
             }
@@ -151,6 +158,7 @@ pub(crate) enum FnCallEnum {
     Add(AddFnCall),
     Divide(DivideFnCall),
     Eq(EqFnCall),
+    Gt(GtFnCall),
     IsNull(IsNullFnCall),
     IsNotNull(IsNotNullFnCall),
     Lower(LowerFnCall),
@@ -168,6 +176,7 @@ impl FnCallEnum {
             FnCallEnum::Add(call) => call.args_mut(),
             FnCallEnum::Divide(call) => call.args_mut(),
             FnCallEnum::Eq(call) => call.args_mut(),
+            FnCallEnum::Gt(call) => call.args_mut(),
             FnCallEnum::IsNull(call) => call.args_mut(),
             FnCallEnum::IsNotNull(call) => call.args_mut(),
             FnCallEnum::Lower(call) => call.args_mut(),
@@ -191,6 +200,7 @@ impl FnCallEnum {
             FnCallEnum::Add(call) => call.emit_cranelift_ir(return_type, context, builder),
             FnCallEnum::Divide(call) => call.emit_cranelift_ir(return_type, context, builder),
             FnCallEnum::Eq(call) => call.emit_cranelift_ir(return_type, context, builder),
+            FnCallEnum::Gt(call) => call.emit_cranelift_ir(return_type, context, builder),
             FnCallEnum::IsNull(call) => call.emit_cranelift_ir(return_type, context, builder),
             FnCallEnum::IsNotNull(call) => call.emit_cranelift_ir(return_type, context, builder),
             FnCallEnum::Lower(call) => call.emit_cranelift_ir(return_type, context, builder),

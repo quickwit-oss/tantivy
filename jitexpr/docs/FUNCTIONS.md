@@ -28,7 +28,7 @@ excluded from this pass.
 | 6 | `MULTIPLY` | done |
 | 7 | `DIVIDE` | done |
 | 8 | `EQ` | done |
-| 9 | `GT` | pending |
+| 9 | `GT` | done |
 | 10 | `LT` | pending |
 | 11 | `GT_EQ` | pending |
 | 12 | `LT_EQ` | pending |
@@ -76,4 +76,4 @@ excluded from this pass.
 | 79 | `SUBSTRING_COUNT` | pending |
 | 80 | `REGEXP_LIKE` | pending |
 
-Progress: **12 / 48 in-scope** functions implemented; **7** functions are out-of-scope.
+Progress: **13 / 48 in-scope** functions implemented; **7** functions are out-of-scope.

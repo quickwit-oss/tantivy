@@ -1,7 +1,7 @@
 use cranelift::codegen::ir::{FuncRef, Function as CraneliftFunction, Type};
 use cranelift_jit::{JITBuilder, JITModule};
 
-use super::{eq, lower, regexp_extract};
+use super::{comparison, eq, lower, regexp_extract};
 use crate::compile::CompileError;
 
 /// References to native functions imported into the current Cranelift function.
@@ -9,6 +9,9 @@ pub(crate) struct NativeFunctions {
     string_eq: FuncRef,
     string_lowercase: FuncRef,
     regexp_extract: FuncRef,
+    string_compare: FuncRef,
+    f64_i64_compare: FuncRef,
+    f64_u64_compare: FuncRef,
 }
 
 impl NativeFunctions {
@@ -23,11 +26,24 @@ impl NativeFunctions {
     pub(crate) fn regexp_extract(&self) -> FuncRef {
         self.regexp_extract
     }
+
+    pub(crate) fn string_compare(&self) -> FuncRef {
+        self.string_compare
+    }
+
+    pub(crate) fn f64_i64_compare(&self) -> FuncRef {
+        self.f64_i64_compare
+    }
+
+    pub(crate) fn f64_u64_compare(&self) -> FuncRef {
+        self.f64_u64_compare
+    }
 }
 
 /// Registers the process symbols that native calls may reference from generated code.
 pub(crate) fn register_jit_symbols(jit_builder: &mut JITBuilder) {
     eq::register_jit_symbol(jit_builder);
+    comparison::register_jit_symbols(jit_builder);
     lower::register_jit_symbol(jit_builder);
     regexp_extract::register_jit_symbol(jit_builder);
 }
@@ -38,9 +54,13 @@ pub(crate) fn declare_native_functions(
     function: &mut CraneliftFunction,
     pointer_type: Type,
 ) -> Result<NativeFunctions, CompileError> {
+    let comparison = comparison::declare_native_functions(module, function, pointer_type)?;
     Ok(NativeFunctions {
         string_eq: eq::declare_native_function(module, function, pointer_type)?,
         string_lowercase: lower::declare_native_function(module, function, pointer_type)?,
         regexp_extract: regexp_extract::declare_native_function(module, function, pointer_type)?,
+        string_compare: comparison.string_compare,
+        f64_i64_compare: comparison.f64_i64_compare,
+        f64_u64_compare: comparison.f64_u64_compare,
     })
 }
