@@ -3,7 +3,6 @@ mod compiled_fn;
 mod error;
 mod typed_expr;
 
-use std::cell::UnsafeCell;
 use std::collections::HashMap;
 
 pub(crate) use compile_fn_builder::{CompileFnBuilder, RegexRef};
@@ -18,7 +17,7 @@ pub(crate) use typed_expr::{TypedExpr, TypedExprAst, TypedLiteral};
 
 use crate::ast::UntypedExpr;
 use crate::functions::NativeFunctions;
-use crate::types::{StringRef, VarType, VariableOpt};
+use crate::types::{VarType, VariablePrimitiveOpt, VariableValue};
 
 pub fn compile(
     untyped_expr: &UntypedExpr,
@@ -43,7 +42,6 @@ pub(crate) struct LoweringContext<'a> {
     args_ptr: CraneliftValue,
     regexes_ptr: CraneliftValue,
     pointer_type: Type,
-    regex_match_results: &'a [UnsafeCell<StringRef<'static>>],
     native_functions: &'a NativeFunctions,
 }
 
@@ -52,6 +50,7 @@ pub(crate) struct LoweringContext<'a> {
 pub(crate) struct LoweredValue {
     pub(crate) value: CraneliftValue,
     pub(crate) is_present: CraneliftValue,
+    pub(crate) string_len: CraneliftValue,
 }
 
 impl LoweringContext<'_> {
@@ -63,23 +62,43 @@ impl LoweringContext<'_> {
         match &expression.ast {
             TypedExprAst::Literal(literal) => Ok(lower_literal(literal, self, builder)),
             TypedExprAst::Variable(variable) => {
-                let slot_offset = variable.variable_id * std::mem::size_of::<VariableOpt>();
-                let value_offset = (slot_offset + std::mem::offset_of!(VariableOpt, value)) as i32;
-                let presence_offset =
-                    (slot_offset + std::mem::offset_of!(VariableOpt, is_present)) as i32;
+                let slot_offset = variable.variable_id * std::mem::size_of::<VariableValue>();
+                let value_offset = slot_offset as i32;
+                let second_word_offset =
+                    (slot_offset + std::mem::offset_of!(VariablePrimitiveOpt, is_present)) as i32;
                 let value = builder.ins().load(
                     cranelift_type(variable.r#type, self.pointer_type),
                     MemFlagsData::trusted(),
                     self.args_ptr,
                     value_offset,
                 );
-                let is_present = builder.ins().load(
-                    cranelift_types::I8,
-                    MemFlagsData::trusted(),
-                    self.args_ptr,
-                    presence_offset,
-                );
-                Ok(LoweredValue { value, is_present })
+                let (is_present, string_len) = if variable.r#type == VarType::Str {
+                    let string_len = builder.ins().load(
+                        cranelift_types::I64,
+                        MemFlagsData::trusted(),
+                        self.args_ptr,
+                        second_word_offset,
+                    );
+                    let is_present =
+                        builder
+                            .ins()
+                            .icmp_imm_u(cranelift::prelude::IntCC::NotEqual, value, 0);
+                    (is_present, string_len)
+                } else {
+                    let is_present = builder.ins().load(
+                        cranelift_types::I8,
+                        MemFlagsData::trusted(),
+                        self.args_ptr,
+                        second_word_offset,
+                    );
+                    let string_len = builder.ins().iconst(cranelift_types::I64, 0);
+                    (is_present, string_len)
+                };
+                Ok(LoweredValue {
+                    value,
+                    is_present,
+                    string_len,
+                })
             }
             TypedExprAst::Coerce { target_type, expr } => {
                 let source_type = expr.return_type;
@@ -88,6 +107,7 @@ impl LoweringContext<'_> {
                 Ok(LoweredValue {
                     value,
                     is_present: lowered.is_present,
+                    string_len: lowered.string_len,
                 })
             }
             TypedExprAst::FnCall(fn_call) => fn_call.lower(expression.return_type, self, builder),
@@ -104,10 +124,6 @@ impl LoweringContext<'_> {
 
     pub(crate) fn native_functions(&self) -> &NativeFunctions {
         self.native_functions
-    }
-
-    pub(crate) fn regex_match_result(&self, regex_ref: RegexRef) -> *mut StringRef<'static> {
-        self.regex_match_results[regex_ref.index()].get()
     }
 }
 
@@ -128,18 +144,28 @@ fn lower_literal(
                     value.to_bits(),
                 ))
         }
-        TypedLiteral::String(string_ref) => {
-            let string_ref_ptr = (string_ref as *const StringRef) as usize;
+        TypedLiteral::String(value) => {
+            let string_ptr = value.as_ptr() as usize;
             builder
                 .ins()
-                .iconst(context.pointer_type, string_ref_ptr as i64)
+                .iconst(context.pointer_type, string_ptr as i64)
         }
     };
     let is_present = builder.ins().iconst(
         cranelift_types::I8,
         i64::from(!matches!(literal, TypedLiteral::None)),
     );
-    LoweredValue { value, is_present }
+    let string_len = match literal {
+        TypedLiteral::String(value) => builder
+            .ins()
+            .iconst(cranelift_types::I64, value.len() as i64),
+        _ => builder.ins().iconst(cranelift_types::I64, 0),
+    };
+    LoweredValue {
+        value,
+        is_present,
+        string_len,
+    }
 }
 
 fn lower_coercion(
@@ -187,7 +213,7 @@ mod tests {
         let untyped_expr = UntypedExpr::variable("flag");
         let variable_types = HashMap::from([("flag", VarType::Bool)]);
         let compiled_fn = compile(&untyped_expr, &variable_types).unwrap();
-        let input = [VariableOpt::some(VariableValue { boolean: true })];
+        let input = [VariableValue::some(true)];
         let output = unsafe { compiled_fn.call(&input) };
 
         assert_eq!(unsafe { output.as_bool() }, Some(true));
@@ -198,7 +224,7 @@ mod tests {
         let untyped_expr = UntypedExpr::variable("value");
         let variable_types = HashMap::from([("value", VarType::U64)]);
         let compiled_fn = compile(&untyped_expr, &variable_types).unwrap();
-        let input = [VariableOpt::none()];
+        let input = [VariableValue::none()];
         let output = unsafe { compiled_fn.call(&input) };
 
         assert_eq!(compiled_fn.result_type(), VarType::U64);
@@ -206,13 +232,27 @@ mod tests {
     }
 
     #[test]
-    fn test_compile_string_literal_keeps_descriptor_alive() {
+    fn test_compile_string_literal_keeps_backing_data_alive() {
         let untyped_expr = UntypedExpr::literal("hello");
         let compiled_fn = compile(&untyped_expr, &HashMap::new()).unwrap();
         drop(untyped_expr);
         let output = unsafe { compiled_fn.call(&[]) };
 
         assert_eq!(unsafe { output.as_str() }, Some("hello"));
+    }
+
+    #[test]
+    fn test_compile_returns_borrowed_string_variable_directly() {
+        let untyped_expr = UntypedExpr::variable("value");
+        let variable_types = HashMap::from([("value", VarType::Str)]);
+        let compiled_fn = compile(&untyped_expr, &variable_types).unwrap();
+        let value = String::from("hello from an input");
+        let input = [VariableValue::some(value.as_str())];
+        let output = unsafe { compiled_fn.call(&input) };
+
+        let output = unsafe { output.as_str() }.unwrap();
+        assert_eq!(output, value);
+        assert_eq!(output.as_ptr(), value.as_ptr());
     }
 
     #[test]

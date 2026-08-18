@@ -11,121 +11,69 @@ pub enum VarType {
     None, // TODO: add other types.
 }
 
-/// A borrowed UTF-8 string descriptor passed opaquely through generated code.
-///
-/// This is a transparent wrapper around Rust's `&str` fat pointer, which
-/// carries both the address and byte length.
-///
-/// The pointer can either refer to:
-/// - an input str, if it is representing an arg or if it is a return value that is a slice of an
-///   input str (e.g. a regex group).
-/// - a literal from the original expression
-/// - the arena passed to the function if the function "constructs"  a new string (e.g. when calling
-///   uppercase).
-///
-/// Either way, its lifetime / ownership is controlled by the caller of the function.
-#[repr(transparent)]
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub struct StringRef<'a> {
-    value: &'a str,
-}
-
-impl<'a> StringRef<'a> {
-    pub fn new(value: &'a str) -> Self {
-        Self { value }
-    }
-
-    pub fn len(&self) -> usize {
-        self.value.len()
-    }
-
-    pub fn is_empty(&self) -> bool {
-        self.len() == 0
-    }
-
-    pub fn as_str(&self) -> &'a str {
-        self.value
-    }
-}
-
-/// The payload of a nullable argument or result slot.
+/// The payload of a primitive runtime value.
 ///
 /// This union is deliberately untagged. The corresponding
 /// [`crate::compile::TypedVariable`] identifies the active payload field.
 #[repr(C)]
 #[derive(Clone, Copy)]
-pub union VariableValue<'a> {
+pub union VariablePrimitive {
     pub boolean: bool,
     pub float: f64,
     pub int_u64: u64,
     pub int_i64: i64,
-    pub string: *mut StringRef<'a>, //< this has to be mut for results.
 }
 
-impl<'a> From<bool> for VariableValue<'a> {
+impl From<bool> for VariablePrimitive {
     fn from(value: bool) -> Self {
-        VariableValue { boolean: value }
+        VariablePrimitive { boolean: value }
     }
 }
 
-impl<'a> From<f64> for VariableValue<'a> {
+impl From<f64> for VariablePrimitive {
     fn from(value: f64) -> Self {
-        VariableValue { float: value }
+        VariablePrimitive { float: value }
     }
 }
 
-impl<'a> From<u64> for VariableValue<'a> {
+impl From<u64> for VariablePrimitive {
     fn from(value: u64) -> Self {
-        VariableValue { int_u64: value }
+        VariablePrimitive { int_u64: value }
     }
 }
 
-impl<'a> From<i64> for VariableValue<'a> {
+impl From<i64> for VariablePrimitive {
     fn from(value: i64) -> Self {
-        VariableValue { int_i64: value }
+        VariablePrimitive { int_i64: value }
     }
 }
 
-impl<'value, 'string> From<&'value mut StringRef<'string>> for VariableValue<'value>
-where 'string: 'value
-{
-    fn from(value: &'value mut StringRef<'string>) -> Self {
-        // `StringRef` is covariant in its backing string lifetime, so it is
-        // valid to shorten `'string` to `'value`. The raw mutable pointer is
-        // invariant, however, and therefore needs an explicit cast.
-        VariableValue {
-            string: (value as *mut StringRef<'string>).cast::<StringRef<'value>>(),
-        }
+impl Default for VariablePrimitive {
+    fn default() -> Self {
+        VariablePrimitive { int_u64: 0 }
     }
 }
 
-impl<'a> Default for VariableValue<'a> {
-    fn default() -> VariableValue<'a> {
-        VariableValue { int_u64: 0u64 }
-    }
-}
-
-/// A nullable value passed to or returned from a compiled expression.
+/// A nullable primitive value.
 ///
-/// `value` contains the payload described by the corresponding [`VarType`].
-/// The payload is only meaningful when `is_present` is true.
+/// `value` is meaningful only when `is_present` is true.
 #[repr(C)]
 #[derive(Clone, Copy, Default)]
-pub struct VariableOpt<'a> {
-    pub value: VariableValue<'a>,
+pub struct VariablePrimitiveOpt {
+    pub value: VariablePrimitive,
     pub is_present: bool,
 }
 
-impl<'a> VariableOpt<'a> {
-    /// Wraps a present runtime value.
-    pub fn some(value: impl Into<VariableValue<'a>>) -> Self {
+impl VariablePrimitiveOpt {
+    /// Wraps a present primitive value.
+    pub fn some(value: impl Into<VariablePrimitive>) -> Self {
         Self {
             value: value.into(),
             is_present: true,
         }
     }
 
-    /// Creates an absent runtime value.
+    /// Creates an absent primitive value.
     pub fn none() -> Self {
         Self::default()
     }
@@ -134,7 +82,7 @@ impl<'a> VariableOpt<'a> {
     ///
     /// # Safety
     ///
-    /// When present, the active [`VariableValue`] member must be `boolean`.
+    /// When present, the active [`VariablePrimitive`] member must be `boolean`.
     pub unsafe fn as_bool(self) -> Option<bool> {
         if self.is_present {
             // SAFETY: Guaranteed by the caller.
@@ -148,7 +96,7 @@ impl<'a> VariableOpt<'a> {
     ///
     /// # Safety
     ///
-    /// When present, the active [`VariableValue`] member must be `float`.
+    /// When present, the active [`VariablePrimitive`] member must be `float`.
     pub unsafe fn as_f64(self) -> Option<f64> {
         if self.is_present {
             // SAFETY: Guaranteed by the caller.
@@ -162,7 +110,7 @@ impl<'a> VariableOpt<'a> {
     ///
     /// # Safety
     ///
-    /// When present, the active [`VariableValue`] member must be `int_u64`.
+    /// When present, the active [`VariablePrimitive`] member must be `int_u64`.
     pub unsafe fn as_u64(self) -> Option<u64> {
         if self.is_present {
             // SAFETY: Guaranteed by the caller.
@@ -176,7 +124,7 @@ impl<'a> VariableOpt<'a> {
     ///
     /// # Safety
     ///
-    /// When present, the active [`VariableValue`] member must be `int_i64`.
+    /// When present, the active [`VariablePrimitive`] member must be `int_i64`.
     pub unsafe fn as_i64(self) -> Option<i64> {
         if self.is_present {
             // SAFETY: Guaranteed by the caller.
@@ -185,81 +133,243 @@ impl<'a> VariableOpt<'a> {
             None
         }
     }
+}
 
-    /// Returns the string payload, or `None` when this value is absent.
+impl<T: Into<VariablePrimitive>> From<T> for VariablePrimitiveOpt {
+    fn from(value: T) -> Self {
+        Self::some(value)
+    }
+}
+
+/// A nullable runtime argument or result slot.
+///
+/// Primitive values use the [`VariablePrimitiveOpt`] arm. Strings use the
+/// nullable `string` arm: a null data pointer represents `None`, while a
+/// non-null data pointer and its byte length represent a borrowed `str`.
+/// Both arms occupy two machine words on the supported 64-bit targets.
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub union VariableValue<'a> {
+    pub primitive: VariablePrimitiveOpt,
+    pub string: Option<&'a str>,
+}
+
+const _: () = {
+    assert!(std::mem::size_of::<VariablePrimitive>() == 8);
+    assert!(std::mem::offset_of!(VariablePrimitiveOpt, value) == 0);
+    assert!(std::mem::offset_of!(VariablePrimitiveOpt, is_present) == 8);
+    assert!(std::mem::size_of::<VariablePrimitiveOpt>() == 16);
+    assert!(std::mem::size_of::<Option<&str>>() == 16);
+    assert!(std::mem::size_of::<VariableValue>() == 16);
+    assert!(std::mem::align_of::<VariableValue>() == 8);
+};
+
+impl<'a> VariableValue<'a> {
+    /// Wraps a present runtime value.
+    pub fn some(value: impl Into<Self>) -> Self {
+        value.into()
+    }
+
+    /// Creates an absent runtime value for either arm.
+    pub fn none() -> Self {
+        // SAFETY: All-zeroes is both an absent VariablePrimitiveOpt and the
+        // null niche used by Option<&str>.
+        unsafe { std::mem::zeroed() }
+    }
+
+    /// Returns the boolean payload, or `None` when this value is absent.
     ///
     /// # Safety
     ///
-    /// When present, the active [`VariableValue`] member must be `string` and
-    /// point to a live [`StringRef`]. Its backing string must remain valid for
-    /// the returned reference's lifetime.
+    /// This value must contain a primitive boolean or be absent.
+    pub unsafe fn as_bool(self) -> Option<bool> {
+        // SAFETY: Guaranteed by the caller.
+        unsafe { self.primitive.as_bool() }
+    }
+
+    /// Returns the `f64` payload, or `None` when this value is absent.
+    ///
+    /// # Safety
+    ///
+    /// This value must contain a primitive `f64` or be absent.
+    pub unsafe fn as_f64(self) -> Option<f64> {
+        // SAFETY: Guaranteed by the caller.
+        unsafe { self.primitive.as_f64() }
+    }
+
+    /// Returns the `u64` payload, or `None` when this value is absent.
+    ///
+    /// # Safety
+    ///
+    /// This value must contain a primitive `u64` or be absent.
+    pub unsafe fn as_u64(self) -> Option<u64> {
+        // SAFETY: Guaranteed by the caller.
+        unsafe { self.primitive.as_u64() }
+    }
+
+    /// Returns the `i64` payload, or `None` when this value is absent.
+    ///
+    /// # Safety
+    ///
+    /// This value must contain a primitive `i64` or be absent.
+    pub unsafe fn as_i64(self) -> Option<i64> {
+        // SAFETY: Guaranteed by the caller.
+        unsafe { self.primitive.as_i64() }
+    }
+
+    /// Returns the borrowed string payload, or `None` when it is absent.
+    ///
+    /// # Safety
+    ///
+    /// This value must contain the `string` arm or be the all-zero absent
+    /// representation returned by [`VariableValue::none`].
     pub unsafe fn as_str(self) -> Option<&'a str> {
-        if self.is_present {
-            // SAFETY: Guaranteed by the caller.
-            let string_ref: &'a StringRef = unsafe { &*self.value.string };
-            Some(string_ref.as_str())
-        } else {
-            None
+        // SAFETY: Guaranteed by the caller.
+        unsafe { self.string }
+    }
+}
+
+impl Default for VariableValue<'_> {
+    fn default() -> Self {
+        Self::none()
+    }
+}
+
+impl From<bool> for VariableValue<'_> {
+    fn from(value: bool) -> Self {
+        Self {
+            primitive: VariablePrimitiveOpt::some(value),
         }
     }
 }
 
-impl<'a, T: Into<VariableValue<'a>>> From<T> for VariableOpt<'a> {
-    fn from(value: T) -> Self {
-        Self::some(value.into())
+impl From<f64> for VariableValue<'_> {
+    fn from(value: f64) -> Self {
+        Self {
+            primitive: VariablePrimitiveOpt::some(value),
+        }
+    }
+}
+
+impl From<u64> for VariableValue<'_> {
+    fn from(value: u64) -> Self {
+        Self {
+            primitive: VariablePrimitiveOpt::some(value),
+        }
+    }
+}
+
+impl From<i64> for VariableValue<'_> {
+    fn from(value: i64) -> Self {
+        Self {
+            primitive: VariablePrimitiveOpt::some(value),
+        }
+    }
+}
+
+impl<'a> From<&'a str> for VariableValue<'a> {
+    fn from(value: &'a str) -> Self {
+        Self {
+            string: Some(value),
+        }
+    }
+}
+
+impl<'a> From<Option<&'a str>> for VariableValue<'a> {
+    fn from(value: Option<&'a str>) -> Self {
+        match value {
+            Some(value) => Self::from(value),
+            None => Self::none(),
+        }
+    }
+}
+
+impl<'a> From<VariablePrimitive> for VariableValue<'a> {
+    fn from(value: VariablePrimitive) -> Self {
+        Self {
+            primitive: VariablePrimitiveOpt::some(value),
+        }
+    }
+}
+
+impl<'a> From<VariablePrimitiveOpt> for VariableValue<'a> {
+    fn from(value: VariablePrimitiveOpt) -> Self {
+        Self { primitive: value }
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::types::{StringRef, VariableOpt, VariableValue};
+    use crate::types::{VariablePrimitive, VariablePrimitiveOpt, VariableValue};
 
     #[test]
-    fn test_string_ref_wraps_raw_str_pointer() {
-        let string_ref = StringRef::new("hello");
-        assert_eq!(std::mem::size_of::<StringRef>(), 16);
-        assert_eq!(string_ref.len(), 5);
-        assert!(!string_ref.is_empty());
-        assert_eq!(string_ref.as_str(), "hello");
+    fn test_runtime_value_layouts() {
+        assert_eq!(std::mem::size_of::<VariablePrimitive>(), 8);
+        assert_eq!(std::mem::offset_of!(VariablePrimitiveOpt, value), 0);
+        assert_eq!(std::mem::offset_of!(VariablePrimitiveOpt, is_present), 8);
+        assert_eq!(std::mem::size_of::<VariablePrimitiveOpt>(), 16);
+        assert_eq!(std::mem::size_of::<Option<&str>>(), 16);
+        assert_eq!(std::mem::size_of::<VariableValue>(), 16);
+        assert_eq!(std::mem::align_of::<VariableValue>(), 8);
+
+        let text = "hello";
+        let words: [usize; 2] = unsafe { std::mem::transmute(VariableValue::some(text)) };
+        assert_eq!(words, [text.as_ptr() as usize, text.len()]);
+        let none_words: [usize; 2] = unsafe { std::mem::transmute(VariableValue::none()) };
+        assert_eq!(none_words, [0, 0]);
     }
 
     #[test]
-    fn test_variable_value_size() {
-        assert_eq!(std::mem::size_of::<VariableValue>(), 8);
-    }
-
-    #[test]
-    fn test_variable_opt_layout() {
-        assert_eq!(std::mem::offset_of!(VariableOpt, value), 0);
-        assert_eq!(std::mem::offset_of!(VariableOpt, is_present), 8);
-        assert_eq!(std::mem::size_of::<VariableOpt>(), 16);
-    }
-
-    #[test]
-    fn test_variable_opt_constructors() {
-        let present = VariableOpt::some(3u64);
-        assert_eq!(unsafe { present.as_u64() }, Some(3));
-        assert_eq!(unsafe { VariableOpt::none().as_u64() }, None);
-    }
-
-    #[test]
-    fn test_variable_opt_accessors() {
-        assert_eq!(unsafe { VariableOpt::some(true).as_bool() }, Some(true));
-        assert_eq!(unsafe { VariableOpt::some(1.5f64).as_f64() }, Some(1.5));
-        assert_eq!(unsafe { VariableOpt::some(7u64).as_u64() }, Some(7));
-        assert_eq!(unsafe { VariableOpt::some(-3i64).as_i64() }, Some(-3));
-
-        let mut string_ref = StringRef::new("hello");
+    fn test_variable_primitive_opt_accessors() {
         assert_eq!(
-            unsafe { VariableOpt::some(&mut string_ref).as_str() },
+            unsafe { VariablePrimitiveOpt::some(true).as_bool() },
+            Some(true)
+        );
+        assert_eq!(
+            unsafe { VariablePrimitiveOpt::some(1.5f64).as_f64() },
+            Some(1.5)
+        );
+        assert_eq!(
+            unsafe { VariablePrimitiveOpt::some(7u64).as_u64() },
+            Some(7)
+        );
+        assert_eq!(
+            unsafe { VariablePrimitiveOpt::some(-3i64).as_i64() },
+            Some(-3)
+        );
+        assert_eq!(unsafe { VariablePrimitiveOpt::none().as_u64() }, None);
+    }
+
+    #[test]
+    fn test_variable_value_accessors() {
+        assert_eq!(unsafe { VariableValue::some(true).as_bool() }, Some(true));
+        assert_eq!(unsafe { VariableValue::some(1.5f64).as_f64() }, Some(1.5));
+        assert_eq!(unsafe { VariableValue::some(7u64).as_u64() }, Some(7));
+        assert_eq!(unsafe { VariableValue::some(-3i64).as_i64() }, Some(-3));
+        assert_eq!(
+            unsafe { VariableValue::some(VariablePrimitive { int_u64: 11 }).as_u64() },
+            Some(11)
+        );
+        assert_eq!(
+            unsafe { VariableValue::some("hello").as_str() },
             Some("hello")
         );
 
-        let none = VariableOpt::none();
+        let none = VariableValue::none();
         assert_eq!(unsafe { none.as_bool() }, None);
         assert_eq!(unsafe { none.as_f64() }, None);
         assert_eq!(unsafe { none.as_u64() }, None);
         assert_eq!(unsafe { none.as_i64() }, None);
+        assert_eq!(unsafe { none.as_str() }, None);
+        assert_eq!(unsafe { VariableValue::from(None::<&str>).as_str() }, None);
+    }
+
+    #[test]
+    fn test_empty_string_is_distinct_from_none() {
+        let empty = VariableValue::some("");
+        let none = VariableValue::none();
+
+        assert_eq!(unsafe { empty.as_str() }, Some(""));
         assert_eq!(unsafe { none.as_str() }, None);
     }
 }

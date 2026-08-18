@@ -25,7 +25,7 @@ use crate::compile::{
     CompileError, CompileFnBuilder, LoweredValue, LoweringContext, TypedExpr, TypedExprAst,
 };
 use crate::functions::{FnCall, FnCallEnum};
-use crate::types::{StringRef, VarType};
+use crate::types::VarType;
 
 const STRING_EQ_SYMBOL: &str = "jitexpr_string_eq";
 
@@ -106,30 +106,41 @@ impl FnCall for EqFnCall {
         let lhs = context.compile_expr(&self.args[0], builder)?;
         let rhs = context.compile_expr(&self.args[1], builder)?;
         let is_present = builder.ins().iconst(types::I8, 1);
+        let string_len = builder.ins().iconst(types::I64, 0);
 
         if lhs_type == VarType::None || rhs_type == VarType::None {
             let value = builder
                 .ins()
                 .icmp(IntCC::Equal, lhs.is_present, rhs.is_present);
-            return Ok(LoweredValue { value, is_present });
+            return Ok(LoweredValue {
+                value,
+                is_present,
+                string_len,
+            });
         }
 
         if lhs_type == VarType::Str && rhs_type == VarType::Str {
             let null = builder.ins().iconst(context.pointer_type(), 0);
             let lhs_ptr = builder.ins().select(lhs.is_present, lhs.value, null);
             let rhs_ptr = builder.ins().select(rhs.is_present, rhs.value, null);
-            let call = builder
-                .ins()
-                .call(context.native_functions().string_eq(), &[lhs_ptr, rhs_ptr]);
+            let call = builder.ins().call(
+                context.native_functions().string_eq(),
+                &[lhs_ptr, lhs.string_len, rhs_ptr, rhs.string_len],
+            );
             return Ok(LoweredValue {
                 value: builder.inst_results(call)[0],
                 is_present,
+                string_len,
             });
         }
 
         if !types_are_comparable(lhs_type, rhs_type) {
             let value = both_absent(lhs.is_present, rhs.is_present, builder);
-            return Ok(LoweredValue { value, is_present });
+            return Ok(LoweredValue {
+                value,
+                is_present,
+                string_len,
+            });
         }
 
         let values_equal = match (lhs_type, rhs_type) {
@@ -161,7 +172,11 @@ impl FnCall for EqFnCall {
         let present_and_equal = builder.ins().band(both_present, values_equal);
         let both_absent = both_absent(lhs.is_present, rhs.is_present, builder);
         let value = builder.ins().bor(both_absent, present_and_equal);
-        Ok(LoweredValue { value, is_present })
+        Ok(LoweredValue {
+            value,
+            is_present,
+            string_len,
+        })
     }
 }
 
@@ -240,21 +255,39 @@ pub(super) fn declare_native_function(
     pointer_type: Type,
 ) -> Result<FuncRef, CompileError> {
     let mut signature = module.make_signature();
-    signature
-        .params
-        .extend([AbiParam::new(pointer_type), AbiParam::new(pointer_type)]);
+    signature.params.extend([
+        AbiParam::new(pointer_type),
+        AbiParam::new(types::I64),
+        AbiParam::new(pointer_type),
+        AbiParam::new(types::I64),
+    ]);
     signature.returns.push(AbiParam::new(types::I8));
     let function_id = module.declare_function(STRING_EQ_SYMBOL, Linkage::Import, &signature)?;
     Ok(module.declare_func_in_func(function_id, function))
 }
 
 unsafe extern "C" fn string_eq(
-    lhs: *const StringRef<'static>,
-    rhs: *const StringRef<'static>,
+    lhs_ptr: *const u8,
+    lhs_len: usize,
+    rhs_ptr: *const u8,
+    rhs_len: usize,
 ) -> u8 {
-    match (unsafe { lhs.as_ref() }, unsafe { rhs.as_ref() }) {
+    let lhs = if lhs_ptr.is_null() {
+        None
+    } else {
+        // SAFETY: Generated code passes a live UTF-8 string pointer and its
+        // exact byte length whenever the pointer is non-null.
+        Some(unsafe { std::str::from_utf8_unchecked(std::slice::from_raw_parts(lhs_ptr, lhs_len)) })
+    };
+    let rhs = if rhs_ptr.is_null() {
+        None
+    } else {
+        // SAFETY: Same contract as `lhs` above.
+        Some(unsafe { std::str::from_utf8_unchecked(std::slice::from_raw_parts(rhs_ptr, rhs_len)) })
+    };
+    match (lhs, rhs) {
         (None, None) => 1,
-        (Some(lhs), Some(rhs)) => u8::from(lhs.as_str() == rhs.as_str()),
+        (Some(lhs), Some(rhs)) => u8::from(lhs == rhs),
         _ => 0,
     }
 }
@@ -270,7 +303,7 @@ mod tests {
     use super::*;
     use crate::ast::{self, infer_types};
     use crate::compile::compile;
-    use crate::types::{VariableOpt, VariableValue};
+    use crate::types::VariableValue;
 
     fn eval(expression: &str) -> bool {
         let expression = ast::deserialize(expression).unwrap();
@@ -325,10 +358,7 @@ mod tests {
         let compiled = compile(&expression, &variable_types).unwrap();
 
         for (signed, unsigned, expected) in [(7i64, 7u64, true), (-1, u64::MAX, false)] {
-            let input = [
-                VariableOpt::some(VariableValue { int_i64: signed }),
-                VariableOpt::some(VariableValue { int_u64: unsigned }),
-            ];
+            let input = [VariableValue::some(signed), VariableValue::some(unsigned)];
             let output = unsafe { compiled.call(&input) };
             assert_eq!(unsafe { output.as_bool() }, Some(expected));
         }
@@ -348,10 +378,7 @@ mod tests {
         ];
 
         for (float, integer, expected) in cases {
-            let input = [
-                VariableOpt::some(VariableValue { float }),
-                VariableOpt::some(VariableValue { int_i64: integer }),
-            ];
+            let input = [VariableValue::some(float), VariableValue::some(integer)];
             let output = unsafe { compiled.call(&input) };
             assert_eq!(unsafe { output.as_bool() }, Some(expected));
         }
@@ -371,10 +398,7 @@ mod tests {
         ];
 
         for (float, integer, expected) in cases {
-            let input = [
-                VariableOpt::some(VariableValue { float }),
-                VariableOpt::some(VariableValue { int_u64: integer }),
-            ];
+            let input = [VariableValue::some(float), VariableValue::some(integer)];
             let output = unsafe { compiled.call(&input) };
             assert_eq!(unsafe { output.as_bool() }, Some(expected));
         }
@@ -387,23 +411,23 @@ mod tests {
         let compiled = compile(&expression, &variable_types).unwrap();
         let left_value = String::from("same contents");
         let right_value = String::from("same contents");
-        let mut left = StringRef::new(&left_value);
-        let mut right = StringRef::new(&right_value);
-        let input = [VariableOpt::some(&mut left), VariableOpt::some(&mut right)];
+        let input = [
+            VariableValue::some(left_value.as_str()),
+            VariableValue::some(right_value.as_str()),
+        ];
         let output = unsafe { compiled.call(&input) };
 
         assert_eq!(unsafe { output.as_bool() }, Some(true));
 
         let different_value = String::from("different contents");
-        let mut different = StringRef::new(&different_value);
         let input = [
-            VariableOpt::some(&mut left),
-            VariableOpt::some(&mut different),
+            VariableValue::some(left_value.as_str()),
+            VariableValue::some(different_value.as_str()),
         ];
         let output = unsafe { compiled.call(&input) };
         assert_eq!(unsafe { output.as_bool() }, Some(false));
 
-        let none_input = [VariableOpt::none(), VariableOpt::none()];
+        let none_input = [VariableValue::none(), VariableValue::none()];
         let output = unsafe { compiled.call(&none_input) };
         assert_eq!(unsafe { output.as_bool() }, Some(true));
     }
@@ -419,15 +443,10 @@ mod tests {
         let expression = ast::deserialize("(EQ left right)").unwrap();
         let variable_types = HashMap::from([("left", VarType::U64), ("right", VarType::U64)]);
         let compiled = compile(&expression, &variable_types).unwrap();
-        let output = unsafe { compiled.call(&[VariableOpt::none(), VariableOpt::none()]) };
+        let output = unsafe { compiled.call(&[VariableValue::none(), VariableValue::none()]) };
         assert_eq!(unsafe { output.as_bool() }, Some(true));
 
-        let output = unsafe {
-            compiled.call(&[
-                VariableOpt::none(),
-                VariableOpt::some(VariableValue { int_u64: 0 }),
-            ])
-        };
+        let output = unsafe { compiled.call(&[VariableValue::none(), VariableValue::some(0u64)]) };
         assert_eq!(unsafe { output.as_bool() }, Some(false));
     }
 
@@ -436,7 +455,7 @@ mod tests {
         let expression = ast::deserialize("(EQ value none)").unwrap();
         let variable_types = HashMap::from([("value", VarType::U64)]);
         let compiled = compile(&expression, &variable_types).unwrap();
-        let output = unsafe { compiled.call(&[VariableOpt::none()]) };
+        let output = unsafe { compiled.call(&[VariableValue::none()]) };
 
         assert_eq!(unsafe { output.as_bool() }, Some(true));
     }

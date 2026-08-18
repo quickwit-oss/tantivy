@@ -86,6 +86,7 @@ impl FnCall for IsNotNullFnCall {
         Ok(LoweredValue {
             value: arg.is_present,
             is_present,
+            string_len: builder.ins().iconst(types::I64, 0),
         })
     }
 }
@@ -101,7 +102,7 @@ mod tests {
     use super::*;
     use crate::ast::{deserialize, infer_types, infer_types_with_target};
     use crate::compile::compile;
-    use crate::types::{StringRef, VariableOpt};
+    use crate::types::VariableValue;
 
     fn eval_without_args(expression: &str) -> (bool, Option<bool>) {
         let expression = deserialize(expression).unwrap();
@@ -109,17 +110,21 @@ mod tests {
         assert!(compiled.inputs.is_empty());
         // SAFETY: The compiled expression has no inputs.
         let output = unsafe { compiled.call(&[]) };
-        (output.is_present, unsafe { output.as_bool() })
+        (unsafe { output.primitive.is_present }, unsafe {
+            output.as_bool()
+        })
     }
 
-    fn eval_variable(var_type: VarType, input: VariableOpt<'_>) -> (bool, Option<bool>) {
+    fn eval_variable(var_type: VarType, input: VariableValue<'_>) -> (bool, Option<bool>) {
         let expression = deserialize("(IS_NOT_NULL value)").unwrap();
         let variable_types = HashMap::from([("value", var_type)]);
         let compiled = compile(&expression, &variable_types).unwrap();
         // SAFETY: `input` is constructed with the union member matching `var_type`
         // at each call site, or is absent and therefore has no active payload.
         let output = unsafe { compiled.call(&[input]) };
-        (output.is_present, unsafe { output.as_bool() })
+        (unsafe { output.primitive.is_present }, unsafe {
+            output.as_bool()
+        })
     }
 
     #[test]
@@ -187,7 +192,7 @@ mod tests {
             VarType::I64,
             VarType::Str,
         ] {
-            let output = eval_variable(var_type, VariableOpt::none());
+            let output = eval_variable(var_type, VariableValue::none());
             assert!(output.0, "type: {var_type:?}");
             assert_eq!(output.1, Some(false), "type: {var_type:?}");
         }
@@ -196,17 +201,16 @@ mod tests {
     #[test]
     fn test_present_edge_values_are_true() {
         for (var_type, input) in [
-            (VarType::Bool, VariableOpt::some(false)),
-            (VarType::F64, VariableOpt::some(f64::NAN)),
-            (VarType::U64, VariableOpt::some(0u64)),
-            (VarType::I64, VariableOpt::some(i64::MIN)),
+            (VarType::Bool, VariableValue::some(false)),
+            (VarType::F64, VariableValue::some(f64::NAN)),
+            (VarType::U64, VariableValue::some(0u64)),
+            (VarType::I64, VariableValue::some(i64::MIN)),
         ] {
             let output = eval_variable(var_type, input);
             assert_eq!(output.1, Some(true), "type: {var_type:?}");
         }
 
-        let mut empty = StringRef::new("");
-        let output = eval_variable(VarType::Str, VariableOpt::some(&mut empty));
+        let output = eval_variable(VarType::Str, VariableValue::some(""));
         assert_eq!(output.1, Some(true));
     }
 

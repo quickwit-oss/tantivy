@@ -1,4 +1,3 @@
-use std::cell::UnsafeCell;
 use std::collections::HashMap;
 use std::mem;
 use std::sync::Arc;
@@ -17,7 +16,7 @@ use super::{
 };
 use crate::ast::{InferredTypeSet, Literal, UntypedExpr};
 use crate::functions::{declare_native_functions, register_jit_symbols};
-use crate::types::{StringRef, VarType};
+use crate::types::VarType;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) struct RegexRef(usize);
@@ -32,8 +31,6 @@ pub(crate) struct CompileFnBuilder<'types, 'names> {
     variable_types: &'types HashMap<&'names str, VarType>,
     input_vars: Vec<TypedVariable>,
     regexes: Vec<Regex>,
-    regex_match_results: Vec<UnsafeCell<StringRef<'static>>>,
-    string_literals: Vec<Arc<str>>,
 }
 
 struct LoweredFunction {
@@ -42,8 +39,6 @@ struct LoweredFunction {
     function_id: FuncId,
     input_vars: Vec<TypedVariable>,
     regexes: Box<[Regex]>,
-    regex_match_results: Box<[UnsafeCell<StringRef<'static>>]>,
-    string_literals: Box<[Arc<str>]>,
     expression: Box<TypedExpr>,
 }
 
@@ -53,8 +48,6 @@ impl<'types, 'names> CompileFnBuilder<'types, 'names> {
             variable_types,
             input_vars: Vec::new(),
             regexes: Vec::new(),
-            regex_match_results: Vec::new(),
-            string_literals: Vec::new(),
         }
     }
 
@@ -65,19 +58,7 @@ impl<'types, 'names> CompileFnBuilder<'types, 'names> {
     pub(crate) fn register_regex(&mut self, regex: Regex) -> RegexRef {
         let regex_ref = RegexRef(self.regexes.len());
         self.regexes.push(regex);
-        self.regex_match_results
-            .push(UnsafeCell::new(StringRef::new("")));
         regex_ref
-    }
-
-    pub(crate) fn register_string_literal(&mut self, value: Arc<str>) -> StringRef<'static> {
-        let value_ptr = Arc::as_ptr(&value);
-        self.string_literals.push(value);
-        // SAFETY: `value_ptr` points into the Arc now owned by
-        // `self.string_literals`. The fake `'static` lifetime is only used in
-        // the internal typed AST; `CompiledFn::call` narrows it to the borrow
-        // of the compiled function before exposing it to callers.
-        StringRef::new(unsafe { &*value_ptr })
     }
 
     /// If a variable is missing from `variable_types`, it is treated as `None`.
@@ -137,9 +118,7 @@ impl<'types, 'names> CompileFnBuilder<'types, 'names> {
             }
         } else if intersection.contains(VarType::Str) {
             match literal {
-                Literal::String(value) => {
-                    TypedLiteral::String(self.register_string_literal(value.clone()))
-                }
+                Literal::String(value) => TypedLiteral::String(value.clone()),
                 _ => panic!("cannot coerce literal {literal:?} to string"),
             }
         } else if intersection.contains(VarType::None) {
@@ -220,13 +199,9 @@ impl<'types, 'names> CompileFnBuilder<'types, 'names> {
         let CompileFnBuilder {
             input_vars,
             regexes,
-            regex_match_results,
-            string_literals,
             ..
         } = self;
         let regexes = regexes.into_boxed_slice();
-        let regex_match_results = regex_match_results.into_boxed_slice();
-        let string_literals = string_literals.into_boxed_slice();
         let expression = Box::new(expression);
 
         let mut jit_builder =
@@ -237,13 +212,13 @@ impl<'types, 'names> CompileFnBuilder<'types, 'names> {
         let pointer_type = target_config.pointer_type();
 
         // The native entry point mirrors JitEntry: the two arguments point to the
-        // input slots and CompiledFn::regexes. VariableOpt is returned as two
+        // input slots and CompiledFn::regexes. VariableValue is returned as two
         // integer-class values according to the native C ABI.
         let mut signature = module.make_signature();
         signature.params.push(AbiParam::new(pointer_type));
         signature.params.push(AbiParam::new(pointer_type));
         signature.returns.push(AbiParam::new(types::I64));
-        signature.returns.push(AbiParam::new(types::I8));
+        signature.returns.push(AbiParam::new(types::I64));
         let function_id = module.declare_anonymous_function(&signature)?;
 
         let mut context = module.make_context();
@@ -267,7 +242,6 @@ impl<'types, 'names> CompileFnBuilder<'types, 'names> {
                 args_ptr,
                 regexes_ptr,
                 pointer_type,
-                regex_match_results: &regex_match_results,
                 native_functions: &native_functions,
             };
             let lowered = lowering_context.compile_expr(&expression, &mut builder)?;
@@ -280,7 +254,12 @@ impl<'types, 'names> CompileFnBuilder<'types, 'names> {
                 }
                 VarType::U64 | VarType::I64 | VarType::Str | VarType::None => lowered.value,
             };
-            builder.ins().return_(&[value_bits, lowered.is_present]);
+            let second_word = if expression.return_type == VarType::Str {
+                lowered.string_len
+            } else {
+                builder.ins().uextend(types::I64, lowered.is_present)
+            };
+            builder.ins().return_(&[value_bits, second_word]);
             builder.finalize(target_config);
         }
 
@@ -290,8 +269,6 @@ impl<'types, 'names> CompileFnBuilder<'types, 'names> {
             function_id,
             input_vars,
             regexes,
-            regex_match_results,
-            string_literals,
             expression,
         })
     }
@@ -321,8 +298,6 @@ impl LoweredFunction {
             function_id,
             input_vars,
             regexes,
-            regex_match_results,
-            string_literals,
             expression,
         } = self;
 
@@ -337,9 +312,7 @@ impl LoweredFunction {
         Ok(CompiledFn {
             entry,
             _module: module,
-            _string_literals: string_literals,
             regexes,
-            _regex_match_results: regex_match_results,
             inputs: input_vars,
             _typed_expr: expression,
         })
@@ -433,10 +406,10 @@ mod tests {
         let typed_expr = builder.build_typed_expr(&untyped_expr).unwrap();
 
         assert_eq!(typed_expr.return_type, VarType::Str);
-        let TypedExprAst::Literal(TypedLiteral::String(string_ref)) = typed_expr.ast else {
+        let TypedExprAst::Literal(TypedLiteral::String(value)) = typed_expr.ast else {
             panic!("expected a typed string literal");
         };
-        assert_eq!(string_ref.as_str(), "hello");
+        assert_eq!(value.as_ref(), "hello");
     }
 
     #[test]
@@ -499,7 +472,7 @@ mod tests {
     }
 
     #[test]
-    fn test_jit_entry_returns_variable_opt_as_two_abi_values() {
+    fn test_jit_entry_returns_variable_value_as_two_abi_words() {
         let variable_types = HashMap::new();
         let mut builder = CompileFnBuilder::new(&variable_types);
         let expression = builder
@@ -518,6 +491,6 @@ mod tests {
         );
         assert_eq!(signature.returns.len(), 2);
         assert_eq!(signature.returns[0].value_type, types::I64);
-        assert_eq!(signature.returns[1].value_type, types::I8);
+        assert_eq!(signature.returns[1].value_type, types::I64);
     }
 }

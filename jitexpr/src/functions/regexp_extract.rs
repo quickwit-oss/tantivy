@@ -26,7 +26,7 @@ use crate::compile::{
     TypedExprAst,
 };
 use crate::functions::{FnCall, FnCallEnum};
-use crate::types::{StringRef, VarType};
+use crate::types::VarType;
 
 const SYMBOL: &str = "jitexpr_regexp_extract";
 
@@ -121,25 +121,26 @@ impl FnCall for RegexpExtractFnCall {
             .ins()
             .iconst(context.pointer_type(), self.regex_ref.index() as i64);
         let capture_index = builder.ins().iconst(types::I64, self.capture_index as i64);
-        let match_result = context.regex_match_result(self.regex_ref);
-        let match_result = builder
-            .ins()
-            .iconst(context.pointer_type(), match_result as usize as i64);
         let call = builder.ins().call(
             context.native_functions().regexp_extract(),
             &[
                 context.regexes_ptr(),
                 regex_index,
                 haystack_ptr,
+                haystack.string_len,
                 capture_index,
-                match_result,
             ],
         );
         let value = builder.inst_results(call)[0];
+        let string_len = builder.inst_results(call)[1];
         let is_present = builder
             .ins()
             .icmp_imm_u(cranelift::prelude::IntCC::NotEqual, value, 0);
-        Ok(LoweredValue { value, is_present })
+        Ok(LoweredValue {
+            value,
+            is_present,
+            string_len,
+        })
     }
 }
 
@@ -157,47 +158,69 @@ pub(super) fn declare_native_function(
         .params
         .extend(std::iter::repeat_n(AbiParam::new(pointer_type), 3));
     signature.params.push(AbiParam::new(types::I64));
-    signature.params.push(AbiParam::new(pointer_type));
+    signature.params.push(AbiParam::new(types::I64));
     signature.returns.push(AbiParam::new(pointer_type));
+    signature.returns.push(AbiParam::new(types::I64));
     let function_id = module.declare_function(SYMBOL, Linkage::Import, &signature)?;
     Ok(module.declare_func_in_func(function_id, function))
 }
 
+/// Raw two-word string result returned to generated code.
+#[repr(C)]
+struct RawStr {
+    ptr: *const u8,
+    len: usize,
+}
+
+impl RawStr {
+    fn none() -> Self {
+        Self {
+            ptr: std::ptr::null(),
+            len: 0,
+        }
+    }
+
+    fn some(value: &str) -> Self {
+        Self {
+            ptr: value.as_ptr(),
+            len: value.len(),
+        }
+    }
+}
+
 /// Runtime implementation called by generated code for `RegexpExtract`.
 ///
-/// The JIT only forwards opaque pointers. All knowledge of `Regex` and
-/// `StringRef`, including construction of the borrowed result descriptor,
-/// stays in this Rust function.
+/// The JIT forwards a nullable UTF-8 pointer and byte length. The returned
+/// pointer and length borrow directly from the haystack.
 unsafe extern "C" fn regexp_extract(
     regexes: *const Regex,
     regex_index: usize,
-    haystack: *const StringRef<'static>,
+    haystack_ptr: *const u8,
+    haystack_len: usize,
     capture_index: u64,
-    match_result: *mut StringRef<'static>,
-) -> *mut StringRef<'static> {
-    if haystack.is_null() {
-        return std::ptr::null_mut();
+) -> RawStr {
+    if haystack_ptr.is_null() {
+        return RawStr::none();
     }
     let Ok(capture_index) = usize::try_from(capture_index) else {
-        return std::ptr::null_mut();
+        return RawStr::none();
     };
     // SAFETY: Generated code passes CompiledFn::regexes and an index
     // assigned while constructing that same array.
     let regex = unsafe { &*regexes.add(regex_index) };
-    // SAFETY: The contract of CompiledFn::call requires live StringRef
-    // input descriptors whose backing bytes contain valid UTF-8.
-    let haystack = unsafe { (*haystack).as_str() };
+    // SAFETY: The contract of CompiledFn::call requires a live UTF-8 string
+    // pointer and its exact byte length for every present string input.
+    let haystack = unsafe {
+        std::str::from_utf8_unchecked(std::slice::from_raw_parts(haystack_ptr, haystack_len))
+    };
     let Some(regex_match) = regex
         .captures(haystack)
         .and_then(|captures| captures.get(capture_index))
     else {
-        return std::ptr::null_mut();
+        return RawStr::none();
     };
 
-    // SAFETY: Generated code passes a dedicated UnsafeCell-backed result slot.
-    // The descriptor borrows bytes from the input rather than copying them.
-    unsafe { match_result.write(StringRef::new(regex_match.as_str())) };
-    match_result
+    RawStr::some(regex_match.as_str())
 }
 
 impl From<RegexpExtractFnCall> for FnCallEnum {
@@ -213,7 +236,7 @@ mod tests {
     use super::*;
     use crate::ast::{self, infer_types};
     use crate::compile::compile;
-    use crate::types::VariableOpt;
+    use crate::types::VariableValue;
 
     #[test]
     fn test_infer_types_constrains_haystack_to_string() {
@@ -234,8 +257,7 @@ mod tests {
         let variable_types = HashMap::from([("message", VarType::Str)]);
         let compiled = compile(&expression, &variable_types).unwrap();
         let haystack = "prefix user-123 suffix";
-        let mut haystack_ref = StringRef::new(haystack);
-        let input = [VariableOpt::some(&mut haystack_ref)];
+        let input = [VariableValue::some(haystack)];
         let output = unsafe { compiled.call(&input) };
 
         assert_eq!(compiled.regexes.len(), 1);
@@ -251,8 +273,7 @@ mod tests {
             ast::deserialize(r#"(REGEXP_EXTRACT message "([a-z]+)-(\\d+)" 2u64)"#).unwrap();
         let variable_types = HashMap::from([("message", VarType::Str)]);
         let compiled = compile(&expression, &variable_types).unwrap();
-        let mut haystack = StringRef::new("user-123");
-        let input = [VariableOpt::some(&mut haystack)];
+        let input = [VariableValue::some("user-123")];
         let output = unsafe { compiled.call(&input) };
 
         assert_eq!(unsafe { output.as_str() }, Some("123"));
@@ -264,8 +285,7 @@ mod tests {
             ast::deserialize(r#"(REGEXP_EXTRACT message "([a-z]+)-(\\d+)" 0u64)"#).unwrap();
         let variable_types = HashMap::from([("message", VarType::Str)]);
         let compiled = compile(&expression, &variable_types).unwrap();
-        let mut haystack = StringRef::new("no digits here");
-        let input = [VariableOpt::some(&mut haystack)];
+        let input = [VariableValue::some("no digits here")];
         let output = unsafe { compiled.call(&input) };
 
         assert_eq!(unsafe { output.as_str() }, None);
@@ -276,7 +296,7 @@ mod tests {
         let expression = ast::deserialize(r#"(REGEXP_EXTRACT message "([a-z]+)" 0u64)"#).unwrap();
         let variable_types = HashMap::from([("message", VarType::Str)]);
         let compiled = compile(&expression, &variable_types).unwrap();
-        let input = [VariableOpt::none()];
+        let input = [VariableValue::none()];
         let output = unsafe { compiled.call(&input) };
 
         assert_eq!(unsafe { output.as_str() }, None);
@@ -307,8 +327,7 @@ mod tests {
             ast::deserialize(r#"(REGEXP_EXTRACT message "[a-z]+-\\d+" 0u64)"#).unwrap();
         let variable_types = HashMap::from([("message", VarType::Str)]);
         let compiled = compile(&expression, &variable_types).unwrap();
-        let mut haystack = StringRef::new("prefix user-123 suffix");
-        let input = [VariableOpt::some(&mut haystack)];
+        let input = [VariableValue::some("prefix user-123 suffix")];
         let output = unsafe { compiled.call(&input) };
 
         assert_eq!(unsafe { output.as_str() }, Some("user-123"));
@@ -325,8 +344,7 @@ mod tests {
         .unwrap();
         let variable_types = HashMap::from([("message", VarType::Str)]);
         let compiled = compile(&expression, &variable_types).unwrap();
-        let mut haystack = StringRef::new("id=user-123!");
-        let input = [VariableOpt::some(&mut haystack)];
+        let input = [VariableValue::some("id=user-123!")];
         let output = unsafe { compiled.call(&input) };
 
         assert_eq!(compiled.regexes.len(), 2);

@@ -3,7 +3,7 @@ use std::error::Error;
 
 use jitexpr::ast::{Function, InferredTypeSet, UntypedExpr, infer_types};
 use jitexpr::compile::{CompiledFn, compile};
-use jitexpr::types::{VarType, VariableOpt};
+use jitexpr::types::{VarType, VariableValue};
 
 fn main() -> Result<(), Box<dyn Error>> {
     // A simple expression that goes:
@@ -33,7 +33,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     // We use a nullable wrapper around the value union to pass typed variables.
     // For present values, it is up to us to populate the correct union member.
     // Not doing so is UB.
-    let input: Box<[VariableOpt]> = vec![VariableOpt::from(1.2f64)].into_boxed_slice();
+    let input: Box<[VariableValue]> = vec![VariableValue::from(1.2f64)].into_boxed_slice();
     let output = unsafe { compiled_fn.call(&input[..]) };
     assert_eq!(unsafe { output.as_f64() }, Some(1.2f64 + 1.0f64));
 

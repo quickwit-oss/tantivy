@@ -3,7 +3,7 @@ use std::sync::Arc;
 #[cfg(test)]
 use crate::ast::Literal;
 use crate::functions::FnCallEnum;
-use crate::types::{StringRef, VarType};
+use crate::types::VarType;
 
 #[derive(Clone, PartialEq)]
 pub struct TypedVariable {
@@ -100,7 +100,7 @@ pub(crate) enum TypedLiteral {
     U64(u64),
     I64(i64),
     F64(f64),
-    String(StringRef<'static>),
+    String(Arc<str>),
 }
 
 impl TypedLiteral {
