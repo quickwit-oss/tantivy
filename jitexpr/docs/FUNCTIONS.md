@@ -48,7 +48,7 @@ excluded from this pass, or is complex enough to warrant a separate implementati
 | 28 | `FLOOR` | out-of-scope |
 | 29 | `CEIL` | out-of-scope |
 | 34 | `POW` | done |
-| 35 | `SQRT` | pending |
+| 35 | `SQRT` | out-of-scope |
 | 38 | `MIN` | pending |
 | 39 | `MAX` | pending |
 | 40 | `LEFT` | pending |
@@ -76,7 +76,7 @@ excluded from this pass, or is complex enough to warrant a separate implementati
 | 79 | `SUBSTRING_COUNT` | pending |
 | 80 | `REGEXP_LIKE` | pending |
 
-Progress: **23 / 42 in-scope** functions implemented; **13** functions are out-of-scope.
+Progress: **23 / 41 in-scope** functions implemented; **14** functions are out-of-scope.
 
 ## Deferred implementation notes
 
@@ -99,3 +99,6 @@ Progress: **23 / 42 in-scope** functions implemented; **13** functions are out-o
   architecture-dependent. It is deferred pending an explicit production-parity policy.
 - `CEIL` shares `FLOOR`'s unwritten integer-output defect and architecture-dependent exceptional
   float-to-`int64` conversions, so it is deferred under the same parity policy.
+- `SQRT` has a contradictory production type contract: the dd-go type checker returns the selected
+  input type (including integer), while the registry declares a `float64` output and both integer
+  and float kernels write `float64`. It is deferred until one of those contracts is chosen.
