@@ -21,7 +21,7 @@ use cranelift::prelude::{AbiParam, InstBuilder, IntCC};
 use cranelift_jit::{JITBuilder, JITModule};
 use cranelift_module::{Linkage, Module};
 
-use crate::ast::{Function, InferredTypeSet, TypeError, UntypedExpr};
+use crate::ast::{Function, InferredTypeSet, Literal, TypeError, UntypedExpr};
 use crate::compile::{
     CompileError, CompileFnBuilder, LoweredValue, LoweringContext, TypedExpr, TypedExprAst,
 };
@@ -32,7 +32,28 @@ const SYMBOL: &str = "jitexpr_substring";
 
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) struct SubstringFnCall {
-    args: Box<[TypedExpr]>,
+    input: Box<TypedExpr>,
+    start: usize,
+    length: usize,
+}
+
+fn constant_usize(expression: &UntypedExpr) -> Option<usize> {
+    let UntypedExpr::Literal(literal) = expression else {
+        panic!("SUBSTRING bounds must be constants");
+    };
+    match literal {
+        Literal::I64(value) => usize::try_from(*value).ok(),
+        Literal::U64(value) => i64::try_from(*value)
+            .ok()
+            .and_then(|value| usize::try_from(value).ok()),
+        Literal::F64(value) if literal.types().contains(VarType::I64) => {
+            usize::try_from(*value as i64).ok()
+        }
+        Literal::None => None,
+        Literal::Bool(_) | Literal::F64(_) | Literal::String(_) => {
+            panic!("SUBSTRING bounds must be integer constants")
+        }
+    }
 }
 
 impl FnCall for SubstringFnCall {
@@ -67,32 +88,28 @@ impl FnCall for SubstringFnCall {
         context: &mut CompileFnBuilder<'_, '_>,
     ) -> Result<TypedExpr, CompileError> {
         assert_eq!(args.len(), 3, "expected 3 args for SUBSTRING");
-        assert!(
-            matches!(args[1], UntypedExpr::Literal(_))
-                && matches!(args[2], UntypedExpr::Literal(_)),
-            "SUBSTRING bounds must be constants"
-        );
-
         let input = context.apply_types(&args[0], InferredTypeSet::STRING)?;
-        let start = context.apply_types(&args[1], InferredTypeSet::I64)?;
-        let length = context.apply_types(&args[2], InferredTypeSet::I64)?;
-        if input.return_type == VarType::None
-            || start.return_type == VarType::None
-            || length.return_type == VarType::None
-        {
+        let start = constant_usize(&args[1]);
+        let length = constant_usize(&args[2]);
+        let (Some(start), Some(length)) = (start, length) else {
+            return Ok(TypedExpr::none());
+        };
+        if input.return_type == VarType::None {
             return Ok(TypedExpr::none());
         }
 
         Ok(TypedExpr {
             return_type: VarType::Str,
             ast: TypedExprAst::from_call(SubstringFnCall {
-                args: vec![input, start, length].into_boxed_slice(),
+                input: Box::new(input),
+                start,
+                length,
             }),
         })
     }
 
     fn args_mut(&mut self) -> &mut [TypedExpr] {
-        &mut self.args
+        std::slice::from_mut(&mut self.input)
     }
 
     fn emit_cranelift_ir(
@@ -102,21 +119,23 @@ impl FnCall for SubstringFnCall {
         builder: &mut FunctionBuilder<'_>,
     ) -> Result<LoweredValue, CompileError> {
         debug_assert_eq!(return_type, VarType::Str);
-        let input = context.compile_expr(&self.args[0], builder)?;
-        let start = context.compile_expr(&self.args[1], builder)?;
-        let length = context.compile_expr(&self.args[2], builder)?;
+        let input = context.compile_expr(&self.input, builder)?;
         let null = builder.ins().iconst(context.pointer_type(), 0);
         let input_ptr = builder.ins().select(input.is_present, input.value, null);
+        let start = builder
+            .ins()
+            .iconst(context.pointer_type(), self.start as i64);
+        let length = builder
+            .ins()
+            .iconst(context.pointer_type(), self.length as i64);
         let call = builder.ins().call(
             context.native_functions().substring(),
-            &[input_ptr, input.string_len, start.value, length.value],
+            &[input_ptr, input.string_len, start, length],
         );
         let value = builder.inst_results(call)[0];
         let string_len = builder.inst_results(call)[1];
         let native_succeeded = builder.ins().icmp_imm_u(IntCC::NotEqual, value, 0);
-        let bounds_present = builder.ins().band(start.is_present, length.is_present);
-        let args_present = builder.ins().band(input.is_present, bounds_present);
-        let is_present = builder.ins().band(args_present, native_succeeded);
+        let is_present = builder.ins().band(input.is_present, native_succeeded);
         Ok(LoweredValue {
             value,
             is_present,
@@ -173,22 +192,21 @@ impl RawStr {
 unsafe extern "C" fn substring(
     input_ptr: *const u8,
     input_len: usize,
-    start: i64,
-    length: i64,
+    start: usize,
+    length: usize,
 ) -> RawStr {
-    if input_ptr.is_null() || start < 0 || length < 0 {
+    if input_ptr.is_null() {
         return RawStr::none();
     }
     // SAFETY: CompiledFn's call contract guarantees a live UTF-8 string pointer and exact length.
     let input =
         unsafe { std::str::from_utf8_unchecked(std::slice::from_raw_parts(input_ptr, input_len)) };
 
-    // Preserve the scalar production kernel's `start == length` typo.
     if start == length {
         return RawStr::some(&input[..0]);
     }
-    let end = start.wrapping_add(length);
-    let (Ok(start), Ok(end)) = (usize::try_from(start), usize::try_from(end)) else {
+    let end = (start as i64).wrapping_add(length as i64);
+    let Ok(end) = usize::try_from(end) else {
         return RawStr::some(&input[..0]);
     };
     let end = end.min(input.len());
