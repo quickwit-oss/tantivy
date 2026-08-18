@@ -1,6 +1,7 @@
 mod add;
 mod and;
 mod comparison;
+mod concat;
 mod divide;
 mod eq;
 mod gt;
@@ -24,6 +25,7 @@ use cranelift::frontend::FunctionBuilder;
 
 pub(crate) use self::add::AddFnCall;
 pub(crate) use self::and::AndFnCall;
+pub(crate) use self::concat::ConcatFnCall;
 pub(crate) use self::divide::DivideFnCall;
 pub(crate) use self::eq::EqFnCall;
 pub(crate) use self::gt::GtFnCall;
@@ -51,6 +53,8 @@ use crate::types::VarType;
 pub enum Function {
     /// Conjoins one or more booleans with strict null propagation.
     And,
+    /// Joins scalar strings using a literal delimiter and empty-value policy.
+    Concat,
     /// Adds zero or more numerical expressions.
     Add,
     /// Divides two numeric arguments using floating-point arithmetic.
@@ -94,6 +98,9 @@ impl Function {
     ) -> Result<TypedExpr, CompileError> {
         match self {
             Function::And => <AndFnCall as FnCall>::call_with_types(args, target_type_set, context),
+            Function::Concat => {
+                <ConcatFnCall as FnCall>::call_with_types(args, target_type_set, context)
+            }
             Function::Add => <AddFnCall as FnCall>::call_with_types(args, target_type_set, context),
             Function::Divide => {
                 <DivideFnCall as FnCall>::call_with_types(args, target_type_set, context)
@@ -141,6 +148,9 @@ impl Function {
     ) -> Result<InferredTypeSet, TypeError> {
         match self {
             Function::And => <AndFnCall as FnCall>::infer_types(args, target_type, inferred_types),
+            Function::Concat => {
+                <ConcatFnCall as FnCall>::infer_types(args, target_type, inferred_types)
+            }
             Function::Add => <AddFnCall as FnCall>::infer_types(args, target_type, inferred_types),
             Function::Divide => {
                 <DivideFnCall as FnCall>::infer_types(args, target_type, inferred_types)
@@ -191,6 +201,7 @@ impl Function {
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) enum FnCallEnum {
     And(AndFnCall),
+    Concat(ConcatFnCall),
     Add(AddFnCall),
     Divide(DivideFnCall),
     Eq(EqFnCall),
@@ -213,6 +224,7 @@ impl FnCallEnum {
     pub(crate) fn args_mut(&mut self) -> &mut [TypedExpr] {
         match self {
             FnCallEnum::And(call) => call.args_mut(),
+            FnCallEnum::Concat(call) => call.args_mut(),
             FnCallEnum::Add(call) => call.args_mut(),
             FnCallEnum::Divide(call) => call.args_mut(),
             FnCallEnum::Eq(call) => call.args_mut(),
@@ -241,6 +253,7 @@ impl FnCallEnum {
     ) -> Result<LoweredValue, CompileError> {
         match self {
             FnCallEnum::And(call) => call.emit_cranelift_ir(return_type, context, builder),
+            FnCallEnum::Concat(call) => call.emit_cranelift_ir(return_type, context, builder),
             FnCallEnum::Add(call) => call.emit_cranelift_ir(return_type, context, builder),
             FnCallEnum::Divide(call) => call.emit_cranelift_ir(return_type, context, builder),
             FnCallEnum::Eq(call) => call.emit_cranelift_ir(return_type, context, builder),

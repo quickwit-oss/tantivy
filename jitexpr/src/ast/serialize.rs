@@ -119,6 +119,7 @@ fn format_string(value: &str, formatter: &mut fmt::Formatter<'_>) -> fmt::Result
 fn function_name(function: Function) -> &'static str {
     match function {
         Function::And => "AND",
+        Function::Concat => "CONCAT",
         Function::Add => "ADD",
         Function::Divide => "DIVIDE",
         Function::Eq => "EQ",
@@ -141,6 +142,7 @@ fn function_name(function: Function) -> &'static str {
 fn parse_function(name: &str, offset: usize) -> Result<Function, DeserializeError> {
     match name {
         "AND" => Ok(Function::And),
+        "CONCAT" => Ok(Function::Concat),
         "ADD" => Ok(Function::Add),
         "DIVIDE" => Ok(Function::Divide),
         "EQ" => Ok(Function::Eq),
