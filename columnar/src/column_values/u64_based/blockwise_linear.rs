@@ -9,7 +9,7 @@ use tantivy_bitpacker::{BitPacker, BitUnpacker, compute_num_bits};
 
 use crate::{MonotonicallyMappableToU64, RowId};
 use crate::column_values::u64_based::block_decode::{
-    BLOCK_LEN, BlockDecode, DecodeCost, min_batch_rows,
+    BLOCK_LEN, BatchThresholds, BlockDecode, DecodeCost, batch_thresholds,
 };
 use crate::column_values::u64_based::line::Line;
 use crate::column_values::u64_based::{ColumnCodec, ColumnCodecEstimator, ColumnStats};
@@ -266,8 +266,8 @@ impl ColumnValues for BlockwiseLinearReader {
         super::get_row_ids_for_value_range_batched(self, value_range, row_id_range, row_id_hits)
     }
 
-    fn min_batch_rows(&self) -> usize {
-        min_batch_rows(DecodeCost::Blocked)
+    fn batch_thresholds(&self) -> BatchThresholds {
+        batch_thresholds(DecodeCost::BlockedInterpolated)
     }
 
     #[inline(always)]

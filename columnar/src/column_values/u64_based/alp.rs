@@ -41,7 +41,7 @@ use tantivy_bitpacker::block_decode::decode_range;
 use tantivy_bitpacker::{BitPacker, compute_num_bits};
 
 use crate::column_values::u64_based::block_decode::{
-    BLOCK_LEN, BlockDecode, DecodeCost, iter_via_blocks, min_batch_rows,
+    BLOCK_LEN, BatchThresholds, BlockDecode, DecodeCost, batch_thresholds, iter_via_blocks,
 };
 use crate::column_values::u64_based::{ColumnCodec, ColumnCodecEstimator, ColumnStats};
 use crate::{ColumnValues, RowId};
@@ -445,8 +445,8 @@ impl ColumnValues for AlpReader {
         self.decode_range(start, output);
     }
 
-    fn min_batch_rows(&self) -> usize {
-        min_batch_rows(DecodeCost::Blocked)
+    fn batch_thresholds(&self) -> BatchThresholds {
+        batch_thresholds(DecodeCost::Blocked)
     }
 
     /// Worth the `Box<dyn Iterator>` here where it is not for the flat codecs:

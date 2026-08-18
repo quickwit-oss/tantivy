@@ -39,6 +39,38 @@ pub use vec_column::VecColumn;
 pub use self::monotonic_column::monotonic_map_column;
 use crate::RowId;
 
+/// Rows a [`ColumnValues::get_range`] call must cover before its batch decode
+/// beats a plain `get_val` loop over the same rows, one threshold per arm
+/// [`monotonic_map_column`] can take.
+///
+/// Batching is not free below its crossover: the batch arm pays a fixed
+/// per-call setup (bounds asserts, mask and ramp computation in two stacked
+/// `decode_range` layers) that a short take cannot amortize. The crossover is
+/// a property of the column -- it moves with the codec's `get_val` cost and
+/// with whether a SIMD block kernel is available -- so callers read it here
+/// instead of hardcoding a length.
+///
+/// `monotonic_column::tests::gate_sweep` re-derives both numbers.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct BatchThresholds {
+    /// The mapping wrapper decodes straight into the caller's buffer
+    /// (`Input == Output`, the identity wrapper every u64 column is loaded
+    /// with).
+    pub forwarding: usize,
+    /// The wrapper decodes into a scratch buffer and maps out of it
+    /// (`Input != Output`, e.g. an f64 column over u64 storage), paying a
+    /// buffer fill and a mapping pass per block on top.
+    pub buffered: usize,
+}
+
+impl BatchThresholds {
+    /// A column whose batch decode never beats a `get_val` loop.
+    pub const NEVER: Self = Self {
+        forwarding: usize::MAX,
+        buffered: usize::MAX,
+    };
+}
+
 /// `ColumnValues` provides access to a dense field column.
 ///
 /// `Column` are just a wrapper over `ColumnValues` and a `ColumnIndex`.
@@ -114,6 +146,7 @@ pub trait ColumnValues<T: PartialOrd = u64>: Send + Sync + DowncastSync {
     /// the segment's `maxdoc`.
     #[inline(always)]
     fn get_range(&self, start: u64, output: &mut [T]) {
+        // decode_range(64, start, self.data, output);
         let (out_chunks, out_rem) = output.as_chunks_mut::<4>();
         let mut idx = start;
         for out_x4 in out_chunks {
@@ -129,9 +162,10 @@ pub trait ColumnValues<T: PartialOrd = u64>: Send + Sync + DowncastSync {
         }
     }
 
-    /// Always use batching
-    fn min_batch_rows(&self) -> usize {
-        usize::MAX
+    /// See [`BatchThresholds`]. The default is
+    /// [`BatchThresholds::NEVER`]; columns that decode in batches override it.
+    fn batch_thresholds(&self) -> BatchThresholds {
+        BatchThresholds::NEVER
     }
 
     /// Get the row ids of values which are in the provided value range.
@@ -247,8 +281,8 @@ impl<T: Copy + PartialOrd + Debug + 'static> ColumnValues<T> for Arc<dyn ColumnV
     }
 
     #[inline(always)]
-    fn min_batch_rows(&self) -> usize {
-        self.as_ref().min_batch_rows()
+    fn batch_thresholds(&self) -> BatchThresholds {
+        self.as_ref().batch_thresholds()
     }
 
     #[inline(always)]
@@ -285,11 +319,14 @@ mod tests {
             fn get_range(&self, _start: u64, output: &mut [u64]) {
                 output.fill(33);
             }
-            fn min_batch_rows(&self) -> usize {
-                44
+            fn batch_thresholds(&self) -> BatchThresholds {
+                BatchThresholds {
+                    forwarding: 44,
+                    buffered: 55,
+                }
             }
             fn iter(&self) -> Box<dyn Iterator<Item = u64> + '_> {
-                Box::new(std::iter::once(55))
+                Box::new(std::iter::once(99))
             }
             fn get_row_ids_for_value_range(
                 &self,
@@ -328,14 +365,18 @@ mod tests {
         column.get_range(0, &mut out);
         assert_eq!(out, [33, 33], "get_range is not forwarded");
 
+        // Both fields, so a wrapper that forwards only one is caught too.
         assert_eq!(
-            column.min_batch_rows(),
-            44,
-            "min_batch_rows is not forwarded"
+            column.batch_thresholds(),
+            BatchThresholds {
+                forwarding: 44,
+                buffered: 55,
+            },
+            "batch_thresholds is not forwarded"
         );
         assert_eq!(
             column.iter().collect::<Vec<_>>(),
-            vec![55],
+            vec![99],
             "iter is not forwarded"
         );
 

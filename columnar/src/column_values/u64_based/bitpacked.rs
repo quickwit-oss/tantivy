@@ -8,7 +8,7 @@ use tantivy_bitpacker::block_decode::decode_range;
 use tantivy_bitpacker::{BitPacker, BitUnpacker, compute_num_bits};
 
 use crate::column_values::u64_based::block_decode::{
-    BLOCK_LEN, BlockDecode, DecodeCost, min_batch_rows,
+    BLOCK_LEN, BatchThresholds, BlockDecode, DecodeCost, batch_thresholds,
 };
 use crate::column_values::u64_based::{ColumnCodec, ColumnCodecEstimator, ColumnStats};
 use crate::{ColumnValues, RowId};
@@ -85,8 +85,8 @@ impl ColumnValues for BitpackedReader {
         self.decode_range(start, output);
     }
 
-    fn min_batch_rows(&self) -> usize {
-        min_batch_rows(DecodeCost::Flat)
+    fn batch_thresholds(&self) -> BatchThresholds {
+        batch_thresholds(DecodeCost::Flat)
     }
 
     #[inline]

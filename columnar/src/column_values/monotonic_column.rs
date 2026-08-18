@@ -3,15 +3,8 @@ use std::marker::PhantomData;
 use std::ops::{Range, RangeInclusive};
 
 use crate::ColumnValues;
+use crate::column_values::BatchThresholds;
 use crate::column_values::monotonic_mapping::StrictlyMonotonicFn;
-
-/// The buffered path's crossover, given the codec's own: the extra buffer
-/// fill and mapping pass move it ~4/3 further out. Saturating, so a column
-/// that never batches (`usize::MAX`) still never batches here.
-#[inline]
-fn buffered_min_rows(codec_min_rows: usize) -> usize {
-    codec_min_rows.saturating_mul(4).div_ceil(3)
-}
 
 #[inline(always)]
 fn is_same_type<A: 'static, B: 'static>() -> bool {
@@ -23,7 +16,8 @@ struct MonotonicMappingColumn<C, T, Input> {
     monotonic_mapping: T,
     /// Resolved once at construction: `get_range` consults it on every call,
     /// and the live chain (a possibly virtual call into the codec plus an
-    /// atomic load) costs about as much as a one-row take.
+    /// atomic load) costs about as much as a one-row take. Already narrowed
+    /// to the arm this wrapper takes.
     min_batch_rows: usize,
     _phantom: PhantomData<Input>,
 }
@@ -53,11 +47,11 @@ where
     Input: PartialOrd + Debug + Send + Sync + Clone + 'static,
     Output: PartialOrd + Debug + Send + Sync + Clone + 'static,
 {
-    let codec_min_rows = from_column.min_batch_rows();
+    let thresholds = from_column.batch_thresholds();
     let min_batch_rows = if is_same_type::<Input, Output>() {
-        codec_min_rows
+        thresholds.forwarding
     } else {
-        buffered_min_rows(codec_min_rows)
+        thresholds.buffered
     };
     MonotonicMappingColumn {
         from_column,
@@ -188,18 +182,22 @@ where
     }
 
     #[inline(always)]
-    fn min_batch_rows(&self) -> usize {
-        self.min_batch_rows
+    fn batch_thresholds(&self) -> BatchThresholds {
+        // Already narrowed to this wrapper's arm, so both are the same
+        // number: a wrapper over this wrapper takes whichever it likes.
+        BatchThresholds {
+            forwarding: self.min_batch_rows,
+            buffered: self.min_batch_rows,
+        }
     }
 
     /// Three ways to fill `output`, cheapest applicable one first. The
-    /// threshold comes from the column rather than a constant here because it
-    /// moves with the codec's `get_val` cost and with whether a SIMD block
-    /// kernel is available. A column that does not decode in batches reports
+    /// threshold comes from the column rather than a constant here -- see
+    /// [`BatchThresholds`]. A column that does not decode in batches reports
     /// `usize::MAX` and only ever takes the first.
     fn get_range(&self, start: u64, output: &mut [Output]) {
         let (col, mapping) = (&self.from_column, &self.monotonic_mapping);
-        if output.len() < self.min_batch_rows() {
+        if output.len() < self.min_batch_rows {
             map_per_value(col, mapping, start, output);
         } else if is_same_type::<Input, Output>() {
             forward_in_place(col, mapping, start, output);
@@ -263,10 +261,10 @@ mod tests {
         }
     }
 
-    /// Every wrapper in the chain has to forward `min_batch_rows` or the
+    /// Every wrapper in the chain has to forward `batch_thresholds` or the
     /// value silently reverts to `usize::MAX` and `get_range` never batches.
     #[test]
-    fn test_min_batch_rows_survives_wrappers() {
+    fn test_batch_thresholds_survive_wrappers() {
         use crate::column_values::{
             CodecType, load_u64_based_column_values, serialize_u64_based_column_values,
         };
@@ -278,23 +276,25 @@ mod tests {
         let column: Arc<dyn ColumnValues<u64>> =
             load_u64_based_column_values(common::OwnedBytes::new(buffer)).unwrap();
 
-        let batched = column.min_batch_rows();
+        let batched = column.batch_thresholds();
         assert!(
-            batched < usize::MAX,
+            batched.forwarding < usize::MAX,
             "Bitpacked reports a batch threshold, but it did not survive the wrappers"
         );
 
-        // `VecColumn` reports 1, so this also pins that the buffered path's
-        // scaling never rounds a real threshold down to zero.
+        // The wrapper narrows to the arm it takes: `Input != Output` here, so
+        // both fields report `VecColumn`'s buffered threshold, not its
+        // forwarding one.
         let buffered: Box<dyn ColumnValues<i64>> = Box::new(monotonic_map_column(
             VecColumn::from(vals.clone()),
             StrictlyMonotonicMappingInverter::from(StrictlyMonotonicMappingToInternal::<i64>::new()),
         ));
-        assert_eq!(VecColumn::from(vals).min_batch_rows(), 1);
-        assert_eq!(buffered.min_batch_rows(), 2);
+        let vec_thresholds = VecColumn::from(vals).batch_thresholds();
+        assert_eq!(vec_thresholds.forwarding, 1);
+        assert_eq!(vec_thresholds.buffered, 2);
+        assert_eq!(buffered.batch_thresholds().buffered, 2);
 
-        // A column that does not batch must not have one invented for it:
-        // `usize::MAX` has to survive the buffered path's multiplication.
+        // A column that does not batch must not have one invented for it.
         struct NoBatch;
         impl ColumnValues<u64> for NoBatch {
             fn get_val(&self, idx: u32) -> u64 {
@@ -310,13 +310,13 @@ mod tests {
                 1_000
             }
         }
-        assert_eq!(NoBatch.min_batch_rows(), usize::MAX);
+        assert_eq!(NoBatch.batch_thresholds(), BatchThresholds::NEVER);
         let over_no_batch: Box<dyn ColumnValues<i64>> = Box::new(monotonic_map_column(
             NoBatch,
             StrictlyMonotonicMappingInverter::from(StrictlyMonotonicMappingToInternal::<i64>::new()),
         ));
         assert!(
-            over_no_batch.min_batch_rows() >= 1_000,
+            over_no_batch.batch_thresholds().buffered >= 1_000,
             "a non-batching column must not get a usable threshold from the wrapper"
         );
     }
@@ -347,9 +347,39 @@ mod tests {
         }
     }
 
-    /// Calibration harness for `min_batch_rows`: A/Bs the batch and per-value
-    /// arms of `get_range` over a (start phase x length) grid per codec, and
-    /// scores what the shipped gate decides at each cell.
+    /// Calibration harness for [`BatchThresholds`]: A/Bs the batch and
+    /// per-value arms of `get_range` over a (start phase x length) grid per
+    /// codec, and scores what the shipped gate decides at each cell.
+    ///
+    /// The grid starts at len 1 because that is where the gate earns its
+    /// keep. `tantivy_bitpacker::block_decode::decode_range` falling back to
+    /// per-value extraction removed the old *cliff* (a one-row take no longer
+    /// decodes a whole 128-slot block) but not the fixed per-call setup, so
+    /// the batch arm still loses badly on short takes and the gate cannot be
+    /// dropped. Measured on an M4 (loop_ns/batch_ns, median over phases,
+    /// SIMD kernels enabled):
+    ///
+    /// ```text
+    /// len                         1     2     4     8    16    32    64   128
+    /// Alp forwarding           0.51  0.91  1.38  1.99  3.01  4.22  5.06  5.83
+    /// BlockFor forwarding      0.36  0.44  0.98  1.83  2.67  3.60  5.36  6.61
+    /// BWL forwarding           0.37  0.54  0.81  0.94  1.13  1.61  1.92  2.27
+    /// Bitpacked forwarding     0.18  0.40  0.61  0.71  0.95  1.27  1.88  2.39
+    /// Linear forwarding        0.24  0.39  0.64  0.55  0.79  0.96  1.12  1.29
+    /// Alp buffered             0.14  0.26  0.39  0.76  1.23  2.05  2.95  3.65
+    /// BlockFor buffered        0.12  0.18  0.32  0.64  1.01  1.76  2.80  3.43
+    /// BWL buffered             0.15  0.17  0.27  0.36  0.68  1.03  1.32  1.54
+    /// Bitpacked buffered       0.08  0.10  0.18  0.33  0.43  0.76  1.16  1.51
+    /// Linear buffered          0.08  0.12  0.15  0.27  0.41  0.63  0.82  0.98
+    /// ```
+    ///
+    /// Two things that table settles. The crossovers span ~3 (`Alp`) to never
+    /// (`Linear` on scalar), so one flat threshold cannot replace the
+    /// families. And the buffered arm's crossover is 2-4x the forwarding
+    /// one, not the 4/3 an earlier revision derived it as -- the buffer fill
+    /// and mapping pass are a flat per-value cost, so how far they move the
+    /// crossover depends on how expensive that codec's `get_val` is. Both
+    /// numbers are measured per family instead.
     ///
     /// ```text
     /// cargo test --release -p tantivy-columnar --lib gate_sweep \
@@ -370,16 +400,42 @@ mod tests {
         use crate::column_values::monotonic_mapping::{
             StrictlyMonotonicMappingInverter, StrictlyMonotonicMappingToInternal,
         };
+        use crate::MonotonicallyMappableToU64;
         use crate::column_values::u64_based::{
-            BitpackedCodec, BlockForCodec, BlockwiseLinearCodec, ColumnCodec, LinearCodec,
+            AlpCodec, BitpackedCodec, BlockForCodec, BlockwiseLinearCodec, ColumnCodec,
+            ColumnCodecEstimator, LinearCodec, StatsCollector,
         };
         use crate::column_values::{CodecType, serialize_u64_based_column_values};
+
+        /// Serializes through the codec's own estimator, skipping the
+        /// `CodecType` selection path -- `Alp` is deliberately not wired into
+        /// that enum, so this is the only way to reach it. Returns the codec
+        /// payload with no leading `CodecType` byte, matching what the
+        /// `buf[1..]` slicing below produces for the other codecs.
+        fn serialize_via_estimator<C: ColumnCodec<u64>>(vals: &[u64]) -> Vec<u8> {
+            let mut stats_collector = StatsCollector::default();
+            let mut estimator = C::estimator();
+            for &val in vals {
+                stats_collector.collect(val);
+                estimator.collect(val);
+            }
+            estimator.finalize();
+            let stats = stats_collector.stats();
+            estimator
+                .estimate(&stats)
+                .expect("codec rejected the sweep data");
+            let mut buffer = Vec::new();
+            estimator
+                .serialize(&stats, &mut vals.iter().copied(), &mut buffer)
+                .unwrap();
+            buffer
+        }
 
         const N: usize = 1 << 16;
         const SWEEP_BLOCK: usize = 128;
 
         fn header(label: &str, threshold: usize) {
-            println!("\n=== {label} (min_batch_rows={threshold}) ===");
+            println!("\n=== {label} (threshold={threshold}) ===");
             println!(
                 "{:>5} {:>6} {:>7} {:>9} {:>9} {:>7}  verdict",
                 "len", "phase", "maxblk", "batch_ns", "loop_ns", "ratio"
@@ -418,10 +474,10 @@ mod tests {
         fn sweep<C: ColumnCodec<u64>>(label: &str, bytes: Vec<u8>) {
             let col = C::load(common::OwnedBytes::new(bytes)).unwrap();
             let mapping = StrictlyMonotonicMappingToInternal::<u64>::new();
-            let threshold = col.min_batch_rows();
+            let threshold = col.batch_thresholds().forwarding;
             header(&format!("{label} forwarding"), threshold);
-            for len in [16usize, 32, 64, 96, 128, 192, 256, 512, 1024, 4096, 16384] {
-                for phase in [0usize, 16, 32, 64, 96, 100, 112, 127] {
+            for len in [1usize, 2, 4, 8, 16, 32, 64, 96, 128, 192, 256, 512, 1024, 4096, 16384] {
+                for phase in [0usize, 1, 7, 16, 32, 64, 96, 100, 112, 127] {
                     let mut out = vec![0u64; len];
                     let reps = (1 << 21) / len;
                     let starts: Vec<u64> = (0..64)
@@ -462,10 +518,10 @@ mod tests {
             let mapping = StrictlyMonotonicMappingInverter::from(
                 StrictlyMonotonicMappingToInternal::<f64>::new(),
             );
-            let threshold = buffered_min_rows(col.min_batch_rows());
+            let threshold = col.batch_thresholds().buffered;
             header(&format!("{label} buffered"), threshold);
-            for len in [16usize, 32, 64, 96, 128, 192, 256, 512, 768] {
-                for phase in [0usize, 32, 64, 100, 127] {
+            for len in [1usize, 2, 4, 8, 16, 32, 64, 96, 128, 192, 256, 512, 768] {
+                for phase in [0usize, 1, 7, 32, 64, 100, 127] {
                     let mut out = vec![0f64; len];
                     let reps = (1 << 21) / len;
                     let starts: Vec<u64> = (0..64)
@@ -519,6 +575,14 @@ mod tests {
         let mut buf = Vec::new();
         serialize_u64_based_column_values(&&ints[..], &[CodecType::BlockFor], &mut buf).unwrap();
         sweep::<BlockForCodec>("BlockFor", buf[1..].to_vec());
+
+        // Pseudo-decimals, the only shape `Alp` accepts. It shares the
+        // `Blocked` family with `BlockFor` and `BlockwiseLinear`, so its
+        // crossover has to sit in the same place theirs does.
+        let decimals: Vec<u64> = (0..N as u64)
+            .map(|i| (((i.wrapping_mul(7919) % 1_000_000) as f64) / 100.0).to_u64())
+            .collect();
+        sweep::<AlpCodec>("Alp", serialize_via_estimator::<AlpCodec>(&decimals));
 
         // A noisy ramp, which is what the two line codecs are chosen for.
         let ramp: Vec<u64> = (0..N as u64)
@@ -585,6 +649,10 @@ mod tests {
             sweep::<BlockwiseLinearCodec>(&bwl_label, buf[1..].to_vec());
         }
 
+        // The buffered arm for every codec, not just two: its crossover is
+        // not the codec's own scaled by a constant -- the buffer fill and
+        // mapping pass are a flat per-value cost, so the gap between the two
+        // arms is set by how expensive that codec's `get_val` is.
         let mut buf = Vec::new();
         serialize_u64_based_column_values(&&ints[..], &[CodecType::Bitpacked], &mut buf).unwrap();
         sweep_buffered::<BitpackedCodec>("Bitpacked", buf[1..].to_vec());
@@ -592,5 +660,16 @@ mod tests {
         let mut buf = Vec::new();
         serialize_u64_based_column_values(&&ints[..], &[CodecType::BlockFor], &mut buf).unwrap();
         sweep_buffered::<BlockForCodec>("BlockFor", buf[1..].to_vec());
+
+        sweep_buffered::<AlpCodec>("Alp", serialize_via_estimator::<AlpCodec>(&decimals));
+
+        let mut buf = Vec::new();
+        serialize_u64_based_column_values(&&ramp[..], &[CodecType::Linear], &mut buf).unwrap();
+        sweep_buffered::<LinearCodec>("Linear", buf[1..].to_vec());
+
+        let mut buf = Vec::new();
+        serialize_u64_based_column_values(&&ramp[..], &[CodecType::BlockwiseLinear], &mut buf)
+            .unwrap();
+        sweep_buffered::<BlockwiseLinearCodec>("BlockwiseLinear", buf[1..].to_vec());
     }
 }

@@ -677,7 +677,7 @@ fn timestamp_sizes() {
 /// notices if a width silently drops back to scalar.
 #[test]
 fn test_linear_batches_at_every_width() {
-    use crate::column_values::u64_based::block_decode::{DecodeCost, min_batch_rows};
+    use crate::column_values::u64_based::block_decode::{DecodeCost, batch_thresholds};
 
     // Residuals run several bits wider than the noise term, so these straddle
     // the narrow/wide kernel boundary with margin on both sides.
@@ -692,8 +692,8 @@ fn test_linear_batches_at_every_width() {
         }
         let column = load_u64_based_column_values_raw(OwnedBytes::new(buffer)).unwrap();
         assert_eq!(
-            column.min_batch_rows(),
-            min_batch_rows(DecodeCost::Interpolated),
+            column.batch_thresholds(),
+            batch_thresholds(DecodeCost::Interpolated),
             "noise_bits={noise_bits} must report the Interpolated threshold"
         );
         let mut out = vec![0u64; 300];
@@ -705,8 +705,8 @@ fn test_linear_batches_at_every_width() {
 }
 
 #[test]
-fn test_min_batch_rows_per_codec() {
-    use crate::column_values::u64_based::block_decode::{DecodeCost, min_batch_rows};
+fn test_batch_thresholds_per_codec() {
+    use crate::column_values::u64_based::block_decode::{DecodeCost, batch_thresholds};
 
     let mut covered: Vec<String> = Vec::new();
     for (vals, _shape) in multi_block_datasets() {
@@ -717,16 +717,30 @@ fn test_min_batch_rows_per_codec() {
             }
             covered.push(format!("{codec:?}"));
             let column = load_u64_based_column_values_raw(OwnedBytes::new(buffer)).unwrap();
-            let got = column.min_batch_rows();
-            let expected = min_batch_rows(match codec {
+            let got = column.batch_thresholds();
+            let expected = batch_thresholds(match codec {
                 CodecType::Bitpacked => DecodeCost::Flat,
                 CodecType::Linear => DecodeCost::Interpolated,
-                _ => DecodeCost::Blocked,
+                CodecType::BlockwiseLinear => DecodeCost::BlockedInterpolated,
+                CodecType::BlockFor => DecodeCost::Blocked,
             });
+            // Ordering of the families, cheapest `get_val` last: a codec that
+            // hoists per-block metadata crosses over soonest, and paying a
+            // line eval in *both* arms pushes it back out again.
             assert!(
-                min_batch_rows(DecodeCost::Interpolated) > min_batch_rows(DecodeCost::Flat)
-                    && min_batch_rows(DecodeCost::Flat) > min_batch_rows(DecodeCost::Blocked),
+                batch_thresholds(DecodeCost::Interpolated).forwarding
+                    > batch_thresholds(DecodeCost::Flat).forwarding
+                    && batch_thresholds(DecodeCost::Flat).forwarding
+                        > batch_thresholds(DecodeCost::BlockedInterpolated).forwarding
+                    && batch_thresholds(DecodeCost::BlockedInterpolated).forwarding
+                        > batch_thresholds(DecodeCost::Blocked).forwarding,
                 "DecodeCost families are out of order"
+            );
+            // The buffered arm is never cheaper to reach than the forwarding
+            // one: it does strictly more work per row.
+            assert!(
+                got.buffered >= got.forwarding,
+                "{codec:?} claims the buffered arm crosses over first"
             );
             assert_eq!(
                 got, expected,
@@ -743,7 +757,7 @@ fn test_min_batch_rows_per_codec() {
 /// the 128-value block grid, on every codec that can encode the data.
 /// `load_u64_based_column_values_raw` is deliberate: it skips the monotonic
 /// wrapper, so the codec's batch path is reached at every length rather than
-/// only above the wrapper's `min_batch_rows` gate.
+/// only above the wrapper's `batch_thresholds` gate.
 #[test]
 fn test_get_range_all_codecs_all_block_phases() {
     let mut covered: Vec<String> = Vec::new();

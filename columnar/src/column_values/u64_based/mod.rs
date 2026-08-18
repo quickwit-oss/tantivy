@@ -19,6 +19,10 @@ use common::{BinarySerializable, OwnedBytes};
 use crate::column_values::monotonic_mapping::{
     StrictlyMonotonicMappingInverter, StrictlyMonotonicMappingToInternal,
 };
+/// `Alp` is deliberately not a [`CodecType`], so nothing in the library
+/// selects it and this re-export has no non-test consumer.
+#[cfg(test)]
+pub use crate::column_values::u64_based::alp::AlpCodec;
 pub use crate::column_values::u64_based::bitpacked::BitpackedCodec;
 pub use crate::column_values::u64_based::block_for::BlockForCodec;
 pub use crate::column_values::u64_based::blockwise_linear::BlockwiseLinearCodec;

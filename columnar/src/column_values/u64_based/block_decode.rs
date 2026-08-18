@@ -9,6 +9,8 @@ use tantivy_bitpacker::block_decode::simd_enabled;
 
 pub(crate) use tantivy_bitpacker::block_decode::BLOCK_LEN;
 
+pub(crate) use crate::column_values::BatchThresholds;
+
 /// How much of a codec's per-value work the batch arm *also* pays
 #[derive(Clone, Copy)]
 pub(crate) enum DecodeCost {
@@ -16,20 +18,32 @@ pub(crate) enum DecodeCost {
     Flat,
     /// `Linear`: as `Flat`, plus a line eval per row that both arms pay.
     Interpolated,
-    /// `BlockFor`, `Alp`, `BlockwiseLinear`: `get_val` re-reads per-block
-    /// metadata per row, which the batch arm hoists out of the loop.
+    /// `BlockFor`, `Alp`: `get_val` re-reads per-block metadata per row,
+    /// which the batch arm hoists out of the loop. That hoist is most of the
+    /// win, so these cross over after only a handful of rows.
     Blocked,
+    /// `BlockwiseLinear`: hoists per-block metadata like [`Self::Blocked`],
+    /// but also evaluates a line per row that *both* arms pay, which dilutes
+    /// the hoist and pushes the crossover out.
+    BlockedInterpolated,
 }
 
-/// Rows a whole `get_range` call must cover before batching it beats a `get_val` loop;
+/// Rows a whole `get_range` call must cover before batching it beats a
+/// `get_val` loop, per arm of `MonotonicMappingColumn::get_range`.
 #[inline]
-pub(crate) fn min_batch_rows(cost: DecodeCost) -> usize {
-    match (cost, simd_enabled()) {
-        (DecodeCost::Flat, true) => 32,
-        (DecodeCost::Flat, false) => 64,
-        (DecodeCost::Interpolated, true) => 64,
-        (DecodeCost::Interpolated, false) => usize::MAX,
-        (DecodeCost::Blocked, _) => 16,
+pub(crate) fn batch_thresholds(cost: DecodeCost) -> BatchThresholds {
+    let (forwarding, buffered) = match (cost, simd_enabled()) {
+        (DecodeCost::Flat, true) => (32, 64),
+        (DecodeCost::Flat, false) => (32, 96),
+        (DecodeCost::Interpolated, true) => (64, 256),
+        (DecodeCost::Interpolated, false) => (usize::MAX, usize::MAX),
+        (DecodeCost::Blocked, _) => (4, 16),
+        (DecodeCost::BlockedInterpolated, true) => (16, 32),
+        (DecodeCost::BlockedInterpolated, false) => (16, 64),
+    };
+    BatchThresholds {
+        forwarding,
+        buffered,
     }
 }
 

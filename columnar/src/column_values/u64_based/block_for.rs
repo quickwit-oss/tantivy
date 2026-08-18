@@ -26,7 +26,7 @@ use fastdivide::DividerU64;
 use tantivy_bitpacker::block_decode::decode_range;
 use tantivy_bitpacker::{BitPacker, compute_num_bits};
 
-use super::block_decode::{BLOCK_LEN, BlockDecode, DecodeCost, min_batch_rows};
+use super::block_decode::{BLOCK_LEN, BatchThresholds, BlockDecode, DecodeCost, batch_thresholds};
 use crate::column_values::u64_based::{ColumnCodec, ColumnCodecEstimator, ColumnStats};
 use crate::{ColumnValues, RowId};
 
@@ -247,8 +247,8 @@ impl ColumnValues for BlockForReader {
         self.decode_range(start, output)
     }
 
-    fn min_batch_rows(&self) -> usize {
-        min_batch_rows(DecodeCost::Blocked)
+    fn batch_thresholds(&self) -> BatchThresholds {
+        batch_thresholds(DecodeCost::Blocked)
     }
 }
 

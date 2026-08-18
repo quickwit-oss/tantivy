@@ -9,7 +9,7 @@ use super::line::Line;
 use crate::RowId;
 use crate::column_values::VecColumn;
 use crate::column_values::u64_based::block_decode::{
-    BLOCK_LEN, BlockDecode, DecodeCost, min_batch_rows,
+    BLOCK_LEN, BatchThresholds, BlockDecode, DecodeCost, batch_thresholds,
 };
 use crate::column_values::u64_based::{ColumnCodec, ColumnCodecEstimator, ColumnStats};
 
@@ -61,8 +61,8 @@ impl ColumnValues for LinearReader {
     // stream, cheap enough that batching the filter measured slower.
 
     #[inline]
-    fn min_batch_rows(&self) -> usize {
-        min_batch_rows(DecodeCost::Interpolated)
+    fn batch_thresholds(&self) -> BatchThresholds {
+        batch_thresholds(DecodeCost::Interpolated)
     }
 
     #[inline(always)]

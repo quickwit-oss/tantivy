@@ -3,6 +3,7 @@ use std::fmt::Debug;
 use tantivy_bitpacker::minmax;
 
 use crate::ColumnValues;
+use crate::column_values::BatchThresholds;
 
 /// VecColumn provides `Column` over a `Vec<T>`.
 pub struct VecColumn<T = u64> {
@@ -36,8 +37,13 @@ impl<T: Copy + PartialOrd + Send + Sync + Debug + 'static> ColumnValues<T> for V
         output.copy_from_slice(&self.values[start as usize..][..output.len()])
     }
 
-    fn min_batch_rows(&self) -> usize {
-        1
+    fn batch_thresholds(&self) -> BatchThresholds {
+        // A memcpy; the buffered arm's own crossover is unmeasured, so this
+        // keeps the value the 4/3 derivation used to produce.
+        BatchThresholds {
+            forwarding: 1,
+            buffered: 2,
+        }
     }
 }
 
