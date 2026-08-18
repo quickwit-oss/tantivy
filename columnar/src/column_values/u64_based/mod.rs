@@ -1,3 +1,7 @@
+/// Not wired into [`CodecType`] yet: needs more validation before production
+/// columns serialize with it.
+#[allow(dead_code)]
+mod alp;
 mod bitpacked;
 mod block_decode;
 mod block_for;

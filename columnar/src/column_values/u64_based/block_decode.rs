@@ -90,6 +90,26 @@ pub(crate) trait BlockDecode: crate::ColumnValues<u64> {
     }
 }
 
+/// Block-at-a-time [`crate::ColumnValues::iter`]. Opt in only when measured:
+/// every `next()` is a virtual call into a flat_map state machine, so this
+/// only beats the default `(0..n).map(get_val)` when `get_val` is expensive.
+/// Requires padded streams (every block fully decodable).
+pub(crate) fn iter_via_blocks<'a, C: BlockDecode + ?Sized>(
+    column: &'a C,
+    num_rows: usize,
+) -> Box<dyn Iterator<Item = u64> + 'a> {
+    let num_blocks = num_rows.div_ceil(BLOCK_LEN);
+    Box::new(
+        (0..num_blocks)
+            .flat_map(move |block_idx| {
+                let mut buf = [0u64; BLOCK_LEN];
+                column.decode_block_mapped(block_idx, &mut buf);
+                buf.into_iter()
+            })
+            .take(num_rows),
+    )
+}
+
 /// Drives a codec's whole-block decode for [`crate::ColumnValues::get_range`].
 ///
 /// Rows in full 128-value blocks go through `decode_block_mapped(block_idx,

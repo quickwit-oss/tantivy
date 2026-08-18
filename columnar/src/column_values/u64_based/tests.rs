@@ -298,6 +298,10 @@ fn test_codec_multi_interpolation() {
 fn test_codec_block_for() {
     test_codec::<BlockForCodec>();
 }
+#[test]
+fn test_codec_alp() {
+    test_codec::<alp::AlpCodec>();
+}
 
 /// Data shapes long enough to span several 128-value blocks, including a
 /// trailing partial one.
