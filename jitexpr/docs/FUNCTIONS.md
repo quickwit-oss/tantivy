@@ -40,7 +40,7 @@ excluded from this pass, or is complex enough to warrant a separate implementati
 | 18 | `PROPER` | out-of-scope |
 | 19 | `CONCAT` | done |
 | 20 | `TEXT_JOIN` | done |
-| 21 | `IN` | pending |
+| 21 | `IN` | out-of-scope |
 | 22 | `NEQ` | pending |
 | 24 | `INT_MOD` | pending |
 | 25 | `ABS` | pending |
@@ -76,7 +76,7 @@ excluded from this pass, or is complex enough to warrant a separate implementati
 | 79 | `SUBSTRING_COUNT` | pending |
 | 80 | `REGEXP_LIKE` | pending |
 
-Progress: **19 / 46 in-scope** functions implemented; **9** functions are out-of-scope.
+Progress: **19 / 45 in-scope** functions implemented; **10** functions are out-of-scope.
 
 ## Deferred implementation notes
 
@@ -87,3 +87,6 @@ Progress: **19 / 46 in-scope** functions implemented; **9** functions are out-of
 - `PROPER` is locale-aware title casing using Go's `cases.Title(language.AmericanEnglish)`. Exact
   compatibility requires Unicode word segmentation, American-English title-case rules, and the
   matching Unicode data version; Rust's standard library does not provide this operation.
+- Calculated-field `IN` is lowered by logs-backend to dd-go's `ARRAY_CONTAINS`; it is distinct from
+  the query-language `InExprNode` set-membership path and is deferred with the other array
+  functions.
