@@ -61,7 +61,7 @@ excluded from this pass, or is complex enough to warrant a separate implementati
 | 55 | `IF` | done |
 | 56 | `COALESCE` | out-of-scope |
 | 61 | `TRY_CAST_INT` | out-of-scope |
-| 63 | `TRY_CAST_FLOAT` | pending |
+| 63 | `TRY_CAST_FLOAT` | out-of-scope |
 | 65 | `TO_TIMESTAMP` | pending |
 | 66 | `EXTRACT` | pending |
 | 67 | `SEMVER` | pending |
@@ -76,7 +76,7 @@ excluded from this pass, or is complex enough to warrant a separate implementati
 | 79 | `SUBSTRING_COUNT` | pending |
 | 80 | `REGEXP_LIKE` | pending |
 
-Progress: **27 / 34 in-scope** functions implemented; **21** functions are out-of-scope.
+Progress: **27 / 33 in-scope** functions implemented; **22** functions are out-of-scope.
 
 ## Deferred implementation notes
 
@@ -122,3 +122,6 @@ Progress: **27 / 34 in-scope** functions implemented; **21** functions are out-o
 - `TRY_CAST_INT` participates in dd-go's cast-elision/tree-rewrite system and uses the custom
   `IsLikelyInt` heuristic (including leading-zero rejection), plus architecture-sensitive
   float-to-integer edge behavior. It is deferred as a separate coercion pass.
+- `TRY_CAST_FLOAT` shares the cast-elision/tree-rewrite machinery and uses a separate
+  `IsLikelyFloat` heuristic whose leading-zero rules differ from integer parsing. It is deferred
+  with `TRY_CAST_INT` so the coercion policy is implemented consistently.
