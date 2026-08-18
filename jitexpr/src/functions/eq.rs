@@ -1,7 +1,8 @@
 // EQ compares two values of any type.
 //
 // Values of the same type compare directly. Numerical values also compare across
-// i64, u64, and f64. Values of unrelated types are not equal.
+// i64, u64, and f64. Values of unrelated present types are not equal. If either
+// operand is absent, the result is absent.
 //
 // In other words:
 // 1u64 == 1i64 ==> true
@@ -105,13 +106,11 @@ impl FnCall for EqFnCall {
         let rhs_type = self.args[1].return_type;
         let lhs = context.compile_expr(&self.args[0], builder)?;
         let rhs = context.compile_expr(&self.args[1], builder)?;
-        let is_present = builder.ins().iconst(types::I8, 1);
+        let is_present = builder.ins().band(lhs.is_present, rhs.is_present);
         let string_len = builder.ins().iconst(types::I64, 0);
 
         if lhs_type == VarType::None || rhs_type == VarType::None {
-            let value = builder
-                .ins()
-                .icmp(IntCC::Equal, lhs.is_present, rhs.is_present);
+            let value = builder.ins().iconst(types::I8, 0);
             return Ok(LoweredValue {
                 value,
                 is_present,
@@ -135,7 +134,7 @@ impl FnCall for EqFnCall {
         }
 
         if !types_are_comparable(lhs_type, rhs_type) {
-            let value = both_absent(lhs.is_present, rhs.is_present, builder);
+            let value = builder.ins().iconst(types::I8, 0);
             return Ok(LoweredValue {
                 value,
                 is_present,
@@ -168,26 +167,13 @@ impl FnCall for EqFnCall {
             }
             _ => unreachable!("the operand types were checked above"),
         };
-        let both_present = builder.ins().band(lhs.is_present, rhs.is_present);
-        let present_and_equal = builder.ins().band(both_present, values_equal);
-        let both_absent = both_absent(lhs.is_present, rhs.is_present, builder);
-        let value = builder.ins().bor(both_absent, present_and_equal);
+        let value = builder.ins().band(is_present, values_equal);
         Ok(LoweredValue {
             value,
             is_present,
             string_len,
         })
     }
-}
-
-fn both_absent(
-    lhs_is_present: CraneliftValue,
-    rhs_is_present: CraneliftValue,
-    builder: &mut FunctionBuilder<'_>,
-) -> CraneliftValue {
-    let lhs_absent = builder.ins().bxor_imm_u(lhs_is_present, 1);
-    let rhs_absent = builder.ins().bxor_imm_u(rhs_is_present, 1);
-    builder.ins().band(lhs_absent, rhs_absent)
 }
 
 fn types_are_comparable(lhs: VarType, rhs: VarType) -> bool {
@@ -313,6 +299,13 @@ mod tests {
         unsafe { output.as_bool() }.unwrap()
     }
 
+    fn eval_nullable(expression: &str) -> Option<bool> {
+        let expression = ast::deserialize(expression).unwrap();
+        let mut compiled = compile(&expression, &HashMap::new()).unwrap();
+        // SAFETY: The expression has no inputs and returns a nullable boolean.
+        unsafe { compiled.call(&[]).as_bool() }
+    }
+
     #[test]
     fn test_infer_types_accepts_any_operand_types() {
         let expression = ast::deserialize(r#"(EQ value "hello")"#).unwrap();
@@ -429,13 +422,13 @@ mod tests {
 
         let none_input = [VariableValue::none(), VariableValue::none()];
         let output = unsafe { compiled.call(&none_input) };
-        assert_eq!(unsafe { output.as_bool() }, Some(true));
+        assert_eq!(unsafe { output.as_bool() }, None);
     }
 
     #[test]
     fn test_compile_none_equality() {
-        assert!(eval("(EQ none none)"));
-        assert!(!eval("(EQ none false)"));
+        assert_eq!(eval_nullable("(EQ none none)"), None);
+        assert_eq!(eval_nullable("(EQ none false)"), None);
     }
 
     #[test]
@@ -444,10 +437,10 @@ mod tests {
         let variable_types = HashMap::from([("left", VarType::U64), ("right", VarType::U64)]);
         let mut compiled = compile(&expression, &variable_types).unwrap();
         let output = unsafe { compiled.call(&[VariableValue::none(), VariableValue::none()]) };
-        assert_eq!(unsafe { output.as_bool() }, Some(true));
+        assert_eq!(unsafe { output.as_bool() }, None);
 
         let output = unsafe { compiled.call(&[VariableValue::none(), VariableValue::some(0u64)]) };
-        assert_eq!(unsafe { output.as_bool() }, Some(false));
+        assert_eq!(unsafe { output.as_bool() }, None);
     }
 
     #[test]
@@ -457,7 +450,7 @@ mod tests {
         let mut compiled = compile(&expression, &variable_types).unwrap();
         let output = unsafe { compiled.call(&[VariableValue::none()]) };
 
-        assert_eq!(unsafe { output.as_bool() }, Some(true));
+        assert_eq!(unsafe { output.as_bool() }, None);
     }
 
     #[test]
