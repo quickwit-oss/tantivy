@@ -74,9 +74,9 @@ excluded from this pass, or is complex enough to warrant a separate implementati
 | 77 | `LEVENSHTEIN_DISTANCE` | out-of-scope |
 | 78 | `ENTROPY` | out-of-scope |
 | 79 | `SUBSTRING_COUNT` | done |
-| 80 | `REGEXP_LIKE` | pending |
+| 80 | `REGEXP_LIKE` | done |
 
-Progress: **28 / 29 in-scope** functions implemented; **26** functions are out-of-scope.
+Progress: **29 / 29 in-scope** functions implemented; **26** functions are out-of-scope.
 
 ## Deferred implementation notes
 

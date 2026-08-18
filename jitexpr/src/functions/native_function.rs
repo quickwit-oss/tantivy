@@ -2,7 +2,8 @@ use cranelift::codegen::ir::{FuncRef, Function as CraneliftFunction, Type};
 use cranelift_jit::{JITBuilder, JITModule};
 
 use super::{
-    comparison, concat, eq, int_mod, lower, pow, regexp_extract, substring_count, trim, upper,
+    comparison, concat, eq, int_mod, lower, pow, regexp_extract, regexp_like, substring_count,
+    trim, upper,
 };
 use crate::compile::CompileError;
 
@@ -17,6 +18,7 @@ pub(crate) struct NativeFunctions {
     float_mod: FuncRef,
     float_pow: FuncRef,
     regexp_extract: FuncRef,
+    regexp_like: FuncRef,
     string_compare: FuncRef,
     f64_i64_compare: FuncRef,
     f64_u64_compare: FuncRef,
@@ -57,6 +59,10 @@ impl NativeFunctions {
         self.regexp_extract
     }
 
+    pub(crate) fn regexp_like(&self) -> FuncRef {
+        self.regexp_like
+    }
+
     pub(crate) fn string_compare(&self) -> FuncRef {
         self.string_compare
     }
@@ -82,6 +88,7 @@ pub(crate) fn register_jit_symbols(jit_builder: &mut JITBuilder) {
     int_mod::register_jit_symbol(jit_builder);
     pow::register_jit_symbol(jit_builder);
     regexp_extract::register_jit_symbol(jit_builder);
+    regexp_like::register_jit_symbol(jit_builder);
 }
 
 /// Declares every native function imported by the expression being compiled.
@@ -101,6 +108,7 @@ pub(crate) fn declare_native_functions(
         float_mod: int_mod::declare_native_function(module, function)?,
         float_pow: pow::declare_native_function(module, function)?,
         regexp_extract: regexp_extract::declare_native_function(module, function, pointer_type)?,
+        regexp_like: regexp_like::declare_native_function(module, function, pointer_type)?,
         string_compare: comparison.string_compare,
         f64_i64_compare: comparison.f64_i64_compare,
         f64_u64_compare: comparison.f64_u64_compare,

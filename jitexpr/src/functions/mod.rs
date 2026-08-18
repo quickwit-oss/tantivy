@@ -23,6 +23,7 @@ mod not;
 mod or;
 mod pow;
 mod regexp_extract;
+mod regexp_like;
 mod substring_count;
 mod subtract;
 mod text_join;
@@ -59,6 +60,7 @@ pub(crate) use self::not::NotFnCall;
 pub(crate) use self::or::OrFnCall;
 pub(crate) use self::pow::PowFnCall;
 pub(crate) use self::regexp_extract::RegexpExtractFnCall;
+pub(crate) use self::regexp_like::RegexpLikeFnCall;
 pub(crate) use self::substring_count::SubstringCountFnCall;
 pub(crate) use self::subtract::SubtractFnCall;
 pub(crate) use self::text_join::TextJoinFnCall;
@@ -117,6 +119,8 @@ pub enum Function {
     Pow,
     /// Extracts a capture group from a string using a constant regular expression.
     RegexpExtract,
+    /// Tests whether a constant regular expression matches a scalar string.
+    RegexpLike,
     /// Subtracts the second numeric argument from the first.
     Subtract,
     /// Counts non-overlapping occurrences of one string in another.
@@ -179,6 +183,9 @@ impl Function {
             Function::Pow => <PowFnCall as FnCall>::call_with_types(args, target_type_set, context),
             Function::RegexpExtract => {
                 <RegexpExtractFnCall as FnCall>::call_with_types(args, target_type_set, context)
+            }
+            Function::RegexpLike => {
+                <RegexpLikeFnCall as FnCall>::call_with_types(args, target_type_set, context)
             }
             Function::Subtract => {
                 <SubtractFnCall as FnCall>::call_with_types(args, target_type_set, context)
@@ -248,6 +255,9 @@ impl Function {
             Function::RegexpExtract => {
                 <RegexpExtractFnCall as FnCall>::infer_types(args, target_type, inferred_types)
             }
+            Function::RegexpLike => {
+                <RegexpLikeFnCall as FnCall>::infer_types(args, target_type, inferred_types)
+            }
             Function::Subtract => {
                 <SubtractFnCall as FnCall>::infer_types(args, target_type, inferred_types)
             }
@@ -299,6 +309,7 @@ pub(crate) enum FnCallEnum {
     Or(OrFnCall),
     Pow(PowFnCall),
     RegexpExtract(RegexpExtractFnCall),
+    RegexpLike(RegexpLikeFnCall),
     Subtract(SubtractFnCall),
     SubstringCount(SubstringCountFnCall),
     TextJoin(TextJoinFnCall),
@@ -332,6 +343,7 @@ impl FnCallEnum {
             FnCallEnum::Or(call) => call.args_mut(),
             FnCallEnum::Pow(call) => call.args_mut(),
             FnCallEnum::RegexpExtract(call) => call.args_mut(),
+            FnCallEnum::RegexpLike(call) => call.args_mut(),
             FnCallEnum::Subtract(call) => call.args_mut(),
             FnCallEnum::SubstringCount(call) => call.args_mut(),
             FnCallEnum::TextJoin(call) => call.args_mut(),
@@ -373,6 +385,7 @@ impl FnCallEnum {
             FnCallEnum::RegexpExtract(call) => {
                 call.emit_cranelift_ir(return_type, context, builder)
             }
+            FnCallEnum::RegexpLike(call) => call.emit_cranelift_ir(return_type, context, builder),
             FnCallEnum::Subtract(call) => call.emit_cranelift_ir(return_type, context, builder),
             FnCallEnum::SubstringCount(call) => {
                 call.emit_cranelift_ir(return_type, context, builder)
