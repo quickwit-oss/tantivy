@@ -120,6 +120,7 @@ fn function_name(function: Function) -> &'static str {
     match function {
         Function::Add => "ADD",
         Function::Eq => "EQ",
+        Function::IsNull => "IS_NULL",
         Function::IsNotNull => "IS_NOT_NULL",
         Function::Lower => "LOWER",
         Function::RegexpExtract => "REGEXP_EXTRACT",
@@ -130,6 +131,7 @@ fn parse_function(name: &str, offset: usize) -> Result<Function, DeserializeErro
     match name {
         "ADD" => Ok(Function::Add),
         "EQ" => Ok(Function::Eq),
+        "IS_NULL" => Ok(Function::IsNull),
         "IS_NOT_NULL" => Ok(Function::IsNotNull),
         "LOWER" => Ok(Function::Lower),
         "REGEXP_EXTRACT" => Ok(Function::RegexpExtract),

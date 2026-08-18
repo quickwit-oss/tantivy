@@ -1,6 +1,7 @@
 mod add;
 mod eq;
 mod is_not_null;
+mod is_null;
 mod lower;
 mod native_function;
 mod regexp_extract;
@@ -12,6 +13,7 @@ use cranelift::frontend::FunctionBuilder;
 pub(crate) use self::add::AddFnCall;
 pub(crate) use self::eq::EqFnCall;
 pub(crate) use self::is_not_null::IsNotNullFnCall;
+pub(crate) use self::is_null::IsNullFnCall;
 pub(crate) use self::lower::LowerFnCall;
 pub(crate) use self::native_function::{
     NativeFunctions, declare_native_functions, register_jit_symbols,
@@ -30,6 +32,8 @@ pub enum Function {
     Eq,
     /// Tests whether an expression produced a present value.
     IsNotNull,
+    /// Tests whether an expression produced an absent value.
+    IsNull,
     /// Constructs the Unicode-lowercase form of a string.
     Lower,
     /// Extracts a capture group from a string using a constant regular expression.
@@ -48,6 +52,9 @@ impl Function {
             Function::Eq => <EqFnCall as FnCall>::call_with_types(args, target_type_set, context),
             Function::IsNotNull => {
                 <IsNotNullFnCall as FnCall>::call_with_types(args, target_type_set, context)
+            }
+            Function::IsNull => {
+                <IsNullFnCall as FnCall>::call_with_types(args, target_type_set, context)
             }
             Function::Lower => {
                 <LowerFnCall as FnCall>::call_with_types(args, target_type_set, context)
@@ -70,6 +77,9 @@ impl Function {
             Function::IsNotNull => {
                 <IsNotNullFnCall as FnCall>::infer_types(args, target_type, inferred_types)
             }
+            Function::IsNull => {
+                <IsNullFnCall as FnCall>::infer_types(args, target_type, inferred_types)
+            }
             Function::Lower => {
                 <LowerFnCall as FnCall>::infer_types(args, target_type, inferred_types)
             }
@@ -91,6 +101,7 @@ impl Function {
 pub(crate) enum FnCallEnum {
     Add(AddFnCall),
     Eq(EqFnCall),
+    IsNull(IsNullFnCall),
     IsNotNull(IsNotNullFnCall),
     Lower(LowerFnCall),
     RegexpExtract(RegexpExtractFnCall),
@@ -101,6 +112,7 @@ impl FnCallEnum {
         match self {
             FnCallEnum::Add(call) => call.args_mut(),
             FnCallEnum::Eq(call) => call.args_mut(),
+            FnCallEnum::IsNull(call) => call.args_mut(),
             FnCallEnum::IsNotNull(call) => call.args_mut(),
             FnCallEnum::Lower(call) => call.args_mut(),
             FnCallEnum::RegexpExtract(call) => call.args_mut(),
@@ -117,6 +129,7 @@ impl FnCallEnum {
         match self {
             FnCallEnum::Add(call) => call.emit_cranelift_ir(return_type, context, builder),
             FnCallEnum::Eq(call) => call.emit_cranelift_ir(return_type, context, builder),
+            FnCallEnum::IsNull(call) => call.emit_cranelift_ir(return_type, context, builder),
             FnCallEnum::IsNotNull(call) => call.emit_cranelift_ir(return_type, context, builder),
             FnCallEnum::Lower(call) => call.emit_cranelift_ir(return_type, context, builder),
             FnCallEnum::RegexpExtract(call) => {
