@@ -45,6 +45,7 @@ pub fn compile_to_assembly(
 pub(crate) struct LoweringContext<'a> {
     args_ptr: CraneliftValue,
     string_arena_ptr: CraneliftValue,
+    string_arena_was_reset: bool,
     pointer_type: Type,
     native_functions: &'a NativeFunctions,
 }
@@ -122,7 +123,17 @@ impl LoweringContext<'_> {
         self.pointer_type
     }
 
-    pub(crate) fn string_arena_ptr(&self) -> CraneliftValue {
+    pub(crate) fn string_arena_ptr(&mut self, builder: &mut FunctionBuilder<'_>) -> CraneliftValue {
+        if !self.string_arena_was_reset {
+            let zero = builder.ins().iconst(cranelift_types::I64, 0);
+            builder.ins().store(
+                MemFlagsData::trusted(),
+                zero,
+                self.string_arena_ptr,
+                StringArena::CURSOR_OFFSET,
+            );
+            self.string_arena_was_reset = true;
+        }
         self.string_arena_ptr
     }
 
@@ -217,10 +228,12 @@ mod tests {
         let untyped_expr = UntypedExpr::variable("flag");
         let variable_types = HashMap::from([("flag", VarType::Bool)]);
         let mut compiled_fn = compile(&untyped_expr, &variable_types).unwrap();
+        assert!(compiled_fn.string_arena.allocate(1).is_some());
         let input = [VariableValue::some(true)];
         let output = unsafe { compiled_fn.call(&input) };
 
         assert_eq!(unsafe { output.as_bool() }, Some(true));
+        assert_eq!(compiled_fn.string_arena.used_bytes(), 1);
     }
 
     #[test]

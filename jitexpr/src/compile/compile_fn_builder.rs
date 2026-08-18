@@ -218,6 +218,7 @@ impl<'types, 'names> CompileFnBuilder<'types, 'names> {
             let mut lowering_context = LoweringContext {
                 args_ptr,
                 string_arena_ptr,
+                string_arena_was_reset: false,
                 pointer_type,
                 native_functions: &native_functions,
             };

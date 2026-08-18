@@ -64,7 +64,6 @@ impl CompiledFn {
     {
         debug_assert_eq!(args.len(), self.inputs.len());
         let args: &[VariableValue<'output>] = args;
-        self.string_arena.clear();
         let string_arena = &raw mut self.string_arena;
         // SAFETY: Guaranteed by the caller. Both the input and compiled-function
         // lifetimes outlive the lifetime selected for the returned value.

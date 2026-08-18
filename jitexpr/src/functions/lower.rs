@@ -78,9 +78,11 @@ impl FnCall for LowerFnCall {
         let arg = context.compile_expr(&self.arg, builder)?;
         let null = builder.ins().iconst(context.pointer_type(), 0);
         let input_ptr = builder.ins().select(arg.is_present, arg.value, null);
+        let string_lowercase = context.native_functions().string_lowercase();
+        let string_arena_ptr = context.string_arena_ptr(builder);
         let call = builder.ins().call(
-            context.native_functions().string_lowercase(),
-            &[input_ptr, arg.string_len, context.string_arena_ptr()],
+            string_lowercase,
+            &[input_ptr, arg.string_len, string_arena_ptr],
         );
         let value = builder.inst_results(call)[0];
         let string_len = builder.inst_results(call)[1];
@@ -265,9 +267,7 @@ mod tests {
         let mut compiled = compile(&expression, &variable_types).unwrap();
         let input = [VariableValue::some("HeLLo")];
 
-        let output = unsafe { compiled.call(&input) };
-
-        assert_eq!(unsafe { output.as_str() }, Some("hello"));
+        assert_eq!(unsafe { compiled.call(&input).as_str() }, Some("hello"));
     }
 
     #[test]
@@ -275,11 +275,12 @@ mod tests {
         let expression = deserialize("(EQ (LOWER left) (LOWER right))").unwrap();
         let variable_types = HashMap::from([("left", VarType::Str), ("right", VarType::Str)]);
         let mut compiled = compile(&expression, &variable_types).unwrap();
-        let input = [VariableValue::some("FiRsT"), VariableValue::some("fIrSt")];
+        let input = [VariableValue::some("FiRsT"), VariableValue::some("SeCoNd")];
 
         let output = unsafe { compiled.call(&input) };
 
-        assert_eq!(unsafe { output.as_bool() }, Some(true));
+        assert_eq!(unsafe { output.as_bool() }, Some(false));
+        assert_eq!(compiled.string_arena.used_bytes(), 11);
     }
 
     #[test]

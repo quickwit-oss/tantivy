@@ -7,16 +7,14 @@ pub(crate) struct StringArena {
 }
 
 impl StringArena {
+    pub(crate) const CURSOR_OFFSET: i32 = std::mem::offset_of!(StringArena, cursor) as i32;
+
     pub(crate) fn new() -> Self {
         let buffer = vec![0; STRING_ARENA_CAPACITY].into_boxed_slice();
         let buffer = buffer
             .try_into()
             .unwrap_or_else(|_| unreachable!("the arena buffer has the requested capacity"));
         Self { buffer, cursor: 0 }
-    }
-
-    pub(crate) fn clear(&mut self) {
-        self.cursor = 0;
     }
 
     /// Reserves `len` contiguous bytes without growing the backing allocation.
