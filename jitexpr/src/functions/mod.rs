@@ -24,6 +24,7 @@ mod or;
 mod pow;
 mod regexp_extract;
 mod regexp_like;
+mod substring;
 mod substring_count;
 mod subtract;
 mod text_join;
@@ -61,6 +62,7 @@ pub(crate) use self::or::OrFnCall;
 pub(crate) use self::pow::PowFnCall;
 pub(crate) use self::regexp_extract::RegexpExtractFnCall;
 pub(crate) use self::regexp_like::RegexpLikeFnCall;
+pub(crate) use self::substring::SubstringFnCall;
 pub(crate) use self::substring_count::SubstringCountFnCall;
 pub(crate) use self::subtract::SubtractFnCall;
 pub(crate) use self::text_join::TextJoinFnCall;
@@ -123,6 +125,8 @@ pub enum Function {
     RegexpLike,
     /// Subtracts the second numeric argument from the first.
     Subtract,
+    /// Returns a byte-indexed slice of a scalar string.
+    Substring,
     /// Counts non-overlapping occurrences of one string in another.
     SubstringCount,
     /// Joins scalar strings with the same semantics as `CONCAT`.
@@ -189,6 +193,9 @@ impl Function {
             }
             Function::Subtract => {
                 <SubtractFnCall as FnCall>::call_with_types(args, target_type_set, context)
+            }
+            Function::Substring => {
+                <SubstringFnCall as FnCall>::call_with_types(args, target_type_set, context)
             }
             Function::SubstringCount => {
                 <SubstringCountFnCall as FnCall>::call_with_types(args, target_type_set, context)
@@ -261,6 +268,9 @@ impl Function {
             Function::Subtract => {
                 <SubtractFnCall as FnCall>::infer_types(args, target_type, inferred_types)
             }
+            Function::Substring => {
+                <SubstringFnCall as FnCall>::infer_types(args, target_type, inferred_types)
+            }
             Function::SubstringCount => {
                 <SubstringCountFnCall as FnCall>::infer_types(args, target_type, inferred_types)
             }
@@ -311,6 +321,7 @@ pub(crate) enum FnCallEnum {
     RegexpExtract(RegexpExtractFnCall),
     RegexpLike(RegexpLikeFnCall),
     Subtract(SubtractFnCall),
+    Substring(SubstringFnCall),
     SubstringCount(SubstringCountFnCall),
     TextJoin(TextJoinFnCall),
     Trim(TrimFnCall),
@@ -345,6 +356,7 @@ impl FnCallEnum {
             FnCallEnum::RegexpExtract(call) => call.args_mut(),
             FnCallEnum::RegexpLike(call) => call.args_mut(),
             FnCallEnum::Subtract(call) => call.args_mut(),
+            FnCallEnum::Substring(call) => call.args_mut(),
             FnCallEnum::SubstringCount(call) => call.args_mut(),
             FnCallEnum::TextJoin(call) => call.args_mut(),
             FnCallEnum::Trim(call) => call.args_mut(),
@@ -387,6 +399,7 @@ impl FnCallEnum {
             }
             FnCallEnum::RegexpLike(call) => call.emit_cranelift_ir(return_type, context, builder),
             FnCallEnum::Subtract(call) => call.emit_cranelift_ir(return_type, context, builder),
+            FnCallEnum::Substring(call) => call.emit_cranelift_ir(return_type, context, builder),
             FnCallEnum::SubstringCount(call) => {
                 call.emit_cranelift_ir(return_type, context, builder)
             }
