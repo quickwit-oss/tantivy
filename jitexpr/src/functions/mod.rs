@@ -8,6 +8,7 @@ mod native_function;
 mod not;
 mod or;
 mod regexp_extract;
+mod subtract;
 
 use std::collections::HashMap;
 
@@ -25,6 +26,7 @@ pub(crate) use self::native_function::{
 pub(crate) use self::not::NotFnCall;
 pub(crate) use self::or::OrFnCall;
 pub(crate) use self::regexp_extract::RegexpExtractFnCall;
+pub(crate) use self::subtract::SubtractFnCall;
 use crate::ast::{InferredTypeSet, TypeError, UntypedExpr};
 use crate::compile::{CompileError, CompileFnBuilder, LoweredValue, LoweringContext, TypedExpr};
 use crate::types::VarType;
@@ -50,6 +52,8 @@ pub enum Function {
     Or,
     /// Extracts a capture group from a string using a constant regular expression.
     RegexpExtract,
+    /// Subtracts the second numeric argument from the first.
+    Subtract,
 }
 
 impl Function {
@@ -76,6 +80,9 @@ impl Function {
             Function::Or => <OrFnCall as FnCall>::call_with_types(args, target_type_set, context),
             Function::RegexpExtract => {
                 <RegexpExtractFnCall as FnCall>::call_with_types(args, target_type_set, context)
+            }
+            Function::Subtract => {
+                <SubtractFnCall as FnCall>::call_with_types(args, target_type_set, context)
             }
         }
     }
@@ -104,6 +111,9 @@ impl Function {
             Function::RegexpExtract => {
                 <RegexpExtractFnCall as FnCall>::infer_types(args, target_type, inferred_types)
             }
+            Function::Subtract => {
+                <SubtractFnCall as FnCall>::infer_types(args, target_type, inferred_types)
+            }
         }
     }
 
@@ -126,6 +136,7 @@ pub(crate) enum FnCallEnum {
     Not(NotFnCall),
     Or(OrFnCall),
     RegexpExtract(RegexpExtractFnCall),
+    Subtract(SubtractFnCall),
 }
 
 impl FnCallEnum {
@@ -140,6 +151,7 @@ impl FnCallEnum {
             FnCallEnum::Not(call) => call.args_mut(),
             FnCallEnum::Or(call) => call.args_mut(),
             FnCallEnum::RegexpExtract(call) => call.args_mut(),
+            FnCallEnum::Subtract(call) => call.args_mut(),
         }
     }
 
@@ -162,6 +174,7 @@ impl FnCallEnum {
             FnCallEnum::RegexpExtract(call) => {
                 call.emit_cranelift_ir(return_type, context, builder)
             }
+            FnCallEnum::Subtract(call) => call.emit_cranelift_ir(return_type, context, builder),
         }
     }
 }

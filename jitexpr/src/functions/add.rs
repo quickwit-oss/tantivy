@@ -132,7 +132,7 @@ impl FnCall for AddFnCall {
     }
 }
 
-fn with_float_fallback(inferred_types: InferredTypeSet) -> InferredTypeSet {
+pub(super) fn with_float_fallback(inferred_types: InferredTypeSet) -> InferredTypeSet {
     if inferred_types.is_none() {
         InferredTypeSet::F64
     } else {
@@ -140,7 +140,7 @@ fn with_float_fallback(inferred_types: InferredTypeSet) -> InferredTypeSet {
     }
 }
 
-fn select_return_type(inferred_types: InferredTypeSet) -> VarType {
+pub(super) fn select_return_type(inferred_types: InferredTypeSet) -> VarType {
     if inferred_types.i64 {
         VarType::I64
     } else if inferred_types.u64 {
@@ -151,7 +151,7 @@ fn select_return_type(inferred_types: InferredTypeSet) -> VarType {
     }
 }
 
-fn is_numerical(var_type: VarType) -> bool {
+pub(super) fn is_numerical(var_type: VarType) -> bool {
     matches!(var_type, VarType::I64 | VarType::U64 | VarType::F64)
 }
 

@@ -24,7 +24,7 @@ excluded from this pass.
 | 2 | `OR` | done |
 | 3 | `NOT` | done |
 | 4 | `ADD` | done |
-| 5 | `SUBTRACT` | pending |
+| 5 | `SUBTRACT` | done |
 | 6 | `MULTIPLY` | pending |
 | 7 | `DIVIDE` | pending |
 | 8 | `EQ` | done |
@@ -76,4 +76,4 @@ excluded from this pass.
 | 79 | `SUBSTRING_COUNT` | pending |
 | 80 | `REGEXP_LIKE` | pending |
 
-Progress: **9 / 48 in-scope** functions implemented; **7** functions are out-of-scope.
+Progress: **10 / 48 in-scope** functions implemented; **7** functions are out-of-scope.
