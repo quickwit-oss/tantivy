@@ -4,6 +4,7 @@ mod eq;
 mod is_not_null;
 mod is_null;
 mod lower;
+mod multiply;
 mod native_function;
 mod not;
 mod or;
@@ -20,6 +21,7 @@ pub(crate) use self::eq::EqFnCall;
 pub(crate) use self::is_not_null::IsNotNullFnCall;
 pub(crate) use self::is_null::IsNullFnCall;
 pub(crate) use self::lower::LowerFnCall;
+pub(crate) use self::multiply::MultiplyFnCall;
 pub(crate) use self::native_function::{
     NativeFunctions, declare_native_functions, register_jit_symbols,
 };
@@ -46,6 +48,8 @@ pub enum Function {
     IsNull,
     /// Constructs the Unicode-lowercase form of a string.
     Lower,
+    /// Multiplies two numeric arguments.
+    Multiply,
     /// Negates a boolean, treating an absent input as false.
     Not,
     /// Disjoins one or more booleans, remaining present if any operand is present.
@@ -75,6 +79,9 @@ impl Function {
             }
             Function::Lower => {
                 <LowerFnCall as FnCall>::call_with_types(args, target_type_set, context)
+            }
+            Function::Multiply => {
+                <MultiplyFnCall as FnCall>::call_with_types(args, target_type_set, context)
             }
             Function::Not => <NotFnCall as FnCall>::call_with_types(args, target_type_set, context),
             Function::Or => <OrFnCall as FnCall>::call_with_types(args, target_type_set, context),
@@ -106,6 +113,9 @@ impl Function {
             Function::Lower => {
                 <LowerFnCall as FnCall>::infer_types(args, target_type, inferred_types)
             }
+            Function::Multiply => {
+                <MultiplyFnCall as FnCall>::infer_types(args, target_type, inferred_types)
+            }
             Function::Not => <NotFnCall as FnCall>::infer_types(args, target_type, inferred_types),
             Function::Or => <OrFnCall as FnCall>::infer_types(args, target_type, inferred_types),
             Function::RegexpExtract => {
@@ -133,6 +143,7 @@ pub(crate) enum FnCallEnum {
     IsNull(IsNullFnCall),
     IsNotNull(IsNotNullFnCall),
     Lower(LowerFnCall),
+    Multiply(MultiplyFnCall),
     Not(NotFnCall),
     Or(OrFnCall),
     RegexpExtract(RegexpExtractFnCall),
@@ -148,6 +159,7 @@ impl FnCallEnum {
             FnCallEnum::IsNull(call) => call.args_mut(),
             FnCallEnum::IsNotNull(call) => call.args_mut(),
             FnCallEnum::Lower(call) => call.args_mut(),
+            FnCallEnum::Multiply(call) => call.args_mut(),
             FnCallEnum::Not(call) => call.args_mut(),
             FnCallEnum::Or(call) => call.args_mut(),
             FnCallEnum::RegexpExtract(call) => call.args_mut(),
@@ -169,6 +181,7 @@ impl FnCallEnum {
             FnCallEnum::IsNull(call) => call.emit_cranelift_ir(return_type, context, builder),
             FnCallEnum::IsNotNull(call) => call.emit_cranelift_ir(return_type, context, builder),
             FnCallEnum::Lower(call) => call.emit_cranelift_ir(return_type, context, builder),
+            FnCallEnum::Multiply(call) => call.emit_cranelift_ir(return_type, context, builder),
             FnCallEnum::Not(call) => call.emit_cranelift_ir(return_type, context, builder),
             FnCallEnum::Or(call) => call.emit_cranelift_ir(return_type, context, builder),
             FnCallEnum::RegexpExtract(call) => {
