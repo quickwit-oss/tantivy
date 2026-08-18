@@ -693,8 +693,8 @@ fn test_linear_batches_at_every_width() {
         let column = load_u64_based_column_values_raw(OwnedBytes::new(buffer)).unwrap();
         assert_eq!(
             column.min_batch_rows(),
-            min_batch_rows(DecodeCost::Flat),
-            "noise_bits={noise_bits} must report the Flat threshold"
+            min_batch_rows(DecodeCost::Interpolated),
+            "noise_bits={noise_bits} must report the Interpolated threshold"
         );
         let mut out = vec![0u64; 300];
         column.get_range(137, &mut out);
@@ -704,9 +704,6 @@ fn test_linear_batches_at_every_width() {
     }
 }
 
-/// The per-codec `min_batch_rows` family assignment. Value-equality tests
-/// cannot see this: picking the wrong `DecodeCost` only changes *which* path
-/// produces a value, never the value.
 #[test]
 fn test_min_batch_rows_per_codec() {
     use crate::column_values::u64_based::block_decode::{DecodeCost, min_batch_rows};
@@ -721,14 +718,16 @@ fn test_min_batch_rows_per_codec() {
             covered.push(format!("{codec:?}"));
             let column = load_u64_based_column_values_raw(OwnedBytes::new(buffer)).unwrap();
             let got = column.min_batch_rows();
-            let expect_flat = matches!(
-                codec,
-                CodecType::Bitpacked | CodecType::Linear | CodecType::BlockwiseLinear
+            let expected = min_batch_rows(match codec {
+                CodecType::Bitpacked => DecodeCost::Flat,
+                CodecType::Linear => DecodeCost::Interpolated,
+                _ => DecodeCost::Blocked,
+            });
+            assert!(
+                min_batch_rows(DecodeCost::Interpolated) > min_batch_rows(DecodeCost::Flat)
+                    && min_batch_rows(DecodeCost::Flat) > min_batch_rows(DecodeCost::Blocked),
+                "DecodeCost families are out of order"
             );
-            let flat = min_batch_rows(DecodeCost::Flat);
-            let blocked = min_batch_rows(DecodeCost::Blocked);
-            assert!(flat > blocked, "Flat must cross over later than Blocked");
-            let expected = if expect_flat { flat } else { blocked };
             assert_eq!(
                 got, expected,
                 "{codec:?} reports the wrong DecodeCost family"
@@ -758,8 +757,6 @@ fn test_get_range_all_codecs_all_block_phases() {
             let column = load_u64_based_column_values_raw(OwnedBytes::new(buffer.clone())).unwrap();
             assert_eq!(column.num_vals() as usize, vals.len(), "{codec:?}/{shape}");
 
-            // Every phase of the block grid, and lengths straddling the block
-            // size, the partial-block floor, and the trailing partial block.
             for start in 0..140usize {
                 for len in [1usize, 2, 47, 48, 79, 80, 128, 129, 256, 400] {
                     if start + len > vals.len() {
@@ -788,8 +785,6 @@ fn test_get_range_all_codecs_all_block_phases() {
                 );
             }
 
-            // The same data through the wrapper, which gates short takes onto
-            // the per-value loop: both routes must agree.
             let wrapped: Arc<dyn ColumnValues<u64>> =
                 load_u64_based_column_values(OwnedBytes::new(buffer)).unwrap();
             for start in [0usize, 1, 63, 127, 128, 129] {
@@ -848,8 +843,6 @@ fn estimation_test_bad_interpolation_case_monotonically_increasing() {
     let mut data: Vec<u64> = (201..=20000_u64).collect();
     data.push(1_000_000);
 
-    // in this case the linear interpolation can't in fact not be worse than bitpacking,
-    // but the estimator adds some threshold, which leads to estimated worse behavior
     let linear_interpol_estimation = estimate::<LinearCodec>(&data[..]).unwrap();
     assert_le!(linear_interpol_estimation, 0.35);
 

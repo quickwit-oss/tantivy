@@ -4,10 +4,11 @@ use std::ops::{Range, RangeInclusive};
 
 use common::{BinarySerializable, OwnedBytes};
 use fastdivide::DividerU64;
+use tantivy_bitpacker::block_decode::decode_range;
 use tantivy_bitpacker::{BitPacker, BitUnpacker, compute_num_bits};
 
 use crate::column_values::u64_based::block_decode::{
-    BLOCK_LEN, BlockDecode, DecodeCost, decode_block, min_batch_rows, partial_block_min_rows,
+    BLOCK_LEN, BlockDecode, DecodeCost, min_batch_rows,
 };
 use crate::column_values::u64_based::{ColumnCodec, ColumnCodecEstimator, ColumnStats};
 use crate::{ColumnValues, RowId};
@@ -19,9 +20,6 @@ pub struct BitpackedReader {
     data: OwnedBytes,
     bit_unpacker: BitUnpacker,
     stats: ColumnStats,
-    /// One stream-wide bit width, so this is fixed for the column and
-    /// resolved at load time (see `BlockDecode::partial_min_rows`).
-    partial_min_rows: usize,
 }
 
 #[inline(always)]
@@ -59,15 +57,11 @@ impl BlockDecode for BitpackedReader {
         self.stats.num_rows as usize / BLOCK_LEN
     }
 
-    fn partial_min_rows(&self, _block_idx: usize) -> usize {
-        self.partial_min_rows
-    }
-
     #[inline]
-    fn decode_block_mapped(&self, block_idx: usize, out: &mut [u64; BLOCK_LEN]) {
+    fn decode_block_range(&self, block_idx: usize, in_block: usize, out: &mut [u64]) {
         let bit_width = self.bit_unpacker.bit_width();
         let byte_offset = block_idx * BLOCK_LEN * bit_width as usize / 8;
-        decode_block(bit_width, &self.data[byte_offset..], out);
+        decode_range(bit_width, in_block, &self.data[byte_offset..], out);
         let (min_value, gcd) = (self.stats.min_value, self.stats.gcd.get());
         if gcd == 1 {
             for o in out.iter_mut() {
@@ -176,7 +170,6 @@ impl ColumnCodec for BitpackedCodec {
         let num_bits = num_bits(&stats);
         let bit_unpacker = BitUnpacker::new(num_bits);
         Ok(BitpackedReader {
-            partial_min_rows: partial_block_min_rows(bit_unpacker.bit_width()),
             data,
             bit_unpacker,
             stats,

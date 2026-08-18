@@ -1,12 +1,9 @@
 use std::arch::aarch64::*;
 
-use super::{BLOCK_LEN, Lane};
+use super::Lane;
 
-/// Stores 4 unpacked values held in `u32` lanes at `out`, widening when the
-/// output lane is `u64`. The branch folds away at monomorphization.
-///
-/// # Safety
-/// `out` must be writable for 4 elements.
+/// Stores 4 unpacked values held in `u32` lanes at `out`,
+/// widening when the output lane is `u64`.
 #[inline(always)]
 unsafe fn store_u32x4<L: Lane>(out: *mut L, vals: uint32x4_t) {
     unsafe {
@@ -20,12 +17,8 @@ unsafe fn store_u32x4<L: Lane>(out: *mut L, vals: uint32x4_t) {
     }
 }
 
-/// Stores 2 unpacked values held in `u64` lanes at `out`, narrowing when the
-/// output lane is `u32`. The branch folds away at monomorphization.
-///
-/// # Safety
-/// `out` must be writable for 2 elements, and every lane must fit `L` (the
-/// `u32` lane is only ever used at widths `<= 32`).
+/// Stores 2 unpacked values held in `u64` lanes at `out`,
+/// narrowing when the output lane is `u32`.
 #[inline(always)]
 unsafe fn store_u64x2<L: Lane>(out: *mut L, vals: uint64x2_t) {
     unsafe {
@@ -45,14 +38,17 @@ unsafe fn store_u64x2<L: Lane>(out: *mut L, vals: uint64x2_t) {
 /// we gather the 4 relevant bytes of each value into u32 lanes with
 /// `tbl` (shuffle), then variable-shift right and mask.
 ///
+/// Decodes `out.len() / 8` groups; `out.len()` must be a multiple of 8.
+///
 /// Constraint: bit_shift (<=7) + w <= 32 => w <= 25.
 ///
 /// # Safety
-/// `data.len() >= 16 * w + 16` must hold (we read 16 bytes at
-/// `15 * w + (4 * w) / 8`, which is `< 16 * w + 16`).
-pub(super) unsafe fn decode_block_neon<L: Lane>(w: usize, data: &[u8], out: &mut [L; BLOCK_LEN]) {
+/// `data.len() >= out.len() / 8 * w + 16` must hold: group `g` reads 16 bytes
+/// at `g * w + (4 * w) / 8`, and the last group has `g = out.len() / 8 - 1`.
+pub(super) unsafe fn decode_block_neon<L: Lane>(w: usize, data: &[u8], out: &mut [L]) {
     debug_assert!((1..=25).contains(&w));
-    debug_assert!(data.len() >= 16 * w + 16);
+    debug_assert!(out.len() % 8 == 0);
+    debug_assert!(data.len() >= out.len() / 8 * w + 16);
     let hi_base = (4 * w) / 8;
     let mut idx_lo = [0u8; 16];
     let mut idx_hi = [0u8; 16];
@@ -76,7 +72,7 @@ pub(super) unsafe fn decode_block_neon<L: Lane>(w: usize, data: &[u8], out: &mut
         let mask = vdupq_n_u32(((1u64 << w) - 1) as u32);
         let mut ptr = data.as_ptr();
         let mut out_ptr = out.as_mut_ptr();
-        for _ in 0..BLOCK_LEN / 8 {
+        for _ in 0..out.len() / 8 {
             let bytes_lo = vld1q_u8(ptr);
             let bytes_hi = vld1q_u8(ptr.add(hi_base));
             let lo = vandq_u32(
@@ -101,30 +97,12 @@ pub(super) unsafe fn decode_block_neon<L: Lane>(w: usize, data: &[u8], out: &mut
     }
 }
 
-/// NEON unpack for bit widths 26..=56, where a value plus its bit shift no
-/// longer fits a `u32` lane.
-///
-/// Same shape as [`decode_block_neon`] with the lanes doubled: a group of 8
-/// values is done as 4 pairs instead of 2 quads, each pair gathered into the
-/// two `u64` lanes of one register, variable-shifted right and masked.
-///
-/// The gather still works off a single 16-byte `tbl` per pair. Value `2p`
-/// starts at byte `b0 = 2 * p * w / 8` and value `2p + 1` at `b1`, with
-/// `b1 - b0 <= ceil(w / 8) <= 7`, so loading 16 bytes at `b0` covers both
-/// lanes' 8 bytes.
-///
+/// NEON unpack for bit widths 26..=56
 /// Constraint: bit_shift (<=7) + w <= 64 => w <= 57.
-///
-/// # Safety
-/// `data.len() >= 16 * w + 16` must hold: the last group starts at `15 * w`
-/// and its last pair loads 16 bytes at `+ 6 * w / 8`, which is `< 16 * w + 16`.
-pub(super) unsafe fn decode_block_neon_wide<L: Lane>(
-    w: usize,
-    data: &[u8],
-    out: &mut [L; BLOCK_LEN],
-) {
+pub(super) unsafe fn decode_block_neon_wide<L: Lane>(w: usize, data: &[u8], out: &mut [L]) {
     debug_assert!((26..=57).contains(&w));
-    debug_assert!(data.len() >= 16 * w + 16);
+    debug_assert!(out.len() % 8 == 0);
+    debug_assert!(data.len() >= out.len() / 8 * w + 16);
     let mut idx = [[0u8; 16]; 4];
     let mut sh = [[0i64; 2]; 4];
     let mut base = [0usize; 4];
@@ -145,7 +123,7 @@ pub(super) unsafe fn decode_block_neon_wide<L: Lane>(
         let mask = vdupq_n_u64((1u64 << w) - 1);
         let mut ptr = data.as_ptr();
         let mut out_ptr = out.as_mut_ptr();
-        for _ in 0..BLOCK_LEN / 8 {
+        for _ in 0..out.len() / 8 {
             for p in 0..4 {
                 let bytes = vld1q_u8(ptr.add(base[p]));
                 let vals = vandq_u64(

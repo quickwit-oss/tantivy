@@ -4,11 +4,12 @@ use std::{io, iter};
 
 use common::{BinarySerializable, CountingWriter, DeserializeFrom, OwnedBytes};
 use fastdivide::DividerU64;
+use tantivy_bitpacker::block_decode::decode_range;
 use tantivy_bitpacker::{BitPacker, BitUnpacker, compute_num_bits};
 
 use crate::{MonotonicallyMappableToU64, RowId};
 use crate::column_values::u64_based::block_decode::{
-    BLOCK_LEN, BlockDecode, DecodeCost, decode_block, min_batch_rows, partial_block_min_rows,
+    BLOCK_LEN, BlockDecode, DecodeCost, min_batch_rows,
 };
 use crate::column_values::u64_based::line::Line;
 use crate::column_values::u64_based::{ColumnCodec, ColumnCodecEstimator, ColumnStats};
@@ -210,22 +211,18 @@ impl BlockDecode for BlockwiseLinearReader {
         self.stats.num_rows as usize / BLOCK_LEN
     }
 
-    fn partial_min_rows(&self, group_idx: usize) -> usize {
-        let block = &self.blocks[group_idx * BLOCK_LEN / BLOCK_SIZE as usize];
-        partial_block_min_rows(block.bit_unpacker.bit_width())
-    }
-
     #[inline]
-    fn decode_block_mapped(&self, group_idx: usize, out: &mut [u64; BLOCK_LEN]) {
+    fn decode_block_range(&self, group_idx: usize, in_block: usize, out: &mut [u64]) {
         let row = group_idx * BLOCK_LEN;
         let block = &self.blocks[row / BLOCK_SIZE as usize];
-        let idx_within_block = (row % BLOCK_SIZE as usize) as u32;
+        let group_start = (row % BLOCK_SIZE as usize) as u32;
         let bit_width = block.bit_unpacker.bit_width();
-        // `idx_within_block` is a multiple of 128, so this byte offset is
-        // exact and group-aligned within the block's stream.
-        let byte_offset =
-            block.data_start_offset + idx_within_block as usize * bit_width as usize / 8;
-        decode_block(bit_width, &self.data[byte_offset..], out);
+        // `group_start` is a multiple of 128, so this byte offset is exact and
+        // group-aligned within the block's stream; `in_block` then indexes the
+        // slots from there, which is what `decode_range` wants.
+        let byte_offset = block.data_start_offset + group_start as usize * bit_width as usize / 8;
+        decode_range(bit_width, in_block, &self.data[byte_offset..], out);
+        let idx_within_block = group_start + in_block as u32;
         let (min_value, gcd) = (self.stats.min_value, self.stats.gcd.get());
         for (i, o) in out.iter_mut().enumerate() {
             let interpolated_val = block.line.eval(idx_within_block + i as u32);
@@ -270,7 +267,7 @@ impl ColumnValues for BlockwiseLinearReader {
     }
 
     fn min_batch_rows(&self) -> usize {
-        min_batch_rows(DecodeCost::Flat)
+        min_batch_rows(DecodeCost::Blocked)
     }
 
     #[inline(always)]

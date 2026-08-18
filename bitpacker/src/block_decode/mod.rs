@@ -7,16 +7,12 @@
 //!
 //! Bit widths crate-wide are `0..=56` or exactly `64` (see
 //! [`crate::compute_num_bits`]); the kernels rely on that.
-
 #[cfg(target_arch = "x86_64")]
 mod avx2;
 #[cfg(all(target_arch = "aarch64", target_endian = "little"))]
 mod neon;
 
 pub const BLOCK_LEN: usize = 128;
-
-/// Whether the SIMD path is enabled
-/// and `TANTIVY_BITPACKER_SCALAR=1` doesn't force the scalar path
 pub fn simd_enabled() -> bool {
     static SIMD: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
     *SIMD.get_or_init(|| {
@@ -30,10 +26,10 @@ pub fn simd_enabled() -> bool {
     })
 }
 
-/// Whether [`decode_block`] reaches a SIMD kernel for this width.
+/// Whether [`decode_groups`] reaches a SIMD kernel for this width.
 ///
 /// Every packed width `1..=56` does where the target and CPU have kernels;
-/// 0 and 64 are served by [`decode_block`] itself.
+/// 0 and 64 are served by [`decode_groups`] itself.
 #[inline(always)]
 pub fn simd_kernel_applies(bit_width: u8) -> bool {
     (1..=56).contains(&bit_width) && simd_enabled()
@@ -54,10 +50,6 @@ mod sealed {
 }
 
 /// Output lane of the block kernels. Sealed; implemented for `u32` and `u64`
-/// only.
-///
-/// `u32` exists for [`crate::BitUnpacker::get_ids_for_value_range`], whose
-/// filter operates on `u32`.
 pub trait Lane: Copy + sealed::Sealed {
     /// Lets the kernels pick their store shape with a branch that folds away
     /// at monomorphization.
@@ -116,76 +108,63 @@ pub(crate) fn decode_value(num_bits: usize, mask: u64, idx: usize, data: &[u8]) 
 fn decode_value_slow_path(mask: u64, addr: usize, bit_shift: u32, data: &[u8]) -> u64 {
     let mut bytes: [u8; 8] = [0u8; 8];
     let available_bytes = data.len() - addr;
-    // This function is meant to only be called if we did not have 8 bytes to load.
     debug_assert!(available_bytes < 8);
     bytes[..available_bytes].copy_from_slice(&data[addr..]);
     let val_unshifted_unmasked: u64 = u64::from_le_bytes(bytes);
     (val_unshifted_unmasked >> bit_shift) & mask
 }
 
-/// Decodes the packed slots `[start_idx, start_idx + output.len())` into
-/// `output`, routing whole aligned blocks through [`decode_block`] and the two
-/// edges through [`decode_value`].
-///
-/// A block only starts byte-aligned -- which the kernels require -- when its
-/// first index is a multiple of 8, since 8 values occupy exactly `bit_width`
-/// bytes. So the block loop is preceded by an entrance ramp of up to 7 values,
-/// and followed by an exit ramp of up to `BLOCK_LEN - 1`.
-///
-/// # Panics
-///
-/// Panics if the requested range needs bytes past the end of `data`.
 #[inline(always)]
 pub fn decode_range<L: Lane>(bit_width: u8, start_idx: usize, data: &[u8], output: &mut [L]) {
     let num_bits = bit_width as usize;
-    // `usize` throughout to avoid overflow issues.
     let end_idx = start_idx + output.len();
     assert!(
         (end_idx * num_bits).div_ceil(8) <= data.len(),
         "Requested index is out of bounds."
     );
-    let mask: u64 = if bit_width == 64 {
+
+    let mask = if bit_width == 64 {
         !0u64
     } else {
         (1u64 << num_bits) - 1u64
     };
 
-    let ramp = (8 - start_idx % 8) % 8;
-    let mut cursor = if ramp + BLOCK_LEN <= output.len() {
-        ramp
-    } else {
-        output.len()
-    };
-    for (i, out) in output[..cursor].iter_mut().enumerate() {
+    let ramp = ((8 - start_idx % 8) % 8).min(output.len());
+    let groups = (output.len() - ramp) / 8;
+    if groups < MIN_KERNEL_GROUPS {
+        for (i, out) in output.iter_mut().enumerate() {
+            *out = L::from_u64(decode_value(num_bits, mask, start_idx + i, data));
+        }
+        return;
+    }
+
+    for (i, out) in output[..ramp].iter_mut().enumerate() {
         *out = L::from_u64(decode_value(num_bits, mask, start_idx + i, data));
     }
-    while cursor + BLOCK_LEN <= output.len() {
-        let block_start_bytes = (start_idx + cursor) * num_bits / 8;
-        let block: &mut [L; BLOCK_LEN] = (&mut output[cursor..cursor + BLOCK_LEN])
-            .try_into()
-            .unwrap();
-        decode_block(bit_width, &data[block_start_bytes..], block);
-        cursor += BLOCK_LEN;
-    }
-    for (i, out) in output[cursor..].iter_mut().enumerate() {
-        *out = L::from_u64(decode_value(num_bits, mask, start_idx + cursor + i, data));
+    let mid_start_bytes = (start_idx + ramp) * num_bits / 8;
+    let done = ramp + groups * 8;
+    decode_groups(bit_width, &data[mid_start_bytes..], &mut output[ramp..done]);
+    for (i, out) in output[done..].iter_mut().enumerate() {
+        *out = L::from_u64(decode_value(num_bits, mask, start_idx + done + i, data));
     }
 }
 
-/// Decodes the 128 packed `bit_width`-bit slots starting at `data[0]` into `out`.
-///
-/// `data` is the slice starting at the block and running to the end of the
-/// data stream: the kernels read a few bytes past the block's own end, so
-/// short slices fall back to a bounds-checked scalar path.
+const MIN_KERNEL_GROUPS: usize = 2;
+
 #[inline(always)]
-pub fn decode_block<L: Lane>(bit_width: u8, data: &[u8], out: &mut [L; BLOCK_LEN]) {
+fn decode_groups<L: Lane>(bit_width: u8, data: &[u8], out: &mut [L]) {
+    debug_assert_eq!(out.len() % 8, 0);
+    if out.is_empty() {
+        return;
+    };
     let w = bit_width as usize;
     if w == 0 {
         out.fill(L::from_u64(0));
         return;
     }
+
     if w == 64 {
-        let block = data.get(..BLOCK_LEN * 8).unwrap_or(data);
+        let block = data.get(..out.len() * 8).unwrap_or(data);
         for (i, o) in out.iter_mut().enumerate() {
             let bytes = block[i * 8..i * 8 + 8].try_into().unwrap();
             *o = L::from_u64(u64::from_le_bytes(bytes));
@@ -197,7 +176,7 @@ pub fn decode_block<L: Lane>(bit_width: u8, data: &[u8], out: &mut [L; BLOCK_LEN
         all(target_arch = "aarch64", target_endian = "little"),
         target_arch = "x86_64"
     ))]
-    if simd_kernel_applies(bit_width) && data.len() >= 16 * w + 16 {
+    if simd_kernel_applies(bit_width) && data.len() >= out.len() / 8 * w + 16 {
         #[cfg(target_arch = "x86_64")]
         use avx2::{decode_block_avx2 as narrow_kernel, decode_block_avx2_wide as wide_kernel};
         #[cfg(all(target_arch = "aarch64", target_endian = "little"))]
@@ -210,13 +189,13 @@ pub fn decode_block<L: Lane>(bit_width: u8, data: &[u8], out: &mut [L; BLOCK_LEN
         }
         return;
     }
-    decode_block_scalar(w, data, out);
+    decode_groups_scalar(w, data, out);
 }
 
-fn decode_block_scalar<L: Lane>(w: usize, data: &[u8], out: &mut [L; BLOCK_LEN]) {
+fn decode_groups_scalar<L: Lane>(w: usize, data: &[u8], out: &mut [L]) {
     debug_assert!((1..=56).contains(&w));
     let mask = (1u64 << w) - 1;
-    let needed = (BLOCK_LEN - 1) * w / 8 + 8;
+    let needed = (out.len() - 1) * w / 8 + 8;
     if needed <= data.len() {
         let block = &data[..needed];
         for (group, chunk) in out.chunks_exact_mut(8).enumerate() {
@@ -270,27 +249,24 @@ mod tests {
     fn check_width(bit_width: u8, pad: usize) {
         let (vals, data) = pack_block(bit_width, pad);
         let mut out = [0u64; BLOCK_LEN];
-        decode_block(bit_width, &data, &mut out);
+        decode_groups(bit_width, &data, &mut out);
         assert_eq!(&out[..], &vals[..], "width {bit_width} pad {pad}");
         if bit_width <= 32 {
             let mut out32 = [0u32; BLOCK_LEN];
-            decode_block(bit_width, &data, &mut out32);
+            decode_groups(bit_width, &data, &mut out32);
             let expected: Vec<u32> = vals.iter().map(|&v| v as u32).collect();
             assert_eq!(&out32[..], &expected[..], "width {bit_width} pad {pad} u32");
         }
     }
 
     #[test]
-    fn test_decode_block_all_widths() {
+    fn test_decode_groups_all_widths() {
         for bit_width in (0..=56u8).chain(std::iter::once(64u8)) {
             check_width(bit_width, 0);
             check_width(bit_width, 16);
         }
     }
 
-    /// `decode_range` must agree with per-value extraction for every width,
-    /// across start offsets that exercise the entrance ramp (unaligned and
-    /// 8-aligned starts), the kernel loop, and the exit ramp.
     #[test]
     fn test_decode_range_all_widths_and_offsets() {
         let num_vals = 3 * BLOCK_LEN + 17;
@@ -312,8 +288,12 @@ mod tests {
             }
             packer.close(&mut data).unwrap();
 
-            for &start in &[0usize, 1, 5, 7, 8, 64, 127, 128, 129, 255, 256, 400] {
-                for &len in &[0usize, 1, 7, 8, 100, 128, 129, 256, num_vals - start] {
+            // Every start phase modulo 8 crossed with every length up to just
+            // past a block: the aligned middle runs on groups of 8, so the
+            // entrance ramp, group count and exit ramp all have to line up for
+            // lengths that are not multiples of 8 and never reach 128.
+            for start in (0usize..24).chain([64, 127, 128, 129, 255, 256, 400]) {
+                for len in (0usize..136).chain([256, num_vals - start]) {
                     if start + len > num_vals {
                         continue;
                     }
@@ -358,20 +338,20 @@ mod tests {
             let (vals, data) = pack_block(bit_width, 16);
             let mut out = [0u64; BLOCK_LEN];
 
-            decode_block(bit_width, &data, &mut out);
+            decode_groups(bit_width, &data, &mut out);
             assert_eq!(&out[..], &vals[..], "width {bit_width}");
 
             let mut best = [f64::MAX; 2];
             for _ in 0..3 {
                 let t0 = Instant::now();
                 for _ in 0..REPS {
-                    decode_block(bit_width, &data, &mut out);
+                    decode_groups(bit_width, &data, &mut out);
                     black_box(out[0]);
                 }
                 best[0] = best[0].min(t0.elapsed().as_nanos() as f64 / REPS as f64);
                 let t0 = Instant::now();
                 for _ in 0..REPS {
-                    decode_block_scalar(bit_width as usize, &data, &mut out);
+                    decode_groups_scalar(bit_width as usize, &data, &mut out);
                     black_box(out[0]);
                 }
                 best[1] = best[1].min(t0.elapsed().as_nanos() as f64 / REPS as f64);
@@ -407,14 +387,14 @@ mod tests {
                 "width {bit_width} has no kernel"
             );
         }
-        // 0 and 64 are served by `decode_block` itself.
+        // 0 and 64 are served by `decode_groups` itself.
         assert!(!simd_kernel_applies(0) && !simd_kernel_applies(64));
         // The narrow kernel's own limit: `bit_shift (<= 7) + w <= 32`.
         assert!(narrow_kernel_applies(25) && !narrow_kernel_applies(26));
     }
 
     #[test]
-    fn test_decode_block_scalar_matches_kernel() {
+    fn test_decode_groups_scalar_matches_kernel() {
         assert!(
             !simd_enabled() || simd_kernel_applies(8),
             "a kernel is available but the width gate rejects it"
@@ -423,16 +403,16 @@ mod tests {
             let (_, data) = pack_block(bit_width, 16);
 
             let mut kernel = [0u64; BLOCK_LEN];
-            decode_block(bit_width, &data, &mut kernel);
+            decode_groups(bit_width, &data, &mut kernel);
             let mut scalar = [0u64; BLOCK_LEN];
-            decode_block_scalar(bit_width as usize, &data, &mut scalar);
+            decode_groups_scalar(bit_width as usize, &data, &mut scalar);
             assert_eq!(&kernel[..], &scalar[..], "u64 width {bit_width}");
 
             // The u32 lane takes a different store path in both kernels.
             let mut kernel32 = [0u32; BLOCK_LEN];
-            decode_block(bit_width, &data, &mut kernel32);
+            decode_groups(bit_width, &data, &mut kernel32);
             let mut scalar32 = [0u32; BLOCK_LEN];
-            decode_block_scalar(bit_width as usize, &data, &mut scalar32);
+            decode_groups_scalar(bit_width as usize, &data, &mut scalar32);
             assert_eq!(&kernel32[..], &scalar32[..], "u32 width {bit_width}");
         }
     }

@@ -23,11 +23,10 @@ use std::io::{self, Write};
 
 use common::{BinarySerializable, CountingWriter, DeserializeFrom, OwnedBytes};
 use fastdivide::DividerU64;
+use tantivy_bitpacker::block_decode::decode_range;
 use tantivy_bitpacker::{BitPacker, compute_num_bits};
 
-use super::block_decode::{
-    BLOCK_LEN, BlockDecode, DecodeCost, decode_block, min_batch_rows, partial_block_min_rows,
-};
+use super::block_decode::{BLOCK_LEN, BlockDecode, DecodeCost, min_batch_rows};
 use crate::column_values::u64_based::{ColumnCodec, ColumnCodecEstimator, ColumnStats};
 use crate::{ColumnValues, RowId};
 
@@ -140,15 +139,11 @@ impl BlockDecode for BlockForReader {
     }
 
     #[inline]
-    fn partial_min_rows(&self, block_idx: usize) -> usize {
-        partial_block_min_rows(self.block_meta(block_idx).bit_width)
-    }
-
-    #[inline]
-    fn decode_block_mapped(&self, block_idx: usize, out: &mut [u64; BLOCK_LEN]) {
+    fn decode_block_range(&self, block_idx: usize, in_block: usize, out: &mut [u64]) {
         let meta = self.block_meta(block_idx);
-        decode_block(
+        decode_range(
             meta.bit_width,
+            in_block,
             &self.data[meta.start_byte_offset as usize..],
             out,
         );
@@ -231,7 +226,7 @@ impl ColumnValues for BlockForReader {
             if block_min > value_hi || block_max < value_lo {
                 continue;
             }
-            self.decode_block_mapped(block_idx, &mut buf);
+            self.decode_block_range(block_idx, 0, &mut buf);
             let row_base = (block_idx * BLOCK_LEN) as u32;
             let from = start.max(row_base) - row_base;
             let to = end.min(row_base + BLOCK_LEN as u32) - row_base;
@@ -249,7 +244,7 @@ impl ColumnValues for BlockForReader {
             start + output.len() as u64 <= u64::from(self.stats.num_rows),
             "get_range out of bounds"
         );
-        self.decode_range(start, output);
+        self.decode_range(start, output)
     }
 
     fn min_batch_rows(&self) -> usize {

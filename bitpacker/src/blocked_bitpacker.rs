@@ -1,6 +1,6 @@
 use super::bitpacker::BitPacker;
 use super::compute_num_bits;
-use crate::block_decode::{BLOCK_LEN, decode_block};
+use crate::block_decode::{BLOCK_LEN, decode_range};
 use crate::{BitUnpacker, minmax};
 
 const BLOCK_SIZE: usize = BLOCK_LEN;
@@ -143,8 +143,9 @@ impl BlockedBitpacker {
             .iter()
             .flat_map(move |metadata| {
                 let mut block = [0u64; BLOCK_SIZE];
-                decode_block(
+                decode_range(
                     metadata.num_bits(),
+                    0,
                     &self.compressed_blocks[metadata.offset() as usize..],
                     &mut block,
                 );
