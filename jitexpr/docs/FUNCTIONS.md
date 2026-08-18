@@ -54,7 +54,7 @@ excluded from this pass, or is complex enough to warrant a separate implementati
 | 40 | `LEFT` | out-of-scope |
 | 41 | `RIGHT` | out-of-scope |
 | 42 | `SUBSTRING` | out-of-scope |
-| 43 | `SPLIT_BEFORE` | pending |
+| 43 | `SPLIT_BEFORE` | out-of-scope |
 | 44 | `SPLIT_AFTER` | pending |
 | 50 | `REGEXP_EXTRACT` | done |
 | 54 | `TRIM` | pending |
@@ -76,7 +76,7 @@ excluded from this pass, or is complex enough to warrant a separate implementati
 | 79 | `SUBSTRING_COUNT` | pending |
 | 80 | `REGEXP_LIKE` | pending |
 
-Progress: **25 / 38 in-scope** functions implemented; **17** functions are out-of-scope.
+Progress: **25 / 37 in-scope** functions implemented; **18** functions are out-of-scope.
 
 ## Deferred implementation notes
 
@@ -110,3 +110,6 @@ Progress: **25 / 38 in-scope** functions implemented; **17** functions are out-o
 - `SUBSTRING` slices raw UTF-8 byte offsets and can therefore produce an invalid `str`. Its scalar
   kernel also has an observable defect that returns empty whenever `start == length`, rather than
   only when the computed start and end are equal.
+- `SPLIT_BEFORE` does not stop after handling a negative occurrence. Its scalar kernel continues
+  and can construct a negative slice bound, aborting the query. It is deferred until negative
+  occurrence semantics are defined explicitly.
