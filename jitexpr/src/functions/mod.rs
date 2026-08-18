@@ -11,6 +11,7 @@ mod if_fn;
 mod int_mod;
 mod is_not_null;
 mod is_null;
+mod left;
 mod lower;
 mod lt;
 mod lt_eq;
@@ -47,6 +48,7 @@ pub(crate) use self::if_fn::IfFnCall;
 pub(crate) use self::int_mod::IntModFnCall;
 pub(crate) use self::is_not_null::IsNotNullFnCall;
 pub(crate) use self::is_null::IsNullFnCall;
+pub(crate) use self::left::LeftFnCall;
 pub(crate) use self::lower::LowerFnCall;
 pub(crate) use self::lt::LtFnCall;
 pub(crate) use self::lt_eq::LtEqFnCall;
@@ -95,6 +97,8 @@ pub enum Function {
     If,
     /// Computes floating-point modulo with the divisor's sign.
     IntMod,
+    /// Returns the first requested number of bytes from a string.
+    Left,
     /// Tests whether the first ordered value is less than the second.
     Lt,
     /// Tests whether the first ordered value is less than or equal to the second.
@@ -162,6 +166,9 @@ impl Function {
             Function::If => <IfFnCall as FnCall>::call_with_types(args, target_type_set, context),
             Function::IntMod => {
                 <IntModFnCall as FnCall>::call_with_types(args, target_type_set, context)
+            }
+            Function::Left => {
+                <LeftFnCall as FnCall>::call_with_types(args, target_type_set, context)
             }
             Function::Lt => <LtFnCall as FnCall>::call_with_types(args, target_type_set, context),
             Function::LtEq => {
@@ -237,6 +244,9 @@ impl Function {
             Function::IntMod => {
                 <IntModFnCall as FnCall>::infer_types(args, target_type, inferred_types)
             }
+            Function::Left => {
+                <LeftFnCall as FnCall>::infer_types(args, target_type, inferred_types)
+            }
             Function::Lt => <LtFnCall as FnCall>::infer_types(args, target_type, inferred_types),
             Function::LtEq => {
                 <LtEqFnCall as FnCall>::infer_types(args, target_type, inferred_types)
@@ -306,6 +316,7 @@ pub(crate) enum FnCallEnum {
     GtEq(GtEqFnCall),
     If(IfFnCall),
     IntMod(IntModFnCall),
+    Left(LeftFnCall),
     Lt(LtFnCall),
     LtEq(LtEqFnCall),
     IsNull(IsNullFnCall),
@@ -341,6 +352,7 @@ impl FnCallEnum {
             FnCallEnum::GtEq(call) => call.args_mut(),
             FnCallEnum::If(call) => call.args_mut(),
             FnCallEnum::IntMod(call) => call.args_mut(),
+            FnCallEnum::Left(call) => call.args_mut(),
             FnCallEnum::Lt(call) => call.args_mut(),
             FnCallEnum::LtEq(call) => call.args_mut(),
             FnCallEnum::IsNull(call) => call.args_mut(),
@@ -382,6 +394,7 @@ impl FnCallEnum {
             FnCallEnum::GtEq(call) => call.emit_cranelift_ir(return_type, context, builder),
             FnCallEnum::If(call) => call.emit_cranelift_ir(return_type, context, builder),
             FnCallEnum::IntMod(call) => call.emit_cranelift_ir(return_type, context, builder),
+            FnCallEnum::Left(call) => call.emit_cranelift_ir(return_type, context, builder),
             FnCallEnum::Lt(call) => call.emit_cranelift_ir(return_type, context, builder),
             FnCallEnum::LtEq(call) => call.emit_cranelift_ir(return_type, context, builder),
             FnCallEnum::IsNull(call) => call.emit_cranelift_ir(return_type, context, builder),
