@@ -120,6 +120,7 @@ fn function_name(function: Function) -> &'static str {
     match function {
         Function::And => "AND",
         Function::Add => "ADD",
+        Function::Divide => "DIVIDE",
         Function::Eq => "EQ",
         Function::IsNull => "IS_NULL",
         Function::IsNotNull => "IS_NOT_NULL",
@@ -136,6 +137,7 @@ fn parse_function(name: &str, offset: usize) -> Result<Function, DeserializeErro
     match name {
         "AND" => Ok(Function::And),
         "ADD" => Ok(Function::Add),
+        "DIVIDE" => Ok(Function::Divide),
         "EQ" => Ok(Function::Eq),
         "IS_NULL" => Ok(Function::IsNull),
         "IS_NOT_NULL" => Ok(Function::IsNotNull),
