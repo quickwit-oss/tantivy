@@ -30,7 +30,7 @@ excluded from this pass.
 | 8 | `EQ` | done |
 | 9 | `GT` | done |
 | 10 | `LT` | done |
-| 11 | `GT_EQ` | pending |
+| 11 | `GT_EQ` | done |
 | 12 | `LT_EQ` | pending |
 | 13 | `IS_NULL` | done |
 | 14 | `IS_NOT_NULL` | done |
@@ -76,4 +76,4 @@ excluded from this pass.
 | 79 | `SUBSTRING_COUNT` | pending |
 | 80 | `REGEXP_LIKE` | pending |
 
-Progress: **14 / 48 in-scope** functions implemented; **7** functions are out-of-scope.
+Progress: **15 / 48 in-scope** functions implemented; **7** functions are out-of-scope.
