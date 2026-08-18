@@ -35,7 +35,7 @@ excluded from this pass, or is complex enough to warrant a separate implementati
 | 13 | `IS_NULL` | done |
 | 14 | `IS_NOT_NULL` | done |
 | 15 | `CIDR` | out-of-scope |
-| 16 | `UPPER` | pending |
+| 16 | `UPPER` | done |
 | 17 | `LOWER` | done |
 | 18 | `PROPER` | pending |
 | 19 | `CONCAT` | pending |
@@ -76,7 +76,7 @@ excluded from this pass, or is complex enough to warrant a separate implementati
 | 79 | `SUBSTRING_COUNT` | pending |
 | 80 | `REGEXP_LIKE` | pending |
 
-Progress: **16 / 47 in-scope** functions implemented; **8** functions are out-of-scope.
+Progress: **17 / 47 in-scope** functions implemented; **8** functions are out-of-scope.
 
 ## Deferred implementation notes
 

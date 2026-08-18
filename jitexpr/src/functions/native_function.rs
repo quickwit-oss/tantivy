@@ -1,13 +1,14 @@
 use cranelift::codegen::ir::{FuncRef, Function as CraneliftFunction, Type};
 use cranelift_jit::{JITBuilder, JITModule};
 
-use super::{comparison, eq, lower, regexp_extract};
+use super::{comparison, eq, lower, regexp_extract, upper};
 use crate::compile::CompileError;
 
 /// References to native functions imported into the current Cranelift function.
 pub(crate) struct NativeFunctions {
     string_eq: FuncRef,
     string_lowercase: FuncRef,
+    string_uppercase: FuncRef,
     regexp_extract: FuncRef,
     string_compare: FuncRef,
     f64_i64_compare: FuncRef,
@@ -21,6 +22,10 @@ impl NativeFunctions {
 
     pub(crate) fn string_lowercase(&self) -> FuncRef {
         self.string_lowercase
+    }
+
+    pub(crate) fn string_uppercase(&self) -> FuncRef {
+        self.string_uppercase
     }
 
     pub(crate) fn regexp_extract(&self) -> FuncRef {
@@ -45,6 +50,7 @@ pub(crate) fn register_jit_symbols(jit_builder: &mut JITBuilder) {
     eq::register_jit_symbol(jit_builder);
     comparison::register_jit_symbols(jit_builder);
     lower::register_jit_symbol(jit_builder);
+    upper::register_jit_symbol(jit_builder);
     regexp_extract::register_jit_symbol(jit_builder);
 }
 
@@ -58,6 +64,7 @@ pub(crate) fn declare_native_functions(
     Ok(NativeFunctions {
         string_eq: eq::declare_native_function(module, function, pointer_type)?,
         string_lowercase: lower::declare_native_function(module, function, pointer_type)?,
+        string_uppercase: upper::declare_native_function(module, function, pointer_type)?,
         regexp_extract: regexp_extract::declare_native_function(module, function, pointer_type)?,
         string_compare: comparison.string_compare,
         f64_i64_compare: comparison.f64_i64_compare,

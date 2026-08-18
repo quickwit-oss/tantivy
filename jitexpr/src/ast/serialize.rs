@@ -134,6 +134,7 @@ fn function_name(function: Function) -> &'static str {
         Function::Or => "OR",
         Function::RegexpExtract => "REGEXP_EXTRACT",
         Function::Subtract => "SUBTRACT",
+        Function::Upper => "UPPER",
     }
 }
 
@@ -155,6 +156,7 @@ fn parse_function(name: &str, offset: usize) -> Result<Function, DeserializeErro
         "OR" => Ok(Function::Or),
         "REGEXP_EXTRACT" => Ok(Function::RegexpExtract),
         "SUBTRACT" => Ok(Function::Subtract),
+        "UPPER" => Ok(Function::Upper),
         _ if !is_function_name(name) => Err(DeserializeError::new(
             offset,
             format!("function name `{name}` must be uppercase"),
