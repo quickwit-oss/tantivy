@@ -64,7 +64,7 @@ excluded from this pass, or is complex enough to warrant a separate implementati
 | 63 | `TRY_CAST_FLOAT` | out-of-scope |
 | 65 | `TO_TIMESTAMP` | out-of-scope |
 | 66 | `EXTRACT` | out-of-scope |
-| 67 | `SEMVER` | pending |
+| 67 | `SEMVER` | out-of-scope |
 | 70 | `ARRAY_CONTAINS` | out-of-scope |
 | 71 | `ARRAY_SUM` | out-of-scope |
 | 72 | `ARRAY_AVG` | out-of-scope |
@@ -76,7 +76,7 @@ excluded from this pass, or is complex enough to warrant a separate implementati
 | 79 | `SUBSTRING_COUNT` | pending |
 | 80 | `REGEXP_LIKE` | pending |
 
-Progress: **27 / 31 in-scope** functions implemented; **24** functions are out-of-scope.
+Progress: **27 / 30 in-scope** functions implemented; **25** functions are out-of-scope.
 
 ## Deferred implementation notes
 
@@ -130,3 +130,6 @@ Progress: **27 / 31 in-scope** functions implemented; **24** functions are out-o
 - `EXTRACT` has an unresolved production type contradiction: the type checker returns string while
   the function registry declares `int64`. Its temporal component kernels and failure behavior need
   to be reconciled before jitexpr can expose a sound result type.
+- `SEMVER` requires argument 0 to remain a bare column, parses a constant comparison expression,
+  and has uncharacterized malformed-version behavior. Its tag also collides with
+  `TIMESTAMP_DIFF` in the stale pomsky schema, so it is deferred as a compatibility feature.
