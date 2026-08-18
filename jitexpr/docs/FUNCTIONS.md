@@ -62,7 +62,7 @@ excluded from this pass, or is complex enough to warrant a separate implementati
 | 56 | `COALESCE` | out-of-scope |
 | 61 | `TRY_CAST_INT` | out-of-scope |
 | 63 | `TRY_CAST_FLOAT` | out-of-scope |
-| 65 | `TO_TIMESTAMP` | pending |
+| 65 | `TO_TIMESTAMP` | out-of-scope |
 | 66 | `EXTRACT` | pending |
 | 67 | `SEMVER` | pending |
 | 70 | `ARRAY_CONTAINS` | out-of-scope |
@@ -76,7 +76,7 @@ excluded from this pass, or is complex enough to warrant a separate implementati
 | 79 | `SUBSTRING_COUNT` | pending |
 | 80 | `REGEXP_LIKE` | pending |
 
-Progress: **27 / 33 in-scope** functions implemented; **22** functions are out-of-scope.
+Progress: **27 / 32 in-scope** functions implemented; **23** functions are out-of-scope.
 
 ## Deferred implementation notes
 
@@ -125,3 +125,5 @@ Progress: **27 / 33 in-scope** functions implemented; **22** functions are out-o
 - `TRY_CAST_FLOAT` shares the cast-elision/tree-rewrite machinery and uses a separate
   `IsLikelyFloat` heuristic whose leading-zero rules differ from integer parsing. It is deferred
   with `TRY_CAST_INT` so the coercion policy is implemented consistently.
+- `TO_TIMESTAMP` uses a custom calculated-field format-language translator before Go time parsing,
+  with parse failures and timestamp rendering behavior that need a dedicated compatibility pass.
