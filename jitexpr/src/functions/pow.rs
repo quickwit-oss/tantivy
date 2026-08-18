@@ -91,9 +91,10 @@ impl FnCall for PowFnCall {
         debug_assert_eq!(return_type, VarType::F64);
         let base = context.compile_expr(&self.args[0], builder)?;
         let exponent = context.compile_expr(&self.args[1], builder)?;
-        let call = builder
-            .ins()
-            .call(context.native_functions().float_pow(), &[base.value, exponent.value]);
+        let call = builder.ins().call(
+            context.native_functions().float_pow(),
+            &[base.value, exponent.value],
+        );
         let result = builder.inst_results(call)[0];
 
         let zero = builder.ins().f64const(0.0);
@@ -172,7 +173,10 @@ mod tests {
             ));
         }
         let expression = deserialize("(POW 2i64 3i64)").unwrap();
-        assert_eq!(compile(&expression, &HashMap::new()).unwrap().result_type(), VarType::F64);
+        assert_eq!(
+            compile(&expression, &HashMap::new()).unwrap().result_type(),
+            VarType::F64
+        );
     }
 
     #[test]
@@ -199,7 +203,11 @@ mod tests {
             Some(9.0)
         );
         assert_eq!(
-            unsafe { compiled.call(&[VariableValue::some(3i64), VariableValue::none()]).as_f64() },
+            unsafe {
+                compiled
+                    .call(&[VariableValue::some(3i64), VariableValue::none()])
+                    .as_f64()
+            },
             None
         );
     }
