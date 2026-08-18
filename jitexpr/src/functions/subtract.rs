@@ -238,4 +238,14 @@ mod tests {
         // SAFETY: The expression has no inputs and returns an absent value.
         assert_eq!(unsafe { compiled.call(&[]).as_i64() }, None);
     }
+
+    #[test]
+    fn test_compile_time_i64() {
+        let expression = deserialize("(SUBTRACT 1u64 10u64)").unwrap();
+        let mut compiled = compile(&expression, &HashMap::new()).unwrap();
+
+        assert_eq!(compiled.result_type(), VarType::I64);
+        // SAFETY: The expression has no inputs and returns an absent value.
+        assert_eq!(unsafe { compiled.call(&[]).as_i64() }, Some(-9i64));
+    }
 }
