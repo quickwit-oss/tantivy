@@ -21,7 +21,7 @@ excluded from this pass.
 | Tag | Function | Status |
 |---:|---|---|
 | 1 | `AND` | done |
-| 2 | `OR` | pending |
+| 2 | `OR` | done |
 | 3 | `NOT` | done |
 | 4 | `ADD` | done |
 | 5 | `SUBTRACT` | pending |
@@ -76,4 +76,4 @@ excluded from this pass.
 | 79 | `SUBSTRING_COUNT` | pending |
 | 80 | `REGEXP_LIKE` | pending |
 
-Progress: **8 / 48 in-scope** functions implemented; **7** functions are out-of-scope.
+Progress: **9 / 48 in-scope** functions implemented; **7** functions are out-of-scope.

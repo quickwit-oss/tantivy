@@ -125,6 +125,7 @@ fn function_name(function: Function) -> &'static str {
         Function::IsNotNull => "IS_NOT_NULL",
         Function::Lower => "LOWER",
         Function::Not => "NOT",
+        Function::Or => "OR",
         Function::RegexpExtract => "REGEXP_EXTRACT",
     }
 }
@@ -138,6 +139,7 @@ fn parse_function(name: &str, offset: usize) -> Result<Function, DeserializeErro
         "IS_NOT_NULL" => Ok(Function::IsNotNull),
         "LOWER" => Ok(Function::Lower),
         "NOT" => Ok(Function::Not),
+        "OR" => Ok(Function::Or),
         "REGEXP_EXTRACT" => Ok(Function::RegexpExtract),
         _ if !is_function_name(name) => Err(DeserializeError::new(
             offset,
