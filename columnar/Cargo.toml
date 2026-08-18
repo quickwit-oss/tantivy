@@ -42,6 +42,10 @@ name = "bench_values_u64"
 harness = false
 
 [[bench]]
+name = "bench_bitpacked_batch"
+harness = false
+
+[[bench]]
 name = "bench_values_u128"
 harness = false
 

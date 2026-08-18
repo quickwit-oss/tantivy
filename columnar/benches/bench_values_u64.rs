@@ -54,6 +54,25 @@ fn bench_access() {
     let column_perm_gcd: Arc<dyn ColumnValues<u64>> =
         serialize_and_load(&permutation_gcd, CodecType::Bitpacked);
 
+    // Same size, different bit widths: 8 (byte aligned), 33 (above the NEON
+    // kernel's 25-bit limit -> scalar), to see each decode path.
+    let data_u8: Vec<u64> = generate_permutation().iter().map(|v| v & 0xFF).collect();
+    let column_u8: Arc<dyn ColumnValues<u64>> = serialize_and_load(&data_u8, CodecType::Bitpacked);
+    // Spread the permutation over 33 bits and pin gcd/amplitude: a value of 1
+    // forces gcd 1, the 0 and 2^33-1 endpoints force a 33-bit amplitude.
+    // (A shifted construction like `(v << 16) | 2^32` would silently collapse:
+    // every value shares the 2^16 factor, the gcd normalization strips it, and
+    // the column encodes at 16 bits on the NEON path instead.)
+    let mut data_u33: Vec<u64> = generate_permutation()
+        .iter()
+        .map(|v| v.wrapping_mul(0x9E3779B97F4A7C15) & ((1u64 << 33) - 1))
+        .collect();
+    data_u33[0] = 0;
+    data_u33[1] = (1u64 << 33) - 1;
+    data_u33[2] = 1;
+    let column_u33: Arc<dyn ColumnValues<u64>> =
+        serialize_and_load(&data_u33, CodecType::Bitpacked);
+
     let mut group: InputGroup<VecCol> = InputGroup::new_with_inputs(vec![
         (
             "access".to_string(),
@@ -63,6 +82,8 @@ fn bench_access() {
             "access_gcd".to_string(),
             (permutation_gcd.clone(), column_perm_gcd.clone()),
         ),
+        ("access_u8".to_string(), (data_u8, column_u8)),
+        ("access_u33".to_string(), (data_u33, column_u33)),
     ]);
 
     group.register("stride7_vec", |inp: &VecCol| {
@@ -97,6 +118,27 @@ fn bench_access() {
         for i in 0..n {
             a += inp.1.get_val(i as u32);
         }
+        black_box(a);
+    });
+
+    group.register("getrange_fullscan_column_values", |inp: &VecCol| {
+        let n = inp.1.num_vals() as usize;
+        let mut buf = vec![0u64; 4096];
+        let mut a = 0u64;
+        let mut start = 0usize;
+        while start < n {
+            let take = 4096.min(n - start);
+            inp.1.get_range(start as u64, &mut buf[..take]);
+            for &v in &buf[..take] {
+                a += v;
+            }
+            start += take;
+        }
+        black_box(a);
+    });
+
+    group.register("iter_fullscan_column_values", |inp: &VecCol| {
+        let a: u64 = inp.1.iter().sum();
         black_box(a);
     });
 

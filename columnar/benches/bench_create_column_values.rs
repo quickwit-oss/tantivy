@@ -1,6 +1,7 @@
 use binggan::{InputGroup, black_box};
 use rand::rngs::StdRng;
 use rand::{Rng, SeedableRng};
+use tantivy_columnar::MonotonicallyMappableToU64;
 use tantivy_columnar::column_values::{CodecType, serialize_u64_based_column_values};
 
 fn get_data() -> Vec<u64> {
@@ -17,28 +18,54 @@ fn get_data() -> Vec<u64> {
     data
 }
 
+/// Decimal values, in the u64 bit mapping the codecs see: `Alp` refuses
+/// integer data. Its serialization searches for an exponent per block, which
+/// is the reason to watch its write side separately.
+fn get_decimal_data() -> Vec<u64> {
+    let mut rng = StdRng::seed_from_u64(3u64);
+    (0..55_000)
+        .map(|_| f64::to_u64(rng.random_range(0..10_000_000) as f64 / 100.0))
+        .collect()
+}
+
+fn inputs(
+    data: &[u64],
+    codecs: &[(&str, CodecType)],
+) -> Vec<(String, (CodecType, Vec<u64>))> {
+    codecs
+        .iter()
+        .map(|(name, codec)| (name.to_string(), (*codec, data.to_vec())))
+        .collect()
+}
+
 fn main() {
-    let data = get_data();
-    let mut group: InputGroup<(CodecType, Vec<u64>)> = InputGroup::new_with_inputs(vec![
+    for (data, codecs) in [
         (
-            "bitpacked codec".to_string(),
-            (CodecType::Bitpacked, data.clone()),
+            get_data(),
+            &[
+                ("bitpacked codec", CodecType::Bitpacked),
+                ("linear codec", CodecType::Linear),
+                ("blockwise linear codec", CodecType::BlockwiseLinear),
+                ("block_for codec", CodecType::BlockFor),
+            ][..],
         ),
         (
-            "linear codec".to_string(),
-            (CodecType::Linear, data.clone()),
+            get_decimal_data(),
+            &[
+                ("bitpacked codec dec", CodecType::Bitpacked),
+                ("linear codec dec", CodecType::Linear),
+                ("blockwise linear codec dec", CodecType::BlockwiseLinear),
+                ("block_for codec dec", CodecType::BlockFor),
+            ][..],
         ),
-        (
-            "blockwise linear codec".to_string(),
-            (CodecType::BlockwiseLinear, data.clone()),
-        ),
-    ]);
-
-    group.register("serialize column_values", |data| {
-        let mut buffer = Vec::new();
-        serialize_u64_based_column_values(&data.1.as_slice(), &[data.0], &mut buffer).unwrap();
-        black_box(buffer.len());
-    });
-
-    group.run();
+    ] {
+        let mut group: InputGroup<(CodecType, Vec<u64>)> =
+            InputGroup::new_with_inputs(inputs(&data, codecs));
+        group.register("serialize column_values", move |data| {
+            let mut buffer = Vec::new();
+            serialize_u64_based_column_values(&data.1.as_slice(), &[data.0], &mut buffer).unwrap();
+            black_box(buffer.len());
+        });
+        group.run();
+    }
 }
