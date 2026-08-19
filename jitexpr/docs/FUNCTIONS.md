@@ -54,7 +54,7 @@ excluded from this pass, or is complex enough to warrant a separate implementati
 | 40 | `LEFT` | done |
 | 41 | `RIGHT` | done |
 | 42 | `SUBSTRING` | done |
-| 43 | `SPLIT_BEFORE` | out-of-scope |
+| 43 | `SPLIT_BEFORE` | done |
 | 44 | `SPLIT_AFTER` | out-of-scope |
 | 50 | `REGEXP_EXTRACT` | done |
 | 54 | `TRIM` | done |
@@ -76,7 +76,7 @@ excluded from this pass, or is complex enough to warrant a separate implementati
 | 79 | `SUBSTRING_COUNT` | done |
 | 80 | `REGEXP_LIKE` | done |
 
-Progress: **32 / 32 in-scope** functions implemented; **23** functions are out-of-scope.
+Progress: **33 / 33 in-scope** functions implemented; **22** functions are out-of-scope.
 
 ## Deferred implementation notes
 
@@ -102,9 +102,6 @@ Progress: **32 / 32 in-scope** functions implemented; **23** functions are out-o
 - `SQRT` has a contradictory production type contract: the dd-go type checker returns the selected
   input type (including integer), while the registry declares a `float64` output and both integer
   and float kernels write `float64`. It is deferred until one of those contracts is chosen.
-- `SPLIT_BEFORE` does not stop after handling a negative occurrence. Its scalar kernel continues
-  and can construct a negative slice bound, aborting the query. It is deferred until negative
-  occurrence semantics are defined explicitly.
 - `SPLIT_AFTER` shares the negative-occurrence double-append defect with `SPLIT_BEFORE`; its scalar
   result can contain both an empty value and the unsplit input even though the function is expected
   to be scalar.
