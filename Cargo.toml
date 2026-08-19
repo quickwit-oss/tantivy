@@ -164,6 +164,7 @@ members = [
     "sstable",
     "tokenizer-api",
     "columnar",
+    "jitexpr",
 ]
 
 # Following the "fail" crate best practises, we isolate
