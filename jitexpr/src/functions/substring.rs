@@ -106,6 +106,14 @@ impl FnCall for SubstringFnCall {
         std::slice::from_mut(&mut self.input)
     }
 
+    fn serialize(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(
+            formatter,
+            "SUBSTRING {} {}u64 {}u64",
+            self.input, self.start, self.length
+        )
+    }
+
     fn emit_cranelift_ir(
         &self,
         return_type: VarType,

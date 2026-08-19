@@ -76,6 +76,10 @@ impl FnCall for LowerFnCall {
         std::slice::from_mut(&mut self.arg)
     }
 
+    fn serialize(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+        crate::compile::format_function_call("LOWER", std::iter::once(self.arg.as_ref()), formatter)
+    }
+
     fn emit_cranelift_ir(
         &self,
         return_type: VarType,

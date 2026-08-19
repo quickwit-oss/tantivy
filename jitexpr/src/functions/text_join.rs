@@ -52,6 +52,10 @@ impl FnCall for TextJoinFnCall {
         self.arguments.args_mut()
     }
 
+    fn serialize(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+        self.arguments.serialize("TEXT_JOIN", formatter)
+    }
+
     fn emit_cranelift_ir(
         &self,
         return_type: VarType,

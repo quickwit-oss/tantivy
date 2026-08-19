@@ -74,6 +74,10 @@ impl FnCall for OrFnCall {
         &mut self.args
     }
 
+    fn serialize(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+        crate::compile::format_function_call("OR", self.args.iter(), formatter)
+    }
+
     fn emit_cranelift_ir(
         &self,
         return_type: VarType,

@@ -3,6 +3,7 @@ mod compiled_fn;
 mod error;
 mod string_arena;
 mod typed_expr;
+mod typed_expr_serialize;
 
 use std::collections::HashMap;
 
@@ -18,6 +19,7 @@ pub(crate) use string_arena::STRING_ARENA_CAPACITY;
 pub(crate) use string_arena::StringArena;
 pub use typed_expr::TypedVariable;
 pub(crate) use typed_expr::{TypedExpr, TypedExprAst, TypedLiteral};
+pub(crate) use typed_expr_serialize::{format_function_call, format_string_literal};
 
 use crate::ast::UntypedExpr;
 use crate::functions::NativeFunctions;
@@ -30,6 +32,16 @@ pub fn compile(
     let mut builder = CompileFnBuilder::new(var_types);
     let typed_expr = builder.build_typed_expr(untyped_expr)?;
     builder.compile_typed_expr(typed_expr)
+}
+
+/// Applies concrete variable types and serializes the resulting typed expression.
+pub fn serialize(
+    untyped_expr: &UntypedExpr,
+    var_types: &HashMap<&str, VarType>,
+) -> Result<String, CompileError> {
+    let mut builder = CompileFnBuilder::new(var_types);
+    let typed_expr = builder.build_typed_expr(untyped_expr)?;
+    Ok(typed_expr_serialize::serialize(&typed_expr))
 }
 
 /// Compiles an expression and returns Cranelift's assembly listing for the host target.

@@ -108,6 +108,12 @@ impl FnCall for SplitBeforeFnCall {
         std::slice::from_mut(&mut self.input)
     }
 
+    fn serialize(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(formatter, "SPLIT_BEFORE {} ", self.input)?;
+        crate::compile::format_string_literal(&self.separator, formatter)?;
+        write!(formatter, " {}u64", self.occurrence)
+    }
+
     fn emit_cranelift_ir(
         &self,
         return_type: VarType,

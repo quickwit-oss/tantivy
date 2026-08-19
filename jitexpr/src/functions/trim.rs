@@ -30,6 +30,16 @@ enum TrimMode {
     Both,
 }
 
+impl TrimMode {
+    fn as_str(self) -> &'static str {
+        match self {
+            TrimMode::Leading => "leading",
+            TrimMode::Trailing => "trailing",
+            TrimMode::Both => "both",
+        }
+    }
+}
+
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) struct TrimFnCall {
     input: Box<TypedExpr>,
@@ -100,6 +110,15 @@ impl FnCall for TrimFnCall {
 
     fn args_mut(&mut self) -> &mut [TypedExpr] {
         std::slice::from_mut(&mut self.input)
+    }
+
+    fn serialize(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+        use std::fmt::Write as _;
+
+        write!(formatter, "TRIM {} ", self.input)?;
+        crate::compile::format_string_literal(&self.delimiter, formatter)?;
+        formatter.write_char(' ')?;
+        crate::compile::format_string_literal(self.mode.as_str(), formatter)
     }
 
     fn emit_cranelift_ir(

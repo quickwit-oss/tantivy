@@ -66,6 +66,10 @@ impl FnCall for IsNullFnCall {
         &mut self.args
     }
 
+    fn serialize(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+        crate::compile::format_function_call("IS_NULL", self.args.iter(), formatter)
+    }
+
     fn emit_cranelift_ir(
         &self,
         return_type: VarType,

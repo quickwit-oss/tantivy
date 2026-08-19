@@ -81,6 +81,10 @@ impl FnCall for NeqFnCall {
         self.eq.args_mut()
     }
 
+    fn serialize(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+        crate::compile::format_function_call("NEQ", self.eq.args.iter(), formatter)
+    }
+
     fn emit_cranelift_ir(
         &self,
         return_type: VarType,

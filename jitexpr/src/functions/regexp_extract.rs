@@ -119,6 +119,12 @@ impl FnCall for RegexpExtractFnCall {
         std::slice::from_mut(&mut self.haystack)
     }
 
+    fn serialize(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(formatter, "REGEXP_EXTRACT {} ", self.haystack)?;
+        crate::compile::format_string_literal(self.regex.as_str(), formatter)?;
+        write!(formatter, " {}u64", self.capture_index)
+    }
+
     /// Produce CraneLift IR for the given function call.
     fn emit_cranelift_ir(
         &self,

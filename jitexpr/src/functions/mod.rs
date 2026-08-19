@@ -417,6 +417,49 @@ pub(crate) enum FnCallEnum {
 }
 
 impl FnCallEnum {
+    pub(crate) fn serialize(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match self {
+            FnCallEnum::Abs(call) => call.serialize(formatter),
+            FnCallEnum::And(call) => call.serialize(formatter),
+            FnCallEnum::Ceil(call) => call.serialize(formatter),
+            FnCallEnum::Concat(call) => call.serialize(formatter),
+            FnCallEnum::Add(call) => call.serialize(formatter),
+            FnCallEnum::Divide(call) => call.serialize(formatter),
+            FnCallEnum::Eq(call) => call.serialize(formatter),
+            FnCallEnum::Floor(call) => call.serialize(formatter),
+            FnCallEnum::Gt(call) => call.serialize(formatter),
+            FnCallEnum::GtEq(call) => call.serialize(formatter),
+            FnCallEnum::If(call) => call.serialize(formatter),
+            FnCallEnum::IntMod(call) => call.serialize(formatter),
+            FnCallEnum::Left(call) => call.serialize(formatter),
+            FnCallEnum::Lt(call) => call.serialize(formatter),
+            FnCallEnum::LtEq(call) => call.serialize(formatter),
+            FnCallEnum::IsNull(call) => call.serialize(formatter),
+            FnCallEnum::IsNotNull(call) => call.serialize(formatter),
+            FnCallEnum::Lower(call) => call.serialize(formatter),
+            FnCallEnum::Max(call) => call.serialize(formatter),
+            FnCallEnum::Min(call) => call.serialize(formatter),
+            FnCallEnum::Multiply(call) => call.serialize(formatter),
+            FnCallEnum::Neq(call) => call.serialize(formatter),
+            FnCallEnum::Not(call) => call.serialize(formatter),
+            FnCallEnum::Or(call) => call.serialize(formatter),
+            FnCallEnum::Pow(call) => call.serialize(formatter),
+            FnCallEnum::Sqrt(call) => call.serialize(formatter),
+            FnCallEnum::RegexpExtract(call) => call.serialize(formatter),
+            FnCallEnum::RegexpLike(call) => call.serialize(formatter),
+            FnCallEnum::Right(call) => call.serialize(formatter),
+            FnCallEnum::Round(call) => call.serialize(formatter),
+            FnCallEnum::SplitAfter(call) => call.serialize(formatter),
+            FnCallEnum::SplitBefore(call) => call.serialize(formatter),
+            FnCallEnum::Subtract(call) => call.serialize(formatter),
+            FnCallEnum::Substring(call) => call.serialize(formatter),
+            FnCallEnum::SubstringCount(call) => call.serialize(formatter),
+            FnCallEnum::TextJoin(call) => call.serialize(formatter),
+            FnCallEnum::Trim(call) => call.serialize(formatter),
+            FnCallEnum::Upper(call) => call.serialize(formatter),
+        }
+    }
+
     pub(crate) fn args_mut(&mut self) -> &mut [TypedExpr] {
         match self {
             FnCallEnum::Abs(call) => call.args_mut(),
@@ -555,6 +598,9 @@ pub(crate) trait FnCall: std::fmt::Debug + Into<FnCallEnum> {
     ///
     /// Today this is only used as a cheap visitor to allocate variable ids.
     fn args_mut(&mut self) -> &mut [TypedExpr];
+
+    /// Serializes the function name and its normalized typed arguments.
+    fn serialize(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result;
 
     /// Emits Cranelift IR for an already typed call and returns its result SSA value.
     ///

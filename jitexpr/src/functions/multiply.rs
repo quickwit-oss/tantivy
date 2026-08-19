@@ -103,6 +103,10 @@ impl FnCall for MultiplyFnCall {
         &mut self.args
     }
 
+    fn serialize(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+        crate::compile::format_function_call("MULTIPLY", self.args.iter(), formatter)
+    }
+
     fn emit_cranelift_ir(
         &self,
         return_type: VarType,

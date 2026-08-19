@@ -128,6 +128,10 @@ impl FnCall for RoundFnCall {
         std::slice::from_mut(&mut self.arg)
     }
 
+    fn serialize(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(formatter, "ROUND {} {}i64", self.arg, self.precision)
+    }
+
     fn emit_cranelift_ir(
         &self,
         return_type: VarType,

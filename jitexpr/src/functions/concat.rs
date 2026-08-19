@@ -74,6 +74,10 @@ impl FnCall for ConcatFnCall {
         self.arguments.args_mut()
     }
 
+    fn serialize(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+        self.arguments.serialize("CONCAT", formatter)
+    }
+
     fn emit_cranelift_ir(
         &self,
         return_type: VarType,
@@ -149,6 +153,27 @@ pub(super) fn apply_join_types(
 impl JoinArguments {
     pub(super) fn args_mut(&mut self) -> &mut [TypedExpr] {
         &mut self.values
+    }
+
+    pub(super) fn serialize(
+        &self,
+        function_name: &str,
+        formatter: &mut std::fmt::Formatter,
+    ) -> std::fmt::Result {
+        use std::fmt::Write as _;
+
+        formatter.write_str(function_name)?;
+        formatter.write_char(' ')?;
+        crate::compile::format_string_literal(&self.delimiter, formatter)?;
+        formatter.write_char(' ')?;
+        crate::compile::format_string_literal(
+            if self.ignore_empty { "true" } else { "false" },
+            formatter,
+        )?;
+        for value in &self.values {
+            write!(formatter, " {value}")?;
+        }
+        Ok(())
     }
 
     pub(super) fn emit_cranelift_ir(

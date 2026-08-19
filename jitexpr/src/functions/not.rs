@@ -70,6 +70,10 @@ impl FnCall for NotFnCall {
         &mut self.args
     }
 
+    fn serialize(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+        crate::compile::format_function_call("NOT", self.args.iter(), formatter)
+    }
+
     fn emit_cranelift_ir(
         &self,
         return_type: VarType,

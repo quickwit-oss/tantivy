@@ -99,6 +99,10 @@ impl FnCall for IfFnCall {
     fn args_mut(&mut self) -> &mut [TypedExpr] {
         &mut self.args
     }
+
+    fn serialize(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+        crate::compile::format_function_call("IF", self.args.iter(), formatter)
+    }
     fn emit_cranelift_ir(
         &self,
         _return_type: VarType,

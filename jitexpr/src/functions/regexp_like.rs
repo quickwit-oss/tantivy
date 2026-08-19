@@ -97,6 +97,10 @@ impl FnCall for RegexpLikeFnCall {
     fn args_mut(&mut self) -> &mut [TypedExpr] {
         std::slice::from_mut(&mut self.input)
     }
+    fn serialize(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(formatter, "REGEXP_LIKE {} ", self.input)?;
+        crate::compile::format_string_literal(self.regex.as_str(), formatter)
+    }
     fn emit_cranelift_ir(
         &self,
         _return_type: VarType,
