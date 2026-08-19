@@ -1,8 +1,9 @@
 use std::collections::HashMap;
 use std::error::Error;
+use std::sync::Arc;
 
 use jitexpr::ast::{Function, InferredTypeSet, UntypedExpr, infer_types};
-use jitexpr::compile::{CompiledFn, compile};
+use jitexpr::compile::{CompiledFn, CompiledFnCtx, compile};
 use jitexpr::types::{VarType, VariableValue};
 
 fn main() -> Result<(), Box<dyn Error>> {
@@ -28,13 +29,14 @@ fn main() -> Result<(), Box<dyn Error>> {
     let variable_types: HashMap<&str, VarType> =
         std::iter::once(("my_col", VarType::F64)).collect();
 
-    let mut compiled_fn: CompiledFn = compile(&untyped_expr, &variable_types)?;
+    let compiled_fn: Arc<CompiledFn> = compile(&untyped_expr, &variable_types)?;
+    let mut compiled_fn_ctx = CompiledFnCtx::new(compiled_fn);
 
     // We use a nullable wrapper around the value union to pass typed variables.
     // For present values, it is up to us to populate the correct union member.
     // Not doing so is UB.
     let input: Box<[VariableValue]> = vec![VariableValue::from(1.2f64)].into_boxed_slice();
-    let output = unsafe { compiled_fn.call(&input[..]) };
+    let output = unsafe { compiled_fn_ctx.call(&input[..]) };
     assert_eq!(unsafe { output.as_f64() }, Some(1.2f64 + 1.0f64));
 
     Ok(())

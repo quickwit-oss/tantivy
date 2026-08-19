@@ -10,7 +10,7 @@
 //! written. Consequently `CONCAT(",", "false", "", "b")` is `"b"`, while the reversed values
 //! produce `"b,"`. Empty output is present, not null.
 //!
-//! Constructed bytes live in `CompiledFn`'s fixed-capacity call arena; arena exhaustion returns
+//! Constructed bytes live in the caller's fixed-capacity string arena; arena exhaustion returns
 //! null.
 
 use std::collections::HashMap;
@@ -335,7 +335,7 @@ unsafe extern "C" fn string_concat(
         output_len = next_len;
     }
 
-    // SAFETY: CompiledFn exclusively owns and passes this arena for the duration of the call.
+    // SAFETY: The caller exclusively borrows and passes this arena for the duration of the call.
     let Some(output_ptr) = (unsafe { &mut *string_arena }).allocate(output_len) else {
         return RawStr::none();
     };
@@ -384,7 +384,7 @@ mod tests {
 
     fn eval(expression: &str) -> Option<String> {
         let expression = deserialize(expression).unwrap();
-        let mut compiled = compile(&expression, &HashMap::new()).unwrap();
+        let mut compiled = compile(&expression, &HashMap::new()).unwrap().context();
         // SAFETY: These expressions have no inputs and return nullable strings.
         unsafe { compiled.call(&[]).as_str().map(str::to_owned) }
     }
@@ -434,7 +434,7 @@ mod tests {
     fn test_runtime_null_is_strict() {
         let expression = deserialize(r#"(CONCAT ":" "true" left right)"#).unwrap();
         let variable_types = HashMap::from([("left", VarType::Str), ("right", VarType::Str)]);
-        let mut compiled = compile(&expression, &variable_types).unwrap();
+        let mut compiled = compile(&expression, &variable_types).unwrap().context();
 
         assert_eq!(
             unsafe {
@@ -450,7 +450,7 @@ mod tests {
     fn test_nested_values_are_stable_and_arena_exhaustion_is_null() {
         let expression = deserialize(r#"(CONCAT ":" "false" (UPPER left) (LOWER right))"#).unwrap();
         let variable_types = HashMap::from([("left", VarType::Str), ("right", VarType::Str)]);
-        let mut compiled = compile(&expression, &variable_types).unwrap();
+        let mut compiled = compile(&expression, &variable_types).unwrap().context();
         assert_eq!(
             unsafe {
                 compiled

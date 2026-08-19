@@ -1,7 +1,7 @@
 pub(crate) const STRING_ARENA_CAPACITY: usize = 262_144;
 
 /// Fixed-capacity storage for strings constructed while evaluating an expression.
-pub(crate) struct StringArena {
+pub struct StringArena {
     buffer: Box<[u8; STRING_ARENA_CAPACITY]>,
     cursor: usize,
 }
@@ -9,7 +9,8 @@ pub(crate) struct StringArena {
 impl StringArena {
     pub(crate) const CURSOR_OFFSET: i32 = std::mem::offset_of!(StringArena, cursor) as i32;
 
-    pub(crate) fn new() -> Self {
+    /// Creates an empty string arena.
+    pub fn new() -> Self {
         let buffer = vec![0; STRING_ARENA_CAPACITY].into_boxed_slice();
         let buffer = buffer
             .try_into()

@@ -192,7 +192,7 @@ mod tests {
     fn test_integer_edges_and_runtime_null() {
         let expression = deserialize("(ABS value)").unwrap();
         let variable_types = HashMap::from([("value", VarType::I64)]);
-        let mut compiled = compile(&expression, &variable_types).unwrap();
+        let mut compiled = compile(&expression, &variable_types).unwrap().context();
         assert_eq!(
             unsafe { compiled.call(&[VariableValue::some(-7i64)]).as_i64() },
             Some(7)
@@ -211,7 +211,7 @@ mod tests {
     fn test_float_preserves_negative_zero_and_nan_bits() {
         let expression = deserialize("(ABS value)").unwrap();
         let variable_types = HashMap::from([("value", VarType::F64)]);
-        let mut compiled = compile(&expression, &variable_types).unwrap();
+        let mut compiled = compile(&expression, &variable_types).unwrap().context();
 
         let negative_zero = unsafe {
             compiled

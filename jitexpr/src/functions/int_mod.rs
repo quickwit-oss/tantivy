@@ -157,7 +157,7 @@ mod tests {
 
     fn eval(expression: &str) -> Option<f64> {
         let expression = deserialize(expression).unwrap();
-        let mut compiled = compile(&expression, &HashMap::new()).unwrap();
+        let mut compiled = compile(&expression, &HashMap::new()).unwrap().context();
         // SAFETY: These expressions have no inputs and return nullable f64 values.
         unsafe { compiled.call(&[]).as_f64() }
     }
@@ -209,7 +209,7 @@ mod tests {
     fn test_runtime_null_propagates() {
         let expression = deserialize("(INT_MOD value modulus)").unwrap();
         let variable_types = HashMap::from([("value", VarType::I64), ("modulus", VarType::F64)]);
-        let mut compiled = compile(&expression, &variable_types).unwrap();
+        let mut compiled = compile(&expression, &variable_types).unwrap().context();
         assert_eq!(
             unsafe {
                 compiled

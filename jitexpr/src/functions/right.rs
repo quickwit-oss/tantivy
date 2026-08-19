@@ -140,7 +140,7 @@ mod tests {
 
     fn eval(expression: &str) -> Option<String> {
         let expression = deserialize(expression).unwrap();
-        let mut compiled = compile(&expression, &HashMap::new()).unwrap();
+        let mut compiled = compile(&expression, &HashMap::new()).unwrap().context();
         // SAFETY: The expression has no inputs and returns a nullable string.
         unsafe { compiled.call(&[]).as_str().map(str::to_owned) }
     }
@@ -174,7 +174,9 @@ mod tests {
     #[test]
     fn test_runtime_null() {
         let expression = deserialize("(RIGHT value 2i64)").unwrap();
-        let mut compiled = compile(&expression, &HashMap::from([("value", VarType::Str)])).unwrap();
+        let mut compiled = compile(&expression, &HashMap::from([("value", VarType::Str)]))
+            .unwrap()
+            .context();
         assert_eq!(
             unsafe { compiled.call(&[VariableValue::some("abc")]).as_str() },
             Some("bc")
@@ -188,10 +190,10 @@ mod tests {
     #[test]
     fn test_utf8_boundary_break_returns_null() {
         let expression = deserialize(r#"(RIGHT "下北沢" 1i64)"#).unwrap();
-        let mut compiled = compile(&expression, &HashMap::default()).unwrap();
+        let mut compiled = compile(&expression, &HashMap::default()).unwrap().context();
         assert_eq!(unsafe { compiled.call(&[]).as_str() }, None);
         let expression = deserialize(r#"(RIGHT "下北沢" 3i64)"#).unwrap();
-        let mut compiled = compile(&expression, &HashMap::default()).unwrap();
+        let mut compiled = compile(&expression, &HashMap::default()).unwrap().context();
         assert_eq!(unsafe { compiled.call(&[]).as_str() }, Some("沢"));
     }
 }

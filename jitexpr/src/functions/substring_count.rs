@@ -159,7 +159,7 @@ mod tests {
     use crate::types::VariableValue;
     fn eval(expr: &str) -> Option<i64> {
         let expr = deserialize(expr).unwrap();
-        let mut compiled = compile(&expr, &HashMap::new()).unwrap();
+        let mut compiled = compile(&expr, &HashMap::new()).unwrap().context();
         unsafe { compiled.call(&[]).as_i64() }
     }
     #[test]
@@ -183,7 +183,8 @@ mod tests {
             &expr,
             &HashMap::from([("text", VarType::Str), ("needle", VarType::Str)]),
         )
-        .unwrap();
+        .unwrap()
+        .context();
         assert_eq!(
             unsafe {
                 compiled

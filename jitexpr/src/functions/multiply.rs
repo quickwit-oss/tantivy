@@ -176,18 +176,18 @@ mod tests {
     #[test]
     fn test_signed_unsigned_and_float_multiplication() {
         let expression = deserialize("(MULTIPLY -7i64 3i64)").unwrap();
-        let mut compiled = compile(&expression, &HashMap::new()).unwrap();
+        let mut compiled = compile(&expression, &HashMap::new()).unwrap().context();
         // SAFETY: The expression has no inputs and returns i64.
         assert_eq!(unsafe { compiled.call(&[]).as_i64() }, Some(-21));
 
         let expression = deserialize("(MULTIPLY 9223372036854775808u64 2u64)").unwrap();
-        let mut compiled = compile(&expression, &HashMap::new()).unwrap();
+        let mut compiled = compile(&expression, &HashMap::new()).unwrap().context();
         assert_eq!(compiled.result_type(), VarType::U64);
         // SAFETY: The expression has no inputs and returns u64; multiplication wraps.
         assert_eq!(unsafe { compiled.call(&[]).as_u64() }, Some(0));
 
         let expression = deserialize("(MULTIPLY 1.5f64 2f64)").unwrap();
-        let mut compiled = compile(&expression, &HashMap::new()).unwrap();
+        let mut compiled = compile(&expression, &HashMap::new()).unwrap().context();
         // SAFETY: The expression has no inputs and returns f64.
         assert_eq!(unsafe { compiled.call(&[]).as_f64() }, Some(3.0));
     }
@@ -195,7 +195,7 @@ mod tests {
     #[test]
     fn test_nan_is_preserved() {
         let expression = deserialize("(MULTIPLY nanf64 2f64)").unwrap();
-        let mut compiled = compile(&expression, &HashMap::new()).unwrap();
+        let mut compiled = compile(&expression, &HashMap::new()).unwrap().context();
 
         // SAFETY: The expression has no inputs and returns f64.
         assert!(unsafe { compiled.call(&[]).as_f64() }.unwrap().is_nan());
@@ -205,7 +205,7 @@ mod tests {
     fn test_runtime_null_propagation_and_integer_coercion() {
         let expression = deserialize("(MULTIPLY value 3i64)").unwrap();
         let variable_types = HashMap::from([("value", VarType::U64)]);
-        let mut compiled = compile(&expression, &variable_types).unwrap();
+        let mut compiled = compile(&expression, &variable_types).unwrap().context();
         assert_eq!(compiled.result_type(), VarType::U64);
 
         // SAFETY: The input and output types match the compiled signature.
@@ -223,7 +223,7 @@ mod tests {
     #[test]
     fn test_compile_time_none_propagates() {
         let expression = deserialize("(MULTIPLY none 2i64)").unwrap();
-        let mut compiled = compile(&expression, &HashMap::new()).unwrap();
+        let mut compiled = compile(&expression, &HashMap::new()).unwrap().context();
 
         assert_eq!(compiled.result_type(), VarType::None);
         // SAFETY: The expression has no inputs and returns an absent value.

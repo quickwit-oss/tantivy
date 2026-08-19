@@ -177,13 +177,13 @@ mod tests {
     #[test]
     fn test_signed_unsigned_and_float_subtraction() {
         let expression = deserialize("(SUBTRACT 7i64 10i64)").unwrap();
-        let mut compiled = compile(&expression, &HashMap::new()).unwrap();
+        let mut compiled = compile(&expression, &HashMap::new()).unwrap().context();
         assert_eq!(compiled.result_type(), VarType::I64);
         // SAFETY: The expression has no inputs and returns i64.
         assert_eq!(unsafe { compiled.call(&[]).as_i64() }, Some(-3));
 
         let expression = deserialize("(SUBTRACT 9223372036854775810u64 1u64)").unwrap();
-        let mut compiled = compile(&expression, &HashMap::new()).unwrap();
+        let mut compiled = compile(&expression, &HashMap::new()).unwrap().context();
         assert_eq!(compiled.result_type(), VarType::U64);
         // SAFETY: The expression has no inputs and returns u64.
         assert_eq!(
@@ -192,7 +192,7 @@ mod tests {
         );
 
         let expression = deserialize("(SUBTRACT 7.5f64 2f64)").unwrap();
-        let mut compiled = compile(&expression, &HashMap::new()).unwrap();
+        let mut compiled = compile(&expression, &HashMap::new()).unwrap().context();
         assert_eq!(compiled.result_type(), VarType::F64);
         // SAFETY: The expression has no inputs and returns f64.
         assert_eq!(unsafe { compiled.call(&[]).as_f64() }, Some(5.5));
@@ -202,7 +202,7 @@ mod tests {
     fn test_unsigned_subtraction_wraps() {
         let expression = deserialize("(SUBTRACT value 1u64)").unwrap();
         let variable_types = HashMap::from([("value", VarType::U64)]);
-        let mut compiled = compile(&expression, &variable_types).unwrap();
+        let mut compiled = compile(&expression, &variable_types).unwrap().context();
 
         // SAFETY: The input and output types match the compiled signature.
         assert_eq!(
@@ -215,7 +215,7 @@ mod tests {
     fn test_runtime_null_propagation_and_mixed_literal_coercion() {
         let expression = deserialize("(SUBTRACT value 1i64)").unwrap();
         let variable_types = HashMap::from([("value", VarType::U64)]);
-        let mut compiled = compile(&expression, &variable_types).unwrap();
+        let mut compiled = compile(&expression, &variable_types).unwrap().context();
         assert_eq!(compiled.result_type(), VarType::U64);
 
         // SAFETY: The input and output types match the compiled signature.
@@ -233,7 +233,7 @@ mod tests {
     #[test]
     fn test_compile_time_none_propagates() {
         let expression = deserialize("(SUBTRACT none 1i64)").unwrap();
-        let mut compiled = compile(&expression, &HashMap::new()).unwrap();
+        let mut compiled = compile(&expression, &HashMap::new()).unwrap().context();
 
         assert_eq!(compiled.result_type(), VarType::None);
         // SAFETY: The expression has no inputs and returns an absent value.
@@ -243,7 +243,7 @@ mod tests {
     #[test]
     fn test_compile_time_i64() {
         let expression = deserialize("(SUBTRACT 1u64 10u64)").unwrap();
-        let mut compiled = compile(&expression, &HashMap::new()).unwrap();
+        let mut compiled = compile(&expression, &HashMap::new()).unwrap().context();
 
         assert_eq!(compiled.result_type(), VarType::I64);
         // SAFETY: The expression has no inputs and returns an absent value.

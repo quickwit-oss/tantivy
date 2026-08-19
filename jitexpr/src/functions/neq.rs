@@ -117,7 +117,7 @@ mod tests {
 
     fn eval(expression: &str) -> Option<bool> {
         let expression = deserialize(expression).unwrap();
-        let mut compiled = compile(&expression, &HashMap::new()).unwrap();
+        let mut compiled = compile(&expression, &HashMap::new()).unwrap().context();
         // SAFETY: These expressions have no inputs and return nullable booleans.
         unsafe { compiled.call(&[]).as_bool() }
     }
@@ -157,7 +157,7 @@ mod tests {
 
         let expression = deserialize("(NEQ left right)").unwrap();
         let variable_types = HashMap::from([("left", VarType::Str), ("right", VarType::Str)]);
-        let mut compiled = compile(&expression, &variable_types).unwrap();
+        let mut compiled = compile(&expression, &variable_types).unwrap().context();
         assert_eq!(
             unsafe {
                 compiled
