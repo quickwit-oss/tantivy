@@ -77,62 +77,6 @@ impl VariablePrimitiveOpt {
     pub fn none() -> Self {
         Self::default()
     }
-
-    /// Returns the boolean payload, or `None` when this value is absent.
-    ///
-    /// # Safety
-    ///
-    /// When present, the active [`VariablePrimitive`] member must be `boolean`.
-    pub unsafe fn as_bool(self) -> Option<bool> {
-        if self.is_present {
-            // SAFETY: Guaranteed by the caller.
-            Some(unsafe { self.value.boolean })
-        } else {
-            None
-        }
-    }
-
-    /// Returns the `f64` payload, or `None` when this value is absent.
-    ///
-    /// # Safety
-    ///
-    /// When present, the active [`VariablePrimitive`] member must be `float`.
-    pub unsafe fn as_f64(self) -> Option<f64> {
-        if self.is_present {
-            // SAFETY: Guaranteed by the caller.
-            Some(unsafe { self.value.float })
-        } else {
-            None
-        }
-    }
-
-    /// Returns the `u64` payload, or `None` when this value is absent.
-    ///
-    /// # Safety
-    ///
-    /// When present, the active [`VariablePrimitive`] member must be `int_u64`.
-    pub unsafe fn as_u64(self) -> Option<u64> {
-        if self.is_present {
-            // SAFETY: Guaranteed by the caller.
-            Some(unsafe { self.value.int_u64 })
-        } else {
-            None
-        }
-    }
-
-    /// Returns the `i64` payload, or `None` when this value is absent.
-    ///
-    /// # Safety
-    ///
-    /// When present, the active [`VariablePrimitive`] member must be `int_i64`.
-    pub unsafe fn as_i64(self) -> Option<i64> {
-        if self.is_present {
-            // SAFETY: Guaranteed by the caller.
-            Some(unsafe { self.value.int_i64 })
-        } else {
-            None
-        }
-    }
 }
 
 impl<T: Into<VariablePrimitive>> From<T> for VariablePrimitiveOpt {
@@ -184,9 +128,16 @@ impl<'a> VariableValue<'a> {
     /// # Safety
     ///
     /// This value must contain a primitive boolean or be absent.
+    #[inline(always)]
     pub unsafe fn as_bool(self) -> Option<bool> {
         // SAFETY: Guaranteed by the caller.
-        unsafe { self.primitive.as_bool() }
+        let primitive = unsafe { self.primitive };
+        if primitive.is_present {
+            // SAFETY: The caller guarantees that the active payload is `boolean`.
+            Some(unsafe { primitive.value.boolean })
+        } else {
+            None
+        }
     }
 
     /// Returns the `f64` payload, or `None` when this value is absent.
@@ -194,9 +145,16 @@ impl<'a> VariableValue<'a> {
     /// # Safety
     ///
     /// This value must contain a primitive `f64` or be absent.
+    #[inline(always)]
     pub unsafe fn as_f64(self) -> Option<f64> {
         // SAFETY: Guaranteed by the caller.
-        unsafe { self.primitive.as_f64() }
+        let primitive = unsafe { self.primitive };
+        if primitive.is_present {
+            // SAFETY: The caller guarantees that the active payload is `float`.
+            Some(unsafe { primitive.value.float })
+        } else {
+            None
+        }
     }
 
     /// Returns the `u64` payload, or `None` when this value is absent.
@@ -204,9 +162,16 @@ impl<'a> VariableValue<'a> {
     /// # Safety
     ///
     /// This value must contain a primitive `u64` or be absent.
+    #[inline(always)]
     pub unsafe fn as_u64(self) -> Option<u64> {
         // SAFETY: Guaranteed by the caller.
-        unsafe { self.primitive.as_u64() }
+        let primitive = unsafe { self.primitive };
+        if primitive.is_present {
+            // SAFETY: The caller guarantees that the active payload is `int_u64`.
+            Some(unsafe { primitive.value.int_u64 })
+        } else {
+            None
+        }
     }
 
     /// Returns the `i64` payload, or `None` when this value is absent.
@@ -214,9 +179,16 @@ impl<'a> VariableValue<'a> {
     /// # Safety
     ///
     /// This value must contain a primitive `i64` or be absent.
+    #[inline(always)]
     pub unsafe fn as_i64(self) -> Option<i64> {
         // SAFETY: Guaranteed by the caller.
-        unsafe { self.primitive.as_i64() }
+        let primitive = unsafe { self.primitive };
+        if primitive.is_present {
+            // SAFETY: The caller guarantees that the active payload is `int_i64`.
+            Some(unsafe { primitive.value.int_i64 })
+        } else {
+            None
+        }
     }
 
     /// Returns the borrowed string payload, or `None` when it is absent.
@@ -225,6 +197,7 @@ impl<'a> VariableValue<'a> {
     ///
     /// This value must contain the `string` arm or be the all-zero absent
     /// representation returned by [`VariableValue::none`].
+    #[inline(always)]
     pub unsafe fn as_str(self) -> Option<&'a str> {
         // SAFETY: Guaranteed by the caller.
         unsafe { self.string }
@@ -319,27 +292,6 @@ mod tests {
         assert_eq!(words, [text.as_ptr() as usize, text.len()]);
         let none_words: [usize; 2] = unsafe { std::mem::transmute(VariableValue::none()) };
         assert_eq!(none_words, [0, 0]);
-    }
-
-    #[test]
-    fn test_variable_primitive_opt_accessors() {
-        assert_eq!(
-            unsafe { VariablePrimitiveOpt::some(true).as_bool() },
-            Some(true)
-        );
-        assert_eq!(
-            unsafe { VariablePrimitiveOpt::some(1.5f64).as_f64() },
-            Some(1.5)
-        );
-        assert_eq!(
-            unsafe { VariablePrimitiveOpt::some(7u64).as_u64() },
-            Some(7)
-        );
-        assert_eq!(
-            unsafe { VariablePrimitiveOpt::some(-3i64).as_i64() },
-            Some(-3)
-        );
-        assert_eq!(unsafe { VariablePrimitiveOpt::none().as_u64() }, None);
     }
 
     #[test]
