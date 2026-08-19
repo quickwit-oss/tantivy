@@ -7,7 +7,7 @@ use std::collections::hash_map::Entry;
 use std::hash::Hash;
 use std::net::Ipv6Addr;
 
-use columnar::ColumnType;
+use columnar::{ColumnType, NumericalValue};
 use itertools::Itertools;
 use rustc_hash::FxHashMap;
 use serde::{Deserialize, Serialize};
@@ -69,6 +69,17 @@ pub enum IntermediateKey {
     /// `u64` key
     U64(u64),
 }
+
+impl From<NumericalValue> for IntermediateKey {
+    fn from(value: NumericalValue) -> Self {
+        match value {
+            NumericalValue::I64(i64_val) => IntermediateKey::I64(i64_val),
+            NumericalValue::U64(u64_val) => IntermediateKey::U64(u64_val),
+            NumericalValue::F64(f64_val) => IntermediateKey::F64(f64_val),
+        }
+    }
+}
+
 impl From<Key> for IntermediateKey {
     fn from(value: Key) -> Self {
         match value {
