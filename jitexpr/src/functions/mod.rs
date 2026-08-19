@@ -1,6 +1,7 @@
 mod abs;
 mod add;
 mod and;
+mod ceil;
 mod comparison;
 mod concat;
 mod divide;
@@ -43,6 +44,7 @@ use cranelift::frontend::FunctionBuilder;
 pub(crate) use self::abs::AbsFnCall;
 pub(crate) use self::add::AddFnCall;
 pub(crate) use self::and::AndFnCall;
+pub(crate) use self::ceil::CeilFnCall;
 pub(crate) use self::concat::ConcatFnCall;
 pub(crate) use self::divide::DivideFnCall;
 pub(crate) use self::eq::EqFnCall;
@@ -89,6 +91,8 @@ pub enum Function {
     Abs,
     /// Conjoins one or more booleans with strict null propagation.
     And,
+    /// Returns the least integer greater than or equal to a number.
+    Ceil,
     /// Joins strings using a literal delimiter and empty-value policy.
     Concat,
     /// Adds zero or more numerical expressions.
@@ -167,6 +171,9 @@ impl Function {
         match self {
             Function::Abs => <AbsFnCall as FnCall>::call_with_types(args, target_type_set, context),
             Function::And => <AndFnCall as FnCall>::call_with_types(args, target_type_set, context),
+            Function::Ceil => {
+                <CeilFnCall as FnCall>::call_with_types(args, target_type_set, context)
+            }
             Function::Concat => {
                 <ConcatFnCall as FnCall>::call_with_types(args, target_type_set, context)
             }
@@ -256,6 +263,9 @@ impl Function {
         match self {
             Function::Abs => <AbsFnCall as FnCall>::infer_types(args, target_type, inferred_types),
             Function::And => <AndFnCall as FnCall>::infer_types(args, target_type, inferred_types),
+            Function::Ceil => {
+                <CeilFnCall as FnCall>::infer_types(args, target_type, inferred_types)
+            }
             Function::Concat => {
                 <ConcatFnCall as FnCall>::infer_types(args, target_type, inferred_types)
             }
@@ -348,6 +358,7 @@ impl Function {
 pub(crate) enum FnCallEnum {
     Abs(AbsFnCall),
     And(AndFnCall),
+    Ceil(CeilFnCall),
     Concat(ConcatFnCall),
     Add(AddFnCall),
     Divide(DivideFnCall),
@@ -388,6 +399,7 @@ impl FnCallEnum {
         match self {
             FnCallEnum::Abs(call) => call.args_mut(),
             FnCallEnum::And(call) => call.args_mut(),
+            FnCallEnum::Ceil(call) => call.args_mut(),
             FnCallEnum::Concat(call) => call.args_mut(),
             FnCallEnum::Add(call) => call.args_mut(),
             FnCallEnum::Divide(call) => call.args_mut(),
@@ -434,6 +446,7 @@ impl FnCallEnum {
         match self {
             FnCallEnum::Abs(call) => call.emit_cranelift_ir(return_type, context, builder),
             FnCallEnum::And(call) => call.emit_cranelift_ir(return_type, context, builder),
+            FnCallEnum::Ceil(call) => call.emit_cranelift_ir(return_type, context, builder),
             FnCallEnum::Concat(call) => call.emit_cranelift_ir(return_type, context, builder),
             FnCallEnum::Add(call) => call.emit_cranelift_ir(return_type, context, builder),
             FnCallEnum::Divide(call) => call.emit_cranelift_ir(return_type, context, builder),
