@@ -115,10 +115,7 @@ impl<T: PartialOrd + Copy + std::fmt::Debug + Send + Sync + 'static + Default>
             return;
         }
 
-        self.missing_docids_cache.clear();
-        find_missing_docs(docs, &self.docid_cache, |doc| {
-            self.missing_docids_cache.push(doc);
-        });
+        find_missing_docs(docs, &self.docid_cache, &mut self.missing_docids_cache);
 
         if !ordered {
             self.val_cache.resize(
@@ -269,19 +266,23 @@ fn is_contiguous(docs: &[u32]) -> bool {
 }
 
 /// Given two sorted lists of docids `docs` and `hits`, hits is a subset of `docs`.
-/// Return all docs that are not in `hits`.
-fn find_missing_docs<F>(docs: &[u32], hits: &[u32], mut callback: F)
-where F: FnMut(u32) {
-    let mut docs_iter = docs.iter();
-    let mut hits_iter = hits.iter();
+/// Write in the output Vec all of the docs that are not in `hits`.
+///
+/// If output contains elements when called they will be cleared as a preliminary step.
+///
+/// TODO optimize me. It could work with run length and branch-free.
+fn find_missing_docs(docs: &[u32], hits: &[u32], output: &mut Vec<u32>) {
+    output.clear();
+    let mut docs_iter = docs.iter().copied();
+    let mut hits_iter = hits.iter().copied();
 
-    let mut doc = docs_iter.next();
-    let mut hit = hits_iter.next();
+    let mut doc: Option<u32> = docs_iter.next();
+    let mut hit: Option<u32> = hits_iter.next();
 
-    while let (Some(&current_doc), Some(&current_hit)) = (doc, hit) {
+    while let (Some(current_doc), Some(current_hit)) = (doc, hit) {
         match current_doc.cmp(&current_hit) {
             Ordering::Less => {
-                callback(current_doc);
+                output.push(current_doc);
                 doc = docs_iter.next();
             }
             Ordering::Equal => {
@@ -294,10 +295,8 @@ where F: FnMut(u32) {
         }
     }
 
-    while let Some(&current_doc) = doc {
-        callback(current_doc);
-        doc = docs_iter.next();
-    }
+    output.extend(doc);
+    output.extend(docs_iter);
 }
 
 #[cfg(test)]
@@ -311,11 +310,7 @@ mod tests {
         let hits: Vec<u32> = vec![2, 4, 6, 8, 10];
 
         let mut missing_docs: Vec<u32> = Vec::new();
-
-        find_missing_docs(&docs, &hits, |missing_doc| {
-            missing_docs.push(missing_doc);
-        });
-
+        find_missing_docs(&docs, &hits, &mut missing_docs);
         assert_eq!(missing_docs, vec![1, 3, 5, 7, 9]);
     }
 
@@ -326,9 +321,7 @@ mod tests {
 
         let mut missing_docs: Vec<u32> = Vec::new();
 
-        find_missing_docs(&docs, &hits, |missing_doc| {
-            missing_docs.push(missing_doc);
-        });
+        find_missing_docs(&docs, &hits, &mut missing_docs);
 
         assert_eq!(missing_docs, Vec::<u32>::new());
     }
@@ -338,11 +331,8 @@ mod tests {
         let docs: Vec<u32> = vec![1, 2, 3, 4, 5];
         let hits: Vec<u32> = Vec::new();
 
-        let mut missing_docs: Vec<u32> = Vec::new();
-
-        find_missing_docs(&docs, &hits, |missing_doc| {
-            missing_docs.push(missing_doc);
-        });
+        let mut missing_docs: Vec<u32> = vec![10];
+        find_missing_docs(&docs, &hits, &mut missing_docs);
 
         assert_eq!(missing_docs, vec![1, 2, 3, 4, 5]);
     }
