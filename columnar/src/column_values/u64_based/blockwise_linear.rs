@@ -44,10 +44,17 @@ fn compute_num_blocks(num_vals: u32) -> u32 {
     num_vals.div_ceil(BLOCK_SIZE)
 }
 
+struct GcdBlock {
+    max_residual: u64,
+    endpoint_delta: u64,
+    gcd: u64,
+    num_rows: u32,
+}
+
 pub struct BlockwiseLinearEstimator {
     block: Vec<u64>,
     values_num_bits: u64,
-    gcd_blocks: Vec<(u64, u64, u32)>,
+    gcd_blocks: Vec<GcdBlock>,
     meta_num_bytes: u64,
 }
 
@@ -113,7 +120,14 @@ impl BlockwiseLinearEstimator {
         }
         let num_rows = self.block.len() as u32;
         if block_gcd.get() > 1 {
-            self.gcd_blocks.push((max_value, block_gcd.get(), num_rows));
+            let first_val = self.block[0];
+            let last_val = self.block[self.block.len() - 1];
+            self.gcd_blocks.push(GcdBlock {
+                max_residual: max_value,
+                endpoint_delta: last_val.abs_diff(first_val),
+                gcd: block_gcd.get(),
+                num_rows,
+            });
         } else {
             self.values_num_bits += compute_num_bits(max_value) as u64 * u64::from(num_rows);
         }
@@ -135,10 +149,16 @@ impl ColumnCodecEstimator for BlockwiseLinearEstimator {
             + self
                 .gcd_blocks
                 .iter()
-                .map(|&(max_residual, block_gcd, num_rows)| {
-                    let scale = (block_gcd / gcd).max(1);
-                    let bit_width = compute_num_bits(max_residual.saturating_mul(scale)) as u64;
-                    bit_width * u64::from(num_rows)
+                .map(|block| {
+                    let scale = (block.gcd / gcd).max(1);
+                    let bit_width = if block.endpoint_delta < 1 << 31
+                        && block.endpoint_delta.saturating_mul(scale) >= 1 << 31
+                    {
+                        64
+                    } else {
+                        compute_num_bits(block.max_residual.saturating_mul(scale)) as u64
+                    };
+                    bit_width * u64::from(block.num_rows)
                 })
                 .sum::<u64>();
         Some(4 + stats.num_bytes() + self.meta_num_bytes + values_num_bits.div_ceil(8))

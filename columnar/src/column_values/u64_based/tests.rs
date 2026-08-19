@@ -349,6 +349,38 @@ fn estimation_blockwise_linear_accounts_for_the_gcd_per_block() {
 }
 
 #[test]
+fn estimation_blockwise_linear_accounts_for_the_slope_cutoff() {
+    // `compute_slope` gives up above a `1 << 31` endpoint delta. Each block here is a
+    // ramp of step `1 << 32`, so it fits a line once divided by its own gcd, but the
+    // second block is offset by one, which drops the column's gcd to 1 and leaves
+    // `serialize` bitpacking the whole amplitude.
+    let mut data: Vec<u64> = (0..512u64).map(|i| i << 32).collect();
+    data.extend((0..512u64).map(|i| (i << 32) + 1));
+
+    let mut stats_collector = StatsCollector::default();
+    let mut estimator = CodecType::BlockwiseLinear.estimator();
+    for &val in &data {
+        stats_collector.collect(val);
+        estimator.collect(val);
+    }
+    estimator.finalize();
+    let estimated = estimator.estimate(&stats_collector.stats()).unwrap();
+
+    let mut buffer = Vec::new();
+    serialize_u64_based_column_values(&&data[..], &[CodecType::BlockwiseLinear], &mut buffer)
+        .unwrap();
+    let actual = buffer.len() as u64;
+
+    // The estimate is deliberately conservative here -- `serialize` gets a flat line whose
+    // residuals do not follow from the one measured per block -- so only the direction
+    // that steals selection is pinned tightly.
+    assert!(
+        estimated * 2 >= actual && estimated <= actual * 2,
+        "estimated {estimated} bytes, wrote {actual}"
+    );
+}
+
+#[test]
 fn test_selection_does_not_pick_a_much_larger_codec() {
     let n = 100_000u64;
     let mix = |i: u64| i.wrapping_mul(0x9E37_79B9_7F4A_7C15);
