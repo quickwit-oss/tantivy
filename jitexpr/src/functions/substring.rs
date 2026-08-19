@@ -228,7 +228,7 @@ mod tests {
 
     fn eval(expression: &str) -> Option<String> {
         let expression = deserialize(expression).unwrap();
-        let mut compiled = compile(&expression, &HashMap::new()).unwrap();
+        let mut compiled = compile(&expression, &HashMap::new()).unwrap().context();
         // SAFETY: The expression has no inputs and returns a nullable string.
         unsafe { compiled.call(&[]).as_str().map(str::to_owned) }
     }
@@ -271,7 +271,9 @@ mod tests {
         assert_eq!(eval("(SUBSTRING \"abc\" -1i64 1i64)"), None);
 
         let expression = deserialize("(SUBSTRING value 0i64 2i64)").unwrap();
-        let mut compiled = compile(&expression, &HashMap::from([("value", VarType::Str)])).unwrap();
+        let mut compiled = compile(&expression, &HashMap::from([("value", VarType::Str)]))
+            .unwrap()
+            .context();
         assert_eq!(
             unsafe { compiled.call(&[VariableValue::some("abc")]).as_str() },
             Some("ab")

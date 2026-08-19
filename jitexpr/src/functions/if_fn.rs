@@ -159,11 +159,11 @@ mod tests {
         ));
         for (expr, expected) in [("(IF true 7i64 9i64)", 7), ("(IF false 7i64 9i64)", 9)] {
             let expr = deserialize(expr).unwrap();
-            let mut compiled = compile(&expr, &HashMap::new()).unwrap();
+            let mut compiled = compile(&expr, &HashMap::new()).unwrap().context();
             assert_eq!(unsafe { compiled.call(&[]).as_i64() }, Some(expected));
         }
         let expr = deserialize("(IF true \"yes\" \"no\")").unwrap();
-        let mut compiled = compile(&expr, &HashMap::new()).unwrap();
+        let mut compiled = compile(&expr, &HashMap::new()).unwrap().context();
         assert_eq!(unsafe { compiled.call(&[]).as_str() }, Some("yes"));
     }
 
@@ -175,7 +175,7 @@ mod tests {
             ("yes", VarType::I64),
             ("no", VarType::I64),
         ]);
-        let mut compiled = compile(&expr, &types).unwrap();
+        let mut compiled = compile(&expr, &types).unwrap().context();
         assert_eq!(
             unsafe {
                 compiled

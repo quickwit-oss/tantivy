@@ -82,7 +82,7 @@ mod tests {
 
     fn eval(expression: &str) -> Option<String> {
         let expression = deserialize(expression).unwrap();
-        let mut compiled = compile(&expression, &HashMap::new()).unwrap();
+        let mut compiled = compile(&expression, &HashMap::new()).unwrap().context();
         // SAFETY: These expressions have no inputs and return nullable strings.
         unsafe { compiled.call(&[]).as_str().map(str::to_owned) }
     }
@@ -125,7 +125,7 @@ mod tests {
     fn test_runtime_null_is_strict() {
         let expression = deserialize(r#"(TEXT_JOIN "" "false" left right)"#).unwrap();
         let variable_types = HashMap::from([("left", VarType::Str), ("right", VarType::Str)]);
-        let mut compiled = compile(&expression, &variable_types).unwrap();
+        let mut compiled = compile(&expression, &variable_types).unwrap().context();
         assert_eq!(
             unsafe {
                 compiled
