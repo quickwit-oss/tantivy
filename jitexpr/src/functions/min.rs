@@ -170,20 +170,20 @@ mod tests {
         ));
 
         let expression = deserialize("(MIN 7i64 -3i64 2i64)").unwrap();
-        let mut compiled = compile(&expression, &HashMap::new()).unwrap();
+        let mut compiled = compile(&expression, &HashMap::new()).unwrap().context();
         assert_eq!(unsafe { compiled.call(&[]).as_i64() }, Some(-3));
         let expression = deserialize("(MIN 7u64 3u64)").unwrap();
-        let mut compiled = compile(&expression, &HashMap::new()).unwrap();
+        let mut compiled = compile(&expression, &HashMap::new()).unwrap().context();
         assert_eq!(unsafe { compiled.call(&[]).as_u64() }, Some(3));
     }
 
     #[test]
     fn test_float_nan_and_null_behavior() {
         let expression = deserialize("(MIN nanf64 3f64 -2f64)").unwrap();
-        let mut compiled = compile(&expression, &HashMap::new()).unwrap();
+        let mut compiled = compile(&expression, &HashMap::new()).unwrap().context();
         assert_eq!(unsafe { compiled.call(&[]).as_f64() }, Some(-2.0));
         let expression = deserialize("(MIN nanf64)").unwrap();
-        let mut compiled = compile(&expression, &HashMap::new()).unwrap();
+        let mut compiled = compile(&expression, &HashMap::new()).unwrap().context();
         assert_eq!(unsafe { compiled.call(&[]).as_f64() }, Some(f64::INFINITY));
 
         let expression = deserialize("(MIN left right)").unwrap();
@@ -191,7 +191,8 @@ mod tests {
             &expression,
             &HashMap::from([("left", VarType::I64), ("right", VarType::I64)]),
         )
-        .unwrap();
+        .unwrap()
+        .context();
         assert_eq!(
             unsafe {
                 compiled

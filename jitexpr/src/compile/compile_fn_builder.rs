@@ -11,8 +11,7 @@ use cranelift_module::{FuncId, Module, ModuleError, default_libcall_names};
 
 use super::compiled_fn::JitEntry;
 use super::{
-    CompileError, CompiledFn, LoweringContext, StringArena, TypedExpr, TypedExprAst, TypedLiteral,
-    TypedVariable,
+    CompileError, CompiledFn, LoweringContext, TypedExpr, TypedExprAst, TypedLiteral, TypedVariable,
 };
 use crate::ast::{InferredTypeSet, Literal, UntypedExpr};
 use crate::functions::{declare_native_functions, register_jit_symbols};
@@ -316,7 +315,6 @@ impl LoweredFunction {
             entry,
             _module: module,
             inputs: input_vars,
-            string_arena: StringArena::new(),
             _typed_expr: expression,
         })
     }

@@ -140,7 +140,7 @@ mod tests {
 
     fn eval(expression: &str) -> Option<i64> {
         let expression = deserialize(expression).unwrap();
-        let mut compiled = compile(&expression, &HashMap::new()).unwrap();
+        let mut compiled = compile(&expression, &HashMap::new()).unwrap().context();
         // SAFETY: The expression has no inputs and returns a nullable i64 value.
         unsafe { compiled.call(&[]).as_i64() }
     }
@@ -193,7 +193,9 @@ mod tests {
     #[test]
     fn test_runtime_null() {
         let expression = deserialize("(FLOOR value)").unwrap();
-        let mut compiled = compile(&expression, &HashMap::from([("value", VarType::F64)])).unwrap();
+        let mut compiled = compile(&expression, &HashMap::from([("value", VarType::F64)]))
+            .unwrap()
+            .context();
 
         // SAFETY: The compiled expression expects one nullable f64 argument.
         assert_eq!(

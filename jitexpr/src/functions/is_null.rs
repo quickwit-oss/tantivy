@@ -102,7 +102,7 @@ mod tests {
 
     fn eval(expression: &str) -> Option<bool> {
         let expression = deserialize(expression).unwrap();
-        let mut compiled = compile(&expression, &HashMap::new()).unwrap();
+        let mut compiled = compile(&expression, &HashMap::new()).unwrap().context();
         // SAFETY: These expressions have no runtime inputs and return booleans.
         unsafe { compiled.call(&[]).as_bool() }
     }
@@ -157,7 +157,7 @@ mod tests {
     fn test_runtime_absent_variable_is_true_and_present_variable_is_false() {
         let expression = deserialize("(IS_NULL value)").unwrap();
         let variable_types = HashMap::from([("value", VarType::I64)]);
-        let mut compiled = compile(&expression, &variable_types).unwrap();
+        let mut compiled = compile(&expression, &variable_types).unwrap().context();
 
         // SAFETY: The input and output types match the compiled signature.
         assert_eq!(

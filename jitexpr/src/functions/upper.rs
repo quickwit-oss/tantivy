@@ -5,7 +5,7 @@
 //! into several (for example `ß` to `SS`) are not applied. Null input returns null, while an empty
 //! input returns a present empty string.
 //!
-//! Constructed bytes live in `CompiledFn`'s fixed-capacity call arena; arena exhaustion returns
+//! Constructed bytes live in the caller's fixed-capacity string arena; arena exhaustion returns
 //! null.
 
 use std::collections::HashMap;
@@ -171,7 +171,7 @@ unsafe extern "C" fn string_uppercase(
     };
 
     // The input borrow has ended. Nested calls may pass an earlier, disjoint arena allocation.
-    // SAFETY: CompiledFn exclusively owns and passes this arena for the duration of the call.
+    // SAFETY: The caller exclusively borrows and passes this arena for the duration of the call.
     let Some(output_ptr) = (unsafe { &mut *string_arena }).allocate(output_len) else {
         return RawStr::none();
     };
@@ -245,7 +245,7 @@ mod tests {
     fn test_uppercases_unicode_without_full_case_expansion_or_mutation() {
         let expression = deserialize("(UPPER value)").unwrap();
         let variable_types = HashMap::from([("value", VarType::Str)]);
-        let mut compiled = compile(&expression, &variable_types).unwrap();
+        let mut compiled = compile(&expression, &variable_types).unwrap().context();
         let input_string = String::from("café Straße ı");
 
         let output = unsafe { compiled.call(&[VariableValue::some(input_string.as_str())]) };
@@ -258,7 +258,7 @@ mod tests {
     fn test_null_empty_nested_and_arena_exhaustion() {
         let expression = deserialize("(UPPER (UPPER value))").unwrap();
         let variable_types = HashMap::from([("value", VarType::Str)]);
-        let mut compiled = compile(&expression, &variable_types).unwrap();
+        let mut compiled = compile(&expression, &variable_types).unwrap().context();
 
         assert_eq!(
             unsafe { compiled.call(&[VariableValue::none()]).as_str() },

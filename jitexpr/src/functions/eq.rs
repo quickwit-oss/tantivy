@@ -297,7 +297,7 @@ mod tests {
 
     fn eval(expression: &str) -> bool {
         let expression = ast::deserialize(expression).unwrap();
-        let mut compiled = compile(&expression, &HashMap::new()).unwrap();
+        let mut compiled = compile(&expression, &HashMap::new()).unwrap().context();
         let output = unsafe { compiled.call(&[]) };
 
         unsafe { output.as_bool() }.unwrap()
@@ -305,7 +305,7 @@ mod tests {
 
     fn eval_nullable(expression: &str) -> Option<bool> {
         let expression = ast::deserialize(expression).unwrap();
-        let mut compiled = compile(&expression, &HashMap::new()).unwrap();
+        let mut compiled = compile(&expression, &HashMap::new()).unwrap().context();
         // SAFETY: The expression has no inputs and returns a nullable boolean.
         unsafe { compiled.call(&[]).as_bool() }
     }
@@ -352,7 +352,7 @@ mod tests {
     fn test_compile_signed_unsigned_comparison() {
         let expression = ast::deserialize("(EQ signed unsigned)").unwrap();
         let variable_types = HashMap::from([("signed", VarType::I64), ("unsigned", VarType::U64)]);
-        let mut compiled = compile(&expression, &variable_types).unwrap();
+        let mut compiled = compile(&expression, &variable_types).unwrap().context();
 
         for (signed, unsigned, expected) in [(7i64, 7u64, true), (-1, u64::MAX, false)] {
             let input = [VariableValue::some(signed), VariableValue::some(unsigned)];
@@ -365,7 +365,7 @@ mod tests {
     fn test_compile_float_integer_comparison_is_exact() {
         let expression = ast::deserialize("(EQ float integer)").unwrap();
         let variable_types = HashMap::from([("float", VarType::F64), ("integer", VarType::I64)]);
-        let mut compiled = compile(&expression, &variable_types).unwrap();
+        let mut compiled = compile(&expression, &variable_types).unwrap().context();
         let cases = [
             (1.0, 1, true),
             (1.2, 1, false),
@@ -385,7 +385,7 @@ mod tests {
     fn test_compile_float_unsigned_comparison_is_exact() {
         let expression = ast::deserialize("(EQ float integer)").unwrap();
         let variable_types = HashMap::from([("float", VarType::F64), ("integer", VarType::U64)]);
-        let mut compiled = compile(&expression, &variable_types).unwrap();
+        let mut compiled = compile(&expression, &variable_types).unwrap().context();
         let cases = [
             (1.0, 1, true),
             (1.2, 1, false),
@@ -405,7 +405,7 @@ mod tests {
     fn test_compile_string_equality_compares_contents() {
         let expression = ast::deserialize("(EQ left right)").unwrap();
         let variable_types = HashMap::from([("left", VarType::Str), ("right", VarType::Str)]);
-        let mut compiled = compile(&expression, &variable_types).unwrap();
+        let mut compiled = compile(&expression, &variable_types).unwrap().context();
         let left_value = String::from("same contents");
         let right_value = String::from("same contents");
         let input = [
@@ -439,7 +439,7 @@ mod tests {
     fn test_compile_runtime_none_equality() {
         let expression = ast::deserialize("(EQ left right)").unwrap();
         let variable_types = HashMap::from([("left", VarType::U64), ("right", VarType::U64)]);
-        let mut compiled = compile(&expression, &variable_types).unwrap();
+        let mut compiled = compile(&expression, &variable_types).unwrap().context();
         let output = unsafe { compiled.call(&[VariableValue::none(), VariableValue::none()]) };
         assert_eq!(unsafe { output.as_bool() }, None);
 
@@ -451,7 +451,7 @@ mod tests {
     fn test_compile_none_literal_equals_absent_variable() {
         let expression = ast::deserialize("(EQ value none)").unwrap();
         let variable_types = HashMap::from([("value", VarType::U64)]);
-        let mut compiled = compile(&expression, &variable_types).unwrap();
+        let mut compiled = compile(&expression, &variable_types).unwrap().context();
         let output = unsafe { compiled.call(&[VariableValue::none()]) };
 
         assert_eq!(unsafe { output.as_bool() }, None);

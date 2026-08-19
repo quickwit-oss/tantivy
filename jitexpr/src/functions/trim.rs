@@ -237,7 +237,7 @@ mod tests {
 
     fn eval(expr: &str) -> Option<String> {
         let expr = deserialize(expr).unwrap();
-        let mut compiled = compile(&expr, &HashMap::new()).unwrap();
+        let mut compiled = compile(&expr, &HashMap::new()).unwrap().context();
         unsafe { compiled.call(&[]).as_str().map(str::to_owned) }
     }
 
@@ -270,7 +270,9 @@ mod tests {
     #[test]
     fn test_runtime_null_and_unicode() {
         let expr = deserialize("(TRIM value \"é\" \"both\")").unwrap();
-        let mut compiled = compile(&expr, &HashMap::from([("value", VarType::Str)])).unwrap();
+        let mut compiled = compile(&expr, &HashMap::from([("value", VarType::Str)]))
+            .unwrap()
+            .context();
         assert_eq!(
             unsafe { compiled.call(&[VariableValue::some("éhelloé")]).as_str() },
             Some("hello")

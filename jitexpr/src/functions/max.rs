@@ -171,20 +171,20 @@ mod tests {
             })
         ));
         let expression = deserialize("(MAX 7i64 -3i64 12i64)").unwrap();
-        let mut compiled = compile(&expression, &HashMap::new()).unwrap();
+        let mut compiled = compile(&expression, &HashMap::new()).unwrap().context();
         assert_eq!(unsafe { compiled.call(&[]).as_i64() }, Some(12));
         let expression = deserialize("(MAX 7u64 13u64)").unwrap();
-        let mut compiled = compile(&expression, &HashMap::new()).unwrap();
+        let mut compiled = compile(&expression, &HashMap::new()).unwrap().context();
         assert_eq!(unsafe { compiled.call(&[]).as_u64() }, Some(13));
     }
 
     #[test]
     fn test_float_nan_and_null_behavior() {
         let expression = deserialize("(MAX nanf64 3f64 -2f64)").unwrap();
-        let mut compiled = compile(&expression, &HashMap::new()).unwrap();
+        let mut compiled = compile(&expression, &HashMap::new()).unwrap().context();
         assert_eq!(unsafe { compiled.call(&[]).as_f64() }, Some(3.0));
         let expression = deserialize("(MAX nanf64)").unwrap();
-        let mut compiled = compile(&expression, &HashMap::new()).unwrap();
+        let mut compiled = compile(&expression, &HashMap::new()).unwrap().context();
         assert_eq!(
             unsafe { compiled.call(&[]).as_f64() },
             Some(f64::NEG_INFINITY)
@@ -194,7 +194,8 @@ mod tests {
             &expression,
             &HashMap::from([("left", VarType::F64), ("right", VarType::F64)]),
         )
-        .unwrap();
+        .unwrap()
+        .context();
         assert_eq!(
             unsafe {
                 compiled

@@ -381,14 +381,14 @@ mod tests {
 
     fn eval_i64(expression: &str) -> Option<i64> {
         let expression = deserialize(expression).unwrap();
-        let mut compiled = compile(&expression, &HashMap::new()).unwrap();
+        let mut compiled = compile(&expression, &HashMap::new()).unwrap().context();
         // SAFETY: The expression has no inputs and returns a nullable i64 value.
         unsafe { compiled.call(&[]).as_i64() }
     }
 
     fn eval_f64(expression: &str) -> Option<f64> {
         let expression = deserialize(expression).unwrap();
-        let mut compiled = compile(&expression, &HashMap::new()).unwrap();
+        let mut compiled = compile(&expression, &HashMap::new()).unwrap().context();
         // SAFETY: The expression has no inputs and returns a nullable f64 value.
         unsafe { compiled.call(&[]).as_f64() }
     }
@@ -467,7 +467,9 @@ mod tests {
     #[test]
     fn test_runtime_null_and_integer_rounding() {
         let expression = deserialize("(ROUND value -1i64)").unwrap();
-        let mut compiled = compile(&expression, &HashMap::from([("value", VarType::I64)])).unwrap();
+        let mut compiled = compile(&expression, &HashMap::from([("value", VarType::I64)]))
+            .unwrap()
+            .context();
 
         // SAFETY: The compiled expression expects one nullable i64 argument.
         assert_eq!(
