@@ -1453,32 +1453,25 @@ where
                 dict.insert(IntermediateKey::IpAddr(val), intermediate_entry);
             }
         } else {
-            for (val, doc_count) in entries {
+            for (key_val_u64, doc_count) in entries {
                 let intermediate_entry = into_intermediate_bucket_entry(
                     doc_count,
                     reborrow_opt_collector(&mut sub_agg_collector),
                     agg_data,
                 )?;
-                if term_req.column_type == ColumnType::U64 {
-                    dict.insert(IntermediateKey::U64(val), intermediate_entry);
-                } else if term_req.column_type == ColumnType::I64 {
-                    dict.insert(IntermediateKey::I64(i64::from_u64(val)), intermediate_entry);
-                } else {
-                    let val = f64::from_u64(val);
-                    let val: NumericalValue = val.into();
-
-                    match val.normalize() {
-                        NumericalValue::U64(val) => {
-                            dict.insert(IntermediateKey::U64(val), intermediate_entry);
-                        }
-                        NumericalValue::I64(val) => {
-                            dict.insert(IntermediateKey::I64(val), intermediate_entry);
-                        }
-                        NumericalValue::F64(val) => {
-                            dict.insert(IntermediateKey::F64(val), intermediate_entry);
-                        }
+                let key_val: NumericalValue = match term_req.column_type {
+                    ColumnType::U64 => key_val_u64.into(),
+                    ColumnType::I64 => i64::from_u64(key_val_u64).into(),
+                    ColumnType::F64 => f64::from_u64(key_val_u64).into(),
+                    _ => {
+                        return Err(TantivyError::SchemaError(format!(
+                            "unknown key type: {}",
+                            term_req.column_type
+                        )))
                     }
                 };
+                let key = IntermediateKey::from(key_val.normalize());
+                dict.insert(key, intermediate_entry);
             }
         };
 
@@ -1691,6 +1684,65 @@ mod tests {
         assert_eq!(res["my_scores"]["buckets"][1]["doc_count"], 1);
         assert_eq!(res["my_scores"]["sum_other_doc_count"], 0);
         Ok(())
+    }
+
+    #[test]
+    fn terms_aggregation_normalizes_u64_keys_across_segments() {
+        let mut schema_builder = Schema::builder();
+        let json_field = schema_builder.add_json_field("json", FAST);
+        let index = Index::create_in_ram(schema_builder.build());
+        {
+            let mut index_writer = index.writer_for_tests().unwrap();
+            index_writer.set_merge_policy(Box::new(NoMergePolicy));
+
+            // The presence of `u64::MAX` makes this segment's numeric column a `u64` column.
+            index_writer
+                .add_document(doc!(json_field => json!({"number": 1u64})))
+                .unwrap();
+            index_writer
+                .add_document(doc!(json_field => json!({"number": u64::MAX})))
+                .unwrap();
+            index_writer.commit().unwrap();
+
+            // The negative value makes this segment's numeric column an `i64` column.
+            index_writer
+                .add_document(doc!(json_field => json!({"number": 1i64})))
+                .unwrap();
+            index_writer
+                .add_document(doc!(json_field => json!({"number": -1i64})))
+                .unwrap();
+            index_writer.commit().unwrap();
+        }
+        assert_eq!(index.searchable_segments().unwrap().len(), 2);
+
+        let agg_req: Aggregations = serde_json::from_value(json!({
+            "numbers": {
+                "terms": { "field": "json.number" },
+            }
+        }))
+        .unwrap();
+        let res = exec_request(agg_req, &index).unwrap();
+        let mut buckets: Vec<serde_json::Value> =
+            res["numbers"]["buckets"].as_array().unwrap().clone();
+        // a lot of effort to get a stable order.
+        buckets.sort_by_key(|json_val| {
+            json_val
+                .as_object()
+                .unwrap()
+                .get("key")
+                .unwrap()
+                .as_number()
+                .map(|number| (number.as_i64(), number.as_u64()))
+                .unwrap()
+        });
+        assert_eq!(
+            buckets,
+            &[
+                json!({"key": u64::MAX, "doc_count": 1}),
+                json!({"key": -1, "doc_count": 1}),
+                json!({"key": 1, "doc_count": 2}),
+            ]
+        );
     }
 
     #[test]
