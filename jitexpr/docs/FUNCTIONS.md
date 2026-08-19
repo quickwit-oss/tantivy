@@ -45,7 +45,7 @@ excluded from this pass, or is complex enough to warrant a separate implementati
 | 24 | `INT_MOD` | done |
 | 25 | `ABS` | done |
 | 27 | `ROUND` | out-of-scope |
-| 28 | `FLOOR` | out-of-scope |
+| 28 | `FLOOR` | done |
 | 29 | `CEIL` | done |
 | 34 | `POW` | done |
 | 35 | `SQRT` | done |
@@ -76,7 +76,7 @@ excluded from this pass, or is complex enough to warrant a separate implementati
 | 79 | `SUBSTRING_COUNT` | done |
 | 80 | `REGEXP_LIKE` | done |
 
-Progress: **36 / 36 in-scope** functions implemented; **19** functions are out-of-scope.
+Progress: **37 / 37 in-scope** functions implemented; **18** functions are out-of-scope.
 
 ## Deferred implementation notes
 
@@ -94,9 +94,6 @@ Progress: **36 / 36 in-scope** functions implemented; **19** functions are out-o
   aborting float-to-int overflow case, and an observable production defect where integer input at
   precision zero leaves the lazily allocated output unwritten. It needs a separate parity decision
   and implementation pass.
-- `FLOOR` has the same unwritten lazy-output defect for integer inputs. Its float path converts
-  NaN, infinities, and out-of-range results directly to `int64`, whose exact Go result is
-  architecture-dependent. It is deferred pending an explicit production-parity policy.
 - `COALESCE` uses dd-go's distinct n-ary common-type algorithm, including an ordinal fallback that
   can choose string where the binary `IF` unifier chooses numeric. Implementing it correctly needs
   a broader coercion-policy change rather than only a new call node.

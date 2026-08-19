@@ -6,6 +6,7 @@ mod comparison;
 mod concat;
 mod divide;
 mod eq;
+mod floor;
 mod gt;
 mod gt_eq;
 mod if_fn;
@@ -48,6 +49,7 @@ pub(crate) use self::ceil::CeilFnCall;
 pub(crate) use self::concat::ConcatFnCall;
 pub(crate) use self::divide::DivideFnCall;
 pub(crate) use self::eq::EqFnCall;
+pub(crate) use self::floor::FloorFnCall;
 pub(crate) use self::gt::GtFnCall;
 pub(crate) use self::gt_eq::GtEqFnCall;
 pub(crate) use self::if_fn::IfFnCall;
@@ -101,6 +103,8 @@ pub enum Function {
     Divide,
     /// Compares two expressions for value equality.
     Eq,
+    /// Returns the greatest integer less than or equal to a number.
+    Floor,
     /// Tests whether the first ordered value is greater than the second.
     Gt,
     /// Tests whether the first ordered value is greater than or equal to the second.
@@ -182,6 +186,9 @@ impl Function {
                 <DivideFnCall as FnCall>::call_with_types(args, target_type_set, context)
             }
             Function::Eq => <EqFnCall as FnCall>::call_with_types(args, target_type_set, context),
+            Function::Floor => {
+                <FloorFnCall as FnCall>::call_with_types(args, target_type_set, context)
+            }
             Function::Gt => <GtFnCall as FnCall>::call_with_types(args, target_type_set, context),
             Function::GtEq => {
                 <GtEqFnCall as FnCall>::call_with_types(args, target_type_set, context)
@@ -274,6 +281,9 @@ impl Function {
                 <DivideFnCall as FnCall>::infer_types(args, target_type, inferred_types)
             }
             Function::Eq => <EqFnCall as FnCall>::infer_types(args, target_type, inferred_types),
+            Function::Floor => {
+                <FloorFnCall as FnCall>::infer_types(args, target_type, inferred_types)
+            }
             Function::Gt => <GtFnCall as FnCall>::infer_types(args, target_type, inferred_types),
             Function::GtEq => {
                 <GtEqFnCall as FnCall>::infer_types(args, target_type, inferred_types)
@@ -363,6 +373,7 @@ pub(crate) enum FnCallEnum {
     Add(AddFnCall),
     Divide(DivideFnCall),
     Eq(EqFnCall),
+    Floor(FloorFnCall),
     Gt(GtFnCall),
     GtEq(GtEqFnCall),
     If(IfFnCall),
@@ -404,6 +415,7 @@ impl FnCallEnum {
             FnCallEnum::Add(call) => call.args_mut(),
             FnCallEnum::Divide(call) => call.args_mut(),
             FnCallEnum::Eq(call) => call.args_mut(),
+            FnCallEnum::Floor(call) => call.args_mut(),
             FnCallEnum::Gt(call) => call.args_mut(),
             FnCallEnum::GtEq(call) => call.args_mut(),
             FnCallEnum::If(call) => call.args_mut(),
@@ -451,6 +463,7 @@ impl FnCallEnum {
             FnCallEnum::Add(call) => call.emit_cranelift_ir(return_type, context, builder),
             FnCallEnum::Divide(call) => call.emit_cranelift_ir(return_type, context, builder),
             FnCallEnum::Eq(call) => call.emit_cranelift_ir(return_type, context, builder),
+            FnCallEnum::Floor(call) => call.emit_cranelift_ir(return_type, context, builder),
             FnCallEnum::Gt(call) => call.emit_cranelift_ir(return_type, context, builder),
             FnCallEnum::GtEq(call) => call.emit_cranelift_ir(return_type, context, builder),
             FnCallEnum::If(call) => call.emit_cranelift_ir(return_type, context, builder),
