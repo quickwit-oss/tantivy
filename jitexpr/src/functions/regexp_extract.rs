@@ -1,12 +1,12 @@
 // RegexpExtract extracts a regular-expression match from a string.
 //
-// It takes three arguments:
+// It takes two or three arguments:
 // - string: the input string
 // - const string: a regular-expression pattern literal. This one CANNOT be the result of another
 //   expression
-// - const u64: capture index literal. Capture index 0 returns the full match, while indexes 1 and
-//   above return
-// the corresponding explicit capture group.
+// - optional const u64: capture index literal. It defaults to 0 during conversion to the typed
+//   expression. Capture index 0 returns the full match, while indexes 1 and above return the
+//   corresponding explicit capture group.
 //
 // It returns None when the input is None, the pattern does not match, or the requested capture
 // group is absent or did not participate in the match.
@@ -58,7 +58,7 @@ impl FnCall for RegexpExtractFnCall {
                 got: InferredTypeSet::STRING,
             });
         }
-        if args.len() != 3 {
+        if !(2..=3).contains(&args.len()) {
             return Err(TypeError::InvalidNumberOfArguments {
                 function: Function::RegexpExtract,
                 expected: 3,
@@ -67,7 +67,9 @@ impl FnCall for RegexpExtractFnCall {
         }
         crate::ast::infer_types_aux(&args[0], InferredTypeSet::STRING, inferred_types)?;
         crate::ast::infer_types_aux(&args[1], InferredTypeSet::STRING, inferred_types)?;
-        crate::ast::infer_types_aux(&args[2], InferredTypeSet::NUMERICAL, inferred_types)?;
+        if let Some(capture_index) = args.get(2) {
+            crate::ast::infer_types_aux(capture_index, InferredTypeSet::NUMERICAL, inferred_types)?;
+        }
         Ok(InferredTypeSet::STRING)
     }
 
@@ -76,7 +78,10 @@ impl FnCall for RegexpExtractFnCall {
         target_type_set: InferredTypeSet,
         context: &mut CompileFnBuilder<'_, '_>,
     ) -> Result<TypedExpr, CompileError> {
-        assert_eq!(args.len(), 3, "Expected 3 args for regexp_extract");
+        assert!(
+            (2..=3).contains(&args.len()),
+            "Expected 2 or 3 args for regexp_extract"
+        );
 
         let haystack = context.apply_types(&args[0], target_type_set)?;
         if haystack.return_type == VarType::None {
@@ -94,8 +99,10 @@ impl FnCall for RegexpExtractFnCall {
             })?,
         );
 
-        let UntypedExpr::Literal(Literal::U64(capture_index)) = &args[2] else {
-            panic!("regexp_extract capture index must be a u64 literal");
+        let capture_index = match args.get(2) {
+            None => 0,
+            Some(UntypedExpr::Literal(Literal::U64(capture_index))) => *capture_index,
+            Some(_) => panic!("regexp_extract capture index must be a u64 literal"),
         };
 
         Ok(TypedExpr {
@@ -103,7 +110,7 @@ impl FnCall for RegexpExtractFnCall {
             ast: TypedExprAst::from_call(RegexpExtractFnCall {
                 regex,
                 haystack: Box::new(haystack),
-                capture_index: *capture_index,
+                capture_index,
             }),
         })
     }
@@ -242,7 +249,7 @@ mod tests {
 
     #[test]
     fn test_infer_types_constrains_haystack_to_string() {
-        let expression = ast::deserialize(r#"(REGEXP_EXTRACT message "([a-z]+)" 0u64)"#).unwrap();
+        let expression = ast::deserialize(r#"(REGEXP_EXTRACT message "([a-z]+)")"#).unwrap();
 
         let inferred_types = infer_types(&expression).unwrap();
 
@@ -250,6 +257,32 @@ mod tests {
             inferred_types.get("message"),
             Some(&InferredTypeSet::STRING)
         );
+    }
+
+    #[test]
+    fn test_infer_types_accepts_optional_capture_index() {
+        for expression in [
+            r#"(REGEXP_EXTRACT message "([a-z]+)")"#,
+            r#"(REGEXP_EXTRACT message "([a-z]+)" 1u64)"#,
+        ] {
+            let expression = ast::deserialize(expression).unwrap();
+            assert!(infer_types(&expression).is_ok());
+        }
+
+        for expression in [
+            r#"(REGEXP_EXTRACT message)"#,
+            r#"(REGEXP_EXTRACT message "([a-z]+)" 0u64 1u64)"#,
+        ] {
+            let expression = ast::deserialize(expression).unwrap();
+            assert!(matches!(
+                infer_types(&expression),
+                Err(TypeError::InvalidNumberOfArguments {
+                    function: Function::RegexpExtract,
+                    expected: 3,
+                    ..
+                })
+            ));
+        }
     }
 
     #[test]
@@ -323,14 +356,18 @@ mod tests {
 
     #[test]
     fn test_compile_group_zero_returns_full_match_without_capture_groups() {
-        let expression =
-            ast::deserialize(r#"(REGEXP_EXTRACT message "[a-z]+-\\d+" 0u64)"#).unwrap();
-        let variable_types = HashMap::from([("message", VarType::Str)]);
-        let mut compiled = compile(&expression, &variable_types).unwrap();
-        let input = [VariableValue::some("prefix user-123 suffix")];
-        let output = unsafe { compiled.call(&input) };
+        for expression in [
+            r#"(REGEXP_EXTRACT message "[a-z]+-\\d+")"#,
+            r#"(REGEXP_EXTRACT message "[a-z]+-\\d+" 0u64)"#,
+        ] {
+            let expression = ast::deserialize(expression).unwrap();
+            let variable_types = HashMap::from([("message", VarType::Str)]);
+            let mut compiled = compile(&expression, &variable_types).unwrap();
+            let input = [VariableValue::some("prefix user-123 suffix")];
+            let output = unsafe { compiled.call(&input) };
 
-        assert_eq!(unsafe { output.as_str() }, Some("user-123"));
+            assert_eq!(unsafe { output.as_str() }, Some("user-123"));
+        }
     }
 
     #[test]
