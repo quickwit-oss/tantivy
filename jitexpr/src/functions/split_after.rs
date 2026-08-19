@@ -240,7 +240,7 @@ mod tests {
 
     fn eval(expression: &str) -> Option<String> {
         let expression = deserialize(expression).unwrap();
-        let mut compiled = compile(&expression, &HashMap::new()).unwrap();
+        let mut compiled = compile(&expression, &HashMap::new()).unwrap().context();
         // SAFETY: The expression has no inputs and returns a nullable string.
         unsafe { compiled.call(&[]).as_str().map(str::to_owned) }
     }
@@ -295,7 +295,9 @@ mod tests {
     #[test]
     fn test_runtime_null() {
         let expression = deserialize("(SPLIT_AFTER value \".\")").unwrap();
-        let mut compiled = compile(&expression, &HashMap::from([("value", VarType::Str)])).unwrap();
+        let mut compiled = compile(&expression, &HashMap::from([("value", VarType::Str)]))
+            .unwrap()
+            .context();
 
         // SAFETY: The compiled expression expects one nullable string argument.
         assert_eq!(

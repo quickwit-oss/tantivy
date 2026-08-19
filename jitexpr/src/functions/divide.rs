@@ -156,7 +156,7 @@ mod tests {
     #[test]
     fn test_integer_inputs_use_floating_point_division() {
         let expression = deserialize("(DIVIDE 5i64 2i64)").unwrap();
-        let mut compiled = compile(&expression, &HashMap::new()).unwrap();
+        let mut compiled = compile(&expression, &HashMap::new()).unwrap().context();
 
         assert_eq!(compiled.result_type(), VarType::F64);
         // SAFETY: The expression has no inputs and returns f64.
@@ -167,7 +167,7 @@ mod tests {
     fn test_positive_and_negative_zero_divisors_return_none() {
         for expression in ["(DIVIDE 1f64 0f64)", "(DIVIDE 1f64 -0f64)"] {
             let expression = deserialize(expression).unwrap();
-            let mut compiled = compile(&expression, &HashMap::new()).unwrap();
+            let mut compiled = compile(&expression, &HashMap::new()).unwrap().context();
             // SAFETY: The expression has no inputs and returns nullable f64.
             assert_eq!(unsafe { compiled.call(&[]).as_f64() }, None);
         }
@@ -176,7 +176,7 @@ mod tests {
     #[test]
     fn test_nan_divisor_remains_present() {
         let expression = deserialize("(DIVIDE 1f64 nanf64)").unwrap();
-        let mut compiled = compile(&expression, &HashMap::new()).unwrap();
+        let mut compiled = compile(&expression, &HashMap::new()).unwrap().context();
 
         // SAFETY: The expression has no inputs and returns f64.
         assert!(unsafe { compiled.call(&[]).as_f64() }.unwrap().is_nan());
@@ -186,7 +186,7 @@ mod tests {
     fn test_runtime_null_propagation() {
         let expression = deserialize("(DIVIDE left right)").unwrap();
         let variable_types = HashMap::from([("left", VarType::I64), ("right", VarType::U64)]);
-        let mut compiled = compile(&expression, &variable_types).unwrap();
+        let mut compiled = compile(&expression, &variable_types).unwrap().context();
 
         // SAFETY: The input and output types match the compiled signature.
         assert_eq!(

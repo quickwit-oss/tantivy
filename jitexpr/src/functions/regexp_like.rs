@@ -171,7 +171,7 @@ mod tests {
     use crate::types::VariableValue;
     fn eval(expr: &str) -> Option<bool> {
         let expr = deserialize(expr).unwrap();
-        let mut compiled = compile(&expr, &HashMap::new()).unwrap();
+        let mut compiled = compile(&expr, &HashMap::new()).unwrap().context();
         unsafe { compiled.call(&[]).as_bool() }
     }
     #[test]
@@ -193,7 +193,9 @@ mod tests {
         assert_eq!(eval("(REGEXP_LIKE none \"x\")"), Some(false));
         assert_eq!(eval("(REGEXP_LIKE 123i64 \"123\")"), Some(false));
         let expr = deserialize("(REGEXP_LIKE value \"x\")").unwrap();
-        let mut compiled = compile(&expr, &HashMap::from([("value", VarType::Str)])).unwrap();
+        let mut compiled = compile(&expr, &HashMap::from([("value", VarType::Str)]))
+            .unwrap()
+            .context();
         assert_eq!(
             unsafe { compiled.call(&[VariableValue::none()]).as_bool() },
             Some(false)

@@ -5,7 +5,7 @@
 //! than expanding to `i` followed by a combining dot. Null input returns null, while empty input
 //! remains present.
 //!
-//! Constructed bytes live in `CompiledFn`'s fixed-capacity call arena; arena exhaustion returns
+//! Constructed bytes live in the caller's fixed-capacity string arena; arena exhaustion returns
 //! null.
 
 use std::collections::HashMap;
@@ -173,7 +173,7 @@ unsafe extern "C" fn string_lowercase(
 
     // The input reference above is no longer live. This matters for nested
     // LOWER calls whose input points into an earlier, disjoint arena allocation.
-    // SAFETY: CompiledFn exclusively owns and passes this arena for the call.
+    // SAFETY: The caller exclusively borrows and passes this arena for the call.
     let Some(output_ptr) = (unsafe { &mut *string_arena }).allocate(output_len) else {
         return RawStr::none();
     };
@@ -248,7 +248,7 @@ mod tests {
     fn test_compile_lowercases_unicode_without_mutating_input() {
         let expression = deserialize("(LOWER value)").unwrap();
         let variable_types = HashMap::from([("value", VarType::Str)]);
-        let mut compiled = compile(&expression, &variable_types).unwrap();
+        let mut compiled = compile(&expression, &variable_types).unwrap().context();
         let input_string = String::from("CAFÉ İSTANBUL");
         let input = [VariableValue::some(input_string.as_str())];
 
@@ -262,7 +262,7 @@ mod tests {
     fn test_compile_propagates_none_and_preserves_empty_string() {
         let expression = deserialize("(LOWER value)").unwrap();
         let variable_types = HashMap::from([("value", VarType::Str)]);
-        let mut compiled = compile(&expression, &variable_types).unwrap();
+        let mut compiled = compile(&expression, &variable_types).unwrap().context();
 
         let none = unsafe { compiled.call(&[VariableValue::none()]) };
         assert_eq!(unsafe { none.as_str() }, None);
@@ -275,7 +275,7 @@ mod tests {
     fn test_nested_lower_uses_stable_arena_allocations() {
         let expression = deserialize("(LOWER (LOWER value))").unwrap();
         let variable_types = HashMap::from([("value", VarType::Str)]);
-        let mut compiled = compile(&expression, &variable_types).unwrap();
+        let mut compiled = compile(&expression, &variable_types).unwrap().context();
         let input = [VariableValue::some("HeLLo")];
 
         assert_eq!(unsafe { compiled.call(&input).as_str() }, Some("hello"));
@@ -285,7 +285,7 @@ mod tests {
     fn test_multiple_lower_calls_keep_previous_allocations_valid() {
         let expression = deserialize("(EQ (LOWER left) (LOWER right))").unwrap();
         let variable_types = HashMap::from([("left", VarType::Str), ("right", VarType::Str)]);
-        let mut compiled = compile(&expression, &variable_types).unwrap();
+        let mut compiled = compile(&expression, &variable_types).unwrap().context();
         let input = [VariableValue::some("FiRsT"), VariableValue::some("SeCoNd")];
 
         let output = unsafe { compiled.call(&input) };
@@ -298,7 +298,7 @@ mod tests {
     fn test_arena_exhaustion_returns_none_without_advancing_cursor() {
         let expression = deserialize("(LOWER value)").unwrap();
         let variable_types = HashMap::from([("value", VarType::Str)]);
-        let mut compiled = compile(&expression, &variable_types).unwrap();
+        let mut compiled = compile(&expression, &variable_types).unwrap().context();
         let too_large = "A".repeat(STRING_ARENA_CAPACITY + 1);
         let input = [VariableValue::some(too_large.as_str())];
 
@@ -312,7 +312,7 @@ mod tests {
     fn test_arena_cursor_is_cleared_before_each_call() {
         let expression = deserialize("(LOWER value)").unwrap();
         let variable_types = HashMap::from([("value", VarType::Str)]);
-        let mut compiled = compile(&expression, &variable_types).unwrap();
+        let mut compiled = compile(&expression, &variable_types).unwrap().context();
         let full = "A".repeat(STRING_ARENA_CAPACITY);
 
         {
