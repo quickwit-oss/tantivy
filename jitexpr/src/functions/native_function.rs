@@ -2,8 +2,8 @@ use cranelift::codegen::ir::{FuncRef, Function as CraneliftFunction, Type};
 use cranelift_jit::{JITBuilder, JITModule};
 
 use super::{
-    comparison, concat, eq, int_mod, lower, pow, regexp_extract, regexp_like, split_before,
-    substring, substring_count, trim, upper,
+    comparison, concat, eq, int_mod, lower, pow, regexp_extract, regexp_like, split_after,
+    split_before, substring, substring_count, trim, upper,
 };
 use crate::compile::CompileError;
 
@@ -15,6 +15,7 @@ pub(crate) struct NativeFunctions {
     string_trim: FuncRef,
     substring_count: FuncRef,
     substring: FuncRef,
+    split_after: FuncRef,
     split_before: FuncRef,
     string_concat: FuncRef,
     float_mod: FuncRef,
@@ -47,6 +48,10 @@ impl NativeFunctions {
 
     pub(crate) fn substring(&self) -> FuncRef {
         self.substring
+    }
+
+    pub(crate) fn split_after(&self) -> FuncRef {
+        self.split_after
     }
 
     pub(crate) fn split_before(&self) -> FuncRef {
@@ -95,6 +100,7 @@ pub(crate) fn register_jit_symbols(jit_builder: &mut JITBuilder) {
     trim::register_jit_symbol(jit_builder);
     substring_count::register_jit_symbol(jit_builder);
     substring::register_jit_symbol(jit_builder);
+    split_after::register_jit_symbol(jit_builder);
     split_before::register_jit_symbol(jit_builder);
     concat::register_jit_symbol(jit_builder);
     int_mod::register_jit_symbol(jit_builder);
@@ -117,6 +123,7 @@ pub(crate) fn declare_native_functions(
         string_trim: trim::declare_native_function(module, function, pointer_type)?,
         substring_count: substring_count::declare_native_function(module, function, pointer_type)?,
         substring: substring::declare_native_function(module, function, pointer_type)?,
+        split_after: split_after::declare_native_function(module, function, pointer_type)?,
         split_before: split_before::declare_native_function(module, function, pointer_type)?,
         string_concat: concat::declare_native_function(module, function, pointer_type)?,
         float_mod: int_mod::declare_native_function(module, function)?,

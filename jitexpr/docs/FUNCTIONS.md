@@ -55,7 +55,7 @@ excluded from this pass, or is complex enough to warrant a separate implementati
 | 41 | `RIGHT` | done |
 | 42 | `SUBSTRING` | done |
 | 43 | `SPLIT_BEFORE` | done |
-| 44 | `SPLIT_AFTER` | out-of-scope |
+| 44 | `SPLIT_AFTER` | done |
 | 50 | `REGEXP_EXTRACT` | done |
 | 54 | `TRIM` | done |
 | 55 | `IF` | done |
@@ -76,7 +76,7 @@ excluded from this pass, or is complex enough to warrant a separate implementati
 | 79 | `SUBSTRING_COUNT` | done |
 | 80 | `REGEXP_LIKE` | done |
 
-Progress: **33 / 33 in-scope** functions implemented; **22** functions are out-of-scope.
+Progress: **34 / 34 in-scope** functions implemented; **21** functions are out-of-scope.
 
 ## Deferred implementation notes
 
@@ -102,9 +102,6 @@ Progress: **33 / 33 in-scope** functions implemented; **22** functions are out-o
 - `SQRT` has a contradictory production type contract: the dd-go type checker returns the selected
   input type (including integer), while the registry declares a `float64` output and both integer
   and float kernels write `float64`. It is deferred until one of those contracts is chosen.
-- `SPLIT_AFTER` shares the negative-occurrence double-append defect with `SPLIT_BEFORE`; its scalar
-  result can contain both an empty value and the unsplit input even though the function is expected
-  to be scalar.
 - `COALESCE` uses dd-go's distinct n-ary common-type algorithm, including an ordinal fallback that
   can choose string where the binary `IF` unifier chooses numeric. Implementing it correctly needs
   a broader coercion-policy change rather than only a new call node.
