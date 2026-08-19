@@ -1155,8 +1155,9 @@ impl IntermediateTermBucketResult {
                     }
                     entries = keyed.into_iter().map(|(_, entry)| entry).collect();
                 }
-                OrderTarget::Count if mode == PruneMode::Final => {
-                    // Match the final result ordering: equal counts are ordered by key ascending.
+                OrderTarget::Count => {
+                    // Match the final result ordering at every pruning level: equal counts are
+                    // ordered by key ascending, making the selected bucket set deterministic.
                     let mut keyed: Vec<(Key, (IntermediateKey, IntermediateTermBucketEntry))> =
                         entries
                             .into_iter()
@@ -1183,15 +1184,6 @@ impl IntermediateTermBucketResult {
                         );
                     }
                     entries = keyed.into_iter().map(|(_, entry)| entry).collect();
-                }
-                OrderTarget::Count => {
-                    if req_internal.order.order == Order::Desc {
-                        entries.select_nth_unstable_by_key(size, |(_, e)| {
-                            std::cmp::Reverse(e.doc_count)
-                        });
-                    } else {
-                        entries.select_nth_unstable_by_key(size, |(_, e)| e.doc_count);
-                    }
                 }
             }
             let cutoff_doc_count = entries[size].1.doc_count;
@@ -1709,41 +1701,44 @@ mod tests {
     }
 
     #[test]
-    fn test_prune_intermediate_results_final_count_ties_by_key() {
+    fn test_prune_intermediate_results_count_ties_by_key() {
         use crate::aggregation::bucket::TermsAggregation;
 
-        for order in ["asc", "desc"] {
-            let entries = ["z", "y", "a"]
-                .into_iter()
-                .map(|key| {
-                    (
-                        IntermediateKey::Str(key.to_string()),
-                        IntermediateTermBucketEntry {
-                            doc_count: 1,
-                            sub_aggregation: Default::default(),
-                        },
-                    )
-                })
-                .collect();
-            let mut term_result = IntermediateTermBucketResult {
-                entries,
-                ..Default::default()
-            };
-            let req: TermsAggregation = serde_json::from_value(serde_json::json!({
-                "field": "myfield",
-                "size": 1,
-                "order": { "_count": order },
-            }))
-            .unwrap();
-
-            term_result
-                .prune_intermediate_results(&req, &Default::default(), PruneMode::Final)
+        for mode in [PruneMode::Final, PruneMode::Intermediate] {
+            for order in ["asc", "desc"] {
+                let entries = ["z", "y", "a"]
+                    .into_iter()
+                    .map(|key| {
+                        (
+                            IntermediateKey::Str(key.to_string()),
+                            IntermediateTermBucketEntry {
+                                doc_count: 1,
+                                sub_aggregation: Default::default(),
+                            },
+                        )
+                    })
+                    .collect();
+                let mut term_result = IntermediateTermBucketResult {
+                    entries,
+                    ..Default::default()
+                };
+                let req: TermsAggregation = serde_json::from_value(serde_json::json!({
+                    "field": "myfield",
+                    "size": 1,
+                    "segment_size": 1,
+                    "order": { "_count": order },
+                }))
                 .unwrap();
 
-            assert_eq!(
-                term_result.entries[0].0,
-                IntermediateKey::Str("a".to_string())
-            );
+                term_result
+                    .prune_intermediate_results(&req, &Default::default(), mode)
+                    .unwrap();
+
+                assert_eq!(
+                    term_result.entries[0].0,
+                    IntermediateKey::Str("a".to_string())
+                );
+            }
         }
     }
 
