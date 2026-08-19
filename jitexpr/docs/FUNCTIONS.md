@@ -44,7 +44,7 @@ excluded from this pass, or is complex enough to warrant a separate implementati
 | 22 | `NEQ` | done |
 | 24 | `INT_MOD` | done |
 | 25 | `ABS` | done |
-| 27 | `ROUND` | out-of-scope |
+| 27 | `ROUND` | done |
 | 28 | `FLOOR` | done |
 | 29 | `CEIL` | done |
 | 34 | `POW` | done |
@@ -76,7 +76,7 @@ excluded from this pass, or is complex enough to warrant a separate implementati
 | 79 | `SUBSTRING_COUNT` | done |
 | 80 | `REGEXP_LIKE` | done |
 
-Progress: **37 / 37 in-scope** functions implemented; **18** functions are out-of-scope.
+Progress: **38 / 38 in-scope** functions implemented; **17** functions are out-of-scope.
 
 ## Deferred implementation notes
 
@@ -90,10 +90,6 @@ Progress: **37 / 37 in-scope** functions implemented; **18** functions are out-o
 - Calculated-field `IN` is lowered by logs-backend to dd-go's `ARRAY_CONTAINS`; it is distinct from
   the query-language `InExprNode` set-membership path and is deferred with the other array
   functions.
-- `ROUND` has a literal-value-dependent return type, four integer/float input-output paths, an
-  aborting float-to-int overflow case, and an observable production defect where integer input at
-  precision zero leaves the lazily allocated output unwritten. It needs a separate parity decision
-  and implementation pass.
 - `COALESCE` uses dd-go's distinct n-ary common-type algorithm, including an ordinal fallback that
   can choose string where the binary `IF` unifier chooses numeric. Implementing it correctly needs
   a broader coercion-policy change rather than only a new call node.

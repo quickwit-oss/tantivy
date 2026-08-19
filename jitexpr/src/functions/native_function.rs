@@ -2,7 +2,7 @@ use cranelift::codegen::ir::{FuncRef, Function as CraneliftFunction, Type};
 use cranelift_jit::{JITBuilder, JITModule};
 
 use super::{
-    comparison, concat, eq, int_mod, lower, pow, regexp_extract, regexp_like, split_after,
+    comparison, concat, eq, int_mod, lower, pow, regexp_extract, regexp_like, round, split_after,
     split_before, substring, substring_count, trim, upper,
 };
 use crate::compile::CompileError;
@@ -20,6 +20,9 @@ pub(crate) struct NativeFunctions {
     string_concat: FuncRef,
     float_mod: FuncRef,
     float_pow: FuncRef,
+    round_float: FuncRef,
+    round_int_to_i64: FuncRef,
+    round_float_to_i64: FuncRef,
     regexp_extract: FuncRef,
     regexp_like: FuncRef,
     string_compare: FuncRef,
@@ -70,6 +73,18 @@ impl NativeFunctions {
         self.float_pow
     }
 
+    pub(crate) fn round_float(&self) -> FuncRef {
+        self.round_float
+    }
+
+    pub(crate) fn round_int_to_i64(&self) -> FuncRef {
+        self.round_int_to_i64
+    }
+
+    pub(crate) fn round_float_to_i64(&self) -> FuncRef {
+        self.round_float_to_i64
+    }
+
     pub(crate) fn regexp_extract(&self) -> FuncRef {
         self.regexp_extract
     }
@@ -105,6 +120,7 @@ pub(crate) fn register_jit_symbols(jit_builder: &mut JITBuilder) {
     concat::register_jit_symbol(jit_builder);
     int_mod::register_jit_symbol(jit_builder);
     pow::register_jit_symbol(jit_builder);
+    round::register_jit_symbols(jit_builder);
     regexp_extract::register_jit_symbol(jit_builder);
     regexp_like::register_jit_symbol(jit_builder);
 }
@@ -116,6 +132,7 @@ pub(crate) fn declare_native_functions(
     pointer_type: Type,
 ) -> Result<NativeFunctions, CompileError> {
     let comparison = comparison::declare_native_functions(module, function, pointer_type)?;
+    let round = round::declare_native_functions(module, function)?;
     Ok(NativeFunctions {
         string_eq: eq::declare_native_function(module, function, pointer_type)?,
         string_lowercase: lower::declare_native_function(module, function, pointer_type)?,
@@ -128,6 +145,9 @@ pub(crate) fn declare_native_functions(
         string_concat: concat::declare_native_function(module, function, pointer_type)?,
         float_mod: int_mod::declare_native_function(module, function)?,
         float_pow: pow::declare_native_function(module, function)?,
+        round_float: round.round_float,
+        round_int_to_i64: round.round_int_to_i64,
+        round_float_to_i64: round.round_float_to_i64,
         regexp_extract: regexp_extract::declare_native_function(module, function, pointer_type)?,
         regexp_like: regexp_like::declare_native_function(module, function, pointer_type)?,
         string_compare: comparison.string_compare,

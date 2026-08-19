@@ -28,6 +28,7 @@ mod pow;
 mod regexp_extract;
 mod regexp_like;
 mod right;
+mod round;
 mod split_after;
 mod split_before;
 mod sqrt;
@@ -73,6 +74,7 @@ pub(crate) use self::pow::PowFnCall;
 pub(crate) use self::regexp_extract::RegexpExtractFnCall;
 pub(crate) use self::regexp_like::RegexpLikeFnCall;
 pub(crate) use self::right::RightFnCall;
+pub(crate) use self::round::RoundFnCall;
 pub(crate) use self::split_after::SplitAfterFnCall;
 pub(crate) use self::split_before::SplitBeforeFnCall;
 pub(crate) use self::sqrt::SqrtFnCall;
@@ -147,6 +149,8 @@ pub enum Function {
     RegexpLike,
     /// Returns the last requested number of bytes from a string.
     Right,
+    /// Rounds a number to a constant decimal precision.
+    Round,
     /// Returns the suffix after a selected occurrence of a literal separator.
     SplitAfter,
     /// Returns the prefix before a selected occurrence of a literal separator.
@@ -233,6 +237,9 @@ impl Function {
             }
             Function::Right => {
                 <RightFnCall as FnCall>::call_with_types(args, target_type_set, context)
+            }
+            Function::Round => {
+                <RoundFnCall as FnCall>::call_with_types(args, target_type_set, context)
             }
             Function::SplitAfter => {
                 <SplitAfterFnCall as FnCall>::call_with_types(args, target_type_set, context)
@@ -329,6 +336,9 @@ impl Function {
             Function::Right => {
                 <RightFnCall as FnCall>::infer_types(args, target_type, inferred_types)
             }
+            Function::Round => {
+                <RoundFnCall as FnCall>::infer_types(args, target_type, inferred_types)
+            }
             Function::SplitAfter => {
                 <SplitAfterFnCall as FnCall>::infer_types(args, target_type, inferred_types)
             }
@@ -395,6 +405,7 @@ pub(crate) enum FnCallEnum {
     RegexpExtract(RegexpExtractFnCall),
     RegexpLike(RegexpLikeFnCall),
     Right(RightFnCall),
+    Round(RoundFnCall),
     SplitAfter(SplitAfterFnCall),
     SplitBefore(SplitBeforeFnCall),
     Subtract(SubtractFnCall),
@@ -437,6 +448,7 @@ impl FnCallEnum {
             FnCallEnum::RegexpExtract(call) => call.args_mut(),
             FnCallEnum::RegexpLike(call) => call.args_mut(),
             FnCallEnum::Right(call) => call.args_mut(),
+            FnCallEnum::Round(call) => call.args_mut(),
             FnCallEnum::SplitAfter(call) => call.args_mut(),
             FnCallEnum::SplitBefore(call) => call.args_mut(),
             FnCallEnum::Subtract(call) => call.args_mut(),
@@ -487,6 +499,7 @@ impl FnCallEnum {
             }
             FnCallEnum::RegexpLike(call) => call.emit_cranelift_ir(return_type, context, builder),
             FnCallEnum::Right(call) => call.emit_cranelift_ir(return_type, context, builder),
+            FnCallEnum::Round(call) => call.emit_cranelift_ir(return_type, context, builder),
             FnCallEnum::SplitAfter(call) => call.emit_cranelift_ir(return_type, context, builder),
             FnCallEnum::SplitBefore(call) => call.emit_cranelift_ir(return_type, context, builder),
             FnCallEnum::Subtract(call) => call.emit_cranelift_ir(return_type, context, builder),
