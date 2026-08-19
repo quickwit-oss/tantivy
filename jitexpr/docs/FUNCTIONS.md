@@ -14,99 +14,104 @@ surface, emitted by `ExprNodeToProto`, and backed by the dd-go reader implementa
 does not register or execute it. Reader-only functions rejected by the CalcNode producer are also
 excluded.
 
-Status legend: **done** is implemented and covered by unit tests; **pending** is in the queue;
-**out-of-scope** is deliberately deferred because it requires array support, was explicitly
-excluded from this pass, or is complex enough to warrant a separate implementation pass.
+The groups below are mutually exclusive and cover all 55 functions in the inventory.
 
-| Tag | Function | Status |
+## Status summary
+
+| Status | Count |
+|---|---:|
+| Supported | 38 |
+| Not supported yet but apparently not used in SaaS | 0 |
+| Not supported yet because targeting arrays | 6 |
+| Not supported yet because of specification ambiguity | 3 |
+| Not supported yet because of a current framework limitation | 3 |
+| Not supported yet because of implementation complexity | 5 |
+| **Total** | **55** |
+
+## Supported (38)
+
+These functions are implemented and covered by unit tests.
+
+| Tag | Function |
+|---:|---|
+| 1 | `AND` |
+| 2 | `OR` |
+| 3 | `NOT` |
+| 4 | `ADD` |
+| 5 | `SUBTRACT` |
+| 6 | `MULTIPLY` |
+| 7 | `DIVIDE` |
+| 8 | `EQ` |
+| 9 | `GT` |
+| 10 | `LT` |
+| 11 | `GT_EQ` |
+| 12 | `LT_EQ` |
+| 13 | `IS_NULL` |
+| 14 | `IS_NOT_NULL` |
+| 16 | `UPPER` |
+| 17 | `LOWER` |
+| 19 | `CONCAT` |
+| 20 | `TEXT_JOIN` |
+| 22 | `NEQ` |
+| 24 | `INT_MOD` |
+| 25 | `ABS` |
+| 27 | `ROUND` |
+| 28 | `FLOOR` |
+| 29 | `CEIL` |
+| 34 | `POW` |
+| 35 | `SQRT` |
+| 38 | `MIN` |
+| 39 | `MAX` |
+| 40 | `LEFT` |
+| 41 | `RIGHT` |
+| 42 | `SUBSTRING` |
+| 43 | `SPLIT_BEFORE` |
+| 44 | `SPLIT_AFTER` |
+| 50 | `REGEXP_EXTRACT` |
+| 54 | `TRIM` |
+| 55 | `IF` |
+| 79 | `SUBSTRING_COUNT` |
+| 80 | `REGEXP_LIKE` |
+
+## Not supported yet but apparently not used in SaaS (0)
+
+None. The source inventory proves that each listed function is reachable through the SaaS reader
+path, but it does not contain runtime usage telemetry. No function can therefore be placed in this
+group with defensible evidence.
+
+## Not supported yet because targeting arrays (6)
+
+| Tag | Function | Reason |
 |---:|---|---|
-| 1 | `AND` | done |
-| 2 | `OR` | done |
-| 3 | `NOT` | done |
-| 4 | `ADD` | done |
-| 5 | `SUBTRACT` | done |
-| 6 | `MULTIPLY` | done |
-| 7 | `DIVIDE` | done |
-| 8 | `EQ` | done |
-| 9 | `GT` | done |
-| 10 | `LT` | done |
-| 11 | `GT_EQ` | done |
-| 12 | `LT_EQ` | done |
-| 13 | `IS_NULL` | done |
-| 14 | `IS_NOT_NULL` | done |
-| 15 | `CIDR` | out-of-scope |
-| 16 | `UPPER` | done |
-| 17 | `LOWER` | done |
-| 18 | `PROPER` | out-of-scope |
-| 19 | `CONCAT` | done |
-| 20 | `TEXT_JOIN` | done |
-| 21 | `IN` | out-of-scope |
-| 22 | `NEQ` | done |
-| 24 | `INT_MOD` | done |
-| 25 | `ABS` | done |
-| 27 | `ROUND` | done |
-| 28 | `FLOOR` | done |
-| 29 | `CEIL` | done |
-| 34 | `POW` | done |
-| 35 | `SQRT` | done |
-| 38 | `MIN` | done |
-| 39 | `MAX` | done |
-| 40 | `LEFT` | done |
-| 41 | `RIGHT` | done |
-| 42 | `SUBSTRING` | done |
-| 43 | `SPLIT_BEFORE` | done |
-| 44 | `SPLIT_AFTER` | done |
-| 50 | `REGEXP_EXTRACT` | done |
-| 54 | `TRIM` | done |
-| 55 | `IF` | done |
-| 56 | `COALESCE` | out-of-scope |
-| 61 | `TRY_CAST_INT` | out-of-scope |
-| 63 | `TRY_CAST_FLOAT` | out-of-scope |
-| 65 | `TO_TIMESTAMP` | out-of-scope |
-| 66 | `EXTRACT` | out-of-scope |
-| 67 | `SEMVER` | out-of-scope |
-| 70 | `ARRAY_CONTAINS` | out-of-scope |
-| 71 | `ARRAY_SUM` | out-of-scope |
-| 72 | `ARRAY_AVG` | out-of-scope |
-| 73 | `ARRAY_OF` | out-of-scope |
-| 74 | `TIMESTAMP_DIFF` | out-of-scope |
-| 76 | `ARRAY_CONTAINS_NULLABLE` | out-of-scope |
-| 77 | `LEVENSHTEIN_DISTANCE` | out-of-scope |
-| 78 | `ENTROPY` | out-of-scope |
-| 79 | `SUBSTRING_COUNT` | done |
-| 80 | `REGEXP_LIKE` | done |
+| 21 | `IN` | This calculated-field operation is lowered to array containment. |
+| 70 | `ARRAY_CONTAINS` | Requires array values and array-aware typing. |
+| 71 | `ARRAY_SUM` | Requires numeric array values and array-aware typing. |
+| 72 | `ARRAY_AVG` | Requires numeric array values and array-aware typing. |
+| 73 | `ARRAY_OF` | Produces an array value, which `VarType` cannot currently represent. |
+| 76 | `ARRAY_CONTAINS_NULLABLE` | Requires nullable array-element semantics. |
 
-Progress: **38 / 38 in-scope** functions implemented; **17** functions are out-of-scope.
+## Not supported yet because of specification ambiguity (3)
 
-## Deferred implementation notes
+| Tag | Function | Reason |
+|---:|---|---|
+| 66 | `EXTRACT` | The type checker says string while the function registry says `int64`; failure behavior is also unresolved. |
+| 67 | `SEMVER` | Malformed-version behavior is uncharacterized, and its tag collides with `TIMESTAMP_DIFF` in another schema revision. |
+| 74 | `TIMESTAMP_DIFF` | Schema revisions disagree on its tag, and the exact temporal parsing/rendering contract remains unresolved. |
 
-- `CIDR` requires compile-time parsing of variadic IPv4/IPv6 network masks, exact IP parsing
-  compatibility (including IPv6 zone-index stripping), and structural enforcement that argument 0
-  is a bare column while every remaining argument is a string constant. It is deferred as a
-  complex function rather than expanding this scalar-function pass.
-- `PROPER` is locale-aware title casing using Go's `cases.Title(language.AmericanEnglish)`. Exact
-  compatibility requires Unicode word segmentation, American-English title-case rules, and the
-  matching Unicode data version; Rust's standard library does not provide this operation.
-- Calculated-field `IN` is lowered by logs-backend to dd-go's `ARRAY_CONTAINS`; it is distinct from
-  the query-language `InExprNode` set-membership path and is deferred with the other array
-  functions.
-- `COALESCE` uses dd-go's distinct n-ary common-type algorithm, including an ordinal fallback that
-  can choose string where the binary `IF` unifier chooses numeric. Implementing it correctly needs
-  a broader coercion-policy change rather than only a new call node.
-- `TRY_CAST_INT` participates in dd-go's cast-elision/tree-rewrite system and uses the custom
-  `IsLikelyInt` heuristic (including leading-zero rejection), plus architecture-sensitive
-  float-to-integer edge behavior. It is deferred as a separate coercion pass.
-- `TRY_CAST_FLOAT` shares the cast-elision/tree-rewrite machinery and uses a separate
-  `IsLikelyFloat` heuristic whose leading-zero rules differ from integer parsing. It is deferred
-  with `TRY_CAST_INT` so the coercion policy is implemented consistently.
-- `TO_TIMESTAMP` uses a custom calculated-field format-language translator before Go time parsing,
-  with parse failures and timestamp rendering behavior that need a dedicated compatibility pass.
-- `EXTRACT` has an unresolved production type contradiction: the type checker returns string while
-  the function registry declares `int64`. Its temporal component kernels and failure behavior need
-  to be reconciled before jitexpr can expose a sound result type.
-- `SEMVER` requires argument 0 to remain a bare column, parses a constant comparison expression,
-  and has uncharacterized malformed-version behavior. Its tag also collides with
-  `TIMESTAMP_DIFF` in the stale pomsky schema, so it is deferred as a compatibility feature.
-- `TIMESTAMP_DIFF` depends on the temporal string parser/formatter and its live tag is unknown to
-  the stale pomsky schema (whose tag 67 decodes as `TIMESTAMP_DIFF` instead of `SEMVER`). It is
-  deferred with the other temporal compatibility work.
+## Not supported yet because of a current framework limitation (3)
+
+| Tag | Function | Reason |
+|---:|---|---|
+| 56 | `COALESCE` | Its n-ary common-type selection differs from the current binary unification rules and needs a broader coercion refactor. |
+| 61 | `TRY_CAST_INT` | Correct behavior needs cast-elision/tree rewriting plus a dedicated nullable parsing/coercion path. |
+| 63 | `TRY_CAST_FLOAT` | Shares the cast-elision/tree-rewrite requirement and needs its own parsing heuristic. |
+
+## Not supported yet because of implementation complexity (5)
+
+| Tag | Function | Reason |
+|---:|---|---|
+| 15 | `CIDR` | Requires variadic compile-time IPv4/IPv6 mask parsing, zone handling, and structural argument restrictions. |
+| 18 | `PROPER` | Requires locale-aware title casing with compatible Unicode segmentation and casing data. |
+| 65 | `TO_TIMESTAMP` | Requires a custom format-language translator plus compatible parsing, failure, and rendering behavior. |
+| 77 | `LEVENSHTEIN_DISTANCE` | Its kernel and Unicode/error edge cases still need characterization before implementing the distance algorithm. |
+| 78 | `ENTROPY` | Its metric kernel and edge cases are still uncharacterized. |
