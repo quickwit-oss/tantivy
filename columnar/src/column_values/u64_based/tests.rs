@@ -322,15 +322,10 @@ fn estimation_test_bad_interpolation_case_monotonically_increasing() {
     assert_le!(bitpacked_estimation, linear_interpol_estimation);
 }
 
-#[test]
-fn estimation_blockwise_linear_accounts_for_the_gcd_per_block() {
-    let data: Vec<u64> = (0..20_000u64)
-        .map(|i| 1_700_000_000 + (i / 2_000) * 3_600)
-        .collect();
-
+fn blockwise_linear_estimate_and_actual(data: &[u64]) -> (u64, u64) {
     let mut stats_collector = StatsCollector::default();
     let mut estimator = CodecType::BlockwiseLinear.estimator();
-    for &val in &data {
+    for &val in data {
         stats_collector.collect(val);
         estimator.collect(val);
     }
@@ -338,10 +333,13 @@ fn estimation_blockwise_linear_accounts_for_the_gcd_per_block() {
     let estimated = estimator.estimate(&stats_collector.stats()).unwrap();
 
     let mut buffer = Vec::new();
-    serialize_u64_based_column_values(&&data[..], &[CodecType::BlockwiseLinear], &mut buffer)
-        .unwrap();
-    let actual = buffer.len() as u64;
+    serialize_u64_based_column_values(&data, &[CodecType::BlockwiseLinear], &mut buffer).unwrap();
+    (estimated, buffer.len() as u64)
+}
 
+#[track_caller]
+fn assert_estimate_within_10_percent(data: &[u64]) {
+    let (estimated, actual) = blockwise_linear_estimate_and_actual(data);
     assert!(
         estimated * 10 >= actual * 9 && estimated * 9 <= actual * 10,
         "estimated {estimated} bytes, wrote {actual}"
@@ -349,35 +347,45 @@ fn estimation_blockwise_linear_accounts_for_the_gcd_per_block() {
 }
 
 #[test]
+fn estimation_blockwise_linear_accounts_for_the_gcd_per_block() {
+    let data: Vec<u64> = (0..20_000u64)
+        .map(|i| 1_700_000_000 + (i / 2_000) * 3_600)
+        .collect();
+    assert_estimate_within_10_percent(&data);
+}
+
+#[test]
 fn estimation_blockwise_linear_accounts_for_the_slope_cutoff() {
-    // `compute_slope` gives up above a `1 << 31` endpoint delta. Each block here is a
-    // ramp of step `1 << 32`, so it fits a line once divided by its own gcd, but the
-    // second block is offset by one, which drops the column's gcd to 1 and leaves
-    // `serialize` bitpacking the whole amplitude.
+    // `compute_slope` gives up above a `1 << 31` endpoint delta. Each block here is a ramp of
+    // step `1 << 32`, so it fits a line once divided by its own gcd, but the second block is
+    // offset by one, which drops the column's gcd to 1 and leaves `serialize` a flat line and
+    // the whole amplitude to bitpack.
     let mut data: Vec<u64> = (0..512u64).map(|i| i << 32).collect();
     data.extend((0..512u64).map(|i| (i << 32) + 1));
+    assert_estimate_within_10_percent(&data);
+}
 
-    let mut stats_collector = StatsCollector::default();
-    let mut estimator = CodecType::BlockwiseLinear.estimator();
-    for &val in &data {
-        stats_collector.collect(val);
-        estimator.collect(val);
+#[test]
+fn estimation_blockwise_linear_accounts_for_the_slope_rounding() {
+    // Both blocks alternate between two values three apart and end on the higher one, and the
+    // second is offset by one, which drops the column's gcd to 1. Rescaling stays under the
+    // slope cutoff, but the line `serialize` trains is not the line trained per block scaled
+    // up: it rounds its slope into a 32 bit fraction, which widens the residuals from 1 to 5.
+    let mut data: Vec<u64> = Vec::new();
+    for block in 0..40u64 {
+        data.extend((0..512u64).map(|i| (i % 2) * 3 + block % 2));
     }
-    estimator.finalize();
-    let estimated = estimator.estimate(&stats_collector.stats()).unwrap();
+    assert_estimate_within_10_percent(&data);
+}
 
-    let mut buffer = Vec::new();
-    serialize_u64_based_column_values(&&data[..], &[CodecType::BlockwiseLinear], &mut buffer)
-        .unwrap();
-    let actual = buffer.len() as u64;
-
-    // The estimate is deliberately conservative here -- `serialize` gets a flat line whose
-    // residuals do not follow from the one measured per block -- so only the direction
-    // that steals selection is pinned tightly.
-    assert!(
-        estimated * 2 >= actual && estimated <= actual * 2,
-        "estimated {estimated} bytes, wrote {actual}"
-    );
+#[test]
+fn estimation_blockwise_linear_charges_a_flat_block_its_amplitude() {
+    // Two ramps of step `1 << 23`, the second offset by one to drop the column's gcd to 1.
+    // Rescaling crosses the slope cutoff, so `serialize` gets a flat line -- but a flat line
+    // still only spans the block, which is `1 << 32` narrower than the column.
+    let mut data: Vec<u64> = (0..512u64).map(|i| i << 23).collect();
+    data.extend((0..512u64).map(|i| (1u64 << 40) + 1 + (i << 23)));
+    assert_estimate_within_10_percent(&data);
 }
 
 #[test]
@@ -411,6 +419,16 @@ fn test_selection_does_not_pick_a_much_larger_codec() {
             "shuffled_cadence",
             (0..n)
                 .map(|i| 1_700_000_000_000 + (mix(i) % n) * 250)
+                .collect(),
+        ),
+        (
+            "alternating_blocks",
+            (0..n).map(|i| (i % 2) * 3 + (i / 512) % 2).collect(),
+        ),
+        (
+            "ramps_across_the_slope_cutoff",
+            (0..n)
+                .map(|i| (i / 512) * ((1 << 40) + 1) + (i % 512) * (1 << 23))
                 .collect(),
         ),
     ];

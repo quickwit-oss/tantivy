@@ -46,9 +46,72 @@ fn compute_num_blocks(num_vals: u32) -> u32 {
 
 struct GcdBlock {
     max_residual: u64,
-    endpoint_delta: u64,
+    residual_span: u128,
+    first_residual_span: u128,
+    amplitude: u64,
+    first_val: u64,
+    last_val: u64,
     gcd: u64,
     num_rows: u32,
+}
+
+impl GcdBlock {
+    fn num_bits(&self, column_gcd: u64) -> u64 {
+        let scale = self.gcd / column_gcd;
+        if scale == 1 {
+            return compute_num_bits(self.max_residual) as u64;
+        }
+        let endpoint_delta = self.last_val.abs_diff(self.first_val).saturating_mul(scale);
+        let (span, first_span) = if endpoint_delta >= 1 << 31 {
+            (
+                self.amplitude.saturating_mul(scale),
+                self.first_val.saturating_mul(scale),
+            )
+        } else {
+            let idx_last_val = u64::from(self.idx_last_val());
+            let rounding = u64::from(
+                self.last_val < self.first_val
+                    || endpoint_delta / idx_last_val * idx_last_val != endpoint_delta,
+            );
+            (
+                self.rescale(self.residual_span, scale, rounding),
+                self.rescale(self.first_residual_span, scale, rounding),
+            )
+        };
+        if first_span > u32::MAX as u64 {
+            return 64;
+        }
+        compute_num_bits(span) as u64
+    }
+
+    fn rescale(&self, span: u128, scale: u64, rounding: u64) -> u64 {
+        let Some(scaled) = span.checked_mul(u128::from(scale)) else {
+            return u64::MAX;
+        };
+        let span = scaled.div_ceil(u128::from(self.idx_last_val())) + u128::from(rounding);
+        u64::try_from(span).unwrap_or(u64::MAX)
+    }
+
+    fn idx_last_val(&self) -> u32 {
+        self.num_rows.max(2) - 1
+    }
+}
+
+fn exact_line_spans(block: &[u64]) -> (u128, u128) {
+    let idx_last_val = (block.len() - 1) as i128;
+    let slope = block[block.len() - 1] as i128 - block[0] as i128;
+    let first_residual = block[0] as i128 * idx_last_val;
+    let mut min_residual = i128::MAX;
+    let mut max_residual = i128::MIN;
+    for (x, &val) in block.iter().enumerate() {
+        let residual = val as i128 * idx_last_val - x as i128 * slope;
+        min_residual = min_residual.min(residual);
+        max_residual = max_residual.max(residual);
+    }
+    (
+        (max_residual - min_residual) as u128,
+        (first_residual - min_residual) as u128,
+    )
 }
 
 pub struct BlockwiseLinearEstimator {
@@ -70,14 +133,16 @@ impl Default for BlockwiseLinearEstimator {
 }
 
 impl BlockwiseLinearEstimator {
-    fn block_min_and_gcd(&self) -> (u64, NonZeroU64) {
+    fn block_min_max_and_gcd(&self) -> (u64, u64, NonZeroU64) {
         let Some((&first_val, rest)) = self.block.split_first() else {
-            return (0u64, NonZeroU64::MIN);
+            return (0u64, 0u64, NonZeroU64::MIN);
         };
         let mut block_min = first_val;
+        let mut block_max = first_val;
         let mut block_gcd: Option<NonZeroU64> = None;
         for &buffer_val in rest {
             block_min = block_min.min(buffer_val);
+            block_max = block_max.max(buffer_val);
             if block_gcd.map(NonZeroU64::get) == Some(1) {
                 continue;
             }
@@ -89,14 +154,14 @@ impl BlockwiseLinearEstimator {
                 None => non_zero_diff,
             });
         }
-        (block_min, block_gcd.unwrap_or(NonZeroU64::MIN))
+        (block_min, block_max, block_gcd.unwrap_or(NonZeroU64::MIN))
     }
 
     fn flush_block_estimate(&mut self) {
         if self.block.is_empty() {
             return;
         }
-        let (block_min, block_gcd) = self.block_min_and_gcd();
+        let (block_min, block_max, block_gcd) = self.block_min_max_and_gcd();
         if block_gcd.get() > 1 {
             let divider = DividerU64::divide_by(block_gcd.get());
             for buffer_val in self.block.iter_mut() {
@@ -120,11 +185,14 @@ impl BlockwiseLinearEstimator {
         }
         let num_rows = self.block.len() as u32;
         if block_gcd.get() > 1 {
-            let first_val = self.block[0];
-            let last_val = self.block[self.block.len() - 1];
+            let (residual_span, first_residual_span) = exact_line_spans(&self.block);
             self.gcd_blocks.push(GcdBlock {
                 max_residual: max_value,
-                endpoint_delta: last_val.abs_diff(first_val),
+                residual_span,
+                first_residual_span,
+                amplitude: (block_max - block_min) / block_gcd.get(),
+                first_val: self.block[0],
+                last_val: self.block[self.block.len() - 1],
                 gcd: block_gcd.get(),
                 num_rows,
             });
@@ -149,17 +217,7 @@ impl ColumnCodecEstimator for BlockwiseLinearEstimator {
             + self
                 .gcd_blocks
                 .iter()
-                .map(|block| {
-                    let scale = (block.gcd / gcd).max(1);
-                    let bit_width = if block.endpoint_delta < 1 << 31
-                        && block.endpoint_delta.saturating_mul(scale) >= 1 << 31
-                    {
-                        64
-                    } else {
-                        compute_num_bits(block.max_residual.saturating_mul(scale)) as u64
-                    };
-                    bit_width * u64::from(block.num_rows)
-                })
+                .map(|block| block.num_bits(gcd) * u64::from(block.num_rows))
                 .sum::<u64>();
         Some(4 + stats.num_bytes() + self.meta_num_bytes + values_num_bits.div_ceil(8))
     }
