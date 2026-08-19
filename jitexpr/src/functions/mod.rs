@@ -28,6 +28,7 @@ mod regexp_like;
 mod right;
 mod split_after;
 mod split_before;
+mod sqrt;
 mod substring;
 mod substring_count;
 mod subtract;
@@ -70,6 +71,7 @@ pub(crate) use self::regexp_like::RegexpLikeFnCall;
 pub(crate) use self::right::RightFnCall;
 pub(crate) use self::split_after::SplitAfterFnCall;
 pub(crate) use self::split_before::SplitBeforeFnCall;
+pub(crate) use self::sqrt::SqrtFnCall;
 pub(crate) use self::substring::SubstringFnCall;
 pub(crate) use self::substring_count::SubstringCountFnCall;
 pub(crate) use self::subtract::SubtractFnCall;
@@ -129,6 +131,8 @@ pub enum Function {
     Or,
     /// Raises a numeric base to a numeric exponent and returns a float.
     Pow,
+    /// Returns the floating-point square root of a number, or null for a NaN result.
+    Sqrt,
     /// Extracts a capture group from a string using a constant regular expression.
     RegexpExtract,
     /// Tests whether a constant regular expression matches a string.
@@ -204,6 +208,9 @@ impl Function {
             Function::Not => <NotFnCall as FnCall>::call_with_types(args, target_type_set, context),
             Function::Or => <OrFnCall as FnCall>::call_with_types(args, target_type_set, context),
             Function::Pow => <PowFnCall as FnCall>::call_with_types(args, target_type_set, context),
+            Function::Sqrt => {
+                <SqrtFnCall as FnCall>::call_with_types(args, target_type_set, context)
+            }
             Function::RegexpExtract => {
                 <RegexpExtractFnCall as FnCall>::call_with_types(args, target_type_set, context)
             }
@@ -290,6 +297,9 @@ impl Function {
             Function::Not => <NotFnCall as FnCall>::infer_types(args, target_type, inferred_types),
             Function::Or => <OrFnCall as FnCall>::infer_types(args, target_type, inferred_types),
             Function::Pow => <PowFnCall as FnCall>::infer_types(args, target_type, inferred_types),
+            Function::Sqrt => {
+                <SqrtFnCall as FnCall>::infer_types(args, target_type, inferred_types)
+            }
             Function::RegexpExtract => {
                 <RegexpExtractFnCall as FnCall>::infer_types(args, target_type, inferred_types)
             }
@@ -359,6 +369,7 @@ pub(crate) enum FnCallEnum {
     Not(NotFnCall),
     Or(OrFnCall),
     Pow(PowFnCall),
+    Sqrt(SqrtFnCall),
     RegexpExtract(RegexpExtractFnCall),
     RegexpLike(RegexpLikeFnCall),
     Right(RightFnCall),
@@ -398,6 +409,7 @@ impl FnCallEnum {
             FnCallEnum::Not(call) => call.args_mut(),
             FnCallEnum::Or(call) => call.args_mut(),
             FnCallEnum::Pow(call) => call.args_mut(),
+            FnCallEnum::Sqrt(call) => call.args_mut(),
             FnCallEnum::RegexpExtract(call) => call.args_mut(),
             FnCallEnum::RegexpLike(call) => call.args_mut(),
             FnCallEnum::Right(call) => call.args_mut(),
@@ -443,6 +455,7 @@ impl FnCallEnum {
             FnCallEnum::Not(call) => call.emit_cranelift_ir(return_type, context, builder),
             FnCallEnum::Or(call) => call.emit_cranelift_ir(return_type, context, builder),
             FnCallEnum::Pow(call) => call.emit_cranelift_ir(return_type, context, builder),
+            FnCallEnum::Sqrt(call) => call.emit_cranelift_ir(return_type, context, builder),
             FnCallEnum::RegexpExtract(call) => {
                 call.emit_cranelift_ir(return_type, context, builder)
             }

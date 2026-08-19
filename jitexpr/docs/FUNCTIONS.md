@@ -48,7 +48,7 @@ excluded from this pass, or is complex enough to warrant a separate implementati
 | 28 | `FLOOR` | out-of-scope |
 | 29 | `CEIL` | out-of-scope |
 | 34 | `POW` | done |
-| 35 | `SQRT` | out-of-scope |
+| 35 | `SQRT` | done |
 | 38 | `MIN` | done |
 | 39 | `MAX` | done |
 | 40 | `LEFT` | done |
@@ -76,7 +76,7 @@ excluded from this pass, or is complex enough to warrant a separate implementati
 | 79 | `SUBSTRING_COUNT` | done |
 | 80 | `REGEXP_LIKE` | done |
 
-Progress: **34 / 34 in-scope** functions implemented; **21** functions are out-of-scope.
+Progress: **35 / 35 in-scope** functions implemented; **20** functions are out-of-scope.
 
 ## Deferred implementation notes
 
@@ -99,9 +99,6 @@ Progress: **34 / 34 in-scope** functions implemented; **21** functions are out-o
   architecture-dependent. It is deferred pending an explicit production-parity policy.
 - `CEIL` shares `FLOOR`'s unwritten integer-output defect and architecture-dependent exceptional
   float-to-`int64` conversions, so it is deferred under the same parity policy.
-- `SQRT` has a contradictory production type contract: the dd-go type checker returns the selected
-  input type (including integer), while the registry declares a `float64` output and both integer
-  and float kernels write `float64`. It is deferred until one of those contracts is chosen.
 - `COALESCE` uses dd-go's distinct n-ary common-type algorithm, including an ordinal fallback that
   can choose string where the binary `IF` unifier chooses numeric. Implementing it correctly needs
   a broader coercion-policy change rather than only a new call node.
