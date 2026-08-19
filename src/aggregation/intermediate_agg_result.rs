@@ -46,7 +46,7 @@ pub enum PruneMode {
 /// intermediate results.
 ///
 /// Notice: This struct should not be de/serialized via JSON format.
-#[derive(Default, Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Default, Clone, Debug, Serialize, Deserialize)]
 pub struct IntermediateAggregationResults {
     pub(crate) aggs_res: FxHashMap<String, IntermediateAggregationResult>,
 }
@@ -382,7 +382,7 @@ pub(crate) fn empty_from_req(req: &Aggregation) -> IntermediateAggregationResult
 }
 
 /// An aggregation is either a bucket or a metric.
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 #[allow(clippy::large_enum_variant)]
 pub enum IntermediateAggregationResult {
     /// Bucket variant
@@ -615,7 +615,7 @@ impl IntermediateMetricResult {
 
 /// The intermediate bucket results. Internally they can be easily merged via the keys of the
 /// buckets.
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum IntermediateBucketResult {
     /// This is the range entry for a bucket, which contains a key, count, from, to, and optionally
     /// sub_aggregations.
@@ -916,7 +916,7 @@ impl IntermediateBucketResult {
     }
 }
 
-#[derive(Default, Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Default, Clone, Debug, Serialize, Deserialize)]
 /// Range aggregation including error counts
 pub struct IntermediateRangeBucketResult {
     pub(crate) buckets: FxHashMap<SerializedKey, IntermediateRangeBucketEntry>,
@@ -936,15 +936,6 @@ pub struct IntermediateTermBucketResult {
     /// every pairwise merge. Not serialized; rebuilt on demand.
     #[serde(skip)]
     pub(crate) key_to_idx_in_entries: FxHashMap<IntermediateKey, u32>,
-}
-
-// `key_to_idx_in_entries` is a transient acceleration structure and is excluded from equality.
-impl PartialEq for IntermediateTermBucketResult {
-    fn eq(&self, other: &Self) -> bool {
-        self.entries == other.entries
-            && self.sum_other_doc_count == other.sum_other_doc_count
-            && self.doc_count_error_upper_bound == other.doc_count_error_upper_bound
-    }
 }
 
 impl IntermediateTermBucketResult {
@@ -1247,7 +1238,7 @@ fn merge_maps<V: MergeFruits + Clone, T: Eq + PartialEq + Hash>(
 
 /// This is the histogram entry for a bucket, which contains a key, count, and optionally
 /// sub_aggregations.
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct IntermediateHistogramBucketEntry {
     /// The unique the bucket is identified.
     pub key: f64,
@@ -1276,7 +1267,7 @@ impl IntermediateHistogramBucketEntry {
 
 /// This is the range entry for a bucket, which contains a key, count, and optionally
 /// sub_aggregations.
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct IntermediateRangeBucketEntry {
     /// The unique key the bucket is identified with.
     pub key: IntermediateKey,
@@ -1329,7 +1320,7 @@ impl IntermediateRangeBucketEntry {
 
 /// This is the term entry for a bucket, which contains a count, and optionally
 /// sub_aggregations.
-#[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Default, Debug, Serialize, Deserialize)]
 pub struct IntermediateTermBucketEntry {
     /// The number of documents in the bucket.
     pub doc_count: u64,
@@ -1405,7 +1396,7 @@ impl std::hash::Hash for CompositeIntermediateKey {
 }
 
 /// Composite aggregation page.
-#[derive(Default, Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Default, Clone, Debug, Serialize, Deserialize)]
 pub struct IntermediateCompositeBucketResult {
     pub(crate) entries: FxHashMap<Vec<CompositeIntermediateKey>, IntermediateCompositeBucketEntry>,
     pub(crate) target_size: u32,
@@ -1599,6 +1590,40 @@ mod tests {
         }
     }
 
+    fn assert_range_trees_eq(
+        actual: &IntermediateAggregationResults,
+        expected: &IntermediateAggregationResults,
+    ) {
+        assert_eq!(actual.aggs_res.len(), expected.aggs_res.len());
+        for (name, actual_result) in &actual.aggs_res {
+            let expected_result = expected.aggs_res.get(name).unwrap();
+            let (
+                IntermediateAggregationResult::Bucket(IntermediateBucketResult::Range(
+                    actual_range,
+                )),
+                IntermediateAggregationResult::Bucket(IntermediateBucketResult::Range(
+                    expected_range,
+                )),
+            ) = (actual_result, expected_result)
+            else {
+                panic!("expected range aggregation results");
+            };
+            assert_eq!(actual_range.column_type, expected_range.column_type);
+            assert_eq!(actual_range.buckets.len(), expected_range.buckets.len());
+            for (key, actual_entry) in &actual_range.buckets {
+                let expected_entry = expected_range.buckets.get(key).unwrap();
+                assert_eq!(actual_entry.key, expected_entry.key);
+                assert_eq!(actual_entry.doc_count, expected_entry.doc_count);
+                assert_eq!(actual_entry.from, expected_entry.from);
+                assert_eq!(actual_entry.to, expected_entry.to);
+                assert_range_trees_eq(
+                    &actual_entry.sub_aggregation_res,
+                    &expected_entry.sub_aggregation_res,
+                );
+            }
+        }
+    }
+
     #[test]
     fn test_merge_fruits_tree_1() {
         let mut tree_left = get_intermediate_tree_with_ranges(&[
@@ -1617,7 +1642,7 @@ mod tests {
             ("blue".to_string(), 55, "1900".to_string(), 80),
         ]);
 
-        assert_eq!(tree_left, tree_expected);
+        assert_range_trees_eq(&tree_left, &tree_expected);
     }
 
     #[test]
@@ -1639,7 +1664,7 @@ mod tests {
             ("green".to_string(), 25, "1900".to_string(), 50),
         ]);
 
-        assert_eq!(tree_left, tree_expected);
+        assert_range_trees_eq(&tree_left, &tree_expected);
     }
 
     #[test]
@@ -1873,6 +1898,6 @@ mod tests {
             .merge_fruits(IntermediateAggregationResults::default())
             .unwrap();
 
-        assert_eq!(tree_left, orig);
+        assert_range_trees_eq(&tree_left, &orig);
     }
 }

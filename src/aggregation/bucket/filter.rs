@@ -693,7 +693,7 @@ impl<B: SubAggBuffer> SegmentAggregationCollector for SegmentFilterCollector<B> 
 }
 
 /// Intermediate result for filter aggregation
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone)]
 pub struct IntermediateFilterBucketResult {
     /// Document count in this bucket
     pub doc_count: u64,
