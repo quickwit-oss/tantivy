@@ -323,6 +323,96 @@ fn estimation_test_bad_interpolation_case_monotonically_increasing() {
 }
 
 #[test]
+fn estimation_blockwise_linear_accounts_for_the_gcd_per_block() {
+    let data: Vec<u64> = (0..20_000u64)
+        .map(|i| 1_700_000_000 + (i / 2_000) * 3_600)
+        .collect();
+
+    let mut stats_collector = StatsCollector::default();
+    let mut estimator = CodecType::BlockwiseLinear.estimator();
+    for &val in &data {
+        stats_collector.collect(val);
+        estimator.collect(val);
+    }
+    estimator.finalize();
+    let estimated = estimator.estimate(&stats_collector.stats()).unwrap();
+
+    let mut buffer = Vec::new();
+    serialize_u64_based_column_values(&&data[..], &[CodecType::BlockwiseLinear], &mut buffer)
+        .unwrap();
+    let actual = buffer.len() as u64;
+
+    assert!(
+        estimated * 10 >= actual * 9 && estimated * 9 <= actual * 10,
+        "estimated {estimated} bytes, wrote {actual}"
+    );
+}
+
+#[test]
+fn test_selection_does_not_pick_a_much_larger_codec() {
+    let n = 100_000u64;
+    let mix = |i: u64| i.wrapping_mul(0x9E37_79B9_7F4A_7C15);
+    let shapes: Vec<(&str, Vec<u64>)> = vec![
+        (
+            "fixed_cadence",
+            (0..n).map(|i| 1_700_000_000_000 + i * 250).collect(),
+        ),
+        (
+            "noisy_ramp",
+            (0..n)
+                .map(|i| 1_700_000_000_000 + i * 250 + mix(i) % 4_000)
+                .collect(),
+        ),
+        ("uniform_narrow", (0..n).map(|i| mix(i) % 1_000).collect()),
+        (
+            "plateaus",
+            (0..n).map(|i| (i / 500) * 1_000 + mix(i) % 8).collect(),
+        ),
+        ("two_values", {
+            let mut vals = vec![42_000u64; n as usize];
+            for val in vals.iter_mut().step_by(997) {
+                *val = u64::MAX / 2;
+            }
+            vals
+        }),
+        (
+            "shuffled_cadence",
+            (0..n)
+                .map(|i| 1_700_000_000_000 + (mix(i) % n) * 250)
+                .collect(),
+        ),
+    ];
+
+    let codec_sets: [&[CodecType]; 2] = [
+        &ALL_U64_CODEC_TYPES,
+        &[CodecType::Bitpacked, CodecType::BlockwiseLinear],
+    ];
+    for (name, vals) in shapes {
+        for codec_types in codec_sets {
+            let smallest = codec_types
+                .iter()
+                .map(|&codec_type| {
+                    let mut buffer = Vec::new();
+                    serialize_u64_based_column_values(&&vals[..], &[codec_type], &mut buffer)
+                        .unwrap();
+                    buffer.len()
+                })
+                .min()
+                .unwrap();
+            let mut chosen = Vec::new();
+            serialize_u64_based_column_values(&&vals[..], codec_types, &mut chosen).unwrap();
+            assert!(
+                chosen.len() * 100 <= smallest * 105,
+                "{name} over {codec_types:?}: selection wrote {} bytes ({:?}) when {smallest} \
+                 were available",
+                chosen.len(),
+                CodecType::try_from_code(chosen[0]).unwrap(),
+            );
+        }
+    }
+}
+
+#[test]
 fn test_fast_field_codec_type_to_code() {
     let mut count_codec = 0;
     for code in 0..=255 {

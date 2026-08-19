@@ -1,4 +1,5 @@
 use std::io::Write;
+use std::num::NonZeroU64;
 use std::sync::Arc;
 use std::{io, iter};
 
@@ -8,6 +9,7 @@ use tantivy_bitpacker::{BitPacker, BitUnpacker, compute_num_bits};
 
 use crate::MonotonicallyMappableToU64;
 use crate::column_values::u64_based::line::Line;
+use crate::column_values::u64_based::stats_collector::compute_gcd;
 use crate::column_values::u64_based::{ColumnCodec, ColumnCodecEstimator, ColumnStats};
 use crate::column_values::{ColumnValues, VecColumn};
 
@@ -44,7 +46,8 @@ fn compute_num_blocks(num_vals: u32) -> u32 {
 
 pub struct BlockwiseLinearEstimator {
     block: Vec<u64>,
-    values_num_bytes: u64,
+    values_num_bits: u64,
+    gcd_blocks: Vec<(u64, u64, u32)>,
     meta_num_bytes: u64,
 }
 
@@ -52,17 +55,52 @@ impl Default for BlockwiseLinearEstimator {
     fn default() -> Self {
         Self {
             block: Vec::with_capacity(BLOCK_SIZE as usize),
-            values_num_bytes: 0u64,
+            values_num_bits: 0u64,
+            gcd_blocks: Vec::new(),
             meta_num_bytes: 0u64,
         }
     }
 }
 
 impl BlockwiseLinearEstimator {
+    fn block_min_and_gcd(&self) -> (u64, NonZeroU64) {
+        let Some((&first_val, rest)) = self.block.split_first() else {
+            return (0u64, NonZeroU64::MIN);
+        };
+        let mut block_min = first_val;
+        let mut block_gcd: Option<NonZeroU64> = None;
+        for &buffer_val in rest {
+            block_min = block_min.min(buffer_val);
+            if block_gcd.map(NonZeroU64::get) == Some(1) {
+                continue;
+            }
+            let Some(non_zero_diff) = NonZeroU64::new(buffer_val.abs_diff(first_val)) else {
+                continue;
+            };
+            block_gcd = Some(match block_gcd {
+                Some(gcd) => compute_gcd(non_zero_diff, gcd),
+                None => non_zero_diff,
+            });
+        }
+        (block_min, block_gcd.unwrap_or(NonZeroU64::MIN))
+    }
+
     fn flush_block_estimate(&mut self) {
         if self.block.is_empty() {
             return;
         }
+        let (block_min, block_gcd) = self.block_min_and_gcd();
+        if block_gcd.get() > 1 {
+            let divider = DividerU64::divide_by(block_gcd.get());
+            for buffer_val in self.block.iter_mut() {
+                *buffer_val = divider.divide(*buffer_val - block_min);
+            }
+        } else {
+            for buffer_val in self.block.iter_mut() {
+                *buffer_val -= block_min;
+            }
+        }
+
         let column = VecColumn::from(std::mem::take(&mut self.block));
         let line = Line::train(&column);
         self.block = column.into();
@@ -73,8 +111,12 @@ impl BlockwiseLinearEstimator {
             let val = buffer_val.wrapping_sub(interpolated_val);
             max_value = val.max(max_value);
         }
-        let bit_width = compute_num_bits(max_value) as usize;
-        self.values_num_bytes += (bit_width * self.block.len() + 7) as u64 / 8;
+        let num_rows = self.block.len() as u32;
+        if block_gcd.get() > 1 {
+            self.gcd_blocks.push((max_value, block_gcd.get(), num_rows));
+        } else {
+            self.values_num_bits += compute_num_bits(max_value) as u64 * u64::from(num_rows);
+        }
         self.meta_num_bytes += 1 + line.num_bytes();
     }
 }
@@ -88,13 +130,18 @@ impl ColumnCodecEstimator for BlockwiseLinearEstimator {
         }
     }
     fn estimate(&self, stats: &ColumnStats) -> Option<u64> {
-        let mut estimate = 4 + stats.num_bytes() + self.meta_num_bytes + self.values_num_bytes;
-        if stats.gcd.get() > 1 {
-            let estimate_gain_from_gcd =
-                (stats.gcd.get() as f32).log2().floor() * stats.num_rows as f32 / 8.0f32;
-            estimate = estimate.saturating_sub(estimate_gain_from_gcd as u64);
-        }
-        Some(estimate)
+        let gcd = stats.gcd.get();
+        let values_num_bits: u64 = self.values_num_bits
+            + self
+                .gcd_blocks
+                .iter()
+                .map(|&(max_residual, block_gcd, num_rows)| {
+                    let scale = (block_gcd / gcd).max(1);
+                    let bit_width = compute_num_bits(max_residual.saturating_mul(scale)) as u64;
+                    bit_width * u64::from(num_rows)
+                })
+                .sum::<u64>();
+        Some(4 + stats.num_bytes() + self.meta_num_bytes + values_num_bits.div_ceil(8))
     }
 
     fn finalize(&mut self) {
