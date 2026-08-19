@@ -42,15 +42,20 @@ fn make_jit_builder() -> Result<JITBuilder, CompileError> {
         .set("is_pic", "false")
         .map_err(ModuleError::from)?;
 
-    let mut isa_builder = cranelift_native::builder().unwrap_or_else(|message| {
+    let isa_builder = cranelift_native::builder().unwrap_or_else(|message| {
         panic!("host machine is not supported: {message}");
     });
-    isa_builder
-        .set("sign_return_address", "false")
-        .map_err(ModuleError::from)?;
-    isa_builder
-        .set("sign_return_address_all", "false")
-        .map_err(ModuleError::from)?;
+    #[cfg(target_arch = "aarch64")]
+    let isa_builder = {
+        let mut isa_builder = isa_builder;
+        isa_builder
+            .set("sign_return_address", "false")
+            .map_err(ModuleError::from)?;
+        isa_builder
+            .set("sign_return_address_all", "false")
+            .map_err(ModuleError::from)?;
+        isa_builder
+    };
     let isa = isa_builder
         .finish(settings::Flags::new(shared_flags))
         .map_err(ModuleError::from)?;
