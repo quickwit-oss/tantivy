@@ -147,6 +147,8 @@ impl<T: Into<VariablePrimitive>> From<T> for VariablePrimitiveOpt {
 /// nullable `string` arm: a null data pointer represents `None`, while a
 /// non-null data pointer and its byte length represent a borrowed `str`.
 /// Both arms occupy two machine words on the supported 64-bit targets.
+///
+/// string relies on the null ptr optimization to make that happen.
 #[repr(C)]
 #[derive(Clone, Copy)]
 pub union VariableValue<'a> {
