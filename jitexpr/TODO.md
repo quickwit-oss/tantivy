@@ -27,9 +27,9 @@ them jointly for optimization. Still, we should make sure we remove the needless
   * fetch one UI subtlety risk:!? there might be some subtlety we are missing here. calculated fields seem to be loaded in a second time. I expect
 this is just an extra projection parameter we can just ignore.
 
-* expression computation:
-  * handle null
+* expression computation: done
+  * handle null *done*
   * add functions
-  * handle string arena
+  * handle string arena  *done*
 
 * implement the plain string column format

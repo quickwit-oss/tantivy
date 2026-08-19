@@ -171,16 +171,23 @@ mod tests {
     fn test_runtime_null() {
         let expression = deserialize("(RIGHT value 2i64)").unwrap();
         let mut compiled = compile(&expression, &HashMap::from([("value", VarType::Str)])).unwrap();
-
-        // SAFETY: The compiled expression expects one nullable string argument.
         assert_eq!(
             unsafe { compiled.call(&[VariableValue::some("abc")]).as_str() },
             Some("bc")
         );
-        // SAFETY: The compiled expression expects one nullable string argument.
         assert_eq!(
             unsafe { compiled.call(&[VariableValue::none()]).as_str() },
             None
         );
+    }
+
+    #[test]
+    fn test_utf8_boundary_break_returns_null() {
+        let expression = deserialize(r#"(RIGHT "下北沢" 1i64)"#).unwrap();
+        let mut compiled = compile(&expression, &HashMap::default()).unwrap();
+        assert_eq!(unsafe { compiled.call(&[]).as_str() }, None);
+        let expression = deserialize(r#"(RIGHT "下北沢" 3i64)"#).unwrap();
+        let mut compiled = compile(&expression, &HashMap::default()).unwrap();
+        assert_eq!(unsafe { compiled.call(&[]).as_str() }, Some("沢"));
     }
 }
