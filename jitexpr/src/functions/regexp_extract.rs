@@ -355,19 +355,26 @@ mod tests {
     }
 
     #[test]
-    fn test_compile_group_zero_returns_full_match_without_capture_groups() {
-        for expression in [
-            r#"(REGEXP_EXTRACT message "[a-z]+-\\d+")"#,
-            r#"(REGEXP_EXTRACT message "[a-z]+-\\d+" 0u64)"#,
-        ] {
-            let expression = ast::deserialize(expression).unwrap();
-            let variable_types = HashMap::from([("message", VarType::Str)]);
-            let mut compiled = compile(&expression, &variable_types).unwrap();
-            let input = [VariableValue::some("prefix user-123 suffix")];
-            let output = unsafe { compiled.call(&input) };
+    fn test_compile_omitted_group_defaults_to_full_match() {
+        let expression = ast::deserialize(r#"(REGEXP_EXTRACT message "[a-z]+-\\d+")"#).unwrap();
+        let variable_types = HashMap::from([("message", VarType::Str)]);
+        let mut compiled = compile(&expression, &variable_types).unwrap();
+        let input = [VariableValue::some("prefix user-123 suffix")];
+        let output = unsafe { compiled.call(&input) };
 
-            assert_eq!(unsafe { output.as_str() }, Some("user-123"));
-        }
+        assert_eq!(unsafe { output.as_str() }, Some("user-123"));
+    }
+
+    #[test]
+    fn test_compile_group_zero_returns_full_match_without_capture_groups() {
+        let expression =
+            ast::deserialize(r#"(REGEXP_EXTRACT message "[a-z]+-\\d+" 0u64)"#).unwrap();
+        let variable_types = HashMap::from([("message", VarType::Str)]);
+        let mut compiled = compile(&expression, &variable_types).unwrap();
+        let input = [VariableValue::some("prefix user-123 suffix")];
+        let output = unsafe { compiled.call(&input) };
+
+        assert_eq!(unsafe { output.as_str() }, Some("user-123"));
     }
 
     #[test]
