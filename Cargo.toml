@@ -195,6 +195,10 @@ name = "exists_json"
 harness = false
 
 [[bench]]
+name = "exists_query"
+harness = false
+
+[[bench]]
 name = "range_query"
 harness = false
 
