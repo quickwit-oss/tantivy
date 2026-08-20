@@ -280,6 +280,45 @@ impl OptionalIndex {
         self.num_non_null_docs
     }
 
+    /// Returns the first populated document at or after `target`.
+    pub fn next_non_null_doc(&self, target: DocId) -> Option<DocId> {
+        if target >= self.num_docs {
+            return None;
+        }
+        let first_block = row_addr_from_row_id(target).block_id;
+        for block_id in first_block..self.block_metas.len() as u16 {
+            let block_start = block_id as u32 * ELEMENTS_PER_BLOCK;
+            let in_block_start = if block_id == first_block {
+                (target - block_start) as u16
+            } else {
+                0
+            };
+            let block_meta = self.block_metas[block_id as usize];
+            match self.block(block_meta) {
+                Block::Sparse(block) => {
+                    let rank = block.rank(in_block_start);
+                    let block_end_rank = self
+                        .block_metas
+                        .get(block_id as usize + 1)
+                        .map(|meta| meta.non_null_rows_before_block)
+                        .unwrap_or(self.num_non_null_docs);
+                    if block_meta.non_null_rows_before_block + (rank as u32) < block_end_rank {
+                        return Some(block_start + block.select(rank) as u32);
+                    }
+                }
+                Block::Dense(block) => {
+                    let block_num_docs = (self.num_docs - block_start).min(ELEMENTS_PER_BLOCK);
+                    for in_block_doc in in_block_start as u32..block_num_docs {
+                        if block.contains(in_block_doc as u16) {
+                            return Some(block_start + in_block_doc);
+                        }
+                    }
+                }
+            }
+        }
+        None
+    }
+
     /// Appends the queried doc ids that exist in this index and their corresponding ranks.
     ///
     /// Sorted input is processed one encoded block at a time. Unsorted input is supported too,
