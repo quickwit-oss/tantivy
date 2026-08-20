@@ -32,6 +32,25 @@ fn test_dense_block_threshold() {
     assert_eq!(super::DENSE_BLOCK_THRESHOLD, 5_120);
 }
 
+#[test]
+fn test_next_non_null_doc_across_sparse_and_dense_blocks() {
+    let mut populated_docs = vec![1, 4, ELEMENTS_PER_BLOCK - 1];
+    populated_docs.extend((0..6_000).map(|doc| ELEMENTS_PER_BLOCK + doc));
+    let index = OptionalIndex::for_test(ELEMENTS_PER_BLOCK * 2, &populated_docs);
+
+    assert_eq!(index.next_non_null_doc(0), Some(1));
+    assert_eq!(index.next_non_null_doc(3), Some(4));
+    assert_eq!(
+        index.next_non_null_doc(ELEMENTS_PER_BLOCK),
+        Some(ELEMENTS_PER_BLOCK)
+    );
+    assert_eq!(
+        index.next_non_null_doc(ELEMENTS_PER_BLOCK + 100),
+        Some(ELEMENTS_PER_BLOCK + 100)
+    );
+    assert_eq!(index.next_non_null_doc(ELEMENTS_PER_BLOCK + 6_000), None);
+}
+
 fn random_bitvec() -> BoxedStrategy<Vec<bool>> {
     prop_oneof![
         1 => prop::collection::vec(proptest::bool::weighted(1.0), 0..100),

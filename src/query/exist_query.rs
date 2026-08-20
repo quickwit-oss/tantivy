@@ -1,10 +1,11 @@
 use core::fmt::Debug;
 
-use columnar::{ColumnIndex, DynamicColumn};
+use columnar::column_index::{MultiValueIndex, OptionalIndex, Set};
+use columnar::ColumnIndex;
 use common::BitSet;
 
 use super::{ConstScorer, EmptyScorer};
-use crate::docset::{DocSet, TERMINATED};
+use crate::docset::{DocSet, SeekDangerResult, TERMINATED};
 use crate::index::SegmentReader;
 use crate::query::all_query::AllScorer;
 use crate::query::boost_query::BoostScorer;
@@ -106,25 +107,30 @@ impl Weight for ExistsWeight {
                 fast_field_reader.dynamic_subpath_column_handles(&self.field_name)?;
             column_handles.append(&mut sub_columns);
         }
-        let dynamic_columns: crate::Result<Vec<DynamicColumn>> = column_handles
+        // An exists query only needs the column indexes. Drop the values so that the docset below
+        // operates directly on the specialized optional or multivalued index.
+        let column_indexes: crate::Result<Vec<ColumnIndex>> = column_handles
             .into_iter()
-            .map(|handle| handle.open().map_err(|io_error| io_error.into()))
+            .map(|handle| {
+                handle
+                    .open()
+                    .map(|column| column.into_column_index())
+                    .map_err(|io_error| io_error.into())
+            })
             .collect();
-        let mut non_empty_columns = Vec::new();
-        for column in dynamic_columns? {
-            if !matches!(column.column_index(), ColumnIndex::Empty { .. }) {
-                non_empty_columns.push(column)
-            }
-        }
-        if non_empty_columns.is_empty() {
+        let mut non_empty_column_indexes: Vec<ColumnIndex> = column_indexes?
+            .into_iter()
+            .filter(|column_index| !matches!(column_index, ColumnIndex::Empty { .. }))
+            .collect();
+        if non_empty_column_indexes.is_empty() {
             return Ok(Box::new(EmptyScorer));
         }
 
         // If any column is full, all docs match.
         let max_doc = reader.max_doc();
-        if non_empty_columns
+        if non_empty_column_indexes
             .iter()
-            .any(|col| matches!(col.column_index(), ColumnIndex::Full))
+            .any(|column_index| matches!(column_index, ColumnIndex::Full))
         {
             let all_scorer = AllScorer::new(max_doc);
             if boost != 1.0f32 {
@@ -134,21 +140,30 @@ impl Weight for ExistsWeight {
             }
         }
 
-        // If we have a single dynamic column, use ExistsDocSet
-        // NOTE: A lower number may be better for very sparse columns
-        if non_empty_columns.len() < 4 {
-            let docset = ExistsDocSet::new(non_empty_columns, reader.max_doc());
-            return Ok(Box::new(ConstScorer::new(docset, boost)));
+        // Starting here we are guaranteed that there is no full or empty column left.
+
+        if non_empty_column_indexes.len() == 1 {
+            return match non_empty_column_indexes.pop().unwrap() {
+                ColumnIndex::Optional(optional_index) => {
+                    Ok(exists_scorer(optional_index, max_doc, boost))
+                }
+                ColumnIndex::Multivalued(multivalued_index) => {
+                    Ok(exists_scorer(multivalued_index, max_doc, boost))
+                }
+                ColumnIndex::Empty { .. } | ColumnIndex::Full => unreachable!(),
+            };
+        }
+
+        // NOTE: A lower number may be better for very sparse columns.
+        if non_empty_column_indexes.len() < 4 {
+            return Ok(exists_scorer(non_empty_column_indexes, max_doc, boost));
         }
 
         // If we have many dynamic columns, precompute a bitset of matching docs
         let mut doc_bitset = BitSet::with_max_value(max_doc);
-        for column in &non_empty_columns {
-            match column.column_index() {
-                ColumnIndex::Empty { .. } => {}
-                ColumnIndex::Full => {
-                    // Handled by AllScorer return above.
-                }
+        for column_index in &non_empty_column_indexes {
+            match column_index {
+                ColumnIndex::Empty { .. } | ColumnIndex::Full => unreachable!(),
                 ColumnIndex::Optional(optional_index) => {
                     for doc in optional_index.iter_non_null_docs() {
                         doc_bitset.insert(doc);
@@ -174,42 +189,82 @@ impl Weight for ExistsWeight {
     }
 }
 
-pub(crate) struct ExistsDocSet {
-    columns: Vec<DynamicColumn>,
+pub(crate) trait ExistsIndex: Send {
+    fn next_doc(&self, target: DocId, max_doc: DocId) -> DocId;
+    fn has_value(&self, doc: DocId) -> bool;
+}
+
+impl ExistsIndex for OptionalIndex {
+    fn next_doc(&self, target: DocId, _max_doc: DocId) -> DocId {
+        self.next_non_null_doc(target).unwrap_or(TERMINATED)
+    }
+
+    fn has_value(&self, doc: DocId) -> bool {
+        doc < self.num_docs() && self.contains(doc)
+    }
+}
+
+impl ExistsIndex for MultiValueIndex {
+    fn next_doc(&self, target: DocId, _max_doc: DocId) -> DocId {
+        self.next_non_null_doc(target).unwrap_or(TERMINATED)
+    }
+
+    fn has_value(&self, doc: DocId) -> bool {
+        MultiValueIndex::has_value(self, doc)
+    }
+}
+
+impl ExistsIndex for Vec<ColumnIndex> {
+    fn next_doc(&self, mut target: DocId, max_doc: DocId) -> DocId {
+        while target < max_doc {
+            if self
+                .iter()
+                .any(|column_index| column_index.has_value(target))
+            {
+                return target;
+            }
+            target += 1;
+        }
+        TERMINATED
+    }
+
+    fn has_value(&self, doc: DocId) -> bool {
+        self.iter().any(|column_index| column_index.has_value(doc))
+    }
+}
+
+fn exists_scorer<T: ExistsIndex + 'static>(
+    column_index: T,
+    max_doc: DocId,
+    boost: Score,
+) -> Box<dyn Scorer> {
+    let docset = ExistsDocSet::new(column_index, max_doc);
+    Box::new(ConstScorer::new(docset, boost))
+}
+
+pub(crate) struct ExistsDocSet<T: ExistsIndex> {
+    column_index: T,
     doc: DocId,
     max_doc: DocId,
 }
 
-impl ExistsDocSet {
-    pub(crate) fn new(columns: Vec<DynamicColumn>, max_doc: DocId) -> Self {
-        let mut set = Self {
-            columns,
-            doc: 0u32,
+impl<T: ExistsIndex> ExistsDocSet<T> {
+    pub(crate) fn new(column_index: T, max_doc: DocId) -> Self {
+        let doc = column_index.next_doc(0, max_doc);
+        Self {
+            column_index,
+            doc,
             max_doc,
-        };
-        set.find_next();
-        set
-    }
-
-    fn find_next(&mut self) -> DocId {
-        while self.doc < self.max_doc {
-            if self
-                .columns
-                .iter()
-                .any(|col| col.column_index().has_value(self.doc))
-            {
-                return self.doc;
-            }
-            self.doc += 1;
         }
-        self.doc = TERMINATED;
-        TERMINATED
     }
 }
 
-impl DocSet for ExistsDocSet {
+impl<T: ExistsIndex> DocSet for ExistsDocSet<T> {
     fn advance(&mut self) -> DocId {
-        self.seek(self.doc + 1)
+        if self.doc != TERMINATED {
+            self.doc = self.column_index.next_doc(self.doc + 1, self.max_doc);
+        }
+        self.doc
     }
 
     fn size_hint(&self) -> u32 {
@@ -222,8 +277,22 @@ impl DocSet for ExistsDocSet {
 
     #[inline(always)]
     fn seek(&mut self, target: DocId) -> DocId {
-        self.doc = target;
-        self.find_next()
+        self.doc = self.column_index.next_doc(target, self.max_doc);
+        self.doc
+    }
+
+    fn seek_danger(&mut self, target: DocId) -> SeekDangerResult {
+        if target >= self.max_doc {
+            return SeekDangerResult::SeekLowerBound(TERMINATED);
+        }
+        if self.column_index.has_value(target) {
+            self.doc = target;
+            SeekDangerResult::Found
+        } else {
+            // We only need to return a lower bound here. Avoid scanning for the next populated
+            // document; intersections can continue with a cheap point lookup instead.
+            SeekDangerResult::SeekLowerBound(target + 1)
+        }
     }
 }
 
@@ -232,14 +301,32 @@ mod tests {
     use std::net::Ipv6Addr;
     use std::ops::Bound;
 
+    use columnar::column_index::OptionalIndex;
     use common::DateTime;
     use time::OffsetDateTime;
 
     use crate::collector::Count;
-    use crate::query::exist_query::ExistsQuery;
+    use crate::docset::{DocSet, SeekDangerResult, TERMINATED};
+    use crate::query::exist_query::{ExistsDocSet, ExistsQuery};
     use crate::query::{BooleanQuery, RangeQuery};
     use crate::schema::{Facet, FacetOptions, Schema, FAST, INDEXED, STRING, TEXT};
     use crate::{Index, Searcher, Term};
+
+    #[test]
+    fn test_exists_docset_seek_danger() {
+        let optional_index = OptionalIndex::for_test(8, &[1, 4, 7]);
+        let mut docset = ExistsDocSet::new(optional_index, 8);
+
+        assert_eq!(docset.doc(), 1);
+        assert_eq!(docset.seek_danger(2), SeekDangerResult::SeekLowerBound(3));
+        assert_eq!(docset.seek_danger(4), SeekDangerResult::Found);
+        assert_eq!(docset.doc(), 4);
+        assert_eq!(docset.advance(), 7);
+        assert_eq!(
+            docset.seek_danger(TERMINATED),
+            SeekDangerResult::SeekLowerBound(TERMINATED)
+        );
+    }
 
     #[test]
     fn test_exists_query_simple() -> crate::Result<()> {

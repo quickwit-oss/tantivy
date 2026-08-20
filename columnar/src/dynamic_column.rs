@@ -54,6 +54,20 @@ impl DynamicColumn {
         }
     }
 
+    /// Consumes the dynamic column and returns its underlying column index.
+    pub fn into_column_index(self) -> ColumnIndex {
+        match self {
+            DynamicColumn::Bool(c) => c.index,
+            DynamicColumn::I64(c) => c.index,
+            DynamicColumn::U64(c) => c.index,
+            DynamicColumn::F64(c) => c.index,
+            DynamicColumn::IpAddr(c) => c.index,
+            DynamicColumn::DateTime(c) => c.index,
+            DynamicColumn::Bytes(c) => c.into_column_index(),
+            DynamicColumn::Str(c) => c.into_column_index(),
+        }
+    }
+
     pub fn get_cardinality(&self) -> Cardinality {
         self.column_index().get_cardinality()
     }
