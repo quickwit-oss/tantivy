@@ -1,10 +1,9 @@
 mod bitpacker;
 mod blocked_bitpacker;
-mod filter_vec;
 
 use std::cmp::Ordering;
 
-pub use crate::bitpacker::{BitPacker, BitUnpacker};
+pub use crate::bitpacker::{BLOCK_LEN, BitPacker, BitUnpacker, Lane, simd_enabled};
 pub use crate::blocked_bitpacker::BlockedBitpacker;
 
 /// Computes the number of bits that will be used for bitpacking.
