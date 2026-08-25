@@ -6,7 +6,9 @@ use common::{BinarySerializable, OwnedBytes};
 use fastdivide::DividerU64;
 use tantivy_bitpacker::{BitPacker, BitUnpacker, compute_num_bits};
 
-use crate::column_values::u64_based::{ColumnCodec, ColumnCodecEstimator, ColumnStats};
+use crate::column_values::u64_based::{
+    ColumnCodec, ColumnCodecEstimator, ColumnStats, MIN_BATCH_ROWS, get_range_per_value,
+};
 use crate::{ColumnValues, RowId};
 
 /// Depending on the field type, a different
@@ -75,7 +77,11 @@ impl ColumnValues for BitpackedReader {
 
     #[inline]
     fn get_range(&self, start: u64, output: &mut [u64]) {
-        self.decode_range(start, output);
+        if output.len() < MIN_BATCH_ROWS {
+            get_range_per_value(self, start, output);
+        } else {
+            self.decode_range(start, output);
+        }
     }
 
     #[inline]

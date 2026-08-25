@@ -21,6 +21,24 @@ use crate::column_values::{ColumnStats, monotonic_map_column};
 use crate::iterable::Iterable;
 use crate::{ColumnValues, MonotonicallyMappableToU64};
 
+/// Rows below which a codec's `get_range` reads through `get_val` instead of
+/// its batch decoder, whose fixed setup outweighs that few rows. Read off
+/// `monotonic_column::ab_batch_crossover` with this set to 1: every codec wins
+/// from 8 rows up, 64-bit and linear columns lose at 4.
+pub(crate) const MIN_BATCH_ROWS: usize = 8;
+
+/// `get_range` through `get_val`, for ranges under [`MIN_BATCH_ROWS`].
+#[inline(always)]
+pub(crate) fn get_range_per_value<C: ColumnValues>(col: &C, start: u64, output: &mut [u64]) {
+    assert!(
+        start + output.len() as u64 <= col.num_vals() as u64,
+        "Requested index is out of bounds."
+    );
+    for (i, out) in output.iter_mut().enumerate() {
+        *out = col.get_val(start as u32 + i as u32);
+    }
+}
+
 /// A `ColumnCodecEstimator` is in charge of gathering all
 /// data required to serialize a column.
 ///

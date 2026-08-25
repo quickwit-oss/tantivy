@@ -7,7 +7,9 @@ use super::ColumnValues;
 use super::line::Line;
 use crate::RowId;
 use crate::column_values::VecColumn;
-use crate::column_values::u64_based::{ColumnCodec, ColumnCodecEstimator, ColumnStats};
+use crate::column_values::u64_based::{
+    ColumnCodec, ColumnCodecEstimator, ColumnStats, MIN_BATCH_ROWS, get_range_per_value,
+};
 
 const HALF_SPACE: u64 = u64::MAX / 2;
 const LINE_ESTIMATION_BLOCK_LEN: usize = 512;
@@ -47,7 +49,11 @@ impl ColumnValues for LinearReader {
 
     #[inline]
     fn get_range(&self, start: u64, output: &mut [u64]) {
-        self.decode_range(start, output);
+        if output.len() < MIN_BATCH_ROWS {
+            get_range_per_value(self, start, output);
+        } else {
+            self.decode_range(start, output);
+        }
     }
 
     #[inline(always)]

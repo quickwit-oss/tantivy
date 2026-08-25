@@ -8,7 +8,9 @@ use tantivy_bitpacker::{BitPacker, BitUnpacker, compute_num_bits};
 
 use crate::MonotonicallyMappableToU64;
 use crate::column_values::u64_based::line::Line;
-use crate::column_values::u64_based::{ColumnCodec, ColumnCodecEstimator, ColumnStats};
+use crate::column_values::u64_based::{
+    ColumnCodec, ColumnCodecEstimator, ColumnStats, MIN_BATCH_ROWS, get_range_per_value,
+};
 use crate::column_values::{ColumnValues, VecColumn};
 
 const BLOCK_SIZE: u32 = 512u32;
@@ -263,7 +265,11 @@ impl ColumnValues for BlockwiseLinearReader {
 
     #[inline]
     fn get_range(&self, start: u64, output: &mut [u64]) {
-        self.decode_range(start, output);
+        if output.len() < MIN_BATCH_ROWS {
+            get_range_per_value(self, start, output);
+        } else {
+            self.decode_range(start, output);
+        }
     }
 
     // fn get_row_ids_for_value_range(
