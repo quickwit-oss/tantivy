@@ -1,4 +1,4 @@
-mod bitpacked;
+pub(crate) mod bitpacked;
 mod blockwise_linear;
 mod line;
 mod linear;

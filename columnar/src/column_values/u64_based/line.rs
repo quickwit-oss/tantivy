@@ -67,6 +67,22 @@ impl Line {
         self.intercept.wrapping_add(linear_part)
     }
 
+    /// `out[i] = f(out[i] + self.eval(x0 + i))` over the whole slice, i.e. adds
+    /// the line back onto a batch of decoded residuals.
+    ///
+    /// The product `x * slope` is carried from one value to the next instead of
+    /// recomputed, which turns the per-value multiply into an add and lets the
+    /// loop vectorize.
+    #[inline(always)]
+    pub(crate) fn add_to_with(&self, x0: u32, out: &mut [u64], f: impl Fn(u64) -> u64) {
+        let mut acc = (x0 as u64).wrapping_mul(self.slope);
+        for o in out.iter_mut() {
+            let linear_part = (acc >> 32) as i32 as u64;
+            *o = f(self.intercept.wrapping_add(linear_part).wrapping_add(*o));
+            acc = acc.wrapping_add(self.slope);
+        }
+    }
+
     // Intercept is only computed from provided positions
     pub fn train_from(
         first_val: u64,

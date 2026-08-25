@@ -201,6 +201,47 @@ pub struct BlockwiseLinearReader {
     stats: ColumnStats,
 }
 
+impl BlockwiseLinearReader {
+    /// Decodes rows `start..start + output.len()`, one block's residual stream
+    /// at a time, with that block's line and then `min + gcd * val` on top.
+    #[inline]
+    fn decode_range(&self, start: u64, output: &mut [u64]) {
+        assert!(
+            start + output.len() as u64 <= self.stats.num_rows as u64,
+            "Requested index is out of bounds."
+        );
+        let (min, gcd) = (self.stats.min_value, self.stats.gcd.get());
+        // Split on `gcd` once per call rather than per value: a runtime
+        // multiply by 1 does not vectorize, the add-only form does.
+        if gcd == 1 {
+            self.decode_range_with(start as u32, output, |val| min.wrapping_add(val));
+        } else {
+            self.decode_range_with(start as u32, output, |val| {
+                min.wrapping_add(gcd.wrapping_mul(val))
+            });
+        }
+    }
+
+    #[inline(always)]
+    fn decode_range_with(&self, start: u32, mut output: &mut [u64], f: impl Fn(u64) -> u64) {
+        let mut row = start;
+        while !output.is_empty() {
+            let block = &self.blocks[(row / BLOCK_SIZE) as usize];
+            let idx_within_block = row % BLOCK_SIZE;
+            let len = ((BLOCK_SIZE - idx_within_block) as usize).min(output.len());
+            let (head, tail) = output.split_at_mut(len);
+            block.bit_unpacker.get_batch(
+                idx_within_block as usize,
+                &self.data[block.data_start_offset..],
+                head,
+            );
+            block.line.add_to_with(idx_within_block, head, &f);
+            output = tail;
+            row += len as u32;
+        }
+    }
+}
+
 impl ColumnValues for BlockwiseLinearReader {
     #[inline(always)]
     fn get_val(&self, idx: u32) -> u64 {
@@ -219,6 +260,20 @@ impl ColumnValues for BlockwiseLinearReader {
                 .get()
                 .wrapping_mul(interpoled_val.wrapping_add(bitpacked_diff))
     }
+
+    #[inline]
+    fn get_range(&self, start: u64, output: &mut [u64]) {
+        self.decode_range(start, output);
+    }
+
+    // fn get_row_ids_for_value_range(
+    //     &self,
+    //     value_range: std::ops::RangeInclusive<u64>,
+    //     row_id_range: std::ops::Range<RowId>,
+    //     row_id_hits: &mut Vec<RowId>,
+    // ) {
+    //     super::get_row_ids_for_value_range_batched(self, value_range, row_id_range, row_id_hits)
+    // }
 
     #[inline(always)]
     fn min_value(&self) -> u64 {

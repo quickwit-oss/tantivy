@@ -255,14 +255,14 @@ impl<T: PartialOrd + Copy + std::fmt::Debug + Send + Sync + 'static + Default>
 /// doc blocks passed to `fetch_block`), so comparing the endpoints is sufficient.
 #[inline]
 fn is_contiguous(docs: &[u32]) -> bool {
-    let (Some(&first), Some(&last)) = (docs.first(), docs.last()) else {
-        return false;
-    };
     debug_assert!(
         docs.windows(2).all(|w| w[0] < w[1]),
         "fetch_block requires docs sorted ascending without duplicates"
     );
-    (last - first) as usize + 1 == docs.len()
+    match docs {
+        [first, .., last] => (last - first) as usize + 1 == docs.len(),
+        _ => false,
+    }
 }
 
 /// Given two sorted lists of docids `docs` and `hits`, hits is a subset of `docs`.
@@ -421,7 +421,9 @@ mod tests {
     #[test]
     fn test_is_contiguous() {
         assert!(!is_contiguous(&[]));
-        assert!(is_contiguous(&[5]));
+        // A single doc goes through the gather path: one `get_val`, no
+        // `get_range` setup.
+        assert!(!is_contiguous(&[5]));
         assert!(is_contiguous(&[5, 6, 7, 8]));
         assert!(is_contiguous(&[0, 1, 2]));
         assert!(!is_contiguous(&[5, 7, 8]));
