@@ -23,16 +23,22 @@ impl Literal {
         match self {
             Literal::None => InferredTypeSet::ALL,
             Literal::Bool(_) => InferredTypeSet::BOOLEAN,
+            // A literal number represents a "real number". It can sometime be represented by a i64,
+            // a u64 or a f64. The choice of this representation is rather arbitrary. It
+            // can be the result of an implementation detail of serde_json for instance.
+            //
+            // Here we want to return the set of possible representation for the associated number.
             Literal::I64(value) => InferredTypeSet {
                 i64: true,
-                u64: *value >= 0,
-                f64: (*value as f64) as i128 == *value as i128,
+                u64: *value >= 0, // Any non-negative i64 can be represented as u64.
+                f64: true,        // We always accept f64.
                 ..InferredTypeSet::NONE
             },
             Literal::U64(value) => InferredTypeSet {
-                i64: *value <= i64::MAX as u64,
+                i64: *value <= i64::MAX as u64, // any u64 below i64::MAX can be represented as a
+                // i64.
                 u64: true,
-                f64: (*value as f64) as i128 == *value as i128,
+                f64: true, // We always accept f64
                 ..InferredTypeSet::NONE
             },
             Literal::F64(value) => {
@@ -123,16 +129,27 @@ mod tests {
     }
 
     #[test]
-    fn test_literal_types_require_exact_float_representation() {
-        let integer_types = InferredTypeSet {
-            i64: true,
-            u64: true,
-            ..InferredTypeSet::NONE
-        };
+    fn test_literal_types_accept_lossless_float_representation() {
+        assert_eq!(
+            Literal::I64((1 << 53) + 1).types(),
+            InferredTypeSet::NUMERICAL
+        );
 
-        assert_eq!(Literal::I64((1 << 53) + 1).types(), integer_types);
-        assert_eq!(Literal::I64(i64::MAX).types(), integer_types);
-        assert_eq!(Literal::U64(u64::MAX).types(), InferredTypeSet::U64);
+        // even though i64::MAX - 1i64 cannot be represented as f64 in a lossless manner...
+        assert_ne!(((i64::MAX - 1i64) as f64) as i64, (i64::MAX - 1));
+        // ... we list f64 as a valid inferred type.
+        assert_eq!(
+            Literal::I64(i64::MAX - 1).types(),
+            InferredTypeSet::NUMERICAL
+        );
+        assert_eq!(
+            Literal::U64(u64::MAX).types(),
+            InferredTypeSet {
+                u64: true,
+                f64: true,
+                ..InferredTypeSet::NONE
+            }
+        );
         assert_eq!(
             Literal::I64(i64::MIN).types(),
             InferredTypeSet {
