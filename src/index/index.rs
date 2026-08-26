@@ -13,7 +13,9 @@ use crate::core::{Executor, META_FILEPATH};
 use crate::directory::error::OpenReadError;
 #[cfg(feature = "mmap")]
 use crate::directory::MmapDirectory;
-use crate::directory::{Directory, ManagedDirectory, RamDirectory, INDEX_WRITER_LOCK};
+use crate::directory::{
+    Directory, ManagedDirectory, RamDirectory, ReadOnlyDirectory, INDEX_WRITER_LOCK,
+};
 use crate::error::{DataCorruption, TantivyError};
 use crate::fastfield::FastFieldsPlugin;
 use crate::index::{
@@ -592,6 +594,16 @@ impl Index {
         Index::open(mmap_directory)
     }
 
+    /// Opens an immutable index from a filesystem path.
+    ///
+    /// See [`ReadOnlyDirectory`] for the safety requirements of opening an index without the
+    /// metadata lock.
+    #[cfg(feature = "mmap")]
+    pub fn open_read_only_in_dir<P: AsRef<Path>>(directory_path: P) -> crate::Result<Index> {
+        let mmap_directory = MmapDirectory::open(directory_path)?;
+        Index::open_read_only(mmap_directory)
+    }
+
     /// Returns the list of the segment metas tracked by the index.
     ///
     /// Such segments can of course be part of the index,
@@ -640,6 +652,14 @@ impl Index {
         let metas = load_metas(&directory, &inventory)?;
         let index = Index::open_from_metas(directory, &metas, inventory);
         Ok(index)
+    }
+
+    /// Opens an immutable index using the provided directory.
+    ///
+    /// See [`ReadOnlyDirectory`] for the safety requirements of opening an index without the
+    /// metadata lock.
+    pub fn open_read_only<T: Into<Box<dyn Directory>>>(directory: T) -> crate::Result<Index> {
+        Index::open(ReadOnlyDirectory::new(directory))
     }
 
     /// Reads the index meta file from the directory.

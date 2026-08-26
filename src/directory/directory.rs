@@ -100,10 +100,12 @@ fn retry_policy(is_blocking: bool) -> RetryPolicy {
 /// Write-once read many (WORM) abstraction for where
 /// tantivy's data should be stored.
 ///
-/// There are currently two implementations of `Directory`
+/// There are currently three implementations of `Directory`
 ///
 /// - The [`MMapDirectory`][crate::directory::MmapDirectory], this should be your default choice.
 /// - The [`RamDirectory`][crate::directory::RamDirectory], which should be used mostly for tests.
+/// - The [`ReadOnlyDirectory`][crate::directory::ReadOnlyDirectory], which wraps another directory
+///   containing an immutable index.
 pub trait Directory: DirectoryClone + fmt::Debug + Send + Sync + 'static {
     /// Opens a file and returns a boxed `FileHandle`.
     ///

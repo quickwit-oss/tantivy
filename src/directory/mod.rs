@@ -8,6 +8,7 @@ mod directory_lock;
 pub mod footer;
 mod managed_directory;
 mod ram_directory;
+mod read_only_directory;
 mod watch_event_router;
 
 /// Errors specific to the directory module.
@@ -25,6 +26,7 @@ pub use self::composite_file::{CompositeFile, CompositeWrite};
 pub use self::directory::{Directory, DirectoryClone, DirectoryLock};
 pub use self::directory_lock::{Lock, INDEX_WRITER_LOCK, META_LOCK};
 pub use self::ram_directory::RamDirectory;
+pub use self::read_only_directory::ReadOnlyDirectory;
 pub use self::watch_event_router::{WatchCallback, WatchCallbackList, WatchHandle};
 
 /// Outcome of the Garbage collection
