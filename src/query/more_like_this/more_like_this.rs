@@ -302,10 +302,13 @@ impl MoreLikeThis {
         per_field_term_frequencies: HashMap<Term, usize>,
     ) -> Result<Vec<ScoreTerm>> {
         let mut score_terms: BinaryHeap<Reverse<ScoreTerm>> = BinaryHeap::new();
+        // Use `max_doc` (includes soft-deleted docs) to match `doc_freq`, which
+        // also counts deletes until a merge. Using the alive-only `num_docs`
+        // can yield `doc_freq > num_docs` and trip the assertion in `idf`.
         let num_docs = searcher
             .segment_readers()
             .iter()
-            .map(|segment_reader| segment_reader.num_docs() as u64)
+            .map(|segment_reader| segment_reader.max_doc() as u64)
             .sum::<u64>();
 
         for (term, term_frequency) in per_field_term_frequencies.iter() {
