@@ -596,8 +596,7 @@ impl Index {
 
     /// Opens an immutable index from a filesystem path.
     ///
-    /// See [`ReadOnlyDirectory`] for the safety requirements of opening an index without the
-    /// metadata lock.
+    /// The index must remain unchanged while it is open.
     #[cfg(feature = "mmap")]
     pub fn open_read_only_in_dir<P: AsRef<Path>>(directory_path: P) -> crate::Result<Index> {
         let mmap_directory = MmapDirectory::open(directory_path)?;
@@ -656,8 +655,7 @@ impl Index {
 
     /// Opens an immutable index using the provided directory.
     ///
-    /// See [`ReadOnlyDirectory`] for the safety requirements of opening an index without the
-    /// metadata lock.
+    /// The index must remain unchanged while it is open.
     pub fn open_read_only<T: Into<Box<dyn Directory>>>(directory: T) -> crate::Result<Index> {
         Index::open(ReadOnlyDirectory::new(directory))
     }
