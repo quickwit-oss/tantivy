@@ -27,6 +27,16 @@ pub enum ReloadPolicy {
     Manual,
     /// The index is reloaded within milliseconds after a new commit is available.
     /// This is made possible by watching changes in the `meta.json` file.
+    ///
+    /// This reload happens on a background thread and is **not** guaranteed to have
+    /// completed by the time [`IndexWriter::commit()`](crate::IndexWriter::commit) returns,
+    /// on any [`Directory`] implementation, including [`RamDirectory`](crate::directory::RamDirectory).
+    /// A search performed immediately after `commit()` can therefore still observe the
+    /// pre-commit state. If you need a search to deterministically reflect a commit you just
+    /// made, use [`ReloadPolicy::Manual`] and call [`IndexReader::reload()`] yourself right
+    /// after `commit()` (see the
+    /// [`reload_after_commit`](https://github.com/quickwit-oss/tantivy/blob/main/examples/reload_after_commit.rs)
+    /// example).
     OnCommitWithDelay, // TODO add NEAR_REAL_TIME(target_ms)
 }
 
@@ -282,8 +292,15 @@ impl IndexReader {
     /// every commit should be rapidly reflected on your `IndexReader` and you should
     /// not need to call `reload()` at all.
     ///
-    /// This automatic reload can take 10s of milliseconds to kick in however, and in unit tests
-    /// it can be nice to deterministically force the reload of searchers.
+    /// This automatic reload can take 10s of milliseconds to kick in however, and it is not
+    /// synchronized with the return of [`IndexWriter::commit()`](crate::IndexWriter::commit) —
+    /// this holds for every [`Directory`] implementation, including an in-memory
+    /// [`RamDirectory`](crate::directory::RamDirectory). If your code (or a test) needs to
+    /// search immediately after a commit and deterministically see its results, build the
+    /// reader with [`ReloadPolicy::Manual`] and call `reload()` explicitly after `commit()`
+    /// instead of relying on the automatic reload's timing (see the
+    /// [`reload_after_commit`](https://github.com/quickwit-oss/tantivy/blob/main/examples/reload_after_commit.rs)
+    /// example).
     pub fn reload(&self) -> crate::Result<()> {
         self.inner.reload()
     }

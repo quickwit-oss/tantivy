@@ -663,6 +663,18 @@ impl<D: Document> IndexWriter<D> {
     ///
     /// Commit returns the `opstamp` of the last document
     /// that made it in the commit.
+    ///
+    /// Note that "published" here only means committed to the [`Directory`](crate::Directory).
+    /// Any already-open [`IndexReader`](crate::IndexReader) only picks up the change according
+    /// to its [`ReloadPolicy`](crate::ReloadPolicy): with the default
+    /// [`ReloadPolicy::OnCommitWithDelay`](crate::ReloadPolicy::OnCommitWithDelay), the reload
+    /// happens asynchronously and is not guaranteed to be done by the time `commit()` returns,
+    /// so a search right after `commit()` can still miss the documents just committed. Use
+    /// [`ReloadPolicy::Manual`](crate::ReloadPolicy::Manual) with an explicit
+    /// [`IndexReader::reload()`](crate::IndexReader::reload) call if you need the search to
+    /// deterministically reflect this commit (see the
+    /// [`reload_after_commit`](https://github.com/quickwit-oss/tantivy/blob/main/examples/reload_after_commit.rs)
+    /// example).
     pub fn commit(&mut self) -> crate::Result<Opstamp> {
         self.prepare_commit()?.commit()
     }
