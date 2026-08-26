@@ -130,6 +130,33 @@ fn test_index_on_commit_reload_policy() -> crate::Result<()> {
     test_index_on_commit_reload_policy_aux(field, &index, &reader)
 }
 
+// Regression test for https://github.com/quickwit-oss/tantivy/issues/1824
+//
+// On a `RamDirectory`, `commit()` used to notify `OnCommitWithDelay` watchers
+// (including the `IndexReader`) on a detached thread without waiting for them, so a
+// search performed right after `commit()` returns could still see the pre-commit state.
+#[test]
+fn test_index_on_commit_reload_policy_ram_directory_is_synchronous() -> crate::Result<()> {
+    let schema = throw_away_schema();
+    let field = schema.get_field("num_likes").unwrap();
+    let index = Index::create_in_ram(schema);
+    let reader = index
+        .reader_builder()
+        .reload_policy(ReloadPolicy::OnCommitWithDelay)
+        .try_into()?;
+    let mut writer: IndexWriter = index.writer_for_tests()?;
+    for i in 0..100 {
+        writer.add_document(doc!(field=>i as u64))?;
+        writer.commit()?;
+        assert_eq!(
+            reader.searcher().num_docs(),
+            i + 1,
+            "reader was not synchronously reloaded after commit() returned"
+        );
+    }
+    Ok(())
+}
+
 #[cfg(feature = "mmap")]
 mod mmap_specific {
 

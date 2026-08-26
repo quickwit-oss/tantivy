@@ -225,7 +225,12 @@ impl Directory for RamDirectory {
         let path_buf = PathBuf::from(path);
         self.fs.write().unwrap().write(path_buf, data);
         if path == *META_FILEPATH {
-            drop(self.fs.write().unwrap().watch_router.broadcast());
+            // Wait for watchers (e.g. `IndexReader::reload()`) so that a `commit()` on a
+            // `RamDirectory` is synchronously visible once it returns. `broadcast()` and
+            // `wait()` must stay in separate statements: callbacks read from `self.fs`, so the
+            // write guard has to be dropped before we block on them, or we deadlock.
+            let broadcast_result = self.fs.write().unwrap().watch_router.broadcast();
+            let _ = broadcast_result.wait();
         }
         Ok(())
     }

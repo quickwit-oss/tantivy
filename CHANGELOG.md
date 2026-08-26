@@ -8,6 +8,7 @@ Tantivy 0.26 (Unreleased)
 ================================
 
 ## Bugfixes
+- Fix `RamDirectory::atomic_write` not waiting for `OnCommitWithDelay` watchers (e.g. `IndexReader::reload()`), so a search right after `commit()` on an in-memory index could miss documents from that commit [#1824](https://github.com/quickwit-oss/tantivy/issues/1824)(@Divyesh-k)
 - Align float query coercion during search with the columnar coercion rules [#2692](https://github.com/quickwit-oss/tantivy/pull/2692)(@fulmicoton)
 - Fix lenient elastic range queries with trailing closing parentheses [#2816](https://github.com/quickwit-oss/tantivy/pull/2816)(@evance-br)
 - Fix intersection `seek()` advancing below current doc id [#2812](https://github.com/quickwit-oss/tantivy/pull/2812)(@fulmicoton)
