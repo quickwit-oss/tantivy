@@ -45,13 +45,10 @@ impl MoreLikeThisQuery {
 
 impl Query for MoreLikeThisQuery {
     fn weight(&self, enable_scoring: EnableScoring<'_>) -> crate::Result<Box<dyn Weight>> {
-        let searcher = match enable_scoring {
-            EnableScoring::Enabled { searcher, .. } => searcher,
-            EnableScoring::Disabled { .. } => {
-                let err = "MoreLikeThisQuery requires to enable scoring.".to_string();
-                return Err(crate::TantivyError::InvalidArgument(err));
-            }
-        };
+        let searcher = enable_scoring.searcher().ok_or_else(|| {
+            let err = "MoreLikeThisQuery requires a searcher.".to_string();
+            crate::TantivyError::InvalidArgument(err)
+        })?;
         match &self.target {
             TargetDocument::DocumentAddress(doc_address) => self
                 .mlt
@@ -190,8 +187,9 @@ impl MoreLikeThisQueryBuilder {
 mod tests {
     use super::{MoreLikeThisQuery, TargetDocument};
     use crate::collector::TopDocs;
+    use crate::query::{ConstScoreQuery, EnableScoring, Query};
     use crate::schema::{Schema, STORED, TEXT};
-    use crate::{DocAddress, Index, IndexWriter};
+    use crate::{DocAddress, Index, IndexWriter, TantivyError};
 
     fn create_test_index() -> crate::Result<Index> {
         let mut schema_builder = Schema::builder();
@@ -290,5 +288,59 @@ mod tests {
         assert_eq!(doc_ids.len(), 2);
         assert_eq!(doc_ids, vec![3, 4]);
         Ok(())
+    }
+
+    #[test]
+    fn test_more_like_this_query_as_const_score_child() -> crate::Result<()> {
+        let index = create_test_index()?;
+        let reader = index.reader()?;
+        let searcher = reader.searcher();
+        let more_like_this_query = MoreLikeThisQuery::builder()
+            .with_min_doc_frequency(1)
+            .with_max_doc_frequency(10)
+            .with_min_term_frequency(1)
+            .with_min_word_length(2)
+            .with_max_word_length(5)
+            .with_stop_words(vec!["old".to_string()])
+            .with_document(DocAddress::new(0, 0));
+        let query = ConstScoreQuery::new(Box::new(more_like_this_query), 2.0);
+
+        let top_docs = searcher.search(&query, &TopDocs::with_limit(5).order_by_score())?;
+        assert_eq!(top_docs.len(), 3);
+        assert!(top_docs.iter().all(|(score, _)| *score == 2.0));
+        Ok(())
+    }
+
+    #[test]
+    fn test_more_like_this_query_count_without_scoring() -> crate::Result<()> {
+        let index = create_test_index()?;
+        let reader = index.reader()?;
+        let searcher = reader.searcher();
+        let query = MoreLikeThisQuery::builder()
+            .with_min_doc_frequency(1)
+            .with_max_doc_frequency(10)
+            .with_min_term_frequency(1)
+            .with_min_word_length(2)
+            .with_max_word_length(5)
+            .with_stop_words(vec!["old".to_string()])
+            .with_document(DocAddress::new(0, 0));
+
+        assert_eq!(query.count(&searcher)?, 3);
+        Ok(())
+    }
+
+    #[test]
+    fn test_more_like_this_query_without_searcher_errors() {
+        let schema = Schema::builder().build();
+        let query = MoreLikeThisQuery::builder().with_document(DocAddress::new(0, 0));
+
+        let Err(error) = query.weight(EnableScoring::disabled_from_schema(&schema)) else {
+            panic!("MoreLikeThisQuery should require a searcher");
+        };
+        assert!(matches!(
+            error,
+            TantivyError::InvalidArgument(message)
+                if message == "MoreLikeThisQuery requires a searcher."
+        ));
     }
 }
