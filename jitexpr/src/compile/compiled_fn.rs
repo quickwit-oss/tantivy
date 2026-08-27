@@ -10,6 +10,8 @@ use crate::types::{VarType, VariableValue};
     all(target_arch = "x86_64", not(target_os = "windows")),
     target_arch = "aarch64"
 )))]
+// Windows is not supported because apparently returning more than one 64 bits word throught
+// registers is not supported by its ABI.
 compile_error!(
     "the direct VariableValue JIT return ABI is only implemented for x86-64 System V and AArch64"
 );
