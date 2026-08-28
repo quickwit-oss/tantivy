@@ -285,16 +285,6 @@ impl<const COLUMN_TYPE_ID: u8> SegmentAggregationCollector
         docs: &[crate::DocId],
         agg_data: &mut AggregationsSegmentCtx,
     ) -> crate::Result<()> {
-        // TODO: remove once we fetch all values for all bucket ids in one go
-        if docs.len() == 1 && self.missing_u64.is_none() {
-            collect_stats::<COLUMN_TYPE_ID>(
-                &mut self.buckets[parent_bucket_id as usize],
-                self.accessor.values_for_doc(docs[0]),
-                self.is_number_or_date_type,
-            )?;
-
-            return Ok(());
-        }
         agg_data.column_block_accessor.fetch_block_with_missing(
             docs,
             &self.accessor,

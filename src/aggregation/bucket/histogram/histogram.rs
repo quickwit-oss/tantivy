@@ -494,10 +494,7 @@ impl<B: BucketIdSlot> SegmentAggregationCollector for SegmentHistogramCollector<
             .fetch_block(docs, &req.accessor);
         // special path for nested buckets
         if let Some(sub_agg) = &mut self.sub_agg {
-            for (doc, val) in agg_data
-                .column_block_accessor
-                .iter_docid_vals(docs, &req.accessor)
-            {
+            for (doc, val) in agg_data.column_block_accessor.iter_docid_vals(docs) {
                 let val = f64_from_fastfield_u64(val, req.field_type);
                 if bounds.contains(val) {
                     let bucket = store.get_or_create(
