@@ -315,6 +315,40 @@ impl IntermediateExtendedStats {
         self.sum_of_squares_elastic = t;
         self.update_variance(value);
     }
+
+    /// Collects a contiguous block of raw column values.
+    ///
+    /// The per-value [`Self::collect`] is a strictly serial recurrence (Welford's variance
+    /// recomputes the mean from the running sum each step). To break that dependency chain we
+    /// accumulate into `LANES` independent accumulators and combine them with
+    /// [`Self::merge_fruits`] — the exact Chan parallel-variance combination already used to
+    /// merge across segments, so the result matches multi-segment aggregation (fp summation
+    /// order differs, as it already does there).
+    #[inline]
+    fn collect_block(&mut self, vals: &[u64], field_type: ColumnType) {
+        const LANES: usize = 4;
+        if vals.len() < LANES * 2 {
+            for &val in vals {
+                self.collect(f64_from_fastfield_u64(val, field_type));
+            }
+            return;
+        }
+        let mut lanes: [IntermediateExtendedStats; LANES] = Default::default();
+        let mut chunks = vals.chunks_exact(LANES);
+        for chunk in chunks.by_ref() {
+            for lane in 0..LANES {
+                lanes[lane].collect(f64_from_fastfield_u64(chunk[lane], field_type));
+            }
+        }
+        for &val in chunks.remainder() {
+            lanes[0].collect(f64_from_fastfield_u64(val, field_type));
+        }
+        let mut combined = mem::take(&mut lanes[0]);
+        for lane in 1..LANES {
+            combined.merge_fruits(mem::take(&mut lanes[lane]));
+        }
+        self.merge_fruits(combined);
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -376,10 +410,7 @@ impl SegmentAggregationCollector for SegmentExtendedStatsCollector {
         agg_data
             .column_block_accessor
             .fetch_block_with_missing(docs, &self.accessor, self.missing);
-        for val in agg_data.column_block_accessor.iter_vals() {
-            let val1 = f64_from_fastfield_u64(val, self.field_type);
-            extended_stats.collect(val1);
-        }
+        extended_stats.collect_block(agg_data.column_block_accessor.vals(), self.field_type);
 
         // store back
         self.buckets[parent_bucket_id as usize] = extended_stats;
