@@ -6,7 +6,7 @@
 
 use std::fmt::Debug;
 
-use columnar::{Column, ColumnBlockAccessor, ColumnType};
+use columnar::{Column, ColumnType};
 
 use super::{
     Bucket, SegmentTermCollector, TermsAggReqData, VecTermBuckets, MAX_NUM_BUCKETS_FOR_COUNT_LANES,
@@ -22,7 +22,7 @@ use crate::aggregation::intermediate_agg_result::{
     IntermediateAggregationResult, IntermediateAggregationResults,
 };
 use crate::aggregation::segment_agg_result::{BucketIdProvider, SegmentAggregationCollector};
-use crate::aggregation::{f64_from_fastfield_u64, BucketId};
+use crate::aggregation::{f64_from_fastfield_u64, BucketId, ColumnBlockAccessor};
 
 /// Maximum number of physical counters in the fused flat grid. Above this the grid would be too
 /// large/cache-unfriendly, so we fall back to the general buffered path. Count lanes are included

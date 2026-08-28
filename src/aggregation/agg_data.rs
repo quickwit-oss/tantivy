@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use columnar::{Column, ColumnBlockAccessor, ColumnType, StrColumn};
+use columnar::{Column, ColumnType, StrColumn};
 use common::BitSet;
 use rustc_hash::FxHashSet;
 use serde::Serialize;
@@ -29,7 +29,7 @@ use crate::aggregation::metric::{
 use crate::aggregation::segment_agg_result::{
     GenericSegmentAggregationResultsCollector, SegmentAggregationCollector,
 };
-use crate::aggregation::{f64_to_fastfield_u64, AggContextParams, Key};
+use crate::aggregation::{f64_to_fastfield_u64, AggContextParams, ColumnBlockAccessor, Key};
 use crate::{SegmentOrdinal, SegmentReader};
 
 #[derive(Default)]
@@ -39,7 +39,7 @@ pub struct AggregationsSegmentCtx {
     /// Request data for each aggregation type.
     pub per_request: PerRequestAggSegCtx,
     pub context: AggContextParams,
-    pub column_block_accessor: ColumnBlockAccessor<u64>,
+    pub(crate) column_block_accessor: ColumnBlockAccessor<u64>,
 }
 
 impl AggregationsSegmentCtx {

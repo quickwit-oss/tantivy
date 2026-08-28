@@ -132,6 +132,7 @@ mod agg_data;
 mod agg_limits;
 pub mod agg_req;
 pub mod agg_result;
+mod block_accessor;
 pub mod bucket;
 pub(crate) mod buffered_sub_aggs;
 mod collector;
@@ -142,6 +143,8 @@ pub mod metric;
 
 mod segment_agg_result;
 use std::fmt::Display;
+
+pub(crate) use block_accessor::ColumnBlockAccessor;
 
 #[cfg(test)]
 mod agg_tests;

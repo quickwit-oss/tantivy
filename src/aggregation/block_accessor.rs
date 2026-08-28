@@ -1,9 +1,11 @@
 use std::cmp::Ordering;
 
-use crate::{Column, DocId, RowId};
+use columnar::{Column, RowId};
+
+use crate::DocId;
 
 #[derive(Debug, Default, Clone)]
-pub struct ColumnBlockAccessor<T> {
+pub(crate) struct ColumnBlockAccessor<T> {
     val_cache: Vec<T>,
     docid_cache: Vec<DocId>,
     missing_docids_cache: Vec<DocId>,
@@ -14,7 +16,7 @@ impl<T: PartialOrd + Copy + std::fmt::Debug + Send + Sync + 'static + Default>
     ColumnBlockAccessor<T>
 {
     #[inline]
-    pub fn fetch_block<'a>(&'a mut self, docs: &'a [u32], accessor: &Column<T>) {
+    pub(crate) fn fetch_block<'a>(&'a mut self, docs: &'a [u32], accessor: &Column<T>) {
         self.fetch_block_with_is_full(docs, accessor, accessor.index.get_cardinality().is_full());
     }
 
@@ -23,7 +25,7 @@ impl<T: PartialOrd + Copy + std::fmt::Debug + Send + Sync + 'static + Default>
     /// checked once at construction). `is_full` must equal
     /// `accessor.index.get_cardinality().is_full()`.
     #[inline]
-    pub fn fetch_block_with_is_full<'a>(
+    pub(crate) fn fetch_block_with_is_full<'a>(
         &'a mut self,
         docs: &'a [u32],
         accessor: &Column<T>,
@@ -59,7 +61,7 @@ impl<T: PartialOrd + Copy + std::fmt::Debug + Send + Sync + 'static + Default>
 
     /// Fetches a block and appends `missing_opt` for documents without a value.
     #[inline]
-    pub fn fetch_block_with_missing(
+    pub(crate) fn fetch_block_with_missing(
         &mut self,
         docs: &[u32],
         accessor: &Column<T>,
@@ -72,7 +74,7 @@ impl<T: PartialOrd + Copy + std::fmt::Debug + Send + Sync + 'static + Default>
     /// true, the missing entries are inserted in document order instead of appended as a second
     /// run.
     #[inline]
-    pub fn fetch_block_with_missing_ordered(
+    pub(crate) fn fetch_block_with_missing_ordered(
         &mut self,
         docs: &[u32],
         accessor: &Column<T>,
@@ -142,7 +144,7 @@ impl<T: PartialOrd + Copy + std::fmt::Debug + Send + Sync + 'static + Default>
     /// This is necessary for correct document counting in aggregations,
     /// where multi-valued fields can produce duplicate entries that inflate counts.
     #[inline]
-    pub fn fetch_block_with_missing_unique_per_doc(
+    pub(crate) fn fetch_block_with_missing_unique_per_doc(
         &mut self,
         docs: &[u32],
         accessor: &Column<T>,
@@ -211,18 +213,18 @@ impl<T: PartialOrd + Copy + std::fmt::Debug + Send + Sync + 'static + Default>
 
     /// Returns the values fetched by the last `fetch_block*` call.
     #[inline]
-    pub fn values(&self) -> &[T] {
+    pub(crate) fn values(&self) -> &[T] {
         &self.val_cache
     }
 
     /// Returns the document IDs corresponding to [`Self::values`] for a non-full column.
     #[inline]
-    pub fn docids(&self) -> &[DocId] {
+    pub(crate) fn docids(&self) -> &[DocId] {
         &self.docid_cache
     }
 
     #[inline]
-    pub fn iter_vals(&self) -> impl ExactSizeIterator<Item = T> + '_ {
+    pub(crate) fn iter_vals(&self) -> impl ExactSizeIterator<Item = T> + '_ {
         self.val_cache.iter().cloned()
     }
 
@@ -233,7 +235,7 @@ impl<T: PartialOrd + Copy + std::fmt::Debug + Send + Sync + 'static + Default>
     ///
     /// The docs is used if the column is full (each docs has exactly one value), otherwise the
     /// internal docid vec is used for the iterator, which e.g. may contain duplicate docs.
-    pub fn iter_docid_vals<'a>(
+    pub(crate) fn iter_docid_vals<'a>(
         &'a self,
         docs: &'a [u32],
         accessor: &Column<T>,
@@ -339,9 +341,9 @@ mod tests {
 
     #[test]
     fn test_fetch_block_with_missing_ordered() {
-        use crate::column_index::{ColumnIndex, OptionalIndex};
-        use crate::column_values::{
-            ALL_U64_CODEC_TYPES, serialize_and_load_u64_based_column_values,
+        use columnar::column_index::{ColumnIndex, OptionalIndex};
+        use columnar::column_values::{
+            serialize_and_load_u64_based_column_values, ALL_U64_CODEC_TYPES,
         };
 
         let vals = [10u64, 40, 70];
@@ -430,9 +432,9 @@ mod tests {
 
     #[test]
     fn test_fetch_block_contiguous_and_gather_match() {
-        use crate::column_index::ColumnIndex;
-        use crate::column_values::{
-            ALL_U64_CODEC_TYPES, serialize_and_load_u64_based_column_values,
+        use columnar::column_index::ColumnIndex;
+        use columnar::column_values::{
+            serialize_and_load_u64_based_column_values, ALL_U64_CODEC_TYPES,
         };
 
         let vals: Vec<u64> = (0..200u64).map(|i| i * 7 + 3).collect();

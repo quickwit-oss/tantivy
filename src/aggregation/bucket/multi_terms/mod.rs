@@ -4,8 +4,8 @@ use std::sync::Arc;
 
 use columnar::column_values::CompactSpaceU64Accessor;
 use columnar::{
-    Column, ColumnBlockAccessor, ColumnType, Dictionary, MonotonicallyMappableToU128,
-    MonotonicallyMappableToU64, NumericalValue, StrColumn,
+    Column, ColumnType, Dictionary, MonotonicallyMappableToU128, MonotonicallyMappableToU64,
+    NumericalValue, StrColumn,
 };
 use rustc_hash::FxHashMap;
 use serde::{Deserialize, Serialize};
@@ -30,7 +30,7 @@ use crate::aggregation::intermediate_agg_result::{
     IntermediateKey, IntermediateTermBucketEntry, PruneMode,
 };
 use crate::aggregation::segment_agg_result::{BucketIdProvider, SegmentAggregationCollector};
-use crate::aggregation::{f64_to_fastfield_u64, format_date, BucketId, Key};
+use crate::aggregation::{f64_to_fastfield_u64, format_date, BucketId, ColumnBlockAccessor, Key};
 use crate::{DocId, TantivyError};
 
 /// Multi-terms aggregation: one bucket per unique combination of values across N term fields.
