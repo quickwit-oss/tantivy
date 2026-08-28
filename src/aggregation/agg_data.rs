@@ -39,7 +39,7 @@ pub struct AggregationsSegmentCtx {
     /// Request data for each aggregation type.
     pub per_request: PerRequestAggSegCtx,
     pub context: AggContextParams,
-    pub(crate) column_block_accessor: ColumnBlockAccessor<u64>,
+    pub(crate) column_block_accessor: ColumnBlockAccessor,
 }
 
 impl AggregationsSegmentCtx {

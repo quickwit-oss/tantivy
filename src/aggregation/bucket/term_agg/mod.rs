@@ -429,7 +429,7 @@ pub(crate) fn build_segment_term_collector(
 
     // Fused fast path: low-cardinality terms × a single `histogram`/`date_histogram` leaf over full
     // columns with a small enough bucket grid. Anything else falls through to the general path.
-    if let Some(collector) = term_histogram::maybe_build_collector(
+    if let Some(collector) = term_histogram::maybe_build_fused_collector(
         req_data,
         node,
         &terms_req_data,
@@ -1070,9 +1070,7 @@ impl<TermMap: TermAggregationMap, B: SubAggBuffer> SegmentAggregationCollector
 
         if let Some(sub_agg) = &mut self.sub_agg {
             let term_buckets = &mut self.parent_buckets[parent_bucket_id as usize];
-            let it = agg_data
-                .column_block_accessor
-                .iter_docid_vals(docs, &req_data.accessor);
+            let it = agg_data.column_block_accessor.iter_docid_vals(docs);
             if let Some(allowed_bs) = req_data.allowed_term_ids.as_ref() {
                 let it = it.filter(move |&(_doc, term_id)| allowed_bs.contains(term_id as u32));
                 Self::collect_terms_with_docs(
