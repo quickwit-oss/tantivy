@@ -48,6 +48,32 @@ pub(crate) struct TrimFnCall {
 }
 
 impl FnCall for TrimFnCall {
+    const ARG_COUNT: super::ArgumentCount = super::ArgumentCount::Exactly(3);
+
+    fn validate_args(args: &[UntypedExpr]) -> Result<(), super::InvalidFunctionCall> {
+        Self::ARG_COUNT.validate(args)?;
+        super::validate_literal(args, 1, VarType::Str, |literal| {
+            matches!(literal, Literal::String(_))
+        })?;
+        let UntypedExpr::Literal(Literal::String(mode)) = &args[2] else {
+            return Err(super::InvalidFunctionCall::ExpectedLiteral {
+                argument: 3,
+                expected: VarType::Str,
+            });
+        };
+        if ["leading", "trailing", "both"]
+            .iter()
+            .any(|valid_mode| mode.eq_ignore_ascii_case(valid_mode))
+        {
+            Ok(())
+        } else {
+            Err(super::InvalidFunctionCall::InvalidLiteralValue {
+                argument: 3,
+                expected: "leading, trailing, or both",
+            })
+        }
+    }
+
     fn infer_types<'a>(
         args: &'a [UntypedExpr],
         target_type: InferredTypeSet,
@@ -78,16 +104,24 @@ impl FnCall for TrimFnCall {
         _target: InferredTypeSet,
         context: &mut CompileFnBuilder<'_, '_>,
     ) -> Result<TypedExpr, CompileError> {
-        assert_eq!(args.len(), 3, "expected 3 args for TRIM");
+        Self::ARG_COUNT.validate(args)?;
         let input = context.apply_types(&args[0], InferredTypeSet::STRING)?;
         if input.return_type == VarType::None {
             return Ok(TypedExpr::none());
         }
         let UntypedExpr::Literal(Literal::String(delimiter)) = &args[1] else {
-            panic!("TRIM delimiter must be a string literal")
+            return Err(super::InvalidFunctionCall::ExpectedLiteral {
+                argument: 2,
+                expected: VarType::Str,
+            }
+            .into());
         };
         let UntypedExpr::Literal(Literal::String(mode)) = &args[2] else {
-            panic!("TRIM mode must be a string literal")
+            return Err(super::InvalidFunctionCall::ExpectedLiteral {
+                argument: 3,
+                expected: VarType::Str,
+            }
+            .into());
         };
         let mode = if mode.eq_ignore_ascii_case("leading") {
             TrimMode::Leading
@@ -96,7 +130,11 @@ impl FnCall for TrimFnCall {
         } else if mode.eq_ignore_ascii_case("both") {
             TrimMode::Both
         } else {
-            panic!("TRIM mode must be leading, trailing, or both")
+            return Err(super::InvalidFunctionCall::InvalidLiteralValue {
+                argument: 3,
+                expected: "leading, trailing, or both",
+            }
+            .into());
         };
         Ok(TypedExpr {
             return_type: VarType::Str,

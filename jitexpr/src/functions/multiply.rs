@@ -25,6 +25,8 @@ pub(crate) struct MultiplyFnCall {
 }
 
 impl FnCall for MultiplyFnCall {
+    const ARG_COUNT: super::ArgumentCount = super::ArgumentCount::Exactly(2);
+
     fn infer_types<'a>(
         args: &'a [UntypedExpr],
         target_type: InferredTypeSet,
@@ -68,8 +70,7 @@ impl FnCall for MultiplyFnCall {
         target_type_set: InferredTypeSet,
         context: &mut CompileFnBuilder<'_, '_>,
     ) -> Result<TypedExpr, CompileError> {
-        assert_eq!(args.len(), 2, "expected 2 args for MULTIPLY");
-
+        Self::ARG_COUNT.validate(args)?;
         let mut return_types = InferredTypeSet::NUMERICAL.intersect(target_type_set);
         for arg in args {
             let arg_types = crate::ast::infer_type_with_variable_types(

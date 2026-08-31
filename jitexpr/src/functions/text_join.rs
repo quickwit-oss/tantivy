@@ -26,6 +26,13 @@ pub(crate) struct TextJoinFnCall {
 }
 
 impl FnCall for TextJoinFnCall {
+    const ARG_COUNT: super::ArgumentCount = super::ArgumentCount::AtLeast(4);
+
+    fn validate_args(args: &[UntypedExpr]) -> Result<(), super::InvalidFunctionCall> {
+        Self::ARG_COUNT.validate(args)?;
+        concat::validate_join_args(args)
+    }
+
     fn infer_types<'a>(
         args: &'a [UntypedExpr],
         target_type: InferredTypeSet,
@@ -39,6 +46,7 @@ impl FnCall for TextJoinFnCall {
         _target_type_set: InferredTypeSet,
         context: &mut CompileFnBuilder<'_, '_>,
     ) -> Result<TypedExpr, CompileError> {
+        Self::ARG_COUNT.validate(args)?;
         let Some(arguments) = concat::apply_join_types("TEXT_JOIN", args, context)? else {
             return Ok(TypedExpr::none());
         };

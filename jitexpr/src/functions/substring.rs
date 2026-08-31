@@ -31,11 +31,23 @@ pub(crate) struct SubstringFnCall {
     length: usize,
 }
 
-fn constant_usize(expression: &UntypedExpr) -> Option<usize> {
+fn constant_usize(
+    expression: &UntypedExpr,
+    argument: usize,
+) -> Result<Option<usize>, super::InvalidFunctionCall> {
     let UntypedExpr::Literal(literal) = expression else {
-        panic!("SUBSTRING bounds must be constants");
+        return Err(super::InvalidFunctionCall::ExpectedLiteral {
+            argument,
+            expected: VarType::I64,
+        });
     };
-    match literal {
+    if !literal.is_none() && !literal.types().contains(VarType::I64) {
+        return Err(super::InvalidFunctionCall::ExpectedLiteral {
+            argument,
+            expected: VarType::I64,
+        });
+    }
+    Ok(match literal {
         Literal::I64(value) => usize::try_from(*value).ok(),
         Literal::U64(value) => i64::try_from(*value)
             .ok()
@@ -44,13 +56,23 @@ fn constant_usize(expression: &UntypedExpr) -> Option<usize> {
             usize::try_from(*value as i64).ok()
         }
         Literal::None => None,
-        Literal::Bool(_) | Literal::F64(_) | Literal::String(_) => {
-            panic!("SUBSTRING bounds must be integer constants")
-        }
-    }
+        Literal::Bool(_) | Literal::F64(_) | Literal::String(_) => None,
+    })
 }
 
 impl FnCall for SubstringFnCall {
+    const ARG_COUNT: super::ArgumentCount = super::ArgumentCount::Exactly(3);
+
+    fn validate_args(args: &[UntypedExpr]) -> Result<(), super::InvalidFunctionCall> {
+        Self::ARG_COUNT.validate(args)?;
+        for index in 1..=2 {
+            super::validate_literal(args, index, VarType::I64, |literal| {
+                literal.is_none() || literal.types().contains(VarType::I64)
+            })?;
+        }
+        Ok(())
+    }
+
     fn infer_types<'a>(
         args: &'a [UntypedExpr],
         target_type: InferredTypeSet,
@@ -81,10 +103,10 @@ impl FnCall for SubstringFnCall {
         _target_type_set: InferredTypeSet,
         context: &mut CompileFnBuilder<'_, '_>,
     ) -> Result<TypedExpr, CompileError> {
-        assert_eq!(args.len(), 3, "expected 3 args for SUBSTRING");
+        Self::ARG_COUNT.validate(args)?;
         let input = context.apply_types(&args[0], InferredTypeSet::STRING)?;
-        let start = constant_usize(&args[1]);
-        let length = constant_usize(&args[2]);
+        let start = constant_usize(&args[1], 2)?;
+        let length = constant_usize(&args[2], 3)?;
         let (Some(start), Some(length)) = (start, length) else {
             return Ok(TypedExpr::none());
         };
