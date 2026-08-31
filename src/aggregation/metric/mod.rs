@@ -149,9 +149,11 @@ pub struct TopHitsMetricResult {
 mod tests {
     use std::net::Ipv6Addr;
 
+    use jitexpr::ast::UntypedExpr;
+
     use crate::aggregation::agg_req::Aggregations;
     use crate::aggregation::agg_result::AggregationResults;
-    use crate::aggregation::AggregationCollector;
+    use crate::aggregation::{AggContextParams, AggregationCollector};
     use crate::query::AllQuery;
     use crate::schema::{NumericOptions, Schema, FAST};
     use crate::{DateTime, Index, IndexWriter};
@@ -247,6 +249,118 @@ mod tests {
             assert_eq!(result[name]["value"], 1.0, "field {name}");
         }
         assert_eq!(result["f64_missing"]["value"], 2.0);
+        Ok(())
+    }
+
+    #[test]
+    fn test_calculated_number_parity_for_shared_metrics_and_nested_collection() -> crate::Result<()>
+    {
+        let mut schema_builder = Schema::builder();
+        let value = schema_builder.add_f64_field("value", FAST);
+        let group = schema_builder.add_text_field("group", FAST);
+        let index = Index::create_in_ram(schema_builder.build());
+        let mut writer = index.writer_for_tests()?;
+        writer.add_document(doc!(value => 1.5f64, group => "a"))?;
+        writer.add_document(doc!(group => "a"))?;
+        writer.commit()?;
+        writer.add_document(doc!(value => 4.5f64, group => "b"))?;
+        writer.add_document(doc!(value => -2.0f64, group => "b"))?;
+        writer.commit()?;
+
+        let metric_pairs = json!({
+            "physical_avg": { "avg": { "field": "value" } },
+            "calculated_avg": { "avg": { "field": "calculated" } },
+            "physical_count": { "value_count": { "field": "value" } },
+            "calculated_count": { "value_count": { "field": "calculated" } },
+            "physical_max": { "max": { "field": "value" } },
+            "calculated_max": { "max": { "field": "calculated" } },
+            "physical_min": { "min": { "field": "value" } },
+            "calculated_min": { "min": { "field": "calculated" } },
+            "physical_stats": { "stats": { "field": "value" } },
+            "calculated_stats": { "stats": { "field": "calculated" } },
+            "physical_sum": { "sum": { "field": "value" } },
+            "calculated_sum": { "sum": { "field": "calculated" } }
+        });
+        let aggregations: Aggregations = serde_json::from_value(json!({
+            "physical_avg": metric_pairs["physical_avg"],
+            "calculated_avg": metric_pairs["calculated_avg"],
+            "physical_count": metric_pairs["physical_count"],
+            "calculated_count": metric_pairs["calculated_count"],
+            "physical_max": metric_pairs["physical_max"],
+            "calculated_max": metric_pairs["calculated_max"],
+            "physical_min": metric_pairs["physical_min"],
+            "calculated_min": metric_pairs["calculated_min"],
+            "physical_stats": metric_pairs["physical_stats"],
+            "calculated_stats": metric_pairs["calculated_stats"],
+            "physical_sum": metric_pairs["physical_sum"],
+            "calculated_sum": metric_pairs["calculated_sum"],
+            "groups": {
+                "terms": { "field": "group" },
+                "aggs": metric_pairs
+            }
+        }))?;
+        let mut context = AggContextParams::default();
+        context.register_calculated_column("calculated", UntypedExpr::variable("value"))?;
+        let dependencies = crate::aggregation::agg_req::get_fast_field_names_with_context(
+            &aggregations,
+            &context,
+        )?;
+        assert!(dependencies.contains("value"));
+        assert!(!dependencies.contains("calculated"));
+        for segment_reader in index.reader()?.searcher().segment_readers() {
+            crate::aggregation::agg_req::validate_aggregation_fields_exist_with_context(
+                &aggregations,
+                segment_reader,
+                &context,
+            )?;
+        }
+        let result: AggregationResults = index.reader()?.searcher().search(
+            &AllQuery,
+            &AggregationCollector::from_aggs(aggregations, context),
+        )?;
+        let result = serde_json::to_value(result)?;
+
+        for metric in ["avg", "count", "max", "min", "stats", "sum"] {
+            assert_eq!(
+                result[format!("physical_{metric}")],
+                result[format!("calculated_{metric}")],
+                "top-level {metric}"
+            );
+            for bucket in result["groups"]["buckets"].as_array().unwrap() {
+                assert_eq!(
+                    bucket[format!("physical_{metric}")],
+                    bucket[format!("calculated_{metric}")],
+                    "nested {metric} in bucket {}",
+                    bucket["key"]
+                );
+            }
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn test_calculated_number_is_rejected_by_unmigrated_aggregation() -> crate::Result<()> {
+        let mut schema_builder = Schema::builder();
+        let value = schema_builder.add_f64_field("value", FAST);
+        let index = Index::create_in_ram(schema_builder.build());
+        let mut writer = index.writer_for_tests()?;
+        writer.add_document(doc!(value => 1.0f64))?;
+        writer.commit()?;
+
+        let aggregations: Aggregations = serde_json::from_value(json!({
+            "unsupported": { "terms": { "field": "calculated" } }
+        }))?;
+        let mut context = AggContextParams::default();
+        context.register_calculated_column("calculated", UntypedExpr::variable("value"))?;
+        let error = index
+            .reader()?
+            .searcher()
+            .search(
+                &AllQuery,
+                &AggregationCollector::from_aggs(aggregations, context),
+            )
+            .unwrap_err();
+        assert!(error.to_string().contains("not supported"));
         Ok(())
     }
 }

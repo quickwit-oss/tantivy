@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use columnar::{Column, ColumnType, StrColumn};
 use common::BitSet;
-use rustc_hash::FxHashSet;
+use rustc_hash::{FxHashMap, FxHashSet};
 use serde::Serialize;
 use tantivy_fst::Regex;
 
@@ -29,6 +29,9 @@ use crate::aggregation::metric::{
 use crate::aggregation::segment_agg_result::{
     GenericSegmentAggregationResultsCollector, SegmentAggregationCollector,
 };
+use crate::aggregation::value_source::{
+    resolve_segment_value_source, validate_calculated_column_names,
+};
 use crate::aggregation::{
     f64_to_fastfield_u64, AggContextParams, ColumnBlockAccessor, Key, SegmentValueSourcePlan,
 };
@@ -42,6 +45,7 @@ pub struct AggregationsSegmentCtx {
     pub per_request: PerRequestAggSegCtx,
     pub context: AggContextParams,
     pub(crate) column_block_accessor: ColumnBlockAccessor,
+    calculated_source_plans: FxHashMap<String, SegmentValueSourcePlan>,
 }
 
 impl AggregationsSegmentCtx {
@@ -429,16 +433,21 @@ pub(crate) fn build_aggregations_data_from_req(
     segment_ordinal: SegmentOrdinal,
     context: AggContextParams,
 ) -> crate::Result<AggregationsSegmentCtx> {
+    validate_calculated_column_names(reader, &context.calculated_columns)?;
     let mut data = AggregationsSegmentCtx {
         per_request: Default::default(),
         context,
         column_block_accessor: ColumnBlockAccessor::default(),
+        calculated_source_plans: FxHashMap::default(),
     };
 
     for (name, agg) in aggs.iter() {
         let nodes = build_nodes(name, agg, reader, segment_ordinal, &mut data, true)?;
         data.per_request.agg_tree.extend(nodes);
     }
+    // Source plans have now been cloned into each request entry. Drop the build-only lookup map so
+    // the segment context does not retain duplicate names and plan references during collection.
+    data.calculated_source_plans = FxHashMap::default();
     Ok(data)
 }
 
@@ -451,6 +460,22 @@ fn build_nodes(
     is_top_level: bool,
 ) -> crate::Result<Vec<AggRefNode>> {
     use AggregationVariants::*;
+    let supports_calculated_number = matches!(
+        &req.agg,
+        Average(_) | Count(_) | Max(_) | Min(_) | Stats(_) | Sum(_)
+    );
+    if !supports_calculated_number {
+        if let Some(field_name) = req
+            .agg
+            .get_fast_field_names()
+            .into_iter()
+            .find(|field_name| data.context.calculated_columns.contains(field_name))
+        {
+            return Err(crate::TantivyError::InvalidArgument(format!(
+                "Calculated column {field_name:?} is not supported by this aggregation"
+            )));
+        }
+    }
     match &req.agg {
         Range(range_req) => {
             let (accessor, field_type) = get_ff_reader(
@@ -582,9 +607,15 @@ fn build_nodes(
                     ))
                 }
             };
-            let (accessor, field_type) = get_ff_reader(reader, field, allowed_column_types)?;
+            let (source, field_type) = resolve_segment_value_source(
+                reader,
+                field,
+                allowed_column_types,
+                &data.context.calculated_columns,
+                &mut data.calculated_source_plans,
+            )?;
             let idx_in_req_data = data.push_metric_req_data(MetricAggReqData {
-                source: SegmentValueSourcePlan::physical(accessor, field_type),
+                source,
                 field_type,
                 name: agg_name.to_string(),
                 collecting_for,
