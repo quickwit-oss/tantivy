@@ -24,6 +24,8 @@ pub(crate) struct MaxFnCall {
 }
 
 impl FnCall for MaxFnCall {
+    const ARG_COUNT: super::ArgumentCount = super::ArgumentCount::AtLeast(1);
+
     fn infer_types<'a>(
         args: &'a [UntypedExpr],
         target_type: InferredTypeSet,
@@ -67,7 +69,7 @@ impl FnCall for MaxFnCall {
         target_type_set: InferredTypeSet,
         context: &mut CompileFnBuilder<'_, '_>,
     ) -> Result<TypedExpr, CompileError> {
-        assert!(!args.is_empty(), "expected at least 1 arg for MAX");
+        Self::ARG_COUNT.validate(args)?;
         let mut return_types = InferredTypeSet::NUMERICAL.intersect(target_type_set);
         for arg in args {
             return_types = return_types.intersect(crate::ast::infer_type_with_variable_types(

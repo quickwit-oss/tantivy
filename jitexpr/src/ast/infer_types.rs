@@ -2,6 +2,7 @@ use std::collections::HashMap;
 use std::collections::hash_map::Entry;
 
 use crate::ast::{Function, Literal, UntypedExpr};
+use crate::functions::InvalidFunctionCall;
 use crate::types::VarType;
 
 #[derive(Default, Copy, Clone, Debug, Eq, PartialEq)]
@@ -137,6 +138,8 @@ impl std::fmt::Display for InferredTypeSet {
 
 #[derive(Debug, thiserror::Error)]
 pub enum TypeError {
+    #[error(transparent)]
+    InvalidFunctionCall(#[from] InvalidFunctionCall),
     #[error("function `{function:?}` returns `{got}`, expected `{expected}`")]
     WrongFunctionReturnType {
         function: Function,

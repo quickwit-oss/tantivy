@@ -24,6 +24,8 @@ pub(crate) struct MinFnCall {
 }
 
 impl FnCall for MinFnCall {
+    const ARG_COUNT: super::ArgumentCount = super::ArgumentCount::AtLeast(1);
+
     fn infer_types<'a>(
         args: &'a [UntypedExpr],
         target_type: InferredTypeSet,
@@ -67,7 +69,7 @@ impl FnCall for MinFnCall {
         target_type_set: InferredTypeSet,
         context: &mut CompileFnBuilder<'_, '_>,
     ) -> Result<TypedExpr, CompileError> {
-        assert!(!args.is_empty(), "expected at least 1 arg for MIN");
+        Self::ARG_COUNT.validate(args)?;
         let mut return_types = InferredTypeSet::NUMERICAL.intersect(target_type_set);
         for arg in args {
             return_types = return_types.intersect(crate::ast::infer_type_with_variable_types(

@@ -25,6 +25,8 @@ pub(crate) struct GtEqFnCall {
 }
 
 impl FnCall for GtEqFnCall {
+    const ARG_COUNT: super::ArgumentCount = super::ArgumentCount::Exactly(2);
+
     fn infer_types<'a>(
         args: &'a [UntypedExpr],
         target_type: InferredTypeSet,
@@ -38,7 +40,7 @@ impl FnCall for GtEqFnCall {
         target_type_set: InferredTypeSet,
         context: &mut CompileFnBuilder<'_, '_>,
     ) -> Result<TypedExpr, CompileError> {
-        assert_eq!(args.len(), 2, "expected 2 args for GT_EQ");
+        Self::ARG_COUNT.validate(args)?;
         debug_assert!(target_type_set.contains(VarType::Bool));
         Ok(TypedExpr {
             return_type: VarType::Bool,
