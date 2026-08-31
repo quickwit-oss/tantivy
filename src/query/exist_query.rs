@@ -109,16 +109,15 @@ impl Weight for FastFieldExistsWeight {
         }
         // An exists query only needs the column indexes. Drop the values so that the docset below
         // operates directly on the specialized optional or multivalued index.
-        let column_indexes: crate::Result<Vec<ColumnIndex>> = column_handles
+        let column_indexes: Vec<ColumnIndex> = column_handles
             .into_iter()
             .map(|handle| {
                 handle
                     .open()
                     .map(|column| column.into_column_index())
-                    .map_err(|io_error| io_error.into())
             })
-            .collect();
-        let mut non_empty_column_indexes: Vec<ColumnIndex> = column_indexes?
+            .collect::<Result<_, _>>()?;
+        let mut non_empty_column_indexes: Vec<ColumnIndex> = column_indexes
             .into_iter()
             .filter(|column_index| !matches!(column_index, ColumnIndex::Empty { .. }))
             .collect();
