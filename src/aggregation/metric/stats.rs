@@ -290,15 +290,18 @@ impl<const COLUMN_TYPE_ID: u8> SegmentAggregationCollector
         // skips the block accessor's buffers entirely.
         // Only valid without a missing value: `values_for_doc` yields nothing for a doc without a
         // value, so the substitute would be silently dropped.
+        // Only valid for a physical column: a calculated column has no per-doc accessor.
         // TODO: remove once we fetch all values for all bucket ids in one go
         if docs.len() == 1 && self.missing_u64.is_none() {
-            collect_stats::<COLUMN_TYPE_ID>(
-                &mut self.buckets[parent_bucket_id as usize],
-                self.accessor.values_for_doc(docs[0]),
-                self.is_number_or_date_type,
-            )?;
+            if let Some(column) = self.source.physical_column() {
+                collect_stats::<COLUMN_TYPE_ID>(
+                    &mut self.buckets[parent_bucket_id as usize],
+                    column.values_for_doc(docs[0]),
+                    self.is_number_or_date_type,
+                )?;
 
-            return Ok(());
+                return Ok(());
+            }
         }
         agg_data.column_block_accessor.fetch_block_with_missing(
             docs,
