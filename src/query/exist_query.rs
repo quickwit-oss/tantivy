@@ -1,11 +1,11 @@
 use core::fmt::Debug;
 
-use columnar::column_index::{MultiValueIndex, OptionalIndex, Set};
+use columnar::column_index::{MultiValueIndex, OptionalIndex};
 use columnar::ColumnIndex;
 use common::BitSet;
 
 use super::{ConstScorer, EmptyScorer};
-use crate::docset::{DocSet, SeekDangerResult, TERMINATED};
+use crate::docset::{DocSet, TERMINATED};
 use crate::index::SegmentReader;
 use crate::query::all_query::AllScorer;
 use crate::query::boost_query::BoostScorer;
@@ -190,26 +190,17 @@ impl Weight for FastFieldExistsWeight {
 
 pub(crate) trait ExistsIndex: Send {
     fn next_doc(&self, target: DocId, max_doc: DocId) -> DocId;
-    fn has_value(&self, doc: DocId) -> bool;
 }
 
 impl ExistsIndex for OptionalIndex {
     fn next_doc(&self, target: DocId, _max_doc: DocId) -> DocId {
         self.next_non_null_doc(target).unwrap_or(TERMINATED)
     }
-
-    fn has_value(&self, doc: DocId) -> bool {
-        doc < self.num_docs() && self.contains(doc)
-    }
 }
 
 impl ExistsIndex for MultiValueIndex {
     fn next_doc(&self, target: DocId, _max_doc: DocId) -> DocId {
         self.next_non_null_doc(target).unwrap_or(TERMINATED)
-    }
-
-    fn has_value(&self, doc: DocId) -> bool {
-        MultiValueIndex::has_value(self, doc)
     }
 }
 
@@ -225,10 +216,6 @@ impl ExistsIndex for Vec<ColumnIndex> {
             target += 1;
         }
         TERMINATED
-    }
-
-    fn has_value(&self, doc: DocId) -> bool {
-        self.iter().any(|column_index| column_index.has_value(doc))
     }
 }
 
@@ -279,20 +266,6 @@ impl<T: ExistsIndex> DocSet for ExistsDocSet<T> {
         self.doc = self.column_index.next_doc(target, self.max_doc);
         self.doc
     }
-
-    fn seek_danger(&mut self, target: DocId) -> SeekDangerResult {
-        if target >= self.max_doc {
-            return SeekDangerResult::SeekLowerBound(TERMINATED);
-        }
-        if self.column_index.has_value(target) {
-            self.doc = target;
-            SeekDangerResult::Found
-        } else {
-            // We only need to return a lower bound here. Avoid scanning for the next populated
-            // document; intersections can continue with a cheap point lookup instead.
-            SeekDangerResult::SeekLowerBound(target + 1)
-        }
-    }
 }
 
 #[cfg(test)]
@@ -317,7 +290,7 @@ mod tests {
         let mut docset = ExistsDocSet::new(optional_index, 8);
 
         assert_eq!(docset.doc(), 1);
-        assert_eq!(docset.seek_danger(2), SeekDangerResult::SeekLowerBound(3));
+        assert_eq!(docset.seek_danger(2), SeekDangerResult::SeekLowerBound(4));
         assert_eq!(docset.seek_danger(4), SeekDangerResult::Found);
         assert_eq!(docset.doc(), 4);
         assert_eq!(docset.advance(), 7);
