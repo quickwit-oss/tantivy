@@ -638,7 +638,7 @@ impl<S: TermOrdAccumulator> SegmentCardinalityCollector<S> {
     ) {
         agg_data.column_block_accessor.fetch_block_with_missing(
             docs,
-            &self.accessor,
+            &mut self.accessor,
             self.missing_value_for_accessor,
         );
     }

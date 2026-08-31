@@ -299,7 +299,7 @@ impl SegmentAggregationCollector for SegmentPercentilesCollector {
         let percentiles = &mut self.buckets[parent_bucket_id as usize];
         agg_data.column_block_accessor.fetch_block_with_missing(
             docs,
-            &self.accessor,
+            &mut self.accessor,
             self.missing_u64,
         );
 

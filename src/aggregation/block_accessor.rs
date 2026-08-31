@@ -12,7 +12,7 @@ use crate::DocId;
 /// `docids` with one document id per value.
 pub(crate) trait BlockValueSource {
     fn load_block(
-        &self,
+        &mut self,
         docs: &[DocId],
         values: &mut Vec<u64>,
         docids: &mut Vec<DocId>,
@@ -46,7 +46,7 @@ pub(crate) struct ColumnBlockAccessor {
 impl BlockValueSource for Column<u64> {
     #[inline]
     fn load_block(
-        &self,
+        &mut self,
         docs: &[DocId],
         values: &mut Vec<u64>,
         docids: &mut Vec<DocId>,
@@ -74,7 +74,7 @@ impl BlockValueSource for Column<u64> {
 
 impl ColumnBlockAccessor {
     #[inline]
-    pub(crate) fn fetch_block(&mut self, docs: &[DocId], source: &impl BlockValueSource) {
+    pub(crate) fn fetch_block(&mut self, docs: &[DocId], source: &mut impl BlockValueSource) {
         self.cardinality = source.load_block(
             docs,
             &mut self.val_cache,
@@ -99,7 +99,7 @@ impl ColumnBlockAccessor {
     pub(crate) fn fetch_block_with_missing(
         &mut self,
         docs: &[DocId],
-        source: &impl BlockValueSource,
+        source: &mut impl BlockValueSource,
         missing_opt: Option<u64>,
     ) {
         self.fetch_block_with_missing_ordered(docs, source, missing_opt, false)
@@ -112,7 +112,7 @@ impl ColumnBlockAccessor {
     pub(crate) fn fetch_block_with_missing_ordered(
         &mut self,
         docs: &[DocId],
-        source: &impl BlockValueSource,
+        source: &mut impl BlockValueSource,
         missing_opt: Option<u64>,
         ordered: bool,
     ) {
@@ -182,7 +182,7 @@ impl ColumnBlockAccessor {
     pub(crate) fn fetch_block_with_missing_unique_per_doc(
         &mut self,
         docs: &[DocId],
-        source: &impl BlockValueSource,
+        source: &mut impl BlockValueSource,
         missing: Option<u64>,
         ordered: bool,
     ) {
@@ -371,7 +371,7 @@ mod tests {
 
     impl BlockValueSource for TestValueSource {
         fn load_block(
-            &self,
+            &mut self,
             docs: &[DocId],
             values: &mut Vec<u64>,
             docids: &mut Vec<DocId>,
@@ -427,13 +427,13 @@ mod tests {
     #[test]
     fn test_source_neutral_full_block_alignment() {
         let docs = [2, 4, 8];
-        let source = TestValueSource {
+        let mut source = TestValueSource {
             cardinality: Cardinality::Full,
             entries: vec![(2, 20), (4, 40), (8, 80)],
         };
         let mut accessor = ColumnBlockAccessor::default();
 
-        accessor.fetch_block(&docs, &source);
+        accessor.fetch_block(&docs, &mut source);
 
         assert!(accessor.has_one_value_per_doc(&docs));
         assert_eq!(
@@ -445,13 +445,13 @@ mod tests {
     #[test]
     fn test_source_neutral_optional_block_with_missing() {
         let docs = [0, 1, 2, 4];
-        let source = TestValueSource {
+        let mut source = TestValueSource {
             cardinality: Cardinality::Optional,
             entries: vec![(1, 10), (4, 40)],
         };
         let mut accessor = ColumnBlockAccessor::default();
 
-        accessor.fetch_block_with_missing_ordered(&docs, &source, Some(99), true);
+        accessor.fetch_block_with_missing_ordered(&docs, &mut source, Some(99), true);
 
         assert!(accessor.has_one_value_per_doc(&docs));
         assert_eq!(
@@ -463,13 +463,13 @@ mod tests {
     #[test]
     fn test_source_neutral_multivalue_block_deduplication() {
         let docs = [0, 1];
-        let source = TestValueSource {
+        let mut source = TestValueSource {
             cardinality: Cardinality::Multivalued,
             entries: vec![(0, 3), (0, 1), (0, 3), (1, 5), (1, 5)],
         };
         let mut accessor = ColumnBlockAccessor::default();
 
-        accessor.fetch_block_with_missing_unique_per_doc(&docs, &source, None, false);
+        accessor.fetch_block_with_missing_unique_per_doc(&docs, &mut source, None, false);
 
         assert!(!accessor.has_one_value_per_doc(&docs));
         assert_eq!(
@@ -488,14 +488,14 @@ mod tests {
         let vals = [10u64, 40, 70];
         let values =
             serialize_and_load_u64_based_column_values::<u64>(&&vals[..], &ALL_U64_CODEC_TYPES);
-        let column = Column {
+        let mut column = Column {
             index: ColumnIndex::Optional(OptionalIndex::for_test(9, &[1, 4, 7])),
             values,
         };
         let docs = [0, 1, 2, 4, 7, 8];
         let mut accessor = ColumnBlockAccessor::default();
 
-        accessor.fetch_block_with_missing_ordered(&docs, &column, Some(99), true);
+        accessor.fetch_block_with_missing_ordered(&docs, &mut column, Some(99), true);
 
         assert_eq!(
             accessor.iter_vals().collect::<Vec<_>>(),
@@ -579,13 +579,13 @@ mod tests {
         let vals: Vec<u64> = (0..200u64).map(|i| i * 7 + 3).collect();
         let values =
             serialize_and_load_u64_based_column_values::<u64>(&&vals[..], &ALL_U64_CODEC_TYPES);
-        let column = Column {
+        let mut column = Column {
             index: ColumnIndex::Full,
             values,
         };
 
-        let check = |accessor: &mut ColumnBlockAccessor, docs: &[u32]| {
-            accessor.fetch_block(docs, &column);
+        let check = |accessor: &mut ColumnBlockAccessor, docs: &[u32], column: &mut Column<u64>| {
+            accessor.fetch_block(docs, column);
             let got: Vec<(u32, u64)> = accessor.iter_docid_vals(docs).collect();
             let expected: Vec<(u32, u64)> = docs.iter().map(|&d| (d, vals[d as usize])).collect();
             assert_eq!(got, expected);
@@ -593,11 +593,11 @@ mod tests {
 
         let mut accessor = ColumnBlockAccessor::default();
         // Contiguous block -> get_range fast path.
-        check(&mut accessor, &(10..74).collect::<Vec<u32>>());
+        check(&mut accessor, &(10..74).collect::<Vec<u32>>(), &mut column);
         // Non-contiguous block -> get_vals gather path.
-        check(&mut accessor, &[0, 5, 9, 100, 199]);
+        check(&mut accessor, &[0, 5, 9, 100, 199], &mut column);
         // Single doc and full span.
-        check(&mut accessor, &[42]);
-        check(&mut accessor, &(0..200).collect::<Vec<u32>>());
+        check(&mut accessor, &[42], &mut column);
+        check(&mut accessor, &(0..200).collect::<Vec<u32>>(), &mut column);
     }
 }

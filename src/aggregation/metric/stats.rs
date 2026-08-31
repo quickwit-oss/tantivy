@@ -287,7 +287,7 @@ impl<const COLUMN_TYPE_ID: u8> SegmentAggregationCollector
     ) -> crate::Result<()> {
         agg_data.column_block_accessor.fetch_block_with_missing(
             docs,
-            &self.accessor,
+            &mut self.accessor,
             self.missing_u64,
         );
         collect_stats::<COLUMN_TYPE_ID>(
