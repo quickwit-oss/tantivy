@@ -1896,7 +1896,8 @@ mod tests {
             res["my_texts"]["buckets"][1]["key"],
             serde_json::Value::Null
         );
-        assert_eq!(res["my_texts"]["sum_other_doc_count"], 0); // TODO sum_other_doc_count with min_doc_count
+        assert_eq!(res["my_texts"]["sum_other_doc_count"], 0); // TODO sum_other_doc_count with
+                                                               // min_doc_count
         Ok(())
     }
 
