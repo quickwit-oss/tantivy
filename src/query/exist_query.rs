@@ -83,7 +83,7 @@ impl Query for ExistsQuery {
                 self.field_name
             )));
         }
-        Ok(Box::new(ExistsWeight {
+        Ok(Box::new(FastFieldExistsWeight {
             field_name: self.field_name.clone(),
             field_type: field_type.value_type(),
             json_subpaths: self.json_subpaths,
@@ -91,14 +91,14 @@ impl Query for ExistsQuery {
     }
 }
 
-/// Weight associated with the `ExistsQuery` query.
-pub struct ExistsWeight {
+/// Fast-field weight associated with the `ExistsQuery` query.
+pub struct FastFieldExistsWeight {
     field_name: String,
     field_type: Type,
     json_subpaths: bool,
 }
 
-impl Weight for ExistsWeight {
+impl Weight for FastFieldExistsWeight {
     fn scorer(&self, reader: &SegmentReader, boost: Score) -> crate::Result<Box<dyn Scorer>> {
         let fast_field_reader = reader.fast_fields();
         let mut column_handles = fast_field_reader.dynamic_column_handles(&self.field_name)?;
