@@ -335,7 +335,11 @@ impl SegmentExtendedStatsCollector {
         Self {
             name: req.name.clone(),
             field_type: req.field_type,
-            accessor: req.accessor.clone(),
+            accessor: req
+                .source
+                .physical_column()
+                .expect("extended stats only supports physical value sources")
+                .clone(),
             missing,
             buckets: vec![IntermediateExtendedStats::with_sigma(sigma); 16],
             sigma,
