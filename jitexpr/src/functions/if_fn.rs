@@ -47,6 +47,8 @@ fn select_type(types: InferredTypeSet) -> VarType {
 }
 
 impl FnCall for IfFnCall {
+    const ARG_COUNT: super::ArgumentCount = super::ArgumentCount::Exactly(3);
+
     fn infer_types<'a>(
         args: &'a [UntypedExpr],
         target: InferredTypeSet,
@@ -78,7 +80,7 @@ impl FnCall for IfFnCall {
         target: InferredTypeSet,
         context: &mut CompileFnBuilder<'_, '_>,
     ) -> Result<TypedExpr, CompileError> {
-        assert_eq!(args.len(), 3, "expected 3 args for IF");
+        Self::ARG_COUNT.validate(args)?;
         let condition = context.apply_types(&args[0], InferredTypeSet::BOOLEAN)?;
         let left =
             crate::ast::infer_type_with_variable_types(&args[1], target, context.variable_types())?;

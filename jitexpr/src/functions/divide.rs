@@ -24,6 +24,8 @@ pub(crate) struct DivideFnCall {
 }
 
 impl FnCall for DivideFnCall {
+    const ARG_COUNT: super::ArgumentCount = super::ArgumentCount::Exactly(2);
+
     fn infer_types<'a>(
         args: &'a [UntypedExpr],
         target_type: InferredTypeSet,
@@ -55,7 +57,7 @@ impl FnCall for DivideFnCall {
         target_type_set: InferredTypeSet,
         context: &mut CompileFnBuilder<'_, '_>,
     ) -> Result<TypedExpr, CompileError> {
-        assert_eq!(args.len(), 2, "expected 2 args for DIVIDE");
+        Self::ARG_COUNT.validate(args)?;
         debug_assert!(target_type_set.contains(VarType::F64));
 
         let typed_args = args

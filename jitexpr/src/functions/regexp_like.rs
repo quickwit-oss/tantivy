@@ -41,6 +41,15 @@ fn convert_pattern(pattern: &str) -> String {
 }
 
 impl FnCall for RegexpLikeFnCall {
+    const ARG_COUNT: super::ArgumentCount = super::ArgumentCount::Exactly(2);
+
+    fn validate_args(args: &[UntypedExpr]) -> Result<(), super::InvalidFunctionCall> {
+        Self::ARG_COUNT.validate(args)?;
+        super::validate_literal(args, 1, VarType::Str, |literal| {
+            matches!(literal, Literal::String(_))
+        })
+    }
+
     fn infer_types<'a>(
         args: &'a [UntypedExpr],
         target: InferredTypeSet,
@@ -69,14 +78,18 @@ impl FnCall for RegexpLikeFnCall {
         _target: InferredTypeSet,
         context: &mut CompileFnBuilder<'_, '_>,
     ) -> Result<TypedExpr, CompileError> {
-        assert_eq!(args.len(), 2, "expected 2 args for REGEXP_LIKE");
+        Self::ARG_COUNT.validate(args)?;
         let input_target = match &args[0] {
             UntypedExpr::Literal(literal) => InferredTypeSet::singleton(literal.r#type()),
             _ => InferredTypeSet::ALL,
         };
         let input = context.apply_types(&args[0], input_target)?;
         let UntypedExpr::Literal(Literal::String(pattern)) = &args[1] else {
-            panic!("REGEXP_LIKE pattern must be a string literal")
+            return Err(super::InvalidFunctionCall::ExpectedLiteral {
+                argument: 2,
+                expected: VarType::Str,
+            }
+            .into());
         };
         let converted = convert_pattern(pattern);
         let regex =

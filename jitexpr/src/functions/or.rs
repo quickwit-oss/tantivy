@@ -24,6 +24,8 @@ pub(crate) struct OrFnCall {
 }
 
 impl FnCall for OrFnCall {
+    const ARG_COUNT: super::ArgumentCount = super::ArgumentCount::AtLeast(1);
+
     fn infer_types<'a>(
         args: &'a [UntypedExpr],
         target_type: InferredTypeSet,
@@ -55,7 +57,7 @@ impl FnCall for OrFnCall {
         target_type_set: InferredTypeSet,
         context: &mut CompileFnBuilder<'_, '_>,
     ) -> Result<TypedExpr, CompileError> {
-        assert!(!args.is_empty(), "expected at least 1 arg for OR");
+        Self::ARG_COUNT.validate(args)?;
         debug_assert!(target_type_set.contains(VarType::Bool));
 
         let args = args

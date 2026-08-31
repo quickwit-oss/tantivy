@@ -31,6 +31,8 @@ pub(crate) struct IntModFnCall {
 }
 
 impl FnCall for IntModFnCall {
+    const ARG_COUNT: super::ArgumentCount = super::ArgumentCount::Exactly(2);
+
     fn infer_types<'a>(
         args: &'a [UntypedExpr],
         target_type: InferredTypeSet,
@@ -61,7 +63,7 @@ impl FnCall for IntModFnCall {
         target_type_set: InferredTypeSet,
         context: &mut CompileFnBuilder<'_, '_>,
     ) -> Result<TypedExpr, CompileError> {
-        assert_eq!(args.len(), 2, "expected 2 args for INT_MOD");
+        Self::ARG_COUNT.validate(args)?;
         debug_assert!(target_type_set.contains(VarType::F64));
         let args = args
             .iter()

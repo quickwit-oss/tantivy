@@ -31,25 +31,49 @@ pub(crate) struct SplitAfterFnCall {
     occurrence: usize,
 }
 
-fn constant_occurrence(expression: Option<&UntypedExpr>) -> Option<usize> {
+fn constant_occurrence(
+    expression: Option<&UntypedExpr>,
+) -> Result<Option<usize>, super::InvalidFunctionCall> {
     let Some(expression) = expression else {
-        return Some(0);
+        return Ok(Some(0));
     };
     let UntypedExpr::Literal(literal) = expression else {
-        panic!("SPLIT_AFTER occurrence must be constant");
+        return Err(super::InvalidFunctionCall::ExpectedLiteral {
+            argument: 3,
+            expected: VarType::I64,
+        });
     };
-    match literal {
+    if !literal.is_none() && !literal.types().contains(VarType::I64) {
+        return Err(super::InvalidFunctionCall::ExpectedLiteral {
+            argument: 3,
+            expected: VarType::I64,
+        });
+    }
+    Ok(match literal {
         Literal::I64(value) => usize::try_from(*value).ok(),
         Literal::U64(value) => usize::try_from(*value).ok(),
         Literal::F64(value) => usize::try_from(*value as i64).ok(),
         Literal::None => None,
-        Literal::Bool(_) | Literal::String(_) => {
-            unreachable!("type inference constrains SPLIT_AFTER occurrence to an integer")
-        }
-    }
+        Literal::Bool(_) | Literal::String(_) => None,
+    })
 }
 
 impl FnCall for SplitAfterFnCall {
+    const ARG_COUNT: super::ArgumentCount = super::ArgumentCount::Between { min: 2, max: 3 };
+
+    fn validate_args(args: &[UntypedExpr]) -> Result<(), super::InvalidFunctionCall> {
+        Self::ARG_COUNT.validate(args)?;
+        super::validate_literal(args, 1, VarType::Str, |literal| {
+            matches!(literal, Literal::String(_) | Literal::None)
+        })?;
+        if args.len() == 3 {
+            super::validate_literal(args, 2, VarType::I64, |literal| {
+                literal.is_none() || literal.types().contains(VarType::I64)
+            })?;
+        }
+        Ok(())
+    }
+
     fn infer_types<'a>(
         args: &'a [UntypedExpr],
         target_type: InferredTypeSet,
@@ -82,17 +106,20 @@ impl FnCall for SplitAfterFnCall {
         _target_type_set: InferredTypeSet,
         context: &mut CompileFnBuilder<'_, '_>,
     ) -> Result<TypedExpr, CompileError> {
-        assert!(
-            (2..=3).contains(&args.len()),
-            "expected 2 or 3 args for SPLIT_AFTER"
-        );
+        Self::ARG_COUNT.validate(args)?;
         let input = context.apply_types(&args[0], InferredTypeSet::STRING)?;
         let separator = match &args[1] {
             UntypedExpr::Literal(Literal::String(separator)) => Arc::clone(separator),
             UntypedExpr::Literal(Literal::None) => return Ok(TypedExpr::none()),
-            _ => panic!("SPLIT_AFTER separator must be a string constant"),
+            _ => {
+                return Err(super::InvalidFunctionCall::ExpectedLiteral {
+                    argument: 2,
+                    expected: VarType::Str,
+                }
+                .into());
+            }
         };
-        let Some(occurrence) = constant_occurrence(args.get(2)) else {
+        let Some(occurrence) = constant_occurrence(args.get(2))? else {
             return Ok(TypedExpr::none());
         };
         Ok(TypedExpr {

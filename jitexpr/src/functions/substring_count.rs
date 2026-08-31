@@ -26,6 +26,8 @@ pub(crate) struct SubstringCountFnCall {
 }
 
 impl FnCall for SubstringCountFnCall {
+    const ARG_COUNT: super::ArgumentCount = super::ArgumentCount::Exactly(2);
+
     fn infer_types<'a>(
         args: &'a [UntypedExpr],
         target: InferredTypeSet,
@@ -55,6 +57,7 @@ impl FnCall for SubstringCountFnCall {
         _target: InferredTypeSet,
         context: &mut CompileFnBuilder<'_, '_>,
     ) -> Result<TypedExpr, CompileError> {
+        Self::ARG_COUNT.validate(args)?;
         let args = args
             .iter()
             .map(|arg| context.apply_types(arg, InferredTypeSet::STRING))

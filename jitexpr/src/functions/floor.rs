@@ -23,6 +23,8 @@ pub(crate) struct FloorFnCall {
 }
 
 impl FnCall for FloorFnCall {
+    const ARG_COUNT: super::ArgumentCount = super::ArgumentCount::Exactly(1);
+
     fn infer_types<'a>(
         args: &'a [UntypedExpr],
         target_type: InferredTypeSet,
@@ -51,7 +53,7 @@ impl FnCall for FloorFnCall {
         target_type_set: InferredTypeSet,
         context: &mut CompileFnBuilder<'_, '_>,
     ) -> Result<TypedExpr, CompileError> {
-        assert_eq!(args.len(), 1, "expected 1 arg for FLOOR");
+        Self::ARG_COUNT.validate(args)?;
         debug_assert!(target_type_set.contains(VarType::I64));
         let arg = context.apply_types(&args[0], InferredTypeSet::NUMERICAL)?;
         if arg.return_type == VarType::None {

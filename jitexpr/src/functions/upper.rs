@@ -32,6 +32,8 @@ pub(crate) struct UpperFnCall {
 }
 
 impl FnCall for UpperFnCall {
+    const ARG_COUNT: super::ArgumentCount = super::ArgumentCount::Exactly(1);
+
     fn infer_types<'a>(
         args: &'a [UntypedExpr],
         target_type: InferredTypeSet,
@@ -60,7 +62,7 @@ impl FnCall for UpperFnCall {
         _target_type_set: InferredTypeSet,
         context: &mut CompileFnBuilder<'_, '_>,
     ) -> Result<TypedExpr, CompileError> {
-        assert_eq!(args.len(), 1, "expected 1 arg for UPPER");
+        Self::ARG_COUNT.validate(args)?;
         let arg = context.apply_types(&args[0], InferredTypeSet::STRING)?;
         if arg.return_type == VarType::None {
             return Ok(TypedExpr::none());

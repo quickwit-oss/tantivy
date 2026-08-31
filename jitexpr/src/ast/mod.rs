@@ -9,4 +9,4 @@ pub use literal::Literal;
 pub use serialize::{DeserializeError, deserialize, serialize};
 pub use untyped_expr::UntypedExpr;
 
-pub use crate::functions::Function;
+pub use crate::functions::{Function, InvalidFunctionCall};
