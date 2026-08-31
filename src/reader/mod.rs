@@ -30,11 +30,11 @@ pub enum ReloadPolicy {
     ///
     /// This reload happens on a background thread and is **not** guaranteed to have
     /// completed by the time [`IndexWriter::commit()`](crate::IndexWriter::commit) returns,
-    /// on any [`Directory`] implementation, including [`RamDirectory`](crate::directory::RamDirectory).
-    /// A search performed immediately after `commit()` can therefore still observe the
-    /// pre-commit state. If you need a search to deterministically reflect a commit you just
-    /// made, use [`ReloadPolicy::Manual`] and call [`IndexReader::reload()`] yourself right
-    /// after `commit()` (see the
+    /// on any [`Directory`] implementation, including
+    /// [`RamDirectory`](crate::directory::RamDirectory). A search performed immediately after
+    /// `commit()` can therefore still observe the pre-commit state. If you need a search to
+    /// deterministically reflect a commit you just made, use [`ReloadPolicy::Manual`] and call
+    /// [`IndexReader::reload()`] yourself right after `commit()` (see the
     /// [`reload_after_commit`](https://github.com/quickwit-oss/tantivy/blob/main/examples/reload_after_commit.rs)
     /// example).
     OnCommitWithDelay, // TODO add NEAR_REAL_TIME(target_ms)
