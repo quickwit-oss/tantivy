@@ -29,7 +29,9 @@ use crate::aggregation::metric::{
 use crate::aggregation::segment_agg_result::{
     GenericSegmentAggregationResultsCollector, SegmentAggregationCollector,
 };
-use crate::aggregation::{f64_to_fastfield_u64, AggContextParams, ColumnBlockAccessor, Key};
+use crate::aggregation::{
+    f64_to_fastfield_u64, AggContextParams, ColumnBlockAccessor, Key, SegmentValueSourcePlan,
+};
 use crate::{SegmentOrdinal, SegmentReader};
 
 #[derive(Default)]
@@ -338,7 +340,11 @@ pub(crate) fn build_segment_agg_collector(
                         SegmentPercentilesCollector::from_req_and_validate(
                             req_data.field_type,
                             req_data.missing_u64,
-                            req_data.accessor.clone(),
+                            req_data
+                                .source
+                                .physical_column()
+                                .expect("percentiles only supports physical value sources")
+                                .clone(),
                             node.idx_in_req_data,
                         ),
                     ))
@@ -578,7 +584,7 @@ fn build_nodes(
             };
             let (accessor, field_type) = get_ff_reader(reader, field, allowed_column_types)?;
             let idx_in_req_data = data.push_metric_req_data(MetricAggReqData {
-                accessor,
+                source: SegmentValueSourcePlan::physical(accessor, field_type),
                 field_type,
                 name: agg_name.to_string(),
                 collecting_for,
@@ -605,7 +611,7 @@ fn build_nodes(
                 Some(get_numeric_or_date_column_types()),
             )?;
             let idx_in_req_data = data.push_metric_req_data(MetricAggReqData {
-                accessor,
+                source: SegmentValueSourcePlan::physical(accessor, field_type),
                 field_type,
                 name: agg_name.to_string(),
                 collecting_for: StatsType::Percentiles,

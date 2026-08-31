@@ -142,9 +142,11 @@ pub mod intermediate_agg_result;
 pub mod metric;
 
 mod segment_agg_result;
+mod value_source;
 use std::fmt::Display;
 
 pub(crate) use block_accessor::ColumnBlockAccessor;
+pub(crate) use value_source::{SegmentValueSource, SegmentValueSourcePlan};
 
 #[cfg(test)]
 mod agg_tests;

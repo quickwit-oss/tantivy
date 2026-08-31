@@ -31,7 +31,7 @@ use std::collections::HashMap;
 
 pub use average::*;
 pub use cardinality::*;
-use columnar::{Column, ColumnType};
+use columnar::ColumnType;
 pub use count::*;
 pub use extended_stats::*;
 pub use max::*;
@@ -43,6 +43,7 @@ pub use stats::*;
 pub use sum::*;
 pub use top_hits::*;
 
+use crate::aggregation::SegmentValueSourcePlan;
 use crate::schema::OwnedValue;
 
 /// Contains all information required by metric aggregations like avg, min, max, sum, stats,
@@ -55,8 +56,8 @@ pub struct MetricAggReqData {
     pub field_type: ColumnType,
     /// The missing value normalized to the internal u64 representation of the field type.
     pub missing_u64: Option<u64>,
-    /// The column accessor to access the fast field values.
-    pub accessor: Column<u64>,
+    /// Immutable recipe used to instantiate one runtime source per segment collector.
+    pub(crate) source: SegmentValueSourcePlan,
     /// Used when converting to intermediate result
     pub collecting_for: StatsType,
     /// The missing value
@@ -146,12 +147,14 @@ pub struct TopHitsMetricResult {
 
 #[cfg(test)]
 mod tests {
+    use std::net::Ipv6Addr;
+
     use crate::aggregation::agg_req::Aggregations;
     use crate::aggregation::agg_result::AggregationResults;
     use crate::aggregation::AggregationCollector;
     use crate::query::AllQuery;
-    use crate::schema::{NumericOptions, Schema};
-    use crate::{Index, IndexWriter};
+    use crate::schema::{NumericOptions, Schema, FAST};
+    use crate::{DateTime, Index, IndexWriter};
 
     #[test]
     fn test_metric_aggregations() {
@@ -199,5 +202,51 @@ mod tests {
         assert_eq!(aggregations_res_json["price_max"]["value"], 5.0);
         assert_eq!(aggregations_res_json["price_min"]["value"], 0.0);
         assert_eq!(aggregations_res_json["price_sum"]["value"], 15.0);
+    }
+
+    #[test]
+    fn test_value_count_all_supported_physical_types_and_missing() -> crate::Result<()> {
+        let mut schema_builder = Schema::builder();
+        let i64_field = schema_builder.add_i64_field("i64", FAST);
+        let u64_field = schema_builder.add_u64_field("u64", FAST);
+        let f64_field = schema_builder.add_f64_field("f64", FAST);
+        let str_field = schema_builder.add_text_field("str", FAST);
+        let date_field = schema_builder.add_date_field("date", FAST);
+        let bool_field = schema_builder.add_bool_field("bool", FAST);
+        let ip_field = schema_builder.add_ip_addr_field("ip", FAST);
+        let index = Index::create_in_ram(schema_builder.build());
+        let mut writer = index.writer_for_tests()?;
+        writer.add_document(doc!(
+            i64_field => -1i64,
+            u64_field => 2u64,
+            f64_field => 3.5f64,
+            str_field => "value",
+            date_field => DateTime::from_timestamp_secs(1_700_000_000),
+            bool_field => true,
+            ip_field => Ipv6Addr::LOCALHOST,
+        ))?;
+        writer.add_document(doc!())?;
+        writer.commit()?;
+
+        let aggregations: Aggregations = serde_json::from_value(json!({
+            "i64": { "value_count": { "field": "i64" } },
+            "u64": { "value_count": { "field": "u64" } },
+            "f64": { "value_count": { "field": "f64" } },
+            "str": { "value_count": { "field": "str" } },
+            "date": { "value_count": { "field": "date" } },
+            "bool": { "value_count": { "field": "bool" } },
+            "ip": { "value_count": { "field": "ip" } },
+            "f64_missing": { "value_count": { "field": "f64", "missing": 0.0 } }
+        }))?;
+        let collector = AggregationCollector::from_aggs(aggregations, Default::default());
+        let result: AggregationResults =
+            index.reader()?.searcher().search(&AllQuery, &collector)?;
+        let result = serde_json::to_value(result)?;
+
+        for name in ["i64", "u64", "f64", "str", "date", "bool", "ip"] {
+            assert_eq!(result[name]["value"], 1.0, "field {name}");
+        }
+        assert_eq!(result["f64_missing"]["value"], 2.0);
+        Ok(())
     }
 }

@@ -1,5 +1,6 @@
 use std::fmt::Debug;
 
+use columnar::Column;
 use serde::{Deserialize, Serialize};
 
 use super::*;
