@@ -26,6 +26,8 @@ pub(crate) struct AbsFnCall {
 }
 
 impl FnCall for AbsFnCall {
+    const ARG_COUNT: super::ArgumentCount = super::ArgumentCount::Exactly(1);
+
     fn infer_types<'a>(
         args: &'a [UntypedExpr],
         target_type: InferredTypeSet,
@@ -63,7 +65,7 @@ impl FnCall for AbsFnCall {
         target_type_set: InferredTypeSet,
         context: &mut CompileFnBuilder<'_, '_>,
     ) -> Result<TypedExpr, CompileError> {
-        assert_eq!(args.len(), 1, "expected 1 arg for ABS");
+        Self::ARG_COUNT.validate(args)?;
         let target_types = match &args[0] {
             UntypedExpr::Literal(literal) => {
                 let declared = InferredTypeSet::singleton(literal.r#type());

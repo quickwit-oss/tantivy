@@ -25,7 +25,7 @@ use crate::ast::{Function, InferredTypeSet, Literal, TypeError, UntypedExpr};
 use crate::compile::{
     CompileError, CompileFnBuilder, LoweredValue, LoweringContext, TypedExpr, TypedExprAst,
 };
-use crate::functions::{FnCall, FnCallEnum};
+use crate::functions::{FnCall, FnCallEnum, InvalidFunctionCall};
 use crate::types::VarType;
 
 const SYMBOL: &str = "jitexpr_regexp_extract";
@@ -46,6 +46,21 @@ impl PartialEq for RegexpExtractFnCall {
 }
 
 impl FnCall for RegexpExtractFnCall {
+    const ARG_COUNT: super::ArgumentCount = super::ArgumentCount::Between { min: 2, max: 3 };
+
+    fn validate_args(args: &[UntypedExpr]) -> Result<(), InvalidFunctionCall> {
+        Self::ARG_COUNT.validate(args)?;
+        super::validate_literal(args, 1, VarType::Str, |literal| {
+            matches!(literal, Literal::String(_))
+        })?;
+        if args.len() == 3 {
+            super::validate_literal(args, 2, VarType::U64, |literal| {
+                matches!(literal, Literal::U64(_))
+            })?;
+        }
+        Ok(())
+    }
+
     fn infer_types<'a>(
         args: &'a [UntypedExpr],
         target_type: InferredTypeSet,
@@ -78,11 +93,7 @@ impl FnCall for RegexpExtractFnCall {
         target_type_set: InferredTypeSet,
         context: &mut CompileFnBuilder<'_, '_>,
     ) -> Result<TypedExpr, CompileError> {
-        assert!(
-            (2..=3).contains(&args.len()),
-            "Expected 2 or 3 args for regexp_extract"
-        );
-
+        Self::ARG_COUNT.validate(args)?;
         let haystack = context.apply_types(&args[0], target_type_set)?;
         if haystack.return_type == VarType::None {
             return Ok(TypedExpr::none());
@@ -90,7 +101,11 @@ impl FnCall for RegexpExtractFnCall {
         assert_eq!(haystack.return_type, VarType::Str);
 
         let UntypedExpr::Literal(Literal::String(pattern)) = &args[1] else {
-            panic!("regexp_extract pattern must be a string literal");
+            return Err(InvalidFunctionCall::ExpectedLiteral {
+                argument: 2,
+                expected: VarType::Str,
+            }
+            .into());
         };
         let regex = Arc::new(
             Regex::new(pattern).map_err(|source| CompileError::InvalidRegex {
@@ -102,7 +117,13 @@ impl FnCall for RegexpExtractFnCall {
         let capture_index = match args.get(2) {
             None => 0,
             Some(UntypedExpr::Literal(Literal::U64(capture_index))) => *capture_index,
-            Some(_) => panic!("regexp_extract capture index must be a u64 literal"),
+            Some(_) => {
+                return Err(InvalidFunctionCall::ExpectedLiteral {
+                    argument: 3,
+                    expected: VarType::U64,
+                }
+                .into());
+            }
         };
 
         Ok(TypedExpr {

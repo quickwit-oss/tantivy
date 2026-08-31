@@ -22,22 +22,38 @@ pub(crate) struct LeftFnCall {
     length: usize,
 }
 
-fn constant_length(expression: &UntypedExpr) -> Option<usize> {
+fn constant_length(expression: &UntypedExpr) -> Result<Option<usize>, super::InvalidFunctionCall> {
     let UntypedExpr::Literal(literal) = expression else {
-        panic!("LEFT length must be constant");
+        return Err(super::InvalidFunctionCall::ExpectedLiteral {
+            argument: 2,
+            expected: VarType::I64,
+        });
     };
-    match literal {
+    if !literal.is_none() && !literal.types().contains(VarType::I64) {
+        return Err(super::InvalidFunctionCall::ExpectedLiteral {
+            argument: 2,
+            expected: VarType::I64,
+        });
+    }
+    Ok(match literal {
         Literal::I64(value) => usize::try_from(*value).ok(),
         Literal::U64(value) => usize::try_from(*value).ok(),
         Literal::F64(value) => usize::try_from(*value as i64).ok(),
         Literal::None => None,
-        Literal::Bool(_) | Literal::String(_) => {
-            unreachable!("type inference constrains LEFT length to an integer")
-        }
-    }
+        Literal::Bool(_) | Literal::String(_) => None,
+    })
 }
 
 impl FnCall for LeftFnCall {
+    const ARG_COUNT: super::ArgumentCount = super::ArgumentCount::Exactly(2);
+
+    fn validate_args(args: &[UntypedExpr]) -> Result<(), super::InvalidFunctionCall> {
+        Self::ARG_COUNT.validate(args)?;
+        super::validate_literal(args, 1, VarType::I64, |literal| {
+            literal.is_none() || literal.types().contains(VarType::I64)
+        })
+    }
+
     fn infer_types<'a>(
         args: &'a [UntypedExpr],
         target_type: InferredTypeSet,
@@ -67,9 +83,9 @@ impl FnCall for LeftFnCall {
         _target_type_set: InferredTypeSet,
         context: &mut CompileFnBuilder<'_, '_>,
     ) -> Result<TypedExpr, CompileError> {
-        assert_eq!(args.len(), 2, "expected 2 args for LEFT");
+        Self::ARG_COUNT.validate(args)?;
         let input = context.apply_types(&args[0], InferredTypeSet::STRING)?;
-        let Some(length) = constant_length(&args[1]) else {
+        let Some(length) = constant_length(&args[1])? else {
             return Ok(TypedExpr::none());
         };
         Ok(TypedExpr {

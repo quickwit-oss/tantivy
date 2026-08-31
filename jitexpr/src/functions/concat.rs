@@ -48,6 +48,13 @@ pub(super) struct JoinArguments {
 }
 
 impl FnCall for ConcatFnCall {
+    const ARG_COUNT: super::ArgumentCount = super::ArgumentCount::AtLeast(4);
+
+    fn validate_args(args: &[UntypedExpr]) -> Result<(), super::InvalidFunctionCall> {
+        Self::ARG_COUNT.validate(args)?;
+        validate_join_args(args)
+    }
+
     fn infer_types<'a>(
         args: &'a [UntypedExpr],
         target_type: InferredTypeSet,
@@ -61,6 +68,7 @@ impl FnCall for ConcatFnCall {
         _target_type_set: InferredTypeSet,
         context: &mut CompileFnBuilder<'_, '_>,
     ) -> Result<TypedExpr, CompileError> {
+        Self::ARG_COUNT.validate(args)?;
         let Some(arguments) = apply_join_types("CONCAT", args, context)? else {
             return Ok(TypedExpr::none());
         };
@@ -87,6 +95,15 @@ impl FnCall for ConcatFnCall {
         debug_assert_eq!(return_type, VarType::Str);
         self.arguments.emit_cranelift_ir(context, builder)
     }
+}
+
+pub(super) fn validate_join_args(args: &[UntypedExpr]) -> Result<(), super::InvalidFunctionCall> {
+    super::validate_literal(args, 0, VarType::Str, |literal| {
+        matches!(literal, Literal::String(_))
+    })?;
+    super::validate_literal(args, 1, VarType::Str, |literal| {
+        matches!(literal, Literal::String(_))
+    })
 }
 
 pub(super) fn infer_join_types<'a>(
@@ -116,19 +133,23 @@ pub(super) fn infer_join_types<'a>(
 }
 
 pub(super) fn apply_join_types(
-    function_name: &str,
+    _function_name: &str,
     args: &[UntypedExpr],
     context: &mut CompileFnBuilder<'_, '_>,
 ) -> Result<Option<JoinArguments>, CompileError> {
-    assert!(
-        args.len() >= 4,
-        "expected at least 4 args for {function_name}"
-    );
     let UntypedExpr::Literal(Literal::String(delimiter)) = &args[0] else {
-        panic!("{function_name} delimiter must be a string literal");
+        return Err(super::InvalidFunctionCall::ExpectedLiteral {
+            argument: 1,
+            expected: VarType::Str,
+        }
+        .into());
     };
     let UntypedExpr::Literal(Literal::String(ignore_empty)) = &args[1] else {
-        panic!("{function_name} ignore-empty flag must be a string literal");
+        return Err(super::InvalidFunctionCall::ExpectedLiteral {
+            argument: 2,
+            expected: VarType::Str,
+        }
+        .into());
     };
 
     let values = args[2..]

@@ -35,14 +35,25 @@ pub(crate) struct RoundFnCall {
     precision: i64,
 }
 
-fn constant_precision(expression: Option<&UntypedExpr>) -> Option<i64> {
+fn constant_precision(
+    expression: Option<&UntypedExpr>,
+) -> Result<Option<i64>, super::InvalidFunctionCall> {
     let Some(expression) = expression else {
-        return Some(0);
+        return Ok(Some(0));
     };
     let UntypedExpr::Literal(literal) = expression else {
-        panic!("ROUND precision must be constant");
+        return Err(super::InvalidFunctionCall::ExpectedLiteral {
+            argument: 2,
+            expected: VarType::I64,
+        });
     };
-    match literal {
+    if !literal.is_none() && !literal.types().contains(VarType::I64) {
+        return Err(super::InvalidFunctionCall::ExpectedLiteral {
+            argument: 2,
+            expected: VarType::I64,
+        });
+    }
+    Ok(match literal {
         Literal::I64(value) => Some(*value),
         Literal::U64(value) => i64::try_from(*value).ok(),
         Literal::F64(value)
@@ -54,10 +65,8 @@ fn constant_precision(expression: Option<&UntypedExpr>) -> Option<i64> {
             Some(*value as i64)
         }
         Literal::None => None,
-        Literal::F64(_) | Literal::Bool(_) | Literal::String(_) => {
-            unreachable!("type inference constrains ROUND precision to an integer")
-        }
-    }
+        Literal::F64(_) | Literal::Bool(_) | Literal::String(_) => None,
+    })
 }
 
 fn return_type_for_precision(precision: i64) -> VarType {
@@ -69,6 +78,18 @@ fn return_type_for_precision(precision: i64) -> VarType {
 }
 
 impl FnCall for RoundFnCall {
+    const ARG_COUNT: super::ArgumentCount = super::ArgumentCount::Between { min: 1, max: 2 };
+
+    fn validate_args(args: &[UntypedExpr]) -> Result<(), super::InvalidFunctionCall> {
+        Self::ARG_COUNT.validate(args)?;
+        if args.len() == 2 {
+            super::validate_literal(args, 1, VarType::I64, |literal| {
+                literal.is_none() || literal.types().contains(VarType::I64)
+            })?;
+        }
+        Ok(())
+    }
+
     fn infer_types<'a>(
         args: &'a [UntypedExpr],
         target_type: InferredTypeSet,
@@ -85,7 +106,7 @@ impl FnCall for RoundFnCall {
         if let Some(precision) = args.get(1) {
             crate::ast::infer_types_aux(precision, InferredTypeSet::I64, inferred_types)?;
         }
-        let precision = constant_precision(args.get(1)).unwrap_or(0);
+        let precision = constant_precision(args.get(1))?.unwrap_or(0);
         let return_types = InferredTypeSet::singleton(return_type_for_precision(precision));
         if target_type.intersect(return_types).is_none() {
             return Err(TypeError::WrongFunctionReturnType {
@@ -102,11 +123,8 @@ impl FnCall for RoundFnCall {
         target_type_set: InferredTypeSet,
         context: &mut CompileFnBuilder<'_, '_>,
     ) -> Result<TypedExpr, CompileError> {
-        assert!(
-            (1..=2).contains(&args.len()),
-            "expected 1 or 2 args for ROUND"
-        );
-        let Some(precision) = constant_precision(args.get(1)) else {
+        Self::ARG_COUNT.validate(args)?;
+        let Some(precision) = constant_precision(args.get(1))? else {
             return Ok(TypedExpr::none());
         };
         let return_type = return_type_for_precision(precision);

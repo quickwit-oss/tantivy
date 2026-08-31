@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use crate::ast::{Function, Literal};
+use crate::functions::InvalidFunctionCall;
 
 /// An expression AST.
 ///
@@ -22,6 +23,16 @@ impl UntypedExpr {
 
     pub fn variable(variable_name: impl ToString) -> UntypedExpr {
         UntypedExpr::Variable(Arc::from(variable_name.to_string()))
+    }
+
+    /// Creates an untyped expression that is a function over different arguments.
+    ///
+    /// This call will validate the arguments and
+    pub fn call(
+        function: Function,
+        args: Vec<UntypedExpr>,
+    ) -> Result<UntypedExpr, InvalidFunctionCall> {
+        function.call(args)
     }
 }
 
