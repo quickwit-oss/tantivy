@@ -1064,7 +1064,7 @@ impl<TermMap: TermAggregationMap, B: SubAggBuffer> SegmentAggregationCollector
             .column_block_accessor
             .fetch_block_with_missing_unique_per_doc(
                 docs,
-                &req_data.accessor,
+                &mut req_data.accessor,
                 req_data.missing_value_for_accessor,
                 false,
             );
