@@ -223,14 +223,14 @@ fn block_missing_value(missing: Option<&MultiTermsMissingAccessor>) -> Option<u6
 #[inline]
 fn fetch_field_block(
     docs: &[crate::DocId],
-    field: &MultiTermsFieldAccessor,
+    field: &mut MultiTermsFieldAccessor,
     missing: Option<&MultiTermsMissingAccessor>,
     block_accessor: &mut ColumnBlockAccessor,
 ) -> bool {
     let missing_value = block_missing_value(missing);
     block_accessor.fetch_block_with_missing_unique_per_doc(
         docs,
-        &field.column,
+        &mut field.column,
         missing_value,
         true,
     );
@@ -571,7 +571,7 @@ where
         docs: &[DocId],
         block_accessor: &mut ColumnBlockAccessor,
     ) {
-        for (field_idx, field) in self.req_data.fields.iter().enumerate() {
+        for (field_idx, field) in self.req_data.fields.iter_mut().enumerate() {
             fetch_field_block(
                 docs,
                 field,
@@ -595,7 +595,7 @@ where
         self.alive_docs.extend_from_slice(docs);
         self.doc_ids_per_partial_combination.clear();
 
-        for (field_idx, field) in self.req_data.fields.iter().enumerate() {
+        for (field_idx, field) in self.req_data.fields.iter_mut().enumerate() {
             let missing = self.req_data.missing_accessors[field_idx].as_ref();
             let has_one_value_per_doc =
                 fetch_field_block(&self.alive_docs, field, missing, block_accessor);
