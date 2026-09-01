@@ -39,7 +39,7 @@ const SINGLE_COUNT_LANE: usize = 1;
 const NUM_SMALL_LINEAR_BUCKETS: usize = 4;
 const NUM_LARGE_LINEAR_BUCKETS: usize = 8;
 
-trait FusedBucketResolver: Debug + 'static {
+trait BucketResolver: Debug + 'static {
     /// Fetches the histogram values needed for this block. Resolvers that do not inspect the
     /// histogram column (notably [`FusedSingleBucketResolver`]) leave this as a no-op.
     fn prepare_block(&mut self, docs: &[crate::DocId]);
@@ -82,21 +82,21 @@ fn increment_grid_count<const LANES: usize>(
 /// Resolver for a histogram whose entire value range maps to one bucket. It deliberately owns no
 /// block accessor: collecting this shape does not read or decode the histogram column at all.
 #[derive(Debug)]
-struct FusedSingleBucketResolver {
+struct SingleBucketResolver {
     next_count_lane: usize,
 }
 
-impl FusedSingleBucketResolver {
+impl SingleBucketResolver {
     fn new(hist_req_data: &HistogramAggReqData) -> Self {
         assert!(
             hist_req_data.accessor.get_cardinality().is_full(),
-            "FusedSingleBucketResolver requires a full histogram column"
+            "SingleBucketResolver requires a full histogram column"
         );
         Self { next_count_lane: 0 }
     }
 }
 
-impl FusedBucketResolver for FusedSingleBucketResolver {
+impl BucketResolver for SingleBucketResolver {
     #[inline]
     fn prepare_block(&mut self, _docs: &[crate::DocId]) {}
 
@@ -123,14 +123,14 @@ impl FusedBucketResolver for FusedSingleBucketResolver {
         _counts: &mut [[u32; LANES]],
         _term_counts: &mut [[u32; LANES]],
     ) {
-        unreachable!("FusedSingleBucketResolver is only constructed without hard bounds");
+        unreachable!("SingleBucketResolver is only constructed without hard bounds");
     }
 }
 
 /// The general resolver. It preserves the existing field conversion and floating-point bucket
 /// calculation for histograms that do not use a specialized resolver.
 #[derive(Debug)]
-struct FusedComputedBucketResolver {
+struct ComputedBucketResolver {
     hist_block: ColumnBlockAccessor,
     next_count_lane: usize,
     accessor: Column<u64>,
@@ -142,11 +142,11 @@ struct FusedComputedBucketResolver {
     bounds: crate::aggregation::bucket::HistogramBounds,
 }
 
-impl FusedComputedBucketResolver {
+impl ComputedBucketResolver {
     fn new(hist_req_data: &HistogramAggReqData, base_pos: i64, num_buckets: usize) -> Self {
         assert!(
             hist_req_data.accessor.get_cardinality().is_full(),
-            "FusedComputedBucketResolver requires a full histogram column"
+            "ComputedBucketResolver requires a full histogram column"
         );
         Self {
             hist_block: ColumnBlockAccessor::default(),
@@ -162,7 +162,7 @@ impl FusedComputedBucketResolver {
     }
 }
 
-impl FusedBucketResolver for FusedComputedBucketResolver {
+impl BucketResolver for ComputedBucketResolver {
     #[inline]
     fn prepare_block(&mut self, docs: &[crate::DocId]) {
         self.hist_block
@@ -224,7 +224,7 @@ impl FusedBucketResolver for FusedComputedBucketResolver {
 /// Resolver for a small histogram grid. Bucket starts are precomputed in monotonic fast-field
 /// `u64` space, then scanned linearly. `NUM_BUCKETS` is fixed so the optimizer can unroll the scan.
 #[derive(Debug)]
-struct FusedLinearBucketResolver<const NUM_BUCKETS: usize> {
+struct LinearBucketResolver<const NUM_BUCKETS: usize> {
     hist_block: ColumnBlockAccessor,
     next_count_lane: usize,
     accessor: Column<u64>,
@@ -232,7 +232,7 @@ struct FusedLinearBucketResolver<const NUM_BUCKETS: usize> {
     num_buckets: usize,
 }
 
-impl<const NUM_BUCKETS: usize> FusedLinearBucketResolver<NUM_BUCKETS> {
+impl<const NUM_BUCKETS: usize> LinearBucketResolver<NUM_BUCKETS> {
     fn new(
         hist_req_data: &HistogramAggReqData,
         base_pos: i64,
@@ -241,7 +241,7 @@ impl<const NUM_BUCKETS: usize> FusedLinearBucketResolver<NUM_BUCKETS> {
         assert!(num_time_buckets > 1 && num_time_buckets <= NUM_BUCKETS);
         assert!(
             hist_req_data.accessor.get_cardinality().is_full(),
-            "FusedLinearBucketResolver requires a full histogram column"
+            "LinearBucketResolver requires a full histogram column"
         );
         let max_encoded_value = hist_req_data.accessor.max_value();
         // Padding must compare false for every column value. There is no such `u64` sentinel when
@@ -278,7 +278,7 @@ impl<const NUM_BUCKETS: usize> FusedLinearBucketResolver<NUM_BUCKETS> {
     }
 }
 
-impl<const NUM_BUCKETS: usize> FusedBucketResolver for FusedLinearBucketResolver<NUM_BUCKETS> {
+impl<const NUM_BUCKETS: usize> BucketResolver for LinearBucketResolver<NUM_BUCKETS> {
     #[inline]
     fn prepare_block(&mut self, docs: &[crate::DocId]) {
         self.hist_block
@@ -312,8 +312,8 @@ impl<const NUM_BUCKETS: usize> FusedBucketResolver for FusedLinearBucketResolver
         _term_counts: &mut [[u32; LANES]],
     ) {
         panic!(
-            "FusedLinearBucketResolver does not support hard bounds and should not be constructed \
-             with them"
+            "LinearBucketResolver does not support hard bounds and should not be constructed with \
+             them"
         );
     }
 }
@@ -360,7 +360,7 @@ fn first_encoded_value_for_bucket(
 /// handed to the shared intermediate-result builders, so cross-segment merging is identical to the
 /// general path.
 #[derive(Debug)]
-struct FusedTermHistogramCollector<R: FusedBucketResolver, const LANES: usize> {
+struct FusedTermHistogramCollector<R: BucketResolver, const LANES: usize> {
     /// Per-term count of docs *outside* `hard_bounds` (still in `doc_count`, but in no bucket).
     /// Per-term total = this + the term's `counts` row-sum; left empty when there are no hard
     /// bounds (every doc is in-bounds, so there's no remainder to track).
@@ -385,7 +385,7 @@ struct FusedTermHistogramCollector<R: FusedBucketResolver, const LANES: usize> {
     all_docs_in_bounds: bool,
 }
 
-impl<R: FusedBucketResolver, const LANES: usize> SegmentAggregationCollector
+impl<R: BucketResolver, const LANES: usize> SegmentAggregationCollector
     for FusedTermHistogramCollector<R, LANES>
 {
     fn add_intermediate_aggregation_result(
@@ -453,7 +453,7 @@ impl<R: FusedBucketResolver, const LANES: usize> SegmentAggregationCollector
         );
 
         // The term column is always needed. The resolver fetches the histogram column only when
-        // bucket selection depends on its values; `FusedSingleBucketResolver` makes this a no-op.
+        // bucket selection depends on its values; `SingleBucketResolver` makes this a no-op.
         self.term_block
             .fetch_full_column_block(docs, &self.terms_req_data.accessor);
         self.bucket_resolver.prepare_block(docs);
@@ -601,8 +601,8 @@ fn build_fused_collector<const LANES: usize>(
     let all_docs_in_bounds =
         hist_req_data.bounds.min == f64::MIN && hist_req_data.bounds.max == f64::MAX;
     if all_docs_in_bounds && num_time_buckets == 1 {
-        let resolver = FusedSingleBucketResolver::new(&hist_req_data);
-        return build_fused_collector_with_resolver::<FusedSingleBucketResolver, LANES>(
+        let resolver = SingleBucketResolver::new(&hist_req_data);
+        return build_fused_collector_with_resolver::<SingleBucketResolver, LANES>(
             agg_data,
             terms_req_data,
             hist_req_data,
@@ -612,7 +612,7 @@ fn build_fused_collector<const LANES: usize>(
         );
     }
     if all_docs_in_bounds && num_time_buckets <= NUM_SMALL_LINEAR_BUCKETS {
-        if let Some(resolver) = FusedLinearBucketResolver::<NUM_SMALL_LINEAR_BUCKETS>::new(
+        if let Some(resolver) = LinearBucketResolver::<NUM_SMALL_LINEAR_BUCKETS>::new(
             &hist_req_data,
             base_pos,
             num_time_buckets,
@@ -627,7 +627,7 @@ fn build_fused_collector<const LANES: usize>(
             );
         }
     } else if all_docs_in_bounds && num_time_buckets <= NUM_LARGE_LINEAR_BUCKETS {
-        if let Some(resolver) = FusedLinearBucketResolver::<NUM_LARGE_LINEAR_BUCKETS>::new(
+        if let Some(resolver) = LinearBucketResolver::<NUM_LARGE_LINEAR_BUCKETS>::new(
             &hist_req_data,
             base_pos,
             num_time_buckets,
@@ -643,7 +643,7 @@ fn build_fused_collector<const LANES: usize>(
         }
     }
 
-    let resolver = FusedComputedBucketResolver::new(&hist_req_data, base_pos, num_time_buckets);
+    let resolver = ComputedBucketResolver::new(&hist_req_data, base_pos, num_time_buckets);
     build_fused_collector_with_resolver::<_, LANES>(
         agg_data,
         terms_req_data,
@@ -654,7 +654,7 @@ fn build_fused_collector<const LANES: usize>(
     )
 }
 
-fn build_fused_collector_with_resolver<R: FusedBucketResolver, const LANES: usize>(
+fn build_fused_collector_with_resolver<R: BucketResolver, const LANES: usize>(
     agg_data: &mut AggregationsSegmentCtx,
     terms_req_data: &TermsAggReqData,
     hist_req_data: HistogramAggReqData,
