@@ -55,12 +55,6 @@ impl BlockValueSource for Column<u64> {
         let cardinality = self.index.get_cardinality();
         if cardinality.is_full() {
             load_full_column_values(docs, self, values);
-        } else if docs.len() == 1 {
-            values.clear();
-            values.extend(self.values_for_doc(docs[0]));
-            docids.clear();
-            docids.resize(values.len(), docs[0]);
-            row_ids.clear();
         } else {
             docids.clear();
             row_ids.clear();
