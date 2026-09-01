@@ -30,7 +30,7 @@ use crate::aggregation::{format_date, BucketId, Key};
 use crate::error::DataCorruption;
 use crate::TantivyError;
 
-mod term_histogram;
+mod flattened_term_histogram;
 
 /// Contains all information required by the SegmentTermCollector to perform the
 /// terms aggregation on a segment.
@@ -427,9 +427,10 @@ pub(crate) fn build_segment_term_collector(
     let max_column_val: u64 =
         col_max_value.max(terms_req_data.missing_value_for_accessor.unwrap_or(0u64));
 
-    // Fused fast path: low-cardinality terms × a single `histogram`/`date_histogram` leaf over full
-    // columns with a small enough bucket grid. Anything else falls through to the general path.
-    if let Some(collector) = term_histogram::maybe_build_fused_collector(
+    // Flattened fast path: low-cardinality terms × a single `histogram`/`date_histogram` leaf over
+    // full columns with a small enough bucket grid. Anything else falls through to the general
+    // path.
+    if let Some(collector) = flattened_term_histogram::maybe_build_flattened_collector(
         req_data,
         node,
         &terms_req_data,
