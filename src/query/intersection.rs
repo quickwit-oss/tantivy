@@ -80,6 +80,7 @@ fn go_to_first_doc<TDocSet: DocSet>(docsets: &mut [TDocSet]) -> DocId {
 
 impl<TDocSet: DocSet> Intersection<TDocSet, TDocSet> {
     /// num_docs is the number of documents in the segment.
+    /// It is required to have at least  two docsets.
     pub(crate) fn new(
         mut docsets: Vec<TDocSet>,
         segment_num_docs: u32,
@@ -129,7 +130,8 @@ impl<TDocSet: DocSet, TOtherDocSet: DocSet> DocSet for Intersection<TDocSet, TOt
 
         // Termination: candidate strictly increases.
         'outer: while candidate < TERMINATED {
-            // As we enter the loop, we should always have candidate < next_doc.
+            // As we enter the loop, we should always have prev_intersection_doc < candidate <=
+            // next_intersection_doc.
 
             candidate = left.seek(candidate);
 

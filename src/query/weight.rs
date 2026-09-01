@@ -1,5 +1,5 @@
 use super::Scorer;
-use crate::docset::COLLECT_BLOCK_BUFFER_LEN;
+use crate::docset::{SeekDangerResult, COLLECT_BLOCK_BUFFER_LEN};
 use crate::index::SegmentReader;
 use crate::query::Explanation;
 use crate::{DocId, DocSet, Score, TERMINATED};
@@ -70,6 +70,36 @@ pub trait Weight: Send + Sync + 'static {
     ///
     /// See [`Query`](crate::query::Query).
     fn scorer(&self, reader: &SegmentReader, boost: Score) -> crate::Result<Box<dyn Scorer>>;
+
+    /// !!!Dragons ahead!!!
+    /// Returns a scorer initialized around `target` for use in an intersection.
+    ///
+    /// # Warning
+    ///
+    /// The result and the state of the returned scorer follow the semantics of
+    /// [`DocSet::seek_danger`]. When this method returns
+    /// [`SeekDangerResult::SeekLowerBound`], the scorer may be in an invalid state and must only
+    /// receive further calls to [`DocSet::seek_danger`] until one returns
+    /// [`SeekDangerResult::Found`].
+    ///
+    /// Some scorer types require substantial CPU work to locate their first matching document.
+    /// During intersection initialization, this hook lets them start near the current candidate
+    /// instead.
+    fn scorer_danger(
+        &self,
+        reader: &SegmentReader,
+        target: DocId,
+        boost: Score,
+    ) -> crate::Result<(SeekDangerResult, Box<dyn Scorer>)> {
+        let mut scorer = self.scorer(reader, boost)?;
+        let scorer_doc = scorer.doc();
+        let seek_danger_result = match scorer_doc.cmp(&target) {
+            std::cmp::Ordering::Less => scorer.seek_danger(target),
+            std::cmp::Ordering::Equal => SeekDangerResult::Found,
+            std::cmp::Ordering::Greater => SeekDangerResult::SeekLowerBound(scorer_doc),
+        };
+        Ok((seek_danger_result, scorer))
+    }
 
     /// Returns an [`Explanation`] for the given document.
     fn explain(&self, reader: &SegmentReader, doc: DocId) -> crate::Result<Explanation>;
