@@ -500,7 +500,7 @@ fn terms_status_with_date_histogram() -> AggregationRequest {
     })
 }
 
-/// Same fused terms × date_histogram, but with `hard_bounds`. The timestamps span 0..120h; the
+/// Same flattened terms × date_histogram, but with `hard_bounds`. The timestamps span 0..120h; the
 /// bounds drop only the first and last hour (ms: 1h=3_600_000, 119h=428_400_000), so almost every
 /// doc is in-bounds. This exercises the collector's hard-bounds path: `bounds.contains` runs per
 /// doc (the `all_docs_in_bounds` short-circuit is off) and the rare out-of-bounds doc takes the
@@ -562,9 +562,9 @@ fn terms_status_with_date_histogram_hard_bounds() -> AggregationRequest {
     })
 }
 
-/// Same fused terms × date_histogram, but with a sibling terms aggregation next to it. The fused
-/// fast path should still trigger for `my_texts` (sibling aggregations are independent top-level
-/// aggregations, so they don't change its eligibility).
+/// Same flattened terms × date_histogram, but with a sibling terms aggregation next to it. The
+/// flattened fast path should still trigger for `my_texts` (sibling aggregations are independent
+/// top-level aggregations, so they don't change its eligibility).
 fn terms_status_with_date_histogram_and_sibling_terms() -> AggregationRequest {
     json!({
         "my_texts": {

@@ -30,7 +30,7 @@ use crate::aggregation::{format_date, BucketId, Key};
 use crate::error::DataCorruption;
 use crate::TantivyError;
 
-mod term_histogram;
+mod flattened_term_histogram;
 
 /// Contains all information required by the SegmentTermCollector to perform the
 /// terms aggregation on a segment.
@@ -427,9 +427,10 @@ pub(crate) fn build_segment_term_collector(
     let max_column_val: u64 =
         col_max_value.max(terms_req_data.missing_value_for_accessor.unwrap_or(0u64));
 
-    // Fused fast path: low-cardinality terms × a single `histogram`/`date_histogram` leaf over full
-    // columns with a small enough bucket grid. Anything else falls through to the general path.
-    if let Some(collector) = term_histogram::maybe_build_collector(
+    // Flattened fast path: low-cardinality terms × a single `histogram`/`date_histogram` leaf over
+    // full columns with a small enough bucket grid. Anything else falls through to the general
+    // path.
+    if let Some(collector) = flattened_term_histogram::maybe_build_flattened_collector(
         req_data,
         node,
         &terms_req_data,
@@ -1070,9 +1071,7 @@ impl<TermMap: TermAggregationMap, B: SubAggBuffer> SegmentAggregationCollector
 
         if let Some(sub_agg) = &mut self.sub_agg {
             let term_buckets = &mut self.parent_buckets[parent_bucket_id as usize];
-            let it = agg_data
-                .column_block_accessor
-                .iter_docid_vals(docs, &req_data.accessor);
+            let it = agg_data.column_block_accessor.iter_docid_vals(docs);
             if let Some(allowed_bs) = req_data.allowed_term_ids.as_ref() {
                 let it = it.filter(move |&(_doc, term_id)| allowed_bs.contains(term_id as u32));
                 Self::collect_terms_with_docs(
@@ -1896,7 +1895,8 @@ mod tests {
             res["my_texts"]["buckets"][1]["key"],
             serde_json::Value::Null
         );
-        assert_eq!(res["my_texts"]["sum_other_doc_count"], 0); // TODO sum_other_doc_count with min_doc_count
+        assert_eq!(res["my_texts"]["sum_other_doc_count"], 0); // TODO sum_other_doc_count with
+                                                               // min_doc_count
         Ok(())
     }
 

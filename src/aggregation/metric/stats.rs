@@ -266,7 +266,7 @@ impl<const COLUMN_TYPE_ID: u8> SegmentAggregationCollector
                 return Err(TantivyError::InvalidArgument(format!(
                     "Unsupported stats type for stats aggregation: {:?}",
                     self.collecting_for
-                )))
+                )));
             }
         };
 
@@ -285,6 +285,11 @@ impl<const COLUMN_TYPE_ID: u8> SegmentAggregationCollector
         docs: &[crate::DocId],
         agg_data: &mut AggregationsSegmentCtx,
     ) -> crate::Result<()> {
+        // Fast path: the caller hands us a single doc, which is the dominant case when a metric
+        // sub-agg sits under a high-cardinality bucket agg. Streaming straight from the column
+        // skips the block accessor's buffers entirely.
+        // Only valid without a missing value: `values_for_doc` yields nothing for a doc without a
+        // value, so the substitute would be silently dropped.
         // TODO: remove once we fetch all values for all bucket ids in one go
         if docs.len() == 1 && self.missing_u64.is_none() {
             collect_stats::<COLUMN_TYPE_ID>(

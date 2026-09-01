@@ -4,8 +4,8 @@ use std::sync::Arc;
 
 use columnar::column_values::CompactSpaceU64Accessor;
 use columnar::{
-    Column, ColumnBlockAccessor, ColumnType, Dictionary, MonotonicallyMappableToU128,
-    MonotonicallyMappableToU64, NumericalValue, StrColumn,
+    Column, ColumnType, Dictionary, MonotonicallyMappableToU128, MonotonicallyMappableToU64,
+    NumericalValue, StrColumn,
 };
 use rustc_hash::FxHashMap;
 use serde::{Deserialize, Serialize};
@@ -30,7 +30,7 @@ use crate::aggregation::intermediate_agg_result::{
     IntermediateKey, IntermediateTermBucketEntry, PruneMode,
 };
 use crate::aggregation::segment_agg_result::{BucketIdProvider, SegmentAggregationCollector};
-use crate::aggregation::{f64_to_fastfield_u64, format_date, BucketId, Key};
+use crate::aggregation::{f64_to_fastfield_u64, format_date, BucketId, ColumnBlockAccessor, Key};
 use crate::{DocId, TantivyError};
 
 /// Multi-terms aggregation: one bucket per unique combination of values across N term fields.
@@ -225,7 +225,7 @@ fn fetch_field_block(
     docs: &[crate::DocId],
     field: &MultiTermsFieldAccessor,
     missing: Option<&MultiTermsMissingAccessor>,
-    block_accessor: &mut ColumnBlockAccessor<u64>,
+    block_accessor: &mut ColumnBlockAccessor,
 ) -> bool {
     let missing_value = block_missing_value(missing);
     block_accessor.fetch_block_with_missing_unique_per_doc(
@@ -234,10 +234,7 @@ fn fetch_field_block(
         missing_value,
         true,
     );
-    if block_accessor.values().len() != docs.len() {
-        return false;
-    }
-    !field.column.get_cardinality().is_multivalue() || block_accessor.docids() == docs
+    block_accessor.has_one_value_per_doc(docs)
 }
 
 /// Packing operations used by the unified collector.
@@ -461,9 +458,8 @@ fn missing_value_for_doc(
 fn expand_partial_combinations_for_field<Packing: MultiTermsPacking>(
     packing: &Packing,
     field_idx: usize,
-    field: &MultiTermsFieldAccessor,
     missing: Option<&MultiTermsMissingAccessor>,
-    block_accessor: &ColumnBlockAccessor<u64>,
+    block_accessor: &ColumnBlockAccessor,
     keys_buf: &mut Vec<Packing::PackingType>,
     alive_docs: &mut Vec<DocId>,
     doc_ids_per_partial_combination: &mut Vec<DocId>,
@@ -483,9 +479,7 @@ fn expand_partial_combinations_for_field<Packing: MultiTermsPacking>(
     );
 
     {
-        let mut field_values = block_accessor
-            .iter_docid_vals(alive_docs, &field.column)
-            .peekable();
+        let mut field_values = block_accessor.iter_docid_vals(alive_docs).peekable();
         let mut doc_values = SmallVec::<[u64; 2]>::new();
         let mut combination_start = 0;
 
@@ -575,7 +569,7 @@ where
     fn build_keys_from_full_fields(
         &mut self,
         docs: &[DocId],
-        block_accessor: &mut ColumnBlockAccessor<u64>,
+        block_accessor: &mut ColumnBlockAccessor,
     ) {
         for (field_idx, field) in self.req_data.fields.iter().enumerate() {
             fetch_field_block(
@@ -595,7 +589,7 @@ where
     fn build_keys_from_non_full_fields(
         &mut self,
         docs: &[DocId],
-        block_accessor: &mut ColumnBlockAccessor<u64>,
+        block_accessor: &mut ColumnBlockAccessor,
     ) {
         self.alive_docs.clear();
         self.alive_docs.extend_from_slice(docs);
@@ -632,7 +626,7 @@ where
 
             // Until expansion, sparse single-value fields can filter keys in place.
             if self.doc_ids_per_partial_combination.is_empty()
-                && !field.column.get_cardinality().is_multivalue()
+                && !block_accessor.is_multivalued()
                 && missing.is_none()
             {
                 let mut source_idx = 0usize;
@@ -660,7 +654,6 @@ where
             expand_partial_combinations_for_field(
                 &self.packing,
                 field_idx,
-                field,
                 missing,
                 block_accessor,
                 &mut self.keys_buf,

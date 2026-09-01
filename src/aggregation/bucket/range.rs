@@ -285,10 +285,7 @@ impl<B: SubAggBuffer> SegmentAggregationCollector for SegmentRangeCollector<B> {
 
         let buckets = &mut self.parent_buckets[parent_bucket_id as usize];
 
-        for (doc, val) in agg_data
-            .column_block_accessor
-            .iter_docid_vals(docs, &self.req_data.accessor)
-        {
+        for (doc, val) in agg_data.column_block_accessor.iter_docid_vals(docs) {
             let bucket_pos = get_bucket_pos(val, buckets);
             let bucket = &mut buckets[bucket_pos];
             bucket.bucket.doc_count += 1;

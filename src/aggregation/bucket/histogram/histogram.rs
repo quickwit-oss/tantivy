@@ -494,10 +494,7 @@ impl<B: BucketIdSlot> SegmentAggregationCollector for SegmentHistogramCollector<
             .fetch_block(docs, &req.accessor);
         // special path for nested buckets
         if let Some(sub_agg) = &mut self.sub_agg {
-            for (doc, val) in agg_data
-                .column_block_accessor
-                .iter_docid_vals(docs, &req.accessor)
-            {
+            for (doc, val) in agg_data.column_block_accessor.iter_docid_vals(docs) {
                 let val = f64_from_fastfield_u64(val, req.field_type);
                 if bounds.contains(val) {
                     let bucket = store.get_or_create(
@@ -633,9 +630,9 @@ impl<B: BucketIdSlot> SegmentHistogramCollector<B> {
 impl SegmentHistogramCollector<()> {
     /// Builds a histogram collector whose parent `t` is a dense histogram filled from
     /// `counts[t * num_time_buckets .. (t + 1) * num_time_buckets]` (row-major), consolidating each
-    /// cell's count lanes. Used by the fused terms×histogram collector to turn its flat 2D counters
-    /// into the regular intermediate result, so cross-segment merging is shared with the general
-    /// path.
+    /// cell's count lanes. Used by the flattened terms×histogram collector to turn its flat 2D
+    /// counters into the regular intermediate result, so cross-segment merging is shared with the
+    /// general path.
     pub(crate) fn from_dense_rows<const LANES: usize>(
         req_data: HistogramAggReqData,
         base_pos: i64,
@@ -688,7 +685,7 @@ fn normalize_histogram_req(req_data: &mut HistogramAggReqData) -> crate::Result<
     req_data.offset = req_data.req.offset.unwrap_or(0.0);
     // Drop `hard_bounds` that can't exclude any value (the column's range already sits inside
     // them): the per-doc `bounds.contains` check is then a no-op, so collapsing to the unbounded
-    // sentinel lets the histogram hot loop skip it and the fused term×histogram path derive
+    // sentinel lets the histogram hot loop skip it and the flattened term×histogram path derive
     // per-term counts from the grid. Only this collect-time filter is touched — empty-bucket
     // emission reads `req.hard_bounds` directly (see `get_req_min_max`), and `hard_bounds` only
     // ever clips that range, so a wider-than-data bound leaves the result unchanged.
@@ -707,7 +704,7 @@ fn normalize_histogram_req(req_data: &mut HistogramAggReqData) -> crate::Result<
 
 /// Clones and normalizes (resolving interval/offset/bounds) the histogram request at `node`, and
 /// returns it together with its dense bucket range — or `None` if the column has no usable range.
-/// Used by the fused terms×histogram collector, which then owns the normalized request.
+/// Used by the flattened terms×histogram collector, which then owns the normalized request.
 pub(crate) fn prepare_histogram_dense_range(
     agg_data: &AggregationsSegmentCtx,
     node: &AggRefNode,
@@ -1440,7 +1437,7 @@ mod tests {
     /// `hard_bounds` wider than the data (here with mid-interval edges, to cover the "bound cuts a
     /// bucket" case) can't exclude any value, so the result must be identical to the same request
     /// without bounds. Guards the normalization that collapses such bounds to the unbounded
-    /// sentinel so the hot loop / fused path can skip the per-doc bounds check.
+    /// sentinel so the hot loop / flattened path can skip the per-doc bounds check.
     fn histogram_non_binding_hard_bounds_test_with_opt(merge_segments: bool) -> crate::Result<()> {
         let values = vec![10.0, 12.0, 14.0, 16.0, 10.0, 13.0, 10.0, 12.0];
         let index = get_test_index_from_values(merge_segments, &values)?;
