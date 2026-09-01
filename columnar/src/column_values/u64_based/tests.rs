@@ -429,3 +429,68 @@ pub fn test_fastfield2() {
     assert_eq!(test_fastfield.get_val(1), 200);
     assert_eq!(test_fastfield.get_val(2), 300);
 }
+
+#[test]
+fn test_get_range_matches_get_val_all_codecs() {
+    // Linear-ish, with a noise amplitude that changes every 512 rows so the
+    // blockwise codec's blocks differ in bit width.
+    let vals: Vec<u64> = (0..3000u64)
+        .map(|i| {
+            let noise =
+                (i.wrapping_mul(0x9E3779B97F4A7C15) >> 40) % (1u64 << ((i / 512) % 5 * 4 + 1));
+            1_000 + 37 * i + noise
+        })
+        .collect();
+    let vals_f64: Vec<f64> = vals.iter().map(|&v| v as f64 * 0.25).collect();
+    // 64-bit width with a gcd: the transform runs in the plain load loop.
+    let vals_w64: Vec<u64> = (0..3000u64)
+        .map(|i| (i.wrapping_mul(0x9E3779B97F4A7C15) >> 3) << 1)
+        .collect();
+    let starts = [0usize, 1, 5, 127, 128, 129, 511, 512, 513, 1000, 2047, 2999];
+    let lens = [1usize, 3, 7, 16, 64, 128, 129, 300, 600, 1024, 3000];
+    for codec in ALL_U64_CODEC_TYPES {
+        let col = serialize_and_load_u64_based_column_values::<u64>(&&vals[..], &[codec]);
+        let col_w64 = serialize_and_load_u64_based_column_values::<u64>(&&vals_w64[..], &[codec]);
+        let mut buffer = Vec::new();
+        serialize_u64_based_column_values(&&vals_f64[..], &[codec], &mut buffer).unwrap();
+        let col_f64 = load_u64_based_column_values::<f64>(OwnedBytes::new(buffer)).unwrap();
+        for &start in &starts {
+            for &len in &lens {
+                let len = len.min(vals.len() - start);
+                let mut out = vec![0u64; len];
+                col.get_range(start as u64, &mut out);
+                assert_eq!(
+                    out,
+                    vals[start..start + len],
+                    "{codec:?} start={start} len={len}"
+                );
+                col_w64.get_range(start as u64, &mut out);
+                assert_eq!(
+                    out,
+                    vals_w64[start..start + len],
+                    "{codec:?} w64 start={start} len={len}"
+                );
+                let mut out = vec![0f64; len];
+                col_f64.get_range(start as u64, &mut out);
+                assert_eq!(
+                    out,
+                    vals_f64[start..start + len],
+                    "{codec:?} f64 start={start} len={len}"
+                );
+            }
+        }
+    }
+}
+
+#[test]
+fn test_get_range_past_the_end_panics() {
+    let vals: Vec<u64> = (0..600u64).collect();
+    for codec in ALL_U64_CODEC_TYPES {
+        let col = serialize_and_load_u64_based_column_values::<u64>(&&vals[..], &[codec]);
+        let res = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            let mut out = [0u64; 2];
+            col.get_range(599, &mut out);
+        }));
+        assert!(res.is_err(), "{codec:?} did not panic");
+    }
+}

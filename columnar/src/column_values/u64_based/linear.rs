@@ -7,7 +7,9 @@ use super::ColumnValues;
 use super::line::Line;
 use crate::RowId;
 use crate::column_values::VecColumn;
-use crate::column_values::u64_based::{ColumnCodec, ColumnCodecEstimator, ColumnStats};
+use crate::column_values::u64_based::{
+    ColumnCodec, ColumnCodecEstimator, ColumnStats, MIN_BATCH_ROWS, get_range_per_value,
+};
 
 const HALF_SPACE: u64 = u64::MAX / 2;
 const LINE_ESTIMATION_BLOCK_LEN: usize = 512;
@@ -21,12 +23,37 @@ pub struct LinearReader {
     stats: ColumnStats,
 }
 
+impl LinearReader {
+    #[inline]
+    fn decode_range(&self, start: u64, output: &mut [u64]) {
+        assert!(
+            start + output.len() as u64 <= self.stats.num_rows as u64,
+            "Requested index is out of bounds."
+        );
+        self.linear_params
+            .bit_unpacker
+            .get_batch(start as usize, &self.data, output);
+        self.linear_params
+            .line
+            .add_to_with(start as u32, output, |val| val);
+    }
+}
+
 impl ColumnValues for LinearReader {
     #[inline]
     fn get_val(&self, doc: u32) -> u64 {
         let interpoled_val: u64 = self.linear_params.line.eval(doc);
         let bitpacked_diff = self.linear_params.bit_unpacker.get(doc, &self.data);
         interpoled_val.wrapping_add(bitpacked_diff)
+    }
+
+    #[inline]
+    fn get_range(&self, start: u64, output: &mut [u64]) {
+        if output.len() < MIN_BATCH_ROWS {
+            get_range_per_value(self, start, output);
+        } else {
+            self.decode_range(start, output);
+        }
     }
 
     #[inline(always)]
@@ -187,7 +214,6 @@ impl LinearCodecEstimator {
 
 impl ColumnCodec for LinearCodec {
     type ColumnValues = LinearReader;
-
     type Estimator = LinearCodecEstimator;
 
     fn load(mut data: OwnedBytes) -> io::Result<Self::ColumnValues> {

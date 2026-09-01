@@ -1,4 +1,5 @@
 use std::io::Write;
+use std::ops::{Range, RangeInclusive};
 use std::sync::Arc;
 use std::{io, iter};
 
@@ -6,12 +7,15 @@ use common::{BinarySerializable, CountingWriter, DeserializeFrom, OwnedBytes};
 use fastdivide::DividerU64;
 use tantivy_bitpacker::{BitPacker, BitUnpacker, compute_num_bits};
 
-use crate::MonotonicallyMappableToU64;
 use crate::column_values::u64_based::line::Line;
-use crate::column_values::u64_based::{ColumnCodec, ColumnCodecEstimator, ColumnStats};
+use crate::column_values::u64_based::{
+    ColumnCodec, ColumnCodecEstimator, ColumnStats, MIN_BATCH_ROWS, get_range_per_value,
+};
 use crate::column_values::{ColumnValues, VecColumn};
+use crate::{MonotonicallyMappableToU64, RowId};
 
 const BLOCK_SIZE: u32 = 512u32;
+const SHORT_TAKE_ROWS: usize = 128;
 
 #[derive(Debug, Default)]
 struct Block {
@@ -201,6 +205,81 @@ pub struct BlockwiseLinearReader {
     stats: ColumnStats,
 }
 
+impl BlockwiseLinearReader {
+    /// Decodes rows `start..start + output.len()`, one block's residual stream
+    /// at a time, with that block's line and then `min + gcd * val` on top.
+    #[inline]
+    fn decode_range(&self, start: u64, output: &mut [u64]) {
+        assert!(
+            start + output.len() as u64 <= self.stats.num_rows as u64,
+            "Requested index is out of bounds."
+        );
+        let (min, gcd) = (self.stats.min_value, self.stats.gcd.get());
+        // Split on `gcd` once per call rather than per value: a runtime
+        // multiply by 1 does not vectorize, the add-only form does.
+        if gcd == 1 {
+            self.decode_range_with(start as u32, output, |val| min.wrapping_add(val));
+        } else {
+            self.decode_range_with(start as u32, output, |val| {
+                min.wrapping_add(gcd.wrapping_mul(val))
+            });
+        }
+    }
+
+    #[inline(always)]
+    fn decode_range_with(&self, start: u32, mut output: &mut [u64], f: impl Fn(u64) -> u64) {
+        let mut row = start;
+        while !output.is_empty() {
+            let block = &self.blocks[(row / BLOCK_SIZE) as usize];
+            let idx_within_block = row % BLOCK_SIZE;
+            let len = ((BLOCK_SIZE - idx_within_block) as usize).min(output.len());
+            let (head, tail) = output.split_at_mut(len);
+            block.bit_unpacker.get_batch(
+                idx_within_block as usize,
+                &self.data[block.data_start_offset..],
+                head,
+            );
+            block.line.add_to_with(idx_within_block, head, &f);
+            output = tail;
+            row += len as u32;
+        }
+    }
+
+    /// Decodes `row_id_range` up to `SCRATCH` rows at a time and compacts the
+    /// row ids of the values in `lo..=hi` with a branchless cursor: a range
+    /// filter's hit pattern is exactly what a branch predictor cannot learn.
+    ///
+    /// `SCRATCH` is generic so a short take zeroes a short buffer: a full
+    /// block's buffer costs a 128-row take ~20%, while chunking a full scan
+    /// at 128 rows costs it ~14%.
+    #[inline]
+    fn filter_rows<const SCRATCH: usize>(
+        &self,
+        lo: u64,
+        hi: u64,
+        row_id_range: Range<RowId>,
+        row_id_hits: &mut Vec<RowId>,
+    ) {
+        row_id_hits.resize(row_id_range.len(), 0);
+        let mut cursor = 0usize;
+        let mut scratch = [0u64; SCRATCH];
+        let mut row = row_id_range.start;
+        while row < row_id_range.end {
+            let len = (BLOCK_SIZE - row % BLOCK_SIZE)
+                .min(row_id_range.end - row)
+                .min(SCRATCH as u32) as usize;
+            let vals = &mut scratch[..len];
+            self.decode_range(u64::from(row), vals);
+            for (i, &val) in vals.iter().enumerate() {
+                row_id_hits[cursor] = row + i as u32;
+                cursor += usize::from(lo <= val && val <= hi);
+            }
+            row += len as u32;
+        }
+        row_id_hits.truncate(cursor);
+    }
+}
+
 impl ColumnValues for BlockwiseLinearReader {
     #[inline(always)]
     fn get_val(&self, idx: u32) -> u64 {
@@ -218,6 +297,40 @@ impl ColumnValues for BlockwiseLinearReader {
                 .gcd
                 .get()
                 .wrapping_mul(interpoled_val.wrapping_add(bitpacked_diff))
+    }
+
+    #[inline]
+    fn get_range(&self, start: u64, output: &mut [u64]) {
+        if output.len() < MIN_BATCH_ROWS {
+            get_range_per_value(self, start, output);
+        } else {
+            self.decode_range(start, output);
+        }
+    }
+
+    fn get_row_ids_for_value_range(
+        &self,
+        value_range: RangeInclusive<u64>,
+        row_id_range: Range<RowId>,
+        row_id_hits: &mut Vec<RowId>,
+    ) {
+        row_id_hits.clear();
+        let row_id_range = row_id_range.start..row_id_range.end.min(self.stats.num_rows);
+        let (lo, hi) = value_range.into_inner();
+        if lo > hi
+            || hi < self.stats.min_value
+            || lo > self.stats.max_value
+            || row_id_range.is_empty()
+        {
+            return;
+        }
+        if row_id_range.len() < MIN_BATCH_ROWS {
+            row_id_hits.extend(row_id_range.filter(|&row| (lo..=hi).contains(&self.get_val(row))));
+        } else if row_id_range.len() <= SHORT_TAKE_ROWS {
+            self.filter_rows::<SHORT_TAKE_ROWS>(lo, hi, row_id_range, row_id_hits);
+        } else {
+            self.filter_rows::<{ BLOCK_SIZE as usize }>(lo, hi, row_id_range, row_id_hits);
+        }
     }
 
     #[inline(always)]
@@ -239,6 +352,7 @@ impl ColumnValues for BlockwiseLinearReader {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::column_values::u64_based::StatsCollector;
     use crate::column_values::u64_based::tests::create_and_validate;
 
     // A block boundary where a high run ends and a low run begins: y0 ≈ 2^32, y511 ≈ 0.
@@ -290,6 +404,59 @@ mod tests {
             data.reverse();
             create_and_validate::<BlockwiseLinearCodec>(&data, name);
         }
+    }
+
+    fn check_row_ids_for_value_range(vals: &[u64], value_ranges: &[RangeInclusive<u64>]) {
+        let mut stats_collector = StatsCollector::default();
+        let mut estimator = BlockwiseLinearEstimator::default();
+        for &val in vals {
+            stats_collector.collect(val);
+            estimator.collect(val);
+        }
+        estimator.finalize();
+        let stats = stats_collector.stats();
+        let mut buffer = Vec::new();
+        estimator
+            .serialize(&stats, &mut vals.iter().copied(), &mut buffer)
+            .unwrap();
+        let reader = BlockwiseLinearCodec::load(OwnedBytes::new(buffer)).unwrap();
+
+        let n = vals.len() as u32;
+        for value_range in value_ranges {
+            for row_id_range in [0..n, 0..7, 500..524, 700..1300, 1490..n + 10, 300..300] {
+                let expected: Vec<u32> = (row_id_range.start..row_id_range.end.min(n))
+                    .filter(|&row| value_range.contains(&vals[row as usize]))
+                    .collect();
+                let mut hits = vec![u32::MAX; 3];
+                reader.get_row_ids_for_value_range(
+                    value_range.clone(),
+                    row_id_range.clone(),
+                    &mut hits,
+                );
+                assert_eq!(
+                    hits, expected,
+                    "value_range {value_range:?} row_id_range {row_id_range:?}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn test_get_row_ids_for_value_range() {
+        let vals: Vec<u64> = (0..1500u64).map(|i| 100 + i * 3 + i % 7).collect();
+        check_row_ids_for_value_range(
+            &vals,
+            &[
+                0..=u64::MAX,
+                100..=100,
+                1000..=2000,
+                0..=99,
+                5000..=u64::MAX,
+                RangeInclusive::new(2000, 1000),
+            ],
+        );
+        let vals: Vec<u64> = vals.iter().map(|val| val * 10).collect();
+        check_row_ids_for_value_range(&vals, &[1005..=1045, 1040..=1040, 999..=999]);
     }
 
     #[test]

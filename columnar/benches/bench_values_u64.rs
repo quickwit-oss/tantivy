@@ -108,9 +108,16 @@ fn bench_range() {
     let data_u64 = data_50.iter().map(|el| *el as u64).collect::<Vec<_>>();
     let column_data: Arc<dyn ColumnValues<u64>> =
         serialize_and_load(&data_u64, CodecType::Bitpacked);
+    let column_data_blockwise: Arc<dyn ColumnValues<u64>> =
+        serialize_and_load(&data_u64, CodecType::BlockwiseLinear);
 
-    let mut group: InputGroup<Arc<dyn ColumnValues<u64>>> =
-        InputGroup::new_with_inputs(vec![("dist_50pct_item".to_string(), column_data.clone())]);
+    let mut group: InputGroup<Arc<dyn ColumnValues<u64>>> = InputGroup::new_with_inputs(vec![
+        ("dist_50pct_item".to_string(), column_data.clone()),
+        (
+            "dist_50pct_item_blockwise".to_string(),
+            column_data_blockwise.clone(),
+        ),
+    ]);
 
     group.register(
         "fastfield_getrange_u64_50percent_hit",
@@ -118,6 +125,20 @@ fn bench_range() {
             let mut positions = Vec::new();
             col.get_row_ids_for_value_range(FIFTY_PERCENT_RANGE, 0..col.num_vals(), &mut positions);
             black_box(positions.len());
+        },
+    );
+
+    group.register(
+        "fastfield_getrange_u64_50percent_hit_128row_takes",
+        |col: &Arc<dyn ColumnValues<u64>>| {
+            let mut positions = Vec::new();
+            let mut num_hits = 0usize;
+            for start in (0..col.num_vals()).step_by(128) {
+                let end = (start + 128).min(col.num_vals());
+                col.get_row_ids_for_value_range(FIFTY_PERCENT_RANGE, start..end, &mut positions);
+                num_hits += positions.len();
+            }
+            black_box(num_hits);
         },
     );
 
