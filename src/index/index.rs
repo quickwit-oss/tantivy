@@ -14,7 +14,7 @@ use crate::directory::error::OpenReadError;
 #[cfg(feature = "mmap")]
 use crate::directory::MmapDirectory;
 use crate::directory::{
-    Directory, ManagedDirectory, RamDirectory, ReadOnlyDirectory, INDEX_WRITER_LOCK,
+    Directory, ImmutableDirectory, ManagedDirectory, RamDirectory, INDEX_WRITER_LOCK,
 };
 use crate::error::{DataCorruption, TantivyError};
 use crate::fastfield::FastFieldsPlugin;
@@ -596,11 +596,13 @@ impl Index {
 
     /// Opens an immutable index from a filesystem path.
     ///
-    /// The index must remain unchanged while it is open.
+    /// This method does not write a metadata lock file or watch the directory for changes, making
+    /// it suitable for indexes stored on read-only filesystems. The index must not be modified or
+    /// garbage-collected by any process while it is open.
     #[cfg(feature = "mmap")]
-    pub fn open_read_only_in_dir<P: AsRef<Path>>(directory_path: P) -> crate::Result<Index> {
+    pub fn open_immutable_in_dir<P: AsRef<Path>>(directory_path: P) -> crate::Result<Index> {
         let mmap_directory = MmapDirectory::open(directory_path)?;
-        Index::open_read_only(mmap_directory)
+        Index::open_immutable(mmap_directory)
     }
 
     /// Returns the list of the segment metas tracked by the index.
@@ -655,9 +657,11 @@ impl Index {
 
     /// Opens an immutable index using the provided directory.
     ///
-    /// The index must remain unchanged while it is open.
-    pub fn open_read_only<T: Into<Box<dyn Directory>>>(directory: T) -> crate::Result<Index> {
-        Index::open(ReadOnlyDirectory::new(directory))
+    /// This method wraps the directory in an [`ImmutableDirectory`]. It does not write a metadata
+    /// lock file or watch the directory for changes. The index must not be modified or
+    /// garbage-collected by any process while it is open.
+    pub fn open_immutable<T: Into<Box<dyn Directory>>>(directory: T) -> crate::Result<Index> {
+        Index::open(ImmutableDirectory::new(directory))
     }
 
     /// Reads the index meta file from the directory.

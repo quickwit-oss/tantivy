@@ -7,18 +7,22 @@ use crate::directory::{
     Directory, DirectoryLock, FileHandle, Lock, WatchCallback, WatchHandle, WritePtr, META_LOCK,
 };
 
-/// A read-only view over a [`Directory`].
+/// A [`Directory`] wrapper for an immutable index.
 ///
-/// Read operations are forwarded to the underlying directory, while write operations are rejected.
-/// [`META_LOCK`] is not acquired, so the underlying index must remain unchanged while this
-/// directory is in use.
+/// Read operations are forwarded to the underlying directory, while operations that could mutate
+/// it are rejected. Requests for [`META_LOCK`] are satisfied without touching the underlying
+/// directory, and filesystem watching is disabled.
+///
+/// The underlying index must not be modified or garbage-collected by any process while this
+/// directory is in use. This wrapper is intended for indexes stored on read-only filesystems, not
+/// for read-only access to an index that another process may update.
 #[derive(Clone)]
-pub struct ReadOnlyDirectory {
+pub struct ImmutableDirectory {
     directory: Box<dyn Directory>,
 }
 
-impl ReadOnlyDirectory {
-    /// Wraps a directory containing an immutable index.
+impl ImmutableDirectory {
+    /// Wraps a directory whose contents will remain unchanged for the lifetime of this wrapper.
     pub fn new(directory: impl Into<Box<dyn Directory>>) -> Self {
         Self {
             directory: directory.into(),
@@ -26,20 +30,20 @@ impl ReadOnlyDirectory {
     }
 }
 
-impl fmt::Debug for ReadOnlyDirectory {
+impl fmt::Debug for ImmutableDirectory {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "ReadOnlyDirectory({:?})", self.directory)
+        write!(f, "ImmutableDirectory({:?})", self.directory)
     }
 }
 
-impl Directory for ReadOnlyDirectory {
+impl Directory for ImmutableDirectory {
     fn get_file_handle(&self, path: &Path) -> Result<Arc<dyn FileHandle>, OpenReadError> {
         self.directory.get_file_handle(path)
     }
 
     fn delete(&self, path: &Path) -> Result<(), DeleteError> {
         Err(DeleteError::IoError {
-            io_error: Arc::new(read_only_error()),
+            io_error: Arc::new(immutable_error()),
             filepath: path.to_path_buf(),
         })
     }
@@ -50,7 +54,7 @@ impl Directory for ReadOnlyDirectory {
 
     fn open_write(&self, path: &Path) -> Result<WritePtr, OpenWriteError> {
         Err(OpenWriteError::wrap_io_error(
-            read_only_error(),
+            immutable_error(),
             path.to_path_buf(),
         ))
     }
@@ -60,7 +64,7 @@ impl Directory for ReadOnlyDirectory {
     }
 
     fn atomic_write(&self, _path: &Path, _data: &[u8]) -> io::Result<()> {
-        Err(read_only_error())
+        Err(immutable_error())
     }
 
     fn sync_directory(&self) -> io::Result<()> {
@@ -69,18 +73,22 @@ impl Directory for ReadOnlyDirectory {
 
     fn acquire_lock(&self, lock: &Lock) -> Result<DirectoryLock, LockError> {
         if lock.filepath == META_LOCK.filepath {
+            // Reading index metadata normally requires `META_LOCK`. The caller guarantees that the
+            // index cannot change, so a no-op guard provides the same protection without creating a
+            // lock file in the underlying directory.
             return Ok(DirectoryLock::from(Box::new(())));
         }
-        Err(LockError::wrap_io_error(read_only_error()))
+        Err(LockError::wrap_io_error(immutable_error()))
     }
 
     fn watch(&self, _watch_callback: WatchCallback) -> crate::Result<WatchHandle> {
+        // An immutable index cannot receive commits, so there are no changes to watch for.
         Ok(WatchHandle::empty())
     }
 }
 
-fn read_only_error() -> io::Error {
-    io::Error::new(io::ErrorKind::PermissionDenied, "directory is read-only")
+fn immutable_error() -> io::Error {
+    io::Error::new(io::ErrorKind::PermissionDenied, "directory is immutable")
 }
 
 #[cfg(test)]
@@ -90,43 +98,43 @@ mod tests {
     use crate::collector::Count;
     use crate::directory::error::LockError;
     use crate::directory::{
-        Directory, RamDirectory, ReadOnlyDirectory, INDEX_WRITER_LOCK, META_LOCK,
+        Directory, ImmutableDirectory, RamDirectory, INDEX_WRITER_LOCK, META_LOCK,
     };
     use crate::query::AllQuery;
     use crate::schema::{Schema, TEXT};
     use crate::{Index, TantivyDocument, TantivyError};
 
     #[test]
-    fn test_read_only_directory_rejects_writes() {
+    fn test_immutable_directory_rejects_writes() {
         let directory = RamDirectory::create();
         directory
             .atomic_write(Path::new("file"), b"original")
             .unwrap();
-        let read_only_directory = ReadOnlyDirectory::new(directory);
+        let immutable_directory = ImmutableDirectory::new(directory);
 
         assert_eq!(
-            read_only_directory.atomic_read(Path::new("file")).unwrap(),
+            immutable_directory.atomic_read(Path::new("file")).unwrap(),
             b"original"
         );
-        assert!(read_only_directory
+        assert!(immutable_directory
             .open_write(Path::new("new-file"))
             .is_err());
-        assert!(read_only_directory
+        assert!(immutable_directory
             .atomic_write(Path::new("file"), b"changed")
             .is_err());
-        assert!(read_only_directory.delete(Path::new("file")).is_err());
+        assert!(immutable_directory.delete(Path::new("file")).is_err());
         assert_eq!(
-            read_only_directory.atomic_read(Path::new("file")).unwrap(),
+            immutable_directory.atomic_read(Path::new("file")).unwrap(),
             b"original"
         );
     }
 
     #[test]
-    fn test_read_only_directory_only_allows_meta_lock() {
-        let read_only_directory = ReadOnlyDirectory::new(RamDirectory::create());
+    fn test_immutable_directory_uses_noop_meta_lock() {
+        let immutable_directory = ImmutableDirectory::new(RamDirectory::create());
 
-        assert!(read_only_directory.acquire_lock(&META_LOCK).is_ok());
-        let lock_error = read_only_directory
+        assert!(immutable_directory.acquire_lock(&META_LOCK).is_ok());
+        let lock_error = immutable_directory
             .acquire_lock(&INDEX_WRITER_LOCK)
             .err()
             .unwrap();
@@ -137,7 +145,7 @@ mod tests {
     }
 
     #[test]
-    fn test_read_only_index_can_search_and_reload() {
+    fn test_immutable_index_can_search_and_reload() {
         let mut schema_builder = Schema::builder();
         let text = schema_builder.add_text_field("text", TEXT);
         let schema = schema_builder.build();
@@ -148,13 +156,13 @@ mod tests {
         writer.commit().unwrap();
         drop(writer);
 
-        let read_only_index = Index::open_read_only(directory).unwrap();
-        let reader = read_only_index.reader().unwrap();
+        let immutable_index = Index::open_immutable(directory).unwrap();
+        let reader = immutable_index.reader().unwrap();
         assert_eq!(reader.searcher().search(&AllQuery, &Count).unwrap(), 1);
         reader.reload().unwrap();
         assert_eq!(reader.searcher().search(&AllQuery, &Count).unwrap(), 1);
 
-        let writer_error = read_only_index
+        let writer_error = immutable_index
             .writer_for_tests::<TantivyDocument>()
             .err()
             .unwrap();
@@ -166,7 +174,7 @@ mod tests {
 
     #[cfg(all(feature = "mmap", unix))]
     #[test]
-    fn test_open_read_only_filesystem_index_without_lock_file() {
+    fn test_open_immutable_filesystem_index_without_lock_file() {
         use std::fs;
         use std::os::unix::fs::PermissionsExt;
         use std::path::PathBuf;
@@ -197,11 +205,11 @@ mod tests {
         fs::set_permissions(temp_directory.path(), fs::Permissions::from_mode(0o555)).unwrap();
         let _restore_permissions = RestoreDirectoryPermissions(temp_directory.path().to_path_buf());
 
-        let read_only_index = Index::open_read_only_in_dir(temp_directory.path()).unwrap();
-        let reader = read_only_index.reader().unwrap();
+        let immutable_index = Index::open_immutable_in_dir(temp_directory.path()).unwrap();
+        let reader = immutable_index.reader().unwrap();
         assert_eq!(reader.searcher().num_docs(), 1);
 
-        let second_index = Index::open_read_only_in_dir(temp_directory.path()).unwrap();
+        let second_index = Index::open_immutable_in_dir(temp_directory.path()).unwrap();
         let second_reader = second_index.reader().unwrap();
         assert_eq!(second_reader.searcher().num_docs(), 1);
         assert!(!meta_lock_path.try_exists().unwrap());
