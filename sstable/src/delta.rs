@@ -220,10 +220,7 @@ where TValueReader: value::ValueReader
         } else {
             self.idx += 1;
         }
-        if !self.read_delta_key() {
-            return Ok(false);
-        }
-        Ok(true)
+        Ok(self.read_delta_key())
     }
 
     #[inline(always)]
