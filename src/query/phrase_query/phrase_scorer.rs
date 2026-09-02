@@ -368,6 +368,42 @@ impl<TPostings: Postings> PhraseScorer<TPostings> {
         slop: u32,
         offset: usize,
     ) -> PhraseScorer<TPostings> {
+        let (seek_result, mut scorer) = Self::new_danger(
+            term_postings_with_offset,
+            similarity_weight_opt,
+            fieldnorm_reader,
+            slop,
+            offset,
+            0,
+        );
+        if let SeekDangerResult::SeekLowerBound(target) = seek_result {
+            if target < TERMINATED {
+                scorer.seek(target);
+            }
+        }
+        scorer
+    }
+
+    /// Creates a phrase scorer near `target` without scanning forward to the next phrase match.
+    ///
+    /// On a miss, the scorer follows the danger-state contract: it must only receive further
+    /// `seek_danger` calls until one returns [`SeekDangerResult::Found`].
+    pub(crate) fn new_danger(
+        mut term_postings_with_offset: Vec<(usize, TPostings)>,
+        similarity_weight_opt: Option<Bm25Weight>,
+        fieldnorm_reader: FieldNormReader,
+        slop: u32,
+        offset: usize,
+        target: DocId,
+    ) -> (SeekDangerResult, PhraseScorer<TPostings>) {
+        for (_, postings) in &mut term_postings_with_offset {
+            if postings.doc() < target {
+                // We do not optimize for that seek.
+                // This would require a constructor Intersection::new that
+                // accepts postings in the danger zone and we prefer to avoid that.
+                postings.seek(target);
+            }
+        }
         let num_docs = fieldnorm_reader.num_docs();
         let max_offset = term_postings_with_offset
             .iter()
@@ -396,10 +432,18 @@ impl<TPostings: Postings> PhraseScorer<TPostings> {
             slops_buffer: Vec::with_capacity(100),
             positions_buffer: Vec::with_capacity(100),
         };
-        if scorer.doc() != TERMINATED && !scorer.phrase_match() {
-            scorer.advance();
-        }
-        scorer
+        let doc = scorer.doc();
+        debug_assert!(doc >= target);
+        let seek_result = if doc >= TERMINATED {
+            SeekDangerResult::SeekLowerBound(TERMINATED)
+        } else if doc > target {
+            SeekDangerResult::SeekLowerBound(doc)
+        } else if scorer.phrase_match() {
+            SeekDangerResult::Found
+        } else {
+            SeekDangerResult::SeekLowerBound(target + 1)
+        };
+        (seek_result, scorer)
     }
 
     pub fn phrase_count(&self) -> u32 {

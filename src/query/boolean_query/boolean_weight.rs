@@ -359,7 +359,7 @@ impl<TScoreCombiner: ScoreCombiner> BooleanWeight<TScoreCombiner> {
             remove_and_count_all_and_empty_scorers(&mut must_scorers);
 
         if must_special_scorer_counts.num_empty_scorers > 0 {
-            return Ok(SpecializedScorer::Other(Box::new(EmptyScorer)));
+            return Ok(SpecializedScorer::empty());
         }
 
         let mut should_scorers = per_occur_scorers.remove(&Occur::Should).unwrap_or_default();
@@ -374,7 +374,7 @@ impl<TScoreCombiner: ScoreCombiner> BooleanWeight<TScoreCombiner> {
 
         if exclude_special_scorer_counts.num_all_scorers > 0 {
             // We exclude all documents at one point.
-            return Ok(SpecializedScorer::Other(Box::new(EmptyScorer)));
+            return Ok(SpecializedScorer::empty());
         }
 
         let effective_minimum_number_should_match = self
@@ -386,7 +386,7 @@ impl<TScoreCombiner: ScoreCombiner> BooleanWeight<TScoreCombiner> {
             if effective_minimum_number_should_match > num_of_should_scorers {
                 // We don't have enough scorers to satisfy the minimum number of should matches.
                 // The request will match no documents.
-                return Ok(SpecializedScorer::Other(Box::new(EmptyScorer)));
+                return Ok(SpecializedScorer::empty());
             }
             match effective_minimum_number_should_match {
                 0 if num_of_should_scorers == 0 => ShouldScorersCombinationMethod::Ignored,
