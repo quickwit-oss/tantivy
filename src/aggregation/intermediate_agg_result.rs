@@ -1527,15 +1527,13 @@ mod tests {
         // remains readable. It was generated with commit 8e7e157f1, where term entries were stored
         // in an FxHashMap, and contains one terms bucket with a nested histogram bucket.
         const POSTCARD_FIXTURE: &[u8] = &[
-            1, 1, 116, 0, 2, 1, 5, 0, 1, 1, 1, 104, 0, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0,
-            3, 4,
+            1, 1, 116, 0, 2, 1, 5, 0, 1, 1, 1, 104, 0, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 3, 4,
         ];
 
         let mut result: IntermediateAggregationResults =
             postcard::from_bytes(POSTCARD_FIXTURE).unwrap();
-        let IntermediateAggregationResult::Bucket(IntermediateBucketResult::Terms {
-            buckets,
-        }) = result.aggs_res.remove("t").unwrap()
+        let IntermediateAggregationResult::Bucket(IntermediateBucketResult::Terms { buckets }) =
+            result.aggs_res.remove("t").unwrap()
         else {
             panic!("expected terms aggregation");
         };
