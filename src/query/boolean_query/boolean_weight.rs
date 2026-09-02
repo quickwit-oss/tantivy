@@ -188,20 +188,6 @@ pub struct BooleanWeight<TScoreCombiner: ScoreCombiner> {
 }
 
 impl<TScoreCombiner: ScoreCombiner> BooleanWeight<TScoreCombiner> {
-    /// Creates a new boolean weight.
-    pub fn new(
-        weights: Vec<(Occur, Box<dyn Weight>)>,
-        scoring_enabled: bool,
-        score_combiner_fn: Box<dyn Fn() -> TScoreCombiner + Sync + Send + 'static>,
-    ) -> BooleanWeight<TScoreCombiner> {
-        BooleanWeight {
-            weights,
-            scoring_enabled,
-            score_combiner_fn,
-            minimum_number_should_match: 1,
-        }
-    }
-
     /// Create a new boolean weight with minimum number of required should clauses specified.
     pub fn with_minimum_number_should_match(
         weights: Vec<(Occur, Box<dyn Weight>)>,

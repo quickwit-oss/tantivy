@@ -97,8 +97,9 @@ impl Query for DisjunctionMaxQuery {
             .map(|disjunct| Ok((Occur::Should, disjunct.weight(enable_scoring)?)))
             .collect::<crate::Result<_>>()?;
         let tie_breaker = self.tie_breaker;
-        Ok(Box::new(BooleanWeight::new(
+        Ok(Box::new(BooleanWeight::with_minimum_number_should_match(
             disjuncts,
+            1,
             enable_scoring.is_scoring_enabled(),
             Box::new(move || DisjunctionMaxCombiner::with_tie_breaker(tie_breaker)),
         )))
