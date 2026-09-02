@@ -928,6 +928,7 @@ pub struct IntermediateRangeBucketResult {
 pub struct IntermediateTermBucketResult {
     /// Bucket entries as a flat `Vec`, in unspecified order. The final result is sorted by the
     /// requested order (see `into_final_result`).
+    #[serde(with = "tuple_vec_map")]
     pub(crate) entries: Vec<(IntermediateKey, IntermediateTermBucketEntry)>,
     pub(crate) sum_other_doc_count: u64,
     pub(crate) doc_count_error_upper_bound: u64,
@@ -1518,6 +1519,46 @@ mod tests {
     use pretty_assertions::assert_eq;
 
     use super::*;
+
+    #[test]
+    fn test_deserialize_legacy_postcard_term_result() {
+        // Quickwit sends intermediate aggregation results between nodes, which may run different
+        // versions during a rollout. This fixture ensures the wire format of existing aggregations
+        // remains readable. It was generated with commit 8e7e157f1, where term entries were stored
+        // in an FxHashMap, and contains one terms bucket with a nested histogram bucket.
+        const POSTCARD_FIXTURE: &[u8] = &[
+            1, 1, 116, 0, 2, 1, 5, 0, 1, 1, 1, 104, 0, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0,
+            3, 4,
+        ];
+
+        let mut result: IntermediateAggregationResults =
+            postcard::from_bytes(POSTCARD_FIXTURE).unwrap();
+        let IntermediateAggregationResult::Bucket(IntermediateBucketResult::Terms {
+            buckets,
+        }) = result.aggs_res.remove("t").unwrap()
+        else {
+            panic!("expected terms aggregation");
+        };
+        assert_eq!(buckets.sum_other_doc_count, 3);
+        assert_eq!(buckets.doc_count_error_upper_bound, 4);
+        let [(IntermediateKey::U64(0), term_entry)] = buckets.entries.as_slice() else {
+            panic!("expected one u64 term bucket");
+        };
+        assert_eq!(term_entry.doc_count, 1);
+
+        let IntermediateAggregationResult::Bucket(IntermediateBucketResult::Histogram {
+            is_date_agg,
+            buckets,
+        }) = term_entry.sub_aggregation.aggs_res.get("h").unwrap()
+        else {
+            panic!("expected nested histogram aggregation");
+        };
+        assert!(!is_date_agg);
+        assert_eq!(buckets.len(), 1);
+        assert_eq!(buckets[0].key, 0.0);
+        assert_eq!(buckets[0].doc_count, 2);
+        assert!(buckets[0].sub_aggregation.aggs_res.is_empty());
+    }
 
     fn get_sub_test_tree(data: &[(String, u64)]) -> IntermediateAggregationResults {
         let mut map = HashMap::new();
