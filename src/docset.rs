@@ -231,6 +231,10 @@ pub enum SeekDangerResult {
     /// We return a range in which the value could be.
     /// The given target can be any DocId, that is <= than the first document
     /// in the docset after the target.
+    ///
+    /// When the target is less than [`TERMINATED`], that doc id is required to be strictly greater
+    /// than the target used in the `seek_danger` call. For a target equal to [`TERMINATED`],
+    /// `SeekLowerBound(TERMINATED)` is returned.
     SeekLowerBound(DocId),
 }
 

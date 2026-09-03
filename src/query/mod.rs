@@ -98,7 +98,7 @@ mod tests {
         assert_eq!(do_search("(a OR b) AND C"), vec![2, 1]);
         // The intersection code has special code for more than 2 intersections
         // left, right + others
-        // The will place the union in the "others" insersection to that seek_into_the_danger_zone
+        // The will place the union in the "others" intersection to that seek_danger
         // is called
         assert_eq!(
             do_search("(a OR b) AND (c OR a) AND (b OR c)"),

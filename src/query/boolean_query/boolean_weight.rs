@@ -1,6 +1,7 @@
-use std::collections::HashMap;
+use std::cmp::Ordering;
 
-use crate::docset::COLLECT_BLOCK_BUFFER_LEN;
+use super::occur_weights::OccurWeights;
+use crate::docset::{SeekDangerResult, COLLECT_BLOCK_BUFFER_LEN};
 use crate::index::SegmentReader;
 use crate::postings::FreqReadingOption;
 use crate::query::disjunction::Disjunction;
@@ -12,12 +13,18 @@ use crate::query::{
     intersect_scorers, AllScorer, BufferedUnionScorer, EmptyScorer, Exclude, Explanation, Occur,
     RequiredOptionalScorer, Scorer, Weight,
 };
-use crate::{DocId, Score};
+use crate::{DocId, Score, TERMINATED};
 
 enum SpecializedScorer {
     TermUnion(Vec<TermScorer>),
     TermIntersection(Vec<TermScorer>),
     Other(Box<dyn Scorer>),
+}
+
+impl SpecializedScorer {
+    fn empty() -> Self {
+        Self::Other(Box::new(EmptyScorer))
+    }
 }
 
 fn scorer_disjunction<TScoreCombiner>(
@@ -113,6 +120,8 @@ fn into_box_scorer<TScoreCombiner: ScoreCombiner>(
 
 /// Returns the effective MUST scorer, accounting for removed AllScorers.
 ///
+/// All scorers in `must_scorers` must be valid and aligned on the same document.
+///
 /// When AllScorer instances are removed from must_scorers as an optimization,
 /// we must restore the "match all" semantics if the list becomes empty.
 fn effective_must_scorer(
@@ -170,6 +179,70 @@ fn effective_should_scorer_for_union<TScoreCombiner: ScoreCombiner>(
     }
 }
 
+/// Creates the scorers that will form an intersection in any order.
+///
+/// If successful, all returned scorers are valid and aligned on the same document.
+///
+/// The first scorer supplies the initial candidate. Every subsequent scorer is created with
+/// `scorer_danger`, so implementations can avoid eagerly locating their first match and instead
+/// start at the intersection's current candidate. If that candidate does not match, all scorers
+/// created so far are advanced with `seek_danger` until they agree.
+///
+/// The returned Scorers are guaranteed to be in a "no-danger" state.
+///
+/// If the method identifies no doc in the intersection, we return a single empty scorer.
+/// Semantically, it is different from returning a empty Vec, which is returned when weights was
+/// empty.
+fn create_aligned_scorers_for_intersection(
+    weights: &[Box<dyn Weight>],
+    reader: &SegmentReader,
+    boost: Score,
+) -> crate::Result<Vec<Box<dyn Scorer>>> {
+    let mut candidate = 0u32;
+    let mut scorers = Vec::with_capacity(weights.len());
+
+    let mut num_scorer_aligned = 0;
+    for weight in weights {
+        let (seek_result, scorer) = weight.scorer_danger(reader, candidate, boost)?;
+        scorers.push(scorer);
+
+        if let SeekDangerResult::SeekLowerBound(new_candidate) = seek_result {
+            debug_assert!(new_candidate > candidate);
+            candidate = new_candidate;
+            num_scorer_aligned = 0
+        } else {
+            num_scorer_aligned += 1;
+        }
+
+        if candidate >= TERMINATED {
+            return Ok(vec![Box::new(EmptyScorer)]);
+        }
+    }
+
+    // This eventually terminates because, at each iteration, the pair
+    // (candidate, num_scorer_aligned) increases according to lexicographic order.
+    //
+    // Eventually, either candidate will reach TERMINATED or
+    // num_scorer_aligned will reach scorers.len().
+    let mut scorer_ord = 0;
+    while num_scorer_aligned < scorers.len() {
+        if let SeekDangerResult::SeekLowerBound(seek_lower_bound) =
+            scorers[scorer_ord].seek_danger(candidate)
+        {
+            debug_assert!(candidate < seek_lower_bound);
+            candidate = seek_lower_bound;
+            if candidate == TERMINATED {
+                return Ok(vec![Box::new(EmptyScorer)]);
+            }
+            num_scorer_aligned = 0;
+        } else {
+            num_scorer_aligned += 1;
+        }
+        scorer_ord = (scorer_ord + 1) % scorers.len();
+    }
+    Ok(scorers)
+}
+
 enum ShouldScorersCombinationMethod {
     // Should scorers are irrelevant.
     Ignored,
@@ -181,7 +254,7 @@ enum ShouldScorersCombinationMethod {
 
 /// Weight associated to the `BoolQuery`.
 pub struct BooleanWeight<TScoreCombiner: ScoreCombiner> {
-    weights: Vec<(Occur, Box<dyn Weight>)>,
+    per_occur_weights: OccurWeights,
     minimum_number_should_match: usize,
     scoring_enabled: bool,
     score_combiner_fn: Box<dyn Fn() -> TScoreCombiner + Sync + Send>,
@@ -195,28 +268,46 @@ impl<TScoreCombiner: ScoreCombiner> BooleanWeight<TScoreCombiner> {
         scoring_enabled: bool,
         score_combiner_fn: Box<dyn Fn() -> TScoreCombiner + Sync + Send + 'static>,
     ) -> BooleanWeight<TScoreCombiner> {
-        BooleanWeight {
-            weights,
-            minimum_number_should_match,
-            scoring_enabled,
-            score_combiner_fn,
+        let mut per_occur_weights = OccurWeights::default();
+        for (occur, weight) in weights {
+            per_occur_weights.push(occur, weight);
         }
-    }
 
-    fn per_occur_scorers(
-        &self,
-        reader: &SegmentReader,
-        boost: Score,
-    ) -> crate::Result<HashMap<Occur, Vec<Box<dyn Scorer>>>> {
-        let mut per_occur_scorers: HashMap<Occur, Vec<Box<dyn Scorer>>> = HashMap::new();
-        for (occur, subweight) in &self.weights {
-            let sub_scorer: Box<dyn Scorer> = subweight.scorer(reader, boost)?;
-            per_occur_scorers
-                .entry(*occur)
-                .or_default()
-                .push(sub_scorer);
+        // Optimisation: we rewrite the bool weight depending on the number of minimum should match
+        // and the number of should clauses.
+        let num_should_weights = per_occur_weights.get(Occur::Should).len();
+
+        match num_should_weights.cmp(&minimum_number_should_match) {
+            Ordering::Greater => {
+                // nothing to do. We will need the minimum should match logic.
+                BooleanWeight {
+                    per_occur_weights,
+                    minimum_number_should_match,
+                    scoring_enabled,
+                    score_combiner_fn,
+                }
+            }
+            Ordering::Equal => {
+                // Equal! All should clause will be required. We promote them to Must!
+                per_occur_weights.promote_should_to_must();
+                BooleanWeight {
+                    per_occur_weights,
+                    minimum_number_should_match: 0,
+                    scoring_enabled,
+                    score_combiner_fn,
+                }
+            }
+            Ordering::Less => {
+                // We will never be able to match the minimum should match threshold.
+                // Let's return the empty weight
+                BooleanWeight {
+                    per_occur_weights: Default::default(),
+                    minimum_number_should_match: 0,
+                    scoring_enabled,
+                    score_combiner_fn,
+                }
+            }
         }
-        Ok(per_occur_scorers)
     }
 
     fn complex_scorer<TComplexScoreCombiner: ScoreCombiner>(
@@ -226,30 +317,47 @@ impl<TScoreCombiner: ScoreCombiner> BooleanWeight<TScoreCombiner> {
         score_combiner_fn: impl Fn() -> TComplexScoreCombiner,
     ) -> crate::Result<SpecializedScorer> {
         let num_docs = reader.num_docs();
-        let mut per_occur_scorers = self.per_occur_scorers(reader, boost)?;
 
-        // Indicate how should clauses are combined with must clauses.
+        let intersection_weights: &[Box<dyn Weight>] = self.per_occur_weights.get(Occur::Must);
+
         let mut must_scorers: Vec<Box<dyn Scorer>> =
-            per_occur_scorers.remove(&Occur::Must).unwrap_or_default();
-        let must_special_scorer_counts = remove_and_count_all_and_empty_scorers(&mut must_scorers);
+            create_aligned_scorers_for_intersection(intersection_weights, reader, boost)?;
 
-        if must_special_scorer_counts.num_empty_scorers > 0 {
-            return Ok(SpecializedScorer::Other(Box::new(EmptyScorer)));
+        if !must_scorers.is_empty() {
+            // all scorer are aligned, it is ok to test a single one.
+            if must_scorers[0].doc() >= TERMINATED {
+                return Ok(SpecializedScorer::empty());
+            }
         }
 
-        let mut should_scorers = per_occur_scorers.remove(&Occur::Should).unwrap_or_default();
-        let should_special_scorer_counts =
-            remove_and_count_all_and_empty_scorers(&mut should_scorers);
+        let mut should_scorers =
+            Vec::with_capacity(self.per_occur_weights.get(Occur::Should).len());
+        for should_weight in self.per_occur_weights.get(Occur::Should) {
+            should_scorers.push(should_weight.scorer(reader, boost)?);
+        }
 
-        let mut exclude_scorers: Vec<Box<dyn Scorer>> = per_occur_scorers
-            .remove(&Occur::MustNot)
-            .unwrap_or_default();
-        let exclude_special_scorer_counts =
+        let mut exclude_scorers =
+            Vec::with_capacity(self.per_occur_weights.get(Occur::MustNot).len());
+        for exclude_weight in self.per_occur_weights.get(Occur::MustNot) {
+            exclude_scorers.push(exclude_weight.scorer(reader, boost)?);
+        }
+
+        // Indicate how should clauses are combined with must clauses.
+        let must_special_scorer_counts: AllAndEmptyScorerCounts =
+            remove_and_count_all_and_empty_scorers(&mut must_scorers);
+
+        if must_special_scorer_counts.num_empty_scorers > 0 {
+            return Ok(SpecializedScorer::empty());
+        }
+
+        let should_special_scorer_counts: AllAndEmptyScorerCounts =
+            remove_and_count_all_and_empty_scorers(&mut should_scorers);
+        let exclude_special_scorer_counts: AllAndEmptyScorerCounts =
             remove_and_count_all_and_empty_scorers(&mut exclude_scorers);
 
         if exclude_special_scorer_counts.num_all_scorers > 0 {
             // We exclude all documents at one point.
-            return Ok(SpecializedScorer::Other(Box::new(EmptyScorer)));
+            return Ok(SpecializedScorer::empty());
         }
 
         let effective_minimum_number_should_match = self
@@ -261,7 +369,7 @@ impl<TScoreCombiner: ScoreCombiner> BooleanWeight<TScoreCombiner> {
             if effective_minimum_number_should_match > num_of_should_scorers {
                 // We don't have enough scorers to satisfy the minimum number of should matches.
                 // The request will match no documents.
-                return Ok(SpecializedScorer::Other(Box::new(EmptyScorer)));
+                return Ok(SpecializedScorer::empty());
             }
             match effective_minimum_number_should_match {
                 0 if num_of_should_scorers == 0 => ShouldScorersCombinationMethod::Ignored,
@@ -444,10 +552,12 @@ fn remove_and_count_all_and_empty_scorers(
 impl<TScoreCombiner: ScoreCombiner + Sync> Weight for BooleanWeight<TScoreCombiner> {
     fn scorer(&self, reader: &SegmentReader, boost: Score) -> crate::Result<Box<dyn Scorer>> {
         let num_docs = reader.num_docs();
-        if self.weights.is_empty() {
+        let num_sub_weights: usize = self.per_occur_weights.len();
+        if num_sub_weights == 0 {
             Ok(Box::new(EmptyScorer))
-        } else if self.weights.len() == 1 {
-            let &(occur, ref weight) = &self.weights[0];
+        } else if num_sub_weights == 1 {
+            // We have single subscorer. Let's just just short circuit our logic and return it.
+            let (occur, weight) = self.per_occur_weights.iter().next().unwrap();
             if occur == Occur::MustNot {
                 Ok(Box::new(EmptyScorer))
             } else {
@@ -476,8 +586,8 @@ impl<TScoreCombiner: ScoreCombiner + Sync> Weight for BooleanWeight<TScoreCombin
         }
 
         let mut explanation = Explanation::new("BooleanClause. sum of ...", scorer.score());
-        for (occur, subweight) in &self.weights {
-            if is_include_occur(*occur) {
+        for (occur, subweight) in self.per_occur_weights.iter() {
+            if is_include_occur(occur) {
                 if let Ok(child_explanation) = subweight.explain(reader, doc) {
                     explanation.add_detail(child_explanation);
                 }
@@ -605,5 +715,133 @@ fn is_include_occur(occur: Occur) -> bool {
     match occur {
         Occur::Must | Occur::Should => true,
         Occur::MustNot => false,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::create_aligned_scorers_for_intersection;
+    use crate::query::{EmptyScorer, EnableScoring, Query, TermQuery, Weight};
+    use crate::schema::{Field, IndexRecordOption, Schema, TEXT};
+    use crate::{Index, Searcher, Term, TERMINATED};
+
+    fn test_index() -> crate::Result<(Index, Field)> {
+        let mut schema_builder = Schema::builder();
+        let text = schema_builder.add_text_field("text", TEXT);
+        let index = Index::create_in_ram(schema_builder.build());
+        let mut writer = index.writer_for_tests()?;
+
+        for terms in [
+            "a", "b", "a b", "c", "a c", "b c", "a b c", "a b", "a b c", "x", "y",
+        ] {
+            writer.add_document(doc!(text => terms))?;
+        }
+        writer.commit()?;
+
+        Ok((index, text))
+    }
+
+    fn term_weight(
+        searcher: &Searcher,
+        field: Field,
+        term: &str,
+    ) -> crate::Result<Box<dyn Weight>> {
+        TermQuery::new(Term::from_field_text(field, term), IndexRecordOption::Basic)
+            .weight(EnableScoring::disabled_from_searcher(searcher))
+    }
+
+    #[test]
+    fn test_create_aligned_scorers_for_empty_intersection() -> crate::Result<()> {
+        let (index, _) = test_index()?;
+        let searcher = index.reader()?.searcher();
+        let weights: Vec<Box<dyn Weight>> = Vec::new();
+
+        let scorers =
+            create_aligned_scorers_for_intersection(&weights, searcher.segment_reader(0), 1.0)?;
+
+        assert!(scorers.is_empty());
+        Ok(())
+    }
+
+    #[test]
+    fn test_create_aligned_scorers_for_single_weight() -> crate::Result<()> {
+        let (index, text) = test_index()?;
+        let searcher = index.reader()?.searcher();
+        let weights = vec![term_weight(&searcher, text, "a")?];
+
+        let scorers =
+            create_aligned_scorers_for_intersection(&weights, searcher.segment_reader(0), 1.0)?;
+
+        assert_eq!(scorers.len(), 1);
+        assert_eq!(scorers[0].doc(), 0);
+        Ok(())
+    }
+
+    #[test]
+    fn test_create_aligned_scorers_aligns_all_scorers() -> crate::Result<()> {
+        let (index, text) = test_index()?;
+        let searcher = index.reader()?.searcher();
+        let weights = vec![
+            term_weight(&searcher, text, "a")?,
+            term_weight(&searcher, text, "b")?,
+            term_weight(&searcher, text, "c")?,
+        ];
+
+        let scorers =
+            create_aligned_scorers_for_intersection(&weights, searcher.segment_reader(0), 1.0)?;
+
+        assert_eq!(scorers.len(), 3);
+        assert!(scorers.iter().all(|scorer| scorer.doc() == 6));
+        Ok(())
+    }
+
+    #[test]
+    fn test_create_aligned_scorers_returns_empty_scorer_for_disjoint_weights() -> crate::Result<()>
+    {
+        let (index, text) = test_index()?;
+        let searcher = index.reader()?.searcher();
+        let weights = vec![
+            term_weight(&searcher, text, "x")?,
+            term_weight(&searcher, text, "y")?,
+        ];
+
+        let scorers =
+            create_aligned_scorers_for_intersection(&weights, searcher.segment_reader(0), 1.0)?;
+
+        assert_eq!(scorers.len(), 1);
+        assert!(scorers[0].is::<EmptyScorer>());
+        assert_eq!(scorers[0].doc(), TERMINATED);
+
+        // We also test for the opposite order
+        let weights = vec![
+            term_weight(&searcher, text, "a")?,
+            term_weight(&searcher, text, "missing")?,
+        ];
+        let scorers =
+            create_aligned_scorers_for_intersection(&weights, searcher.segment_reader(0), 1.0)?;
+
+        assert_eq!(scorers.len(), 1);
+        assert!(scorers[0].is::<EmptyScorer>());
+        assert_eq!(scorers[0].doc(), TERMINATED);
+        Ok(())
+    }
+
+    #[test]
+    fn test_create_aligned_scorers_returns_empty_scorer_when_first_weight_is_empty(
+    ) -> crate::Result<()> {
+        let (index, text) = test_index()?;
+        let searcher = index.reader()?.searcher();
+        let weights = vec![
+            term_weight(&searcher, text, "missing")?,
+            term_weight(&searcher, text, "a")?,
+        ];
+
+        let scorers =
+            create_aligned_scorers_for_intersection(&weights, searcher.segment_reader(0), 1.0)?;
+
+        assert_eq!(scorers.len(), 1);
+        assert!(scorers[0].is::<EmptyScorer>());
+        assert_eq!(scorers[0].doc(), TERMINATED);
+        Ok(())
     }
 }

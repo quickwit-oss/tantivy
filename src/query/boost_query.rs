@@ -83,6 +83,16 @@ impl Weight for BoostWeight {
     fn count(&self, reader: &SegmentReader) -> crate::Result<u32> {
         self.weight.count(reader)
     }
+
+    fn scorer_danger(
+        &self,
+        reader: &SegmentReader,
+        target: DocId,
+        boost: Score,
+    ) -> crate::Result<(SeekDangerResult, Box<dyn Scorer>)> {
+        self.weight
+            .scorer_danger(reader, target, boost * self.boost)
+    }
 }
 
 pub(crate) struct BoostScorer<S: Scorer> {

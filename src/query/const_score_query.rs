@@ -67,7 +67,7 @@ impl ConstWeight {
 
 impl Weight for ConstWeight {
     fn scorer(&self, reader: &SegmentReader, boost: Score) -> crate::Result<Box<dyn Scorer>> {
-        let inner_scorer = self.weight.scorer(reader, boost)?;
+        let inner_scorer = self.weight.scorer(reader, 1.0f32)?;
         Ok(Box::new(ConstScorer::new(inner_scorer, boost * self.score)))
     }
 
@@ -85,6 +85,19 @@ impl Weight for ConstWeight {
 
     fn count(&self, reader: &SegmentReader) -> crate::Result<u32> {
         self.weight.count(reader)
+    }
+
+    fn scorer_danger(
+        &self,
+        reader: &SegmentReader,
+        target: DocId,
+        boost: Score,
+    ) -> crate::Result<(SeekDangerResult, Box<dyn Scorer>)> {
+        let (seek_result, inner_scorer) = self.weight.scorer_danger(reader, target, 1.0f32)?;
+        Ok((
+            seek_result,
+            Box::new(ConstScorer::new(inner_scorer, boost * self.score)) as Box<dyn Scorer>,
+        ))
     }
 }
 
