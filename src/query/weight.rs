@@ -1,3 +1,5 @@
+use std::cmp::Ordering;
+
 use super::Scorer;
 use crate::docset::{SeekDangerResult, COLLECT_BLOCK_BUFFER_LEN};
 use crate::index::SegmentReader;
@@ -94,9 +96,9 @@ pub trait Weight: Send + Sync + 'static {
         let mut scorer = self.scorer(reader, boost)?;
         let scorer_doc = scorer.doc();
         let seek_danger_result = match scorer_doc.cmp(&target) {
-            std::cmp::Ordering::Less => scorer.seek_danger(target),
-            std::cmp::Ordering::Equal => SeekDangerResult::Found,
-            std::cmp::Ordering::Greater => SeekDangerResult::SeekLowerBound(scorer_doc),
+            Ordering::Less => scorer.seek_danger(target),
+            Ordering::Equal => SeekDangerResult::Found,
+            Ordering::Greater => SeekDangerResult::SeekLowerBound(scorer_doc),
         };
         Ok((seek_danger_result, scorer))
     }
