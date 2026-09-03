@@ -201,6 +201,7 @@ fn create_aligned_scorers_for_intersection(
     let mut candidate = 0u32;
     let mut scorers = Vec::with_capacity(weights.len());
 
+    let mut num_scorer_aligned = 0;
     for weight in weights {
         let (seek_result, scorer) = weight.scorer_danger(reader, candidate, boost)?;
         scorers.push(scorer);
@@ -208,6 +209,9 @@ fn create_aligned_scorers_for_intersection(
         if let SeekDangerResult::SeekLowerBound(new_candidate) = seek_result {
             debug_assert!(new_candidate > candidate);
             candidate = new_candidate;
+            num_scorer_aligned = 0
+        } else {
+            num_scorer_aligned += 1;
         }
 
         if candidate >= TERMINATED {
@@ -220,10 +224,10 @@ fn create_aligned_scorers_for_intersection(
     //
     // Eventually, either candidate will reach TERMINATED or
     // num_scorer_aligned will reach scorers.len().
-    let mut num_scorer_aligned = 0;
-    for scorer_id in (0..scorers.len()).cycle() {
+    let mut scorer_ord = 0;
+    while num_scorer_aligned < scorers.len() {
         if let SeekDangerResult::SeekLowerBound(seek_lower_bound) =
-            scorers[scorer_id].seek_danger(candidate)
+            scorers[scorer_ord].seek_danger(candidate)
         {
             debug_assert!(candidate < seek_lower_bound);
             candidate = seek_lower_bound;
@@ -233,10 +237,8 @@ fn create_aligned_scorers_for_intersection(
             num_scorer_aligned = 0;
         } else {
             num_scorer_aligned += 1;
-            if num_scorer_aligned == scorers.len() {
-                return Ok(scorers);
-            }
         }
+        scorer_ord = (scorer_ord + 1) % scorers.len();
     }
     Ok(scorers)
 }
