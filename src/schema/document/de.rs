@@ -16,13 +16,13 @@ use std::net::Ipv6Addr;
 use std::sync::Arc;
 
 use columnar::MonotonicallyMappableToU128;
-use common::{u64_to_f64, BinarySerializable, DateTime, VInt};
+use common::{u64_to_f64, zig_zag_decode, BinarySerializable, DateTime, VInt};
 
 use super::se::BinaryObjectSerializer;
 use super::{OwnedValue, Value};
 use crate::schema::document::type_codes;
 use crate::schema::{Facet, Field};
-use crate::store::DocStoreVersion;
+use crate::store::{DocStoreVersion, DOC_STORE_VERSION};
 use crate::tokenizer::PreTokenizedString;
 
 #[derive(Debug, thiserror::Error, Clone)]
@@ -337,7 +337,14 @@ where R: Read
             return Ok(None);
         }
 
-        let field = Field::deserialize(self.reader).map_err(DeserializeError::from)?;
+        // Starting with `V3`, field ids are stored as a variable-length integer
+        // rather than a fixed 4-byte `u32`.
+        let field = if self.doc_store_version >= DocStoreVersion::V3 {
+            let field_id = VInt::deserialize(self.reader)?.val() as u32;
+            Field::from_field_id(field_id)
+        } else {
+            Field::deserialize(self.reader).map_err(DeserializeError::from)?
+        };
         let deserializer =
             BinaryValueDeserializer::from_reader(self.reader, self.doc_store_version)?;
         let value = V::deserialize(deserializer)?;
@@ -438,12 +445,26 @@ where R: Read
 
     fn deserialize_u64(self) -> Result<u64, DeserializeError> {
         self.validate_type(ValueType::U64)?;
-        <u64 as BinarySerializable>::deserialize(self.reader).map_err(DeserializeError::from)
+        if self.doc_store_version >= DocStoreVersion::V3 {
+            // Stored as a variable-length integer.
+            VInt::deserialize(self.reader)
+                .map(|vint| vint.val())
+                .map_err(DeserializeError::from)
+        } else {
+            <u64 as BinarySerializable>::deserialize(self.reader).map_err(DeserializeError::from)
+        }
     }
 
     fn deserialize_i64(self) -> Result<i64, DeserializeError> {
         self.validate_type(ValueType::I64)?;
-        <i64 as BinarySerializable>::deserialize(self.reader).map_err(DeserializeError::from)
+        if self.doc_store_version >= DocStoreVersion::V3 {
+            // Stored as a zig-zag encoded variable-length integer.
+            VInt::deserialize(self.reader)
+                .map(|vint| zig_zag_decode(vint.val()))
+                .map_err(DeserializeError::from)
+        } else {
+            <i64 as BinarySerializable>::deserialize(self.reader).map_err(DeserializeError::from)
+        }
     }
 
     fn deserialize_f64(self) -> Result<f64, DeserializeError> {
@@ -460,7 +481,7 @@ where R: Read
                 let timestamp_micros = <i64 as BinarySerializable>::deserialize(self.reader)?;
                 Ok(DateTime::from_timestamp_micros(timestamp_micros))
             }
-            DocStoreVersion::V2 => {
+            DocStoreVersion::V2 | DocStoreVersion::V3 => {
                 let timestamp_nanos = <i64 as BinarySerializable>::deserialize(self.reader)?;
                 Ok(DateTime::from_timestamp_nanos(timestamp_nanos))
             }
@@ -565,8 +586,9 @@ where R: Read
 
                 let out_rc = std::rc::Rc::new(out);
                 let mut slice: &[u8] = &out_rc;
-                let access =
-                    BinaryObjectDeserializer::from_reader(&mut slice, self.doc_store_version)?;
+                // `out` was just written by the current serializer, so it uses
+                // the latest doc store format regardless of the segment version.
+                let access = BinaryObjectDeserializer::from_reader(&mut slice, DOC_STORE_VERSION)?;
 
                 visitor.visit_object(access)
             }

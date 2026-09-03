@@ -23,6 +23,7 @@ pub use ownedbytes::{OwnedBytes, StableDeref};
 pub use serialize::{BinarySerializable, DeserializeFrom, FixedSize};
 pub use vint::{
     VInt, VIntU128, read_u32_vint, read_u32_vint_no_advance, serialize_vint_u32, write_u32_vint,
+    zig_zag_decode, zig_zag_encode,
 };
 pub use writer::{AntiCallToken, CountingWriter, TerminatingWrite};
 
