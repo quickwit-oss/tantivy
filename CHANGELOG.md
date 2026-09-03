@@ -46,6 +46,7 @@ Tantivy 0.26 (Unreleased)
 - Make `Language` hashable [#2763](https://github.com/quickwit-oss/tantivy/pull/2763)(@philippemnoel)
 - Improve `space_usage` reporting for JSON fields and columnar data [#2761](https://github.com/quickwit-oss/tantivy/pull/2761)(@PSeitz-dd)
 - Split `Term` into `Term` and `IndexingTerm` [#2744](https://github.com/quickwit-oss/tantivy/pull/2744) [#2750](https://github.com/quickwit-oss/tantivy/pull/2750)(@PSeitz-dd @PSeitz)
+- Generate segment ids as time-ordered UUIDv7, making them chronologically sortable and exposing `SegmentId::creation_time` [#971](https://github.com/quickwit-oss/tantivy/issues/971)(@Divyesh-k)
 
 ## Performance
 - **Aggregation**
