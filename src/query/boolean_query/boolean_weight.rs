@@ -1,6 +1,6 @@
 use std::cmp::Ordering;
-use std::collections::HashMap;
 
+use super::occur_weights::OccurWeights;
 use crate::docset::{SeekDangerResult, COLLECT_BLOCK_BUFFER_LEN};
 use crate::index::SegmentReader;
 use crate::postings::FreqReadingOption;
@@ -254,7 +254,7 @@ enum ShouldScorersCombinationMethod {
 
 /// Weight associated to the `BoolQuery`.
 pub struct BooleanWeight<TScoreCombiner: ScoreCombiner> {
-    per_occur_weights: HashMap<Occur, Vec<Box<dyn Weight>>>,
+    per_occur_weights: OccurWeights,
     minimum_number_should_match: usize,
     scoring_enabled: bool,
     score_combiner_fn: Box<dyn Fn() -> TScoreCombiner + Sync + Send>,
@@ -268,17 +268,14 @@ impl<TScoreCombiner: ScoreCombiner> BooleanWeight<TScoreCombiner> {
         scoring_enabled: bool,
         score_combiner_fn: Box<dyn Fn() -> TScoreCombiner + Sync + Send + 'static>,
     ) -> BooleanWeight<TScoreCombiner> {
-        let mut per_occur_weights: HashMap<Occur, Vec<Box<dyn Weight>>> = HashMap::default();
+        let mut per_occur_weights = OccurWeights::default();
         for (occur, weight) in weights {
-            per_occur_weights.entry(occur).or_default().push(weight);
+            per_occur_weights.push(occur, weight);
         }
 
         // Optimisation: we rewrite the bool weight depending on the number of minimum should match
         // and the number of should clauses.
-        let num_should_weights = per_occur_weights
-            .get(&Occur::Should)
-            .map(Vec::len)
-            .unwrap_or(0);
+        let num_should_weights = per_occur_weights.get(Occur::Should).len();
 
         match num_should_weights.cmp(&minimum_number_should_match) {
             Ordering::Greater => {
@@ -292,11 +289,7 @@ impl<TScoreCombiner: ScoreCombiner> BooleanWeight<TScoreCombiner> {
             }
             Ordering::Equal => {
                 // Equal! All should clause will be required. We promote them to Must!
-                let should_weights = per_occur_weights.remove(&Occur::Should);
-                per_occur_weights
-                    .entry(Occur::Must)
-                    .or_default()
-                    .extend(should_weights.into_iter().flatten());
+                per_occur_weights.promote_should_to_must();
                 BooleanWeight {
                     per_occur_weights,
                     minimum_number_should_match: 0,
@@ -325,38 +318,31 @@ impl<TScoreCombiner: ScoreCombiner> BooleanWeight<TScoreCombiner> {
     ) -> crate::Result<SpecializedScorer> {
         let num_docs = reader.num_docs();
 
-        let intersection_weights: &[Box<dyn Weight>] = self
-            .per_occur_weights
-            .get(&Occur::Must)
-            .map(|weights| weights.as_slice())
-            .unwrap_or(&[]);
+        let intersection_weights: &[Box<dyn Weight>] = self.per_occur_weights.get(Occur::Must);
 
-        let required_scorers: Vec<Box<dyn Scorer>> =
+        let mut must_scorers: Vec<Box<dyn Scorer>> =
             create_aligned_scorers_for_intersection(intersection_weights, reader, boost)?;
 
-        let mut per_occur_scorers: HashMap<Occur, Vec<Box<dyn Scorer>>> = HashMap::new();
-
-        if !required_scorers.is_empty() {
+        if !must_scorers.is_empty() {
             // all scorer are aligned, it is ok to test a single one.
-            if required_scorers[0].doc() >= TERMINATED {
+            if must_scorers[0].doc() >= TERMINATED {
                 return Ok(SpecializedScorer::empty());
             }
-            per_occur_scorers.insert(Occur::Must, required_scorers);
         }
 
-        for occur in [Occur::MustNot, Occur::Should] {
-            if let Some(occur_weights) = self.per_occur_weights.get(&occur) {
-                let occur_scorers = per_occur_scorers.entry(occur).or_default();
-                for occur_weight in occur_weights {
-                    let occur_scorer = occur_weight.scorer(reader, boost)?;
-                    occur_scorers.push(occur_scorer);
-                }
-            }
+        let mut should_scorers =
+            Vec::with_capacity(self.per_occur_weights.get(Occur::Should).len());
+        for should_weight in self.per_occur_weights.get(Occur::Should) {
+            should_scorers.push(should_weight.scorer(reader, boost)?);
+        }
+
+        let mut exclude_scorers =
+            Vec::with_capacity(self.per_occur_weights.get(Occur::MustNot).len());
+        for exclude_weight in self.per_occur_weights.get(Occur::MustNot) {
+            exclude_scorers.push(exclude_weight.scorer(reader, boost)?);
         }
 
         // Indicate how should clauses are combined with must clauses.
-        let mut must_scorers: Vec<Box<dyn Scorer>> =
-            per_occur_scorers.remove(&Occur::Must).unwrap_or_default();
         let must_special_scorer_counts: AllAndEmptyScorerCounts =
             remove_and_count_all_and_empty_scorers(&mut must_scorers);
 
@@ -364,13 +350,8 @@ impl<TScoreCombiner: ScoreCombiner> BooleanWeight<TScoreCombiner> {
             return Ok(SpecializedScorer::empty());
         }
 
-        let mut should_scorers = per_occur_scorers.remove(&Occur::Should).unwrap_or_default();
         let should_special_scorer_counts: AllAndEmptyScorerCounts =
             remove_and_count_all_and_empty_scorers(&mut should_scorers);
-
-        let mut exclude_scorers: Vec<Box<dyn Scorer>> = per_occur_scorers
-            .remove(&Occur::MustNot)
-            .unwrap_or_default();
         let exclude_special_scorer_counts: AllAndEmptyScorerCounts =
             remove_and_count_all_and_empty_scorers(&mut exclude_scorers);
 
@@ -571,17 +552,12 @@ fn remove_and_count_all_and_empty_scorers(
 impl<TScoreCombiner: ScoreCombiner + Sync> Weight for BooleanWeight<TScoreCombiner> {
     fn scorer(&self, reader: &SegmentReader, boost: Score) -> crate::Result<Box<dyn Scorer>> {
         let num_docs = reader.num_docs();
-        let num_sub_weights: usize = self.per_occur_weights.values().map(Vec::len).sum();
+        let num_sub_weights: usize = self.per_occur_weights.len();
         if num_sub_weights == 0 {
             Ok(Box::new(EmptyScorer))
         } else if num_sub_weights == 1 {
             // We have single subscorer. Let's just just short circuit our logic and return it.
-            let (occur, weight) = self
-                .per_occur_weights
-                .iter()
-                .flat_map(|(occur, weights)| weights.iter().map(|weight| (*occur, weight)))
-                .next()
-                .unwrap();
+            let (occur, weight) = self.per_occur_weights.iter().next().unwrap();
             if occur == Occur::MustNot {
                 Ok(Box::new(EmptyScorer))
             } else {
@@ -610,12 +586,10 @@ impl<TScoreCombiner: ScoreCombiner + Sync> Weight for BooleanWeight<TScoreCombin
         }
 
         let mut explanation = Explanation::new("BooleanClause. sum of ...", scorer.score());
-        for (occur, subweights) in &self.per_occur_weights {
-            for subweight in subweights {
-                if is_include_occur(*occur) {
-                    if let Ok(child_explanation) = subweight.explain(reader, doc) {
-                        explanation.add_detail(child_explanation);
-                    }
+        for (occur, subweight) in self.per_occur_weights.iter() {
+            if is_include_occur(occur) {
+                if let Ok(child_explanation) = subweight.explain(reader, doc) {
+                    explanation.add_detail(child_explanation);
                 }
             }
         }
