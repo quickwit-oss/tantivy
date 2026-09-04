@@ -47,8 +47,15 @@ impl UserInputLeaf {
                 upper,
             },
             UserInputLeaf::Set { field: _, elements } => UserInputLeaf::Set { field, elements },
-            UserInputLeaf::Exists { field: _ } => UserInputLeaf::Exists {
-                field: field.expect("Exist query without a field isn't allowed"),
+            // `Exists` requires a field name on the AST, but the caller can
+            // legitimately pass `None` here when no leading field prefix was
+            // parsed (the grammar accepts `exists`-shaped sub-productions
+            // without a preceding `field:`). Preserving the existing field
+            // matches the no-op intent in `set_default_field` for the same
+            // leaf and turns what was a release-build panic into a clean
+            // pass-through.
+            UserInputLeaf::Exists { field: existing } => UserInputLeaf::Exists {
+                field: field.unwrap_or(existing),
             },
             UserInputLeaf::Regex { field: _, pattern } => UserInputLeaf::Regex { field, pattern },
         }
@@ -452,5 +459,33 @@ mod tests {
             json,
             r#"{"type":"bool","clauses":[["must",{"type":"all"}],["should",{"type":"literal","field_name":"title","phrase":"hello","delimiter":"none","slop":0,"prefix":false}]]}"#
         );
+    }
+
+    /// Regression test: a 4-byte fuzz repro (`(*'\n`) drove the strict
+    /// `parse_query` parser into `set_field(None)` on a `UserInputLeaf::Exists`
+    /// that had been constructed without a leading `field:` prefix, and the
+    /// `field.expect(...)` panicked with "Exist query without a field isn't
+    /// allowed". After the fix `set_field(None)` on an `Exists` leaf
+    /// preserves the existing field, matching the no-op intent in
+    /// `set_default_field` for the same leaf.
+    #[test]
+    fn test_set_field_none_on_exists_does_not_panic() {
+        let leaf = UserInputLeaf::Exists {
+            field: "title".to_string(),
+        };
+        let result = leaf.set_field(None);
+        assert!(matches!(
+            result,
+            UserInputLeaf::Exists { ref field } if field == "title"
+        ));
+    }
+
+    /// End-to-end regression test driving the exact 4-byte cargo-fuzz repro
+    /// through the public `parse_query` entry point. Before this patch the
+    /// call panicked inside `UserInputLeaf::set_field`; after the patch it
+    /// either succeeds or returns an error, but does not panic.
+    #[test]
+    fn test_parse_query_fuzz_repro_does_not_panic() {
+        let _ = crate::parse_query("(*'\n");
     }
 }
