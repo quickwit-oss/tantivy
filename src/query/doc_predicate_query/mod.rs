@@ -1,6 +1,5 @@
 use std::sync::Arc;
 
-/// A [`DocPredicate`] built from a plain Rust factory function.
 mod function_predicate;
 
 pub use function_predicate::FunctionPredicate;
@@ -11,11 +10,7 @@ use crate::query::explanation::does_not_match;
 use crate::query::{ConstScorer, EnableScoring, Explanation, Query, Scorer, Weight};
 use crate::{DocId, DocSet, Score};
 
-/// A query that evaluates a boolean JIT expression against fast-field columns.
-///
-/// Variable names in the expression are resolved as fast-field names for each
-/// segment. Multivalued columns contribute their first value. A document with a
-/// missing input value does not match.
+/// A query that evaluates, for each DocId, whether it matches or not.
 #[derive(Clone, Debug)]
 pub struct DocPredicateQuery {
     predicate: Arc<dyn DocPredicateBoxable>,
@@ -118,8 +113,7 @@ impl<TSegmentDocPredicate: SegmentDocPredicate> DocPredicateDocSet<TSegmentDocPr
             match self.seek_danger(target) {
                 SeekDangerResult::Found => return target,
                 SeekDangerResult::SeekLowerBound(next_target) => {
-                    if next_target >= self.max_doc {
-                        self.doc = TERMINATED;
+                    if next_target >= TERMINATED {
                         return TERMINATED;
                     }
                     target = next_target;
@@ -128,11 +122,8 @@ impl<TSegmentDocPredicate: SegmentDocPredicate> DocPredicateDocSet<TSegmentDocPr
         }
     }
 }
+
 /// A dyn-safe, type-erased [`DocPredicate`].
-///
-/// Every [`DocPredicate`] implementation gets a blanket impl of this trait,
-/// which is what lets [`DocPredicateQuery`] store its predicate as
-/// `Arc<dyn DocPredicateBoxable>` regardless of the concrete predicate type.
 pub trait DocPredicateBoxable: std::fmt::Debug + 'static + Send + Sync {
     /// Builds a [`Scorer`] over the predicate's matching documents in the
     /// given segment.
@@ -181,10 +172,8 @@ impl<TDocPredicate: DocPredicate> DocPredicateBoxable for TDocPredicate {
 /// A per-query predicate that produces a [`SegmentDocPredicate`] for each
 /// segment.
 ///
-/// Implementing this trait is all that's needed to make a type usable as a
-/// [`DocPredicateQuery`]: [`DocPredicateBoxable`] and
-/// `From<TDocPredicate> for DocPredicateQuery` are both implemented
-/// generically for every [`DocPredicate`].
+/// Implementing this trait is all that's needed to make a type usable in a
+/// [`DocPredicateQuery`].
 pub trait DocPredicate: Send + Sync + 'static + std::fmt::Debug {
     /// The per-segment predicate produced by [`Self::doc_predicate`].
     type SegmentDocPredicate: SegmentDocPredicate;
@@ -201,41 +190,30 @@ pub trait DocPredicate: Send + Sync + 'static + std::fmt::Debug {
 }
 
 /// The per-segment predicate produced by a [`DocPredicate`].
-pub trait SegmentDocPredicate: Send + Sync + 'static {
+pub trait SegmentDocPredicate: Send + 'static {
     /// Returns whether `doc_id` matches the predicate.
-    ///
-    /// Hidden contract: this takes `&self`, not `&mut self`, so any scratch
-    /// state used during evaluation must be behind interior mutability (see
-    /// `jitexpr_predicate`'s use of `RefCell`) or a synchronization
-    /// primitive, rather than plain mutable fields.
-    fn eval(&self, doc_id: DocId) -> bool;
-}
-
-/// Builds an in-RAM index with an empty schema and `num_docs` empty documents.
-///
-/// Shared across the test modules of this module tree so each
-/// `DocPredicate` implementation's tests don't each define their own.
-#[cfg(test)]
-fn create_index_for_test(num_docs: u32) -> crate::Index {
-    let schema_builder = crate::schema::Schema::builder();
-    let schema = schema_builder.build();
-    let index = crate::Index::create_in_ram(schema);
-    let mut writer = index.writer_for_tests().unwrap();
-    for _ in 0..num_docs {
-        writer.add_document(doc!()).unwrap();
-    }
-    writer.commit().unwrap();
-    index
+    fn eval(&mut self, doc_id: DocId) -> bool;
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use super::*;
     use crate::collector::Count;
-    use crate::query::doc_predicate_query::FunctionPredicate;
+
+    pub(crate) fn create_index_for_test(num_docs: u32) -> crate::Index {
+        let schema_builder = crate::schema::Schema::builder();
+        let schema = schema_builder.build();
+        let index = crate::Index::create_in_ram(schema);
+        let mut writer = index.writer_for_tests().unwrap();
+        for _ in 0..num_docs {
+            writer.add_document(doc!()).unwrap();
+        }
+        writer.commit().unwrap();
+        index
+    }
 
     fn even_doc_id_query() -> DocPredicateQuery {
-        FunctionPredicate::new(|_segment_reader: &SegmentReader| {
+        FunctionPredicate::from(|_segment_reader: &SegmentReader| {
             Ok(move |doc_id: DocId| doc_id % 2 == 0)
         })
         .into()
