@@ -1182,6 +1182,7 @@ fn rewrite_ast_clause(input: &mut (Option<Occur>, UserInputAst)) {
 #[cfg(test)]
 mod test {
     use super::*;
+    use crate::{parse_query, parse_query_lenient};
 
     pub fn nearly_equals(a: f64, b: f64) -> bool {
         (a - b).abs() < 0.0005 * (a + b).abs()
@@ -1830,6 +1831,67 @@ mod test {
         test_parse_query_to_ast_helper("a:*b", "\"a\":*b");
         test_parse_query_to_ast_helper(r#"a:*def*"#, "\"a\":*def*");
         test_parse_query_to_ast_helper("a:*\\:foo", "\"a\":*:foo");
+    }
+
+    // Regression tests for https://github.com/quickwit-oss/tantivy/issues/3031:
+    // `parse_query("- *")` and similar inputs used to panic with
+    // "Exist query without a field isn't allowed" instead of producing an
+    // `Exists { field: "" }` (strict) / `All` (lenient) result.
+    #[test]
+    fn test_parse_query_dash_star_does_not_panic_3031() {
+        // Strict path: `set_field(None)` on an `Exists` leaf used to panic.
+        // After the fix, the leaf is preserved with an empty field.
+        let strict = parse_query("- *").expect("strict - * must not panic");
+        assert_eq!(format!("{strict:?}"), "(-$exists(\"\"))");
+
+        let strict = parse_query("+ *").expect("strict + * must not panic");
+        assert_eq!(format!("{strict:?}"), "$exists(\"\")");
+
+        let strict = parse_query("a - *").expect("strict a - * must not panic");
+        assert_eq!(format!("{strict:?}"), "(*a -$exists(\"\"))");
+    }
+
+    #[test]
+    fn test_parse_query_lenient_dash_star_does_not_panic_3031() {
+        // Lenient path: the same inputs are recovered into an `All` shape
+        // (the wildcard `*` is the AST leaf, `Not`/`Must` are the operators).
+        // The lenient parser treats the bare `*` as `All` rather than `Exists`
+        // because `exists` requires a field-name prefix in the lenient grammar.
+        let (ast, errs) = parse_query_lenient("- *");
+        assert_eq!(format!("{ast:?}"), "(-*)");
+        assert!(errs.is_empty(), "lenient should recover cleanly, got: {errs:?}");
+
+        let (ast, errs) = parse_query_lenient("+ *");
+        assert_eq!(format!("{ast:?}"), "*");
+        assert!(errs.is_empty(), "lenient should recover cleanly, got: {errs:?}");
+
+        let (ast, errs) = parse_query_lenient("a - *");
+        assert_eq!(format!("{ast:?}"), "(*a -*)");
+        assert!(errs.is_empty(), "lenient should recover cleanly, got: {errs:?}");
+    }
+
+    #[test]
+    fn test_parse_query_star_followed_by_quote_terminates_3031() {
+        // PR #2921 fuzz reproducer that used to panic in `set_field`.
+        // After the fix, the strict parser returns a clean `Err` and the
+        // lenient parser recovers with at least one error.
+        assert!(parse_query("(*'\n").is_err());
+        let (_ast, errs) = parse_query_lenient("(*'\n");
+        assert!(
+            !errs.is_empty(),
+            "lenient should report at least one error for unclosed quote"
+        );
+    }
+
+    #[test]
+    fn test_parse_query_dash_star_open_paren_does_not_panic_3031() {
+        // From the issue's "Observed behaviour" table: `- *(` used to panic.
+        // After the fix, the strict parser returns a clean `Err` (an
+        // unclosed `(` is not a valid query) and the lenient parser
+        // recovers a partial AST without unwinding.
+        assert!(parse_query("- *(").is_err());
+        // The lenient parser must NOT panic on `- *(`.
+        let (_ast, _errs) = parse_query_lenient("- *(");
     }
 
     #[test]
