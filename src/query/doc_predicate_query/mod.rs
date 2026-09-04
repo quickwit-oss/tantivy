@@ -51,8 +51,8 @@ impl Weight for DocPredicateQuery {
     }
 
     fn explain(&self, reader: &SegmentReader, doc: DocId) -> crate::Result<Explanation> {
-        let mut docset = self.predicate.scorer(reader, 1.0f32)?;
-        if docset.seek(doc) != doc {
+        let (seek_result, _docset) = self.predicate.scorer_danger(reader, doc, 1.0f32)?;
+        if let SeekDangerResult::SeekLowerBound(_) = seek_result {
             return Err(does_not_match(doc));
         }
         Ok(Explanation::new("CalculatedPredicateQuery", 1.0))
