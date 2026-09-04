@@ -693,7 +693,7 @@ impl<B: SubAggBuffer> SegmentAggregationCollector for SegmentFilterCollector<B> 
 }
 
 /// Intermediate result for filter aggregation
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone)]
 pub struct IntermediateFilterBucketResult {
     /// Document count in this bucket
     pub doc_count: u64,
@@ -1335,14 +1335,14 @@ mod tests {
                 "brands": {
                     "buckets": [
                         {
-                            "key": "samsung",
-                            "doc_count": 1,
-                            "avg_price": { "value": 799.0 }
-                        },
-                        {
                             "key": "apple",
                             "doc_count": 1,
                             "avg_price": { "value": 999.0 }
+                        },
+                        {
+                            "key": "samsung",
+                            "doc_count": 1,
+                            "avg_price": { "value": 799.0 }
                         }
                     ],
                     "sum_other_doc_count": 0,

@@ -1199,19 +1199,14 @@ fn resolve_column_value(
         ColumnType::I64 => Ok(IntermediateKey::I64(i64::from_u64(val))),
         _ => {
             // F64 and other numeric types
-            let f = f64::from_u64(val);
-            let normalized: NumericalValue = f.into();
-            Ok(match normalized.normalize() {
-                NumericalValue::U64(v) => IntermediateKey::U64(v),
-                NumericalValue::I64(v) => IntermediateKey::I64(v),
-                NumericalValue::F64(v) => IntermediateKey::F64(v),
-            })
+            let value = NumericalValue::from(f64::from_u64(val)).normalize();
+            Ok(value.into())
         }
     }
 }
 
 /// Intermediate (segment-merged) result for multi_terms aggregation.
-#[derive(Default, Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Default, Clone, Debug, Serialize, Deserialize)]
 pub struct IntermediateMultiTermsBucketResult {
     /// Bucket entries keyed by composite `Vec<IntermediateKey>`.
     pub(crate) entries: FxHashMap<Vec<IntermediateKey>, IntermediateTermBucketEntry>,

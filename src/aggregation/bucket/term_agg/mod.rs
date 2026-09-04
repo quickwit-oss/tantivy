@@ -1325,8 +1325,11 @@ where
         let (term_doc_count_before_cutoff, sum_other_doc_count) =
             cut_off_buckets(&mut entries, segment_size, total_doc_count);
 
-        let mut dict: FxHashMap<IntermediateKey, IntermediateTermBucketEntry> = Default::default();
-        dict.reserve(entries.len());
+        // Collected entries, in unspecified order. The cross-segment merge keys entries by their
+        // own dictionary and the final result is sorted by the requested order, so segment-side
+        // order does not matter here.
+        let mut out: Vec<(IntermediateKey, IntermediateTermBucketEntry)> =
+            Vec::with_capacity(entries.len());
 
         if term_req.column_type == ColumnType::Str {
             let fallback_dict = Dictionary::empty();
@@ -1335,6 +1338,14 @@ where
                 .as_ref()
                 .map(|el| el.dictionary())
                 .unwrap_or_else(|| &fallback_dict);
+
+            // Collect into a map to dedup by key, then flush into `out`. Two cases need it: a real
+            // term may equal the `missing` placeholder, and the min_doc_count==0 fill must skip
+            // already-collected terms. A single-segment query returns this result directly (the
+            // cross-segment merge that would otherwise dedup never runs), so duplicate keys here
+            // would reach the final result unmerged.
+            let mut dict: FxHashMap<IntermediateKey, IntermediateTermBucketEntry> =
+                FxHashMap::with_capacity_and_hasher(entries.len(), Default::default());
 
             if let Some((intermediate_key, bucket)) = extract_missing_value(&mut entries, term_req)
             {
@@ -1405,6 +1416,8 @@ where
                         });
                 }
             }
+
+            out.extend(dict);
         } else if term_req.column_type == ColumnType::DateTime {
             for (val, doc_count) in entries {
                 let intermediate_entry = into_intermediate_bucket_entry(
@@ -1414,7 +1427,7 @@ where
                 )?;
                 let val = i64::from_u64(val);
                 let date = format_date(val)?;
-                dict.insert(IntermediateKey::Str(date), intermediate_entry);
+                out.push((IntermediateKey::Str(date), intermediate_entry));
             }
         } else if term_req.column_type == ColumnType::Bool {
             for (val, doc_count) in entries {
@@ -1424,7 +1437,7 @@ where
                     agg_data,
                 )?;
                 let val = bool::from_u64(val);
-                dict.insert(IntermediateKey::Bool(val), intermediate_entry);
+                out.push((IntermediateKey::Bool(val), intermediate_entry));
             }
         } else if term_req.column_type == ColumnType::IpAddr {
             let compact_space_accessor = term_req
@@ -1449,19 +1462,42 @@ where
                 )?;
                 let val: u128 = compact_space_accessor.compact_to_u128(val as u32);
                 let val = Ipv6Addr::from_u128(val);
-                dict.insert(IntermediateKey::IpAddr(val), intermediate_entry);
+                out.push((IntermediateKey::IpAddr(val), intermediate_entry));
+            }
+        } else if term_req.column_type == ColumnType::F64 {
+            // Distinct f64 encodings can normalize to the same public key, notably -0.0 and +0.0.
+            let normalized_key = |val: u64| -> IntermediateKey {
+                NumericalValue::from(f64::from_u64(val)).normalize().into()
+            };
+            entries.sort_unstable_by_key(|(val, _)| normalized_key(*val));
+
+            for (val, bucket) in entries {
+                let key = normalized_key(val);
+                let intermediate_entry = into_intermediate_bucket_entry(
+                    bucket,
+                    reborrow_opt_collector(&mut sub_agg_collector),
+                    agg_data,
+                )?;
+                match out.last_mut() {
+                    Some((previous_key, existing)) if previous_key == &key => {
+                        existing.doc_count += intermediate_entry.doc_count;
+                        existing
+                            .sub_aggregation
+                            .merge_fruits(intermediate_entry.sub_aggregation)?;
+                    }
+                    _ => out.push((key, intermediate_entry)),
+                }
             }
         } else {
-            for (key_val_u64, doc_count) in entries {
+            for (val, bucket) in entries {
                 let intermediate_entry = into_intermediate_bucket_entry(
-                    doc_count,
+                    bucket,
                     reborrow_opt_collector(&mut sub_agg_collector),
                     agg_data,
                 )?;
                 let key_val: NumericalValue = match term_req.column_type {
-                    ColumnType::U64 => key_val_u64.into(),
-                    ColumnType::I64 => i64::from_u64(key_val_u64).into(),
-                    ColumnType::F64 => f64::from_u64(key_val_u64).into(),
+                    ColumnType::U64 => val.into(),
+                    ColumnType::I64 => i64::from_u64(val).into(),
                     _ => {
                         return Err(TantivyError::SchemaError(format!(
                             "unknown key type: {}",
@@ -1469,16 +1505,16 @@ where
                         )))
                     }
                 };
-                let key = IntermediateKey::from(key_val.normalize());
-                dict.insert(key, intermediate_entry);
+                out.push((key_val.normalize().into(), intermediate_entry));
             }
         };
 
         Ok(IntermediateBucketResult::Terms {
             buckets: IntermediateTermBucketResult {
-                entries: dict,
+                entries: out,
                 sum_other_doc_count,
                 doc_count_error_upper_bound: term_doc_count_before_cutoff,
+                ..Default::default()
             },
         })
     }
@@ -1742,6 +1778,43 @@ mod tests {
                 json!({"key": 1, "doc_count": 2}),
             ]
         );
+    }
+
+    #[test]
+    fn terms_aggregation_merges_normalized_f64_buckets_with_sub_aggregations() -> crate::Result<()>
+    {
+        let index = get_test_index_from_values_and_terms(
+            true,
+            &[vec![
+                (-0.0, "negative_zero".to_string()),
+                (0.0, "positive_zero".to_string()),
+            ]],
+        )?;
+        let agg_req: Aggregations = serde_json::from_value(json!({
+            "zeros": {
+                "terms": { "field": "score_f64" },
+                "aggs": {
+                    "signs": { "terms": { "field": "string_id" } }
+                }
+            }
+        }))?;
+
+        let result = exec_request(agg_req, &index)?;
+        let zero_buckets = result["zeros"]["buckets"].as_array().unwrap();
+        assert_eq!(zero_buckets.len(), 1, "unexpected result: {result}");
+        assert_eq!(zero_buckets[0]["key"], 0);
+        assert_eq!(zero_buckets[0]["doc_count"], 2);
+
+        let sign_buckets = zero_buckets[0]["signs"]["buckets"].as_array().unwrap();
+        assert_eq!(sign_buckets.len(), 2, "unexpected result: {result}");
+        for sign in ["negative_zero", "positive_zero"] {
+            let bucket = sign_buckets
+                .iter()
+                .find(|bucket| bucket["key"] == sign)
+                .unwrap_or_else(|| panic!("missing {sign:?} bucket in {result}"));
+            assert_eq!(bucket["doc_count"], 1);
+        }
+        Ok(())
     }
 
     #[test]

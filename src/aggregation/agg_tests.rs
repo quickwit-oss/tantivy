@@ -1605,7 +1605,8 @@ fn test_percentile_order_segment_level() -> crate::Result<()> {
     assert!(
         buckets
             .entries
-            .contains_key(&IntermediateKey::Str("b".to_string())),
+            .iter()
+            .any(|(key, _)| key == &IntermediateKey::Str("b".to_string())),
         "\"b\" (higher p50) should survive, not \"a\""
     );
     assert!(
@@ -1681,7 +1682,8 @@ fn test_percentile_order_prune_intermediate() -> crate::Result<()> {
     assert!(
         buckets
             .entries
-            .contains_key(&IntermediateKey::Str("b".to_string())),
+            .iter()
+            .any(|(key, _)| key == &IntermediateKey::Str("b".to_string())),
         "\"b\" (higher p50) should survive, not \"a\""
     );
 

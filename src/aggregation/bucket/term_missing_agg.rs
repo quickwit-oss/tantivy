@@ -1,5 +1,4 @@
 use columnar::{Column, ColumnType};
-use rustc_hash::FxHashMap;
 
 use crate::aggregation::agg_data::{
     build_segment_agg_collectors, AggRefNode, AggregationsSegmentCtx,
@@ -8,7 +7,7 @@ use crate::aggregation::bucket::term_agg::TermsAggregation;
 use crate::aggregation::buffered_sub_aggs::{BufferedSubAggs, HighCardBufferedSubAggs};
 use crate::aggregation::intermediate_agg_result::{
     IntermediateAggregationResult, IntermediateAggregationResults, IntermediateBucketResult,
-    IntermediateKey, IntermediateTermBucketEntry, IntermediateTermBucketResult,
+    IntermediateTermBucketEntry, IntermediateTermBucketResult,
 };
 use crate::aggregation::segment_agg_result::{BucketIdProvider, SegmentAggregationCollector};
 use crate::aggregation::BucketId;
@@ -93,9 +92,6 @@ impl SegmentAggregationCollector for TermMissingAgg {
             .as_ref()
             .expect("TermMissingAgg collector, but no missing found in agg req")
             .clone();
-        let mut entries: FxHashMap<IntermediateKey, IntermediateTermBucketEntry> =
-            Default::default();
-
         let missing_count = &self.missing_count_per_bucket[parent_bucket_id as usize];
         let mut missing_entry = IntermediateTermBucketEntry {
             doc_count: missing_count.missing_count as u64,
@@ -108,13 +104,14 @@ impl SegmentAggregationCollector for TermMissingAgg {
                 .add_intermediate_aggregation_result(agg_data, &mut res, missing_count.bucket_id)?;
             missing_entry.sub_aggregation = res;
         }
-        entries.insert(missing.into(), missing_entry);
+        let entries = vec![(missing.into(), missing_entry)];
 
         let bucket = IntermediateBucketResult::Terms {
             buckets: IntermediateTermBucketResult {
                 entries,
                 sum_other_doc_count: 0,
                 doc_count_error_upper_bound: 0,
+                ..Default::default()
             },
         };
 

@@ -142,6 +142,7 @@ pub mod intermediate_agg_result;
 pub mod metric;
 
 mod segment_agg_result;
+use std::cmp::Ordering;
 use std::fmt::Display;
 
 pub(crate) use block_accessor::ColumnBlockAccessor;
@@ -298,7 +299,7 @@ where D: Deserializer<'de> {
 /// The serialized key is used in a `HashMap`.
 pub type SerializedKey = String;
 
-#[derive(Clone, Debug, Serialize, Deserialize, PartialOrd)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 /// The key to identify a bucket.
 ///
 /// The order is important, with serde untagged, that we try to deserialize into i64 first.
@@ -314,6 +315,35 @@ pub enum Key {
     F64(f64),
 }
 impl Eq for Key {}
+
+impl Ord for Key {
+    fn cmp(&self, other: &Self) -> Ordering {
+        match (self, other) {
+            (Self::Str(left), Self::Str(right)) => left.cmp(right),
+            (Self::I64(left), Self::I64(right)) => left.cmp(right),
+            (Self::U64(left), Self::U64(right)) => left.cmp(right),
+            (Self::F64(left), Self::F64(right)) => left.total_cmp(right),
+            // Keep the variant order from the previous derived `PartialOrd` implementation.
+            (left, right) => key_variant_ord(left).cmp(&key_variant_ord(right)),
+        }
+    }
+}
+
+impl PartialOrd for Key {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+fn key_variant_ord(key: &Key) -> u8 {
+    match key {
+        Key::Str(_) => 0,
+        Key::I64(_) => 1,
+        Key::U64(_) => 2,
+        Key::F64(_) => 3,
+    }
+}
+
 impl std::hash::Hash for Key {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
         core::mem::discriminant(self).hash(state);
@@ -406,6 +436,7 @@ pub(crate) fn f64_to_fastfield_u64(val: f64, field_type: &ColumnType) -> Option<
 
 #[cfg(test)]
 mod tests {
+    use std::collections::BTreeSet;
     use std::net::Ipv6Addr;
 
     use columnar::DateTime;
@@ -419,6 +450,20 @@ mod tests {
     use crate::schema::{IndexRecordOption, Schema, TextFieldIndexing, FAST, STRING};
     use crate::tokenizer::RAW_TOKENIZER_NAME;
     use crate::{Index, IndexWriter, Term};
+
+    #[test]
+    fn key_order_is_total_and_consistent_with_equality() {
+        let negative_zero = Key::F64(-0.0);
+        let positive_zero = Key::F64(0.0);
+        assert_ne!(negative_zero, positive_zero);
+        assert_eq!(negative_zero.cmp(&positive_zero), Ordering::Less);
+
+        let nan = Key::F64(f64::from_bits(0x7ff8_0000_0000_0001));
+        assert_eq!(nan.cmp(&nan), Ordering::Equal);
+
+        let keys = BTreeSet::from([negative_zero, positive_zero, nan]);
+        assert_eq!(keys.len(), 3);
+    }
 
     pub fn get_test_index_with_num_docs(
         merge_segments: bool,
