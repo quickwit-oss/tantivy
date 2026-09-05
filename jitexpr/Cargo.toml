@@ -1,0 +1,12 @@
+[package]
+name = "jitexpr"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+cranelift = "0.134.3"
+cranelift-jit = "0.134.3"
+cranelift-module = "0.134.3"
+cranelift-native = "0.134.3"
+regex = "1"
+thiserror = "2.0.1"
