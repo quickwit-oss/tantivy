@@ -367,17 +367,37 @@ fn exists_infallible(inp: &str) -> JResult<&str, UserInputAst> {
 }
 
 fn literal(inp: &str) -> IResult<&str, UserInputAst> {
-    // * alone is already parsed by our caller, so if `exists` succeed, we can be confident
-    // something (a field name) got parsed before
+    // The lenient path (`literal_infallible` below) gates the `exists`
+    // sub-parser behind `exists_precond`, which requires a leading
+    // `field:`. The strict path used to combine `opt(field_name)` with the
+    // full leaf-shape `alt` in a flat `tuple`, so the `exists` arm could
+    // match bare `*` after an operator and a space (`- *`, `+ *`,
+    // `a - *`, `- *(`) and produce `Exists { field: "" }`. The high-level
+    // `QueryParser` accepts that AST and only fails at search time with
+    // `FieldNotFound("")`, which is a different bug class than the original
+    // panic but still incorrect: bare `*` is supposed to be the `All` leaf
+    // (already handled by `leaf`'s explicit `*` arm), and an `exists` shape
+    // without a field name has no defined semantics. The `exists` arm is
+    // gated to the field-prefixed branch below, matching the lenient
+    // design. See issue #3031.
     alt((
+        // Field-prefixed form: `field:leaf`. `exists` is allowed here.
         map(
             tuple((
-                opt(field_name),
+                field_name,
                 alt((range, set, exists, regex, term_or_phrase)),
             )),
-            |(field_name, leaf): (Option<String>, UserInputLeaf)| leaf.set_field(field_name).into(),
+            |(field, leaf): (String, UserInputLeaf)| leaf.set_field(Some(field)).into(),
         ),
+        // `field:(...)` form.
         term_group,
+        // No field prefix: refuse `exists`. The other arms (`range`,
+        // `set`, `regex`) don't require a field prefix in the original
+        // design (e.g. a bare `[1 TO 5]` is a valid range).
+        map(
+            alt((range, set, regex, term_or_phrase)),
+            |leaf| leaf.set_field(None).into(),
+        ),
     ))(inp)
 }
 
@@ -1835,28 +1855,34 @@ mod test {
 
     // Regression tests for https://github.com/quickwit-oss/tantivy/issues/3031:
     // `parse_query("- *")` and similar inputs used to panic with
-    // "Exist query without a field isn't allowed" instead of producing an
-    // `Exists { field: "" }` (strict) / `All` (lenient) result.
+    // "Exist query without a field isn't allowed". The fix removes the
+    // panic by gating `exists` behind a field-name prefix (matching the
+    // lenient parser design); the whitespace-sensitive malformed inputs
+    // (`- *`, `+ *`, `a - *`, `- *(`, `+ *(`) now return Err in the strict
+    // parser, while their no-space equivalents (`-*`, `+*`, `a-*`) were
+    // already handled by the explicit `*` arm in `leaf`. The lenient
+    // parser recovers all of these into the same `All`-based AST the
+    // no-space equivalents produce.
     #[test]
     fn test_parse_query_dash_star_does_not_panic_3031() {
-        // Strict path: `set_field(None)` on an `Exists` leaf used to panic.
-        // After the fix, the leaf is preserved with an empty field.
-        let strict = parse_query("- *").expect("strict - * must not panic");
-        assert_eq!(format!("{strict:?}"), "(-$exists(\"\"))");
-
-        let strict = parse_query("+ *").expect("strict + * must not panic");
-        assert_eq!(format!("{strict:?}"), "$exists(\"\")");
-
-        let strict = parse_query("a - *").expect("strict a - * must not panic");
-        assert_eq!(format!("{strict:?}"), "(*a -$exists(\"\"))");
+        // Strict path: the whitespace-sensitive malformed inputs return
+        // Err instead of panicking or producing a semantically-wrong
+        // `Exists { field: "" }` AST.
+        assert!(parse_query("- *").is_err(), "strict - * must return Err");
+        assert!(parse_query("+ *").is_err(), "strict + * must return Err");
+        assert!(
+            parse_query("a - *").is_err(),
+            "strict a - * must return Err"
+        );
     }
 
     #[test]
     fn test_parse_query_lenient_dash_star_does_not_panic_3031() {
-        // Lenient path: the same inputs are recovered into an `All` shape
-        // (the wildcard `*` is the AST leaf, `Not`/`Must` are the operators).
-        // The lenient parser treats the bare `*` as `All` rather than `Exists`
-        // because `exists` requires a field-name prefix in the lenient grammar.
+        // Lenient path: the whitespace-sensitive malformed inputs are
+        // recovered into the same `All`-based AST as the no-space
+        // equivalents (`-*`, `+*`). The lenient parser treats a bare
+        // `*` as `All` because `exists` requires a field-name prefix in
+        // the lenient grammar (`exists_precond`).
         let (ast, errs) = parse_query_lenient("- *");
         assert_eq!(format!("{ast:?}"), "(-*)");
         assert!(errs.is_empty(), "lenient should recover cleanly, got: {errs:?}");
@@ -1892,6 +1918,34 @@ mod test {
         assert!(parse_query("- *(").is_err());
         // The lenient parser must NOT panic on `- *(`.
         let (_ast, _errs) = parse_query_lenient("- *(");
+    }
+
+    #[test]
+    fn test_parse_query_plus_star_open_paren_is_err_3031() {
+        // Symmetric to `- *(`: the strict parser must reject `+ *(` too
+        // rather than panic or silently produce a malformed AST.
+        assert!(parse_query("+ *(").is_err(), "strict + *( must return Err");
+    }
+
+    #[test]
+    fn test_field_exists_with_other_operand_3031() {
+        // Field-prefixed `*` mixed with another term should still parse
+        // correctly: `a:* b` is `(*$exists("a") *b)`, not a re-trigger of
+        // the no-field-exists regression (the `exists` arm must only fire
+        // when a real field prefix is present).
+        test_parse_query_to_ast_helper("a:* b", "(*$exists(\"a\") *b)");
+    }
+
+    #[test]
+    fn test_paren_negated_all_3031() {
+        // `(-*)` is a valid query: paren-wrapped `MustNot(All)`. It must
+        // round-trip cleanly through both the strict and lenient parsers
+        // and not regress into an `Exists { field: "" }` shape after the fix.
+        let ast = parse_query("(-*)").expect("(-*) must parse");
+        assert_eq!(format!("{ast:?}"), "(-*)");
+        let (ast, errs) = parse_query_lenient("(-*)");
+        assert_eq!(format!("{ast:?}"), "(-*)");
+        assert!(errs.is_empty(), "lenient (-*) should recover cleanly, got: {errs:?}");
     }
 
     #[test]
