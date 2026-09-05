@@ -7,6 +7,9 @@ mod boost_query;
 mod const_score_query;
 mod disjunction;
 mod disjunction_max_query;
+/// A query evaluated by a [`doc_predicate_query::DocPredicate`] against each
+/// document of a segment.
+pub mod doc_predicate_query;
 mod empty_query;
 mod exclude;
 mod exist_query;
