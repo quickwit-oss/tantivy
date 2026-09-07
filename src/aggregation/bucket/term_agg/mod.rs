@@ -1465,7 +1465,9 @@ where
                 out.push((IntermediateKey::IpAddr(val), intermediate_entry));
             }
         } else if term_req.column_type == ColumnType::F64 {
-            // Distinct f64 encodings can normalize to the same public key, notably -0.0 and +0.0.
+            // -0.0 and +0.0 both normalize to I64(0). Sort by normalized key to merge their
+            // buckets below. Other distinct f64 encodings, including NaNs, remain distinct:
+            // NaNs are not normalized and IntermediateKey compares them using total_cmp.
             let normalized_key = |val: u64| -> IntermediateKey {
                 NumericalValue::from(f64::from_u64(val)).normalize().into()
             };
