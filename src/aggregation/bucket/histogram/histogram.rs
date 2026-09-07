@@ -483,7 +483,7 @@ impl<B: BucketIdSlot> SegmentAggregationCollector for SegmentHistogramCollector<
         // Upgrade to dense storage before processing the block if the buckets are dense enough.
         store.maybe_densify(dense_range);
 
-        let req = &self.req_data;
+        let req = &mut self.req_data;
         let bounds = req.bounds;
         let interval = req.req.interval;
         let offset = req.offset;
@@ -491,7 +491,7 @@ impl<B: BucketIdSlot> SegmentAggregationCollector for SegmentHistogramCollector<
 
         agg_data
             .column_block_accessor
-            .fetch_block(docs, &req.accessor);
+            .fetch_block(docs, &mut req.accessor);
         // special path for nested buckets
         if let Some(sub_agg) = &mut self.sub_agg {
             for (doc, val) in agg_data.column_block_accessor.iter_docid_vals(docs) {

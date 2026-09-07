@@ -72,6 +72,7 @@ rayon = "1.5.2"
 lru = "0.18.2"
 fastdivide = "0.4.0"
 itertools = "0.14.0"
+jitexpr = { version = "0.1", path = "./jitexpr" }
 measure_time = "0.9.0"
 arc-swap = "1.5.0"
 bon = "3.3.1"

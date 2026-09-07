@@ -281,7 +281,7 @@ impl<B: SubAggBuffer> SegmentAggregationCollector for SegmentRangeCollector<B> {
     ) -> crate::Result<()> {
         agg_data
             .column_block_accessor
-            .fetch_block(docs, &self.req_data.accessor);
+            .fetch_block(docs, &mut self.req_data.accessor);
 
         let buckets = &mut self.parent_buckets[parent_bucket_id as usize];
 

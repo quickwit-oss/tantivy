@@ -142,9 +142,13 @@ pub mod intermediate_agg_result;
 pub mod metric;
 
 mod segment_agg_result;
+mod value_source;
+use std::collections::BTreeMap;
 use std::fmt::Display;
+use std::sync::Arc;
 
 pub(crate) use block_accessor::ColumnBlockAccessor;
+pub(crate) use value_source::{SegmentValueSource, SegmentValueSourcePlan};
 
 #[cfg(test)]
 mod agg_tests;
@@ -160,10 +164,84 @@ use columnar::{ColumnType, MonotonicallyMappableToU64};
 pub(crate) use date::format_date;
 pub use error::AggregationError;
 use itertools::Itertools;
+use jitexpr::ast::{infer_types, UntypedExpr};
 use serde::de::{self, Visitor};
 use serde::{Deserialize, Deserializer, Serialize};
 
 use crate::tokenizer::TokenizerManager;
+
+/// Named expressions which can be used as aggregation fields.
+///
+/// Expressions are kept immutable and shared between segment source plans. Compilation is
+/// segment-local and all mutable evaluation state is collector-local.
+#[derive(Clone, Default)]
+pub struct CalculatedColumns {
+    expressions: BTreeMap<String, Arc<UntypedExpr>>,
+}
+
+impl CalculatedColumns {
+    /// Creates an empty calculated-column registry.
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Registers a named expression.
+    pub fn register(
+        &mut self,
+        name: impl Into<String>,
+        expression: UntypedExpr,
+    ) -> crate::Result<()> {
+        let name = name.into();
+        if self.expressions.contains_key(&name) {
+            return Err(crate::TantivyError::InvalidArgument(format!(
+                "Calculated column {name:?} is registered more than once"
+            )));
+        }
+        self.expressions.insert(name, Arc::new(expression));
+        Ok(())
+    }
+
+    /// Registers a named expression and returns the updated registry.
+    pub fn with_column(
+        mut self,
+        name: impl Into<String>,
+        expression: UntypedExpr,
+    ) -> crate::Result<Self> {
+        self.register(name, expression)?;
+        Ok(self)
+    }
+
+    /// Returns true if the registry contains `name`.
+    pub fn contains(&self, name: &str) -> bool {
+        self.expressions.contains_key(name)
+    }
+
+    /// Returns the sorted physical-column dependencies of a calculated column.
+    pub fn dependencies(&self, name: &str) -> crate::Result<Option<Vec<String>>> {
+        let Some(expression) = self.expressions.get(name) else {
+            return Ok(None);
+        };
+        let inferred = infer_types(expression).map_err(|error| {
+            crate::TantivyError::InvalidArgument(format!(
+                "Failed to infer types for calculated column {name:?}: {error}"
+            ))
+        })?;
+        let mut dependencies: Vec<String> =
+            inferred.keys().map(|name| (*name).to_string()).collect();
+        dependencies.sort();
+        Ok(Some(dependencies))
+    }
+
+    pub(crate) fn get(&self, name: &str) -> Option<&Arc<UntypedExpr>> {
+        self.expressions.get(name)
+    }
+
+    pub(crate) fn iter(&self) -> impl Iterator<Item = (&str, &Arc<UntypedExpr>)> {
+        self.expressions
+            .iter()
+            .map(|(name, expression)| (name.as_str(), expression))
+    }
+}
 
 /// A bucket id is a dense identifier for a bucket within an aggregation.
 /// It is used to index into a Vec that hold per-bucket data.
@@ -189,12 +267,37 @@ pub struct AggContextParams {
     pub limits: AggregationLimitsGuard,
     /// Tokenizer manager for query string parsing
     pub tokenizers: TokenizerManager,
+    /// Named calculated columns available to aggregation field resolution.
+    pub calculated_columns: CalculatedColumns,
 }
 
 impl AggContextParams {
     /// Create new aggregation context parameters
     pub fn new(limits: AggregationLimitsGuard, tokenizers: TokenizerManager) -> Self {
-        Self { limits, tokenizers }
+        Self {
+            limits,
+            tokenizers,
+            calculated_columns: CalculatedColumns::default(),
+        }
+    }
+
+    /// Registers a calculated column in this context.
+    pub fn register_calculated_column(
+        &mut self,
+        name: impl Into<String>,
+        expression: UntypedExpr,
+    ) -> crate::Result<()> {
+        self.calculated_columns.register(name, expression)
+    }
+
+    /// Registers a calculated column and returns the updated context.
+    pub fn with_calculated_column(
+        mut self,
+        name: impl Into<String>,
+        expression: UntypedExpr,
+    ) -> crate::Result<Self> {
+        self.register_calculated_column(name, expression)?;
+        Ok(self)
     }
 }
 

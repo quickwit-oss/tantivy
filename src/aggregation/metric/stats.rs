@@ -1,6 +1,6 @@
 use std::fmt::Debug;
 
-use columnar::{Column, ColumnType};
+use columnar::ColumnType;
 use serde::{Deserialize, Serialize};
 
 use super::*;
@@ -205,7 +205,7 @@ fn create_collector<const TYPE_ID: u8>(
         collecting_for: req.collecting_for,
         is_number_or_date_type: req.is_number_or_date_type,
         missing_u64: req.missing_u64,
-        accessor: req.accessor.clone(),
+        source: req.source.instantiate(),
         buckets: vec![IntermediateStats::default()],
     })
 }
@@ -214,7 +214,7 @@ fn create_collector<const TYPE_ID: u8>(
 pub(crate) fn build_segment_stats_collector(
     req: &MetricAggReqData,
 ) -> crate::Result<Box<dyn SegmentAggregationCollector>> {
-    match req.field_type {
+    match req.source.capabilities().output_type() {
         ColumnType::I64 => Ok(create_collector::<{ ColumnType::I64 as u8 }>(req)),
         ColumnType::U64 => Ok(create_collector::<{ ColumnType::U64 as u8 }>(req)),
         ColumnType::F64 => Ok(create_collector::<{ ColumnType::F64 as u8 }>(req)),
@@ -227,10 +227,10 @@ pub(crate) fn build_segment_stats_collector(
 }
 
 #[repr(C)]
-#[derive(Clone, Debug)]
+#[derive(Debug)]
 pub(crate) struct SegmentStatsCollector<const COLUMN_TYPE_ID: u8> {
     pub(crate) missing_u64: Option<u64>,
-    pub(crate) accessor: Column<u64>,
+    pub(crate) source: SegmentValueSource,
     pub(crate) is_number_or_date_type: bool,
     pub(crate) buckets: Vec<IntermediateStats>,
     pub(crate) name: String,
@@ -290,19 +290,22 @@ impl<const COLUMN_TYPE_ID: u8> SegmentAggregationCollector
         // skips the block accessor's buffers entirely.
         // Only valid without a missing value: `values_for_doc` yields nothing for a doc without a
         // value, so the substitute would be silently dropped.
+        // Only valid for a physical column: a calculated column has no per-doc accessor.
         // TODO: remove once we fetch all values for all bucket ids in one go
         if docs.len() == 1 && self.missing_u64.is_none() {
-            collect_stats::<COLUMN_TYPE_ID>(
-                &mut self.buckets[parent_bucket_id as usize],
-                self.accessor.values_for_doc(docs[0]),
-                self.is_number_or_date_type,
-            )?;
+            if let Some(column) = self.source.physical_column() {
+                collect_stats::<COLUMN_TYPE_ID>(
+                    &mut self.buckets[parent_bucket_id as usize],
+                    column.values_for_doc(docs[0]),
+                    self.is_number_or_date_type,
+                )?;
 
-            return Ok(());
+                return Ok(());
+            }
         }
         agg_data.column_block_accessor.fetch_block_with_missing(
             docs,
-            &self.accessor,
+            &mut self.source,
             self.missing_u64,
         );
         collect_stats::<COLUMN_TYPE_ID>(

@@ -115,6 +115,27 @@ pub fn get_fast_field_names(aggs: &Aggregations) -> HashSet<String> {
     fast_field_names
 }
 
+/// Extracts physical fast-field dependencies while expanding calculated-column aliases.
+///
+/// The existing [`get_fast_field_names`] behavior remains unchanged for callers that do not use
+/// calculated columns.
+pub fn get_fast_field_names_with_context(
+    aggs: &Aggregations,
+    context: &crate::aggregation::AggContextParams,
+) -> crate::Result<HashSet<String>> {
+    let mut dependencies = HashSet::new();
+    for field_name in get_fast_field_names(aggs) {
+        if let Some(calculated_dependencies) =
+            context.calculated_columns.dependencies(&field_name)?
+        {
+            dependencies.extend(calculated_dependencies);
+        } else {
+            dependencies.insert(field_name);
+        }
+    }
+    Ok(dependencies)
+}
+
 /// Validates that all fields referenced in the aggregation request exist in the schema
 /// and are configured as fast fields.
 ///
@@ -159,6 +180,25 @@ pub fn validate_aggregation_fields_exist(
     reader: &crate::SegmentReader,
 ) -> crate::Result<()> {
     let field_names = get_fast_field_names(aggs);
+    validate_fast_field_names_exist(field_names, reader)
+}
+
+/// Context-aware form of [`validate_aggregation_fields_exist`] which expands calculated aliases
+/// into their physical dependencies and rejects calculated/physical name collisions.
+pub fn validate_aggregation_fields_exist_with_context(
+    aggs: &Aggregations,
+    reader: &crate::SegmentReader,
+    context: &crate::aggregation::AggContextParams,
+) -> crate::Result<()> {
+    super::value_source::validate_calculated_column_names(reader, &context.calculated_columns)?;
+    let field_names = get_fast_field_names_with_context(aggs, context)?;
+    validate_fast_field_names_exist(field_names, reader)
+}
+
+fn validate_fast_field_names_exist(
+    field_names: HashSet<String>,
+    reader: &crate::SegmentReader,
+) -> crate::Result<()> {
     let schema = reader.schema();
 
     for field_name in field_names {
