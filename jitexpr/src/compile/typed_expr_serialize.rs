@@ -188,11 +188,54 @@ mod tests {
 
     #[test]
     fn test_serializes_normalized_compile_time_arguments() {
-        let variable_types = HashMap::from([("message", VarType::Str)]);
-        let cases = [(
-            r#"(REGEXP_EXTRACT message "([a-z]+)")"#,
-            r#"[string: REGEXP_EXTRACT [string: message] "([a-z]+)" 0u64]"#,
-        )];
+        let variable_types = HashMap::from([
+            ("message", VarType::Str),
+            ("number", VarType::F64),
+            ("other", VarType::Str),
+        ]);
+        let cases = [
+            (
+                "(CONCAT \" / \" \"TRUE\" message other)",
+                "[string: CONCAT \" / \" \"true\" [string: message] [string: other]]",
+            ),
+            (
+                "(LEFT message 2i64)",
+                "[string: LEFT [string: message] 2u64]",
+            ),
+            (
+                r#"(REGEXP_EXTRACT message "([a-z]+)")"#,
+                r#"[string: REGEXP_EXTRACT [string: message] "([a-z]+)" 0u64]"#,
+            ),
+            (
+                r#"(REGEXP_LIKE message "[a-z]+")"#,
+                r#"[boolean: REGEXP_LIKE [string: message] "[a-z]+"]"#,
+            ),
+            (
+                "(RIGHT message 2i64)",
+                "[string: RIGHT [string: message] 2u64]",
+            ),
+            ("(ROUND number)", "[int64: ROUND [float64: number] 0i64]"),
+            (
+                "(SPLIT_AFTER message \".\")",
+                "[string: SPLIT_AFTER [string: message] \".\" 0u64]",
+            ),
+            (
+                "(SPLIT_BEFORE message \".\")",
+                "[string: SPLIT_BEFORE [string: message] \".\" 0u64]",
+            ),
+            (
+                "(SUBSTRING message 1i64 2i64)",
+                "[string: SUBSTRING [string: message] 1u64 2u64]",
+            ),
+            (
+                "(TEXT_JOIN \" / \" \"FALSE\" message other)",
+                "[string: TEXT_JOIN \" / \" \"false\" [string: message] [string: other]]",
+            ),
+            (
+                "(TRIM message \"x\" \"BOTH\")",
+                "[string: TRIM [string: message] \"x\" \"both\"]",
+            ),
+        ];
 
         for (expression, expected) in cases {
             assert_eq!(serialize(expression, &variable_types), expected);
