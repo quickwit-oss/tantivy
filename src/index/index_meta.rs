@@ -1,3 +1,4 @@
+use std::collections::HashSet;
 use std::fmt;
 use std::path::PathBuf;
 use std::sync::atomic::AtomicBool;
@@ -384,6 +385,19 @@ impl IndexMeta {
         }
     }
 
+    /// Returns candidate relative paths for the segments in this metadata.
+    ///
+    /// Includes built-in component files, files for [`Self::persisted_custom_extensions`],
+    /// delete bitsets, and any still-tracked temporary docstores. Custom plugin files are
+    /// listed from the persisted extensions, without requiring plugin registration.
+    ///
+    /// This method does not access the directory: some candidates may not exist. It excludes
+    /// index-level files such as `meta.json` and `.managed.json`, and files belonging to
+    /// segments absent from [`Self::segments`].
+    pub fn list_segment_files(&self) -> HashSet<PathBuf> {
+        super::list_segment_files(&self.segments, &self.persisted_custom_extensions)
+    }
+
     pub(crate) fn deserialize(
         meta_json: &str,
         inventory: &SegmentMetaInventory,
@@ -406,14 +420,120 @@ impl fmt::Debug for IndexMeta {
 
 #[cfg(test)]
 mod tests {
+    use std::collections::HashSet;
+    use std::path::PathBuf;
 
-    use super::IndexMeta;
+    use super::{IndexMeta, SegmentMetaInventory};
     use crate::index::index_meta::UntrackedIndexMeta;
+    use crate::index::SegmentId;
     use crate::schema::{Schema, TEXT};
     use crate::store::Compressor;
     #[cfg(feature = "zstd-compression")]
     use crate::store::ZstdCompressor;
     use crate::{IndexSettings, IndexSortByField, Order};
+
+    fn expected_builtin_files(segment_id: SegmentId, delete_opstamp: u64) -> HashSet<PathBuf> {
+        let segment_uuid = segment_id.uuid_string();
+        let mut files = HashSet::with_capacity(7);
+        for extension in ["idx", "pos", "term", "store", "fast", "fieldnorm"] {
+            files.insert(PathBuf::from(format!("{segment_uuid}.{extension}")));
+        }
+        files.insert(PathBuf::from(format!(
+            "{segment_uuid}.{delete_opstamp}.del"
+        )));
+        files
+    }
+
+    #[test]
+    fn test_list_segment_files_empty_metadata() {
+        let mut metadata = IndexMeta::with_schema(Schema::builder().build());
+        metadata
+            .persisted_custom_extensions
+            .push("custom".to_string());
+        assert!(metadata.list_segment_files().is_empty());
+    }
+
+    #[test]
+    fn test_list_segment_files_builtin_candidates_and_segment_scope() {
+        let inventory = SegmentMetaInventory::default();
+        let segment_id = SegmentId::generate_random();
+        let segment_meta = inventory.new_segment_meta(segment_id, 10);
+        segment_meta.untrack_temp_docstore();
+        // Keep another segment tracked, but absent from the metadata being listed.
+        let other_segment_meta = inventory.new_segment_meta(SegmentId::generate_random(), 10);
+        let mut metadata = IndexMeta::with_schema(Schema::builder().build());
+        metadata.segments.push(segment_meta);
+
+        // No component files have been created. Listing still returns the candidates,
+        // but neither index-level files nor files from other tracked segments.
+        assert_eq!(
+            metadata.list_segment_files(),
+            expected_builtin_files(segment_id, 0)
+        );
+        assert_eq!(inventory.all().len(), 2);
+    }
+
+    #[test]
+    fn test_list_segment_files_tracks_temporary_docstore() {
+        let inventory = SegmentMetaInventory::default();
+        let segment_id = SegmentId::generate_random();
+        let segment_meta = inventory.new_segment_meta(segment_id, 10);
+        let mut metadata = IndexMeta::with_schema(Schema::builder().build());
+        metadata.segments.push(segment_meta.clone());
+        let mut expected = expected_builtin_files(segment_id, 0);
+        expected.insert(PathBuf::from(format!(
+            "{}.store.temp",
+            segment_id.uuid_string()
+        )));
+        assert_eq!(metadata.list_segment_files(), expected);
+
+        segment_meta.untrack_temp_docstore();
+        assert_eq!(
+            metadata.list_segment_files(),
+            expected_builtin_files(segment_id, 0)
+        );
+    }
+
+    #[test]
+    fn test_list_segment_files_uses_current_delete_opstamp() {
+        let inventory = SegmentMetaInventory::default();
+        let segment_id = SegmentId::generate_random();
+        let old_segment_meta = inventory
+            .new_segment_meta(segment_id, 10)
+            .with_delete_meta(1, 7);
+        let segment_meta = old_segment_meta.clone().with_delete_meta(2, 42);
+        segment_meta.untrack_temp_docstore();
+        let mut metadata = IndexMeta::with_schema(Schema::builder().build());
+        metadata.segments.push(segment_meta);
+
+        assert_eq!(
+            metadata.list_segment_files(),
+            expected_builtin_files(segment_id, 42)
+        );
+    }
+
+    #[test]
+    fn test_list_segment_files_custom_extensions() {
+        let inventory = SegmentMetaInventory::default();
+        let segment_ids = [SegmentId::generate_random(), SegmentId::generate_random()];
+        let mut metadata = IndexMeta::with_schema(Schema::builder().build());
+        metadata.persisted_custom_extensions =
+            vec!["custom".to_string(), "custom.data".to_string()];
+        let mut expected = HashSet::default();
+        for segment_id in segment_ids {
+            let segment_meta = inventory.new_segment_meta(segment_id, 10);
+            segment_meta.untrack_temp_docstore();
+            metadata.segments.push(segment_meta);
+            expected.extend(expected_builtin_files(segment_id, 0));
+            for extension in &metadata.persisted_custom_extensions {
+                expected.insert(PathBuf::from(format!(
+                    "{}.{extension}",
+                    segment_id.uuid_string()
+                )));
+            }
+        }
+        assert_eq!(metadata.list_segment_files(), expected);
+    }
 
     #[test]
     fn test_serialize_metas() {
