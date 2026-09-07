@@ -15,8 +15,6 @@ use cranelift::codegen::ir::{
 };
 use cranelift::frontend::FunctionBuilder;
 pub use error::CompileError;
-#[cfg(test)]
-pub(crate) use string_arena::STRING_ARENA_CAPACITY;
 pub use string_arena::StringArena;
 pub use typed_expr::TypedVariable;
 pub(crate) use typed_expr::{TypedExpr, TypedExprAst, TypedLiteral};

@@ -297,7 +297,10 @@ mod tests {
         assert_eq!(ArgumentCount::Exactly(1).to_string(), "exactly 1 argument");
         assert_eq!(ArgumentCount::Exactly(2).to_string(), "exactly 2 arguments");
         assert_eq!(ArgumentCount::AtLeast(1).to_string(), "at least 1 argument");
-        assert_eq!(ArgumentCount::AtLeast(2).to_string(), "at least 2 arguments");
+        assert_eq!(
+            ArgumentCount::AtLeast(2).to_string(),
+            "at least 2 arguments"
+        );
         assert_eq!(
             ArgumentCount::Between { min: 2, max: 3 }.to_string(),
             "between 2 and 3 arguments"
