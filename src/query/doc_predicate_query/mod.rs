@@ -1,8 +1,12 @@
 use std::sync::Arc;
 
 mod function_predicate;
+#[cfg(feature = "jitexpr")]
+mod jitexpr_predicate;
 
 pub use function_predicate::FunctionPredicate;
+#[cfg(feature = "jitexpr")]
+pub use jitexpr_predicate::{JitExprPredicate, JitExprSegmentPredicate};
 
 use crate::docset::{SeekDangerResult, TERMINATED};
 use crate::index::SegmentReader;
