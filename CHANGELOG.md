@@ -1,3 +1,10 @@
+Tantivy 0.26.2
+================================
+
+## Bugfixes
+- Fix missing local buffer flushes in nested aggregations that caused incorrect metric results for low-cardinality terms buckets [#2992](https://github.com/quickwit-oss/tantivy/issues/2992)(@PSeitz)
+- Disable the buffered union `seek_danger` override to avoid consuming unaligned scorers [#3086](https://github.com/quickwit-oss/tantivy/issues/3086)(@PSeitz)
+
 Tantivy 0.26.1
 ================================
 
