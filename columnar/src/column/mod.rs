@@ -76,6 +76,14 @@ impl<T: PartialOrd + Copy + Debug + Send + Sync + 'static> Column<T> {
         }
     }
 
+    /// Returns the total number of values stored in the column.
+    ///
+    /// Unlike [`Self::num_docs`], this counts every value in multivalued columns and does not count
+    /// documents without a value.
+    pub fn num_values(&self) -> RowId {
+        self.values.num_vals()
+    }
+
     pub fn min_value(&self) -> T {
         self.values.min_value()
     }
