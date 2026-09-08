@@ -29,6 +29,8 @@ mod union;
 mod weight;
 
 #[cfg(test)]
+mod seek_danger_tests;
+#[cfg(test)]
 mod vec_docset;
 
 pub(crate) mod score_combiner;

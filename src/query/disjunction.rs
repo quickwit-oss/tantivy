@@ -27,6 +27,18 @@ struct ScorerWrapper<T> {
     current_doc: DocId,
 }
 
+#[cfg(test)]
+pub(super) fn seek_danger_test_wrapper(scorer: Box<dyn Scorer>) -> impl Scorer {
+    ScorerWrapper::new(scorer)
+}
+
+#[cfg(test)]
+impl<T: Scorer> Scorer for ScorerWrapper<T> {
+    fn score(&mut self) -> Score {
+        self.scorer.score()
+    }
+}
+
 impl<T: Scorer> ScorerWrapper<T> {
     fn new(scorer: T) -> Self {
         let current_doc = scorer.doc();
