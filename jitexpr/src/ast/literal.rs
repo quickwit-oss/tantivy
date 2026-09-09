@@ -42,7 +42,7 @@ impl Literal {
                 ..InferredTypeSet::NONE
             },
             Literal::F64(value) => {
-                let is_integral = value.is_finite() && value.fract() == 0.0;
+                let is_integral: bool = value.fract() == 0.0;
                 InferredTypeSet {
                     i64: is_integral && *value >= i64::MIN as f64 && *value < -(i64::MIN as f64),
                     u64: is_integral && *value >= 0.0 && *value < u64::MAX as f64,
