@@ -221,6 +221,10 @@ pub(crate) trait FnCall: std::fmt::Debug + Into<FnCallEnum> {
     /// Implementations validate their signature, recursively infer every argument, update
     /// `inferred_types` with the accepted types for variables, and return the possible result
     /// types that remain after intersecting with `target_type`.
+    ///
+    /// As we recursively visit the argument, we encounter variables.
+    /// This method is meant to restrict the set of accept types associated to each
+    /// variable name by mutating their inferred type set, found in inferred_types map.
     fn infer_types<'a>(
         args: &'a [UntypedExpr],
         target_type: InferredTypeSet,
