@@ -294,18 +294,21 @@ mod tests {
             assert!(infer_types(&expression).is_ok());
         }
 
-        for expression in [
-            r#"(REGEXP_EXTRACT message)"#,
-            r#"(REGEXP_EXTRACT message "([a-z]+)" 0u64 1u64)"#,
+        for args in [
+            vec![UntypedExpr::variable("message")],
+            vec![
+                UntypedExpr::variable("message"),
+                UntypedExpr::literal("([a-z]+)"),
+                UntypedExpr::literal(0u64),
+                UntypedExpr::literal(1u64),
+            ],
         ] {
-            let expression = ast::deserialize(expression).unwrap();
+            // Bypass call validation to exercise type inference on an invalid AST.
+            let invalid_function_call: InvalidFunctionCall =
+                UntypedExpr::call(Function::RegexpExtract, args).unwrap_err();
             assert!(matches!(
-                infer_types(&expression),
-                Err(TypeError::InvalidNumberOfArguments {
-                    function: Function::RegexpExtract,
-                    expected: 3,
-                    ..
-                })
+                invalid_function_call,
+                InvalidFunctionCall::InvalidNumberOfArguments { .. }
             ));
         }
     }

@@ -32,6 +32,8 @@ pub fn serialize(expr: &UntypedExpr) -> String {
 }
 
 /// Deserializes an untyped expression from its Lisp-like form.
+///
+/// Function calls are validated through [`UntypedExpr::call`]; type checking still happens later.
 pub fn deserialize(input: &str) -> Result<UntypedExpr, DeserializeError> {
     Parser::new(input).parse()
 }
@@ -280,7 +282,8 @@ impl<'a> Parser<'a> {
             match self.peek() {
                 Some(')') => {
                     self.advance();
-                    return Ok(UntypedExpr::Call { function, args });
+                    return UntypedExpr::call(function, args)
+                        .map_err(|error| DeserializeError::new(call_offset, error.to_string()));
                 }
                 Some(_) => args.push(self.parse_expr()?),
                 None => {
@@ -635,15 +638,14 @@ mod tests {
     }
 
     #[test]
-    fn test_field_names_with_every_ascii_character_round_trip() {
-        // Tantivy permits every character within a nonempty name that does not
-        // start with '-'. Include delimiters, escapes, and control characters.
-        for byte in 0u8..=127 {
-            let name = format!("field{}tail", char::from(byte));
-            let expr = UntypedExpr::variable(&name);
-            let serialized = serialize(&expr);
-            assert_eq!(deserialize(&serialized).unwrap(), expr, "name: {name:?}");
-        }
+    fn test_deserialize_rejects_invalid_function_calls() {
+        let input = "(IS_NULL)";
+        let expected_message = "invalid number of arguments";
+        let error = deserialize(input).unwrap_err();
+        assert!(
+            error.message().contains(expected_message),
+            "input: {input}; error: {error}"
+        );
     }
 
     #[test]

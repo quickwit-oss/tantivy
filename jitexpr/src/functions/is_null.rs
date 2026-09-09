@@ -98,8 +98,9 @@ impl From<IsNullFnCall> for FnCallEnum {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ast::{deserialize, infer_types};
+    use crate::ast::{InvalidFunctionCall, deserialize, infer_types};
     use crate::compile::compile;
+    use crate::functions::ArgumentCount;
     use crate::types::VariableValue;
 
     fn eval(expression: &str) -> Option<bool> {
@@ -119,15 +120,21 @@ mod tests {
 
     #[test]
     fn test_rejects_wrong_arity() {
-        for expression in ["(IS_NULL)", "(IS_NULL value other)"] {
-            let expression = deserialize(expression).unwrap();
+        for args in [
+            vec![],
+            vec![
+                UntypedExpr::variable("value"),
+                UntypedExpr::variable("other"),
+            ],
+        ] {
+            let invalid_function_call: InvalidFunctionCall =
+                UntypedExpr::call(Function::IsNull, args).unwrap_err();
             assert!(matches!(
-                infer_types(&expression),
-                Err(TypeError::InvalidNumberOfArguments {
-                    function: Function::IsNull,
-                    expected: 1,
+                invalid_function_call,
+                InvalidFunctionCall::InvalidNumberOfArguments {
+                    expected: ArgumentCount::Exactly(1),
                     ..
-                })
+                }
             ));
         }
     }
