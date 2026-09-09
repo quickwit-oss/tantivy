@@ -89,7 +89,7 @@ fn format_expr(expr: &UntypedExpr, formatter: &mut fmt::Formatter<'_>) -> fmt::R
     match expr {
         UntypedExpr::Literal(literal) => format_literal(literal, formatter),
         UntypedExpr::Variable(variable_name) => format_variable_name(variable_name, formatter),
-        UntypedExpr::Call { function, args } => {
+        UntypedExpr::FnCall { function, args } => {
             write!(formatter, "({}", function_name(*function))?;
             for arg in args {
                 write!(formatter, " {arg}")?;
@@ -232,7 +232,7 @@ impl<'a> Parser<'a> {
     fn parse_expr(&mut self) -> Result<UntypedExpr, DeserializeError> {
         self.skip_whitespace();
         match self.peek() {
-            Some('(') => self.parse_call(),
+            Some('(') => self.parse_fn_call(),
             Some('"') => self
                 .parse_quoted('"', "string literal")
                 .map(|value| UntypedExpr::Literal(Literal::String(Arc::from(value)))),
@@ -248,14 +248,14 @@ impl<'a> Parser<'a> {
         }
     }
 
-    fn parse_call(&mut self) -> Result<UntypedExpr, DeserializeError> {
-        let call_offset = self.offset;
+    fn parse_fn_call(&mut self) -> Result<UntypedExpr, DeserializeError> {
+        let fn_call_offset = self.offset;
         self.advance();
         self.skip_whitespace();
 
         if self.peek().is_none() {
             return Err(DeserializeError::new(
-                call_offset,
+                fn_call_offset,
                 "unterminated function call",
             ));
         }
@@ -282,13 +282,13 @@ impl<'a> Parser<'a> {
             match self.peek() {
                 Some(')') => {
                     self.advance();
-                    return UntypedExpr::call(function, args)
-                        .map_err(|error| DeserializeError::new(call_offset, error.to_string()));
+                    return UntypedExpr::new_fn_call(function, args)
+                        .map_err(|error| DeserializeError::new(fn_call_offset, error.to_string()));
                 }
                 Some(_) => args.push(self.parse_expr()?),
                 None => {
                     return Err(DeserializeError::new(
-                        call_offset,
+                        fn_call_offset,
                         "unterminated function call",
                     ));
                 }
@@ -428,7 +428,7 @@ mod tests {
 
     #[test]
     fn test_serialize_example() {
-        let expr = UntypedExpr::call(
+        let expr = UntypedExpr::new_fn_call(
             Function::Add,
             vec![UntypedExpr::literal(1i64), UntypedExpr::variable("my_col")],
         )
@@ -460,7 +460,7 @@ mod tests {
     #[test]
     fn test_nested_call_and_escaped_string_round_trip() {
         let string = "quoted: \"hello\"\\world\n\t\0\u{7} café";
-        let regexp_extract = UntypedExpr::call(
+        let regexp_extract = UntypedExpr::new_fn_call(
             Function::RegexpExtract,
             vec![
                 UntypedExpr::variable("message"),
@@ -469,7 +469,7 @@ mod tests {
             ],
         )
         .unwrap();
-        let expr = UntypedExpr::call(
+        let expr = UntypedExpr::new_fn_call(
             Function::Add,
             vec![regexp_extract, UntypedExpr::literal(2i64)],
         )
@@ -487,7 +487,7 @@ mod tests {
     #[test]
     fn test_deserialize_accepts_whitespace() {
         let parsed = deserialize(" \n ( ADD\t1i64\nmy_col ) \r").unwrap();
-        let expected = UntypedExpr::call(
+        let expected = UntypedExpr::new_fn_call(
             Function::Add,
             vec![UntypedExpr::literal(1i64), UntypedExpr::variable("my_col")],
         )
@@ -572,7 +572,7 @@ mod tests {
             assert!(serialize(&expr).contains(name));
             assert_eq!(deserialize(name).unwrap(), expr);
 
-            let call = UntypedExpr::call(Function::Add, vec![expr]).unwrap();
+            let call = UntypedExpr::new_fn_call(Function::Add, vec![expr]).unwrap();
             let serialized = format!("(ADD {name})");
             assert_eq!(deserialize(&serialized).unwrap(), call);
         }
@@ -593,7 +593,7 @@ mod tests {
             assert_eq!(deserialize(&serialized).unwrap(), expr);
         }
 
-        let expr = UntypedExpr::call(
+        let expr = UntypedExpr::new_fn_call(
             Function::Add,
             vec![UntypedExpr::variable("1u64"), UntypedExpr::literal(1u64)],
         )
@@ -619,7 +619,7 @@ mod tests {
             assert_eq!(serialize(&expr), serialized);
             assert_eq!(format!("{expr:?}"), serialized);
             assert_eq!(deserialize(serialized).unwrap(), expr);
-            let call = UntypedExpr::call(Function::IsNull, vec![expr]).unwrap();
+            let call = UntypedExpr::new_fn_call(Function::IsNull, vec![expr]).unwrap();
             assert_eq!(deserialize(&serialize(&call)).unwrap(), call);
         }
 
@@ -638,7 +638,7 @@ mod tests {
     }
 
     #[test]
-    fn test_deserialize_rejects_invalid_function_calls() {
+    fn test_deserialize_rejects_invalid_fn_calls() {
         let input = "(IS_NULL)";
         let expected_message = "invalid number of arguments";
         let error = deserialize(input).unwrap_err();

@@ -18,7 +18,7 @@ pub use error::CompileError;
 pub use string_arena::StringArena;
 pub use typed_expr::TypedVariable;
 pub(crate) use typed_expr::{TypedExpr, TypedExprAst, TypedLiteral};
-pub(crate) use typed_expr_serialize::{format_function_call, format_string_literal};
+pub(crate) use typed_expr_serialize::{format_fn_call, format_string_literal};
 
 use crate::ast::UntypedExpr;
 use crate::functions::NativeFunctions;
@@ -315,7 +315,7 @@ mod tests {
 
     #[test]
     fn test_compile_native_call_to_assembly() {
-        let untyped_expr = UntypedExpr::call(
+        let untyped_expr = UntypedExpr::new_fn_call(
             Function::RegexpExtract,
             vec![
                 UntypedExpr::variable("message"),
@@ -335,7 +335,7 @@ mod tests {
     #[cfg(target_arch = "aarch64")]
     #[test]
     fn test_compile_to_assembly_does_not_sign_return_address() {
-        let untyped_expr = UntypedExpr::call(
+        let untyped_expr = UntypedExpr::new_fn_call(
             Function::RegexpExtract,
             vec![
                 UntypedExpr::variable("value"),

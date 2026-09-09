@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::collections::hash_map::Entry;
 
 use crate::ast::{Function, Literal, UntypedExpr};
-use crate::functions::InvalidFunctionCall;
+use crate::functions::InvalidFnCall;
 use crate::types::VarType;
 
 #[derive(Default, Copy, Clone, Debug, Eq, PartialEq)]
@@ -139,7 +139,7 @@ impl std::fmt::Display for InferredTypeSet {
 #[derive(Debug, thiserror::Error)]
 pub enum TypeError {
     #[error(transparent)]
-    InvalidFunctionCall(#[from] InvalidFunctionCall),
+    InvalidFnCall(#[from] InvalidFnCall),
     #[error("function `{function:?}` returns `{got}`, expected `{expected}`")]
     WrongFunctionReturnType {
         function: Function,
@@ -203,7 +203,7 @@ pub(crate) fn infer_types_aux<'a>(
                 }
             }
         }
-        UntypedExpr::Call { function, args } => {
+        UntypedExpr::FnCall { function, args } => {
             function.infer_types(args, target_inferred_type, inferred_types_res)
         }
     }
@@ -234,7 +234,7 @@ fn seed_variable_types<'a>(
                 .unwrap_or(InferredTypeSet::NONE);
             inferred_types.insert(variable_name.as_ref(), inferred_type);
         }
-        UntypedExpr::Call { args, .. } => {
+        UntypedExpr::FnCall { args, .. } => {
             for arg in args {
                 seed_variable_types(arg, variable_types, inferred_types);
             }
@@ -257,7 +257,7 @@ mod tests {
 
     #[test]
     fn test_infer_type_uses_concrete_variable_types() {
-        let expr = UntypedExpr::call(
+        let expr = UntypedExpr::new_fn_call(
             Function::Add,
             vec![UntypedExpr::variable("my_col"), UntypedExpr::literal(1i64)],
         )
@@ -273,7 +273,7 @@ mod tests {
 
     #[test]
     fn test_infer_type_falls_back_to_f64_for_disjoint_numeric_types() {
-        let expr = UntypedExpr::call(
+        let expr = UntypedExpr::new_fn_call(
             Function::Add,
             vec![
                 UntypedExpr::variable("unsigned"),

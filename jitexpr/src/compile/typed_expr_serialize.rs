@@ -51,7 +51,7 @@ fn format_literal(literal: &TypedLiteral, formatter: &mut fmt::Formatter) -> fmt
     }
 }
 
-pub(crate) fn format_function_call<'a>(
+pub(crate) fn format_fn_call<'a>(
     name: &str,
     args: impl IntoIterator<Item = &'a TypedExpr>,
     formatter: &mut fmt::Formatter,

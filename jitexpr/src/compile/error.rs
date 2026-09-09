@@ -1,4 +1,4 @@
-use crate::ast::{Function, InvalidFunctionCall, TypeError};
+use crate::ast::{Function, InvalidFnCall, TypeError};
 use crate::types::VarType;
 
 #[derive(Debug, thiserror::Error)]
@@ -21,7 +21,7 @@ pub enum CompileError {
         source: regex::Error,
     },
     #[error("arguments do not match the function {0}")]
-    InvalidArguments(#[from] InvalidFunctionCall),
+    InvalidArguments(#[from] InvalidFnCall),
 }
 
 impl From<cranelift_module::ModuleError> for CompileError {

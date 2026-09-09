@@ -29,14 +29,14 @@ pub enum Function {
 }
 
 impl Function {
-    pub(crate) fn call(self, args: Vec<UntypedExpr>) -> Result<UntypedExpr, InvalidFunctionCall> {
+    pub(crate) fn call(self, args: Vec<UntypedExpr>) -> Result<UntypedExpr, InvalidFnCall> {
         match self {
             Function::Add => <AddFnCall as FnCall>::validate_args(&args)?,
             Function::IsNull => <IsNullFnCall as FnCall>::validate_args(&args)?,
             Function::RegexpExtract => <RegexpExtractFnCall as FnCall>::validate_args(&args)?,
         }
 
-        Ok(UntypedExpr::Call {
+        Ok(UntypedExpr::FnCall {
             function: self,
             args,
         })
@@ -120,7 +120,7 @@ impl FnCallEnum {
 
 /// Error representing an invalid function call.
 #[derive(Debug, Eq, PartialEq, thiserror::Error)]
-pub enum InvalidFunctionCall {
+pub enum InvalidFnCall {
     #[error("invalid number of arguments: expected {expected}, got {provided}")]
     InvalidNumberOfArguments {
         expected: ArgumentCount,
@@ -167,7 +167,7 @@ impl std::fmt::Display for ArgumentCount {
 }
 
 impl ArgumentCount {
-    fn validate(self, args: &[UntypedExpr]) -> Result<(), InvalidFunctionCall> {
+    fn validate(self, args: &[UntypedExpr]) -> Result<(), InvalidFnCall> {
         let provided = args.len();
         let is_valid = match self {
             ArgumentCount::Any => true,
@@ -178,7 +178,7 @@ impl ArgumentCount {
         if is_valid {
             Ok(())
         } else {
-            Err(InvalidFunctionCall::InvalidNumberOfArguments {
+            Err(InvalidFnCall::InvalidNumberOfArguments {
                 expected: self,
                 provided,
             })
@@ -191,9 +191,9 @@ pub(crate) fn validate_literal(
     index: usize,
     expected: VarType,
     is_valid: impl FnOnce(&Literal) -> bool,
-) -> Result<(), InvalidFunctionCall> {
+) -> Result<(), InvalidFnCall> {
     let Some(UntypedExpr::Literal(literal)) = args.get(index) else {
-        return Err(InvalidFunctionCall::ExpectedLiteral {
+        return Err(InvalidFnCall::ExpectedLiteral {
             argument: index + 1,
             expected,
         });
@@ -201,7 +201,7 @@ pub(crate) fn validate_literal(
     if is_valid(literal) {
         Ok(())
     } else {
-        Err(InvalidFunctionCall::ExpectedLiteral {
+        Err(InvalidFnCall::ExpectedLiteral {
             argument: index + 1,
             expected,
         })
@@ -212,7 +212,7 @@ pub(crate) fn validate_literal(
 ///
 /// The static methods operate on an [`UntypedExpr`] call before a concrete call node exists.
 /// Once [`FnCall::call_with_types`] has produced that node, [`FnCall::args_mut`] and
-/// [`FnCall::lower`] operate on its typed representation.
+/// [`FnCall::emit_cranelift_ir`] operate on its typed representation.
 pub(crate) trait FnCall: std::fmt::Debug + Into<FnCallEnum> {
     const ARG_COUNT: ArgumentCount;
 
@@ -229,7 +229,7 @@ pub(crate) trait FnCall: std::fmt::Debug + Into<FnCallEnum> {
     where
         Self: Sized;
 
-    fn validate_args(args: &[UntypedExpr]) -> Result<(), InvalidFunctionCall> {
+    fn validate_args(args: &[UntypedExpr]) -> Result<(), InvalidFnCall> {
         Self::ARG_COUNT.validate(args)?;
         Ok(())
     }
@@ -277,8 +277,8 @@ mod tests {
     use super::*;
     use crate::compile::compile;
 
-    fn call_error(function: Function, args: Vec<UntypedExpr>) -> InvalidFunctionCall {
-        match UntypedExpr::call(function, args) {
+    fn call_error(function: Function, args: Vec<UntypedExpr>) -> InvalidFnCall {
+        match UntypedExpr::new_fn_call(function, args) {
             Ok(_) => panic!("expected the function call to be rejected"),
             Err(error) => error,
         }
@@ -304,26 +304,26 @@ mod tests {
     fn test_argument_count_validation() {
         assert_eq!(
             call_error(Function::IsNull, Vec::new()),
-            InvalidFunctionCall::InvalidNumberOfArguments {
+            InvalidFnCall::InvalidNumberOfArguments {
                 expected: ArgumentCount::Exactly(1),
                 provided: 0,
             }
         );
         assert_eq!(
             ArgumentCount::AtLeast(1).validate(&[]).unwrap_err(),
-            InvalidFunctionCall::InvalidNumberOfArguments {
+            InvalidFnCall::InvalidNumberOfArguments {
                 expected: ArgumentCount::AtLeast(1),
                 provided: 0,
             }
         );
         assert_eq!(
             call_error(Function::RegexpExtract, Vec::new()),
-            InvalidFunctionCall::InvalidNumberOfArguments {
+            InvalidFnCall::InvalidNumberOfArguments {
                 expected: ArgumentCount::Between { min: 2, max: 3 },
                 provided: 0,
             }
         );
-        assert!(UntypedExpr::call(Function::Add, Vec::new()).is_ok());
+        assert!(UntypedExpr::new_fn_call(Function::Add, Vec::new()).is_ok());
     }
 
     #[test]
@@ -336,7 +336,7 @@ mod tests {
                     UntypedExpr::variable("pattern")
                 ],
             ),
-            InvalidFunctionCall::ExpectedLiteral {
+            InvalidFnCall::ExpectedLiteral {
                 argument: 2,
                 expected: VarType::Str,
             }
@@ -350,7 +350,7 @@ mod tests {
                     UntypedExpr::literal(1i64),
                 ],
             ),
-            InvalidFunctionCall::ExpectedLiteral {
+            InvalidFnCall::ExpectedLiteral {
                 argument: 3,
                 expected: VarType::U64,
             }
@@ -360,14 +360,14 @@ mod tests {
     #[test]
     fn test_typed_construction_validates_unchecked_ast() {
         // Bypass construction-time validation to exercise the compiler's checks.
-        let expression = UntypedExpr::Call {
+        let expression = UntypedExpr::FnCall {
             function: Function::IsNull,
             args: Vec::new(),
         };
         let error = compile(&expression, &HashMap::new()).err().unwrap();
         assert!(matches!(
             error,
-            CompileError::InvalidArguments(InvalidFunctionCall::InvalidNumberOfArguments {
+            CompileError::InvalidArguments(InvalidFnCall::InvalidNumberOfArguments {
                 expected: ArgumentCount::Exactly(1),
                 provided: 0,
             })

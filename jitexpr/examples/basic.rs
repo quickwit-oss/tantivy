@@ -9,7 +9,7 @@ use jitexpr::types::{VarType, VariableValue};
 fn main() -> Result<(), Box<dyn Error>> {
     // A simple expression that goes:
     // my_col + 1
-    let untyped_expr = UntypedExpr::call(
+    let untyped_expr = UntypedExpr::new_fn_call(
         Function::Add,
         vec![
             UntypedExpr::variable("my_col"),

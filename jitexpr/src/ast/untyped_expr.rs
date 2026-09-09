@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use crate::ast::{Function, Literal};
-use crate::functions::InvalidFunctionCall;
+use crate::functions::InvalidFnCall;
 
 /// An expression AST.
 ///
@@ -10,7 +10,7 @@ use crate::functions::InvalidFunctionCall;
 pub enum UntypedExpr {
     Literal(Literal),
     Variable(Arc<str>),
-    Call {
+    FnCall {
         function: Function,
         args: Vec<UntypedExpr>,
     },
@@ -28,10 +28,10 @@ impl UntypedExpr {
     /// Creates an untyped expression that is a function over different arguments.
     ///
     /// This call will validate the arguments and
-    pub fn call(
+    pub fn new_fn_call(
         function: Function,
         args: Vec<UntypedExpr>,
-    ) -> Result<UntypedExpr, InvalidFunctionCall> {
+    ) -> Result<UntypedExpr, InvalidFnCall> {
         function.call(args)
     }
 }

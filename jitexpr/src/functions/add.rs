@@ -90,7 +90,7 @@ impl FnCall for AddFnCall {
         }
         Ok(TypedExpr {
             return_type,
-            ast: TypedExprAst::from_call(AddFnCall {
+            ast: TypedExprAst::from_fn_call(AddFnCall {
                 args: typed_args.into_boxed_slice(),
             }),
         })
@@ -101,7 +101,7 @@ impl FnCall for AddFnCall {
     }
 
     fn serialize(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
-        crate::compile::format_function_call("ADD", self.args.iter(), formatter)
+        crate::compile::format_fn_call("ADD", self.args.iter(), formatter)
     }
 
     fn emit_cranelift_ir(
@@ -179,7 +179,7 @@ mod tests {
 
     #[test]
     fn test_infer_types_rejects_string_argument() {
-        let expr = UntypedExpr::call(
+        let expr = UntypedExpr::new_fn_call(
             Function::Add,
             vec![UntypedExpr::literal(1.0), UntypedExpr::literal("hello")],
         )
@@ -196,7 +196,7 @@ mod tests {
 
     #[test]
     fn test_infer_types_constrains_variables_to_numerical() {
-        let expr = UntypedExpr::call(
+        let expr = UntypedExpr::new_fn_call(
             Function::Add,
             vec![UntypedExpr::variable("a"), UntypedExpr::variable("b")],
         )
@@ -215,7 +215,7 @@ mod tests {
             typed_expr,
             TypedExpr {
                 return_type: VarType::U64,
-                ast: TypedExprAst::from_call(AddFnCall {
+                ast: TypedExprAst::from_fn_call(AddFnCall {
                     args: vec![
                         TypedExprAst::variable("present", VarType::U64).with_type(VarType::U64),
                         TypedExpr::literal(1u64),
@@ -236,7 +236,7 @@ mod tests {
             typed_expr,
             TypedExpr {
                 return_type: VarType::U64,
-                ast: TypedExprAst::from_call(AddFnCall {
+                ast: TypedExprAst::from_fn_call(AddFnCall {
                     args: vec![
                         TypedExprAst::variable("present", VarType::U64).with_type(VarType::U64),
                         TypedExpr::literal(1u64),
@@ -295,7 +295,7 @@ mod tests {
             typed_expr,
             TypedExpr {
                 return_type: VarType::U64,
-                ast: TypedExprAst::from_call(AddFnCall {
+                ast: TypedExprAst::from_fn_call(AddFnCall {
                     args: vec![TypedExpr::literal(9223372036854775808u64)].into_boxed_slice(),
                 }),
             }
@@ -327,7 +327,7 @@ mod tests {
 
     #[test]
     fn test_compile_signed_add() {
-        let expression = UntypedExpr::call(
+        let expression = UntypedExpr::new_fn_call(
             Function::Add,
             vec![
                 UntypedExpr::literal(-4i64),
@@ -352,7 +352,7 @@ mod tests {
         ];
 
         for args in argument_orders {
-            let expression = UntypedExpr::call(Function::Add, args).unwrap();
+            let expression = UntypedExpr::new_fn_call(Function::Add, args).unwrap();
             let mut compiled = compile(&expression, &variable_types).unwrap().context();
             let input = [VariableValue::some(41u64)];
             let output = unsafe { compiled.call(&input) };
@@ -362,12 +362,12 @@ mod tests {
 
     #[test]
     fn test_compile_coerces_compatible_nested_add_to_u64() {
-        let nested_literals = UntypedExpr::call(
+        let nested_literals = UntypedExpr::new_fn_call(
             Function::Add,
             vec![UntypedExpr::literal(1i64), UntypedExpr::literal(2u64)],
         )
         .unwrap();
-        let expression = UntypedExpr::call(
+        let expression = UntypedExpr::new_fn_call(
             Function::Add,
             vec![UntypedExpr::variable("myfield"), nested_literals],
         )
@@ -382,7 +382,7 @@ mod tests {
 
     #[test]
     fn test_compile_coerces_integers_to_float() {
-        let expression = UntypedExpr::call(
+        let expression = UntypedExpr::new_fn_call(
             Function::Add,
             vec![
                 UntypedExpr::variable("myfield"),
@@ -401,7 +401,7 @@ mod tests {
 
     #[test]
     fn test_compile_loads_multiple_variable_slots() {
-        let expression = UntypedExpr::call(
+        let expression = UntypedExpr::new_fn_call(
             Function::Add,
             vec![UntypedExpr::variable("x"), UntypedExpr::variable("y")],
         )
@@ -426,7 +426,7 @@ mod tests {
 
     #[test]
     fn test_compile_u64_to_float_coercion_is_unsigned() {
-        let expression = UntypedExpr::call(
+        let expression = UntypedExpr::new_fn_call(
             Function::Add,
             vec![UntypedExpr::variable("x"), UntypedExpr::literal(0.5f64)],
         )
@@ -441,7 +441,7 @@ mod tests {
 
     #[test]
     fn test_compile_reuses_repeated_variable_slot() {
-        let expression = UntypedExpr::call(
+        let expression = UntypedExpr::new_fn_call(
             Function::Add,
             vec![
                 UntypedExpr::variable("x"),
@@ -465,7 +465,7 @@ mod tests {
 
     #[test]
     fn test_compile_can_coerce_variable_when_necessary() {
-        let expression = UntypedExpr::call(
+        let expression = UntypedExpr::new_fn_call(
             Function::Add,
             vec![UntypedExpr::variable("x"), UntypedExpr::literal(1.2f64)],
         )
@@ -489,7 +489,7 @@ mod tests {
         let typed_expr = crate::typed_expr_from_str("(ADD)", &variable_types);
         assert_eq!(typed_expr.return_type, VarType::I64);
 
-        let expression = UntypedExpr::call(Function::Add, Vec::new()).unwrap();
+        let expression = UntypedExpr::new_fn_call(Function::Add, Vec::new()).unwrap();
         let mut compiled = compile(&expression, &HashMap::new()).unwrap().context();
         let output = unsafe { compiled.call(&[]) };
         assert_eq!(unsafe { output.as_i64() }, Some(0));
@@ -501,7 +501,7 @@ mod tests {
         let variable_types = HashMap::new();
         let typed_expr = crate::typed_expr_from_str("(ADD 1.2f64 1u64)", &variable_types);
         assert_eq!(typed_expr.return_type, VarType::F64);
-        let expression = UntypedExpr::call(Function::Add, args).unwrap();
+        let expression = UntypedExpr::new_fn_call(Function::Add, args).unwrap();
         let mut compiled = compile(&expression, &HashMap::new()).unwrap().context();
         let output = unsafe { compiled.call(&[]) };
         assert_eq!(unsafe { output.as_f64() }, Some(2.2f64));

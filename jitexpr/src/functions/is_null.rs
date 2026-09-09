@@ -58,7 +58,7 @@ impl FnCall for IsNullFnCall {
         let arg = context.apply_types(&args[0], InferredTypeSet::ALL)?;
         Ok(TypedExpr {
             return_type: VarType::Bool,
-            ast: TypedExprAst::from_call(IsNullFnCall {
+            ast: TypedExprAst::from_fn_call(IsNullFnCall {
                 args: vec![arg].into_boxed_slice(),
             }),
         })
@@ -69,7 +69,7 @@ impl FnCall for IsNullFnCall {
     }
 
     fn serialize(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
-        crate::compile::format_function_call("IS_NULL", self.args.iter(), formatter)
+        crate::compile::format_fn_call("IS_NULL", self.args.iter(), formatter)
     }
 
     fn emit_cranelift_ir(
@@ -98,7 +98,7 @@ impl From<IsNullFnCall> for FnCallEnum {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ast::{InvalidFunctionCall, deserialize, infer_types};
+    use crate::ast::{InvalidFnCall, deserialize, infer_types};
     use crate::compile::compile;
     use crate::functions::ArgumentCount;
     use crate::types::VariableValue;
@@ -127,11 +127,11 @@ mod tests {
                 UntypedExpr::variable("other"),
             ],
         ] {
-            let invalid_function_call: InvalidFunctionCall =
-                UntypedExpr::call(Function::IsNull, args).unwrap_err();
+            let invalid_fn_call: InvalidFnCall =
+                UntypedExpr::new_fn_call(Function::IsNull, args).unwrap_err();
             assert!(matches!(
-                invalid_function_call,
-                InvalidFunctionCall::InvalidNumberOfArguments {
+                invalid_fn_call,
+                InvalidFnCall::InvalidNumberOfArguments {
                     expected: ArgumentCount::Exactly(1),
                     ..
                 }
@@ -168,7 +168,8 @@ mod tests {
         // constructed expressions can still contain them. They are not null.
         for value in [f64::NAN, f64::INFINITY, f64::NEG_INFINITY] {
             let expression =
-                UntypedExpr::call(Function::IsNull, vec![UntypedExpr::literal(value)]).unwrap();
+                UntypedExpr::new_fn_call(Function::IsNull, vec![UntypedExpr::literal(value)])
+                    .unwrap();
             let mut compiled = compile(&expression, &HashMap::new()).unwrap().context();
             // SAFETY: The expression has no runtime inputs and returns a boolean.
             assert_eq!(unsafe { compiled.call(&[]).as_bool() }, Some(false));

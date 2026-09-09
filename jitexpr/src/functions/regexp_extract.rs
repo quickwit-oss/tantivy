@@ -25,7 +25,7 @@ use crate::ast::{Function, InferredTypeSet, Literal, TypeError, UntypedExpr};
 use crate::compile::{
     CompileError, CompileFnBuilder, LoweredValue, LoweringContext, TypedExpr, TypedExprAst,
 };
-use crate::functions::{FnCall, FnCallEnum, InvalidFunctionCall};
+use crate::functions::{FnCall, FnCallEnum, InvalidFnCall};
 use crate::types::VarType;
 
 const SYMBOL: &str = "jitexpr_regexp_extract";
@@ -48,7 +48,7 @@ impl PartialEq for RegexpExtractFnCall {
 impl FnCall for RegexpExtractFnCall {
     const ARG_COUNT: super::ArgumentCount = super::ArgumentCount::Between { min: 2, max: 3 };
 
-    fn validate_args(args: &[UntypedExpr]) -> Result<(), InvalidFunctionCall> {
+    fn validate_args(args: &[UntypedExpr]) -> Result<(), InvalidFnCall> {
         Self::ARG_COUNT.validate(args)?;
         super::validate_literal(args, 1, VarType::Str, |literal| {
             matches!(literal, Literal::String(_))
@@ -99,7 +99,7 @@ impl FnCall for RegexpExtractFnCall {
             return Ok(TypedExpr::none());
         }
         let UntypedExpr::Literal(Literal::String(pattern)) = &args[1] else {
-            return Err(InvalidFunctionCall::ExpectedLiteral {
+            return Err(InvalidFnCall::ExpectedLiteral {
                 argument: 2,
                 expected: VarType::Str,
             }
@@ -116,7 +116,7 @@ impl FnCall for RegexpExtractFnCall {
             None => 0,
             Some(UntypedExpr::Literal(Literal::U64(capture_index))) => *capture_index,
             Some(_) => {
-                return Err(InvalidFunctionCall::ExpectedLiteral {
+                return Err(InvalidFnCall::ExpectedLiteral {
                     argument: 3,
                     expected: VarType::U64,
                 }
@@ -126,7 +126,7 @@ impl FnCall for RegexpExtractFnCall {
 
         Ok(TypedExpr {
             return_type: VarType::Str,
-            ast: TypedExprAst::from_call(RegexpExtractFnCall {
+            ast: TypedExprAst::from_fn_call(RegexpExtractFnCall {
                 regex,
                 haystack: Box::new(haystack),
                 capture_index,
@@ -304,11 +304,11 @@ mod tests {
             ],
         ] {
             // Bypass call validation to exercise type inference on an invalid AST.
-            let invalid_function_call: InvalidFunctionCall =
-                UntypedExpr::call(Function::RegexpExtract, args).unwrap_err();
+            let invalid_fn_call: InvalidFnCall =
+                UntypedExpr::new_fn_call(Function::RegexpExtract, args).unwrap_err();
             assert!(matches!(
-                invalid_function_call,
-                InvalidFunctionCall::InvalidNumberOfArguments { .. }
+                invalid_fn_call,
+                InvalidFnCall::InvalidNumberOfArguments { .. }
             ));
         }
     }

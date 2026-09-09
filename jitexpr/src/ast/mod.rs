@@ -10,4 +10,4 @@ pub(crate) use serialize::format_variable_name;
 pub use serialize::{DeserializeError, deserialize, serialize};
 pub use untyped_expr::UntypedExpr;
 
-pub use crate::functions::{Function, InvalidFunctionCall};
+pub use crate::functions::{Function, InvalidFnCall};

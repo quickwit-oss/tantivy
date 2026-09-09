@@ -189,7 +189,7 @@ impl<'types, 'names> CompileFnBuilder<'types, 'names> {
                     }
                 }
             }
-            UntypedExpr::Call { function, args } => {
+            UntypedExpr::FnCall { function, args } => {
                 function.call_with_types(args, target_type_set, self)
             }
         }
@@ -420,7 +420,7 @@ mod tests {
 
     #[test]
     fn test_assign_variable_ids_two_variables_different_types() {
-        let untyped_expr = UntypedExpr::call(
+        let untyped_expr = UntypedExpr::new_fn_call(
             Function::Add,
             vec![UntypedExpr::variable("x"), UntypedExpr::variable("y")],
         )
@@ -459,11 +459,11 @@ mod tests {
 
     #[test]
     fn test_assign_variable_ids_dedups_repeated_variable() {
-        let untyped_expr = UntypedExpr::call(
+        let untyped_expr = UntypedExpr::new_fn_call(
             Function::Add,
             vec![
                 UntypedExpr::variable("x"),
-                UntypedExpr::call(
+                UntypedExpr::new_fn_call(
                     Function::Add,
                     vec![UntypedExpr::variable("y"), UntypedExpr::variable("x")],
                 )

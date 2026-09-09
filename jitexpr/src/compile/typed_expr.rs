@@ -144,7 +144,7 @@ impl TypedExprAst {
         })
     }
 
-    pub(crate) fn from_call(fn_call: impl Into<FnCallEnum>) -> TypedExprAst {
+    pub(crate) fn from_fn_call(fn_call: impl Into<FnCallEnum>) -> TypedExprAst {
         TypedExprAst::FnCall(fn_call.into())
     }
 }
