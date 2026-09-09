@@ -47,8 +47,8 @@ impl UserInputLeaf {
                 upper,
             },
             UserInputLeaf::Set { field: _, elements } => UserInputLeaf::Set { field, elements },
-            UserInputLeaf::Exists { field: _ } => UserInputLeaf::Exists {
-                field: field.expect("Exist query without a field isn't allowed"),
+            UserInputLeaf::Exists { field: existing } => UserInputLeaf::Exists {
+                field: field.unwrap_or(existing),
             },
             UserInputLeaf::Regex { field: _, pattern } => UserInputLeaf::Regex { field, pattern },
         }
@@ -451,6 +451,39 @@ mod tests {
         assert_eq!(
             json,
             r#"{"type":"bool","clauses":[["must",{"type":"all"}],["should",{"type":"literal","field_name":"title","phrase":"hello","delimiter":"none","slop":0,"prefix":false}]]}"#
+        );
+    }
+
+    // Regression tests for https://github.com/quickwit-oss/tantivy/issues/3031:
+    // `set_field(None)` on an `Exists` leaf used to panic. After the fix it
+    // should preserve the leaf with an empty field (downstream code handles
+    // that case via QueryParser::compute_logical_ast returning a NoDefaultField
+    // error or similar).
+    #[test]
+    fn test_set_field_none_on_exists_does_not_panic() {
+        let leaf = UserInputLeaf::Exists {
+            field: String::new(),
+        };
+        let out = leaf.clone().set_field(None);
+        assert_eq!(
+            out,
+            UserInputLeaf::Exists {
+                field: String::new(),
+            }
+        );
+    }
+
+    #[test]
+    fn test_set_field_some_on_exists_preserves_field() {
+        let leaf = UserInputLeaf::Exists {
+            field: String::new(),
+        };
+        let out = leaf.set_field(Some("body".to_string()));
+        assert_eq!(
+            out,
+            UserInputLeaf::Exists {
+                field: "body".to_string(),
+            }
         );
     }
 }
