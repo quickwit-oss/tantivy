@@ -147,11 +147,23 @@ mod tests {
         for expression in [
             "(IS_NULL false)",
             "(IS_NULL 0i64)",
-            "(IS_NULL nanf64)",
+            "(IS_NULL -0f64)",
             r#"(IS_NULL "")"#,
             r#"(IS_NULL (REGEXP_EXTRACT "b" "(a*)b" 1u64))"#,
         ] {
             assert_eq!(eval(expression), Some(false), "expression: {expression}");
+        }
+    }
+
+    #[test]
+    fn test_non_finite_values_are_present() {
+        // The textual parser rejects non-finite literals, but programmatically
+        // constructed expressions can still contain them. They are not null.
+        for value in [f64::NAN, f64::INFINITY, f64::NEG_INFINITY] {
+            let expression = Function::IsNull.call_untyped_expr(vec![UntypedExpr::literal(value)]);
+            let mut compiled = compile(&expression, &HashMap::new()).unwrap().context();
+            // SAFETY: The expression has no runtime inputs and returns a boolean.
+            assert_eq!(unsafe { compiled.call(&[]).as_bool() }, Some(false));
         }
     }
 

@@ -1,14 +1,25 @@
 //! Serialization for [`UntypedExpr`] using a small Lisp-like syntax.
 //!
-//! Calls are lists whose first item is an uppercase function name, while
-//! lowercase identifiers name variables. For example:
+//! Calls are lists whose first item is a recognized uppercase function name.
+//! Elsewhere, atoms name variables unless they match a literal. For example:
 //!
 //! ```text
 //! (ADD 1i64 my_col)
 //! ```
 //!
-//! Numerical literals always carry a type suffix. The other literals are
-//! `none`, `true`, `false`, and quoted strings. Strings use backslash escapes.
+//! Numerical literals always carry a type suffix. Parsing rejects non-finite
+//! `f64` literals (NaN, infinities, and overflow). The other literals are
+//! `none`, `true`, `false`, and double-quoted strings. Backticks quote variable
+//! names containing whitespace or syntax characters, or matching literals:
+//!
+//! ```text
+//! (ADD `1u64` 1u64)
+//! ```
+//!
+//! Quoted variables use the same backslash escapes as strings, plus `` \` `` for
+//! a literal backtick. Serialization quotes names only when needed for an
+//! unambiguous round trip. Variable names are not restricted to ASCII or checked
+//! against a schema; field-name validation remains the caller's responsibility.
 
 use std::fmt;
 use std::sync::Arc;
@@ -75,7 +86,13 @@ impl std::str::FromStr for UntypedExpr {
 fn format_expr(expr: &UntypedExpr, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
     match expr {
         UntypedExpr::Literal(literal) => format_literal(literal, formatter),
-        UntypedExpr::Variable(variable_name) => formatter.write_str(variable_name),
+        UntypedExpr::Variable(variable_name) => {
+            if can_format_bare_variable(variable_name) {
+                // This is not ambiguous with a literal, let's write it without quotation marks.
+                return formatter.write_str(variable_name);
+            }
+            format_quoted(variable_name, '`', formatter)
+        }
         UntypedExpr::Call { function, args } => {
             write!(formatter, "({}", function_name(*function))?;
             for arg in args {
@@ -86,22 +103,22 @@ fn format_expr(expr: &UntypedExpr, formatter: &mut fmt::Formatter<'_>) -> fmt::R
     }
 }
 
-fn format_literal(literal: &Literal, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+fn format_literal(literal: &Literal, formatter: &mut fmt::Formatter) -> fmt::Result {
     match literal {
         Literal::None => formatter.write_str("none"),
         Literal::Bool(value) => write!(formatter, "{value}"),
         Literal::U64(value) => write!(formatter, "{value}u64"),
         Literal::I64(value) => write!(formatter, "{value}i64"),
         Literal::F64(value) => write!(formatter, "{value}f64"),
-        Literal::String(value) => format_string(value, formatter),
+        Literal::String(value) => format_quoted(value, '"', formatter),
     }
 }
 
-fn format_string(value: &str, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-    formatter.write_str("\"")?;
+fn format_quoted(value: &str, quote: char, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+    write!(formatter, "{quote}")?;
     for character in value.chars() {
         match character {
-            '\"' => formatter.write_str("\\\""),
+            character if character == quote => write!(formatter, "\\{character}"),
             '\\' => formatter.write_str("\\\\"),
             '\n' => formatter.write_str("\\n"),
             '\r' => formatter.write_str("\\r"),
@@ -113,7 +130,7 @@ fn format_string(value: &str, formatter: &mut fmt::Formatter<'_>) -> fmt::Result
             character => write!(formatter, "{character}"),
         }?;
     }
-    formatter.write_str("\"")
+    write!(formatter, "{quote}")
 }
 
 fn function_name(function: Function) -> &'static str {
@@ -148,12 +165,38 @@ fn is_function_name(name: &str) -> bool {
         })
 }
 
-fn is_variable_name(name: &str) -> bool {
-    let mut chars = name.chars();
-    matches!(chars.next(), Some(first) if first.is_ascii_lowercase())
-        && chars.all(|character| {
-            character.is_ascii_lowercase() || character.is_ascii_digit() || character == '_'
-        })
+fn can_format_bare_variable(name: &str) -> bool {
+    // Quote all recognized literal forms, including non-finite floats that the
+    // expression parser rejects, so variable names always round-trip.
+    !name.is_empty()
+        && name
+            .chars()
+            .all(|c: char| c.is_ascii_alphabetic() || c == '_')
+        && parse_literal_atom(name).is_none()
+}
+
+// Recognition intentionally includes non-finite floats: parse_atom must reject
+// them rather than fall back to variables, and serialization must quote those names.
+fn parse_literal_atom(atom: &str) -> Option<Literal> {
+    match atom {
+        "none" => return Some(Literal::None),
+        "true" => return Some(Literal::Bool(true)),
+        "false" => return Some(Literal::Bool(false)),
+        _ => {}
+    }
+    if let Some(value_str) = atom.strip_suffix("u64") {
+        let val = value_str.parse::<u64>().ok()?;
+        return Some(Literal::U64(val));
+    }
+    if let Some(value_str) = atom.strip_suffix("i64") {
+        let val = value_str.parse::<i64>().ok()?;
+        return Some(Literal::I64(val));
+    }
+    if let Some(value_str) = atom.strip_suffix("f64") {
+        let val = value_str.parse::<f64>().ok()?;
+        return Some(Literal::F64(val));
+    }
+    None
 }
 
 struct Parser<'a> {
@@ -184,8 +227,11 @@ impl<'a> Parser<'a> {
         match self.peek() {
             Some('(') => self.parse_call(),
             Some('"') => self
-                .parse_string()
+                .parse_quoted('"', "string literal")
                 .map(|value| UntypedExpr::Literal(Literal::String(Arc::from(value)))),
+            Some('`') => self
+                .parse_quoted('`', "quoted variable")
+                .map(|value| UntypedExpr::Variable(Arc::from(value))),
             Some(')') => Err(DeserializeError::new(
                 self.offset,
                 "unexpected closing parenthesis",
@@ -245,54 +291,22 @@ impl<'a> Parser<'a> {
     fn parse_atom(&mut self) -> Result<UntypedExpr, DeserializeError> {
         let atom_offset = self.offset;
         let atom = self.take_atom();
-        match atom {
-            "none" => Ok(UntypedExpr::Literal(Literal::None)),
-            "true" => Ok(UntypedExpr::Literal(Literal::Bool(true))),
-            "false" => Ok(UntypedExpr::Literal(Literal::Bool(false))),
-            _ => self.parse_number_or_variable(atom, atom_offset),
+        if let Some(literal) = parse_literal_atom(atom) {
+            if let Literal::F64(value) = &literal
+                && !value.is_finite()
+            {
+                return Err(DeserializeError::new(
+                    atom_offset,
+                    format!("f64 literal `{atom}` must be finite"),
+                ));
+            }
+            return Ok(UntypedExpr::Literal(literal));
         }
+        Ok(UntypedExpr::Variable(Arc::from(atom)))
     }
 
-    fn parse_number_or_variable(
-        &self,
-        atom: &str,
-        atom_offset: usize,
-    ) -> Result<UntypedExpr, DeserializeError> {
-        if let Some(value) = atom.strip_suffix("u64")
-            && let Ok(value) = value.parse::<u64>()
-        {
-            return Ok(UntypedExpr::Literal(Literal::U64(value)));
-        }
-        if let Some(value) = atom.strip_suffix("i64")
-            && let Ok(value) = value.parse::<i64>()
-        {
-            return Ok(UntypedExpr::Literal(Literal::I64(value)));
-        }
-        if let Some(value) = atom.strip_suffix("f64")
-            && let Ok(value) = value.parse::<f64>()
-        {
-            return Ok(UntypedExpr::Literal(Literal::F64(value)));
-        }
-
-        if is_variable_name(atom) {
-            return Ok(UntypedExpr::Variable(Arc::from(atom)));
-        }
-
-        if is_function_name(atom) {
-            return Err(DeserializeError::new(
-                atom_offset,
-                format!("function `{atom}` must be the first item in a list"),
-            ));
-        }
-
-        Err(DeserializeError::new(
-            atom_offset,
-            format!("invalid literal or identifier `{atom}`"),
-        ))
-    }
-
-    fn parse_string(&mut self) -> Result<String, DeserializeError> {
-        let string_offset = self.offset;
+    fn parse_quoted(&mut self, quote: char, kind: &str) -> Result<String, DeserializeError> {
+        let quoted_offset = self.offset;
         self.advance();
         let mut value = String::new();
 
@@ -300,17 +314,17 @@ impl<'a> Parser<'a> {
             let character_offset = self.offset;
             let Some(character) = self.advance() else {
                 return Err(DeserializeError::new(
-                    string_offset,
-                    "unterminated string literal",
+                    quoted_offset,
+                    format!("unterminated {kind}"),
                 ));
             };
             match character {
-                '"' => return Ok(value),
-                '\\' => value.push(self.parse_escape(character_offset)?),
+                character if character == quote => return Ok(value),
+                '\\' => value.push(self.parse_escape(character_offset, quote)?),
                 character if character.is_control() => {
                     return Err(DeserializeError::new(
                         character_offset,
-                        "unescaped control character in string literal",
+                        format!("unescaped control character in {kind}"),
                     ));
                 }
                 character => value.push(character),
@@ -318,7 +332,11 @@ impl<'a> Parser<'a> {
         }
     }
 
-    fn parse_escape(&mut self, escape_offset: usize) -> Result<char, DeserializeError> {
+    fn parse_escape(
+        &mut self,
+        escape_offset: usize,
+        quote: char,
+    ) -> Result<char, DeserializeError> {
         let Some(escaped) = self.advance() else {
             return Err(DeserializeError::new(
                 escape_offset,
@@ -326,6 +344,7 @@ impl<'a> Parser<'a> {
             ));
         };
         match escaped {
+            '`' if quote == '`' => Ok('`'),
             '"' => Ok('"'),
             '\\' => Ok('\\'),
             'n' => Ok('\n'),
@@ -392,7 +411,7 @@ impl<'a> Parser<'a> {
 }
 
 fn is_delimiter(character: char) -> bool {
-    character.is_whitespace() || matches!(character, '(' | ')' | '"')
+    character.is_whitespace() || matches!(character, '(' | ')' | '"' | '`')
 }
 
 #[cfg(test)]
@@ -460,8 +479,14 @@ mod tests {
     }
 
     #[test]
-    fn test_float_special_values_round_trip() {
-        for value in [f64::INFINITY, f64::NEG_INFINITY, -0.0] {
+    fn test_finite_float_edge_values_round_trip() {
+        for value in [
+            f64::MIN,
+            f64::MAX,
+            f64::MIN_POSITIVE,
+            f64::from_bits(1),
+            -0.0,
+        ] {
             let serialized = serialize(&UntypedExpr::literal(value));
             let UntypedExpr::Literal(Literal::F64(parsed)) = deserialize(&serialized).unwrap()
             else {
@@ -469,12 +494,38 @@ mod tests {
             };
             assert_eq!(parsed.to_bits(), value.to_bits());
         }
+    }
 
-        let serialized = serialize(&UntypedExpr::literal(f64::NAN));
-        let UntypedExpr::Literal(Literal::F64(parsed)) = deserialize(&serialized).unwrap() else {
-            panic!("expected an f64 literal");
-        };
-        assert!(parsed.is_nan());
+    #[test]
+    fn test_non_finite_float_literals_are_rejected() {
+        for atom in [
+            "NaNf64",
+            "nanf64",
+            "+NaNf64",
+            "-NaNf64",
+            "inff64",
+            "+inff64",
+            "-inff64",
+            "infinityf64",
+            "-INFINITYf64",
+            "1e999f64",
+            "-1e999f64",
+        ] {
+            for (input, offset) in [(atom.to_string(), 0), (format!("(ADD 1u64 {atom})"), 10)] {
+                let error = deserialize(&input).unwrap_err();
+                assert_eq!(error.offset(), offset, "input: {input}");
+                assert_eq!(
+                    error.message(),
+                    format!("f64 literal `{atom}` must be finite")
+                );
+            }
+
+            // Rejected literal spellings are still usable as quoted field names.
+            let variable = UntypedExpr::variable(atom);
+            let serialized = serialize(&variable);
+            assert_eq!(serialized, format!("`{atom}`"));
+            assert_eq!(deserialize(&serialized).unwrap(), variable);
+        }
     }
 
     #[test]
@@ -484,14 +535,123 @@ mod tests {
     }
 
     #[test]
+    fn test_bare_field_names_round_trip() {
+        for name in [
+            "HTTP.Status",
+            "@timestamp",
+            "_source",
+            "field-name",
+            "field/path:part",
+            "シャボン玉",
+            "café",
+            "🦀",
+            "ADD",
+            "IS_NULL",
+            "1i32",
+            "123",
+            "18446744073709551616u64",
+        ] {
+            let expr = UntypedExpr::variable(name);
+            assert_eq!(serialize(&expr), name);
+            assert_eq!(deserialize(name).unwrap(), expr);
+
+            let call = Function::Add.call_untyped_expr(vec![expr]);
+            let serialized = format!("(ADD {name})");
+            assert_eq!(serialize(&call), serialized);
+            assert_eq!(deserialize(&serialized).unwrap(), call);
+        }
+    }
+
+    #[test]
+    fn test_literal_names_are_quoted() {
+        for name in [
+            "none", "true", "false", "1u64", "1i64", "1f64", "+1u64", "1e3f64", "-0f64",
+        ] {
+            assert!(matches!(
+                deserialize(name).unwrap(),
+                UntypedExpr::Literal(_)
+            ));
+            let expr = UntypedExpr::variable(name);
+            let serialized = format!("`{name}`");
+            assert_eq!(serialize(&expr), serialized);
+            assert_eq!(deserialize(&serialized).unwrap(), expr);
+        }
+
+        let expr = Function::Add.call_untyped_expr(vec![
+            UntypedExpr::variable("1u64"),
+            UntypedExpr::literal(1u64),
+        ]);
+        assert_eq!(serialize(&expr), "(ADD `1u64` 1u64)");
+        assert_eq!(deserialize("(ADD `1u64` 1u64)").unwrap(), expr);
+    }
+
+    #[test]
+    fn test_quoted_field_names_round_trip() {
+        let cases = [
+            ("", "``"),
+            ("two words", "`two words`"),
+            ("(field)", "`(field)`"),
+            ("a\"b", "`a\"b`"),
+            ("a`b", "`a\\`b`"),
+            ("a\\b", "`a\\\\b`"),
+            ("a\n\r\t\0\u{7}", "`a\\n\\r\\t\\0\\u{7}`"),
+            ("a\u{2003}b", "`a\u{2003}b`"),
+        ];
+        for (name, serialized) in cases {
+            let expr = UntypedExpr::variable(name);
+            assert_eq!(serialize(&expr), serialized);
+            assert_eq!(format!("{expr:?}"), serialized);
+            assert_eq!(deserialize(serialized).unwrap(), expr);
+            let call = Function::IsNull.call_untyped_expr(vec![expr]);
+            assert_eq!(deserialize(&serialize(&call)).unwrap(), call);
+        }
+
+        // Quoting does not force the canonical serializer to retain quotes.
+        assert_eq!(
+            serialize(&deserialize("`HTTP.Status`").unwrap()),
+            "HTTP.Status"
+        );
+        assert_eq!(
+            deserialize(r"`\u{30b7}\u{30e3}`").unwrap(),
+            UntypedExpr::variable("シャ")
+        );
+        // Backticks inside double quotes still belong to a string literal.
+        let string = UntypedExpr::literal("`field`");
+        assert_eq!(deserialize(&serialize(&string)).unwrap(), string);
+    }
+
+    #[test]
+    fn test_field_names_with_every_ascii_character_round_trip() {
+        // Tantivy permits every character within a nonempty name that does not
+        // start with '-'. Include delimiters, escapes, and control characters.
+        for byte in 0u8..=127 {
+            let name = format!("field{}tail", char::from(byte));
+            let expr = UntypedExpr::variable(&name);
+            let serialized = serialize(&expr);
+            assert_eq!(deserialize(&serialized).unwrap(), expr, "name: {name:?}");
+        }
+    }
+
+    #[test]
     fn test_deserialize_errors() {
         let cases = [
             ("", 0, "expected an expression"),
             ("()", 1, "expected a function name"),
             ("(add 1i64)", 1, "must be uppercase"),
             ("(UNKNOWN 1i64)", 1, "unknown function"),
-            ("ADD", 0, "must be the first item in a list"),
-            ("1i32", 0, "invalid literal or identifier"),
+            ("(toto)", 1, "must be uppercase"),
+            ("(`ADD` 1u64)", 1, "expected an uppercase function name"),
+            ("`unterminated", 0, "unterminated quoted variable"),
+            ("`bad\\x`", 4, "unsupported string escape"),
+            ("`é\\x`", 3, "unsupported string escape"),
+            ("`bad\\", 4, "unterminated string escape"),
+            (r"`\u{d800}`", 1, "invalid Unicode scalar value"),
+            (r"`\u{}`", 1, "invalid Unicode escape"),
+            (
+                "`bad\n`",
+                4,
+                "unescaped control character in quoted variable",
+            ),
             ("\"unterminated", 0, "unterminated string literal"),
             ("\"bad\\x\"", 4, "unsupported string escape"),
             ("(ADD 1i64", 0, "unterminated function call"),
