@@ -31,7 +31,9 @@ fn format_expr(expr: &TypedExpr, formatter: &mut fmt::Formatter) -> fmt::Result 
     write!(formatter, "[{}: ", type_name(expr.return_type))?;
     match &expr.ast {
         TypedExprAst::Literal(_) => unreachable!(),
-        TypedExprAst::Variable(variable) => formatter.write_str(&variable.variable_name)?,
+        TypedExprAst::Variable(variable) => {
+            crate::ast::format_variable_name(&variable.variable_name, formatter)?;
+        }
         TypedExprAst::Coerce { expr, .. } => write!(formatter, "COERCE {expr}")?,
         TypedExprAst::FnCall(fn_call) => fn_call.serialize(formatter)?,
     }
@@ -101,6 +103,34 @@ mod tests {
     fn serialize(expression: &str, variable_types: &HashMap<&str, VarType>) -> String {
         let expression = ast::deserialize(expression).unwrap();
         compile::serialize(&expression, variable_types).unwrap()
+    }
+
+    #[test]
+    fn test_variable_names_use_untyped_quoting() {
+        let cases = [
+            ("my_col", "my_col"),
+            ("field.name", "field.name"),
+            ("", "``"),
+            ("two words", "`two words`"),
+            ("true", "`true`"),
+            ("none", "`none`"),
+            ("1u64", "`1u64`"),
+            ("field1", "`field1`"),
+            ("a]b", "`a]b`"),
+            ("café", "`café`"),
+            ("a`b", r"`a\`b`"),
+            ("a\\b", r"`a\\b`"),
+            ("a\n\r\t\0\u{7}", r"`a\n\r\t\0\u{7}`"),
+        ];
+        for (variable_name, expected) in cases {
+            let expression = ast::UntypedExpr::variable(variable_name);
+            let variable_types = HashMap::from([(variable_name, VarType::I64)]);
+            assert_eq!(expression.to_string(), expected);
+            assert_eq!(
+                compile::serialize(&expression, &variable_types).unwrap(),
+                format!("[int64: {expected}]")
+            );
+        }
     }
 
     #[test]

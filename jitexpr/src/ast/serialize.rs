@@ -86,13 +86,7 @@ impl std::str::FromStr for UntypedExpr {
 fn format_expr(expr: &UntypedExpr, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
     match expr {
         UntypedExpr::Literal(literal) => format_literal(literal, formatter),
-        UntypedExpr::Variable(variable_name) => {
-            if can_format_bare_variable(variable_name) {
-                // This is not ambiguous with a literal, let's write it without quotation marks.
-                return formatter.write_str(variable_name);
-            }
-            format_quoted(variable_name, '`', formatter)
-        }
+        UntypedExpr::Variable(variable_name) => format_variable_name(variable_name, formatter),
         UntypedExpr::Call { function, args } => {
             write!(formatter, "({}", function_name(*function))?;
             for arg in args {
@@ -101,6 +95,17 @@ fn format_expr(expr: &UntypedExpr, formatter: &mut fmt::Formatter<'_>) -> fmt::R
             formatter.write_str(")")
         }
     }
+}
+
+/// Uses bare names only when unambiguous; otherwise backtick-quotes and escapes them.
+pub(crate) fn format_variable_name(
+    variable_name: &str,
+    formatter: &mut fmt::Formatter<'_>,
+) -> fmt::Result {
+    if can_format_bare_variable(variable_name) {
+        return formatter.write_str(variable_name);
+    }
+    format_quoted(variable_name, '`', formatter)
 }
 
 fn format_literal(literal: &Literal, formatter: &mut fmt::Formatter) -> fmt::Result {
