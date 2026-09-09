@@ -171,7 +171,7 @@ fn can_format_bare_variable(name: &str) -> bool {
     !name.is_empty()
         && name
             .chars()
-            .all(|c: char| c.is_ascii_alphabetic() || c == '_')
+            .all(|c: char| c.is_ascii_alphabetic() || c == '_' || c == '.')
         && parse_literal_atom(name).is_none()
 }
 
