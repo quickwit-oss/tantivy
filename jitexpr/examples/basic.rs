@@ -9,10 +9,13 @@ use jitexpr::types::{VarType, VariableValue};
 fn main() -> Result<(), Box<dyn Error>> {
     // A simple expression that goes:
     // my_col + 1
-    let untyped_expr = Function::Add.call_untyped_expr(vec![
-        UntypedExpr::variable("my_col"),
-        UntypedExpr::literal(1.0f64),
-    ]);
+    let untyped_expr = UntypedExpr::call(
+        Function::Add,
+        vec![
+            UntypedExpr::variable("my_col"),
+            UntypedExpr::literal(1.0f64),
+        ],
+    )?;
 
     // Infer types does not return specific types, but instead a set of acceptable
     // types for each variables.

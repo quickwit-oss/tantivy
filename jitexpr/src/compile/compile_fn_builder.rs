@@ -420,8 +420,11 @@ mod tests {
 
     #[test]
     fn test_assign_variable_ids_two_variables_different_types() {
-        let untyped_expr = Function::Add
-            .call_untyped_expr(vec![UntypedExpr::variable("x"), UntypedExpr::variable("y")]);
+        let untyped_expr = UntypedExpr::call(
+            Function::Add,
+            vec![UntypedExpr::variable("x"), UntypedExpr::variable("y")],
+        )
+        .unwrap();
         let variable_types = HashMap::from([("x", VarType::U64), ("y", VarType::F64)]);
         let mut builder = CompileFnBuilder::new(&variable_types);
 
@@ -456,11 +459,18 @@ mod tests {
 
     #[test]
     fn test_assign_variable_ids_dedups_repeated_variable() {
-        let untyped_expr = Function::Add.call_untyped_expr(vec![
-            UntypedExpr::variable("x"),
-            Function::Add
-                .call_untyped_expr(vec![UntypedExpr::variable("y"), UntypedExpr::variable("x")]),
-        ]);
+        let untyped_expr = UntypedExpr::call(
+            Function::Add,
+            vec![
+                UntypedExpr::variable("x"),
+                UntypedExpr::call(
+                    Function::Add,
+                    vec![UntypedExpr::variable("y"), UntypedExpr::variable("x")],
+                )
+                .unwrap(),
+            ],
+        )
+        .unwrap();
         let variable_types: HashMap<&str, VarType> =
             HashMap::from([("x", VarType::U64), ("y", VarType::U64)]);
         let mut builder = CompileFnBuilder::new(&variable_types);

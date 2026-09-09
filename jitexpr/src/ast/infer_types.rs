@@ -257,10 +257,11 @@ mod tests {
 
     #[test]
     fn test_infer_type_uses_concrete_variable_types() {
-        let expr = Function::Add.call_untyped_expr(vec![
-            UntypedExpr::variable("my_col"),
-            UntypedExpr::literal(1i64),
-        ]);
+        let expr = UntypedExpr::call(
+            Function::Add,
+            vec![UntypedExpr::variable("my_col"), UntypedExpr::literal(1i64)],
+        )
+        .unwrap();
         let variable_types = HashMap::from([("my_col", VarType::U64)]);
 
         let inferred_type =
@@ -272,10 +273,14 @@ mod tests {
 
     #[test]
     fn test_infer_type_falls_back_to_f64_for_disjoint_numeric_types() {
-        let expr = Function::Add.call_untyped_expr(vec![
-            UntypedExpr::variable("unsigned"),
-            UntypedExpr::variable("signed"),
-        ]);
+        let expr = UntypedExpr::call(
+            Function::Add,
+            vec![
+                UntypedExpr::variable("unsigned"),
+                UntypedExpr::variable("signed"),
+            ],
+        )
+        .unwrap();
         let variable_types = HashMap::from([("unsigned", VarType::U64), ("signed", VarType::I64)]);
 
         let inferred_type =

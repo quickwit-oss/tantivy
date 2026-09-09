@@ -420,10 +420,11 @@ mod tests {
 
     #[test]
     fn test_serialize_example() {
-        let expr = Function::Add.call_untyped_expr(vec![
-            UntypedExpr::literal(1i64),
-            UntypedExpr::variable("my_col"),
-        ]);
+        let expr = UntypedExpr::call(
+            Function::Add,
+            vec![UntypedExpr::literal(1i64), UntypedExpr::variable("my_col")],
+        )
+        .unwrap();
 
         assert_eq!(serialize(&expr), "(ADD 1i64 my_col)");
         assert_eq!(format!("{expr}"), "(ADD 1i64 my_col)");
@@ -451,13 +452,20 @@ mod tests {
     #[test]
     fn test_nested_call_and_escaped_string_round_trip() {
         let string = "quoted: \"hello\"\\world\n\t\0\u{7} café";
-        let regexp_extract = Function::RegexpExtract.call_untyped_expr(vec![
-            UntypedExpr::variable("message"),
-            UntypedExpr::literal(string),
-            UntypedExpr::literal(1u64),
-        ]);
-        let expr =
-            Function::Add.call_untyped_expr(vec![regexp_extract, UntypedExpr::literal(2i64)]);
+        let regexp_extract = UntypedExpr::call(
+            Function::RegexpExtract,
+            vec![
+                UntypedExpr::variable("message"),
+                UntypedExpr::literal(string),
+                UntypedExpr::literal(1u64),
+            ],
+        )
+        .unwrap();
+        let expr = UntypedExpr::call(
+            Function::Add,
+            vec![regexp_extract, UntypedExpr::literal(2i64)],
+        )
+        .unwrap();
 
         let serialized = serialize(&expr);
         assert_eq!(
@@ -471,10 +479,11 @@ mod tests {
     #[test]
     fn test_deserialize_accepts_whitespace() {
         let parsed = deserialize(" \n ( ADD\t1i64\nmy_col ) \r").unwrap();
-        let expected = Function::Add.call_untyped_expr(vec![
-            UntypedExpr::literal(1i64),
-            UntypedExpr::variable("my_col"),
-        ]);
+        let expected = UntypedExpr::call(
+            Function::Add,
+            vec![UntypedExpr::literal(1i64), UntypedExpr::variable("my_col")],
+        )
+        .unwrap();
         assert_eq!(parsed, expected);
     }
 
@@ -555,7 +564,7 @@ mod tests {
             assert_eq!(serialize(&expr), name);
             assert_eq!(deserialize(name).unwrap(), expr);
 
-            let call = Function::Add.call_untyped_expr(vec![expr]);
+            let call = UntypedExpr::call(Function::Add, vec![expr]).unwrap();
             let serialized = format!("(ADD {name})");
             assert_eq!(serialize(&call), serialized);
             assert_eq!(deserialize(&serialized).unwrap(), call);
@@ -577,10 +586,11 @@ mod tests {
             assert_eq!(deserialize(&serialized).unwrap(), expr);
         }
 
-        let expr = Function::Add.call_untyped_expr(vec![
-            UntypedExpr::variable("1u64"),
-            UntypedExpr::literal(1u64),
-        ]);
+        let expr = UntypedExpr::call(
+            Function::Add,
+            vec![UntypedExpr::variable("1u64"), UntypedExpr::literal(1u64)],
+        )
+        .unwrap();
         assert_eq!(serialize(&expr), "(ADD `1u64` 1u64)");
         assert_eq!(deserialize("(ADD `1u64` 1u64)").unwrap(), expr);
     }
@@ -602,7 +612,7 @@ mod tests {
             assert_eq!(serialize(&expr), serialized);
             assert_eq!(format!("{expr:?}"), serialized);
             assert_eq!(deserialize(serialized).unwrap(), expr);
-            let call = Function::IsNull.call_untyped_expr(vec![expr]);
+            let call = UntypedExpr::call(Function::IsNull, vec![expr]).unwrap();
             assert_eq!(deserialize(&serialize(&call)).unwrap(), call);
         }
 

@@ -179,10 +179,11 @@ mod tests {
 
     #[test]
     fn test_infer_types_rejects_string_argument() {
-        let expr = Function::Add.call_untyped_expr(vec![
-            UntypedExpr::literal(1.0),
-            UntypedExpr::literal("hello"),
-        ]);
+        let expr = UntypedExpr::call(
+            Function::Add,
+            vec![UntypedExpr::literal(1.0), UntypedExpr::literal("hello")],
+        )
+        .unwrap();
         let error = infer_types(&expr).unwrap_err();
         assert!(matches!(
             error,
@@ -195,8 +196,11 @@ mod tests {
 
     #[test]
     fn test_infer_types_constrains_variables_to_numerical() {
-        let expr = Function::Add
-            .call_untyped_expr(vec![UntypedExpr::variable("a"), UntypedExpr::variable("b")]);
+        let expr = UntypedExpr::call(
+            Function::Add,
+            vec![UntypedExpr::variable("a"), UntypedExpr::variable("b")],
+        )
+        .unwrap();
         let inferred_types = infer_types(&expr).unwrap();
         assert_eq!(inferred_types.get("a"), Some(&InferredTypeSet::NUMERICAL));
         assert_eq!(inferred_types.get("b"), Some(&InferredTypeSet::NUMERICAL));
@@ -323,10 +327,14 @@ mod tests {
 
     #[test]
     fn test_compile_signed_add() {
-        let expression = Function::Add.call_untyped_expr(vec![
-            UntypedExpr::literal(-4i64),
-            UntypedExpr::variable("myfield"),
-        ]);
+        let expression = UntypedExpr::call(
+            Function::Add,
+            vec![
+                UntypedExpr::literal(-4i64),
+                UntypedExpr::variable("myfield"),
+            ],
+        )
+        .unwrap();
         let variable_types = HashMap::from([("myfield", VarType::I64)]);
         let mut compiled = compile(&expression, &variable_types).unwrap().context();
         let input = [VariableValue::some(-8i64)];
@@ -344,7 +352,7 @@ mod tests {
         ];
 
         for args in argument_orders {
-            let expression = Function::Add.call_untyped_expr(args);
+            let expression = UntypedExpr::call(Function::Add, args).unwrap();
             let mut compiled = compile(&expression, &variable_types).unwrap().context();
             let input = [VariableValue::some(41u64)];
             let output = unsafe { compiled.call(&input) };
@@ -354,10 +362,16 @@ mod tests {
 
     #[test]
     fn test_compile_coerces_compatible_nested_add_to_u64() {
-        let nested_literals = Function::Add
-            .call_untyped_expr(vec![UntypedExpr::literal(1i64), UntypedExpr::literal(2u64)]);
-        let expression = Function::Add
-            .call_untyped_expr(vec![UntypedExpr::variable("myfield"), nested_literals]);
+        let nested_literals = UntypedExpr::call(
+            Function::Add,
+            vec![UntypedExpr::literal(1i64), UntypedExpr::literal(2u64)],
+        )
+        .unwrap();
+        let expression = UntypedExpr::call(
+            Function::Add,
+            vec![UntypedExpr::variable("myfield"), nested_literals],
+        )
+        .unwrap();
         let variable_types = HashMap::from([("myfield", VarType::U64)]);
         let mut compiled = compile(&expression, &variable_types).unwrap().context();
         let input = [VariableValue::some(39u64)];
@@ -368,11 +382,15 @@ mod tests {
 
     #[test]
     fn test_compile_coerces_integers_to_float() {
-        let expression = Function::Add.call_untyped_expr(vec![
-            UntypedExpr::variable("myfield"),
-            UntypedExpr::literal(-2i64),
-            UntypedExpr::literal(0.5f64),
-        ]);
+        let expression = UntypedExpr::call(
+            Function::Add,
+            vec![
+                UntypedExpr::variable("myfield"),
+                UntypedExpr::literal(-2i64),
+                UntypedExpr::literal(0.5f64),
+            ],
+        )
+        .unwrap();
         let variable_types = HashMap::from([("myfield", VarType::U64)]);
         let mut compiled = compile(&expression, &variable_types).unwrap().context();
         let input = [VariableValue::some(10u64)];
@@ -383,8 +401,11 @@ mod tests {
 
     #[test]
     fn test_compile_loads_multiple_variable_slots() {
-        let expression = Function::Add
-            .call_untyped_expr(vec![UntypedExpr::variable("x"), UntypedExpr::variable("y")]);
+        let expression = UntypedExpr::call(
+            Function::Add,
+            vec![UntypedExpr::variable("x"), UntypedExpr::variable("y")],
+        )
+        .unwrap();
         let variable_types = HashMap::from([("x", VarType::U64), ("y", VarType::F64)]);
         let mut compiled = compile(&expression, &variable_types).unwrap().context();
         let input = [VariableValue::some(10u64), VariableValue::some(0.5f64)];
@@ -405,10 +426,11 @@ mod tests {
 
     #[test]
     fn test_compile_u64_to_float_coercion_is_unsigned() {
-        let expression = Function::Add.call_untyped_expr(vec![
-            UntypedExpr::variable("x"),
-            UntypedExpr::literal(0.5f64),
-        ]);
+        let expression = UntypedExpr::call(
+            Function::Add,
+            vec![UntypedExpr::variable("x"), UntypedExpr::literal(0.5f64)],
+        )
+        .unwrap();
         let variable_types = HashMap::from([("x", VarType::U64)]);
         let mut compiled = compile(&expression, &variable_types).unwrap().context();
         let input = [VariableValue::some(u64::MAX)];
@@ -419,11 +441,15 @@ mod tests {
 
     #[test]
     fn test_compile_reuses_repeated_variable_slot() {
-        let expression = Function::Add.call_untyped_expr(vec![
-            UntypedExpr::variable("x"),
-            UntypedExpr::variable("x"),
-            UntypedExpr::literal(1u64),
-        ]);
+        let expression = UntypedExpr::call(
+            Function::Add,
+            vec![
+                UntypedExpr::variable("x"),
+                UntypedExpr::variable("x"),
+                UntypedExpr::literal(1u64),
+            ],
+        )
+        .unwrap();
         let variable_types = HashMap::from([("x", VarType::U64)]);
         let mut compiled = compile(&expression, &variable_types).unwrap().context();
         let input = [VariableValue::some(4i64)];
@@ -439,10 +465,11 @@ mod tests {
 
     #[test]
     fn test_compile_can_coerce_variable_when_necessary() {
-        let expression = Function::Add.call_untyped_expr(vec![
-            UntypedExpr::variable("x"),
-            UntypedExpr::literal(1.2f64),
-        ]);
+        let expression = UntypedExpr::call(
+            Function::Add,
+            vec![UntypedExpr::variable("x"), UntypedExpr::literal(1.2f64)],
+        )
+        .unwrap();
         let variable_types = HashMap::from([("x", VarType::U64)]);
         let mut compiled = compile(&expression, &variable_types).unwrap().context();
         let input = [VariableValue::some(4u64)];
@@ -462,7 +489,7 @@ mod tests {
         let typed_expr = crate::typed_expr_from_str("(ADD)", &variable_types);
         assert_eq!(typed_expr.return_type, VarType::I64);
 
-        let expression = Function::Add.call_untyped_expr(Vec::new());
+        let expression = UntypedExpr::call(Function::Add, Vec::new()).unwrap();
         let mut compiled = compile(&expression, &HashMap::new()).unwrap().context();
         let output = unsafe { compiled.call(&[]) };
         assert_eq!(unsafe { output.as_i64() }, Some(0));
@@ -474,7 +501,7 @@ mod tests {
         let variable_types = HashMap::new();
         let typed_expr = crate::typed_expr_from_str("(ADD 1.2f64 1u64)", &variable_types);
         assert_eq!(typed_expr.return_type, VarType::F64);
-        let expression = Function::Add.call_untyped_expr(args);
+        let expression = UntypedExpr::call(Function::Add, args).unwrap();
         let mut compiled = compile(&expression, &HashMap::new()).unwrap().context();
         let output = unsafe { compiled.call(&[]) };
         assert_eq!(unsafe { output.as_f64() }, Some(2.2f64));

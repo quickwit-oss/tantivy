@@ -315,11 +315,15 @@ mod tests {
 
     #[test]
     fn test_compile_native_call_to_assembly() {
-        let untyped_expr = Function::RegexpExtract.call_untyped_expr(vec![
-            UntypedExpr::variable("message"),
-            UntypedExpr::literal("([a-z]+)"),
-            UntypedExpr::literal(0u64),
-        ]);
+        let untyped_expr = UntypedExpr::call(
+            Function::RegexpExtract,
+            vec![
+                UntypedExpr::variable("message"),
+                UntypedExpr::literal("([a-z]+)"),
+                UntypedExpr::literal(0u64),
+            ],
+        )
+        .unwrap();
         let variable_types = HashMap::from([("message", VarType::Str)]);
 
         let assembly = compile_to_assembly(&untyped_expr, &variable_types).unwrap();
@@ -331,10 +335,14 @@ mod tests {
     #[cfg(target_arch = "aarch64")]
     #[test]
     fn test_compile_to_assembly_does_not_sign_return_address() {
-        let untyped_expr = Function::RegexpExtract.call_untyped_expr(vec![
-            UntypedExpr::variable("value"),
-            UntypedExpr::literal("([a-z]+)"),
-        ]);
+        let untyped_expr = UntypedExpr::call(
+            Function::RegexpExtract,
+            vec![
+                UntypedExpr::variable("value"),
+                UntypedExpr::literal("([a-z]+)"),
+            ],
+        )
+        .unwrap();
         let variable_types = HashMap::from([("value", VarType::Str)]);
 
         let assembly = compile_to_assembly(&untyped_expr, &variable_types).unwrap();

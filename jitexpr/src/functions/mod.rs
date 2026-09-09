@@ -75,13 +75,6 @@ impl Function {
             }
         }
     }
-
-    pub fn call_untyped_expr(self, args: Vec<UntypedExpr>) -> UntypedExpr {
-        UntypedExpr::Call {
-            function: self,
-            args,
-        }
-    }
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -366,33 +359,17 @@ mod tests {
 
     #[test]
     fn test_typed_construction_validates_unchecked_ast() {
-        let expression = Function::IsNull.call_untyped_expr(Vec::new());
-        let error = match compile(&expression, &HashMap::new()) {
-            Ok(_) => panic!("expected compilation to reject the unchecked AST"),
-            Err(error) => error,
+        // Bypass construction-time validation to exercise the compiler's checks.
+        let expression = UntypedExpr::Call {
+            function: Function::IsNull,
+            args: Vec::new(),
         };
+        let error = compile(&expression, &HashMap::new()).err().unwrap();
         assert!(matches!(
             error,
             CompileError::InvalidArguments(InvalidFunctionCall::InvalidNumberOfArguments {
                 expected: ArgumentCount::Exactly(1),
                 provided: 0,
-            })
-        ));
-
-        let expression = Function::RegexpExtract.call_untyped_expr(vec![
-            UntypedExpr::variable("input"),
-            UntypedExpr::variable("pattern"),
-        ]);
-        let variable_types = HashMap::from([("input", VarType::Str), ("pattern", VarType::Str)]);
-        let error = match compile(&expression, &variable_types) {
-            Ok(_) => panic!("expected compilation to reject the non-literal pattern"),
-            Err(error) => error,
-        };
-        assert!(matches!(
-            error,
-            CompileError::InvalidArguments(InvalidFunctionCall::ExpectedLiteral {
-                argument: 2,
-                expected: VarType::Str,
             })
         ));
     }

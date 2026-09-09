@@ -160,7 +160,8 @@ mod tests {
         // The textual parser rejects non-finite literals, but programmatically
         // constructed expressions can still contain them. They are not null.
         for value in [f64::NAN, f64::INFINITY, f64::NEG_INFINITY] {
-            let expression = Function::IsNull.call_untyped_expr(vec![UntypedExpr::literal(value)]);
+            let expression =
+                UntypedExpr::call(Function::IsNull, vec![UntypedExpr::literal(value)]).unwrap();
             let mut compiled = compile(&expression, &HashMap::new()).unwrap().context();
             // SAFETY: The expression has no runtime inputs and returns a boolean.
             assert_eq!(unsafe { compiled.call(&[]).as_bool() }, Some(false));
