@@ -95,11 +95,9 @@ impl FnCall for RegexpExtractFnCall {
     ) -> Result<TypedExpr, CompileError> {
         Self::ARG_COUNT.validate(args)?;
         let haystack = context.apply_types(&args[0], target_type_set)?;
-        if haystack.return_type == VarType::None {
+        if haystack.return_type != VarType::Str {
             return Ok(TypedExpr::none());
         }
-        assert_eq!(haystack.return_type, VarType::Str);
-
         let UntypedExpr::Literal(Literal::String(pattern)) = &args[1] else {
             return Err(InvalidFunctionCall::ExpectedLiteral {
                 argument: 2,
