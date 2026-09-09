@@ -54,7 +54,7 @@ impl Literal {
         }
     }
 
-    // TODO let's remove it
+    #[cfg(test)]
     pub fn r#type(&self) -> VarType {
         match self {
             Literal::None => VarType::None,

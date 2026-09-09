@@ -1,4 +1,4 @@
-//! Serialization for [`UntypedExpr`] using a small Lisp-like syntax.
+//! De/Serialization for [`UntypedExpr`] using a small Lisp-like syntax.
 //!
 //! Calls are lists whose first item is a recognized uppercase function name.
 //! Elsewhere, atoms name variables unless they match a literal. For example:
@@ -8,18 +8,20 @@
 //! ```
 //!
 //! Numerical literals always carry a type suffix. Parsing rejects non-finite
-//! `f64` literals (NaN, infinities, and overflow). The other literals are
-//! `none`, `true`, `false`, and double-quoted strings. Backticks quote variable
-//! names containing whitespace or syntax characters, or matching literals:
+//! f64 literals (NaN, infinities, and overflow). The other literals are
+//! none, true, false, and double-quoted strings. Backticks quote variable
+//! names containing whitespace or syntax characters, or matching literals.
+//! In most case, backticks quote are unnecessary.
 //!
 //! ```text
-//! (ADD `1u64` 1u64)
+//! (ADD `text` 1u64)
+//! ```
+//! is the same as
+//! ```text
+//! (ADD text 1u64)
 //! ```
 //!
-//! Quoted variables use the same backslash escapes as strings, plus `` \` `` for
-//! a literal backtick. Serialization quotes names only when needed for an
-//! unambiguous round trip. Variable names are not restricted to ASCII or checked
-//! against a schema; field-name validation remains the caller's responsibility.
+//! Quoted variables use escaping to including quotation marks.
 
 use std::fmt;
 use std::sync::Arc;
@@ -121,7 +123,7 @@ fn format_literal(literal: &Literal, formatter: &mut fmt::Formatter) -> fmt::Res
     }
 }
 
-fn format_quoted(value: &str, quote: char, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+fn format_quoted(value: &str, quote: char, formatter: &mut fmt::Formatter) -> fmt::Result {
     write!(formatter, "{quote}")?;
     for character in value.chars() {
         match character {

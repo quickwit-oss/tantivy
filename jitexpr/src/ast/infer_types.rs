@@ -174,6 +174,11 @@ pub fn infer_types_with_target(
     Ok(inferred_type_res)
 }
 
+/// Infer the possible types of an UntypedExpr, meant to represent `target_inferred_type`.
+///
+/// As we call it recursively on the different nodes of the expression,
+/// this method should mutate the inferred_types (found in the inferred_type_res map) of each
+/// variable name encounterred, always restricting them.
 pub(crate) fn infer_types_aux<'a>(
     expr: &'a UntypedExpr,
     target_inferred_type: InferredTypeSet,
@@ -219,6 +224,7 @@ pub(crate) fn infer_type_with_variable_types(
     infer_types_aux(expr, target_inferred_type, &mut inferred_types)
 }
 
+/// Populate the inferred_types HashMap with the value types proved by the user.
 fn seed_variable_types<'a>(
     expr: &'a UntypedExpr,
     variable_types: &HashMap<&str, VarType>,
@@ -227,6 +233,8 @@ fn seed_variable_types<'a>(
     match expr {
         UntypedExpr::Literal(_) => {}
         UntypedExpr::Variable(variable_name) => {
+            // If the value is not provided by the user (for instance because we fed values from a
+            // columnar and no column with that column name exists), we treat it has being None.
             let inferred_type = variable_types
                 .get(variable_name.as_ref())
                 .copied()
