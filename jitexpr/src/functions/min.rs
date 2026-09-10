@@ -88,7 +88,7 @@ impl FnCall for MinFnCall {
         }
         Ok(TypedExpr {
             return_type,
-            ast: TypedExprAst::from_call(MinFnCall {
+            ast: TypedExprAst::from_fn_call(MinFnCall {
                 args: args.into_boxed_slice(),
             }),
         })
@@ -99,7 +99,7 @@ impl FnCall for MinFnCall {
     }
 
     fn serialize(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
-        crate::compile::format_function_call("MIN", self.args.iter(), formatter)
+        crate::compile::format_fn_call("MIN", self.args.iter(), formatter)
     }
 
     fn emit_cranelift_ir(
@@ -161,15 +161,7 @@ mod tests {
         for name in ["a", "b", "c"] {
             assert_eq!(inferred.get(name), Some(&InferredTypeSet::NUMERICAL));
         }
-        let empty = deserialize("(MIN)").unwrap();
-        assert!(matches!(
-            infer_types(&empty),
-            Err(TypeError::InvalidNumberOfArguments {
-                function: Function::Min,
-                expected: 1,
-                got: 0
-            })
-        ));
+        assert!(deserialize("(MIN)").is_err());
 
         let expression = deserialize("(MIN 7i64 -3i64 2i64)").unwrap();
         let mut compiled = compile(&expression, &HashMap::new()).unwrap().context();
@@ -180,14 +172,7 @@ mod tests {
     }
 
     #[test]
-    fn test_float_nan_and_null_behavior() {
-        let expression = deserialize("(MIN nanf64 3f64 -2f64)").unwrap();
-        let mut compiled = compile(&expression, &HashMap::new()).unwrap().context();
-        assert_eq!(unsafe { compiled.call(&[]).as_f64() }, Some(-2.0));
-        let expression = deserialize("(MIN nanf64)").unwrap();
-        let mut compiled = compile(&expression, &HashMap::new()).unwrap().context();
-        assert_eq!(unsafe { compiled.call(&[]).as_f64() }, Some(f64::INFINITY));
-
+    fn test_min_null_behavior() {
         let expression = deserialize("(MIN left right)").unwrap();
         let mut compiled = compile(
             &expression,

@@ -67,7 +67,7 @@ impl FnCall for SubstringCountFnCall {
         }
         Ok(TypedExpr {
             return_type: VarType::I64,
-            ast: TypedExprAst::from_call(SubstringCountFnCall {
+            ast: TypedExprAst::from_fn_call(SubstringCountFnCall {
                 args: args.into_boxed_slice(),
             }),
         })
@@ -76,7 +76,7 @@ impl FnCall for SubstringCountFnCall {
         &mut self.args
     }
     fn serialize(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
-        crate::compile::format_function_call("SUBSTRING_COUNT", self.args.iter(), formatter)
+        crate::compile::format_fn_call("SUBSTRING_COUNT", self.args.iter(), formatter)
     }
     fn emit_cranelift_ir(
         &self,
@@ -157,7 +157,7 @@ impl From<SubstringCountFnCall> for FnCallEnum {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ast::{deserialize, infer_types};
+    use crate::ast::deserialize;
     use crate::compile::compile;
     use crate::types::VariableValue;
     fn eval(expr: &str) -> Option<i64> {
@@ -167,14 +167,7 @@ mod tests {
     }
     #[test]
     fn test_signature_and_counts() {
-        assert!(matches!(
-            infer_types(&deserialize("(SUBSTRING_COUNT \"a\")").unwrap()),
-            Err(TypeError::InvalidNumberOfArguments {
-                function: Function::SubstringCount,
-                expected: 2,
-                ..
-            })
-        ));
+        assert!(deserialize("(SUBSTRING_COUNT \"a\")").is_err());
         assert_eq!(eval("(SUBSTRING_COUNT \"aaaa\" \"aa\")"), Some(2));
         assert_eq!(eval("(SUBSTRING_COUNT \"Abab\" \"ab\")"), Some(1));
         assert_eq!(eval("(SUBSTRING_COUNT \"abc\" \"\")"), Some(0));

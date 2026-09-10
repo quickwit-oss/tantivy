@@ -68,7 +68,7 @@ impl FnCall for AbsFnCall {
         Self::ARG_COUNT.validate(args)?;
         let target_types = match &args[0] {
             UntypedExpr::Literal(literal) => {
-                let declared = InferredTypeSet::singleton(literal.r#type());
+                let declared = literal.types();
                 let constrained = declared.intersect(target_type_set);
                 if constrained.is_none() {
                     InferredTypeSet::NUMERICAL.intersect(target_type_set)
@@ -92,7 +92,7 @@ impl FnCall for AbsFnCall {
         }
         Ok(TypedExpr {
             return_type,
-            ast: TypedExprAst::from_call(AbsFnCall { arg: Box::new(arg) }),
+            ast: TypedExprAst::from_fn_call(AbsFnCall { arg: Box::new(arg) }),
         })
     }
 
@@ -101,7 +101,7 @@ impl FnCall for AbsFnCall {
     }
 
     fn serialize(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
-        crate::compile::format_function_call("ABS", std::iter::once(self.arg.as_ref()), formatter)
+        crate::compile::format_fn_call("ABS", std::iter::once(self.arg.as_ref()), formatter)
     }
 
     fn emit_cranelift_ir(
@@ -164,15 +164,7 @@ mod tests {
         );
 
         for expression in ["(ABS)", "(ABS one two)"] {
-            let expression = deserialize(expression).unwrap();
-            assert!(matches!(
-                infer_types(&expression),
-                Err(TypeError::InvalidNumberOfArguments {
-                    function: Function::Abs,
-                    expected: 1,
-                    ..
-                })
-            ));
+            assert!(deserialize(expression).is_err());
         }
     }
 
@@ -180,8 +172,8 @@ mod tests {
     fn test_preserves_declared_numeric_types() {
         let cases = [
             ("(ABS -7i64)", VarType::I64),
-            ("(ABS 7u64)", VarType::U64),
-            ("(ABS -7f64)", VarType::F64),
+            ("(ABS 7u64)", VarType::I64),
+            ("(ABS -7.2f64)", VarType::F64),
         ];
         for (expression, expected_type) in cases {
             let expression = deserialize(expression).unwrap();

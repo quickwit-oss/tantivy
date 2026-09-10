@@ -50,13 +50,13 @@ pub(crate) struct TrimFnCall {
 impl FnCall for TrimFnCall {
     const ARG_COUNT: super::ArgumentCount = super::ArgumentCount::Exactly(3);
 
-    fn validate_args(args: &[UntypedExpr]) -> Result<(), super::InvalidFunctionCall> {
+    fn validate_args(args: &[UntypedExpr]) -> Result<(), super::InvalidFnCall> {
         Self::ARG_COUNT.validate(args)?;
         super::validate_literal(args, 1, VarType::Str, |literal| {
             matches!(literal, Literal::String(_))
         })?;
         let UntypedExpr::Literal(Literal::String(mode)) = &args[2] else {
-            return Err(super::InvalidFunctionCall::ExpectedLiteral {
+            return Err(super::InvalidFnCall::ExpectedLiteral {
                 argument: 3,
                 expected: VarType::Str,
             });
@@ -67,7 +67,7 @@ impl FnCall for TrimFnCall {
         {
             Ok(())
         } else {
-            Err(super::InvalidFunctionCall::InvalidLiteralValue {
+            Err(super::InvalidFnCall::InvalidLiteralValue {
                 argument: 3,
                 expected: "leading, trailing, or both",
             })
@@ -110,14 +110,14 @@ impl FnCall for TrimFnCall {
             return Ok(TypedExpr::none());
         }
         let UntypedExpr::Literal(Literal::String(delimiter)) = &args[1] else {
-            return Err(super::InvalidFunctionCall::ExpectedLiteral {
+            return Err(super::InvalidFnCall::ExpectedLiteral {
                 argument: 2,
                 expected: VarType::Str,
             }
             .into());
         };
         let UntypedExpr::Literal(Literal::String(mode)) = &args[2] else {
-            return Err(super::InvalidFunctionCall::ExpectedLiteral {
+            return Err(super::InvalidFnCall::ExpectedLiteral {
                 argument: 3,
                 expected: VarType::Str,
             }
@@ -130,7 +130,7 @@ impl FnCall for TrimFnCall {
         } else if mode.eq_ignore_ascii_case("both") {
             TrimMode::Both
         } else {
-            return Err(super::InvalidFunctionCall::InvalidLiteralValue {
+            return Err(super::InvalidFnCall::InvalidLiteralValue {
                 argument: 3,
                 expected: "leading, trailing, or both",
             }
@@ -138,7 +138,7 @@ impl FnCall for TrimFnCall {
         };
         Ok(TypedExpr {
             return_type: VarType::Str,
-            ast: TypedExprAst::from_call(TrimFnCall {
+            ast: TypedExprAst::from_fn_call(TrimFnCall {
                 input: Box::new(input),
                 delimiter: Arc::clone(delimiter),
                 mode,
@@ -282,14 +282,7 @@ mod tests {
     #[test]
     fn test_signature_and_modes() {
         assert!(infer_types(&deserialize("(TRIM value \"xy\" \"both\")").unwrap()).is_ok());
-        assert!(matches!(
-            infer_types(&deserialize("(TRIM value)").unwrap()),
-            Err(TypeError::InvalidNumberOfArguments {
-                function: Function::Trim,
-                expected: 3,
-                ..
-            })
-        ));
+        assert!(deserialize("(TRIM value)").is_err());
         assert_eq!(
             eval("(TRIM \"xyhelloxy\" \"xy\" \"both\")"),
             Some("hello".into())

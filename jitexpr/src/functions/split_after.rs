@@ -33,18 +33,18 @@ pub(crate) struct SplitAfterFnCall {
 
 fn constant_occurrence(
     expression: Option<&UntypedExpr>,
-) -> Result<Option<usize>, super::InvalidFunctionCall> {
+) -> Result<Option<usize>, super::InvalidFnCall> {
     let Some(expression) = expression else {
         return Ok(Some(0));
     };
     let UntypedExpr::Literal(literal) = expression else {
-        return Err(super::InvalidFunctionCall::ExpectedLiteral {
+        return Err(super::InvalidFnCall::ExpectedLiteral {
             argument: 3,
             expected: VarType::I64,
         });
     };
     if !literal.is_none() && !literal.types().contains(VarType::I64) {
-        return Err(super::InvalidFunctionCall::ExpectedLiteral {
+        return Err(super::InvalidFnCall::ExpectedLiteral {
             argument: 3,
             expected: VarType::I64,
         });
@@ -61,7 +61,7 @@ fn constant_occurrence(
 impl FnCall for SplitAfterFnCall {
     const ARG_COUNT: super::ArgumentCount = super::ArgumentCount::Between { min: 2, max: 3 };
 
-    fn validate_args(args: &[UntypedExpr]) -> Result<(), super::InvalidFunctionCall> {
+    fn validate_args(args: &[UntypedExpr]) -> Result<(), super::InvalidFnCall> {
         Self::ARG_COUNT.validate(args)?;
         super::validate_literal(args, 1, VarType::Str, |literal| {
             matches!(literal, Literal::String(_) | Literal::None)
@@ -112,7 +112,7 @@ impl FnCall for SplitAfterFnCall {
             UntypedExpr::Literal(Literal::String(separator)) => Arc::clone(separator),
             UntypedExpr::Literal(Literal::None) => return Ok(TypedExpr::none()),
             _ => {
-                return Err(super::InvalidFunctionCall::ExpectedLiteral {
+                return Err(super::InvalidFnCall::ExpectedLiteral {
                     argument: 2,
                     expected: VarType::Str,
                 }
@@ -124,7 +124,7 @@ impl FnCall for SplitAfterFnCall {
         };
         Ok(TypedExpr {
             return_type: VarType::Str,
-            ast: TypedExprAst::from_call(SplitAfterFnCall {
+            ast: TypedExprAst::from_fn_call(SplitAfterFnCall {
                 input: Box::new(input),
                 separator,
                 occurrence,
@@ -261,7 +261,7 @@ impl From<SplitAfterFnCall> for FnCallEnum {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ast::{deserialize, infer_types};
+    use crate::ast::deserialize;
     use crate::compile::compile;
     use crate::types::VariableValue;
 
@@ -278,15 +278,7 @@ mod tests {
             "(SPLIT_AFTER \"a.b\")",
             "(SPLIT_AFTER \"a.b\" \".\" 0i64 1i64)",
         ] {
-            let expression = deserialize(expression).unwrap();
-            assert!(matches!(
-                infer_types(&expression),
-                Err(TypeError::InvalidNumberOfArguments {
-                    function: Function::SplitAfter,
-                    expected: 3,
-                    ..
-                })
-            ));
+            assert!(deserialize(expression).is_err());
         }
 
         assert_eq!(eval("(SPLIT_AFTER \"a.b.c\" \".\")"), Some("b.c".into()));

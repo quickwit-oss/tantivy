@@ -70,7 +70,7 @@ impl FnCall for UpperFnCall {
         debug_assert_eq!(arg.return_type, VarType::Str);
         Ok(TypedExpr {
             return_type: VarType::Str,
-            ast: TypedExprAst::from_call(UpperFnCall { arg: Box::new(arg) }),
+            ast: TypedExprAst::from_fn_call(UpperFnCall { arg: Box::new(arg) }),
         })
     }
 
@@ -79,7 +79,7 @@ impl FnCall for UpperFnCall {
     }
 
     fn serialize(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
-        crate::compile::format_function_call("UPPER", std::iter::once(self.arg.as_ref()), formatter)
+        crate::compile::format_fn_call("UPPER", std::iter::once(self.arg.as_ref()), formatter)
     }
 
     fn emit_cranelift_ir(
@@ -231,15 +231,7 @@ mod tests {
         assert_eq!(inferred_types.get("value"), Some(&InferredTypeSet::STRING));
 
         for expression in ["(UPPER)", "(UPPER one two)"] {
-            let expression = deserialize(expression).unwrap();
-            assert!(matches!(
-                infer_types(&expression),
-                Err(TypeError::InvalidNumberOfArguments {
-                    function: Function::Upper,
-                    expected: 1,
-                    ..
-                })
-            ));
+            assert!(deserialize(expression).is_err());
         }
     }
 

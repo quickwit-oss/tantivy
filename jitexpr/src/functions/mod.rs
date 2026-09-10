@@ -857,14 +857,14 @@ mod tests {
             })
         ));
 
-        let expression = UntypedExpr::new_fn_call(
-            Function::RegexpLike,
-            vec![
+        // Bypass construction-time validation to exercise the compiler's checks.
+        let expression = UntypedExpr::FnCall {
+            function: Function::RegexpLike,
+            args: vec![
                 UntypedExpr::variable("input"),
                 UntypedExpr::variable("pattern"),
             ],
-        )
-        .unwrap();
+        };
         let variable_types = HashMap::from([("input", VarType::Str), ("pattern", VarType::Str)]);
         let error = compile(&expression, &variable_types).err().unwrap();
         assert!(matches!(

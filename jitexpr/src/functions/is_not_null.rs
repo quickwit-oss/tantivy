@@ -59,7 +59,7 @@ impl FnCall for IsNotNullFnCall {
         let arg = context.apply_types(&args[0], InferredTypeSet::ALL)?;
         Ok(TypedExpr {
             return_type: VarType::Bool,
-            ast: TypedExprAst::from_call(IsNotNullFnCall {
+            ast: TypedExprAst::from_fn_call(IsNotNullFnCall {
                 args: vec![arg].into_boxed_slice(),
             }),
         })
@@ -70,7 +70,7 @@ impl FnCall for IsNotNullFnCall {
     }
 
     fn serialize(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
-        crate::compile::format_function_call("IS_NOT_NULL", self.args.iter(), formatter)
+        crate::compile::format_fn_call("IS_NOT_NULL", self.args.iter(), formatter)
     }
 
     fn emit_cranelift_ir(
@@ -145,30 +145,12 @@ mod tests {
 
     #[test]
     fn test_rejects_no_arguments() {
-        let expression = deserialize("(IS_NOT_NULL)").unwrap();
-
-        assert!(matches!(
-            infer_types(&expression),
-            Err(TypeError::InvalidNumberOfArguments {
-                function: Function::IsNotNull,
-                expected: 1,
-                got: 0,
-            })
-        ));
+        assert!(deserialize("(IS_NOT_NULL)").is_err());
     }
 
     #[test]
     fn test_rejects_more_than_one_argument() {
-        let expression = deserialize("(IS_NOT_NULL value other)").unwrap();
-
-        assert!(matches!(
-            infer_types(&expression),
-            Err(TypeError::InvalidNumberOfArguments {
-                function: Function::IsNotNull,
-                expected: 1,
-                got: 2,
-            })
-        ));
+        assert!(deserialize("(IS_NOT_NULL value other)").is_err());
     }
 
     #[test]

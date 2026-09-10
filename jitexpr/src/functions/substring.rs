@@ -34,15 +34,15 @@ pub(crate) struct SubstringFnCall {
 fn constant_usize(
     expression: &UntypedExpr,
     argument: usize,
-) -> Result<Option<usize>, super::InvalidFunctionCall> {
+) -> Result<Option<usize>, super::InvalidFnCall> {
     let UntypedExpr::Literal(literal) = expression else {
-        return Err(super::InvalidFunctionCall::ExpectedLiteral {
+        return Err(super::InvalidFnCall::ExpectedLiteral {
             argument,
             expected: VarType::I64,
         });
     };
     if !literal.is_none() && !literal.types().contains(VarType::I64) {
-        return Err(super::InvalidFunctionCall::ExpectedLiteral {
+        return Err(super::InvalidFnCall::ExpectedLiteral {
             argument,
             expected: VarType::I64,
         });
@@ -63,7 +63,7 @@ fn constant_usize(
 impl FnCall for SubstringFnCall {
     const ARG_COUNT: super::ArgumentCount = super::ArgumentCount::Exactly(3);
 
-    fn validate_args(args: &[UntypedExpr]) -> Result<(), super::InvalidFunctionCall> {
+    fn validate_args(args: &[UntypedExpr]) -> Result<(), super::InvalidFnCall> {
         Self::ARG_COUNT.validate(args)?;
         for index in 1..=2 {
             super::validate_literal(args, index, VarType::I64, |literal| {
@@ -116,7 +116,7 @@ impl FnCall for SubstringFnCall {
 
         Ok(TypedExpr {
             return_type: VarType::Str,
-            ast: TypedExprAst::from_call(SubstringFnCall {
+            ast: TypedExprAst::from_fn_call(SubstringFnCall {
                 input: Box::new(input),
                 start,
                 length,
@@ -244,7 +244,7 @@ impl From<SubstringFnCall> for FnCallEnum {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ast::{deserialize, infer_types};
+    use crate::ast::deserialize;
     use crate::compile::compile;
     use crate::types::VariableValue;
 
@@ -261,15 +261,7 @@ mod tests {
             "(SUBSTRING \"abc\" 1i64)",
             "(SUBSTRING \"abc\" 1i64 2i64 3i64)",
         ] {
-            let expression = deserialize(expression).unwrap();
-            assert!(matches!(
-                infer_types(&expression),
-                Err(TypeError::InvalidNumberOfArguments {
-                    function: Function::Substring,
-                    expected: 3,
-                    ..
-                })
-            ));
+            assert!(deserialize(expression).is_err());
         }
         assert_eq!(eval("(SUBSTRING \"abcdef\" 1i64 3i64)"), Some("bcd".into()));
         assert_eq!(

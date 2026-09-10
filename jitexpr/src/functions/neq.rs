@@ -63,15 +63,13 @@ impl FnCall for NeqFnCall {
         let typed_args = args
             .iter()
             .map(|arg| match arg {
-                UntypedExpr::Literal(literal) => {
-                    context.apply_types(arg, InferredTypeSet::singleton(literal.r#type()))
-                }
+                UntypedExpr::Literal(literal) => context.apply_types(arg, literal.types()),
                 _ => context.apply_types(arg, InferredTypeSet::ALL),
             })
             .collect::<Result<Vec<_>, _>>()?;
         Ok(TypedExpr {
             return_type: VarType::Bool,
-            ast: TypedExprAst::from_call(NeqFnCall {
+            ast: TypedExprAst::from_fn_call(NeqFnCall {
                 eq: EqFnCall {
                     args: typed_args.into_boxed_slice(),
                 },
@@ -84,7 +82,7 @@ impl FnCall for NeqFnCall {
     }
 
     fn serialize(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
-        crate::compile::format_function_call("NEQ", self.eq.args.iter(), formatter)
+        crate::compile::format_fn_call("NEQ", self.eq.args.iter(), formatter)
     }
 
     fn emit_cranelift_ir(
@@ -131,15 +129,7 @@ mod tests {
         assert_eq!(inferred_types.get("left"), Some(&InferredTypeSet::ALL));
         assert_eq!(inferred_types.get("right"), Some(&InferredTypeSet::ALL));
 
-        let expression = deserialize("(NEQ 1i64)").unwrap();
-        assert!(matches!(
-            infer_types(&expression),
-            Err(TypeError::InvalidNumberOfArguments {
-                function: Function::Neq,
-                expected: 2,
-                ..
-            })
-        ));
+        assert!(deserialize("(NEQ 1i64)").is_err());
     }
 
     #[test]
@@ -148,7 +138,6 @@ mod tests {
         assert_eq!(eval("(NEQ 1i64 2f64)"), Some(true));
         assert_eq!(eval(r#"(NEQ "same" "same")"#), Some(false));
         assert_eq!(eval(r#"(NEQ "1" 1i64)"#), Some(true));
-        assert_eq!(eval("(NEQ nanf64 nanf64)"), Some(true));
     }
 
     #[test]

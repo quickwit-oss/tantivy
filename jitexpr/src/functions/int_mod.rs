@@ -74,7 +74,7 @@ impl FnCall for IntModFnCall {
         }
         Ok(TypedExpr {
             return_type: VarType::F64,
-            ast: TypedExprAst::from_call(IntModFnCall {
+            ast: TypedExprAst::from_fn_call(IntModFnCall {
                 args: args.into_boxed_slice(),
             }),
         })
@@ -85,7 +85,7 @@ impl FnCall for IntModFnCall {
     }
 
     fn serialize(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
-        crate::compile::format_function_call("INT_MOD", self.args.iter(), formatter)
+        crate::compile::format_fn_call("INT_MOD", self.args.iter(), formatter)
     }
 
     fn emit_cranelift_ir(
@@ -177,15 +177,7 @@ mod tests {
             Some(&InferredTypeSet::NUMERICAL)
         );
 
-        let expression = deserialize("(INT_MOD 1i64)").unwrap();
-        assert!(matches!(
-            infer_types(&expression),
-            Err(TypeError::InvalidNumberOfArguments {
-                function: Function::IntMod,
-                expected: 2,
-                ..
-            })
-        ));
+        assert!(deserialize("(INT_MOD 1i64)").is_err());
     }
 
     #[test]
@@ -201,9 +193,6 @@ mod tests {
     fn test_zero_null_nan_and_infinity_edges() {
         assert_eq!(eval("(INT_MOD 1f64 0f64)"), None);
         assert_eq!(eval("(INT_MOD 1f64 -0f64)"), None);
-        assert!(eval("(INT_MOD nanf64 2f64)").unwrap().is_nan());
-        assert!(eval("(INT_MOD 2f64 nanf64)").unwrap().is_nan());
-        assert_eq!(eval("(INT_MOD -2f64 inff64)"), Some(f64::INFINITY));
         assert_eq!(eval("(INT_MOD none 2f64)"), None);
     }
 

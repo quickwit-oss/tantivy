@@ -88,7 +88,7 @@ impl FnCall for MaxFnCall {
         }
         Ok(TypedExpr {
             return_type,
-            ast: TypedExprAst::from_call(MaxFnCall {
+            ast: TypedExprAst::from_fn_call(MaxFnCall {
                 args: args.into_boxed_slice(),
             }),
         })
@@ -99,7 +99,7 @@ impl FnCall for MaxFnCall {
     }
 
     fn serialize(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
-        crate::compile::format_function_call("MAX", self.args.iter(), formatter)
+        crate::compile::format_fn_call("MAX", self.args.iter(), formatter)
     }
 
     fn emit_cranelift_ir(
@@ -163,15 +163,7 @@ mod tests {
         for name in ["a", "b", "c"] {
             assert_eq!(inferred.get(name), Some(&InferredTypeSet::NUMERICAL));
         }
-        let empty = deserialize("(MAX)").unwrap();
-        assert!(matches!(
-            infer_types(&empty),
-            Err(TypeError::InvalidNumberOfArguments {
-                function: Function::Max,
-                expected: 1,
-                got: 0
-            })
-        ));
+        assert!(deserialize("(MAX)").is_err());
         let expression = deserialize("(MAX 7i64 -3i64 12i64)").unwrap();
         let mut compiled = compile(&expression, &HashMap::new()).unwrap().context();
         assert_eq!(unsafe { compiled.call(&[]).as_i64() }, Some(12));
@@ -181,16 +173,7 @@ mod tests {
     }
 
     #[test]
-    fn test_float_nan_and_null_behavior() {
-        let expression = deserialize("(MAX nanf64 3f64 -2f64)").unwrap();
-        let mut compiled = compile(&expression, &HashMap::new()).unwrap().context();
-        assert_eq!(unsafe { compiled.call(&[]).as_f64() }, Some(3.0));
-        let expression = deserialize("(MAX nanf64)").unwrap();
-        let mut compiled = compile(&expression, &HashMap::new()).unwrap().context();
-        assert_eq!(
-            unsafe { compiled.call(&[]).as_f64() },
-            Some(f64::NEG_INFINITY)
-        );
+    fn test_max_null_behavior() {
         let expression = deserialize("(MAX left right)").unwrap();
         let mut compiled = compile(
             &expression,

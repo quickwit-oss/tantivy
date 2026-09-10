@@ -69,9 +69,7 @@ pub(super) fn apply_types(
 ) -> Result<Box<[TypedExpr]>, CompileError> {
     args.iter()
         .map(|arg| match arg {
-            UntypedExpr::Literal(literal) => {
-                context.apply_types(arg, InferredTypeSet::singleton(literal.r#type()))
-            }
+            UntypedExpr::Literal(literal) => context.apply_types(arg, literal.types()),
             _ => context.apply_types(arg, ORDERED_TYPES),
         })
         .collect::<Result<Vec<_>, _>>()

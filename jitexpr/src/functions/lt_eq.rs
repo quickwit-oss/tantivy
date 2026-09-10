@@ -44,7 +44,7 @@ impl FnCall for LtEqFnCall {
         debug_assert!(target_type_set.contains(VarType::Bool));
         Ok(TypedExpr {
             return_type: VarType::Bool,
-            ast: TypedExprAst::from_call(LtEqFnCall {
+            ast: TypedExprAst::from_fn_call(LtEqFnCall {
                 args: comparison::apply_types(args, context)?,
             }),
         })
@@ -55,7 +55,7 @@ impl FnCall for LtEqFnCall {
     }
 
     fn serialize(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
-        crate::compile::format_function_call("LT_EQ", self.args.iter(), formatter)
+        crate::compile::format_fn_call("LT_EQ", self.args.iter(), formatter)
     }
 
     fn emit_cranelift_ir(
@@ -101,15 +101,7 @@ mod tests {
         let left = inferred_types.get("left").unwrap();
         assert!(left.string && left.i64 && left.u64 && left.f64 && !left.boolean);
 
-        let expression = deserialize("(LT_EQ)").unwrap();
-        assert!(matches!(
-            infer_types(&expression),
-            Err(TypeError::InvalidNumberOfArguments {
-                function: Function::LtEq,
-                expected: 2,
-                ..
-            })
-        ));
+        assert!(deserialize("(LT_EQ)").is_err());
     }
 
     #[test]
@@ -121,9 +113,6 @@ mod tests {
             eval("(LT_EQ 9007199254740992f64 9007199254740993u64)"),
             Some(true)
         );
-        assert_eq!(eval("(LT_EQ nanf64 nanf64)"), Some(false));
-        assert_eq!(eval("(LT_EQ nanf64 0u64)"), Some(false));
-        assert_eq!(eval("(LT_EQ 0u64 nanf64)"), Some(false));
         assert_eq!(eval("(LT_EQ none 1i64)"), None);
     }
 

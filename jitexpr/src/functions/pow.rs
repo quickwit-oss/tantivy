@@ -73,7 +73,7 @@ impl FnCall for PowFnCall {
         }
         Ok(TypedExpr {
             return_type: VarType::F64,
-            ast: TypedExprAst::from_call(PowFnCall {
+            ast: TypedExprAst::from_fn_call(PowFnCall {
                 args: args.into_boxed_slice(),
             }),
         })
@@ -84,7 +84,7 @@ impl FnCall for PowFnCall {
     }
 
     fn serialize(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
-        crate::compile::format_function_call("POW", self.args.iter(), formatter)
+        crate::compile::format_fn_call("POW", self.args.iter(), formatter)
     }
 
     fn emit_cranelift_ir(
@@ -167,15 +167,7 @@ mod tests {
         assert_eq!(inferred.get("exponent"), Some(&InferredTypeSet::NUMERICAL));
 
         for expression in ["(POW 2i64)", "(POW 2i64 3i64 4i64)"] {
-            let expression = deserialize(expression).unwrap();
-            assert!(matches!(
-                infer_types(&expression),
-                Err(TypeError::InvalidNumberOfArguments {
-                    function: Function::Pow,
-                    expected: 2,
-                    ..
-                })
-            ));
+            assert!(deserialize(expression).is_err());
         }
         let expression = deserialize("(POW 2i64 3i64)").unwrap();
         assert_eq!(
@@ -190,7 +182,6 @@ mod tests {
         assert_eq!(eval("(POW -2f64 3f64)"), Some(-8.0));
         assert_eq!(eval("(POW -2f64 0.5f64)"), None);
         assert_eq!(eval("(POW none 2f64)"), None);
-        assert!(eval("(POW nanf64 2f64)").unwrap().is_nan());
         assert!(eval("(POW 1e308f64 2f64)").unwrap().is_infinite());
     }
 

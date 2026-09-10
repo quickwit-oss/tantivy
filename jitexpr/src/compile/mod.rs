@@ -260,7 +260,9 @@ mod tests {
 
     #[test]
     fn test_contexts_have_independent_string_arenas() {
-        let untyped_expr = Function::Lower.call_untyped_expr(vec![UntypedExpr::variable("value")]);
+        let untyped_expr = Function::Lower
+            .call(vec![UntypedExpr::variable("value")])
+            .unwrap();
         let variable_types = HashMap::from([("value", VarType::Str)]);
         let compiled_fn = compile(&untyped_expr, &variable_types).unwrap();
         let mut first_ctx = compiled_fn.context();

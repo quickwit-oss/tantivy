@@ -50,7 +50,7 @@ pub(super) struct JoinArguments {
 impl FnCall for ConcatFnCall {
     const ARG_COUNT: super::ArgumentCount = super::ArgumentCount::AtLeast(4);
 
-    fn validate_args(args: &[UntypedExpr]) -> Result<(), super::InvalidFunctionCall> {
+    fn validate_args(args: &[UntypedExpr]) -> Result<(), super::InvalidFnCall> {
         Self::ARG_COUNT.validate(args)?;
         validate_join_args(args)
     }
@@ -74,7 +74,7 @@ impl FnCall for ConcatFnCall {
         };
         Ok(TypedExpr {
             return_type: VarType::Str,
-            ast: TypedExprAst::from_call(ConcatFnCall { arguments }),
+            ast: TypedExprAst::from_fn_call(ConcatFnCall { arguments }),
         })
     }
 
@@ -97,7 +97,7 @@ impl FnCall for ConcatFnCall {
     }
 }
 
-pub(super) fn validate_join_args(args: &[UntypedExpr]) -> Result<(), super::InvalidFunctionCall> {
+pub(super) fn validate_join_args(args: &[UntypedExpr]) -> Result<(), super::InvalidFnCall> {
     super::validate_literal(args, 0, VarType::Str, |literal| {
         matches!(literal, Literal::String(_))
     })?;
@@ -138,14 +138,14 @@ pub(super) fn apply_join_types(
     context: &mut CompileFnBuilder<'_, '_>,
 ) -> Result<Option<JoinArguments>, CompileError> {
     let UntypedExpr::Literal(Literal::String(delimiter)) = &args[0] else {
-        return Err(super::InvalidFunctionCall::ExpectedLiteral {
+        return Err(super::InvalidFnCall::ExpectedLiteral {
             argument: 1,
             expected: VarType::Str,
         }
         .into());
     };
     let UntypedExpr::Literal(Literal::String(ignore_empty)) = &args[1] else {
-        return Err(super::InvalidFunctionCall::ExpectedLiteral {
+        return Err(super::InvalidFnCall::ExpectedLiteral {
             argument: 2,
             expected: VarType::Str,
         }
@@ -418,15 +418,7 @@ mod tests {
         assert_eq!(inferred_types.get("right"), Some(&InferredTypeSet::STRING));
         assert_eq!(inferred_types.get("third"), Some(&InferredTypeSet::STRING));
 
-        let expression = deserialize(r#"(CONCAT "," "false" only_one_value)"#).unwrap();
-        assert!(matches!(
-            infer_types(&expression),
-            Err(TypeError::InvalidNumberOfArguments {
-                function: Function::Concat,
-                expected: 4,
-                ..
-            })
-        ));
+        assert!(deserialize(r#"(CONCAT "," "false" only_one_value)"#).is_err());
     }
 
     #[test]

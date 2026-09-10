@@ -28,7 +28,7 @@ pub(crate) struct TextJoinFnCall {
 impl FnCall for TextJoinFnCall {
     const ARG_COUNT: super::ArgumentCount = super::ArgumentCount::AtLeast(4);
 
-    fn validate_args(args: &[UntypedExpr]) -> Result<(), super::InvalidFunctionCall> {
+    fn validate_args(args: &[UntypedExpr]) -> Result<(), super::InvalidFnCall> {
         Self::ARG_COUNT.validate(args)?;
         concat::validate_join_args(args)
     }
@@ -52,7 +52,7 @@ impl FnCall for TextJoinFnCall {
         };
         Ok(TypedExpr {
             return_type: VarType::Str,
-            ast: TypedExprAst::from_call(TextJoinFnCall { arguments }),
+            ast: TypedExprAst::from_fn_call(TextJoinFnCall { arguments }),
         })
     }
 
@@ -102,15 +102,7 @@ mod tests {
         assert_eq!(inferred_types.get("left"), Some(&InferredTypeSet::STRING));
         assert_eq!(inferred_types.get("right"), Some(&InferredTypeSet::STRING));
 
-        let expression = deserialize(r#"(TEXT_JOIN "," "false" one)"#).unwrap();
-        assert!(matches!(
-            infer_types(&expression),
-            Err(TypeError::InvalidNumberOfArguments {
-                function: Function::TextJoin,
-                expected: 4,
-                ..
-            })
-        ));
+        assert!(deserialize(r#"(TEXT_JOIN "," "false" one)"#).is_err());
     }
 
     #[test]

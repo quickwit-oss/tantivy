@@ -22,15 +22,15 @@ pub(crate) struct LeftFnCall {
     length: usize,
 }
 
-fn constant_length(expression: &UntypedExpr) -> Result<Option<usize>, super::InvalidFunctionCall> {
+fn constant_length(expression: &UntypedExpr) -> Result<Option<usize>, super::InvalidFnCall> {
     let UntypedExpr::Literal(literal) = expression else {
-        return Err(super::InvalidFunctionCall::ExpectedLiteral {
+        return Err(super::InvalidFnCall::ExpectedLiteral {
             argument: 2,
             expected: VarType::I64,
         });
     };
     if !literal.is_none() && !literal.types().contains(VarType::I64) {
-        return Err(super::InvalidFunctionCall::ExpectedLiteral {
+        return Err(super::InvalidFnCall::ExpectedLiteral {
             argument: 2,
             expected: VarType::I64,
         });
@@ -47,7 +47,7 @@ fn constant_length(expression: &UntypedExpr) -> Result<Option<usize>, super::Inv
 impl FnCall for LeftFnCall {
     const ARG_COUNT: super::ArgumentCount = super::ArgumentCount::Exactly(2);
 
-    fn validate_args(args: &[UntypedExpr]) -> Result<(), super::InvalidFunctionCall> {
+    fn validate_args(args: &[UntypedExpr]) -> Result<(), super::InvalidFnCall> {
         Self::ARG_COUNT.validate(args)?;
         super::validate_literal(args, 1, VarType::I64, |literal| {
             literal.is_none() || literal.types().contains(VarType::I64)
@@ -90,7 +90,7 @@ impl FnCall for LeftFnCall {
         };
         Ok(TypedExpr {
             return_type: VarType::Str,
-            ast: TypedExprAst::from_call(LeftFnCall {
+            ast: TypedExprAst::from_fn_call(LeftFnCall {
                 input: Box::new(input),
                 length,
             }),
@@ -143,7 +143,7 @@ impl From<LeftFnCall> for FnCallEnum {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ast::{deserialize, infer_types};
+    use crate::ast::deserialize;
     use crate::compile::compile;
     use crate::types::VariableValue;
 
@@ -157,15 +157,7 @@ mod tests {
     #[test]
     fn test_signature_and_byte_lengths() {
         for expression in ["(LEFT \"abc\")", "(LEFT \"abc\" 1i64 2i64)"] {
-            let expression = deserialize(expression).unwrap();
-            assert!(matches!(
-                infer_types(&expression),
-                Err(TypeError::InvalidNumberOfArguments {
-                    function: Function::Left,
-                    expected: 2,
-                    ..
-                })
-            ));
+            assert!(deserialize(expression).is_err());
         }
 
         assert_eq!(eval("(LEFT \"abcdef\" 3i64)"), Some("abc".into()));

@@ -70,7 +70,7 @@ impl FnCall for LowerFnCall {
         debug_assert_eq!(arg.return_type, VarType::Str);
         Ok(TypedExpr {
             return_type: VarType::Str,
-            ast: TypedExprAst::from_call(LowerFnCall { arg: Box::new(arg) }),
+            ast: TypedExprAst::from_fn_call(LowerFnCall { arg: Box::new(arg) }),
         })
     }
 
@@ -79,7 +79,7 @@ impl FnCall for LowerFnCall {
     }
 
     fn serialize(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
-        crate::compile::format_function_call("LOWER", std::iter::once(self.arg.as_ref()), formatter)
+        crate::compile::format_fn_call("LOWER", std::iter::once(self.arg.as_ref()), formatter)
     }
 
     fn emit_cranelift_ir(
@@ -234,15 +234,7 @@ mod tests {
     #[test]
     fn test_infer_types_requires_one_argument() {
         for expression in ["(LOWER)", "(LOWER one two)"] {
-            let expression = deserialize(expression).unwrap();
-            assert!(matches!(
-                infer_types(&expression),
-                Err(TypeError::InvalidNumberOfArguments {
-                    function: Function::Lower,
-                    expected: 1,
-                    ..
-                })
-            ));
+            assert!(deserialize(expression).is_err());
         }
     }
 

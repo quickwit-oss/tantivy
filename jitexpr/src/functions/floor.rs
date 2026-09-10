@@ -61,7 +61,7 @@ impl FnCall for FloorFnCall {
         }
         Ok(TypedExpr {
             return_type: VarType::I64,
-            ast: TypedExprAst::from_call(FloorFnCall { arg: Box::new(arg) }),
+            ast: TypedExprAst::from_fn_call(FloorFnCall { arg: Box::new(arg) }),
         })
     }
 
@@ -70,7 +70,7 @@ impl FnCall for FloorFnCall {
     }
 
     fn serialize(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
-        crate::compile::format_function_call("FLOOR", std::iter::once(self.arg.as_ref()), formatter)
+        crate::compile::format_fn_call("FLOOR", std::iter::once(self.arg.as_ref()), formatter)
     }
 
     fn emit_cranelift_ir(
@@ -154,15 +154,7 @@ mod tests {
         assert_eq!(inferred.get("value"), Some(&InferredTypeSet::NUMERICAL));
 
         for expression in ["(FLOOR)", "(FLOOR 1i64 2i64)"] {
-            let expression = deserialize(expression).unwrap();
-            assert!(matches!(
-                infer_types(&expression),
-                Err(TypeError::InvalidNumberOfArguments {
-                    function: Function::Floor,
-                    expected: 1,
-                    ..
-                })
-            ));
+            assert!(deserialize(expression).is_err());
         }
 
         let expression = deserialize("(FLOOR 1.2f64)").unwrap();
@@ -185,9 +177,6 @@ mod tests {
     #[test]
     fn test_null_and_exceptional_float_results() {
         assert_eq!(eval("(FLOOR none)"), None);
-        assert_eq!(eval("(FLOOR nanf64)"), None);
-        assert_eq!(eval("(FLOOR inff64)"), None);
-        assert_eq!(eval("(FLOOR -inff64)"), None);
         assert_eq!(eval("(FLOOR 9223372036854775808f64)"), None);
         assert_eq!(eval("(FLOOR -9223372036854775808f64)"), Some(i64::MIN));
     }

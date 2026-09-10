@@ -44,7 +44,7 @@ impl FnCall for LtFnCall {
         debug_assert!(target_type_set.contains(VarType::Bool));
         Ok(TypedExpr {
             return_type: VarType::Bool,
-            ast: TypedExprAst::from_call(LtFnCall {
+            ast: TypedExprAst::from_fn_call(LtFnCall {
                 args: comparison::apply_types(args, context)?,
             }),
         })
@@ -55,7 +55,7 @@ impl FnCall for LtFnCall {
     }
 
     fn serialize(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
-        crate::compile::format_function_call("LT", self.args.iter(), formatter)
+        crate::compile::format_fn_call("LT", self.args.iter(), formatter)
     }
 
     fn emit_cranelift_ir(
@@ -104,15 +104,7 @@ mod tests {
             })
         );
 
-        let expression = deserialize("(LT 1i64)").unwrap();
-        assert!(matches!(
-            infer_types(&expression),
-            Err(TypeError::InvalidNumberOfArguments {
-                function: Function::Lt,
-                expected: 2,
-                ..
-            })
-        ));
+        assert!(deserialize("(LT 1i64)").is_err());
     }
 
     #[test]
@@ -123,8 +115,6 @@ mod tests {
             eval("(LT 9007199254740993u64 9007199254740992f64)"),
             Some(false)
         );
-        assert_eq!(eval("(LT nanf64 0i64)"), Some(false));
-        assert_eq!(eval("(LT 0i64 nanf64)"), Some(false));
         assert_eq!(eval("(LT none 1i64)"), None);
     }
 

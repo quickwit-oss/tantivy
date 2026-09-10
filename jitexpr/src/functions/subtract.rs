@@ -95,7 +95,7 @@ impl FnCall for SubtractFnCall {
 
         Ok(TypedExpr {
             return_type,
-            ast: TypedExprAst::from_call(SubtractFnCall {
+            ast: TypedExprAst::from_fn_call(SubtractFnCall {
                 args: typed_args.into_boxed_slice(),
             }),
         })
@@ -106,7 +106,7 @@ impl FnCall for SubtractFnCall {
     }
 
     fn serialize(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
-        crate::compile::format_function_call("SUBTRACT", self.args.iter(), formatter)
+        crate::compile::format_fn_call("SUBTRACT", self.args.iter(), formatter)
     }
 
     fn emit_cranelift_ir(
@@ -163,15 +163,7 @@ mod tests {
         );
 
         for expression in ["(SUBTRACT 1i64)", "(SUBTRACT 1i64 2i64 3i64)"] {
-            let expression = deserialize(expression).unwrap();
-            assert!(matches!(
-                infer_types(&expression),
-                Err(TypeError::InvalidNumberOfArguments {
-                    function: Function::Subtract,
-                    expected: 2,
-                    ..
-                })
-            ));
+            assert!(deserialize(expression).is_err());
         }
     }
 

@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use crate::ast::InferredTypeSet;
+#[cfg(test)]
 use crate::types::VarType;
 
 /// A literal supported by the first expression-language milestone.

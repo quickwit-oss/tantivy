@@ -62,7 +62,7 @@ impl FnCall for NotFnCall {
         let arg = context.apply_types(&args[0], InferredTypeSet::BOOLEAN)?;
         Ok(TypedExpr {
             return_type: VarType::Bool,
-            ast: TypedExprAst::from_call(NotFnCall {
+            ast: TypedExprAst::from_fn_call(NotFnCall {
                 args: vec![arg].into_boxed_slice(),
             }),
         })
@@ -73,7 +73,7 @@ impl FnCall for NotFnCall {
     }
 
     fn serialize(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
-        crate::compile::format_function_call("NOT", self.args.iter(), formatter)
+        crate::compile::format_fn_call("NOT", self.args.iter(), formatter)
     }
 
     fn emit_cranelift_ir(
@@ -134,15 +134,7 @@ mod tests {
         ));
 
         for expression in ["(NOT)", "(NOT true false)"] {
-            let expression = deserialize(expression).unwrap();
-            assert!(matches!(
-                infer_types(&expression),
-                Err(TypeError::InvalidNumberOfArguments {
-                    function: Function::Not,
-                    expected: 1,
-                    ..
-                })
-            ));
+            assert!(deserialize(expression).is_err());
         }
     }
 

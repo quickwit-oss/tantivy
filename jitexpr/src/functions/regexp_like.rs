@@ -43,7 +43,7 @@ fn convert_pattern(pattern: &str) -> String {
 impl FnCall for RegexpLikeFnCall {
     const ARG_COUNT: super::ArgumentCount = super::ArgumentCount::Exactly(2);
 
-    fn validate_args(args: &[UntypedExpr]) -> Result<(), super::InvalidFunctionCall> {
+    fn validate_args(args: &[UntypedExpr]) -> Result<(), super::InvalidFnCall> {
         Self::ARG_COUNT.validate(args)?;
         super::validate_literal(args, 1, VarType::Str, |literal| {
             matches!(literal, Literal::String(_))
@@ -80,12 +80,12 @@ impl FnCall for RegexpLikeFnCall {
     ) -> Result<TypedExpr, CompileError> {
         Self::ARG_COUNT.validate(args)?;
         let input_target = match &args[0] {
-            UntypedExpr::Literal(literal) => InferredTypeSet::singleton(literal.r#type()),
+            UntypedExpr::Literal(literal) => literal.types(),
             _ => InferredTypeSet::ALL,
         };
         let input = context.apply_types(&args[0], input_target)?;
         let UntypedExpr::Literal(Literal::String(pattern)) = &args[1] else {
-            return Err(super::InvalidFunctionCall::ExpectedLiteral {
+            return Err(super::InvalidFnCall::ExpectedLiteral {
                 argument: 2,
                 expected: VarType::Str,
             }
@@ -101,7 +101,7 @@ impl FnCall for RegexpLikeFnCall {
             );
         Ok(TypedExpr {
             return_type: VarType::Bool,
-            ast: TypedExprAst::from_call(RegexpLikeFnCall {
+            ast: TypedExprAst::from_fn_call(RegexpLikeFnCall {
                 regex,
                 input: Box::new(input),
             }),
@@ -179,7 +179,7 @@ impl From<RegexpLikeFnCall> for FnCallEnum {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ast::{deserialize, infer_types};
+    use crate::ast::deserialize;
     use crate::compile::compile;
     use crate::types::VariableValue;
     fn eval(expr: &str) -> Option<bool> {
@@ -189,14 +189,7 @@ mod tests {
     }
     #[test]
     fn test_signature_matching_and_conversion() {
-        assert!(matches!(
-            infer_types(&deserialize("(REGEXP_LIKE \"a\")").unwrap()),
-            Err(TypeError::InvalidNumberOfArguments {
-                function: Function::RegexpLike,
-                expected: 2,
-                ..
-            })
-        ));
+        assert!(deserialize("(REGEXP_LIKE \"a\")").is_err());
         assert_eq!(eval("(REGEXP_LIKE \"prefix-123\" \"[0-9]+\")"), Some(true));
         assert_eq!(eval("(REGEXP_LIKE \"abc\" \"^z\")"), Some(false));
         assert_eq!(eval("(REGEXP_LIKE \"abc\" \"(?<word>abc)\")"), Some(true));

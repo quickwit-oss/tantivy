@@ -66,7 +66,7 @@ impl FnCall for OrFnCall {
             .collect::<Result<Vec<_>, _>>()?;
         Ok(TypedExpr {
             return_type: VarType::Bool,
-            ast: TypedExprAst::from_call(OrFnCall {
+            ast: TypedExprAst::from_fn_call(OrFnCall {
                 args: args.into_boxed_slice(),
             }),
         })
@@ -77,7 +77,7 @@ impl FnCall for OrFnCall {
     }
 
     fn serialize(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
-        crate::compile::format_function_call("OR", self.args.iter(), formatter)
+        crate::compile::format_fn_call("OR", self.args.iter(), formatter)
     }
 
     fn emit_cranelift_ir(
@@ -134,15 +134,7 @@ mod tests {
         assert_eq!(inferred_types.get("left"), Some(&InferredTypeSet::BOOLEAN));
         assert_eq!(inferred_types.get("right"), Some(&InferredTypeSet::BOOLEAN));
 
-        let expression = deserialize("(OR)").unwrap();
-        assert!(matches!(
-            infer_types(&expression),
-            Err(TypeError::InvalidNumberOfArguments {
-                function: Function::Or,
-                expected: 1,
-                got: 0,
-            })
-        ));
+        assert!(deserialize("(OR)").is_err());
     }
 
     #[test]

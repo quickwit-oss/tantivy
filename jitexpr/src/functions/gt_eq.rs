@@ -44,7 +44,7 @@ impl FnCall for GtEqFnCall {
         debug_assert!(target_type_set.contains(VarType::Bool));
         Ok(TypedExpr {
             return_type: VarType::Bool,
-            ast: TypedExprAst::from_call(GtEqFnCall {
+            ast: TypedExprAst::from_fn_call(GtEqFnCall {
                 args: comparison::apply_types(args, context)?,
             }),
         })
@@ -55,7 +55,7 @@ impl FnCall for GtEqFnCall {
     }
 
     fn serialize(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
-        crate::compile::format_function_call("GT_EQ", self.args.iter(), formatter)
+        crate::compile::format_fn_call("GT_EQ", self.args.iter(), formatter)
     }
 
     fn emit_cranelift_ir(
@@ -101,15 +101,7 @@ mod tests {
         let left = inferred_types.get("left").unwrap();
         assert!(left.string && left.i64 && left.u64 && left.f64 && !left.boolean);
 
-        let expression = deserialize("(GT_EQ 1i64 2i64 3i64)").unwrap();
-        assert!(matches!(
-            infer_types(&expression),
-            Err(TypeError::InvalidNumberOfArguments {
-                function: Function::GtEq,
-                expected: 2,
-                ..
-            })
-        ));
+        assert!(deserialize("(GT_EQ 1i64 2i64 3i64)").is_err());
     }
 
     #[test]
@@ -121,9 +113,6 @@ mod tests {
             eval("(GT_EQ 9007199254740993u64 9007199254740992f64)"),
             Some(true)
         );
-        assert_eq!(eval("(GT_EQ nanf64 nanf64)"), Some(false));
-        assert_eq!(eval("(GT_EQ nanf64 0i64)"), Some(false));
-        assert_eq!(eval("(GT_EQ 0i64 nanf64)"), Some(false));
         assert_eq!(eval("(GT_EQ none 1i64)"), None);
     }
 

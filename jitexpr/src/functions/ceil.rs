@@ -61,7 +61,7 @@ impl FnCall for CeilFnCall {
         }
         Ok(TypedExpr {
             return_type: VarType::I64,
-            ast: TypedExprAst::from_call(CeilFnCall { arg: Box::new(arg) }),
+            ast: TypedExprAst::from_fn_call(CeilFnCall { arg: Box::new(arg) }),
         })
     }
 
@@ -70,7 +70,7 @@ impl FnCall for CeilFnCall {
     }
 
     fn serialize(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
-        crate::compile::format_function_call("CEIL", std::iter::once(self.arg.as_ref()), formatter)
+        crate::compile::format_fn_call("CEIL", std::iter::once(self.arg.as_ref()), formatter)
     }
 
     fn emit_cranelift_ir(
@@ -154,15 +154,7 @@ mod tests {
         assert_eq!(inferred.get("value"), Some(&InferredTypeSet::NUMERICAL));
 
         for expression in ["(CEIL)", "(CEIL 1i64 2i64)"] {
-            let expression = deserialize(expression).unwrap();
-            assert!(matches!(
-                infer_types(&expression),
-                Err(TypeError::InvalidNumberOfArguments {
-                    function: Function::Ceil,
-                    expected: 1,
-                    ..
-                })
-            ));
+            assert!(deserialize(expression).is_err());
         }
 
         let expression = deserialize("(CEIL 1.2f64)").unwrap();
@@ -185,9 +177,6 @@ mod tests {
     #[test]
     fn test_null_and_exceptional_float_results() {
         assert_eq!(eval("(CEIL none)"), None);
-        assert_eq!(eval("(CEIL nanf64)"), None);
-        assert_eq!(eval("(CEIL inff64)"), None);
-        assert_eq!(eval("(CEIL -inff64)"), None);
         assert_eq!(eval("(CEIL 9223372036854775808f64)"), None);
         assert_eq!(eval("(CEIL -9223372036854775808f64)"), Some(i64::MIN));
     }

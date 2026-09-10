@@ -92,7 +92,7 @@ impl FnCall for IfFnCall {
         let when_false = context.apply_types(&args[2], branch_target)?;
         Ok(TypedExpr {
             return_type,
-            ast: TypedExprAst::from_call(IfFnCall {
+            ast: TypedExprAst::from_fn_call(IfFnCall {
                 args: vec![condition, when_true, when_false].into_boxed_slice(),
             }),
         })
@@ -103,7 +103,7 @@ impl FnCall for IfFnCall {
     }
 
     fn serialize(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
-        crate::compile::format_function_call("IF", self.args.iter(), formatter)
+        crate::compile::format_fn_call("IF", self.args.iter(), formatter)
     }
     fn emit_cranelift_ir(
         &self,
@@ -145,20 +145,13 @@ impl From<IfFnCall> for FnCallEnum {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ast::{deserialize, infer_types};
+    use crate::ast::deserialize;
     use crate::compile::compile;
     use crate::types::VariableValue;
 
     #[test]
     fn test_signature_and_values() {
-        assert!(matches!(
-            infer_types(&deserialize("(IF true 1i64)").unwrap()),
-            Err(TypeError::InvalidNumberOfArguments {
-                function: Function::If,
-                expected: 3,
-                ..
-            })
-        ));
+        assert!(deserialize("(IF true 1i64)").is_err());
         for (expr, expected) in [("(IF true 7i64 9i64)", 7), ("(IF false 7i64 9i64)", 9)] {
             let expr = deserialize(expr).unwrap();
             let mut compiled = compile(&expr, &HashMap::new()).unwrap().context();

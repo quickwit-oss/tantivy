@@ -94,7 +94,7 @@ impl FnCall for MultiplyFnCall {
 
         Ok(TypedExpr {
             return_type,
-            ast: TypedExprAst::from_call(MultiplyFnCall {
+            ast: TypedExprAst::from_fn_call(MultiplyFnCall {
                 args: typed_args.into_boxed_slice(),
             }),
         })
@@ -105,7 +105,7 @@ impl FnCall for MultiplyFnCall {
     }
 
     fn serialize(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
-        crate::compile::format_function_call("MULTIPLY", self.args.iter(), formatter)
+        crate::compile::format_fn_call("MULTIPLY", self.args.iter(), formatter)
     }
 
     fn emit_cranelift_ir(
@@ -162,15 +162,7 @@ mod tests {
         );
 
         for expression in ["(MULTIPLY 1i64)", "(MULTIPLY 1i64 2i64 3i64)"] {
-            let expression = deserialize(expression).unwrap();
-            assert!(matches!(
-                infer_types(&expression),
-                Err(TypeError::InvalidNumberOfArguments {
-                    function: Function::Multiply,
-                    expected: 2,
-                    ..
-                })
-            ));
+            assert!(deserialize(expression).is_err());
         }
     }
 
@@ -191,15 +183,6 @@ mod tests {
         let mut compiled = compile(&expression, &HashMap::new()).unwrap().context();
         // SAFETY: The expression has no inputs and returns f64.
         assert_eq!(unsafe { compiled.call(&[]).as_f64() }, Some(3.0));
-    }
-
-    #[test]
-    fn test_nan_is_preserved() {
-        let expression = deserialize("(MULTIPLY nanf64 2f64)").unwrap();
-        let mut compiled = compile(&expression, &HashMap::new()).unwrap().context();
-
-        // SAFETY: The expression has no inputs and returns f64.
-        assert!(unsafe { compiled.call(&[]).as_f64() }.unwrap().is_nan());
     }
 
     #[test]

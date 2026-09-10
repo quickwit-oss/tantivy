@@ -514,7 +514,8 @@ mod tests {
     #[test]
     fn test_eq_round_trip() {
         let expr = Function::Eq
-            .call_untyped_expr(vec![UntypedExpr::literal(1u64), UntypedExpr::literal(1i64)]);
+            .call(vec![UntypedExpr::literal(1u64), UntypedExpr::literal(1i64)])
+            .unwrap();
 
         assert_eq!(serialize(&expr), "(EQ 1u64 1i64)");
         assert_eq!(deserialize("(EQ 1u64 1i64)").unwrap(), expr);

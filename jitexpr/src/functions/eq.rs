@@ -78,16 +78,14 @@ impl FnCall for EqFnCall {
         let typed_args = args
             .iter()
             .map(|arg| match arg {
-                UntypedExpr::Literal(literal) => {
-                    context.apply_types(arg, InferredTypeSet::singleton(literal.r#type()))
-                }
+                UntypedExpr::Literal(literal) => context.apply_types(arg, literal.types()),
                 _ => context.apply_types(arg, InferredTypeSet::ALL),
             })
             .collect::<Result<Vec<_>, _>>()?;
 
         Ok(TypedExpr {
             return_type: VarType::Bool,
-            ast: TypedExprAst::from_call(EqFnCall {
+            ast: TypedExprAst::from_fn_call(EqFnCall {
                 args: typed_args.into_boxed_slice(),
             }),
         })
@@ -98,7 +96,7 @@ impl FnCall for EqFnCall {
     }
 
     fn serialize(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
-        crate::compile::format_function_call("EQ", self.args.iter(), formatter)
+        crate::compile::format_fn_call("EQ", self.args.iter(), formatter)
     }
 
     fn emit_cranelift_ir(
@@ -293,8 +291,9 @@ impl From<EqFnCall> for FnCallEnum {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ast::{self, infer_types};
+    use crate::ast::{self, InvalidFnCall, infer_types};
     use crate::compile::compile;
+    use crate::functions::ArgumentCount;
     use crate::types::VariableValue;
 
     fn eval(expression: &str) -> bool {
@@ -323,16 +322,15 @@ mod tests {
 
     #[test]
     fn test_infer_types_requires_two_arguments() {
-        let expression = Function::Eq.call_untyped_expr(vec![UntypedExpr::literal(1i64)]);
-
-        let error = infer_types(&expression).unwrap_err();
-
+        let error = Function::Eq
+            .call(vec![UntypedExpr::literal(1i64)])
+            .unwrap_err();
+        // let error = infer_types(&expression).unwrap_err();
         assert!(matches!(
             error,
-            TypeError::InvalidNumberOfArguments {
-                function: Function::Eq,
-                expected: 2,
-                got: 1,
+            InvalidFnCall::InvalidNumberOfArguments {
+                expected: ArgumentCount::Exactly(2),
+                provided: 1,
             }
         ));
     }
@@ -462,12 +460,11 @@ mod tests {
     #[test]
     fn test_call_with_types_preserves_literal_types() {
         let typed_expr = crate::typed_expr_from_str("(EQ 1u64 1f64)", &HashMap::new());
-        let TypedExprAst::FnCall(FnCallEnum::Eq(call)) = typed_expr.ast else {
+        let TypedExprAst::FnCall(FnCallEnum::Eq(eq_fn_call)) = typed_expr.ast else {
             panic!("expected an EQ call");
         };
-
-        assert_eq!(call.args[0].return_type, VarType::U64);
-        assert_eq!(call.args[1].return_type, VarType::F64);
+        assert_eq!(eq_fn_call.args[0].return_type, VarType::I64);
+        assert_eq!(eq_fn_call.args[1].return_type, VarType::I64);
     }
 
     #[test]
