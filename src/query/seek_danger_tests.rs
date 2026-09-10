@@ -120,7 +120,7 @@ impl Expr {
                 Bound::Excluded(Term::from_field_u64(number, 8)),
             )),
             Kind::Predicate => Box::new(DocPredicateQuery::from(FunctionPredicate::from(
-                |_: &SegmentReader| Ok(|doc: DocId| doc % 13 == 0),
+                |_: &SegmentReader| Ok(|doc: DocId| doc.is_multiple_of(13)),
             ))),
             // ScorerWrapper is private to Disjunction and its override is not
             // called by Disjunction's normal traversal. Exercise it directly.

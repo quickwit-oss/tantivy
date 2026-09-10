@@ -214,7 +214,7 @@ pub(crate) mod tests {
 
     fn even_doc_id_query() -> DocPredicateQuery {
         FunctionPredicate::from(|_segment_reader: &SegmentReader| {
-            Ok(move |doc_id: DocId| doc_id % 2 == 0)
+            Ok(move |doc_id: DocId| doc_id.is_multiple_of(2))
         })
         .into()
     }

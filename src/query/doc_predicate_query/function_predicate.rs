@@ -65,7 +65,7 @@ mod tests {
         let index = create_index_for_test(4);
         let searcher = index.reader().unwrap().searcher();
         let predicate = FunctionPredicate::from(|_segment_reader: &SegmentReader| {
-            Ok(move |doc_id: DocId| doc_id % 2 == 0)
+            Ok(move |doc_id: DocId| doc_id.is_multiple_of(2))
         });
         let query: DocPredicateQuery = predicate.into();
         assert_eq!(searcher.search(&query, &Count).unwrap(), 2);

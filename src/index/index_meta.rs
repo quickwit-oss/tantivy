@@ -460,6 +460,8 @@ mod tests {
         let segment_meta = inventory.new_segment_meta(segment_id, 10);
         segment_meta.untrack_temp_docstore();
         // Keep another segment tracked, but absent from the metadata being listed.
+        // The binding must stay alive: dropping it would untrack the segment and
+        // invalidate the `inventory.all()` assertion below.
         let other_segment_meta = inventory.new_segment_meta(SegmentId::generate_random(), 10);
         let mut metadata = IndexMeta::with_schema(Schema::builder().build());
         metadata.segments.push(segment_meta);
@@ -471,6 +473,7 @@ mod tests {
             expected_builtin_files(segment_id, 0)
         );
         assert_eq!(inventory.all().len(), 2);
+        drop(other_segment_meta);
     }
 
     #[test]
