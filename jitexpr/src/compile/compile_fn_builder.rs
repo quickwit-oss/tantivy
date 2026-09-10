@@ -316,12 +316,7 @@ impl LoweredFunction {
         // was built above to exactly match `JitEntry`. The module is retained by
         // `CompiledFn`, so its executable allocation outlives `entry`.
         let entry = unsafe { mem::transmute::<*const u8, JitEntry>(code) };
-        Ok(CompiledFn {
-            entry,
-            _module: module,
-            inputs: input_vars,
-            _typed_expr: expression,
-        })
+        Ok(CompiledFn::new(entry, module, input_vars, expression))
     }
 
     fn into_assembly(mut self) -> Result<String, CompileError> {

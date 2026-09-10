@@ -259,6 +259,27 @@ mod tests {
     }
 
     #[test]
+    fn test_repeated_compile_and_drop_frees_jit_memory() {
+        // `CompiledFn::drop` must call `JITModule::free_memory` rather than
+        // silently leaking the module's executable allocation, since
+        // `JITModule` itself does not release it on drop. This test does not
+        // measure process memory directly, but it does drive many compile and
+        // drop cycles so a use-after-free from freeing the module too early
+        // (e.g. while `entry` is still reachable) would reliably crash or
+        // produce wrong results here.
+        let untyped_expr = UntypedExpr::variable("flag");
+        let variable_types = HashMap::from([("flag", VarType::Bool)]);
+        for _ in 0..10_000 {
+            let compiled_fn = compile(&untyped_expr, &variable_types).unwrap();
+            let mut string_arena = StringArena::new();
+            let input = [VariableValue::some(true)];
+            let output = unsafe { compiled_fn.call(&input, &mut string_arena) };
+            assert_eq!(unsafe { output.as_bool() }, Some(true));
+            drop(compiled_fn);
+        }
+    }
+
+    #[test]
     fn test_contexts_have_independent_string_arenas() {
         let untyped_expr = Function::Lower
             .call(vec![UntypedExpr::variable("value")])
