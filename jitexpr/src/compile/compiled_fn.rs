@@ -30,11 +30,13 @@ pub(crate) type JitEntry =
 /// This object owns the JIT module containing its executable memory and every
 /// resource referenced by the generated code.
 pub struct CompiledFn {
-    pub(crate) entry: JitEntry,
-    pub(crate) _module: JITModule,
-    pub(super) inputs: Vec<TypedVariable>,
+    entry: JitEntry,
+    // Always `Some` outside of `Drop::drop`, which takes the module to free its
+    // executable memory.
+    module: Option<JITModule>,
+    inputs: Vec<TypedVariable>,
     // This AST owns the Arc-backed literals and regexes embedded in generated code.
-    pub(crate) _typed_expr: Box<TypedExpr>,
+    _typed_expr: Box<TypedExpr>,
 }
 
 // `JITModule` is not `Sync` because it supports lazily looking up symbols through
@@ -44,7 +46,33 @@ pub struct CompiledFn {
 // called concurrently when each caller supplies a distinct `StringArena`.
 unsafe impl Sync for CompiledFn {}
 
+impl Drop for CompiledFn {
+    fn drop(&mut self) {
+        let Some(module) = self.module.take() else {
+            return;
+        };
+        // SAFETY: `self` is being dropped, so by the invariants documented on
+        // `CompiledFn`, no function from `module` can be executing and none
+        // will be called after this point.
+        unsafe { module.free_memory() };
+    }
+}
+
 impl CompiledFn {
+    pub(super) fn new(
+        entry: JitEntry,
+        module: JITModule,
+        inputs: Vec<TypedVariable>,
+        typed_expr: Box<TypedExpr>,
+    ) -> Self {
+        CompiledFn {
+            entry,
+            module: Some(module),
+            inputs,
+            _typed_expr: typed_expr,
+        }
+    }
+
     /// Returns the input slots in the exact order expected by [`CompiledFn::call`].
     pub fn inputs(&self) -> &[TypedVariable] {
         &self.inputs
