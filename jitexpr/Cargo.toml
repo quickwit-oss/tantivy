@@ -5,7 +5,7 @@ edition = "2024"
 
 [dependencies]
 cranelift = "0.134.3"
-cranelift-jit = "0.134.3"
+cranelift-jit = "0.135.1"
 cranelift-module = "0.134.3"
 cranelift-native = "0.134.3"
 regex = "1"
