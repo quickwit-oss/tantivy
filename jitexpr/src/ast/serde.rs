@@ -144,17 +144,87 @@ fn format_quoted(value: &str, quote: char, formatter: &mut fmt::Formatter) -> fm
 
 fn function_name(function: Function) -> &'static str {
     match function {
+        Function::Abs => "ABS",
+        Function::And => "AND",
+        Function::Ceil => "CEIL",
+        Function::Concat => "CONCAT",
         Function::Add => "ADD",
+        Function::Divide => "DIVIDE",
+        Function::Eq => "EQ",
+        Function::Floor => "FLOOR",
+        Function::Gt => "GT",
+        Function::GtEq => "GT_EQ",
+        Function::If => "IF",
+        Function::IntMod => "INT_MOD",
+        Function::Left => "LEFT",
+        Function::Lt => "LT",
+        Function::LtEq => "LT_EQ",
         Function::IsNull => "IS_NULL",
+        Function::IsNotNull => "IS_NOT_NULL",
+        Function::Lower => "LOWER",
+        Function::Max => "MAX",
+        Function::Min => "MIN",
+        Function::Multiply => "MULTIPLY",
+        Function::Neq => "NEQ",
+        Function::Not => "NOT",
+        Function::Or => "OR",
+        Function::Pow => "POW",
+        Function::Sqrt => "SQRT",
         Function::RegexpExtract => "REGEXP_EXTRACT",
+        Function::RegexpLike => "REGEXP_LIKE",
+        Function::Right => "RIGHT",
+        Function::Round => "ROUND",
+        Function::SplitAfter => "SPLIT_AFTER",
+        Function::SplitBefore => "SPLIT_BEFORE",
+        Function::Subtract => "SUBTRACT",
+        Function::Substring => "SUBSTRING",
+        Function::SubstringCount => "SUBSTRING_COUNT",
+        Function::TextJoin => "TEXT_JOIN",
+        Function::Trim => "TRIM",
+        Function::Upper => "UPPER",
     }
 }
 
 fn parse_function(name: &str, offset: usize) -> Result<Function, DeserializeError> {
     match name {
+        "ABS" => Ok(Function::Abs),
+        "AND" => Ok(Function::And),
+        "CEIL" => Ok(Function::Ceil),
+        "CONCAT" => Ok(Function::Concat),
         "ADD" => Ok(Function::Add),
+        "DIVIDE" => Ok(Function::Divide),
+        "EQ" => Ok(Function::Eq),
+        "FLOOR" => Ok(Function::Floor),
+        "GT" => Ok(Function::Gt),
+        "GT_EQ" => Ok(Function::GtEq),
+        "IF" => Ok(Function::If),
+        "INT_MOD" => Ok(Function::IntMod),
+        "LEFT" => Ok(Function::Left),
+        "LT" => Ok(Function::Lt),
+        "LT_EQ" => Ok(Function::LtEq),
         "IS_NULL" => Ok(Function::IsNull),
+        "IS_NOT_NULL" => Ok(Function::IsNotNull),
+        "LOWER" => Ok(Function::Lower),
+        "MAX" => Ok(Function::Max),
+        "MIN" => Ok(Function::Min),
+        "MULTIPLY" => Ok(Function::Multiply),
+        "NEQ" => Ok(Function::Neq),
+        "NOT" => Ok(Function::Not),
+        "OR" => Ok(Function::Or),
+        "POW" => Ok(Function::Pow),
+        "SQRT" => Ok(Function::Sqrt),
         "REGEXP_EXTRACT" => Ok(Function::RegexpExtract),
+        "REGEXP_LIKE" => Ok(Function::RegexpLike),
+        "RIGHT" => Ok(Function::Right),
+        "ROUND" => Ok(Function::Round),
+        "SPLIT_AFTER" => Ok(Function::SplitAfter),
+        "SPLIT_BEFORE" => Ok(Function::SplitBefore),
+        "SUBTRACT" => Ok(Function::Subtract),
+        "SUBSTRING" => Ok(Function::Substring),
+        "SUBSTRING_COUNT" => Ok(Function::SubstringCount),
+        "TEXT_JOIN" => Ok(Function::TextJoin),
+        "TRIM" => Ok(Function::Trim),
+        "UPPER" => Ok(Function::Upper),
         _ if !is_function_name(name) => Err(DeserializeError::new(
             offset,
             format!("function name `{name}` must be uppercase"),
@@ -439,6 +509,16 @@ mod tests {
         assert_eq!(serialize(&expr), "(ADD 1i64 my_col)");
         assert_eq!(format!("{expr}"), "(ADD 1i64 my_col)");
         assert_eq!(format!("{expr:?}"), "(ADD 1i64 my_col)");
+    }
+
+    #[test]
+    fn test_eq_round_trip() {
+        let expr = Function::Eq
+            .call(vec![UntypedExpr::literal(1u64), UntypedExpr::literal(1i64)])
+            .unwrap();
+
+        assert_eq!(serialize(&expr), "(EQ 1u64 1i64)");
+        assert_eq!(deserialize("(EQ 1u64 1i64)").unwrap(), expr);
     }
 
     #[test]

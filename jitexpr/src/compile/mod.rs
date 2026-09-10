@@ -15,6 +15,8 @@ use cranelift::codegen::ir::{
 };
 use cranelift::frontend::FunctionBuilder;
 pub use error::CompileError;
+#[cfg(test)]
+pub(crate) use string_arena::STRING_ARENA_CAPACITY;
 pub use string_arena::StringArena;
 pub use typed_expr::TypedVariable;
 pub(crate) use typed_expr::{TypedExpr, TypedExprAst, TypedLiteral};
@@ -257,6 +259,26 @@ mod tests {
     }
 
     #[test]
+    fn test_contexts_have_independent_string_arenas() {
+        let untyped_expr = Function::Lower
+            .call(vec![UntypedExpr::variable("value")])
+            .unwrap();
+        let variable_types = HashMap::from([("value", VarType::Str)]);
+        let compiled_fn = compile(&untyped_expr, &variable_types).unwrap();
+        let mut first_ctx = compiled_fn.context();
+        let mut second_ctx = CompiledFnCtx::from(compiled_fn);
+
+        let first = unsafe { first_ctx.call(&[VariableValue::some("FIRST")]) };
+        assert_eq!(unsafe { first.as_str() }, Some("first"));
+        assert_eq!(first_ctx.string_arena.used_bytes(), 5);
+
+        let second = unsafe { second_ctx.call(&[VariableValue::some("SECOND")]) };
+        assert_eq!(unsafe { second.as_str() }, Some("second"));
+        assert_eq!(second_ctx.string_arena.used_bytes(), 6);
+        assert_eq!(first_ctx.string_arena.used_bytes(), 5);
+    }
+
+    #[test]
     fn test_compile_none_variable() {
         let untyped_expr = UntypedExpr::variable("value");
         let variable_types = HashMap::from([("value", VarType::U64)]);
@@ -335,14 +357,9 @@ mod tests {
     #[cfg(target_arch = "aarch64")]
     #[test]
     fn test_compile_to_assembly_does_not_sign_return_address() {
-        let untyped_expr = UntypedExpr::new_fn_call(
-            Function::RegexpExtract,
-            vec![
-                UntypedExpr::variable("value"),
-                UntypedExpr::literal("([a-z]+)"),
-            ],
-        )
-        .unwrap();
+        let untyped_expr =
+            UntypedExpr::new_fn_call(Function::Lower, vec![UntypedExpr::variable("value")])
+                .unwrap();
         let variable_types = HashMap::from([("value", VarType::Str)]);
 
         let assembly = compile_to_assembly(&untyped_expr, &variable_types).unwrap();
