@@ -106,6 +106,7 @@ fn bench_agg(runner: &mut BenchRunner, index: &Index, execute_filtered: Aggregat
             benchmark_config!(average_u64),
             benchmark_config!(average_f64),
             benchmark_config!(average_f64_u64),
+            benchmark_config!(min_max_f64),
             benchmark_config!(stats_f64),
             benchmark_config!(extendedstats_f64),
             benchmark_config!(percentiles_f64),
@@ -214,6 +215,12 @@ fn average_f64_u64() -> AggregationRequest {
     json!({
         "average_f64": { "avg": { "field": "score_f64" } },
         "average": { "avg": { "field": "score" } },
+    })
+}
+fn min_max_f64() -> AggregationRequest {
+    json!({
+        "min_f64": { "min": { "field": "score_f64" } },
+        "max_f64": { "max": { "field": "score_f64" } }
     })
 }
 fn stats_f64() -> AggregationRequest {
