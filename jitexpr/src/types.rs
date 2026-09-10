@@ -110,6 +110,20 @@ const _: () = {
     assert!(std::mem::align_of::<VariableValue>() == 8);
 };
 
+/// Pins down the *internal* layout of the `string` arm, which `#[repr(C)]` on
+/// the union does not specify.
+const _: () = {
+    // The `None` niche is a null data pointer in word 0.
+    let none_words: [usize; 2] = unsafe { std::mem::transmute::<Option<&str>, [usize; 2]>(None) };
+    assert!(none_words[0] == 0);
+
+    const SAMPLE: &str = "abcde";
+    let some_parts: (*const u8, usize) =
+        unsafe { std::mem::transmute::<Option<&str>, (*const u8, usize)>(Some(SAMPLE)) };
+    assert!(!some_parts.0.is_null());
+    assert!(some_parts.1 == SAMPLE.len());
+};
+
 impl<'a> VariableValue<'a> {
     /// Wraps a present runtime value.
     #[inline(always)]
