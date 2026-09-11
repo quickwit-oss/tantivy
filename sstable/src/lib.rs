@@ -357,7 +357,7 @@ where
 
         SSTABLE_VERSION.serialize(&mut wrt)?;
 
-        let wrt = wrt.finish();
+        let wrt = wrt.into_inner();
         Ok(wrt.into_inner()?)
     }
 }

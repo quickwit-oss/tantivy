@@ -8,7 +8,7 @@ use crate::DocId;
 /// Write an alive `BitSet`
 ///
 /// where `alive_bitset` is the set of alive `DocId`.
-/// Warning: this function does not call terminate. The caller is in charge of
+/// Warning: this function does not call `finish()`. The caller is in charge of
 /// closing the writer properly.
 pub fn write_alive_bitset<T: Write>(alive_bitset: &BitSet, writer: &mut T) -> io::Result<()> {
     alive_bitset.serialize(writer)?;

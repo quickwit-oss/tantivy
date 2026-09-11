@@ -16,7 +16,7 @@ use rand::rngs::StdRng;
 use rand::SeedableRng;
 use tantivy::directory::error::{DeleteError, OpenReadError, OpenWriteError};
 use tantivy::directory::{
-    AntiCallToken, Directory, FileHandle, OwnedBytes, TerminatingWrite, WatchCallback, WatchHandle,
+    AntiCallToken, Directory, FileHandle, FinishableWrite, OwnedBytes, WatchCallback, WatchHandle,
     WritePtr,
 };
 use tantivy::indexer::{merge_filtered_segments, NoMergePolicy};
@@ -40,8 +40,8 @@ impl Write for NullWriter {
     }
 }
 
-impl TerminatingWrite for NullWriter {
-    fn terminate_ref(&mut self, _token: AntiCallToken) -> io::Result<()> {
+impl FinishableWrite for NullWriter {
+    fn finish_ref(&mut self, _token: AntiCallToken) -> io::Result<()> {
         Ok(())
     }
 }
@@ -63,8 +63,8 @@ impl Write for InMemoryWriter {
     }
 }
 
-impl TerminatingWrite for InMemoryWriter {
-    fn terminate_ref(&mut self, _token: AntiCallToken) -> io::Result<()> {
+impl FinishableWrite for InMemoryWriter {
+    fn finish_ref(&mut self, _token: AntiCallToken) -> io::Result<()> {
         let bytes = OwnedBytes::new(std::mem::take(&mut self.buffer));
         self.blobs.write().unwrap().insert(self.path.clone(), bytes);
         Ok(())

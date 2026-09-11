@@ -86,8 +86,8 @@ impl<W: io::Write> PositionSerializer<W> {
         Ok(())
     }
 
-    /// Close the positions for this term and flushes the data.
-    pub fn close(mut self) -> io::Result<()> {
-        self.positions_wrt.flush()
+    /// Close the positions for this field.
+    pub fn close(self) -> io::Result<()> {
+        Ok(())
     }
 }
