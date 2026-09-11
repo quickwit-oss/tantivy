@@ -82,7 +82,7 @@ mod tests {
     use std::path::Path;
 
     use columnar::StrColumn;
-    use common::{ByteCount, DateTimePrecision, HasLen, TerminatingWrite};
+    use common::{ByteCount, DateTimePrecision, FinishableWrite, HasLen};
     use once_cell::sync::Lazy;
     use rand::prelude::SliceRandom;
     use rand::rngs::StdRng;
@@ -132,7 +132,7 @@ mod tests {
                 .add_document(&doc!(*FIELD=>2u64))
                 .unwrap();
             fast_field_writers.serialize(&mut write, None).unwrap();
-            write.terminate().unwrap();
+            write.finish().unwrap();
         }
         let file = directory.open_read(path).unwrap();
 
@@ -183,7 +183,7 @@ mod tests {
                 .add_document(&doc!(*FIELD=>215u64))
                 .unwrap();
             fast_field_writers.serialize(&mut write, None).unwrap();
-            write.terminate().unwrap();
+            write.finish().unwrap();
         }
         let file = directory.open_read(path).unwrap();
         assert_eq!(file.len(), 108);
@@ -216,7 +216,7 @@ mod tests {
                     .unwrap();
             }
             fast_field_writers.serialize(&mut write, None).unwrap();
-            write.terminate().unwrap();
+            write.finish().unwrap();
         }
         let file = directory.open_read(path).unwrap();
         assert_eq!(file.len(), 81);
@@ -248,7 +248,7 @@ mod tests {
                     .unwrap();
             }
             fast_field_writers.serialize(&mut write, None).unwrap();
-            write.terminate().unwrap();
+            write.finish().unwrap();
         }
         let file = directory.open_read(path).unwrap();
         assert_eq!(file.len(), 4476);
@@ -281,7 +281,7 @@ mod tests {
                 fast_field_writers.add_document(&doc).unwrap();
             }
             fast_field_writers.serialize(&mut write, None).unwrap();
-            write.terminate().unwrap();
+            write.finish().unwrap();
         }
         let file = directory.open_read(path).unwrap();
         assert_eq!(file.len(), 252);
@@ -320,7 +320,7 @@ mod tests {
             let doc = TantivyDocument::default();
             fast_field_writers.add_document(&doc).unwrap();
             fast_field_writers.serialize(&mut write, None).unwrap();
-            write.terminate().unwrap();
+            write.finish().unwrap();
         }
 
         let file = directory.open_read(path).unwrap();
@@ -353,7 +353,7 @@ mod tests {
             let doc = TantivyDocument::default();
             fast_field_writers.add_document(&doc).unwrap();
             fast_field_writers.serialize(&mut write, None).unwrap();
-            write.terminate().unwrap();
+            write.finish().unwrap();
         }
 
         let file = directory.open_read(path).unwrap();
@@ -390,7 +390,7 @@ mod tests {
                 fast_field_writers.add_document(&doc!(*FIELD=>x)).unwrap();
             }
             fast_field_writers.serialize(&mut write, None).unwrap();
-            write.terminate().unwrap();
+            write.finish().unwrap();
         }
         let file = directory.open_read(path).unwrap();
         let fast_field_readers = FastFieldReaders::open(file, SCHEMA.clone()).unwrap();
@@ -775,7 +775,7 @@ mod tests {
                 .add_document(&doc!(field=>false))
                 .unwrap();
             fast_field_writers.serialize(&mut write, None).unwrap();
-            write.terminate().unwrap();
+            write.finish().unwrap();
         }
         let file = directory.open_read(path).unwrap();
         assert_eq!(file.len(), 84);
@@ -807,7 +807,7 @@ mod tests {
                     .unwrap();
             }
             fast_field_writers.serialize(&mut write, None).unwrap();
-            write.terminate().unwrap();
+            write.finish().unwrap();
         }
         let file = directory.open_read(path).unwrap();
         assert_eq!(file.len(), 96);
@@ -832,7 +832,7 @@ mod tests {
             let doc = TantivyDocument::default();
             fast_field_writers.add_document(&doc).unwrap();
             fast_field_writers.serialize(&mut write, None).unwrap();
-            write.terminate().unwrap();
+            write.finish().unwrap();
         }
         let file = directory.open_read(path).unwrap();
         assert_eq!(file.len(), 86);
@@ -860,7 +860,7 @@ mod tests {
                 fast_field_writers.add_document(doc).unwrap();
             }
             fast_field_writers.serialize(&mut write, None).unwrap();
-            write.terminate().unwrap();
+            write.finish().unwrap();
         }
         Ok(directory)
     }

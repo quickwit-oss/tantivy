@@ -9,7 +9,7 @@ use std::collections::BTreeMap;
 use columnar::{
     ColumnType, ColumnarReader, MergeRowOrder, RowAddr, ShuffleMergeOrder, StackMergeOrder,
 };
-use common::TerminatingWrite;
+use common::FinishableWrite;
 use measure_time::debug_time;
 
 use crate::directory::{Directory, WritePtr};
@@ -60,7 +60,7 @@ impl SegmentPlugin for FastFieldsPlugin {
             &mut fast_field_wrt,
         )?;
 
-        fast_field_wrt.terminate()?;
+        fast_field_wrt.finish()?;
         Ok(())
     }
 
@@ -131,7 +131,7 @@ impl PluginWriter for FastFieldsPluginWriter {
         self.writer
             .serialize(&mut self.fast_field_write, doc_id_map)
             .map_err(|e| crate::TantivyError::InternalError(e.to_string()))?;
-        self.fast_field_write.terminate()?;
+        self.fast_field_write.finish()?;
         Ok(())
     }
 

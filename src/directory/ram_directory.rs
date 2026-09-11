@@ -11,7 +11,7 @@ use super::FileHandle;
 use crate::core::META_FILEPATH;
 use crate::directory::error::{DeleteError, OpenReadError, OpenWriteError};
 use crate::directory::{
-    AntiCallToken, Directory, FileSlice, TerminatingWrite, WatchCallback, WatchCallbackList,
+    AntiCallToken, Directory, FileSlice, FinishableWrite, WatchCallback, WatchCallbackList,
     WatchHandle, WritePtr,
 };
 
@@ -41,26 +41,32 @@ impl MemoryUsageTracker {
             self.unreported_bytes = 0;
         }
     }
+
+    fn finish(&mut self) {
+        if self.reported_bytes > 0 {
+            self.shared_usage
+                .fetch_sub(self.reported_bytes, Ordering::Relaxed);
+            self.reported_bytes = 0;
+        }
+        self.unreported_bytes = 0;
+    }
 }
 
 impl Drop for MemoryUsageTracker {
     fn drop(&mut self) {
-        if self.reported_bytes > 0 {
-            self.shared_usage
-                .fetch_sub(self.reported_bytes, Ordering::Relaxed);
-        }
+        self.finish();
     }
 }
 
 /// Writer associated with the [`RamDirectory`].
 ///
-/// The Writer just writes a buffer.
+/// The writer stores its buffer in the directory when finished.
 struct VecWriter {
     path: PathBuf,
     shared_directory: RamDirectory,
     data: Cursor<Vec<u8>>,
     memory_usage: MemoryUsageTracker,
-    is_flushed: bool,
+    is_finished: bool,
 }
 
 impl VecWriter {
@@ -72,16 +78,16 @@ impl VecWriter {
             data: Cursor::new(Vec::new()),
             shared_directory,
             memory_usage,
-            is_flushed: true,
+            is_finished: true,
         }
     }
 }
 
 impl Drop for VecWriter {
     fn drop(&mut self) {
-        if !self.is_flushed {
+        if !self.is_finished {
             warn!(
-                "You forgot to flush {:?} before its writer got Drop. Do not rely on drop. This \
+                "You forgot to finish {:?} before its writer got Drop. Do not rely on drop. This \
                  also occurs when the indexer crashed, so you may want to check the logs for the \
                  root cause.",
                 self.path
@@ -92,7 +98,7 @@ impl Drop for VecWriter {
 
 impl Write for VecWriter {
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
-        self.is_flushed = false;
+        self.is_finished = false;
         let previous_capacity = self.data.get_ref().capacity();
         self.data.write_all(buf)?;
         let capacity = self.data.get_ref().capacity();
@@ -100,17 +106,21 @@ impl Write for VecWriter {
         Ok(buf.len())
     }
 
+    /// Nothing to flush since the data is stored in memory. The memory usage is updated on each
+    /// write.
     fn flush(&mut self) -> io::Result<()> {
-        self.is_flushed = true;
-        let mut fs = self.shared_directory.fs.write().unwrap();
-        fs.write(self.path.clone(), self.data.get_ref());
         Ok(())
     }
 }
 
-impl TerminatingWrite for VecWriter {
-    fn terminate_ref(&mut self, _: AntiCallToken) -> io::Result<()> {
-        self.flush()
+impl FinishableWrite for VecWriter {
+    fn finish_ref(&mut self, _: AntiCallToken) -> io::Result<()> {
+        self.is_finished = true;
+        let data = std::mem::take(self.data.get_mut());
+        let mut fs = self.shared_directory.fs.write().unwrap();
+        fs.write_owned(self.path.clone(), data);
+        self.memory_usage.finish();
+        Ok(())
     }
 }
 
@@ -122,8 +132,11 @@ struct InnerDirectory {
 
 impl InnerDirectory {
     fn write(&mut self, path: PathBuf, data: &[u8]) -> bool {
-        let data = FileSlice::from(data.to_vec());
-        self.fs.insert(path, data).is_some()
+        self.write_owned(path, data.to_vec())
+    }
+
+    fn write_owned(&mut self, path: PathBuf, data: Vec<u8>) -> bool {
+        self.fs.insert(path, FileSlice::from(data)).is_some()
     }
 
     fn open_read(&self, path: &Path) -> Result<FileSlice, OpenReadError> {
@@ -162,7 +175,7 @@ impl fmt::Debug for RamDirectory {
 /// A Directory storing everything in anonymous memory.
 ///
 /// It is mainly meant for unit testing.
-/// Writes are only made visible upon flushing.
+/// Writes are only made visible upon finishing the writer.
 #[derive(Clone, Default)]
 pub struct RamDirectory {
     fs: Arc<RwLock<InnerDirectory>>,
@@ -194,7 +207,7 @@ impl RamDirectory {
         for (path, file) in wlock.fs.iter() {
             let mut dest_wrt = dest.open_write(path)?;
             dest_wrt.write_all(file.read_bytes()?.as_slice())?;
-            dest_wrt.terminate()?;
+            dest_wrt.finish()?;
         }
         Ok(())
     }
@@ -232,18 +245,14 @@ impl Directory for RamDirectory {
     }
 
     fn open_write(&self, path: &Path) -> Result<WritePtr, OpenWriteError> {
-        let mut fs = self.fs.write().unwrap();
         let path_buf = PathBuf::from(path);
-        let vec_writer = VecWriter::new(path_buf.clone(), self.clone());
-        let exists = fs.write(path_buf.clone(), &[]);
-        // force the creation of the file to mimic the MMap directory.
-        if exists {
-            Err(OpenWriteError::FileAlreadyExists(path_buf))
-        } else {
-            // The writer's allocation is tracked by `RamDirectory`; an additional buffer would not
-            // be included in `total_mem_usage()`.
-            Ok(BufWriter::with_capacity(0, Box::new(vec_writer)))
+        if self.fs.read().unwrap().exists(path) {
+            return Err(OpenWriteError::FileAlreadyExists(path_buf));
         }
+        let vec_writer = VecWriter::new(path_buf, self.clone());
+        // The writer's allocation is tracked by `RamDirectory`; an additional buffer would not
+        // be included in `total_mem_usage()`.
+        Ok(BufWriter::with_capacity(0, Box::new(vec_writer)))
     }
 
     fn atomic_read(&self, path: &Path) -> Result<Vec<u8>, OpenReadError> {
@@ -281,7 +290,7 @@ mod tests {
     use std::path::Path;
 
     use super::{RamDirectory, MEMORY_USAGE_UPDATE_THRESHOLD};
-    use crate::directory::TerminatingWrite;
+    use crate::directory::FinishableWrite;
     use crate::Directory;
 
     #[test]
@@ -294,7 +303,7 @@ mod tests {
         assert!(directory.atomic_write(path_atomic, msg_atomic).is_ok());
         let mut wrt = directory.open_write(path_seq).unwrap();
         assert!(wrt.write_all(msg_seq).is_ok());
-        assert!(wrt.flush().is_ok());
+        assert!(wrt.finish().is_ok());
         let directory_copy = RamDirectory::create();
         assert!(directory.persist(&directory_copy).is_ok());
         assert_eq!(directory_copy.atomic_read(path_atomic).unwrap(), msg_atomic);
@@ -321,11 +330,11 @@ mod tests {
         assert!(grown_capacity > first_capacity);
 
         writer.flush().unwrap();
-        let file_len = 1 + MEMORY_USAGE_UPDATE_THRESHOLD + first_capacity + 1;
-        assert_eq!(dir.total_mem_usage(), grown_capacity + file_len);
+        assert_eq!(dir.total_mem_usage(), grown_capacity);
         assert_eq!(dir.clone().total_mem_usage(), dir.total_mem_usage());
 
-        writer.terminate().unwrap();
+        let file_len = 1 + MEMORY_USAGE_UPDATE_THRESHOLD + first_capacity + 1;
+        writer.finish().unwrap();
         assert_eq!(dir.total_mem_usage(), file_len);
 
         dir.delete(path).unwrap();

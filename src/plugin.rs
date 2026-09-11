@@ -192,7 +192,7 @@ mod tests {
             let mut write = ctx.target_segment.open_write(component)?;
             use std::io::Write;
             write.write_all(&MARKER.to_le_bytes())?;
-            common::TerminatingWrite::terminate(write)?;
+            common::FinishableWrite::finish(write)?;
             Ok(())
         }
     }
@@ -258,7 +258,7 @@ mod tests {
                 write.write_all(&(payload.len() as u32).to_le_bytes())?;
                 write.write_all(payload)?;
             }
-            common::TerminatingWrite::terminate(write)?;
+            common::FinishableWrite::finish(write)?;
             Ok(())
         }
 

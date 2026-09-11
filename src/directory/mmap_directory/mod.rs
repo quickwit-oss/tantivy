@@ -22,7 +22,7 @@ use crate::directory::error::{
     DeleteError, LockError, OpenDirectoryError, OpenReadError, OpenWriteError,
 };
 use crate::directory::{
-    AntiCallToken, Directory, DirectoryLock, FileHandle, Lock, OwnedBytes, TerminatingWrite,
+    AntiCallToken, Directory, DirectoryLock, FileHandle, FinishableWrite, Lock, OwnedBytes,
     WatchCallback, WatchHandle, WritePtr,
 };
 
@@ -338,8 +338,8 @@ impl Write for SafeFileWriter {
     }
 }
 
-impl TerminatingWrite for SafeFileWriter {
-    fn terminate_ref(&mut self, _: AntiCallToken) -> io::Result<()> {
+impl FinishableWrite for SafeFileWriter {
+    fn finish_ref(&mut self, _: AntiCallToken) -> io::Result<()> {
         self.0.flush()?;
         self.0.sync_data()?;
         Ok(())
@@ -432,7 +432,7 @@ impl Directory for MmapDirectory {
             .create_new(true)
             .open(full_path);
 
-        let mut file = open_res.map_err(|io_err| {
+        let file = open_res.map_err(|io_err| {
             if io_err.kind() == io::ErrorKind::AlreadyExists {
                 OpenWriteError::FileAlreadyExists(path.to_path_buf())
             } else {
@@ -440,16 +440,12 @@ impl Directory for MmapDirectory {
             }
         })?;
 
-        // making sure the file is created.
-        file.flush()
-            .map_err(|io_error| OpenWriteError::wrap_io_error(io_error, path.to_path_buf()))?;
-
         // Note we actually do not sync the parent directory here.
         //
         // A newly created file, may, in some case, be created and even flushed to disk.
         // and then lost...
         //
-        // The file will only be durably written after we terminate AND
+        // The file will only be durably written after we finish AND
         // sync_directory() is called.
 
         let writer = SafeFileWriter::new(file);

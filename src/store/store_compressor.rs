@@ -3,7 +3,7 @@ use std::sync::mpsc::{sync_channel, Receiver, SyncSender};
 use std::thread::JoinHandle;
 use std::{io, thread};
 
-use common::{BinarySerializable, CountingWriter, TerminatingWrite};
+use common::{BinarySerializable, CountingWriter, FinishableWrite};
 
 use super::DOC_STORE_VERSION;
 use crate::directory::WritePtr;
@@ -151,7 +151,7 @@ impl BlockCompressorImpl {
         );
         self.offset_index_writer.serialize_into(&mut self.writer)?;
         docstore_footer.serialize(&mut self.writer)?;
-        self.writer.terminate()
+        self.writer.finish()
     }
 }
 

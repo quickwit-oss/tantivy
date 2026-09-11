@@ -265,7 +265,7 @@ impl SSTableIndexBuilder {
         }
         let counting_writer = map_builder.into_inner().map_err(fst_error_to_io_error)?;
         let written_bytes = counting_writer.written_bytes();
-        let mut wrt = counting_writer.finish();
+        let mut wrt = counting_writer.into_inner();
 
         let mut block_store_writer = v3::BlockAddrStoreWriter::new();
         for block in &self.blocks {
