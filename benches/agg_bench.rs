@@ -11,13 +11,13 @@ use tantivy::aggregation::AggregationCollector;
 use tantivy::indexer::NoMergePolicy;
 use tantivy::query::{AllQuery, Query, TermQuery};
 use tantivy::schema::{IndexRecordOption, Schema, TextFieldIndexing, FAST, STRING};
-use tantivy::{doc, DateTime, Index, Term};
+use tantivy::{doc, DateTime, Index, Searcher, Term};
 
 #[global_allocator]
 pub static GLOBAL: &PeakMemAlloc<std::alloc::System> = &INSTRUMENTED_SYSTEM;
 
 type AggregationRequest = serde_json::Value;
-type AggregationExecutor = fn(&Index, AggregationRequest);
+type AggregationExecutor = fn(&Searcher, AggregationRequest);
 type BenchmarkConfig = (&'static str, AggregationRequest);
 type BenchmarkGroup = (&'static str, AggregationExecutor, Vec<BenchmarkConfig>);
 
@@ -40,6 +40,8 @@ fn main() {
 
     for (input_name, cardinality) in inputs {
         let index = get_test_index_bench(cardinality).unwrap();
+        let reader = index.reader().unwrap();
+        let searcher = reader.searcher();
         // On sparse this will not effectively filter anything. This should simulate co-located
         // data which are sparse.
         // So for sparse aggregation, although the value is sparse all values in the aggregation
@@ -51,7 +53,7 @@ fn main() {
             execute_agg_filtered
         };
         runner.set_name(input_name);
-        bench_agg(&mut runner, &index, execute_filtered);
+        bench_agg(&mut runner, &searcher, execute_filtered);
     }
 
     for num_segments in [100, 1_000] {
@@ -64,6 +66,8 @@ fn bench_many_segments(num_segments: usize) {
     runner.add_plugin(PeakMemAllocPlugin::new(GLOBAL));
     runner.config().set_num_iter_for_group(1);
     let index = get_test_index_bench_with_num_segments(Cardinality::Full, num_segments).unwrap();
+    let reader = index.reader().unwrap();
+    let searcher = reader.searcher();
     let mut group = runner.new_group();
     group.set_name(format!("{num_segments}_segments"));
     let mut multi_terms_top500 = multi_terms_many_and_zipf_1000();
@@ -71,8 +75,6 @@ fn bench_many_segments(num_segments: usize) {
     let mut nested_terms_top500 = nested_terms_many_and_zipf_1000();
     // This limits outer buckets, unlike the global tuple limit for multi_terms.
     nested_terms_top500["my_texts"]["terms"]["size"] = json!(500);
-    let reader = index.reader().unwrap();
-    let searcher = reader.searcher();
     for (benchmark_name, agg_req) in [
         ("terms_7", terms_on_field("text_few_terms_status")),
         ("terms_zipfs_1000", terms_on_field("text_1000_terms_zipf")),
@@ -88,12 +90,8 @@ fn bench_many_segments(num_segments: usize) {
         ),
         ("multi_terms_many_and_zipf_1000_top500", multi_terms_top500),
     ] {
-        let searcher = searcher.clone();
-        group.register_with_input(benchmark_name, &(), move |_| {
-            let agg_req: Aggregations = serde_json::from_value(agg_req.clone()).unwrap();
-            let collector = get_collector(agg_req);
-
-            black_box(searcher.search(&AllQuery, &collector).unwrap());
+        group.register_with_input(benchmark_name, &searcher, move |searcher| {
+            execute_agg(searcher, agg_req.clone())
         });
     }
     group.run();
@@ -105,7 +103,11 @@ fn terms_on_field(field: &str) -> AggregationRequest {
     })
 }
 
-fn bench_agg(runner: &mut BenchRunner, index: &Index, execute_filtered: AggregationExecutor) {
+fn bench_agg(
+    runner: &mut BenchRunner,
+    searcher: &Searcher,
+    execute_filtered: AggregationExecutor,
+) {
     let multi_terms_vs_nested = vec![
         benchmark_config!(nested_terms_status_and_zipf_1000),
         benchmark_config!(multi_terms_status_and_zipf_1000),
@@ -163,6 +165,7 @@ fn bench_agg(runner: &mut BenchRunner, index: &Index, execute_filtered: Aggregat
             benchmark_config!(terms_status_with_histogram),
             benchmark_config!(terms_zipf_1000_with_histogram),
             benchmark_config!(terms_status_with_date_histogram),
+            benchmark_config!(terms_status_with_date_histogram_26_bits),
             benchmark_config!(terms_status_with_date_histogram_single_bucket),
             benchmark_config!(terms_status_with_date_histogram_4_buckets),
             benchmark_config!(terms_status_with_date_histogram_8_buckets),
@@ -215,8 +218,8 @@ fn bench_agg(runner: &mut BenchRunner, index: &Index, execute_filtered: Aggregat
         let mut group = runner.new_group();
         group.set_name(group_name);
         for (benchmark_name, agg_req) in configs {
-            group.register_with_input(benchmark_name, index, move |index| {
-                execute(index, agg_req.clone())
+            group.register_with_input(benchmark_name, searcher, move |searcher| {
+                execute(searcher, agg_req.clone())
             });
         }
         group.run();
@@ -551,6 +554,17 @@ fn terms_status_with_date_histogram() -> AggregationRequest {
     })
 }
 
+fn terms_status_with_date_histogram_26_bits() -> AggregationRequest {
+    json!({
+        "my_texts": {
+            "terms": { "field": "text_few_terms_status" },
+            "aggs": {
+                "over_time": { "date_histogram": { "field": "timestamp_26_bits", "fixed_interval": "134h" } }
+            }
+        }
+    })
+}
+
 /// Same flattened terms × date_histogram, but with `hard_bounds`. The timestamps span 0..120h; the
 /// bounds drop only the first and last hour (ms: 1h=3_600_000, 119h=428_400_000), so almost every
 /// doc is in-bounds. This exercises the collector's hard-bounds path: `bounds.contains` runs per
@@ -858,34 +872,36 @@ fn multi_terms_status_and_zipf_1000_avg_sub_agg() -> AggregationRequest {
     })
 }
 
-fn execute_agg(index: &Index, agg_req: AggregationRequest) {
-    execute_agg_with_query(index, agg_req, &AllQuery);
+fn execute_agg(searcher: &Searcher, agg_req: AggregationRequest) {
+    execute_agg_with_query(searcher, agg_req, &AllQuery);
 }
 
-fn execute_agg_filtered(index: &Index, agg_req: AggregationRequest) {
-    let filter_field = index.schema().get_field("filter_field").unwrap();
+fn execute_agg_filtered(searcher: &Searcher, agg_req: AggregationRequest) {
+    let filter_field = searcher.schema().get_field("filter_field").unwrap();
     let filter_query = TermQuery::new(
         Term::from_field_text(filter_field, "a"),
         IndexRecordOption::Basic,
     );
-    execute_agg_with_query(index, agg_req, &filter_query);
+    execute_agg_with_query(searcher, agg_req, &filter_query);
 }
 
-fn execute_agg_filtered_on_single_term(index: &Index, agg_req: AggregationRequest) {
-    let filter_field = index.schema().get_field("single_term").unwrap();
+fn execute_agg_filtered_on_single_term(searcher: &Searcher, agg_req: AggregationRequest) {
+    let filter_field = searcher.schema().get_field("single_term").unwrap();
     let filter_query = TermQuery::new(
         Term::from_field_text(filter_field, "single_term"),
         IndexRecordOption::Basic,
     );
-    execute_agg_with_query(index, agg_req, &filter_query);
+    execute_agg_with_query(searcher, agg_req, &filter_query);
 }
 
-fn execute_agg_with_query(index: &Index, agg_req: AggregationRequest, query: &dyn Query) {
+fn execute_agg_with_query(
+    searcher: &Searcher,
+    agg_req: AggregationRequest,
+    query: &dyn Query,
+) {
     let agg_req: Aggregations = serde_json::from_value(agg_req).unwrap();
     let collector = get_collector(agg_req);
 
-    let reader = index.reader().unwrap();
-    let searcher = reader.searcher();
     black_box(searcher.search(query, &collector).unwrap());
 }
 
@@ -1081,6 +1097,7 @@ fn get_test_index_bench_with_num_segments(
     let score_field_f64 = schema_builder.add_f64_field("score_f64", score_fieldtype.clone());
     let score_field_i64 = schema_builder.add_i64_field("score_i64", score_fieldtype);
     let date_field = schema_builder.add_date_field("timestamp", FAST);
+    let date_26_bits_field = schema_builder.add_date_field("timestamp_26_bits", FAST);
     let schema = schema_builder.build();
 
     if reuse_index && std::path::Path::new(&index_dir).try_exists()? {
@@ -1133,6 +1150,7 @@ fn get_test_index_bench_with_num_segments(
     {
         let mut rng = StdRng::from_seed([1u8; 32]);
         let mut filter_rng = StdRng::from_seed([2u8; 32]);
+        let mut timestamp_26_bits_rng = StdRng::from_seed([3u8; 32]);
         let mut index_writer = index.writer_with_num_threads(1, 400_000_000)?;
         if num_segments > 1 {
             index_writer.set_merge_policy(Box::new(NoMergePolicy));
@@ -1207,6 +1225,7 @@ fn get_test_index_bench_with_num_segments(
         let _val_max = 1_000_000.0;
         const SPAN_MS: i64 = 120 * 3600 * 1000; // 120 hours in ms
         const NOISE_MS: i64 = 2 * 3600 * 1000; // ±2h noise
+        const MAX_26_BIT_TIMESTAMP_SECS: i64 = (1 << 26) - 1;
         for i in 0..doc_with_value {
             let val: f64 = rng.random_range(0.0..1_000_000.0);
             let json = if rng.random_bool(0.1) {
@@ -1218,6 +1237,14 @@ fn get_test_index_bench_with_num_segments(
             let base_ms = (i as i64 * SPAN_MS) / doc_with_value as i64;
             let noise_ms = rng.random_range(-NOISE_MS..NOISE_MS);
             let ts_ms = (base_ms + noise_ms).clamp(0, SPAN_MS);
+            // Force the endpoints and randomize the interior so the column uses a 26-bit packed
+            // representation rather than the blockwise-linear codec.
+            let ts_26_bits_secs = match i {
+                0 => 0,
+                1 => 1,
+                i if i + 1 == doc_with_value => MAX_26_BIT_TIMESTAMP_SECS,
+                _ => timestamp_26_bits_rng.random_range(0..=MAX_26_BIT_TIMESTAMP_SECS),
+            };
             add_document(doc!(
                 single_term => "single_term",
                 text_field => "cool",
@@ -1232,6 +1259,7 @@ fn get_test_index_bench_with_num_segments(
                 score_field_f64 => lg_norm.sample(&mut rng),
                 score_field_i64 => val as i64,
                 date_field => DateTime::from_timestamp_millis(ts_ms),
+                date_26_bits_field => DateTime::from_timestamp_secs(ts_26_bits_secs),
             ))?;
             if cardinality == Cardinality::OptionalSparse {
                 for _ in 0..20 {
