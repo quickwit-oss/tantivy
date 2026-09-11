@@ -9,7 +9,7 @@ use smallvec::smallvec;
 use super::operation::{AddOperation, UserOperation};
 use super::segment_updater::SegmentUpdater;
 use super::{AddBatch, AddBatchReceiver, AddBatchSender, PreparedCommit};
-use crate::directory::{DirectoryLock, GarbageCollectionResult, TerminatingWrite};
+use crate::directory::{DirectoryLock, FinishableWrite, GarbageCollectionResult};
 use crate::error::TantivyError;
 use crate::fastfield::write_alive_bitset;
 use crate::index::{Index, Segment, SegmentComponent, SegmentId, SegmentMeta, SegmentReader};
@@ -172,7 +172,7 @@ pub fn advance_deletes(
         segment = segment.with_delete_meta(num_deleted_docs, target_opstamp);
         let mut alive_doc_file = segment.open_write(SegmentComponent::Delete)?;
         write_alive_bitset(&alive_bitset, &mut alive_doc_file)?;
-        alive_doc_file.terminate()?;
+        alive_doc_file.finish()?;
     }
 
     segment_entry.set_meta(segment.meta().clone());

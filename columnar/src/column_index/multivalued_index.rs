@@ -33,7 +33,7 @@ pub fn serialize_multivalued_index(
     } = doc_ids_with_values;
     serialize_optional_index(&**non_null_row_ids, *num_rows, &mut count_writer)?;
     let optional_len = count_writer.written_bytes() as u32;
-    let output = count_writer.finish();
+    let output = count_writer.into_inner();
     serialize_u64_based_column_values(
         &**start_offsets,
         &[CodecType::Bitpacked, CodecType::Linear],

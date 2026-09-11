@@ -2,7 +2,7 @@ use std::path::PathBuf;
 use std::{io, str};
 
 use super::{TermDictionary, TermDictionaryBuilder, TermStreamer};
-use crate::directory::{Directory, FileSlice, RamDirectory, TerminatingWrite};
+use crate::directory::{Directory, FileSlice, FinishableWrite, RamDirectory};
 use crate::postings::TermInfo;
 
 const BLOCK_SIZE: usize = 1_500;
@@ -41,7 +41,7 @@ fn test_term_ordinals() -> crate::Result<()> {
         for term in COUNTRIES.iter() {
             term_dictionary_builder.insert(term.as_bytes(), &make_term_info(0u64))?;
         }
-        term_dictionary_builder.finish()?.terminate()?;
+        term_dictionary_builder.finish()?.finish()?;
     }
     let term_file = directory.open_read(&path)?;
     let term_dict: TermDictionary = TermDictionary::open(term_file)?;
@@ -63,7 +63,7 @@ fn test_term_dictionary_simple() -> crate::Result<()> {
         let mut term_dictionary_builder = TermDictionaryBuilder::create(write)?;
         term_dictionary_builder.insert("abc".as_bytes(), &make_term_info(34u64))?;
         term_dictionary_builder.insert("abcd".as_bytes(), &make_term_info(346u64))?;
-        term_dictionary_builder.finish()?.terminate()?;
+        term_dictionary_builder.finish()?.finish()?;
     }
     let file = directory.open_read(&path)?;
     let term_dict: TermDictionary = TermDictionary::open(file)?;
@@ -412,7 +412,7 @@ fn test_automaton_search() -> crate::Result<()> {
         for term in COUNTRIES.iter() {
             term_dictionary_builder.insert(term.as_bytes(), &make_term_info(0u64))?;
         }
-        term_dictionary_builder.finish()?.terminate()?;
+        term_dictionary_builder.finish()?.finish()?;
     }
     let file = directory.open_read(&path)?;
     let term_dict: TermDictionary = TermDictionary::open(file)?;

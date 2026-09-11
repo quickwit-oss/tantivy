@@ -1,4 +1,3 @@
-use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::Duration;
@@ -6,7 +5,9 @@ use std::{fmt, io, thread};
 
 use crate::directory::directory_lock::Lock;
 use crate::directory::error::{DeleteError, LockError, OpenReadError, OpenWriteError};
-use crate::directory::{FileHandle, FileSlice, WatchCallback, WatchHandle, WritePtr};
+use crate::directory::{
+    FileHandle, FileSlice, FinishableWrite, WatchCallback, WatchHandle, WritePtr,
+};
 
 /// Retry the logic of acquiring locks is pretty simple.
 /// We just retry `n` times after a given `duratio`, both
@@ -75,11 +76,11 @@ fn try_acquire_lock(
     filepath: &Path,
     directory: &dyn Directory,
 ) -> Result<DirectoryLock, TryAcquireLockError> {
-    let mut write = directory.open_write(filepath).map_err(|e| match e {
+    let write = directory.open_write(filepath).map_err(|e| match e {
         OpenWriteError::FileAlreadyExists(_) => TryAcquireLockError::FileExists,
         OpenWriteError::IoError { io_error, .. } => TryAcquireLockError::IoError(io_error),
     })?;
-    write.flush().map_err(TryAcquireLockError::from)?;
+    write.finish().map_err(TryAcquireLockError::from)?;
     Ok(DirectoryLock::from(Box::new(DirectoryLockGuard {
         directory: directory.box_clone(),
         path: filepath.to_owned(),
@@ -138,27 +139,15 @@ pub trait Directory: DirectoryClone + fmt::Debug + Send + Sync + 'static {
     /// Opens a writer for the *virtual file* associated with
     /// a [`Path`].
     ///
-    /// Right after this call, for the span of the execution of the program
-    /// the file should be created and any subsequent call to
-    /// [`Directory::open_read()`] for the same path should return
-    /// a [`FileSlice`].
+    /// Depending on the directory implementation, [`Directory::sync_directory()`] may be required
+    /// after finishing the writer to ensure that the file is durably created.
     ///
-    /// However, depending on the directory implementation,
-    /// it might be required to call [`Directory::sync_directory()`] to ensure
-    /// that the file is durably created.
-    /// (The semantics here are the same when dealing with
-    /// a POSIX filesystem.)
+    /// Write operations may be aggressively buffered. The client must call
+    /// [`FinishableWrite::finish()`] to finalize the file and make all writes available to
+    /// subsequent reads. The directory implementation owns its buffering strategy; clients should
+    /// not rely on `flush()` making an incomplete file available.
     ///
-    /// Write operations may be aggressively buffered.
-    /// The client of this trait is responsible for calling flush
-    /// to ensure that subsequent `read` operations
-    /// will take into account preceding `write` operations.
-    ///
-    /// Flush operation should also be persistent.
-    ///
-    /// The user shall not rely on [`Drop`] triggering `flush`.
-    /// Note that [`RamDirectory`][crate::directory::RamDirectory] will
-    /// panic! if `flush` was not called.
+    /// The user shall not rely on [`Drop`] finalizing the file.
     ///
     /// The file may not previously exist.
     fn open_write(&self, path: &Path) -> Result<WritePtr, OpenWriteError>;

@@ -19,7 +19,7 @@ use std::io::BufWriter;
 use std::path::PathBuf;
 
 pub use common::file_slice::{FileHandle, FileSlice};
-pub use common::{AntiCallToken, OwnedBytes, TerminatingWrite};
+pub use common::{AntiCallToken, FinishableWrite, OwnedBytes};
 
 pub use self::composite_file::{CompositeFile, CompositeWrite};
 pub use self::directory::{Directory, DirectoryClone, DirectoryLock};
@@ -52,7 +52,7 @@ pub use self::mmap_directory::MmapDirectory;
 ///
 /// `WritePtr` are required to implement both Write
 /// and Seek.
-pub type WritePtr = BufWriter<Box<dyn TerminatingWrite + Send + Sync>>;
+pub type WritePtr = BufWriter<Box<dyn FinishableWrite + Send + Sync>>;
 
 #[cfg(test)]
 mod tests;

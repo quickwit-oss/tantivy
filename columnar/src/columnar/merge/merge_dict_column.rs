@@ -22,7 +22,7 @@ pub fn merge_bytes_or_str_column(
     // TODO !!! Remove useless terms.
     let term_ord_mapping = serialize_merged_dict(bytes_columns, merge_row_order, &mut output)?;
     let dictionary_num_bytes: u32 = output.written_bytes() as u32;
-    let output = output.finish();
+    let output = output.into_inner();
     let remapped_term_ordinals_values = RemappedTermOrdinalsValues {
         bytes_columns,
         term_ord_mapping: &term_ord_mapping,

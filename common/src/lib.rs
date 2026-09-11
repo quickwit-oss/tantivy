@@ -24,7 +24,7 @@ pub use serialize::{BinarySerializable, DeserializeFrom, FixedSize};
 pub use vint::{
     VInt, VIntU128, read_u32_vint, read_u32_vint_no_advance, serialize_vint_u32, write_u32_vint,
 };
-pub use writer::{AntiCallToken, CountingWriter, TerminatingWrite};
+pub use writer::{AntiCallToken, CountingWriter, FinishableWrite};
 
 /// Has length trait
 pub trait HasLen {

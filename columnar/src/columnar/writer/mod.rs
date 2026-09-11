@@ -554,7 +554,7 @@ fn serialize_bytes_or_str_column(
     let term_id_mapping: TermIdMapping =
         dictionary_builder.serialize(arena, &mut counting_writer)?;
     let dictionary_num_bytes: u32 = counting_writer.written_bytes() as u32;
-    let mut wrt = counting_writer.finish();
+    let mut wrt = counting_writer.into_inner();
     let operation_iterator = operation_it.map(|symbol: ColumnOperation<UnorderedId>| {
         // We map unordered ids to ordered ids.
         match symbol {

@@ -4,7 +4,7 @@ use std::ops::Range;
 
 use common::{BinarySerializable, CountingWriter, HasLen, VInt};
 
-use crate::directory::{FileSlice, TerminatingWrite, WritePtr};
+use crate::directory::{FileSlice, FinishableWrite, WritePtr};
 use crate::schema::{Field, Schema};
 use crate::space_usage::{FieldUsage, PerFieldSpaceUsage};
 
@@ -40,7 +40,7 @@ pub struct CompositeWrite<W = WritePtr> {
     offsets: Vec<(FileAddr, u64)>,
 }
 
-impl<W: TerminatingWrite + Write> CompositeWrite<W> {
+impl<W: FinishableWrite + Write> CompositeWrite<W> {
     /// Crate a new API writer that writes a composite file
     /// in a given write.
     pub fn wrap(w: W) -> CompositeWrite<W> {
@@ -81,7 +81,7 @@ impl<W: TerminatingWrite + Write> CompositeWrite<W> {
 
         let footer_len = (self.write.written_bytes() - footer_offset) as u32;
         footer_len.serialize(&mut self.write)?;
-        self.write.terminate()
+        self.write.finish()
     }
 }
 
@@ -183,7 +183,6 @@ impl CompositeFile {
 #[cfg(test)]
 mod test {
 
-    use std::io::Write;
     use std::path::Path;
 
     use common::{BinarySerializable, VInt};
@@ -201,10 +200,8 @@ mod test {
             let mut composite_write = CompositeWrite::wrap(w);
             let mut write_0 = composite_write.for_field(Field::from_field_id(0u32));
             VInt(32431123u64).serialize(&mut write_0)?;
-            write_0.flush()?;
             let mut write_4 = composite_write.for_field(Field::from_field_id(4u32));
             VInt(2).serialize(&mut write_4)?;
-            write_4.flush()?;
             composite_write.close()?;
         }
         {
@@ -243,13 +240,10 @@ mod test {
             let mut composite_write = CompositeWrite::wrap(w);
             let mut write = composite_write.for_field_with_idx(Field::from_field_id(1u32), 0);
             VInt(32431123u64).serialize(&mut write)?;
-            write.flush()?;
-            let write = composite_write.for_field_with_idx(Field::from_field_id(1u32), 1);
-            write.flush()?;
+            composite_write.for_field_with_idx(Field::from_field_id(1u32), 1);
 
             let mut write = composite_write.for_field_with_idx(Field::from_field_id(0u32), 0);
             VInt(1_000_000).serialize(&mut write)?;
-            write.flush()?;
 
             composite_write.close()?;
         }

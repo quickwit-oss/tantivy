@@ -12,7 +12,7 @@ use crc32fast::Hasher;
 use serde::{Deserialize, Serialize};
 
 use crate::directory::error::Incompatibility;
-use crate::directory::{AntiCallToken, FileSlice, TerminatingWrite};
+use crate::directory::{AntiCallToken, FileSlice, FinishableWrite};
 use crate::{Version, INDEX_FORMAT_OLDEST_SUPPORTED_VERSION, INDEX_FORMAT_VERSION};
 
 const FOOTER_MAX_LEN: u32 = 50_000;
@@ -125,14 +125,14 @@ impl Footer {
     }
 }
 
-pub(crate) struct FooterProxy<W: TerminatingWrite> {
-    /// always Some except after terminate call
+pub(crate) struct FooterProxy<W: FinishableWrite> {
+    /// Always `Some` except after `finish()` is called.
     hasher: Option<Hasher>,
-    /// always Some except after terminate call
+    /// Always `Some` except after `finish()` is called.
     writer: Option<W>,
 }
 
-impl<W: TerminatingWrite> FooterProxy<W> {
+impl<W: FinishableWrite> FooterProxy<W> {
     pub fn new(writer: W) -> Self {
         FooterProxy {
             hasher: Some(Hasher::new()),
@@ -141,7 +141,7 @@ impl<W: TerminatingWrite> FooterProxy<W> {
     }
 }
 
-impl<W: TerminatingWrite> Write for FooterProxy<W> {
+impl<W: FinishableWrite> Write for FooterProxy<W> {
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
         let count = self.writer.as_mut().unwrap().write(buf)?;
         self.hasher.as_mut().unwrap().update(&buf[..count]);
@@ -153,13 +153,13 @@ impl<W: TerminatingWrite> Write for FooterProxy<W> {
     }
 }
 
-impl<W: TerminatingWrite> TerminatingWrite for FooterProxy<W> {
-    fn terminate_ref(&mut self, _: AntiCallToken) -> io::Result<()> {
+impl<W: FinishableWrite> FinishableWrite for FooterProxy<W> {
+    fn finish_ref(&mut self, _: AntiCallToken) -> io::Result<()> {
         let crc32 = self.hasher.take().unwrap().finalize();
         let footer = Footer::new(crc32);
         let mut writer = self.writer.take().unwrap();
         footer.append_footer(&mut writer)?;
-        writer.terminate()
+        writer.finish()
     }
 }
 

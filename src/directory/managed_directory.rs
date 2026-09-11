@@ -344,7 +344,7 @@ mod tests_mmap_specific {
 
     use tempfile::TempDir;
 
-    use crate::directory::{Directory, ManagedDirectory, MmapDirectory, TerminatingWrite};
+    use crate::directory::{Directory, FinishableWrite, ManagedDirectory, MmapDirectory};
 
     #[test]
     fn test_managed_directory() {
@@ -357,7 +357,7 @@ mod tests_mmap_specific {
             let mmap_directory = MmapDirectory::open(&tempdir_path).unwrap();
             let mut managed_directory = ManagedDirectory::wrap(Box::new(mmap_directory)).unwrap();
             let write_file = managed_directory.open_write(test_path1).unwrap();
-            write_file.terminate().unwrap();
+            write_file.finish().unwrap();
             managed_directory
                 .atomic_write(test_path2, &[0u8, 1u8])
                 .unwrap();
@@ -392,7 +392,7 @@ mod tests_mmap_specific {
         let mut managed_directory = ManagedDirectory::wrap(Box::new(mmap_directory)).unwrap();
         let mut write = managed_directory.open_write(test_path1).unwrap();
         write.write_all(&[0u8, 1u8]).unwrap();
-        write.terminate().unwrap();
+        write.finish().unwrap();
         assert!(managed_directory.exists(test_path1).unwrap());
 
         let _mmap_read = managed_directory.open_read(test_path1).unwrap();
