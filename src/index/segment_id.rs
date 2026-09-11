@@ -16,6 +16,13 @@ use uuid::Uuid;
 /// by a UUID which is used to prefix the filenames
 /// of all of the file associated with the segment.
 ///
+/// Segments created by tantivy use a UUIDv7, which embeds the segment's
+/// creation time in its most significant bits. As a result segment ids sort
+/// chronologically and the creation time can be recovered through
+/// [`SegmentId::creation_time`]. Ids read from older indices (created before
+/// this change) are UUIDv4 and remain fully supported; for those
+/// [`SegmentId::creation_time`] returns `None`.
+///
 /// In unit test, for reproducibility, the `SegmentId` are
 /// simply generated in an autoincrement fashion.
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -40,7 +47,13 @@ fn create_uuid() -> Uuid {
 
 #[cfg(not(test))]
 fn create_uuid() -> Uuid {
-    Uuid::new_v4()
+    // UUIDv7 embeds a 48-bit millisecond creation timestamp in its most significant
+    // bits, followed by random bits. This keeps segment ids universally unique and
+    // lock-free to generate from any indexing thread (like the previous v4), while
+    // additionally making them:
+    //   - chronologically sortable (ids sort by creation time), and
+    //   - self-describing (the creation time can be recovered, see `SegmentId::creation_time`).
+    Uuid::now_v7()
 }
 
 impl SegmentId {
@@ -73,6 +86,24 @@ impl SegmentId {
     /// E.g. "a5c4dfcbdfe645089129e308e26d5523"
     pub fn from_uuid_string(uuid_string: &str) -> Result<SegmentId, SegmentIdParseError> {
         FromStr::from_str(uuid_string)
+    }
+
+    /// Returns the creation time embedded in the segment id, if available.
+    ///
+    /// Segments created by recent versions of tantivy use a UUIDv7, whose most
+    /// significant bits encode the millisecond timestamp at which the id (and
+    /// hence the segment) was created. This can be handy when investigating an
+    /// index: it tells you when each segment was produced without relying on
+    /// filesystem timestamps.
+    ///
+    /// Returns `None` for segment ids that do not carry a timestamp, i.e. ids
+    /// from older indices (UUIDv4) and the autoincrement ids used in tests.
+    pub fn creation_time(&self) -> Option<std::time::SystemTime> {
+        // `get_timestamp` returns `Some` only for UUID versions that carry a
+        // timestamp (v7 here); it is `None` for v4.
+        let timestamp = self.0.get_timestamp()?;
+        let (secs, nanos) = timestamp.to_unix();
+        Some(std::time::UNIX_EPOCH + std::time::Duration::new(secs, nanos))
     }
 }
 
@@ -138,5 +169,34 @@ mod tests {
         assert_eq!(segment_id.short_uuid_string(), "a5c4dfcb");
         // one extra char
         assert!(SegmentId::from_uuid_string("a5c4dfcbdfe645089129e308e26d5523b").is_err());
+    }
+
+    #[test]
+    fn test_creation_time_none_for_v4() {
+        // A legacy UUIDv4 id (version nibble `4`) carries no timestamp.
+        let v4 = SegmentId::from_uuid_string("a5c4dfcbdfe645089129e308e26d5523").unwrap();
+        assert!(v4.creation_time().is_none());
+    }
+
+    #[test]
+    fn test_creation_time_some_for_v7() {
+        use std::time::{Duration, SystemTime};
+
+        use uuid::Uuid;
+
+        // Build a UUIDv7 directly so this test does not depend on the (test-only)
+        // autoincrement id generation used elsewhere.
+        let before = SystemTime::now();
+        let seg = SegmentId(Uuid::now_v7());
+        let after = SystemTime::now();
+
+        let created = seg
+            .creation_time()
+            .expect("a v7 segment id must expose a creation time");
+
+        // v7 has millisecond precision, so allow a small slack around the window.
+        let slack = Duration::from_millis(1);
+        assert!(created >= before - slack);
+        assert!(created <= after + slack);
     }
 }
