@@ -1,3 +1,5 @@
+//! EXPERIMENTAL. The API is likely to change in the near future.
+
 pub mod ast;
 pub mod compile;
 pub mod types;
