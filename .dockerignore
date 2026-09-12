@@ -1,0 +1,6 @@
+# Keep build outputs out of the ClusterFuzzLite build context: the image copies
+# the whole tree, and these directories are large and rebuilt inside it anyway.
+target
+fuzz/target
+fuzz/corpus
+fuzz/artifacts

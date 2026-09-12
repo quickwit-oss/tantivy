@@ -1,0 +1,73 @@
+[package]
+name = "tantivy-fuzz"
+version = "0.0.0"
+publish = false
+edition = "2021"
+license = "MIT"
+description = "Fuzz targets for tantivy, run with cargo-fuzz / libFuzzer."
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+libfuzzer-sys = "0.4"
+arbitrary = { version = "1", features = ["derive"] }
+
+# The crates under test. `default-features = false` keeps the fuzz binaries
+# lean and avoids pulling in mmap/tempfile, which the targets do not need.
+tantivy = { path = "..", default-features = false }
+tantivy-query-grammar = { path = "../query-grammar" }
+tantivy-common = { path = "../common" }
+tantivy-sstable = { path = "../sstable" }
+tantivy-columnar = { path = "../columnar" }
+
+# Keep this crate out of the root workspace: cargo-fuzz builds it on its own
+# with sanitizer flags that must not leak into the main build.
+[workspace]
+members = ["."]
+
+[profile.release]
+# Keep symbols so libFuzzer crash reports carry readable stack traces.
+debug = 1
+
+[[bin]]
+name = "query_grammar"
+path = "fuzz_targets/query_grammar.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "query_parser"
+path = "fuzz_targets/query_parser.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "tokenizer"
+path = "fuzz_targets/tokenizer.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "sstable_dictionary"
+path = "fuzz_targets/sstable_dictionary.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "columnar_reader"
+path = "fuzz_targets/columnar_reader.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "common_vint"
+path = "fuzz_targets/common_vint.rs"
+test = false
+doc = false
+bench = false

@@ -1,0 +1,45 @@
+# ClusterFuzzLite: scheduled batch fuzzing.
+#
+# PR fuzzing is time-boxed and only covers the diff, so this job runs every
+# target for longer on a daily schedule to reach deeper states.
+#
+# Note: without a `storage-repo`, each run starts from an empty corpus and so
+# keeps rediscovering shallow coverage. Configuring one (see the ClusterFuzzLite
+# docs on corpus storage) lets the corpus accumulate between runs and makes
+# batch fuzzing substantially more effective.
+name: ClusterFuzzLite batch fuzzing
+
+on:
+  schedule:
+    # Daily, off-peak. Deliberately not on push: these runs are long.
+    - cron: '0 3 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  batch-fuzzing:
+    runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        sanitizer: [ address ]
+
+    steps:
+      - name: Build fuzzers (${{ matrix.sanitizer }})
+        id: build
+        uses: google/clusterfuzzlite/actions/build_fuzzers@82652fb49e77bc29c35da1167bb286e93c6bcc05 # v1
+        with:
+          language: rust
+          sanitizer: ${{ matrix.sanitizer }}
+
+      - name: Run fuzzers (${{ matrix.sanitizer }})
+        id: run
+        uses: google/clusterfuzzlite/actions/run_fuzzers@82652fb49e77bc29c35da1167bb286e93c6bcc05 # v1
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          fuzz-seconds: 1800
+          mode: 'batch'
+          sanitizer: ${{ matrix.sanitizer }}

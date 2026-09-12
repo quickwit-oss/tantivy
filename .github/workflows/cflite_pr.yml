@@ -1,0 +1,46 @@
+# ClusterFuzzLite: fuzz the code touched by a pull request.
+#
+# Builds the cargo-fuzz targets in fuzz/ using .clusterfuzzlite/Dockerfile and
+# runs them in "code-change" mode, so only the targets reachable from the diff
+# are exercised. A crash fails the job and the reproducer is uploaded as a
+# build artifact.
+name: ClusterFuzzLite PR fuzzing
+
+on:
+  pull_request:
+    branches: [ main ]
+
+permissions:
+  contents: read
+
+jobs:
+  pr-fuzzing:
+    runs-on: ubuntu-latest
+
+    # Superseded runs are pointless: cancel them when the PR is pushed again.
+    concurrency:
+      group: ${{ github.workflow }}-${{ matrix.sanitizer }}-${{ github.event.pull_request.number || github.ref }}
+      cancel-in-progress: true
+
+    strategy:
+      fail-fast: false
+      matrix:
+        sanitizer: [ address ]
+
+    steps:
+      - name: Build fuzzers (${{ matrix.sanitizer }})
+        id: build
+        uses: google/clusterfuzzlite/actions/build_fuzzers@82652fb49e77bc29c35da1167bb286e93c6bcc05 # v1
+        with:
+          language: rust
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          sanitizer: ${{ matrix.sanitizer }}
+
+      - name: Run fuzzers (${{ matrix.sanitizer }})
+        id: run
+        uses: google/clusterfuzzlite/actions/run_fuzzers@82652fb49e77bc29c35da1167bb286e93c6bcc05 # v1
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          fuzz-seconds: 300
+          mode: 'code-change'
+          sanitizer: ${{ matrix.sanitizer }}

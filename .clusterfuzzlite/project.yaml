@@ -1,0 +1,4 @@
+# ClusterFuzzLite project configuration for Tantivy
+# Declares the language and build configuration for CI fuzzing
+
+language: rust
