@@ -239,24 +239,28 @@ impl PerRequestAggSegCtx {
 
 pub(crate) fn build_segment_agg_collectors_root(
     req: &mut AggregationsSegmentCtx,
+    // Only true when the query matches every document and the segment has no deletions.
+    collect_all: bool,
 ) -> crate::Result<Box<dyn SegmentAggregationCollector>> {
-    build_segment_agg_collectors_generic(req, &req.per_request.agg_tree.clone())
+    build_segment_agg_collectors_generic(req, &req.per_request.agg_tree.clone(), collect_all)
 }
 
 pub(crate) fn build_segment_agg_collectors(
     req: &mut AggregationsSegmentCtx,
     nodes: &[AggRefNode],
 ) -> crate::Result<Box<dyn SegmentAggregationCollector>> {
-    build_segment_agg_collectors_generic(req, nodes)
+    // Bucket sub-aggregations do not see the entire segment.
+    build_segment_agg_collectors_generic(req, nodes, false)
 }
 
 fn build_segment_agg_collectors_generic(
     req: &mut AggregationsSegmentCtx,
     nodes: &[AggRefNode],
+    collect_all: bool,
 ) -> crate::Result<Box<dyn SegmentAggregationCollector>> {
     let mut collectors = Vec::new();
     for node in nodes.iter() {
-        collectors.push(build_segment_agg_collector(req, node)?);
+        collectors.push(build_segment_agg_collector(req, node, collect_all)?);
     }
 
     req.context
@@ -273,6 +277,7 @@ fn build_segment_agg_collectors_generic(
 pub(crate) fn build_segment_agg_collector(
     req: &mut AggregationsSegmentCtx,
     node: &AggRefNode,
+    collect_all: bool,
 ) -> crate::Result<Box<dyn SegmentAggregationCollector>> {
     match node.kind {
         AggKind::Terms => crate::aggregation::bucket::build_segment_term_collector(req, node),
@@ -328,7 +333,7 @@ pub(crate) fn build_segment_agg_collector(
                 | StatsType::Count
                 | StatsType::Max
                 | StatsType::Min
-                | StatsType::Stats => build_segment_stats_collector(req_data),
+                | StatsType::Stats => build_segment_stats_collector(req_data, collect_all),
                 StatsType::ExtendedStats(sigma) => Ok(Box::new(
                     SegmentExtendedStatsCollector::from_req(req_data, sigma),
                 )),

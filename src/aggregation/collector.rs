@@ -7,8 +7,9 @@ use super::AggContextParams;
 use crate::aggregation::agg_data::{
     build_aggregations_data_from_req, build_segment_agg_collectors_root, AggregationsSegmentCtx,
 };
-use crate::collector::{Collector, SegmentCollector};
+use crate::collector::{default_collect_segment_impl, Collector, SegmentCollector};
 use crate::index::SegmentReader;
+use crate::query::{AllScorer, Weight};
 use crate::{DocId, SegmentOrdinal, TantivyError};
 
 /// The default max bucket count, before the aggregation fails.
@@ -86,6 +87,21 @@ impl Collector for DistributedAggregationCollector {
     ) -> crate::Result<Self::Fruit> {
         merge_fruits(segment_fruits)
     }
+
+    fn collect_segment(
+        &self,
+        weight: &dyn Weight,
+        segment_ord: u32,
+        reader: &SegmentReader,
+    ) -> crate::Result<<Self::Child as SegmentCollector>::Fruit> {
+        AggregationSegmentCollector::collect_segment(
+            &self.agg,
+            &self.context,
+            weight,
+            segment_ord,
+            reader,
+        )
+    }
 }
 
 impl Collector for AggregationCollector {
@@ -117,6 +133,21 @@ impl Collector for AggregationCollector {
         let res = merge_fruits(segment_fruits)?;
         res.into_final_result(self.agg.clone(), self.context.limits.clone())
     }
+
+    fn collect_segment(
+        &self,
+        weight: &dyn Weight,
+        segment_ord: u32,
+        reader: &SegmentReader,
+    ) -> crate::Result<<Self::Child as SegmentCollector>::Fruit> {
+        AggregationSegmentCollector::collect_segment(
+            &self.agg,
+            &self.context,
+            weight,
+            segment_ord,
+            reader,
+        )
+    }
 }
 
 fn merge_fruits(
@@ -141,6 +172,22 @@ pub struct AggregationSegmentCollector {
 }
 
 impl AggregationSegmentCollector {
+    fn collect_segment(
+        agg: &Aggregations,
+        context: &AggContextParams,
+        weight: &dyn Weight,
+        segment_ordinal: SegmentOrdinal,
+        reader: &SegmentReader,
+    ) -> crate::Result<<Self as SegmentCollector>::Fruit> {
+        let agg_data =
+            build_aggregations_data_from_req(agg, reader, segment_ordinal, context.clone())?;
+        // Column statistics include deleted documents and require matching the whole segment.
+        let collect_all = !reader.has_deletes() && weight.scorer(reader, 1.0)?.is::<AllScorer>();
+        let mut collector = Self::from_agg_data(agg_data, collect_all)?;
+        default_collect_segment_impl(&mut collector, weight, reader, false)?;
+        Ok(collector.harvest())
+    }
+
     /// Creates an `AggregationSegmentCollector from` an [`Aggregations`] request and a segment
     /// reader. Also includes validation, e.g. checking field types and existence.
     pub fn from_agg_req_and_reader(
@@ -149,10 +196,19 @@ impl AggregationSegmentCollector {
         segment_ordinal: SegmentOrdinal,
         context: &AggContextParams,
     ) -> crate::Result<Self> {
-        let mut agg_data =
+        let agg_data =
             build_aggregations_data_from_req(agg, reader, segment_ordinal, context.clone())?;
-        let mut result =
-            LowCardBufferedSubAggs::new(build_segment_agg_collectors_root(&mut agg_data)?);
+        Self::from_agg_data(agg_data, false)
+    }
+
+    fn from_agg_data(
+        mut agg_data: AggregationsSegmentCtx,
+        collect_all: bool,
+    ) -> crate::Result<Self> {
+        let mut result = LowCardBufferedSubAggs::new(build_segment_agg_collectors_root(
+            &mut agg_data,
+            collect_all,
+        )?);
         result
             .get_sub_agg_collector()
             .prepare_max_bucket(0, &agg_data)?; // prepare for bucket zero
@@ -218,4 +274,90 @@ impl SegmentCollector for AggregationSegmentCollector {
 
         Ok(sub_aggregation_res)
     }
+}
+
+#[test]
+fn test_column_stats_and_collecting_aggregations() -> crate::Result<()> {
+    use crate::aggregation::tests::get_test_index_from_values;
+    use crate::collector::Count;
+    use crate::query::AllQuery;
+
+    for merge_segments in [false, true] {
+        let index = get_test_index_from_values(merge_segments, &[-5.0, 2.0, 10.0])?;
+        let reader = index.reader()?;
+        let searcher = reader.searcher();
+        for request in [
+            json!({
+                "min": {"min": {"field": "score_f64"}},
+                "max": {"max": {"field": "score_f64"}},
+                "count": {"value_count": {"field": "score_f64"}},
+                "count_str": {"value_count": {"field": "string_id"}},
+                "count_empty": {"value_count": {"field": "absent"}}
+            }),
+            json!({
+                "min": {"min": {"field": "score_f64"}},
+                "sum": {"sum": {"field": "score_f64"}},
+                "count": {"value_count": {"field": "score_f64"}},
+                "count_missing": {"value_count": {"field": "absent", "missing": 42.0}},
+                "missing": {"max": {"field": "absent", "missing": 42.0}},
+                "empty": {"min": {"field": "absent"}}
+            }),
+            json!({
+                "max": {"max": {"field": "score_f64"}},
+                "terms": {
+                    "terms": {"field": "string_id"},
+                    "aggs": {
+                        "min": {"min": {"field": "score_f64"}},
+                        "count": {"value_count": {"field": "score_f64"}}
+                    }
+                }
+            }),
+        ] {
+            let collector = AggregationCollector::from_aggs(
+                serde_json::from_value(request)?,
+                Default::default(),
+            );
+            let optimized = searcher.search(&AllQuery, &collector)?;
+            // Tuple collectors use for_segment, without the full-segment optimization.
+            let (collected, _) = searcher.search(&AllQuery, &(collector, Count))?;
+            assert_eq!(optimized, collected);
+        }
+    }
+    Ok(())
+}
+
+#[test]
+fn test_column_stats_filtered_and_deleted_docs() -> crate::Result<()> {
+    use crate::aggregation::tests::get_test_index_from_values;
+    use crate::query::{AllQuery, TermQuery};
+    use crate::schema::IndexRecordOption;
+    use crate::Term;
+
+    let index = get_test_index_from_values(true, &[-5.0, 2.0, 10.0])?;
+    let reader = index.reader()?;
+    let field = index.schema().get_field("string_id")?;
+    let collector = AggregationCollector::from_aggs(
+        serde_json::from_value(json!({
+            "min": {"min": {"field": "score_f64"}},
+            "max": {"max": {"field": "score_f64"}},
+            "count": {"value_count": {"field": "score_f64"}}
+        }))?,
+        Default::default(),
+    );
+    let query = TermQuery::new(Term::from_field_text(field, "2"), IndexRecordOption::Basic);
+    assert_eq!(
+        serde_json::to_value(reader.searcher().search(&query, &collector)?)?,
+        json!({"min": {"value": 2.0}, "max": {"value": 2.0}, "count": {"value": 1.0}}),
+    );
+    let mut writer: crate::IndexWriter = index.writer_for_tests()?;
+    writer.delete_term(Term::from_field_text(field, "-5"));
+    writer.delete_term(Term::from_field_text(field, "10"));
+    writer.commit()?;
+    reader.reload()?;
+    assert!(reader.searcher().segment_reader(0).has_deletes());
+    assert_eq!(
+        serde_json::to_value(reader.searcher().search(&AllQuery, &collector)?)?,
+        json!({"min": {"value": 2.0}, "max": {"value": 2.0}, "count": {"value": 1.0}}),
+    );
+    Ok(())
 }
