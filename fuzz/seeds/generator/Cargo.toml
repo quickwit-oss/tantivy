@@ -1,0 +1,16 @@
+[package]
+name = "tantivy-fuzz-seed-generator"
+version = "0.0.0"
+publish = false
+edition = "2021"
+license = "MIT"
+description = "Regenerates the checked-in seed corpora for the tantivy fuzz targets."
+
+[dependencies]
+tantivy-columnar = { path = "../../../columnar" }
+tantivy-sstable = { path = "../../../sstable" }
+
+# Its own workspace: this crate is deliberately outside the fuzz crate, so
+# cargo-fuzz never builds it and CI never pays for it.
+[workspace]
+members = ["."]

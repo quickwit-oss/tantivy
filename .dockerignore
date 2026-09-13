@@ -2,5 +2,6 @@
 # the whole tree, and these directories are large and rebuilt inside it anyway.
 target
 fuzz/target
+fuzz/seeds/generator/target
 fuzz/corpus
 fuzz/artifacts

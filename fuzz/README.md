@@ -66,19 +66,53 @@ Targets are built with `--debug-assertions` in CI, so integer overflow and
 overflow that merely wraps in release is still a bug, and it is far easier to
 diagnose as a panic.
 
+## Seed corpus
+
+`columnar_reader` and `sstable_dictionary` take a container format: a footer, a
+declared length, offsets. Blind mutation does not synthesise one — measured on
+`columnar_reader`, 300 seconds of libFuzzer from an empty corpus is 42.8M
+executions for 109 edges, all of them in the length checks at the top of
+`ColumnarReader::open`. The parser underneath is never entered. Seeded with a
+single valid columnar, the same binary reaches the term dictionary in seconds.
+
+So both targets ship a seed corpus, in `fuzz/seeds/<target>/`. It is small and
+checked in, and `.clusterfuzzlite/build.sh` packs each directory into
+`$OUT/<target>_seed_corpus.zip`, which is where libFuzzer looks for it.
+
+Locally, pass the directory as the corpus:
+
+```bash
+cargo fuzz run columnar_reader fuzz/seeds/columnar_reader
+```
+
+The seeds are generated rather than hand-written, so they stay valid as the
+formats change:
+
+```bash
+cargo run --manifest-path fuzz/seeds/generator/Cargo.toml -- fuzz/seeds
+```
+
+That crate declares its own `[workspace]` and is not a fuzz target, so
+`cargo fuzz build` never builds it and CI never pays for it. Regenerate the
+seeds when a format version changes; a stale seed is a weaker starting point,
+not a failure.
+
 ## Corpus and artifacts
 
-`fuzz/corpus/` and `fuzz/artifacts/` are gitignored — no seed corpus is checked
-in, and each CI run starts from whatever corpus it manages itself. If you find a
-crash, add the minimized reproducer to the relevant crate's unit tests as a
-regression test rather than committing it here.
+`fuzz/corpus/` and `fuzz/artifacts/` are gitignored: they hold the corpus a run
+manages for itself and the crashes it finds, neither of which belongs in the
+repository. If you find a crash, add the minimized reproducer to the relevant
+crate's unit tests as a regression test rather than committing it here.
 
 ## Adding a target
 
 1. Write `fuzz/fuzz_targets/<name>.rs`, following an existing target.
 2. Add a matching `[[bin]]` entry to `fuzz/Cargo.toml` (cargo-fuzz will not see
    the target without it).
-3. Check it builds and runs: `cargo fuzz run <name> -- -max_total_time=30`.
+3. If the target parses a container format, add seeds: teach
+   `fuzz/seeds/generator` to emit them into `fuzz/seeds/<name>/`. `build.sh`
+   picks the directory up by name.
+4. Check it builds and runs: `cargo fuzz run <name> -- -max_total_time=30`.
 
 `.clusterfuzzlite/build.sh` discovers targets by globbing `fuzz/fuzz_targets/`,
 so CI picks up a new one with no further changes.

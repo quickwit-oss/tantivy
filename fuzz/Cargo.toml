@@ -11,7 +11,6 @@ cargo-fuzz = true
 
 [dependencies]
 libfuzzer-sys = "0.4"
-arbitrary = { version = "1", features = ["derive"] }
 
 # The crates under test. `default-features = false` keeps the fuzz binaries
 # lean and avoids pulling in mmap/tempfile, which the targets do not need.

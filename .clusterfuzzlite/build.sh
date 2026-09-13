@@ -38,4 +38,14 @@ for source_file in fuzz/fuzz_targets/*.rs; do
     cp "$binary" "$OUT/$target_name"
     chmod +x "$OUT/$target_name"
     echo "Installed $target_name from $binary"
+
+    # A target whose input is a container format cannot be reached by blind
+    # mutation: it is rejected at the first length or magic check, so the whole
+    # budget is spent outside the parser. Ship the checked-in seeds as
+    # $OUT/<target>_seed_corpus.zip, which is where libFuzzer looks for them.
+    seed_dir="fuzz/seeds/$target_name"
+    if [ -d "$seed_dir" ]; then
+        zip -j -q "$OUT/${target_name}_seed_corpus.zip" "$seed_dir"/*
+        echo "Installed seed corpus for $target_name from $seed_dir"
+    fi
 done
