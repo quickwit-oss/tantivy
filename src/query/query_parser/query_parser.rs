@@ -1179,8 +1179,9 @@ mod test {
         ) {
             let query_parser = make_query_parser();
             let query = format!("*{suffix}");
-            let _ = query_parser.parse_query(&query);
-            let _ = query_parser.parse_query_lenient(&query);
+            prop_assert!(query_parser.parse_query(&query).is_err());
+            let (_, errors) = query_parser.parse_query_lenient(&query);
+            prop_assert!(!errors.is_empty());
         }
 
         #[test]
