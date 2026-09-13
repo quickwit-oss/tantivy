@@ -6,6 +6,7 @@ mod mmap_directory;
 mod directory;
 mod directory_lock;
 pub mod footer;
+mod immutable_directory;
 mod managed_directory;
 mod ram_directory;
 mod watch_event_router;
@@ -24,6 +25,7 @@ pub use common::{AntiCallToken, OwnedBytes, TerminatingWrite};
 pub use self::composite_file::{CompositeFile, CompositeWrite};
 pub use self::directory::{Directory, DirectoryClone, DirectoryLock};
 pub use self::directory_lock::{Lock, INDEX_WRITER_LOCK, META_LOCK};
+pub use self::immutable_directory::ImmutableDirectory;
 pub use self::ram_directory::RamDirectory;
 pub use self::watch_event_router::{WatchCallback, WatchCallbackList, WatchHandle};
 

@@ -13,7 +13,9 @@ use crate::core::{Executor, META_FILEPATH};
 use crate::directory::error::OpenReadError;
 #[cfg(feature = "mmap")]
 use crate::directory::MmapDirectory;
-use crate::directory::{Directory, ManagedDirectory, RamDirectory, INDEX_WRITER_LOCK};
+use crate::directory::{
+    Directory, ImmutableDirectory, ManagedDirectory, RamDirectory, INDEX_WRITER_LOCK,
+};
 use crate::error::{DataCorruption, TantivyError};
 use crate::fastfield::FastFieldsPlugin;
 use crate::index::{
@@ -592,6 +594,17 @@ impl Index {
         Index::open(mmap_directory)
     }
 
+    /// Opens an immutable index from a filesystem path.
+    ///
+    /// This method does not write a metadata lock file or watch the directory for changes, making
+    /// it suitable for indexes stored on read-only filesystems. The index must not be modified or
+    /// garbage-collected by any process while it is open.
+    #[cfg(feature = "mmap")]
+    pub fn open_immutable_in_dir<P: AsRef<Path>>(directory_path: P) -> crate::Result<Index> {
+        let mmap_directory = MmapDirectory::open(directory_path)?;
+        Index::open_immutable(mmap_directory)
+    }
+
     /// Returns the list of the segment metas tracked by the index.
     ///
     /// Such segments can of course be part of the index,
@@ -640,6 +653,15 @@ impl Index {
         let metas = load_metas(&directory, &inventory)?;
         let index = Index::open_from_metas(directory, &metas, inventory);
         Ok(index)
+    }
+
+    /// Opens an immutable index using the provided directory.
+    ///
+    /// This method wraps the directory in an [`ImmutableDirectory`]. It does not write a metadata
+    /// lock file or watch the directory for changes. The index must not be modified or
+    /// garbage-collected by any process while it is open.
+    pub fn open_immutable<T: Into<Box<dyn Directory>>>(directory: T) -> crate::Result<Index> {
+        Index::open(ImmutableDirectory::new(directory))
     }
 
     /// Reads the index meta file from the directory.
