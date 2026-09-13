@@ -687,12 +687,20 @@ fn set_infallible(mut inp: &str) -> JResult<&str, UserInputLeaf> {
             return Ok((inp, (res, errs)));
         }
         errs.append(&mut space_error);
-        // TODO
-        // here we do the assumption term_or_phrase_infallible always consume something if the
-        // first byte is not `)` or ' '. If it did not, we would end up looping.
 
         let (rest, (delim_term, mut err)) = simple_term_infallible("]")(inp)?;
         errs.append(&mut err);
+        if rest.len() == inp.len() {
+            errs.push(LenientErrorInternal {
+                pos: inp.len(),
+                message: "missing ]".to_string(),
+            });
+            let res = UserInputLeaf::Set {
+                field: None,
+                elements,
+            };
+            return Ok((inp, (res, errs)));
+        }
         if let Some((_, term)) = delim_term {
             elements.push(term);
         }
