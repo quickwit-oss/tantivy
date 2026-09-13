@@ -89,6 +89,7 @@ fn test_dataframe_writer_u64_multivalued() {
         crate::Cardinality::Multivalued
     );
     assert_eq!(divisor_col.num_docs(), 7);
+    assert_eq!(divisor_col.num_values(), 6);
 }
 
 #[test]
