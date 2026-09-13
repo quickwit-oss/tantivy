@@ -21,5 +21,14 @@ fuzz_target!(|data: &[u8]| {
     // Opening only parses the footer, so walk the column handles too: that is
     // where the per-column offsets recorded in the footer actually get used.
     let _ = std::hint::black_box(reader.num_columns());
-    let _ = std::hint::black_box(reader.list_columns());
+    let Ok(columns) = reader.list_columns() else {
+        return;
+    };
+
+    // Listing a column only reads its dictionary entry and the slice bounds it
+    // names. Opening it is what hands the recorded byte range to the per-type
+    // column decoders, so that is where a hostile payload is actually parsed.
+    for (_name, handle) in columns {
+        let _ = std::hint::black_box(handle.open());
+    }
 });

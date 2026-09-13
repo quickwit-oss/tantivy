@@ -13,7 +13,7 @@ use std::sync::OnceLock;
 
 use libfuzzer_sys::fuzz_target;
 use tantivy::query::QueryParser;
-use tantivy::schema::{Field, Schema, FAST, TEXT};
+use tantivy::schema::{Field, Schema, FAST, INDEXED, TEXT};
 use tantivy::Index;
 
 /// Schema and index are fixed, so build them once rather than on every input:
@@ -31,7 +31,12 @@ fn harness() -> &'static Harness {
         let title = schema_builder.add_text_field("title", TEXT);
         let body = schema_builder.add_text_field("body", TEXT);
         // A numeric field, so typed-value and range parsing stay reachable.
-        schema_builder.add_u64_field("count", FAST);
+        // It has to be INDEXED as well as FAST: `compute_logical_ast_for_leaf`
+        // rejects a non-indexed field with `FieldNotIndexed` before it ever
+        // reaches `u64::from_str`, which would leave `count:123` and
+        // `count:invalid` unable to exercise the numeric conversion. FAST keeps
+        // the fast-field range path (`compute_boundary_term`) reachable too.
+        schema_builder.add_u64_field("count", INDEXED | FAST);
         let index = Index::create_in_ram(schema_builder.build());
         Harness {
             index,

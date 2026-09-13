@@ -41,7 +41,7 @@ Anything after `--` goes to libFuzzer itself; see `cargo fuzz run <target> -- -h
 | `query_parser` | `QueryParser` against a real schema: field resolution, typed values, ranges. |
 | `tokenizer` | The simple, whitespace, raw and ngram tokenizers plus the lowercase, remove-long, ASCII-folding and compound-splitting filters. Asserts that token offsets stay in bounds and on UTF-8 character boundaries. |
 | `sstable_dictionary` | `Dictionary::from_bytes` for the SSTable term dictionary format. |
-| `columnar_reader` | `ColumnarReader::open` for the columnar (fast field) format. |
+| `columnar_reader` | `ColumnarReader::open` for the columnar (fast field) format, then opening every column handle it lists, which is where the per-column byte ranges reach the column decoders. |
 | `common_vint` | `VInt` / `VIntU128` decoding, including a serialize/deserialize round-trip check. |
 
 The byte-oriented targets (`sstable_dictionary`, `columnar_reader`, `common_vint`)
