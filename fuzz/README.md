@@ -79,10 +79,12 @@ So both targets ship a seed corpus, in `fuzz/seeds/<target>/`. It is small and
 checked in, and `.clusterfuzzlite/build.sh` packs each directory into
 `$OUT/<target>_seed_corpus.zip`, which is where libFuzzer looks for it.
 
-Locally, pass the directory as the corpus:
+Locally, pass the seeds as a second corpus directory. libFuzzer writes what it
+discovers into the *first* one, so this keeps the checked-in seeds read-only
+and the new units in the gitignored corpus:
 
 ```bash
-cargo fuzz run columnar_reader fuzz/seeds/columnar_reader
+cargo fuzz run columnar_reader fuzz/corpus/columnar_reader fuzz/seeds/columnar_reader
 ```
 
 The seeds are generated rather than hand-written, so they stay valid as the
