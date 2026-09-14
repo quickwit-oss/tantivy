@@ -10,7 +10,7 @@ pub use format_version::{CURRENT_VERSION, Version};
 pub(crate) use merge::ColumnTypeCategory;
 pub use merge::{
     MergeRowOrder, ShuffleMergeOrder, StackMergeOrder, compute_merged_term_ord_mapping,
-    merge_columnar,
+    merge_columnar, merge_columnar_with_tie_breakers,
 };
 pub use reader::ColumnarReader;
 pub use writer::ColumnarWriter;

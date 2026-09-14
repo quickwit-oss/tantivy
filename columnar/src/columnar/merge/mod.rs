@@ -80,6 +80,23 @@ pub fn merge_columnar(
     merge_row_order: MergeRowOrder,
     output: &mut impl io::Write,
 ) -> io::Result<()> {
+    merge_columnar_with_tie_breakers(
+        columnar_readers,
+        required_columns,
+        &[],
+        merge_row_order,
+        output,
+    )
+}
+
+/// Merges columnars and regenerates the named tie-breaker columns in the resulting row order.
+pub fn merge_columnar_with_tie_breakers(
+    columnar_readers: &[&ColumnarReader],
+    required_columns: &[(String, ColumnType)],
+    tie_breaker_columns: &[String],
+    merge_row_order: MergeRowOrder,
+    output: &mut impl io::Write,
+) -> io::Result<()> {
     let mut serializer = ColumnarSerializer::new(output);
     let num_docs_per_columnar = columnar_readers
         .iter()
@@ -89,6 +106,17 @@ pub fn merge_columnar(
     let columns_to_merge = group_columns_for_merge(columnar_readers, required_columns)?;
     for res in columns_to_merge {
         let ((column_name, _column_type_category), grouped_columns) = res;
+        if tie_breaker_columns.iter().any(|name| name == &column_name) {
+            let mut column_serializer =
+                serializer.start_serialize_column(column_name.as_bytes(), ColumnType::U64);
+            crate::column::serialize_generated_tie_breaker_column(
+                merge_row_order.num_rows(),
+                &mut column_serializer,
+            )?;
+            column_serializer.finalize()?;
+            continue;
+        }
+
         let grouped_columns = grouped_columns.open(&merge_row_order)?;
         if grouped_columns.is_empty() {
             continue;

@@ -18,7 +18,7 @@ use crate::index::{SegmentComponent, SegmentReader};
 use crate::indexer::doc_id_mapping::{DocIdMapping, MappingType, SegmentDocIdMapping};
 use crate::plugin::{PluginMergeContext, PluginWriter, PluginWriterContext, SegmentPlugin};
 use crate::schema::document::Document;
-use crate::schema::{value_type_to_column_type, Schema};
+use crate::schema::{value_type_to_column_type, FieldType, Schema};
 use crate::space_usage::{ComponentSpaceUsage, FAST_FIELDS};
 use crate::Segment;
 
@@ -43,6 +43,7 @@ impl SegmentPlugin for FastFieldsPlugin {
             ctx.target_segment.index().directory().open_write(&path)?;
 
         let required_columns = extract_fast_field_required_columns(ctx.schema);
+        let tie_breaker_columns = extract_tie_breaker_columns(ctx.schema);
         let columnars: Vec<&ColumnarReader> = ctx
             .readers
             .iter()
@@ -53,9 +54,10 @@ impl SegmentPlugin for FastFieldsPlugin {
         let doc_id_mapping = ctx.doc_id_mapping.clone();
         let merge_row_order = convert_to_merge_order(&columnars[..], doc_id_mapping);
 
-        columnar::merge_columnar(
+        columnar::merge_columnar_with_tie_breakers(
             &columnars[..],
             &required_columns,
+            &tie_breaker_columns,
             merge_row_order,
             &mut fast_field_wrt,
         )?;
@@ -171,6 +173,18 @@ fn convert_to_merge_order(
             })
         }
     }
+}
+
+fn extract_tie_breaker_columns(schema: &Schema) -> Vec<String> {
+    schema
+        .fields()
+        .filter_map(|(_, field_entry)| match field_entry.field_type() {
+            FieldType::U64(options) if options.is_tie_breaker() => {
+                Some(field_entry.name().to_string())
+            }
+            _ => None,
+        })
+        .collect()
 }
 
 fn extract_fast_field_required_columns(schema: &Schema) -> Vec<(String, ColumnType)> {

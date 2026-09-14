@@ -16,6 +16,8 @@ pub struct NumericOptions {
     stored: bool,
     #[serde(skip_serializing_if = "is_false")]
     coerce: bool,
+    #[serde(skip_serializing_if = "is_false")]
+    tie_breaker: bool,
 }
 
 fn is_false(val: &bool) -> bool {
@@ -37,6 +39,8 @@ struct NumericOptionsDeser {
     stored: bool,
     #[serde(default)]
     coerce: bool,
+    #[serde(default)]
+    tie_breaker: bool,
 }
 
 impl From<NumericOptionsDeser> for NumericOptions {
@@ -47,6 +51,7 @@ impl From<NumericOptionsDeser> for NumericOptions {
             fast: deser.fast,
             stored: deser.stored,
             coerce: deser.coerce,
+            tie_breaker: deser.tie_breaker,
         }
     }
 }
@@ -80,6 +85,16 @@ impl NumericOptions {
     #[inline]
     pub fn should_coerce(&self) -> bool {
         self.coerce
+    }
+
+    pub(crate) fn is_tie_breaker(&self) -> bool {
+        self.tie_breaker
+    }
+
+    pub(crate) fn set_tie_breaker(mut self) -> Self {
+        self.fast = true;
+        self.tie_breaker = true;
+        self
     }
 
     /// Try to coerce values if they are not a number. Defaults to false.
@@ -145,6 +160,7 @@ impl From<CoerceFlag> for NumericOptions {
             stored: false,
             fast: false,
             coerce: true,
+            tie_breaker: false,
         }
     }
 }
@@ -157,6 +173,7 @@ impl From<FastFlag> for NumericOptions {
             stored: false,
             fast: true,
             coerce: false,
+            tie_breaker: false,
         }
     }
 }
@@ -169,6 +186,7 @@ impl From<StoredFlag> for NumericOptions {
             stored: true,
             fast: false,
             coerce: false,
+            tie_breaker: false,
         }
     }
 }
@@ -181,6 +199,7 @@ impl From<IndexedFlag> for NumericOptions {
             stored: false,
             fast: false,
             coerce: false,
+            tie_breaker: false,
         }
     }
 }
@@ -196,6 +215,7 @@ impl<T: Into<NumericOptions>> BitOr<T> for NumericOptions {
             stored: self.stored | other.stored,
             fast: self.fast | other.fast,
             coerce: self.coerce | other.coerce,
+            tie_breaker: self.tie_breaker | other.tie_breaker,
         }
     }
 }
@@ -230,6 +250,7 @@ mod tests {
                 fast: false,
                 stored: false,
                 coerce: false,
+                tie_breaker: false,
             }
         );
     }
@@ -249,6 +270,7 @@ mod tests {
                 fast: false,
                 stored: false,
                 coerce: false,
+                tie_breaker: false,
             }
         );
     }
@@ -269,6 +291,7 @@ mod tests {
                 fast: false,
                 stored: false,
                 coerce: false,
+                tie_breaker: false,
             }
         );
     }
@@ -290,6 +313,7 @@ mod tests {
                 fast: false,
                 stored: false,
                 coerce: false,
+                tie_breaker: false,
             }
         );
     }
@@ -312,6 +336,7 @@ mod tests {
                 fast: false,
                 stored: false,
                 coerce: true,
+                tie_breaker: false,
             }
         );
     }

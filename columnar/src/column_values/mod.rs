@@ -26,6 +26,7 @@ mod monotonic_column;
 
 pub(crate) use merge::MergedColumnValues;
 pub use stats::ColumnStats;
+pub(crate) use u64_based::blockwise_linear::BLOCK_SIZE;
 pub use u64_based::{
     ALL_U64_CODEC_TYPES, CodecType, load_u64_based_column_values,
     serialize_and_load_u64_based_column_values, serialize_u64_based_column_values,

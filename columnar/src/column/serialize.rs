@@ -3,6 +3,7 @@ use std::io::Write;
 use std::sync::Arc;
 
 use common::OwnedBytes;
+use rand::Rng;
 use sstable::Dictionary;
 
 use crate::column::{BytesColumn, Column};
@@ -23,6 +24,22 @@ pub fn serialize_column_mappable_to_u128<T: MonotonicallyMappableToU128>(
     serialize_column_values_u128(iterable, output)?;
     output.write_all(&column_index_num_bytes.to_le_bytes())?;
     Ok(())
+}
+
+pub(crate) fn serialize_generated_tie_breaker_column(
+    num_docs: u32,
+    output: &mut impl Write,
+) -> io::Result<()> {
+    let block_size = crate::column_values::BLOCK_SIZE;
+    let max_start = u32::MAX - (block_size - 1);
+    let mut rng = rand::rng();
+    let mut values = Vec::with_capacity(num_docs as usize);
+    for block_start_doc in (0..num_docs).step_by(block_size as usize) {
+        let start = rng.random_range(0..=max_start);
+        let block_len = (num_docs - block_start_doc).min(block_size);
+        values.extend((0..block_len).map(|offset| (start + offset) as u64));
+    }
+    serialize_column_mappable_to_u64(SerializableColumnIndex::Full, &&values[..], output)
 }
 
 pub fn serialize_column_mappable_to_u64<T: MonotonicallyMappableToU64>(

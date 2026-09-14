@@ -149,6 +149,28 @@ mod tests {
     }
 
     #[test]
+    fn test_generated_tie_breaker_fast_field() {
+        let mut schema_builder = Schema::builder();
+        schema_builder.add_tie_breaker_field("tie");
+        let schema = schema_builder.build();
+        let mut writer = FastFieldsWriter::from_schema(&schema).unwrap();
+        for _ in 0..1_025 {
+            writer.add_document(&TantivyDocument::default()).unwrap();
+        }
+        let mut bytes = Vec::new();
+        writer.serialize(&mut bytes, None).unwrap();
+
+        let readers = FastFieldReaders::open(bytes.into(), schema).unwrap();
+        let values = readers.u64("tie").unwrap().first_or_default_col(0);
+        for block_start in [0, 512, 1_024] {
+            let block_end = (block_start + 512).min(1_025);
+            for doc in block_start + 1..block_end {
+                assert_eq!(values.get_val(doc), values.get_val(doc - 1) + 1);
+            }
+        }
+    }
+
+    #[test]
     fn test_intfastfield_large() {
         let path = Path::new("test");
         let directory: RamDirectory = RamDirectory::create();
