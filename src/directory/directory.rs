@@ -6,7 +6,7 @@ use std::{fmt, io, thread};
 use crate::directory::directory_lock::Lock;
 use crate::directory::error::{DeleteError, LockError, OpenReadError, OpenWriteError};
 use crate::directory::{
-    FileHandle, FileSlice, FinishableWrite, WatchCallback, WatchHandle, WritePtr,
+    FileHandle, FileSlice, TerminatingWrite, WatchCallback, WatchHandle, WritePtr,
 };
 
 /// Retry the logic of acquiring locks is pretty simple.
@@ -80,7 +80,7 @@ fn try_acquire_lock(
         OpenWriteError::FileAlreadyExists(_) => TryAcquireLockError::FileExists,
         OpenWriteError::IoError { io_error, .. } => TryAcquireLockError::IoError(io_error),
     })?;
-    write.finish().map_err(TryAcquireLockError::from)?;
+    write.terminate().map_err(TryAcquireLockError::from)?;
     Ok(DirectoryLock::from(Box::new(DirectoryLockGuard {
         directory: directory.box_clone(),
         path: filepath.to_owned(),
@@ -140,10 +140,10 @@ pub trait Directory: DirectoryClone + fmt::Debug + Send + Sync + 'static {
     /// a [`Path`].
     ///
     /// Depending on the directory implementation, [`Directory::sync_directory()`] may be required
-    /// after finishing the writer to ensure that the file is durably created.
+    /// after terminating the writer to ensure that the file is durably created.
     ///
     /// Write operations may be aggressively buffered. The client must call
-    /// [`FinishableWrite::finish()`] to finalize the file and make all writes available to
+    /// [`TerminatingWrite::terminate()`] to finalize the file and make all writes available to
     /// subsequent reads. The directory implementation owns its buffering strategy; clients should
     /// not rely on `flush()` making an incomplete file available.
     ///
