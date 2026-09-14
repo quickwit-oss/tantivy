@@ -139,15 +139,21 @@ pub trait Directory: DirectoryClone + fmt::Debug + Send + Sync + 'static {
     /// Opens a writer for the *virtual file* associated with
     /// a [`Path`].
     ///
-    /// Depending on the directory implementation, [`Directory::sync_directory()`] may be required
-    /// after terminating the writer to ensure that the file is durably created.
+    /// After the writer is terminated, the file should be created and any subsequent call to
+    /// [`Directory::open_read()`] for the same path should return a [`FileSlice`].
     ///
-    /// Write operations may be aggressively buffered. The client must call
-    /// [`TerminatingWrite::terminate()`] to finalize the file and make all writes available to
-    /// subsequent reads. The directory implementation owns its buffering strategy; clients should
-    /// not rely on `flush()` making an incomplete file available.
+    /// However, depending on the directory implementation,
+    /// it might be required to call [`Directory::sync_directory()`] to ensure
+    /// that the file is durably created.
+    /// (The semantics here are the same when dealing with
+    /// a POSIX filesystem.)
     ///
-    /// The user shall not rely on [`Drop`] finalizing the file.
+    /// Write operations may be aggressively buffered.
+    /// The client of this trait is responsible for calling terminate
+    /// to ensure that subsequent `read` operations
+    /// will take into account preceding `write` operations.
+    ///
+    /// The user shall not rely on [`Drop`] triggering terminate.
     ///
     /// The file may not previously exist.
     fn open_write(&self, path: &Path) -> Result<WritePtr, OpenWriteError>;

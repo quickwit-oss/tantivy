@@ -65,7 +65,7 @@ pub struct AntiCallToken(());
 ///
 /// Thread-safety is enforced at the call sites that require it.
 pub trait TerminatingWrite: Write {
-    /// Indicates that the writer will no longer be used. Internally calls `terminate_ref`.
+    /// Indicate that the writer will no longer be used. Internally call terminate_ref.
     fn terminate(mut self) -> io::Result<()>
     where Self: Sized {
         self.terminate_ref(AntiCallToken(()))
@@ -84,9 +84,7 @@ impl<W: TerminatingWrite + ?Sized> TerminatingWrite for Box<W> {
 
 impl<W: TerminatingWrite> TerminatingWrite for BufWriter<W> {
     fn terminate_ref(&mut self, a: AntiCallToken) -> io::Result<()> {
-        if !self.buffer().is_empty() {
-            self.flush()?;
-        }
+        self.flush()?;
         self.get_mut().terminate_ref(a)
     }
 }

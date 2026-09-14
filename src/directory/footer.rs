@@ -126,9 +126,9 @@ impl Footer {
 }
 
 pub(crate) struct FooterProxy<W: TerminatingWrite> {
-    /// Always `Some` except after `terminate()` is called.
+    /// always Some except after terminate call
     hasher: Option<Hasher>,
-    /// Always `Some` except after `terminate()` is called.
+    /// always Some except after terminate call
     writer: Option<W>,
 }
 

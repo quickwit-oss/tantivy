@@ -318,7 +318,8 @@ impl Drop for ReleaseLockFile {
     }
 }
 
-/// Wraps a file and syncs its data when the writer is terminated.
+/// This Write wraps a File, but has the specificity of
+/// calling `sync_all` on terminate.
 struct SafeFileWriter(File);
 
 impl SafeFileWriter {

@@ -60,7 +60,7 @@ impl Drop for MemoryUsageTracker {
 
 /// Writer associated with the [`RamDirectory`].
 ///
-/// The writer stores its buffer in the directory when terminated.
+/// The Writer just writes a buffer.
 struct VecWriter {
     path: PathBuf,
     shared_directory: RamDirectory,
@@ -109,8 +109,6 @@ impl Write for VecWriter {
         Ok(buf.len())
     }
 
-    /// Nothing to flush since the data is stored in memory. The memory usage is updated on each
-    /// write.
     fn flush(&mut self) -> io::Result<()> {
         Ok(())
     }
