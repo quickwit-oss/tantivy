@@ -134,7 +134,9 @@ fn test_simple(directory: &dyn Directory) -> crate::Result<()> {
 
 fn test_rewrite_forbidden(directory: &dyn Directory) -> crate::Result<()> {
     let test_path: &'static Path = Path::new("some_path_for_test");
-    directory.open_write(test_path)?.finish()?;
+    let writer = directory.open_write(test_path)?;
+    assert!(directory.open_write(test_path).is_err());
+    writer.finish()?;
     assert!(directory.exists(test_path).unwrap());
     assert!(directory.open_write(test_path).is_err());
     assert!(directory.delete(test_path).is_ok());
