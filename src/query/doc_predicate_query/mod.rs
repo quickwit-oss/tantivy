@@ -6,7 +6,7 @@ mod jitexpr_predicate;
 
 pub use function_predicate::FunctionPredicate;
 #[cfg(feature = "jitexpr")]
-pub use jitexpr_predicate::{JitExprPredicate, JitExprSegmentPredicate};
+pub use jitexpr_predicate::{JitExprEvalState, JitExprPredicate};
 
 use crate::docset::{SeekDangerResult, TERMINATED};
 use crate::index::SegmentReader;
@@ -197,6 +197,22 @@ pub trait DocPredicate: Send + Sync + 'static + std::fmt::Debug {
 pub trait SegmentDocPredicate: Send + 'static {
     /// Returns whether `doc_id` matches the predicate.
     fn eval(&mut self, doc_id: DocId) -> bool;
+}
+
+/// An absent predicate matches no document.
+///
+/// This lets a [`DocPredicate`] use `Option<T>` as its per-segment predicate to
+/// express "this segment can never match", without defining a dedicated
+/// always-false type. `None` evaluates to `false` for every `doc_id`.
+impl<TSegmentDocPredicate: SegmentDocPredicate> SegmentDocPredicate
+    for Option<TSegmentDocPredicate>
+{
+    fn eval(&mut self, doc_id: DocId) -> bool {
+        let Some(segment_doc_predicate) = self.as_mut() else {
+            return false;
+        };
+        segment_doc_predicate.eval(doc_id)
+    }
 }
 
 #[cfg(test)]

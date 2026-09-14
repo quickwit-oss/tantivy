@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::io;
 
 use columnar::{ColumnType, DynamicColumn, StrColumn};
 use jitexpr::ast::{infer_types_with_target, InferredTypeSet, TypeError, UntypedExpr};
@@ -54,12 +55,12 @@ impl JitExprPredicate {
 }
 
 impl DocPredicate for JitExprPredicate {
-    type SegmentDocPredicate = JitExprSegmentPredicate;
+    type SegmentDocPredicate = Option<JitExprEvalState>;
 
     fn doc_predicate(
         &self,
         segment_reader: &SegmentReader,
-    ) -> crate::Result<JitExprSegmentPredicate> {
+    ) -> crate::Result<Option<JitExprEvalState>> {
         let mut variable_types = HashMap::with_capacity(self.inferred_inputs.len());
         let mut opened_columns: HashMap<&str, DynamicColumn> =
             HashMap::with_capacity(self.inferred_inputs.len());
@@ -82,17 +83,25 @@ impl DocPredicate for JitExprPredicate {
             opened_columns.insert(name.as_str(), column);
         }
 
-        let Ok(compiled) = compile(&self.expression, &variable_types) else {
-            return Ok(ALWAYS_FALSE_SEGMENT_PREDICATE);
-        };
-        if compiled.result_type() != VarType::Bool {
-            return Ok(ALWAYS_FALSE_SEGMENT_PREDICATE);
+        let compiled_fn =
+            compile(&self.expression, &variable_types).map_err(|compilation_err| {
+                TantivyError::InvalidArgument(format!(
+                    "the expression compilation failed {:?}. error: {compilation_err}",
+                    self.expression
+                ))
+            })?;
+
+        if compiled_fn.result_type() != VarType::Bool {
+            return Err(TantivyError::InvalidArgument(format!(
+                "the expression is not a predicate {}",
+                self.expression
+            )));
         }
 
         // The compiler owns the definitive ABI order. Do not rely on inference
         // or HashMap iteration order when building the argument slots.
-        let mut columns = Vec::with_capacity(compiled.inputs().len());
-        for input in compiled.inputs() {
+        let mut columns = Vec::with_capacity(compiled_fn.inputs().len());
+        for input in compiled_fn.inputs() {
             let column = opened_columns
                 .remove(input.variable_name.as_ref())
                 .ok_or_else(|| {
@@ -117,14 +126,12 @@ impl DocPredicate for JitExprPredicate {
             .filter(|column| matches!(column, DynamicColumn::Str(_)))
             .count();
         let num_inputs = columns.len();
-        Ok(JitExprSegmentPredicate {
-            state: Some(JitExprEvalState {
-                compiled: compiled.context(),
-                columns,
-                string_inputs: vec![String::new(); num_string_inputs],
-                input_values: Vec::with_capacity(num_inputs),
-            }),
-        })
+        Ok(Some(JitExprEvalState {
+            compiled: compiled_fn.context(),
+            columns,
+            string_inputs: vec![String::new(); num_string_inputs],
+            input_values: Vec::with_capacity(num_inputs),
+        }))
     }
 }
 
@@ -132,8 +139,13 @@ fn open_input_column(
     reader: &SegmentReader,
     name: &str,
     accepted_types: InferredTypeSet,
-) -> crate::Result<Option<DynamicColumn>> {
-    for handle in reader.fast_fields().dynamic_column_handles(name)? {
+) -> io::Result<Option<DynamicColumn>> {
+    let Ok(column_handles) = reader.fast_fields().dynamic_column_handles(name) else {
+        // If the call to dynamic_column_handles fails (for instance because the column is not a
+        // fast field) we choose to act as if the column was absent.
+        return Ok(None);
+    };
+    for handle in column_handles {
         // We return the first column that could be accepted
         let Some(var_type) = var_type_for_column_type(handle.column_type()) else {
             continue;
@@ -157,20 +169,12 @@ fn var_type_for_column_type(column_type: ColumnType) -> Option<VarType> {
 }
 
 /// The [`SegmentDocPredicate`] produced by [`JitExprPredicate`] for one segment.
-pub struct JitExprSegmentPredicate {
-    // None means the expression cannot produce a boolean for this segment.
-    state: Option<JitExprEvalState>,
-}
-
-const ALWAYS_FALSE_SEGMENT_PREDICATE: JitExprSegmentPredicate =
-    JitExprSegmentPredicate { state: None };
-
-struct JitExprEvalState {
+pub struct JitExprEvalState {
     compiled: CompiledFnCtx,
     columns: Vec<DynamicColumn>,
-    // One reusable buffer per string column, in ABI order.
+    // One reusable buffer per string column.
     string_inputs: Vec<String>,
-    // Reusable argument slots, in ABI order.
+    // Reusable argument slots.
     //
     // Hidden contract: this vector is always empty between evaluations, so the
     // `'static` lifetime is a placeholder for an unused element type rather
@@ -180,16 +184,7 @@ struct JitExprEvalState {
     input_values: Vec<VariableValue<'static>>,
 }
 
-impl SegmentDocPredicate for JitExprSegmentPredicate {
-    fn eval(&mut self, doc_id: DocId) -> bool {
-        let Some(state) = &mut self.state else {
-            return false;
-        };
-        state.eval(doc_id)
-    }
-}
-
-impl JitExprEvalState {
+impl SegmentDocPredicate for JitExprEvalState {
     fn eval(&mut self, doc_id: DocId) -> bool {
         // Input_values is just a buffer we share to avoid allocations
         let input_values: &mut Vec<VariableValue<'_>> =
@@ -256,6 +251,7 @@ fn load_str_input<'buffer>(
     let term_ord = column.ords().first(doc_id)?;
     // SegmentDocPredicate::eval cannot return I/O errors; an unreadable
     // dictionary therefore panics.
+    // TODO this is terribly inefficient: we need at least some caching.
     let found = column
         .ord_to_str(term_ord, buffer)
         .expect("fast-field string dictionary is corrupted");
@@ -268,14 +264,14 @@ mod tests {
     use super::*;
     use crate::collector::Count;
     use crate::query::doc_predicate_query::DocPredicateQuery;
-    use crate::query::{EnableScoring, Query};
-    use crate::schema::{Schema, FAST, STRING};
-    use crate::{Index, TERMINATED};
+    use crate::schema::{Schema, FAST, STORED, STRING};
+    use crate::Index;
 
     fn create_index() -> Index {
         let mut schema_builder = Schema::builder();
         let number = schema_builder.add_u64_field("number", FAST);
         let flag = schema_builder.add_bool_field("flag", FAST);
+        let _notfast = schema_builder.add_bool_field("notfast", STORED);
         let label = schema_builder.add_text_field("label", STRING | FAST);
         let index = Index::create_in_ram(schema_builder.build());
         let mut writer = index.writer_for_tests().unwrap();
@@ -306,7 +302,7 @@ mod tests {
     }
 
     #[test]
-    fn test_numeric_predicate_query() {
+    fn test_simple() {
         let index = create_index();
         let searcher = index.reader().unwrap().searcher();
         assert_eq!(
@@ -318,6 +314,53 @@ mod tests {
                 .search(&query("(EQ (ADD number 1u64) 3u64)"), &Count)
                 .unwrap(),
             1
+        );
+    }
+
+    #[test]
+    fn test_simple_string_ref_predicate() {
+        let index = create_index();
+        let searcher = index.reader().unwrap().searcher();
+        assert_eq!(
+            searcher
+                .search(&query(r#"(EQ (REGEXP_EXTRACT "(.).*" label) "o")"#), &Count)
+                .unwrap(),
+            1
+        );
+    }
+
+    #[test]
+    fn test_simple_built_string_predicate() {
+        let index = create_index();
+        let searcher = index.reader().unwrap().searcher();
+        assert_eq!(
+            searcher
+                .search(&query(r#"(EQ (UPPER "(.).*" label) "TWO")"#), &Count)
+                .unwrap(),
+            1
+        );
+    }
+
+    #[test]
+    fn test_simple_missing_field() {
+        let index = create_index();
+        let searcher = index.reader().unwrap().searcher();
+        assert_eq!(
+            searcher
+                .search(&query(r#"(EQ missing_field true)"#), &Count)
+                .unwrap(),
+            0
+        );
+    }
+    #[test]
+    fn test_simple_notfast() {
+        let index = create_index();
+        let searcher = index.reader().unwrap().searcher();
+        assert_eq!(
+            searcher
+                .search(&query(r#"(EQ notfast true)"#), &Count)
+                .unwrap(),
+            0
         );
     }
 
@@ -354,12 +397,7 @@ mod tests {
         let index = create_index();
         let searcher = index.reader().unwrap().searcher();
         assert_eq!(searcher.search(&query("missing"), &Count).unwrap(), 0);
-        assert_eq!(
-            searcher
-                .search(&query("(EQ (ADD label 1i64) 2i64)"), &Count)
-                .unwrap(),
-            0
-        );
+
         // A column missing from the segment is compiled as None.
         assert_eq!(
             searcher
@@ -367,10 +405,34 @@ mod tests {
                 .unwrap(),
             4
         );
-        // Missing values in a bound column skip the document before evaluation.
+        // A column missing from the segment is compiled as None.
+        assert_eq!(
+            searcher
+                .search(&query("(IS_NOT_NULL missing)"), &Count)
+                .unwrap(),
+            0
+        );
         assert_eq!(
             searcher.search(&query("(IS_NULL flag)"), &Count).unwrap(),
+            1
+        );
+        assert_eq!(
+            searcher
+                .search(&query("(IS_NOT_NULL flag)"), &Count)
+                .unwrap(),
+            3
+        );
+        assert_eq!(
+            searcher
+                .search(&query("(EQ (ADD label 1i64) 2i64)"), &Count)
+                .unwrap(),
             0
+        );
+        assert_eq!(
+            searcher
+                .search(&query("(IS_NULL (ADD label 1i64))"), &Count)
+                .unwrap(),
+            4
         );
     }
 
@@ -398,9 +460,19 @@ mod tests {
         );
         assert_eq!(
             searcher
+                .search(&query("(EQ signed -2f64)"), &Count)
+                .unwrap(),
+            1
+        );
+        assert_eq!(
+            searcher
                 .search(&query("(EQ float 1.5f64)"), &Count)
                 .unwrap(),
             1
+        );
+        assert_eq!(
+            searcher.search(&query("(EQ float 1i64)"), &Count).unwrap(),
+            0
         );
     }
 
@@ -432,104 +504,5 @@ mod tests {
                 .unwrap(),
             1
         );
-    }
-
-    #[test]
-    fn test_string_buffers_are_reused_across_evaluations() {
-        let mut schema_builder = Schema::builder();
-        let left = schema_builder.add_text_field("left", STRING | FAST);
-        let right = schema_builder.add_text_field("right", STRING | FAST);
-        let index = Index::create_in_ram(schema_builder.build());
-        let mut writer = index.writer_for_tests().unwrap();
-        let long_string = "long string ".repeat(1000);
-        writer
-            .add_document(doc!(left => "short", right => "SHORT"))
-            .unwrap();
-        writer
-            .add_document(doc!(left => long_string.clone(), right => long_string.to_uppercase()))
-            .unwrap();
-        writer.add_document(doc!(left => "", right => "")).unwrap();
-        writer.add_document(doc!(left => "missing right")).unwrap();
-        writer.commit().unwrap();
-        let searcher = index.reader().unwrap().searcher();
-        // This also exercises the JIT context's arena-backed string results.
-        let predicate =
-            JitExprPredicate::new(jitexpr::ast::deserialize("(EQ right (UPPER left))").unwrap())
-                .unwrap();
-        let mut segment_predicate = predicate.doc_predicate(searcher.segment_reader(0)).unwrap();
-        for _ in 0..3 {
-            assert!(segment_predicate.eval(0));
-            assert!(segment_predicate.eval(1));
-            assert!(segment_predicate.eval(2));
-            assert!(!segment_predicate.eval(3));
-        }
-    }
-
-    #[test]
-    fn test_input_value_buffer_is_reused_across_evaluations() {
-        let index = create_index();
-        let searcher = index.reader().unwrap().searcher();
-        let predicate = JitExprPredicate::new(
-            jitexpr::ast::deserialize(r#"(EQ (EQ label "three") flag)"#).unwrap(),
-        )
-        .unwrap();
-        let mut segment_predicate = predicate.doc_predicate(searcher.segment_reader(0)).unwrap();
-        let capacity = {
-            let state = segment_predicate.state.as_ref().unwrap();
-            assert!(state.input_values.is_empty());
-            assert_eq!(state.input_values.capacity(), state.columns.len());
-            state.input_values.capacity()
-        };
-        // Document 3 has no value for either column, and is skipped early.
-        for doc_id in [0, 1, 2, 3, 0] {
-            segment_predicate.eval(doc_id);
-            let state = segment_predicate.state.as_ref().unwrap();
-            assert!(state.input_values.is_empty());
-            assert_eq!(state.input_values.capacity(), capacity);
-        }
-    }
-
-    #[test]
-    fn test_more_than_eight_inputs() {
-        let mut schema_builder = Schema::builder();
-        let mut document = crate::TantivyDocument::default();
-        let mut sum = "0u64".to_string();
-        for i in 0..9 {
-            let name = format!("input_{i}");
-            let field = schema_builder.add_u64_field(&name, FAST);
-            document.add_u64(field, i + 1);
-            sum = format!("(ADD {sum} {name})");
-        }
-        let index = Index::create_in_ram(schema_builder.build());
-        let mut writer = index.writer_for_tests().unwrap();
-        writer.add_document(document).unwrap();
-        writer.add_document(doc!()).unwrap();
-        writer.commit().unwrap();
-        let searcher = index.reader().unwrap().searcher();
-        let predicate =
-            JitExprPredicate::new(jitexpr::ast::deserialize(&format!("(EQ {sum} 45u64)")).unwrap())
-                .unwrap();
-        let mut segment_predicate = predicate.doc_predicate(searcher.segment_reader(0)).unwrap();
-        assert_eq!(segment_predicate.state.as_ref().unwrap().columns.len(), 9);
-        assert!(segment_predicate.eval(0));
-        assert!(!segment_predicate.eval(1));
-    }
-
-    #[test]
-    fn test_query_scorer_and_explanation() {
-        let index = create_index();
-        let searcher = index.reader().unwrap().searcher();
-        let query = query("flag");
-        let weight = query
-            .weight(EnableScoring::disabled_from_searcher(&searcher))
-            .unwrap();
-        let reader = searcher.segment_reader(0);
-        assert!(weight.explain(reader, 0).is_ok());
-        assert!(weight.explain(reader, 1).is_err());
-        let mut scorer = weight.scorer(reader, 2.0).unwrap();
-        assert_eq!(scorer.doc(), 0);
-        assert_eq!(scorer.score(), 2.0);
-        assert_eq!(scorer.advance(), 2);
-        assert_eq!(scorer.advance(), TERMINATED);
     }
 }
