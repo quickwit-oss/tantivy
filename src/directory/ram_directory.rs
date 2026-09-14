@@ -118,7 +118,8 @@ impl Write for VecWriter {
 
 impl FinishableWrite for VecWriter {
     fn finish_ref(&mut self, _: AntiCallToken) -> io::Result<()> {
-        let data = std::mem::take(self.data.get_mut());
+        let mut data = std::mem::take(self.data.get_mut());
+        data.shrink_to_fit();
         let mut fs = self.shared_directory.fs.write().unwrap();
         fs.active_writers.remove(&self.path);
         fs.write_owned(self.path.clone(), data);
