@@ -318,8 +318,7 @@ impl Drop for ReleaseLockFile {
     }
 }
 
-/// This Write wraps a File, but has the specificity of
-/// call `sync_all` on flush.
+/// Wraps a file and syncs its data when the writer is finished.
 struct SafeFileWriter(File);
 
 impl SafeFileWriter {
@@ -555,10 +554,7 @@ mod tests {
         // In that case the directory returns a SharedVecSlice.
         let mmap_directory = MmapDirectory::create_from_tempdir().unwrap();
         let path = PathBuf::from("test");
-        {
-            let mut w = mmap_directory.open_write(&path).unwrap();
-            w.flush().unwrap();
-        }
+        mmap_directory.open_write(&path).unwrap().finish().unwrap();
         let readonlymap = mmap_directory.open_read(&path).unwrap();
         assert_eq!(readonlymap.len(), 0);
     }
@@ -574,12 +570,10 @@ mod tests {
         let paths: Vec<PathBuf> = (0..num_paths)
             .map(|i| PathBuf::from(&*format!("file_{i}")))
             .collect();
-        {
-            for path in &paths {
-                let mut w = mmap_directory.open_write(path).unwrap();
-                w.write_all(content).unwrap();
-                w.flush().unwrap();
-            }
+        for path in &paths {
+            let mut w = mmap_directory.open_write(path).unwrap();
+            w.write_all(content).unwrap();
+            w.finish().unwrap();
         }
 
         let mut keep = vec![];
