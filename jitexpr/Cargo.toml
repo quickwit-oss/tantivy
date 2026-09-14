@@ -2,6 +2,10 @@
 name = "jitexpr"
 version = "0.1.0"
 edition = "2024"
+license = "MIT"
+homepage = "https://github.com/quickwit-oss/tantivy"
+repository = "https://github.com/quickwit-oss/tantivy"
+description = "JIT-compiled expression evaluation for tantivy"
 
 [dependencies]
 cranelift = "0.134.3"
