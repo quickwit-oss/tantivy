@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::io::{self, BufWriter, Cursor, Write};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -91,7 +91,10 @@ impl Drop for VecWriter {
                  also occurs when the indexer crashed, so you may want to check the logs for the \
                  root cause.",
                 self.path
-            )
+            );
+        }
+        if let Ok(mut fs) = self.shared_directory.fs.write() {
+            fs.active_writers.remove(&self.path);
         }
     }
 }
@@ -115,10 +118,11 @@ impl Write for VecWriter {
 
 impl FinishableWrite for VecWriter {
     fn finish_ref(&mut self, _: AntiCallToken) -> io::Result<()> {
-        self.is_finished = true;
         let data = std::mem::take(self.data.get_mut());
         let mut fs = self.shared_directory.fs.write().unwrap();
+        fs.active_writers.remove(&self.path);
         fs.write_owned(self.path.clone(), data);
+        self.is_finished = true;
         self.memory_usage.finish();
         Ok(())
     }
@@ -127,6 +131,7 @@ impl FinishableWrite for VecWriter {
 #[derive(Default)]
 struct InnerDirectory {
     fs: HashMap<PathBuf, FileSlice>,
+    active_writers: HashSet<PathBuf>,
     watch_router: WatchCallbackList,
 }
 
@@ -246,9 +251,11 @@ impl Directory for RamDirectory {
 
     fn open_write(&self, path: &Path) -> Result<WritePtr, OpenWriteError> {
         let path_buf = PathBuf::from(path);
-        if self.fs.read().unwrap().exists(path) {
+        let mut fs = self.fs.write().unwrap();
+        if fs.exists(path) || !fs.active_writers.insert(path_buf.clone()) {
             return Err(OpenWriteError::FileAlreadyExists(path_buf));
         }
+        drop(fs);
         let vec_writer = VecWriter::new(path_buf, self.clone());
         // The writer's allocation is tracked by `RamDirectory`; an additional buffer would not
         // be included in `total_mem_usage()`.
@@ -308,6 +315,18 @@ mod tests {
         assert!(directory.persist(&directory_copy).is_ok());
         assert_eq!(directory_copy.atomic_read(path_atomic).unwrap(), msg_atomic);
         assert_eq!(directory_copy.atomic_read(path_seq).unwrap(), msg_seq);
+    }
+
+    #[test]
+    fn test_dropped_writer_releases_path() {
+        let dir = RamDirectory::default();
+        let path = Path::new("file");
+        let writer = dir.open_write(path).unwrap();
+        assert!(dir.open_write(path).is_err());
+
+        drop(writer);
+        dir.open_write(path).unwrap().finish().unwrap();
+        assert!(dir.exists(path).unwrap());
     }
 
     #[test]
