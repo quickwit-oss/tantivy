@@ -554,7 +554,11 @@ mod tests {
         // In that case the directory returns a SharedVecSlice.
         let mmap_directory = MmapDirectory::create_from_tempdir().unwrap();
         let path = PathBuf::from("test");
-        mmap_directory.open_write(&path).unwrap().terminate().unwrap();
+        mmap_directory
+            .open_write(&path)
+            .unwrap()
+            .terminate()
+            .unwrap();
         let readonlymap = mmap_directory.open_read(&path).unwrap();
         assert_eq!(readonlymap.len(), 0);
     }

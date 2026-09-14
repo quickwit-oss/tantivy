@@ -87,9 +87,9 @@ impl Drop for VecWriter {
     fn drop(&mut self) {
         if !self.is_finished {
             warn!(
-                "You forgot to terminate {:?} before its writer got Drop. Do not rely on drop. This \
-                 also occurs when the indexer crashed, so you may want to check the logs for the \
-                 root cause.",
+                "You forgot to terminate {:?} before its writer got Drop. Do not rely on drop. \
+                 This also occurs when the indexer crashed, so you may want to check the logs for \
+                 the root cause.",
                 self.path
             );
         }
