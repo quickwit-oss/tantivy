@@ -54,7 +54,7 @@ impl SegmentPlugin for FastFieldsPlugin {
         let doc_id_mapping = ctx.doc_id_mapping.clone();
         let merge_row_order = convert_to_merge_order(&columnars[..], doc_id_mapping);
 
-        columnar::merge_columnar_with_tie_breakers(
+        columnar::merge_columnar(
             &columnars[..],
             &required_columns,
             &tie_breaker_columns,
@@ -178,11 +178,9 @@ fn convert_to_merge_order(
 fn extract_tie_breaker_columns(schema: &Schema) -> Vec<String> {
     schema
         .fields()
-        .filter_map(|(_, field_entry)| match field_entry.field_type() {
-            FieldType::U64(options) if options.is_tie_breaker() => {
-                Some(field_entry.name().to_string())
-            }
-            _ => None,
+        .filter_map(|(_, field_entry)| {
+            matches!(field_entry.field_type(), FieldType::TieBreaker)
+                .then(|| field_entry.name().to_string())
         })
         .collect()
 }

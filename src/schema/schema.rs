@@ -66,7 +66,7 @@ impl SchemaBuilder {
     ///
     /// Panics when field already exists.
     pub fn add_tie_breaker_field(&mut self, field_name_str: &str) -> Field {
-        self.add_u64_field(field_name_str, NumericOptions::default().set_tie_breaker())
+        self.add_field(FieldEntry::new_tie_breaker(field_name_str.to_string()))
     }
 
     /// Adds a new i64 field.

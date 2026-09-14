@@ -74,23 +74,8 @@ impl From<ColumnType> for ColumnTypeCategory {
 ///
 /// Reminder: a string and a numerical column may bare the same column name. This is not
 /// considered a conflict.
-pub fn merge_columnar(
-    columnar_readers: &[&ColumnarReader],
-    required_columns: &[(String, ColumnType)],
-    merge_row_order: MergeRowOrder,
-    output: &mut impl io::Write,
-) -> io::Result<()> {
-    merge_columnar_with_tie_breakers(
-        columnar_readers,
-        required_columns,
-        &[],
-        merge_row_order,
-        output,
-    )
-}
-
 /// Merges columnars and regenerates the named tie-breaker columns in the resulting row order.
-pub fn merge_columnar_with_tie_breakers(
+pub fn merge_columnar(
     columnar_readers: &[&ColumnarReader],
     required_columns: &[(String, ColumnType)],
     tie_breaker_columns: &[String],

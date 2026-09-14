@@ -93,8 +93,8 @@ mod tests {
     use crate::index::SegmentId;
     use crate::merge_policy::NoMergePolicy;
     use crate::schema::{
-        DateOptions, Facet, FacetOptions, Field, JsonObjectOptions, Schema, SchemaBuilder,
-        TantivyDocument, TextOptions, FAST, INDEXED, STORED, STRING, TEXT,
+        DateOptions, Facet, FacetOptions, Field, FieldType, JsonObjectOptions, Schema,
+        SchemaBuilder, TantivyDocument, TextOptions, FAST, INDEXED, STORED, STRING, TEXT,
     };
     use crate::time::OffsetDateTime;
     use crate::tokenizer::{
@@ -151,8 +151,20 @@ mod tests {
     #[test]
     fn test_generated_tie_breaker_fast_field() {
         let mut schema_builder = Schema::builder();
-        schema_builder.add_tie_breaker_field("tie");
+        let tie = schema_builder.add_tie_breaker_field("tie");
         let schema = schema_builder.build();
+        let entry = schema.get_field_entry(tie);
+        assert!(matches!(entry.field_type(), FieldType::TieBreaker));
+        assert!(entry.is_fast());
+        assert!(!entry.is_indexed());
+        assert!(!entry.is_stored());
+        let schema_json = serde_json::to_string(&schema).unwrap();
+        assert!(schema_json.contains(r#""type":"tie_breaker""#));
+        assert_eq!(
+            serde_json::from_str::<Schema>(&schema_json).unwrap(),
+            schema
+        );
+
         let mut writer = FastFieldsWriter::from_schema(&schema).unwrap();
         for _ in 0..1_025 {
             writer.add_document(&TantivyDocument::default()).unwrap();

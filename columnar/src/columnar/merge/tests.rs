@@ -209,6 +209,7 @@ fn test_merge_columnar_numbers() {
     crate::columnar::merge_columnar(
         columnars,
         &[],
+        &[],
         MergeRowOrder::Stack(stack_merge_order),
         &mut buffer,
     )
@@ -236,6 +237,7 @@ fn test_merge_columnar_texts() {
     let stack_merge_order = StackMergeOrder::stack(columnars);
     crate::columnar::merge_columnar(
         columnars,
+        &[],
         &[],
         MergeRowOrder::Stack(stack_merge_order),
         &mut buffer,
@@ -285,6 +287,7 @@ fn test_merge_columnar_byte() {
     let stack_merge_order = StackMergeOrder::stack(columnars);
     crate::columnar::merge_columnar(
         columnars,
+        &[],
         &[],
         MergeRowOrder::Stack(stack_merge_order),
         &mut buffer,
@@ -342,6 +345,7 @@ fn test_merge_columnar_byte_with_missing() {
     crate::columnar::merge_columnar(
         columnars,
         &[],
+        &[],
         MergeRowOrder::Stack(stack_merge_order),
         &mut buffer,
     )
@@ -393,6 +397,7 @@ fn test_merge_columnar_different_types() {
     let stack_merge_order = StackMergeOrder::stack(columnars);
     crate::columnar::merge_columnar(
         columnars,
+        &[],
         &[],
         MergeRowOrder::Stack(stack_merge_order),
         &mut buffer,
@@ -458,6 +463,7 @@ fn test_merge_columnar_different_empty_cardinality() {
     let stack_merge_order = StackMergeOrder::stack(columnars);
     crate::columnar::merge_columnar(
         columnars,
+        &[],
         &[],
         MergeRowOrder::Stack(stack_merge_order),
         &mut buffer,
@@ -569,6 +575,7 @@ proptest! {
         merge_columnar(
             &columnar_refs,
             &[],
+            &[],
             MergeRowOrder::Stack(stack_merge_order),
             &mut out,
         ).unwrap();
@@ -585,6 +592,7 @@ proptest! {
         let stack_merge_order = StackMergeOrder::stack(&columnar_refs);
         merge_columnar(
             &columnar_refs,
+            &[],
             &[],
             MergeRowOrder::Stack(stack_merge_order),
             &mut out,

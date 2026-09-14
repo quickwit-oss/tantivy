@@ -19,14 +19,13 @@ pub(crate) mod monotonic_mapping;
 pub(crate) mod monotonic_mapping_u128;
 mod stats;
 mod u128_based;
-mod u64_based;
+pub(crate) mod u64_based;
 mod vec_column;
 
 mod monotonic_column;
 
 pub(crate) use merge::MergedColumnValues;
 pub use stats::ColumnStats;
-pub(crate) use u64_based::blockwise_linear::BLOCK_SIZE;
 pub use u64_based::{
     ALL_U64_CODEC_TYPES, CodecType, load_u64_based_column_values,
     serialize_and_load_u64_based_column_values, serialize_u64_based_column_values,

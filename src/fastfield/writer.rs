@@ -52,10 +52,7 @@ impl FastFieldsWriter {
             if !field_entry.field_type().is_fast() {
                 continue;
             }
-            if matches!(
-                field_entry.field_type(),
-                FieldType::U64(options) if options.is_tie_breaker()
-            ) {
+            if matches!(field_entry.field_type(), FieldType::TieBreaker) {
                 columnar_writer.record_tie_breaker_column(field_entry.name());
                 continue;
             }

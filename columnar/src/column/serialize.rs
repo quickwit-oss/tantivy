@@ -30,12 +30,15 @@ pub(crate) fn serialize_generated_tie_breaker_column(
     num_docs: u32,
     output: &mut impl Write,
 ) -> io::Result<()> {
-    let block_size = crate::column_values::BLOCK_SIZE;
+    let block_size = crate::column_values::u64_based::blockwise_linear::BLOCK_SIZE;
     let max_start = u32::MAX - (block_size - 1);
-    let mut rng = rand::rng();
+    let mut pseudo_random = rand::rng().random::<u32>();
     let mut values = Vec::with_capacity(num_docs as usize);
     for block_start_doc in (0..num_docs).step_by(block_size as usize) {
-        let start = rng.random_range(0..=max_start);
+        let start = ((pseudo_random as u64 * (u64::from(max_start) + 1)) >> 32) as u32;
+        pseudo_random = pseudo_random
+            .wrapping_mul(1_664_525)
+            .wrapping_add(1_013_904_223);
         let block_len = (num_docs - block_start_doc).min(block_size);
         values.extend((0..block_len).map(|offset| (start + offset) as u64));
     }
