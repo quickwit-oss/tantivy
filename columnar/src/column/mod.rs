@@ -46,10 +46,10 @@ impl<T: PartialOrd + Default> Column<T> {
 
 impl<T: MonotonicallyMappableToU64> Column<T> {
     pub fn to_u64_monotonic(self) -> Column<u64> {
-        let values = Arc::new(monotonic_map_column(
+        let values = monotonic_map_column(
             self.values,
             StrictlyMonotonicMappingToInternal::<T>::new(),
-        ));
+        );
         Column {
             index: self.index,
             values,

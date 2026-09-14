@@ -1,6 +1,8 @@
+use std::any::{Any, TypeId};
 use std::fmt::Debug;
 use std::marker::PhantomData;
 use std::ops::{Range, RangeInclusive};
+use std::sync::Arc;
 
 use crate::ColumnValues;
 use crate::column_values::monotonic_mapping::StrictlyMonotonicFn;
@@ -29,18 +31,26 @@ struct MonotonicMappingColumn<C, T, Input> {
 pub fn monotonic_map_column<C, T, Input, Output>(
     from_column: C,
     monotonic_mapping: T,
-) -> impl ColumnValues<Output>
+) -> Arc<dyn ColumnValues<Output>>
 where
     C: ColumnValues<Input> + 'static,
     T: StrictlyMonotonicFn<Input, Output> + Send + Sync + 'static,
     Input: PartialOrd + Debug + Send + Sync + Clone + 'static,
     Output: PartialOrd + Debug + Send + Sync + Clone + 'static,
 {
-    MonotonicMappingColumn {
+    // Preserve specialized codec methods (notably get_range) for identity mappings.
+    if T::IS_IDENTITY && TypeId::of::<Input>() == TypeId::of::<Output>() {
+        let column: Arc<dyn ColumnValues<Input>> = Arc::new(from_column);
+        return (&column as &dyn Any)
+            .downcast_ref::<Arc<dyn ColumnValues<Output>>>()
+            .unwrap()
+            .clone();
+    }
+    Arc::new(MonotonicMappingColumn {
         from_column,
         monotonic_mapping,
         _phantom: PhantomData,
-    }
+    })
 }
 
 impl<C, T, Input, Output> ColumnValues<Output> for MonotonicMappingColumn<C, T, Input>
@@ -103,6 +113,35 @@ mod tests {
     use crate::column_values::monotonic_mapping::{
         StrictlyMonotonicMappingInverter, StrictlyMonotonicMappingToInternal,
     };
+
+    #[test]
+    fn test_u128_identity() {
+        let column: Arc<dyn ColumnValues<u128>> = monotonic_map_column(
+            VecColumn::from(vec![u128::MAX]),
+            StrictlyMonotonicMappingInverter::from(
+                StrictlyMonotonicMappingToInternal::<u128>::new(),
+            ),
+        );
+        assert_eq!(column.get_val(0), u128::MAX);
+    }
+
+    #[test]
+    fn test_same_type_non_identity() {
+        struct Shift;
+        impl StrictlyMonotonicFn<u64, u64> for Shift {
+            fn mapping(&self, value: u64) -> u64 {
+                value + 1
+            }
+
+            fn inverse(&self, value: u64) -> u64 {
+                value - 1
+            }
+        }
+        let column = monotonic_map_column(VecColumn::from(vec![1u64, 2, 3]), Shift);
+        let mut output = [0; 3];
+        column.get_range(0, &mut output);
+        assert_eq!(output, [2, 3, 4]);
+    }
 
     #[test]
     fn test_monotonic_mapping_iter() {
