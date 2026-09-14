@@ -257,9 +257,7 @@ impl Directory for RamDirectory {
         }
         drop(fs);
         let vec_writer = VecWriter::new(path_buf, self.clone());
-        // The writer's allocation is tracked by `RamDirectory`; an additional buffer would not
-        // be included in `total_mem_usage()`.
-        Ok(BufWriter::with_capacity(0, Box::new(vec_writer)))
+        Ok(BufWriter::new(Box::new(vec_writer)))
     }
 
     fn atomic_read(&self, path: &Path) -> Result<Vec<u8>, OpenReadError> {
