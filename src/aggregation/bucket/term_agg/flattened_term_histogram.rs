@@ -89,7 +89,12 @@ struct SingleBucketResolver {
 impl SingleBucketResolver {
     fn new(hist_req_data: &HistogramAggReqData) -> Self {
         assert!(
-            hist_req_data.accessor.get_cardinality().is_full(),
+            hist_req_data
+                .accessor
+                .physical()
+                .expect("flattened histogram requires a physical source")
+                .get_cardinality()
+                .is_full(),
             "SingleBucketResolver requires a full histogram column"
         );
         Self { next_count_lane: 0 }
@@ -145,13 +150,22 @@ struct ComputedBucketResolver {
 impl ComputedBucketResolver {
     fn new(hist_req_data: &HistogramAggReqData, base_pos: i64, num_buckets: usize) -> Self {
         assert!(
-            hist_req_data.accessor.get_cardinality().is_full(),
+            hist_req_data
+                .accessor
+                .physical()
+                .expect("flattened histogram requires a physical source")
+                .get_cardinality()
+                .is_full(),
             "ComputedBucketResolver requires a full histogram column"
         );
         Self {
             hist_block: ColumnBlockAccessor::default(),
             next_count_lane: 0,
-            accessor: hist_req_data.accessor.clone(),
+            accessor: hist_req_data
+                .accessor
+                .physical()
+                .expect("flattened histogram requires a physical source")
+                .clone(),
             field_type: hist_req_data.field_type,
             interval: hist_req_data.req.interval,
             offset: hist_req_data.offset,
@@ -240,15 +254,28 @@ impl<const NUM_BUCKETS: usize> LinearBucketResolver<NUM_BUCKETS> {
     ) -> Option<Self> {
         assert!(num_time_buckets > 1 && num_time_buckets <= NUM_BUCKETS);
         assert!(
-            hist_req_data.accessor.get_cardinality().is_full(),
+            hist_req_data
+                .accessor
+                .physical()
+                .expect("flattened histogram requires a physical source")
+                .get_cardinality()
+                .is_full(),
             "LinearBucketResolver requires a full histogram column"
         );
-        let max_encoded_value = hist_req_data.accessor.max_value();
+        let max_encoded_value = hist_req_data
+            .accessor
+            .physical()
+            .expect("flattened histogram requires a physical source")
+            .max_value();
         // Padding must compare false for every column value. There is no such `u64` sentinel when
         // the column contains `u64::MAX`, so that edge case uses the computed resolver instead.
         let padding = max_encoded_value.checked_add(1)?;
         let mut boundaries = [padding; NUM_BUCKETS];
-        let mut bucket_start = hist_req_data.accessor.min_value();
+        let mut bucket_start = hist_req_data
+            .accessor
+            .physical()
+            .expect("flattened histogram requires a physical source")
+            .min_value();
         for bucket in 1..num_time_buckets {
             bucket_start = first_encoded_value_for_bucket(
                 bucket_start,
@@ -262,7 +289,11 @@ impl<const NUM_BUCKETS: usize> LinearBucketResolver<NUM_BUCKETS> {
         Some(Self {
             hist_block: ColumnBlockAccessor::default(),
             next_count_lane: 0,
-            accessor: hist_req_data.accessor.clone(),
+            accessor: hist_req_data
+                .accessor
+                .physical()
+                .expect("flattened histogram requires a physical source")
+                .clone(),
             boundaries,
             num_buckets: num_time_buckets,
         })
@@ -454,8 +485,13 @@ impl<R: BucketResolver, const LANES: usize> SegmentAggregationCollector
 
         // The term column is always needed. The resolver fetches the histogram column only when
         // bucket selection depends on its values; `SingleBucketResolver` makes this a no-op.
-        self.term_block
-            .fetch_full_column_block(docs, &self.terms_req_data.accessor);
+        self.term_block.fetch_full_column_block(
+            docs,
+            self.terms_req_data
+                .accessor
+                .physical()
+                .expect("flattened terms requires a physical source"),
+        );
         self.bucket_resolver.prepare_block(docs);
 
         // Keep separate bounded and unbounded entry points so the common path has no bounds branch,
@@ -527,11 +563,11 @@ pub(super) fn maybe_build_flattened_collector(
     let fuseable = is_top_level
         // TODO: We can easily support this
         && terms_req_data.allowed_term_ids.is_none()
-        && terms_req_data.accessor.get_cardinality().is_full()
+        && terms_req_data.accessor.physical().is_some_and(|column| column.get_cardinality().is_full())
         // The flat counters are `u32`, bumped once per value, so no count can exceed the column's
         // value count. (Essentially always true here: the column is full, so its value count
         // equals the doc count, and `DocId` is `u32`.)
-        && terms_req_data.accessor.values.num_vals() < u32::MAX
+        && terms_req_data.accessor.physical().is_some_and(|column| column.values.num_vals() < u32::MAX)
         && node.children.len() == 1
         && matches!(
             node.children[0].kind,
@@ -540,8 +576,8 @@ pub(super) fn maybe_build_flattened_collector(
         && node.children[0].children.is_empty()
         && agg_data.per_request.histogram_req_data[node.children[0].idx_in_req_data]
             .accessor
-            .get_cardinality()
-            .is_full();
+            .physical()
+            .is_some_and(|column| column.get_cardinality().is_full());
     if !fuseable {
         return Ok(None);
     }

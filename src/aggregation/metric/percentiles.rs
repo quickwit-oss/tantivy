@@ -8,6 +8,7 @@ use crate::aggregation::intermediate_agg_result::{
     IntermediateAggregationResult, IntermediateAggregationResults, IntermediateMetricResult,
 };
 use crate::aggregation::segment_agg_result::SegmentAggregationCollector;
+use crate::aggregation::value_source::AggregationValueSource;
 use crate::aggregation::*;
 use crate::TantivyError;
 
@@ -139,7 +140,7 @@ pub(crate) struct SegmentPercentilesCollector {
     /// The missing value normalized to the internal u64 representation of the field type.
     pub missing_u64: Option<u64>,
     /// The column accessor to access the fast field values.
-    pub accessor: Column<u64>,
+    pub accessor: AggregationValueSource,
 }
 
 #[derive(Clone, Serialize, Deserialize)]
@@ -252,7 +253,7 @@ impl SegmentPercentilesCollector {
     pub fn from_req_and_validate(
         field_type: ColumnType,
         missing_u64: Option<u64>,
-        accessor: Column<u64>,
+        accessor: AggregationValueSource,
         accessor_idx: usize,
     ) -> Self {
         Self {
@@ -297,11 +298,15 @@ impl SegmentAggregationCollector for SegmentPercentilesCollector {
         agg_data: &mut AggregationsSegmentCtx,
     ) -> crate::Result<()> {
         let percentiles = &mut self.buckets[parent_bucket_id as usize];
-        agg_data.column_block_accessor.fetch_block_with_missing(
-            docs,
-            &self.accessor,
-            self.missing_u64,
-        );
+        agg_data
+            .column_block_accessor
+            .fetch_source_block_with_missing(
+                docs,
+                &self.accessor,
+                &mut agg_data.value_sources,
+                &mut agg_data.context.limits,
+                self.missing_u64,
+            )?;
 
         for val in agg_data.column_block_accessor.iter_vals() {
             let val1 = f64_from_fastfield_u64(val, self.field_type);

@@ -1,6 +1,6 @@
 use std::fmt::Debug;
 
-use columnar::{Column, ColumnType};
+use columnar::ColumnType;
 use serde::{Deserialize, Serialize};
 
 use super::*;
@@ -9,6 +9,7 @@ use crate::aggregation::intermediate_agg_result::{
     IntermediateAggregationResult, IntermediateAggregationResults, IntermediateMetricResult,
 };
 use crate::aggregation::segment_agg_result::SegmentAggregationCollector;
+use crate::aggregation::value_source::AggregationValueSource;
 use crate::aggregation::*;
 use crate::TantivyError;
 
@@ -230,7 +231,7 @@ pub(crate) fn build_segment_stats_collector(
 #[derive(Clone, Debug)]
 pub(crate) struct SegmentStatsCollector<const COLUMN_TYPE_ID: u8> {
     pub(crate) missing_u64: Option<u64>,
-    pub(crate) accessor: Column<u64>,
+    pub(crate) accessor: AggregationValueSource,
     pub(crate) is_number_or_date_type: bool,
     pub(crate) buckets: Vec<IntermediateStats>,
     pub(crate) name: String,
@@ -292,19 +293,24 @@ impl<const COLUMN_TYPE_ID: u8> SegmentAggregationCollector
         // value, so the substitute would be silently dropped.
         // TODO: remove once we fetch all values for all bucket ids in one go
         if docs.len() == 1 && self.missing_u64.is_none() {
-            collect_stats::<COLUMN_TYPE_ID>(
-                &mut self.buckets[parent_bucket_id as usize],
-                self.accessor.values_for_doc(docs[0]),
-                self.is_number_or_date_type,
-            )?;
-
-            return Ok(());
+            if let Some(column) = self.accessor.physical() {
+                collect_stats::<COLUMN_TYPE_ID>(
+                    &mut self.buckets[parent_bucket_id as usize],
+                    column.values_for_doc(docs[0]),
+                    self.is_number_or_date_type,
+                )?;
+                return Ok(());
+            }
         }
-        agg_data.column_block_accessor.fetch_block_with_missing(
-            docs,
-            &self.accessor,
-            self.missing_u64,
-        );
+        agg_data
+            .column_block_accessor
+            .fetch_source_block_with_missing(
+                docs,
+                &self.accessor,
+                &mut agg_data.value_sources,
+                &mut agg_data.context.limits,
+                self.missing_u64,
+            )?;
         collect_stats::<COLUMN_TYPE_ID>(
             &mut self.buckets[parent_bucket_id as usize],
             agg_data.column_block_accessor.iter_vals(),
