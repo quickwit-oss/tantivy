@@ -22,7 +22,7 @@ use crate::directory::error::{
     DeleteError, LockError, OpenDirectoryError, OpenReadError, OpenWriteError,
 };
 use crate::directory::{
-    AntiCallToken, Directory, DirectoryLock, FileHandle, FinishableWrite, Lock, OwnedBytes,
+    AntiCallToken, Directory, DirectoryLock, FileHandle, Lock, OwnedBytes, TerminatingWrite,
     WatchCallback, WatchHandle, WritePtr,
 };
 
@@ -318,7 +318,7 @@ impl Drop for ReleaseLockFile {
     }
 }
 
-/// Wraps a file and syncs its data when the writer is finished.
+/// Wraps a file and syncs its data when the writer is terminated.
 struct SafeFileWriter(File);
 
 impl SafeFileWriter {
@@ -337,8 +337,8 @@ impl Write for SafeFileWriter {
     }
 }
 
-impl FinishableWrite for SafeFileWriter {
-    fn finish_ref(&mut self, _: AntiCallToken) -> io::Result<()> {
+impl TerminatingWrite for SafeFileWriter {
+    fn terminate_ref(&mut self, _: AntiCallToken) -> io::Result<()> {
         self.0.flush()?;
         self.0.sync_data()?;
         Ok(())
@@ -444,7 +444,7 @@ impl Directory for MmapDirectory {
         // A newly created file, may, in some case, be created and even flushed to disk.
         // and then lost...
         //
-        // The file will only be durably written after we finish AND
+        // The file will only be durably written after we terminate AND
         // sync_directory() is called.
 
         let writer = SafeFileWriter::new(file);
@@ -554,7 +554,7 @@ mod tests {
         // In that case the directory returns a SharedVecSlice.
         let mmap_directory = MmapDirectory::create_from_tempdir().unwrap();
         let path = PathBuf::from("test");
-        mmap_directory.open_write(&path).unwrap().finish().unwrap();
+        mmap_directory.open_write(&path).unwrap().terminate().unwrap();
         let readonlymap = mmap_directory.open_read(&path).unwrap();
         assert_eq!(readonlymap.len(), 0);
     }
@@ -573,7 +573,7 @@ mod tests {
         for path in &paths {
             let mut w = mmap_directory.open_write(path).unwrap();
             w.write_all(content).unwrap();
-            w.finish().unwrap();
+            w.terminate().unwrap();
         }
 
         let mut keep = vec![];

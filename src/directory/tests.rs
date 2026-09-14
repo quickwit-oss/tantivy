@@ -123,7 +123,7 @@ fn test_simple(directory: &dyn Directory) -> crate::Result<()> {
     write_file.write_all(&[4])?;
     write_file.write_all(&[3])?;
     write_file.write_all(&[7, 3, 5])?;
-    write_file.finish()?;
+    write_file.terminate()?;
     let read_file = directory.open_read(test_path)?.read_bytes()?;
     assert_eq!(read_file.as_slice(), &[4u8, 3u8, 7u8, 3u8, 5u8]);
     mem::drop(read_file);
@@ -136,7 +136,7 @@ fn test_rewrite_forbidden(directory: &dyn Directory) -> crate::Result<()> {
     let test_path: &'static Path = Path::new("some_path_for_test");
     let writer = directory.open_write(test_path)?;
     assert!(directory.open_write(test_path).is_err());
-    writer.finish()?;
+    writer.terminate()?;
     assert!(directory.exists(test_path).unwrap());
     assert!(directory.open_write(test_path).is_err());
     assert!(directory.delete(test_path).is_ok());
@@ -146,7 +146,7 @@ fn test_rewrite_forbidden(directory: &dyn Directory) -> crate::Result<()> {
 fn test_write_create_the_file(directory: &dyn Directory) {
     let test_path: &'static Path = Path::new("some_path_for_test");
     assert!(directory.open_read(test_path).is_err());
-    directory.open_write(test_path).unwrap().finish().unwrap();
+    directory.open_write(test_path).unwrap().terminate().unwrap();
     assert!(directory.exists(test_path).unwrap());
     assert!(directory.open_read(test_path).is_ok());
     assert!(directory.delete(test_path).is_ok());
@@ -157,7 +157,7 @@ fn test_directory_delete(directory: &dyn Directory) -> crate::Result<()> {
     assert!(directory.open_read(test_path).is_err());
     let mut write_file = directory.open_write(test_path)?;
     write_file.write_all(&[1, 2, 3, 4])?;
-    write_file.finish()?;
+    write_file.terminate()?;
     {
         let read_handle = directory.open_read(test_path)?.read_bytes()?;
         assert_eq!(read_handle.as_slice(), &[1u8, 2u8, 3u8, 4u8]);

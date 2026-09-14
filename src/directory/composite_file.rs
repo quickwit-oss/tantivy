@@ -4,7 +4,7 @@ use std::ops::Range;
 
 use common::{BinarySerializable, CountingWriter, HasLen, VInt};
 
-use crate::directory::{FileSlice, FinishableWrite, WritePtr};
+use crate::directory::{FileSlice, TerminatingWrite, WritePtr};
 use crate::schema::{Field, Schema};
 use crate::space_usage::{FieldUsage, PerFieldSpaceUsage};
 
@@ -40,7 +40,7 @@ pub struct CompositeWrite<W = WritePtr> {
     offsets: Vec<(FileAddr, u64)>,
 }
 
-impl<W: FinishableWrite + Write> CompositeWrite<W> {
+impl<W: TerminatingWrite + Write> CompositeWrite<W> {
     /// Crate a new API writer that writes a composite file
     /// in a given write.
     pub fn wrap(w: W) -> CompositeWrite<W> {
@@ -81,7 +81,7 @@ impl<W: FinishableWrite + Write> CompositeWrite<W> {
 
         let footer_len = (self.write.written_bytes() - footer_offset) as u32;
         footer_len.serialize(&mut self.write)?;
-        self.write.finish()
+        self.write.terminate()
     }
 }
 

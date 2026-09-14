@@ -11,7 +11,7 @@ use super::FileHandle;
 use crate::core::META_FILEPATH;
 use crate::directory::error::{DeleteError, OpenReadError, OpenWriteError};
 use crate::directory::{
-    AntiCallToken, Directory, FileSlice, FinishableWrite, WatchCallback, WatchCallbackList,
+    AntiCallToken, Directory, FileSlice, TerminatingWrite, WatchCallback, WatchCallbackList,
     WatchHandle, WritePtr,
 };
 
@@ -60,7 +60,7 @@ impl Drop for MemoryUsageTracker {
 
 /// Writer associated with the [`RamDirectory`].
 ///
-/// The writer stores its buffer in the directory when finished.
+/// The writer stores its buffer in the directory when terminated.
 struct VecWriter {
     path: PathBuf,
     shared_directory: RamDirectory,
@@ -87,7 +87,7 @@ impl Drop for VecWriter {
     fn drop(&mut self) {
         if !self.is_finished {
             warn!(
-                "You forgot to finish {:?} before its writer got Drop. Do not rely on drop. This \
+                "You forgot to terminate {:?} before its writer got Drop. Do not rely on drop. This \
                  also occurs when the indexer crashed, so you may want to check the logs for the \
                  root cause.",
                 self.path
@@ -116,8 +116,8 @@ impl Write for VecWriter {
     }
 }
 
-impl FinishableWrite for VecWriter {
-    fn finish_ref(&mut self, _: AntiCallToken) -> io::Result<()> {
+impl TerminatingWrite for VecWriter {
+    fn terminate_ref(&mut self, _: AntiCallToken) -> io::Result<()> {
         let mut data = std::mem::take(self.data.get_mut());
         data.shrink_to_fit();
         let mut fs = self.shared_directory.fs.write().unwrap();
@@ -181,7 +181,7 @@ impl fmt::Debug for RamDirectory {
 /// A Directory storing everything in anonymous memory.
 ///
 /// It is mainly meant for unit testing.
-/// Writes are only made visible upon finishing the writer.
+/// Writes are only made visible upon terminating the writer.
 #[derive(Clone, Default)]
 pub struct RamDirectory {
     fs: Arc<RwLock<InnerDirectory>>,
@@ -213,7 +213,7 @@ impl RamDirectory {
         for (path, file) in wlock.fs.iter() {
             let mut dest_wrt = dest.open_write(path)?;
             dest_wrt.write_all(file.read_bytes()?.as_slice())?;
-            dest_wrt.finish()?;
+            dest_wrt.terminate()?;
         }
         Ok(())
     }
@@ -296,7 +296,7 @@ mod tests {
     use std::path::Path;
 
     use super::{RamDirectory, MEMORY_USAGE_UPDATE_THRESHOLD};
-    use crate::directory::FinishableWrite;
+    use crate::directory::TerminatingWrite;
     use crate::Directory;
 
     #[test]
@@ -309,7 +309,7 @@ mod tests {
         assert!(directory.atomic_write(path_atomic, msg_atomic).is_ok());
         let mut wrt = directory.open_write(path_seq).unwrap();
         assert!(wrt.write_all(msg_seq).is_ok());
-        assert!(wrt.finish().is_ok());
+        assert!(wrt.terminate().is_ok());
         let directory_copy = RamDirectory::create();
         assert!(directory.persist(&directory_copy).is_ok());
         assert_eq!(directory_copy.atomic_read(path_atomic).unwrap(), msg_atomic);
@@ -324,7 +324,7 @@ mod tests {
         assert!(dir.open_write(path).is_err());
 
         drop(writer);
-        dir.open_write(path).unwrap().finish().unwrap();
+        dir.open_write(path).unwrap().terminate().unwrap();
         assert!(dir.exists(path).unwrap());
     }
 
@@ -352,7 +352,7 @@ mod tests {
         assert_eq!(dir.clone().total_mem_usage(), dir.total_mem_usage());
 
         let file_len = 1 + MEMORY_USAGE_UPDATE_THRESHOLD + first_capacity + 1;
-        writer.finish().unwrap();
+        writer.terminate().unwrap();
         assert_eq!(dir.total_mem_usage(), file_len);
 
         dir.delete(path).unwrap();
