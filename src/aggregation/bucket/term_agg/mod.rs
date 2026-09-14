@@ -4,7 +4,7 @@ use std::net::Ipv6Addr;
 
 use columnar::column_values::CompactSpaceU64Accessor;
 use columnar::{
-    Column, ColumnType, Dictionary, MonotonicallyMappableToU128, MonotonicallyMappableToU64,
+    ColumnType, Dictionary, MonotonicallyMappableToU128, MonotonicallyMappableToU64,
     NumericalValue, StrColumn,
 };
 use common::{BitSet, TinySet};
@@ -26,6 +26,7 @@ use crate::aggregation::intermediate_agg_result::{
     IntermediateKey, IntermediateTermBucketEntry, IntermediateTermBucketResult,
 };
 use crate::aggregation::segment_agg_result::{BucketIdProvider, SegmentAggregationCollector};
+use crate::aggregation::value_source::AggregationValueSource;
 use crate::aggregation::{format_date, BucketId, Key};
 use crate::error::DataCorruption;
 use crate::TantivyError;
@@ -35,25 +36,25 @@ mod flattened_term_histogram;
 /// Contains all information required by the SegmentTermCollector to perform the
 /// terms aggregation on a segment.
 #[derive(Debug, Clone)]
-pub struct TermsAggReqData {
+pub(crate) struct TermsAggReqData {
     /// The column accessor to access the fast field values.
-    pub accessor: Column<u64>,
+    pub(crate) accessor: AggregationValueSource,
     /// The type of the column.
-    pub column_type: ColumnType,
+    pub(crate) column_type: ColumnType,
     /// The string dictionary column if the field is of type text.
-    pub str_dict_column: Option<StrColumn>,
+    pub(crate) str_dict_column: Option<StrColumn>,
     /// The missing value as u64 value.
-    pub missing_value_for_accessor: Option<u64>,
+    pub(crate) missing_value_for_accessor: Option<u64>,
     /// Used to build the correct nested result when we have an empty result.
-    pub sug_aggregations: Aggregations,
+    pub(crate) sug_aggregations: Aggregations,
     /// The name of the aggregation.
-    pub name: String,
+    pub(crate) name: String,
     /// The normalized term aggregation request.
-    pub req: TermsAggregationInternal,
+    pub(crate) req: TermsAggregationInternal,
     /// Preloaded allowed term ords (string columns only). If set, only ords present are collected.
-    pub allowed_term_ids: Option<BitSet>,
+    pub(crate) allowed_term_ids: Option<BitSet>,
     /// True if this terms aggregation is at the top level of the aggregation tree (not nested).
-    pub is_top_level: bool,
+    pub(crate) is_top_level: bool,
 }
 
 impl TermsAggReqData {
@@ -423,7 +424,13 @@ pub(crate) fn build_segment_term_collector(
 
     // Let's see if we can use a vec to aggregate our data
     // instead of a hashmap.
-    let col_max_value = terms_req_data.accessor.max_value();
+    // Unknown domains must use dynamically growing storage; u64::MAX is the storage
+    // sentinel, not a claim about the source's value bounds.
+    let col_max_value = terms_req_data
+        .accessor
+        .bounds()
+        .map(|(_, max)| max)
+        .unwrap_or(u64::MAX);
     let max_column_val: u64 =
         col_max_value.max(terms_req_data.missing_value_for_accessor.unwrap_or(0u64));
 
@@ -1062,12 +1069,14 @@ impl<TermMap: TermAggregationMap, B: SubAggBuffer> SegmentAggregationCollector
 
         agg_data
             .column_block_accessor
-            .fetch_block_with_missing_unique_per_doc(
+            .fetch_source_block_with_missing_unique_per_doc(
                 docs,
                 &req_data.accessor,
+                &mut agg_data.value_sources,
+                &mut agg_data.context.limits,
                 req_data.missing_value_for_accessor,
                 false,
-            );
+            )?;
 
         if let Some(sub_agg) = &mut self.sub_agg {
             let term_buckets = &mut self.parent_buckets[parent_bucket_id as usize];
@@ -1429,6 +1438,8 @@ where
         } else if term_req.column_type == ColumnType::IpAddr {
             let compact_space_accessor = term_req
                 .accessor
+                .physical()
+                .expect("IP source is physical")
                 .values
                 .clone()
                 .downcast_arc::<CompactSpaceU64Accessor>()

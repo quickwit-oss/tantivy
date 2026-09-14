@@ -427,10 +427,10 @@ mod tests {
         let variable_types = HashMap::from([("x", VarType::U64)]);
         let mut compiled = compile(&expression, &variable_types).unwrap().context();
         let input = [VariableValue::some(4i64)];
-        assert_eq!(compiled.inputs.len(), 1);
-        assert_eq!(compiled.inputs[0].variable_name.as_ref(), "x");
-        assert_eq!(compiled.inputs[0].r#type, VarType::U64);
-        assert_eq!(compiled.inputs[0].variable_id, 0);
+        assert_eq!(compiled.inputs().len(), 1);
+        assert_eq!(compiled.inputs()[0].variable_name.as_ref(), "x");
+        assert_eq!(compiled.inputs()[0].r#type, VarType::U64);
+        assert_eq!(compiled.inputs()[0].variable_id, 0);
         assert_eq!(compiled.result_type(), VarType::U64);
         let output = unsafe { compiled.call(&input) };
 
@@ -446,10 +446,10 @@ mod tests {
         let variable_types = HashMap::from([("x", VarType::U64)]);
         let mut compiled = compile(&expression, &variable_types).unwrap().context();
         let input = [VariableValue::some(4u64)];
-        assert_eq!(compiled.inputs.len(), 1);
-        assert_eq!(compiled.inputs[0].variable_name.as_ref(), "x");
-        assert_eq!(compiled.inputs[0].r#type, VarType::U64);
-        assert_eq!(compiled.inputs[0].variable_id, 0);
+        assert_eq!(compiled.inputs().len(), 1);
+        assert_eq!(compiled.inputs()[0].variable_name.as_ref(), "x");
+        assert_eq!(compiled.inputs()[0].r#type, VarType::U64);
+        assert_eq!(compiled.inputs()[0].variable_id, 0);
         assert_eq!(compiled.result_type(), VarType::F64);
         let output = unsafe { compiled.call(&input) };
 

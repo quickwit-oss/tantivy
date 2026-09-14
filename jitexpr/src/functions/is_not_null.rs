@@ -106,7 +106,7 @@ mod tests {
     fn eval_without_args(expression: &str) -> (bool, Option<bool>) {
         let expression = deserialize(expression).unwrap();
         let mut compiled = compile(&expression, &HashMap::new()).unwrap().context();
-        assert!(compiled.inputs.is_empty());
+        assert!(compiled.inputs().is_empty());
         // SAFETY: The compiled expression has no inputs.
         let output = unsafe { compiled.call(&[]) };
         (unsafe { output.primitive.is_present }, unsafe {

@@ -33,7 +33,7 @@ pub struct CompiledFn {
     pub(crate) entry: JitEntry,
     pub(crate) _module: JITModule,
     /// Input slots in the exact order expected by [`CompiledFn::call`].
-    pub inputs: Vec<TypedVariable>,
+    pub(crate) inputs: Vec<TypedVariable>,
     // This AST owns the Arc-backed literals and regexes embedded in generated code.
     pub(crate) _typed_expr: Box<TypedExpr>,
 }
@@ -49,6 +49,12 @@ impl CompiledFn {
     /// Returns the concrete result type selected during compilation.
     pub fn result_type(&self) -> VarType {
         self._typed_expr.return_type
+    }
+
+    /// Returns the input slots in the exact order expected by [`CompiledFn::call`].
+    #[inline]
+    pub fn inputs(&self) -> &[TypedVariable] {
+        &self.inputs
     }
 
     /// Creates an evaluation context with a private string arena.

@@ -2,6 +2,7 @@
 name = "jitexpr"
 version = "0.1.0"
 edition = "2024"
+license = "MIT"
 
 [dependencies]
 cranelift = "0.134.3"
