@@ -16,7 +16,7 @@ use rand::rngs::StdRng;
 use rand::SeedableRng;
 use tantivy::directory::error::{DeleteError, OpenReadError, OpenWriteError};
 use tantivy::directory::{
-    AntiCallToken, Directory, FileHandle, TerminatingWrite, OwnedBytes, WatchCallback, WatchHandle,
+    AntiCallToken, Directory, FileHandle, OwnedBytes, TerminatingWrite, WatchCallback, WatchHandle,
     WritePtr,
 };
 use tantivy::indexer::{merge_filtered_segments, NoMergePolicy};
