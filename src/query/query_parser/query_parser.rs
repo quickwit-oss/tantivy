@@ -48,9 +48,9 @@ pub enum QueryParserError {
     /// base64.
     #[error("Expected base64: '{0:?}'")]
     ExpectedBase64(#[from] base64::DecodeError),
-    /// The query contains a term for a `f64`-field, but the value
-    /// is not a f64.
-    #[error("Invalid query: Only excluding terms given")]
+    /// The query contains a term for an `f64`-field, but the value is not a
+    /// valid f64.
+    #[error("Expected a valid float: '{0:?}'")]
     ExpectedFloat(#[from] ParseFloatError),
     /// The query contains a term for a bool field, but the value
     /// is not a bool.
