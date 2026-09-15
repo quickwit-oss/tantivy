@@ -249,7 +249,6 @@ impl<'a, W: Write> FieldSerializer<'a, W> {
         if let Some(positions_serializer) = self.positions_serializer_opt {
             positions_serializer.close()?;
         }
-        self.postings_write.flush()?;
         self.term_dictionary_builder.finish()?;
         Ok(())
     }
