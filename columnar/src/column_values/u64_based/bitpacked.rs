@@ -185,7 +185,7 @@ pub(super) fn load<T: MonotonicallyMappableToU64>(
             }
         };
     }
-    Ok(specialize!(8, 16, 20, 24, 32, 64,))
+    Ok(specialize!(1, 2, 3, 4, 5, 6, 7, 8, 16, 20, 24, 32, 64,))
 }
 
 #[cfg(test)]
