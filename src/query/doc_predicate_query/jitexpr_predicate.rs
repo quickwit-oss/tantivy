@@ -3,11 +3,12 @@ use std::io;
 
 use columnar::{ColumnType, DynamicColumn, StrColumn};
 use jitexpr::ast::{infer_types_with_target, InferredTypeSet, TypeError, UntypedExpr};
-use jitexpr::compile::{compile, CompiledFnCtx};
+use jitexpr::compile::{compile, CompiledFnCtx, StringArena};
 use jitexpr::types::{VarType, VariableValue};
 
 use super::{DocPredicate, SegmentDocPredicate};
 use crate::index::SegmentReader;
+use crate::query::doc_predicate_query::ConstOrVariableSegmentPredicate;
 use crate::{DocId, TantivyError};
 
 /// A [`DocPredicate`] that evaluates a boolean JIT expression against fast fields.
@@ -15,8 +16,13 @@ use crate::{DocId, TantivyError};
 /// Requires the `jitexpr` feature. Variable names are resolved as fast-field names
 /// for each segment, supporting boolean, numeric, and string columns. Missing or
 /// incompatible columns are left unbound, so the compiler treats them as `None`.
+///
 /// For bound columns, multivalued documents contribute their first value, and a
-/// document missing any input is skipped before evaluating the expression.
+/// document missing any input will still be evaluated with null in place of the input.
+///
+/// We "fast path" cases where we detect the expression will always evaluate to true or false
+/// on a segment. (e.g. if all variable columns are missing).
+///
 /// Only a present `true` result matches.
 ///
 /// ```
@@ -54,12 +60,12 @@ impl JitExprPredicate {
 }
 
 impl DocPredicate for JitExprPredicate {
-    type SegmentDocPredicate = Option<JitExprEvalState>;
+    type SegmentDocPredicate = JitExprEvalState;
 
     fn doc_predicate(
         &self,
         segment_reader: &SegmentReader,
-    ) -> crate::Result<Option<JitExprEvalState>> {
+    ) -> crate::Result<ConstOrVariableSegmentPredicate<JitExprEvalState>> {
         let mut variable_types = HashMap::with_capacity(self.inferred_inputs.len());
         let mut opened_columns: HashMap<&str, DynamicColumn> =
             HashMap::with_capacity(self.inferred_inputs.len());
@@ -93,9 +99,24 @@ impl DocPredicate for JitExprPredicate {
                 ))
             })?;
 
+        // If the function is by nature const, or if all of its variable are known to be null
+        // (because we don't have such columns), then we eval the value only once optimize
+        //
+        // TODO optimize further when the columns have a single value (full + min/max value)
+        if variable_types.is_empty() || compiled_fn.inputs().is_empty() {
+            // We have no variables!
+            // This means eventual inputs are not. Let's return a const predicate.
+            let inputs: Vec<VariableValue> =
+                std::iter::repeat_n(VariableValue::none(), compiled_fn.inputs().len()).collect();
+            let mut string_arena = StringArena::default();
+            let result = unsafe { compiled_fn.call(&inputs[..], &mut string_arena) };
+            let const_bool = unsafe { result.as_bool() }.unwrap_or(false);
+            return Ok(ConstOrVariableSegmentPredicate::Const(const_bool));
+        }
+
         // We ended up with an expression that could not resolve to anything apparently.
         if compiled_fn.result_type() == VarType::None {
-            return Ok(None);
+            return Ok(ConstOrVariableSegmentPredicate::Const(false));
         }
 
         if compiled_fn.result_type() != VarType::Bool {
@@ -109,38 +130,37 @@ impl DocPredicate for JitExprPredicate {
 
         // The compiler owns the definitive ABI order. Do not rely on inference
         // or HashMap iteration order when building the argument slots.
-        let mut columns = Vec::with_capacity(compiled_fn.inputs().len());
+        let mut columns_opt = Vec::with_capacity(compiled_fn.inputs().len());
         for input in compiled_fn.inputs() {
-            let column = opened_columns
-                .remove(input.variable_name.as_ref())
-                .ok_or_else(|| {
-                    TantivyError::InternalError(format!(
-                        "compiled input `{}` has no corresponding fast-field column",
-                        input.variable_name
-                    ))
-                })?;
-            if var_type_for_column_type(column.column_type()) != Some(input.r#type) {
-                return Err(TantivyError::InternalError(format!(
-                    "compiled input `{}` expects {:?}, but its column has type {}",
-                    input.variable_name,
-                    input.r#type,
-                    column.column_type()
-                )));
+            let column_opt: Option<DynamicColumn> =
+                opened_columns.remove(input.variable_name.as_ref());
+            if let Some(column) = column_opt {
+                if var_type_for_column_type(column.column_type()) != Some(input.r#type) {
+                    return Err(TantivyError::InternalError(format!(
+                        "compiled input `{}` expects {:?}, but its column has type {}",
+                        input.variable_name,
+                        input.r#type,
+                        column.column_type()
+                    )));
+                }
+                columns_opt.push(Some(column));
+            } else {
+                columns_opt.push(None);
             }
-            columns.push(column);
         }
         // There is one reusable buffer per string column, in ABI order.
-        let num_string_inputs = columns
+        let num_string_inputs = columns_opt
             .iter()
-            .filter(|column| matches!(column, DynamicColumn::Str(_)))
+            .filter(|column_opt| matches!(column_opt, Some(DynamicColumn::Str(_))))
             .count();
-        let num_inputs = columns.len();
-        Ok(Some(JitExprEvalState {
+        let num_inputs = columns_opt.len();
+        Ok(JitExprEvalState {
             compiled: compiled_fn.context(),
-            columns,
+            columns_opt,
             string_inputs: vec![String::new(); num_string_inputs],
             input_values: Vec::with_capacity(num_inputs),
-        }))
+        }
+        .into())
     }
 }
 
@@ -180,7 +200,7 @@ fn var_type_for_column_type(column_type: ColumnType) -> Option<VarType> {
 /// The [`SegmentDocPredicate`] produced by [`JitExprPredicate`] for one segment.
 pub struct JitExprEvalState {
     compiled: CompiledFnCtx,
-    columns: Vec<DynamicColumn>,
+    columns_opt: Vec<Option<DynamicColumn>>,
     // One reusable buffer per string column.
     string_inputs: Vec<String>,
     // Reusable argument slots.
@@ -219,7 +239,7 @@ impl SegmentDocPredicate for JitExprEvalState {
         let mut inputs_vec = ClearOnDrop::wrap(&mut self.input_values);
 
         fill_input_values(
-            &self.columns,
+            &self.columns_opt,
             &mut self.string_inputs,
             &mut inputs_vec.0,
             doc_id,
@@ -235,14 +255,19 @@ impl SegmentDocPredicate for JitExprEvalState {
 }
 
 fn fill_input_values<'buffer>(
-    columns: &[DynamicColumn],
+    columns: &[Option<DynamicColumn>],
     string_inputs: &'buffer mut [String],
     input_values: &mut Vec<VariableValue<'buffer>>,
     doc_id: DocId,
 ) {
     debug_assert!(input_values.is_empty());
     let mut string_inputs = string_inputs.iter_mut();
-    for column in columns {
+    for column_opt in columns {
+        let Some(column) = column_opt else {
+            // The full column is absent. We treat it as None.
+            input_values.push(VariableValue::none());
+            continue;
+        };
         let input: Option<VariableValue> = match column {
             DynamicColumn::Bool(column) => column.first(doc_id).map(VariableValue::from),
             DynamicColumn::I64(column) => column.first(doc_id).map(VariableValue::from),
@@ -265,9 +290,7 @@ fn fill_input_values<'buffer>(
 
 /// Loads the first value of a string column for `doc_id` into `buffer`.
 ///
-/// Returns `None` when the document has no value, which skips the document
-/// before evaluation. `buffer` is cleared first, so its previous contents are
-/// discarded whether or not a value is found.
+/// Missing values return None.
 ///
 /// This function may panic if the dictionary is corrupted or if the column
 /// contains term ords that do not exist in the dictionary.
@@ -384,6 +407,31 @@ mod tests {
             0
         );
     }
+
+    #[test]
+    fn test_simple_missing_field_is_not_null() {
+        let index = create_index();
+        let searcher = index.reader().unwrap().searcher();
+        assert_eq!(
+            searcher
+                .search(&query(r#"(IS_NOT_NULL missing_field)"#), &Count)
+                .unwrap(),
+            0
+        );
+    }
+
+    #[test]
+    fn test_simple_missing_field_is_null() {
+        let index = create_index();
+        let searcher = index.reader().unwrap().searcher();
+        assert_eq!(
+            searcher
+                .search(&query(r#"(IS_NULL missing_field)"#), &Count)
+                .unwrap(),
+            4
+        );
+    }
+
     #[test]
     fn test_simple_notfast() {
         let index = create_index();
