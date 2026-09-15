@@ -10,7 +10,7 @@ description = "JIT-compiled expression evaluation for tantivy"
 [dependencies]
 cranelift = "0.134.3"
 cranelift-jit = "0.134.3"
-cranelift-module = "0.134.3"
+cranelift-module = "0.135.1"
 cranelift-native = "0.134.3"
 regex = "1"
 thiserror = "2.0.1"
