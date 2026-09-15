@@ -108,7 +108,7 @@ impl SegmentReader {
         let Some(facet_column) = self.fast_fields().str(field_name)? else {
             panic!("Facet Field `{field_name}` is missing. This should not happen");
         };
-        Ok(FacetReader::new(facet_column))
+        FacetReader::new(facet_column)
     }
 
     /// Accessor to the segment's `Field norms`'s reader.

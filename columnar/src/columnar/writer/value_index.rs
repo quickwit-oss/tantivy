@@ -1,3 +1,5 @@
+use std::mem::size_of;
+
 use crate::RowId;
 use crate::column_index::{SerializableMultivalueIndex, SerializableOptionalIndex};
 use crate::iterable::Iterable;
@@ -117,6 +119,12 @@ pub struct PreallocatedIndexBuilders {
 }
 
 impl PreallocatedIndexBuilders {
+    pub fn mem_usage(&self) -> usize {
+        self.optional_index_builder.docs.capacity() * size_of::<RowId>()
+            + self.multivalued_index_builder.doc_with_values.capacity() * size_of::<RowId>()
+            + self.multivalued_index_builder.start_offsets.capacity() * size_of::<u32>()
+    }
+
     pub fn borrow_required_index_builder(&mut self) -> &mut FullIndexBuilder {
         &mut self.required_index_builder
     }

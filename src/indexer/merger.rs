@@ -313,7 +313,11 @@ impl IndexMerger {
                     (
                         reader_ordinal as SegmentOrdinal,
                         StrBytesSortFieldAccessor {
-                            ords: bytes_column.ords().clone(),
+                            ords: bytes_column
+                                .as_dictionary_encoded()
+                                .expect("term ordinal mapping validated dictionary encoding")
+                                .ords()
+                                .clone(),
                             merged_term_ord_mapping,
                         },
                     )

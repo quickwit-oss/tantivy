@@ -3,11 +3,12 @@ use std::path::PathBuf;
 use itertools::Itertools;
 
 use crate::{
-    CURRENT_VERSION, Cardinality, Column, ColumnarReader, DynamicColumn, StackMergeOrder,
-    merge_columnar,
+    CURRENT_VERSION, Cardinality, Column, ColumnarReader, DictionaryEncodedBytesColumn,
+    DictionaryEncodedStrColumn, DynamicColumn, PayloadEncoding, StackMergeOrder, merge_columnar,
 };
 
 const NUM_DOCS: u32 = u16::MAX as u32;
+const STRING_BYTES_NUM_DOCS: u32 = 4;
 
 fn generate_columnar(num_docs: u32, value_offset: u64) -> Vec<u8> {
     use crate::ColumnarWriter;
@@ -30,6 +31,32 @@ fn generate_columnar(num_docs: u32, value_offset: u64) -> Vec<u8> {
     columnar_writer.serialize(num_docs, None, &mut wrt).unwrap();
 
     wrt
+}
+
+fn generate_string_bytes_columnar() -> Vec<u8> {
+    use crate::ColumnarWriter;
+
+    let mut columnar_writer = ColumnarWriter::default();
+    for doc in 0..STRING_BYTES_NUM_DOCS {
+        columnar_writer.record_str(doc, "str_full", &format!("str-full-{doc}"));
+        columnar_writer.record_bytes(doc, "bytes_full", &[doc as u8, 0, 255]);
+
+        if doc.is_multiple_of(2) {
+            columnar_writer.record_str(doc, "str_optional", &format!("str-optional-{doc}"));
+            columnar_writer.record_bytes(doc, "bytes_optional", &[doc as u8, 1, 254]);
+        }
+
+        columnar_writer.record_str(doc, "str_multi", &format!("str-multi-{doc}-a"));
+        columnar_writer.record_str(doc, "str_multi", &format!("str-multi-{doc}-b"));
+        columnar_writer.record_bytes(doc, "bytes_multi", &[doc as u8, 2, 0]);
+        columnar_writer.record_bytes(doc, "bytes_multi", &[doc as u8, 2, 255]);
+    }
+
+    let mut output = Vec::new();
+    columnar_writer
+        .serialize(STRING_BYTES_NUM_DOCS, None, &mut output)
+        .unwrap();
+    output
 }
 
 #[test]
@@ -61,6 +88,131 @@ fn test_format_v1() {
 fn test_format_v2() {
     let path = path_for_version("v2");
     test_format(&path);
+}
+
+#[test]
+fn test_format_v3() {
+    let path = path_for_version("v3");
+    test_format(&path);
+}
+
+#[test]
+fn test_string_bytes_format_v1() {
+    test_string_bytes_format("v1");
+}
+
+#[test]
+fn test_string_bytes_format_v2() {
+    test_string_bytes_format("v2");
+}
+
+fn test_string_bytes_format(version: &str) {
+    let fixture_path = format!("./compat_tests_data/{version}_string_bytes.columnar");
+    let fixture_reader = ColumnarReader::open(std::fs::read(fixture_path).unwrap()).unwrap();
+    check_string_bytes_columns(&fixture_reader, 1);
+
+    let current_reader = ColumnarReader::open(generate_string_bytes_columnar()).unwrap();
+    check_string_bytes_columns(&current_reader, 1);
+
+    let readers = [&fixture_reader, &current_reader];
+    let merge_row_order = StackMergeOrder::stack(&readers);
+    let mut output = Vec::new();
+    merge_columnar(&readers, &[], merge_row_order.into(), &mut output).unwrap();
+    let merged_reader = ColumnarReader::open(output).unwrap();
+    check_string_bytes_columns(&merged_reader, 2);
+}
+
+fn check_string_bytes_columns(reader: &ColumnarReader, repetitions: u32) {
+    let num_docs = STRING_BYTES_NUM_DOCS * repetitions;
+
+    let str_full = open_str_column(reader, "str_full");
+    assert_eq!(str_full.get_cardinality(), Cardinality::Full);
+    let str_optional = open_str_column(reader, "str_optional");
+    assert_eq!(str_optional.get_cardinality(), Cardinality::Optional);
+    let str_multi = open_str_column(reader, "str_multi");
+    assert_eq!(str_multi.get_cardinality(), Cardinality::Multivalued);
+
+    let bytes_full = open_bytes_column(reader, "bytes_full");
+    assert_eq!(bytes_full.get_cardinality(), Cardinality::Full);
+    let bytes_optional = open_bytes_column(reader, "bytes_optional");
+    assert_eq!(bytes_optional.get_cardinality(), Cardinality::Optional);
+    let bytes_multi = open_bytes_column(reader, "bytes_multi");
+    assert_eq!(bytes_multi.get_cardinality(), Cardinality::Multivalued);
+
+    for row_id in 0..num_docs {
+        let doc = row_id % STRING_BYTES_NUM_DOCS;
+        assert_eq!(
+            str_values(&str_full, row_id),
+            vec![format!("str-full-{doc}")]
+        );
+        assert_eq!(
+            str_values(&str_optional, row_id),
+            if doc.is_multiple_of(2) {
+                vec![format!("str-optional-{doc}")]
+            } else {
+                Vec::new()
+            }
+        );
+        assert_eq!(
+            str_values(&str_multi, row_id),
+            vec![format!("str-multi-{doc}-a"), format!("str-multi-{doc}-b")]
+        );
+
+        assert_eq!(
+            bytes_values(&bytes_full, row_id),
+            vec![vec![doc as u8, 0, 255]]
+        );
+        assert_eq!(
+            bytes_values(&bytes_optional, row_id),
+            if doc.is_multiple_of(2) {
+                vec![vec![doc as u8, 1, 254]]
+            } else {
+                Vec::new()
+            }
+        );
+        assert_eq!(
+            bytes_values(&bytes_multi, row_id),
+            vec![vec![doc as u8, 2, 0], vec![doc as u8, 2, 255]]
+        );
+    }
+}
+
+fn open_str_column(reader: &ColumnarReader, name: &str) -> DictionaryEncodedStrColumn {
+    let DynamicColumn::Str(column) = reader.read_columns(name).unwrap()[0].open().unwrap() else {
+        panic!("expected a string column")
+    };
+    assert_eq!(column.payload_encoding(), PayloadEncoding::Dictionary);
+    column.as_dictionary_encoded().unwrap().clone()
+}
+
+fn open_bytes_column(reader: &ColumnarReader, name: &str) -> DictionaryEncodedBytesColumn {
+    let DynamicColumn::Bytes(column) = reader.read_columns(name).unwrap()[0].open().unwrap() else {
+        panic!("expected a byte column")
+    };
+    assert_eq!(column.payload_encoding(), PayloadEncoding::Dictionary);
+    column.as_dictionary_encoded().unwrap().clone()
+}
+
+fn str_values(column: &DictionaryEncodedStrColumn, row_id: u32) -> Vec<String> {
+    column
+        .term_ords(row_id)
+        .map(|term_ord| {
+            let mut output = String::new();
+            assert!(column.ord_to_str(term_ord, &mut output).unwrap());
+            output
+        })
+        .collect()
+}
+
+fn bytes_values(column: &DictionaryEncodedBytesColumn, row_id: u32) -> Vec<Vec<u8>> {
+    column
+        .term_ords(row_id)
+        .map(|term_ord| {
+            let mut output = Vec::new();
+            assert!(column.ord_to_bytes(term_ord, &mut output).unwrap());
+            output
+        })
+        .collect()
 }
 
 fn test_format(path: &str) {

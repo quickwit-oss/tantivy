@@ -472,6 +472,7 @@ mod tests {
         assert_eq!(searcher.segment_readers().len(), 1);
         let segment_reader = searcher.segment_readers().last().unwrap();
         let str_col = segment_reader.fast_fields().str("str").unwrap().unwrap();
+        let str_col = str_col.as_dictionary_encoded().unwrap();
         let mut values = Vec::new();
         for doc in 0..segment_reader.max_doc() {
             if let Some(ord) = str_col.ords().first(doc) {
@@ -495,6 +496,7 @@ mod tests {
             .bytes("bytes")
             .unwrap()
             .unwrap();
+        let bytes_col = bytes_col.as_dictionary_encoded().unwrap();
         let mut values = Vec::new();
         for doc in 0..segment_reader.max_doc() {
             if let Some(ord) = bytes_col.ords().first(doc) {

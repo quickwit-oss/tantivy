@@ -18,8 +18,8 @@ use crate::columnar::merge::merge_dict_column::merge_bytes_or_str_column;
 use crate::columnar::writer::CompatibleNumericalTypes;
 use crate::dynamic_column::DynamicColumn;
 use crate::{
-    BytesColumn, Column, ColumnIndex, ColumnType, ColumnValues, DynamicColumnHandle, NumericalType,
-    NumericalValue,
+    BytesColumn, Column, ColumnIndex, ColumnType, ColumnValues, DictionaryEncodedBytesColumn,
+    DynamicColumnHandle, NumericalType, NumericalValue, StrColumn,
 };
 
 /// Column types are grouped into different categories.
@@ -197,17 +197,24 @@ fn merge_column(
         }
         ColumnType::Bytes | ColumnType::Str => {
             let mut column_indexes: Vec<ColumnIndex> = Vec::with_capacity(columns_to_merge.len());
-            let mut bytes_columns: Vec<Option<BytesColumn>> =
+            let mut bytes_columns: Vec<Option<DictionaryEncodedBytesColumn>> =
                 Vec::with_capacity(columns_to_merge.len());
             for (i, dynamic_column_opt) in columns_to_merge.into_iter().enumerate() {
                 match dynamic_column_opt {
-                    Some(DynamicColumn::Str(str_column)) => {
+                    Some(DynamicColumn::Str(StrColumn::DictionaryEncoded(str_column))) => {
                         column_indexes.push(str_column.term_ord_column.index.clone());
                         bytes_columns.push(Some(str_column.into()));
                     }
-                    Some(DynamicColumn::Bytes(bytes_column)) => {
+                    Some(DynamicColumn::Bytes(BytesColumn::DictionaryEncoded(bytes_column))) => {
                         column_indexes.push(bytes_column.term_ord_column.index.clone());
                         bytes_columns.push(Some(bytes_column));
+                    }
+                    Some(DynamicColumn::Str(StrColumn::Plain(_)))
+                    | Some(DynamicColumn::Bytes(BytesColumn::Plain(_))) => {
+                        return Err(io::Error::new(
+                            io::ErrorKind::Unsupported,
+                            "plain string and byte column merging is not implemented yet",
+                        ));
                     }
                     _ => {
                         column_indexes.push(ColumnIndex::Empty {

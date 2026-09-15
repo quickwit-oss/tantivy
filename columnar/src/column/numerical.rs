@@ -1,18 +1,16 @@
 use std::io;
 use std::io::Write;
-use std::sync::Arc;
 
 use common::OwnedBytes;
-use sstable::Dictionary;
 
-use crate::column::{BytesColumn, Column};
+use crate::Version;
+use crate::column::Column;
 use crate::column_index::{SerializableColumnIndex, serialize_column_index};
 use crate::column_values::{
     CodecType, MonotonicallyMappableToU64, MonotonicallyMappableToU128,
     load_u64_based_column_values, serialize_column_values_u128, serialize_u64_based_column_values,
 };
 use crate::iterable::Iterable;
-use crate::{StrColumn, Version};
 
 pub fn serialize_column_mappable_to_u128<T: MonotonicallyMappableToU128>(
     column_index: SerializableColumnIndex<'_>,
@@ -101,21 +99,4 @@ pub fn open_column_u128_as_compact_u64(
         index: column_index,
         values: column_values,
     })
-}
-
-pub fn open_column_bytes(data: OwnedBytes, format_version: Version) -> io::Result<BytesColumn> {
-    let (body, dictionary_len_bytes) = data.rsplit(4);
-    let dictionary_len = u32::from_le_bytes(dictionary_len_bytes.as_slice().try_into().unwrap());
-    let (dictionary_bytes, column_bytes) = body.split(dictionary_len as usize);
-    let dictionary = Arc::new(Dictionary::from_bytes(dictionary_bytes)?);
-    let term_ord_column = crate::column::open_column_u64::<u64>(column_bytes, format_version)?;
-    Ok(BytesColumn {
-        dictionary,
-        term_ord_column,
-    })
-}
-
-pub fn open_column_str(data: OwnedBytes, format_version: Version) -> io::Result<StrColumn> {
-    let bytes_column = open_column_bytes(data, format_version)?;
-    Ok(StrColumn::wrap(bytes_column))
 }
