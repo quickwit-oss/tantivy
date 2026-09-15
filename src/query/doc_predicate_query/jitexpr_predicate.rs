@@ -37,11 +37,10 @@ impl JitExprPredicate {
     pub fn new(expression: UntypedExpr) -> Result<Self, TypeError> {
         let inferred_types: HashMap<&str, InferredTypeSet> =
             infer_types_with_target(&expression, InferredTypeSet::BOOLEAN)?;
-        let mut inferred_inputs: Vec<(String, InferredTypeSet)> = inferred_types
+        let inferred_inputs: Vec<(String, InferredTypeSet)> = inferred_types
             .into_iter()
             .map(|(name, types)| (name.to_string(), types))
             .collect();
-        inferred_inputs.sort_unstable_by(|left, right| left.0.cmp(&right.0));
         Ok(Self {
             expression,
             inferred_inputs,
