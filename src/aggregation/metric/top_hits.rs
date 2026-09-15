@@ -173,6 +173,11 @@ fn globbed_string_to_regex(glob: &str) -> Result<Regex, crate::TantivyError> {
     })
 }
 
+/// Shared with virtual-source request validation so unsupported patterns fail before collection.
+pub(crate) fn top_hits_field_matches(pattern: &str, field: &str) -> crate::Result<bool> {
+    Ok(globbed_string_to_regex(pattern)?.is_match(field))
+}
+
 fn use_doc_value_fields_err(parameter: &str) -> crate::Result<()> {
     Err(crate::TantivyError::AggregationError(
         AggregationError::InvalidRequest(format!(

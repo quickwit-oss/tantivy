@@ -2,6 +2,7 @@ use std::cmp::Ordering;
 
 use columnar::{Cardinality, Column, RowId};
 
+use super::value_source::{AggregationValueSource, SegmentValueSources, VirtualColumnId};
 use crate::DocId;
 
 /// A source of values for a block of documents.
@@ -35,11 +36,9 @@ pub(crate) struct ColumnBlockAccessor {
     docid_cache: Vec<DocId>,
     /// Scratch buffer used to identify documents for which a missing value must be inserted.
     missing_docids_cache: Vec<DocId>,
-    /// Scratch buffer available to sources for translating document IDs into value row IDs.
+    /// Scratch for physical value row IDs or sorted, unique virtual input document IDs.
     row_id_cache: Vec<RowId>,
-    /// Cardinality reported by the source that loaded the latest block.
-    /// For the moment this is reporting the cardinality of the full column, not
-    /// something specific to the block.
+    /// Physical column cardinality, or computed block cardinality (never global metadata).
     cardinality: Cardinality,
 }
 
@@ -67,6 +66,153 @@ impl BlockValueSource for Column<u64> {
 }
 
 impl ColumnBlockAccessor {
+    /// Load without holding a runtime borrow across recursive sub-aggregation flushes.
+    #[inline]
+    pub(crate) fn fetch_source_block(
+        &mut self,
+        docs: &[DocId],
+        source: &AggregationValueSource,
+        runtimes: &mut SegmentValueSources,
+        limits: &mut super::AggregationLimitsGuard,
+    ) -> crate::Result<()> {
+        match source {
+            AggregationValueSource::Physical(column) => {
+                self.fetch_block(docs, column);
+                Ok(())
+            }
+            AggregationValueSource::Virtual(id) => {
+                self.fetch_virtual_block(docs, *id, runtimes, limits, None, false)
+            }
+        }
+    }
+
+    // Keep computed-buffer preparation out of the inlined physical decoding path.
+    #[inline(never)]
+    fn fetch_virtual_block(
+        &mut self,
+        docs: &[DocId],
+        id: VirtualColumnId,
+        runtimes: &mut SegmentValueSources,
+        limits: &mut super::AggregationLimitsGuard,
+        missing: Option<u64>,
+        ordered: bool,
+    ) -> crate::Result<()> {
+        // Bucket buffering can repeat documents or append missing documents out of order.
+        // Normalize only the evaluator's input; collection must retain every original occurrence.
+        let ordered_unique = docs.windows(2).all(|pair| pair[0] < pair[1]);
+        self.row_id_cache.clear();
+        if !ordered_unique {
+            reserve_computed_buffer(&mut self.row_id_cache, docs.len(), limits)?;
+            self.row_id_cache.extend_from_slice(docs);
+            self.row_id_cache.sort_unstable();
+            self.row_id_cache.dedup();
+        }
+        let evaluation_docs = if ordered_unique {
+            docs
+        } else {
+            &self.row_id_cache
+        };
+        // Reserve and charge growth once, before calling a producer. Producer-owned allocations
+        // cannot be measured here; M1 does not claim a total third-party memory bound.
+        let (runtime, output) = runtimes.runtime_and_output(id);
+        reserve_computed_buffer(output, docs.len(), limits)?;
+        reserve_computed_buffer(&mut self.val_cache, docs.len(), limits)?;
+        reserve_computed_buffer(&mut self.docid_cache, docs.len(), limits)?;
+        if missing.is_some() && !ordered {
+            reserve_computed_buffer(&mut self.missing_docids_cache, docs.len(), limits)?;
+        }
+        self.missing_docids_cache.clear();
+        output.clear();
+        output.resize(evaluation_docs.len(), None);
+        self.val_cache.clear();
+        self.docid_cache.clear();
+        runtime.evaluate(evaluation_docs, output);
+        for (i, &doc) in docs.iter().enumerate() {
+            let output_index = if ordered_unique {
+                i
+            } else {
+                evaluation_docs
+                    .binary_search(&doc)
+                    .expect("every requested document is in the normalized input")
+            };
+            if let Some(value) = output[output_index] {
+                self.val_cache.push(value);
+                self.docid_cache.push(doc);
+                continue;
+            }
+            let Some(missing) = missing else {
+                continue;
+            };
+            // Identify missing occurrences from slots, not the physical sorted-merge helper.
+            // Preserve the physical ordering policy, including its floating-point accumulation
+            // order: unordered loads append substitutes after all generated values.
+            if ordered {
+                self.val_cache.push(missing);
+                self.docid_cache.push(doc);
+            } else {
+                self.missing_docids_cache.push(doc);
+            }
+        }
+        if let Some(missing) = missing {
+            self.val_cache.resize(
+                self.val_cache.len() + self.missing_docids_cache.len(),
+                missing,
+            );
+            self.docid_cache
+                .extend_from_slice(&self.missing_docids_cache);
+        }
+        self.cardinality =
+            if self.val_cache.len() == docs.len() && self.missing_docids_cache.is_empty() {
+                Cardinality::Full
+            } else {
+                Cardinality::Optional
+            };
+        Ok(())
+    }
+
+    #[inline]
+    pub(crate) fn fetch_source_block_with_missing(
+        &mut self,
+        docs: &[DocId],
+        source: &AggregationValueSource,
+        runtimes: &mut SegmentValueSources,
+        limits: &mut super::AggregationLimitsGuard,
+        missing: Option<u64>,
+    ) -> crate::Result<()> {
+        match source {
+            AggregationValueSource::Physical(column) => {
+                self.fetch_block_with_missing(docs, column, missing);
+                Ok(())
+            }
+            AggregationValueSource::Virtual(id) => {
+                self.fetch_virtual_block(docs, *id, runtimes, limits, missing, false)
+            }
+        }
+    }
+
+    #[inline]
+    pub(crate) fn fetch_source_block_with_missing_unique_per_doc(
+        &mut self,
+        docs: &[DocId],
+        source: &AggregationValueSource,
+        runtimes: &mut SegmentValueSources,
+        limits: &mut super::AggregationLimitsGuard,
+        missing: Option<u64>,
+        ordered: bool,
+    ) -> crate::Result<()> {
+        match source {
+            AggregationValueSource::Physical(column) => {
+                self.fetch_block_with_missing_unique_per_doc(docs, column, missing, ordered);
+                Ok(())
+            }
+            AggregationValueSource::Virtual(id) => {
+                // M1 virtual sources are scalar: no per-document values need deduplication.
+                // Repeated input documents are separate contributions from a parent bucket.
+                self.fetch_virtual_block(docs, *id, runtimes, limits, missing, ordered)
+            }
+        }
+    }
+
     #[inline]
     pub(crate) fn fetch_block(&mut self, docs: &[DocId], source: &impl BlockValueSource) {
         self.cardinality = source.load_block(
@@ -111,6 +257,11 @@ impl ColumnBlockAccessor {
         ordered: bool,
     ) {
         self.fetch_block(docs, source);
+        self.insert_missing(docs, missing_opt, ordered);
+    }
+
+    #[inline]
+    fn insert_missing(&mut self, docs: &[DocId], missing_opt: Option<u64>, ordered: bool) {
         let cardinality = self.cardinality;
         // no missing values
         if cardinality.is_full() {
@@ -286,6 +437,20 @@ impl ColumnBlockAccessor {
                 .zip(self.val_cache.iter().cloned())
         }
     }
+}
+
+fn reserve_computed_buffer<T>(
+    buffer: &mut Vec<T>,
+    len: usize,
+    limits: &mut super::AggregationLimitsGuard,
+) -> crate::Result<()> {
+    if len <= buffer.capacity() {
+        return Ok(());
+    }
+    let old_capacity = buffer.capacity();
+    limits.add_memory_consumed(((len - old_capacity) * std::mem::size_of::<T>()) as u64)?;
+    buffer.reserve_exact(len - buffer.len());
+    limits.add_memory_consumed(((buffer.capacity() - len) * std::mem::size_of::<T>()) as u64)
 }
 
 #[inline]

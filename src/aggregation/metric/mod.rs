@@ -31,7 +31,7 @@ use std::collections::HashMap;
 
 pub use average::*;
 pub use cardinality::*;
-use columnar::{Column, ColumnType};
+use columnar::ColumnType;
 pub use count::*;
 pub use extended_stats::*;
 pub use max::*;
@@ -43,26 +43,27 @@ pub use stats::*;
 pub use sum::*;
 pub use top_hits::*;
 
+use crate::aggregation::value_source::AggregationValueSource;
 use crate::schema::OwnedValue;
 
 /// Contains all information required by metric aggregations like avg, min, max, sum, stats,
 /// extended_stats, count, percentiles.
 #[repr(C)]
-pub struct MetricAggReqData {
+pub(crate) struct MetricAggReqData {
     /// True if the field is of number or date type.
-    pub is_number_or_date_type: bool,
+    pub(crate) is_number_or_date_type: bool,
     /// The type of the field.
-    pub field_type: ColumnType,
+    pub(crate) field_type: ColumnType,
     /// The missing value normalized to the internal u64 representation of the field type.
-    pub missing_u64: Option<u64>,
+    pub(crate) missing_u64: Option<u64>,
     /// The column accessor to access the fast field values.
-    pub accessor: Column<u64>,
+    pub(crate) accessor: AggregationValueSource,
     /// Used when converting to intermediate result
-    pub collecting_for: StatsType,
+    pub(crate) collecting_for: StatsType,
     /// The missing value
-    pub missing: Option<f64>,
+    pub(crate) missing: Option<f64>,
     /// The name of the aggregation.
-    pub name: String,
+    pub(crate) name: String,
 }
 
 impl MetricAggReqData {

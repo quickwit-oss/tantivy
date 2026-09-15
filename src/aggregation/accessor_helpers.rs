@@ -20,12 +20,19 @@ pub(crate) fn get_missing_val_as_u64_lenient(
     missing: &Key,
     field_name: &str,
 ) -> crate::Result<Option<u64>> {
+    if column_type == ColumnType::Str {
+        return Ok(Some(column_max_value + 1));
+    }
+    get_numeric_missing_val(column_type, missing, field_name)
+}
+
+/// Numeric substitution needs no global bounds or dictionary metadata.
+pub(crate) fn get_numeric_missing_val(
+    column_type: ColumnType,
+    missing: &Key,
+    field_name: &str,
+) -> crate::Result<Option<u64>> {
     let missing_val = match missing {
-        Key::Str(_) if column_type == ColumnType::Str => Some(column_max_value + 1),
-        // Allow fallback to number on text fields
-        Key::F64(_) if column_type == ColumnType::Str => Some(column_max_value + 1),
-        Key::U64(_) if column_type == ColumnType::Str => Some(column_max_value + 1),
-        Key::I64(_) if column_type == ColumnType::Str => Some(column_max_value + 1),
         Key::F64(val) if column_type.numerical_type().is_some() => {
             f64_to_fastfield_u64(*val, &column_type)
         }

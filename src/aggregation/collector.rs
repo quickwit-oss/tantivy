@@ -2,10 +2,12 @@ use super::agg_req::Aggregations;
 use super::agg_result::AggregationResults;
 use super::buffered_sub_aggs::LowCardBufferedSubAggs;
 use super::intermediate_agg_result::IntermediateAggregationResults;
+use super::value_source::VirtualColumns;
 use super::AggContextParams;
 // group buffering strategy is chosen explicitly by callers; no need to hash-group on the fly.
 use crate::aggregation::agg_data::{
-    build_aggregations_data_from_req, build_segment_agg_collectors_root, AggregationsSegmentCtx,
+    build_aggregations_data_from_req_with_virtual_columns, build_segment_agg_collectors_root,
+    AggregationsSegmentCtx,
 };
 use crate::collector::{Collector, SegmentCollector};
 use crate::index::SegmentReader;
@@ -23,6 +25,7 @@ pub const DEFAULT_MEMORY_LIMIT: u64 = 500_000_000;
 pub struct AggregationCollector {
     agg: Aggregations,
     context: AggContextParams,
+    virtual_columns: VirtualColumns,
 }
 
 impl AggregationCollector {
@@ -31,7 +34,22 @@ impl AggregationCollector {
     /// Aggregation fails when the limits in `AggregationLimits` is exceeded. (memory limit and
     /// bucket limit)
     pub fn from_aggs(agg: Aggregations, context: AggContextParams) -> Self {
-        Self { agg, context }
+        Self {
+            agg,
+            context,
+            virtual_columns: VirtualColumns::default(),
+        }
+    }
+
+    /// Internal M1 attachment; validates even when the search has no segments or hits.
+    #[allow(dead_code)]
+    pub(crate) fn with_virtual_columns(
+        mut self,
+        virtual_columns: VirtualColumns,
+    ) -> crate::Result<Self> {
+        virtual_columns.validate_request(&self.agg)?;
+        self.virtual_columns = virtual_columns;
+        Ok(self)
     }
 }
 
@@ -46,6 +64,7 @@ impl AggregationCollector {
 pub struct DistributedAggregationCollector {
     agg: Aggregations,
     context: AggContextParams,
+    virtual_columns: VirtualColumns,
 }
 
 impl DistributedAggregationCollector {
@@ -54,7 +73,22 @@ impl DistributedAggregationCollector {
     /// Aggregation fails when the limits in `AggregationLimits` is exceeded. (memory limit and
     /// bucket limit)
     pub fn from_aggs(agg: Aggregations, context: AggContextParams) -> Self {
-        Self { agg, context }
+        Self {
+            agg,
+            context,
+            virtual_columns: VirtualColumns::default(),
+        }
+    }
+
+    /// Internal M1 attachment; validates even when the search has no segments or hits.
+    #[allow(dead_code)]
+    pub(crate) fn with_virtual_columns(
+        mut self,
+        virtual_columns: VirtualColumns,
+    ) -> crate::Result<Self> {
+        virtual_columns.validate_request(&self.agg)?;
+        self.virtual_columns = virtual_columns;
+        Ok(self)
     }
 }
 
@@ -68,11 +102,12 @@ impl Collector for DistributedAggregationCollector {
         segment_local_id: crate::SegmentOrdinal,
         reader: &crate::SegmentReader,
     ) -> crate::Result<Self::Child> {
-        AggregationSegmentCollector::from_agg_req_and_reader(
+        AggregationSegmentCollector::from_agg_req_and_reader_with_virtual_columns(
             &self.agg,
             reader,
             segment_local_id,
             &self.context,
+            &self.virtual_columns,
         )
     }
 
@@ -98,11 +133,12 @@ impl Collector for AggregationCollector {
         segment_local_id: crate::SegmentOrdinal,
         reader: &crate::SegmentReader,
     ) -> crate::Result<Self::Child> {
-        AggregationSegmentCollector::from_agg_req_and_reader(
+        AggregationSegmentCollector::from_agg_req_and_reader_with_virtual_columns(
             &self.agg,
             reader,
             segment_local_id,
             &self.context,
+            &self.virtual_columns,
         )
     }
 
@@ -149,8 +185,29 @@ impl AggregationSegmentCollector {
         segment_ordinal: SegmentOrdinal,
         context: &AggContextParams,
     ) -> crate::Result<Self> {
-        let mut agg_data =
-            build_aggregations_data_from_req(agg, reader, segment_ordinal, context.clone())?;
+        Self::from_agg_req_and_reader_with_virtual_columns(
+            agg,
+            reader,
+            segment_ordinal,
+            context,
+            &VirtualColumns::default(),
+        )
+    }
+
+    pub(crate) fn from_agg_req_and_reader_with_virtual_columns(
+        agg: &Aggregations,
+        reader: &SegmentReader,
+        segment_ordinal: SegmentOrdinal,
+        context: &AggContextParams,
+        virtual_columns: &VirtualColumns,
+    ) -> crate::Result<Self> {
+        let mut agg_data = build_aggregations_data_from_req_with_virtual_columns(
+            agg,
+            reader,
+            segment_ordinal,
+            context.clone(),
+            virtual_columns,
+        )?;
         let mut result =
             LowCardBufferedSubAggs::new(build_segment_agg_collectors_root(&mut agg_data)?);
         result
