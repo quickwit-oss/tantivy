@@ -138,9 +138,10 @@ impl BitUnpacker {
         } else {
             0
         };
+        let output_len = output.len();
         let (fast, tail) = output.split_at_mut(fast_len);
         let load = |bit_addr: usize| {
-            // SAFETY: only called for values in fast, whose eight-byte loads fit in data.
+            // SAFETY: only called for values in `fast`, whose eight-byte loads fit in `data`.
             let packed = unsafe {
                 data.as_ptr()
                     .add(bit_addr >> 3)
@@ -150,8 +151,20 @@ impl BitUnpacker {
             u64::from_le(packed) >> (bit_addr & 7)
         };
         let mut bit_addr = start_idx * self.num_bits;
-        let mut chunks = fast.chunks_exact_mut(4);
-        for chunk in &mut chunks {
+        // This is a special case for 64 values of 1-8 bits, where we can decode 8 values at a
+        // time, which is the fastest possible.
+        if output_len == 64 && fast_len == 64 && self.num_bits <= 8 {
+            for chunk in fast.as_chunks_mut::<8>().0 {
+                let packed = load(bit_addr);
+                for (i, out) in chunk.iter_mut().enumerate() {
+                    *out = (packed >> (i * self.num_bits)) & self.mask;
+                }
+                bit_addr += 8 * self.num_bits;
+            }
+            return;
+        }
+        let (chunks, remainder) = fast.as_chunks_mut::<4>();
+        for chunk in chunks {
             // Four values plus at most seven leading bits fit in one load.
             // At 16 bits, values are byte-aligned, so there are no leading bits.
             if self.num_bits <= 14 || self.num_bits == 16 {
@@ -162,7 +175,7 @@ impl BitUnpacker {
             } else if self.num_bits <= 28 || self.num_bits == 32 {
                 // Two values plus at most seven leading bits fit in one load.
                 // At 32 bits, values are byte-aligned, so there are no leading bits.
-                for (pair_idx, pair) in chunk.chunks_exact_mut(2).enumerate() {
+                for (pair_idx, pair) in chunk.as_chunks_mut::<2>().0.iter_mut().enumerate() {
                     let packed = load(bit_addr + pair_idx * 2 * self.num_bits);
                     pair[0] = packed & self.mask;
                     pair[1] = (packed >> self.num_bits) & self.mask;
@@ -174,7 +187,7 @@ impl BitUnpacker {
             }
             bit_addr += 4 * self.num_bits;
         }
-        for out in chunks.into_remainder() {
+        for out in remainder {
             *out = load(bit_addr) & self.mask;
             bit_addr += self.num_bits;
         }
