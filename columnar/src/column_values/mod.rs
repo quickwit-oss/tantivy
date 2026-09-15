@@ -19,7 +19,7 @@ pub(crate) mod monotonic_mapping;
 pub(crate) mod monotonic_mapping_u128;
 mod stats;
 mod u128_based;
-mod u64_based;
+pub(crate) mod u64_based;
 mod vec_column;
 
 mod monotonic_column;

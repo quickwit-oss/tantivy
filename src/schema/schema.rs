@@ -57,6 +57,18 @@ impl SchemaBuilder {
         self.add_field(field_entry)
     }
 
+    /// Adds a generated tie-breaker fast field.
+    ///
+    /// The field is exposed as a `u64` fast field, but its generated values fit in a `u32`.
+    /// Values supplied by documents for this field are ignored.
+    ///
+    /// # Panics
+    ///
+    /// Panics when field already exists.
+    pub fn add_tie_breaker_field(&mut self, field_name_str: &str) -> Field {
+        self.add_field(FieldEntry::new_tie_breaker(field_name_str.to_string()))
+    }
+
     /// Adds a new i64 field.
     /// Returns the associated field handle
     ///
