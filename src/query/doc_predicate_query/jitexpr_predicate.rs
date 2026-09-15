@@ -184,22 +184,42 @@ pub struct JitExprEvalState {
     input_values: Vec<VariableValue<'static>>,
 }
 
+/// A wrapper to make sure the variable value buffer is cleared even if the evaluation
+/// panicked.
+struct ClearOnDrop<'a>(&'a mut Vec<VariableValue<'a>>);
+
+impl<'a> ClearOnDrop<'a> {
+    fn wrap(input_values: &'a mut Vec<VariableValue<'static>>) -> Self {
+        debug_assert!(input_values.is_empty());
+        // Input_values is just a buffer we share to avoid allocations
+        let lower_lifetime_input_values: &mut Vec<VariableValue<'_>> =
+            unsafe { std::mem::transmute(input_values) };
+        ClearOnDrop(lower_lifetime_input_values)
+    }
+}
+
+impl<'a> Drop for ClearOnDrop<'a> {
+    fn drop(&mut self) {
+        self.0.clear();
+    }
+}
+
 impl SegmentDocPredicate for JitExprEvalState {
     fn eval(&mut self, doc_id: DocId) -> bool {
         // Input_values is just a buffer we share to avoid allocations
-        let input_values: &mut Vec<VariableValue<'_>> =
-            unsafe { std::mem::transmute(&mut self.input_values) };
+        let mut inputs_vec = ClearOnDrop::wrap(&mut self.input_values);
 
-        debug_assert!(input_values.is_empty());
-
-        fill_input_values(&self.columns, &mut self.string_inputs, input_values, doc_id);
+        fill_input_values(
+            &self.columns,
+            &mut self.string_inputs,
+            &mut inputs_vec.0,
+            doc_id,
+        );
 
         // SAFETY: Columns follow compiled.inputs() and their types were checked
         // during setup. Each slot uses the matching union arm. String buffers
         // remain borrowed, and cannot be mutated, until this call finishes.
-        let eval_result: Option<bool> = unsafe { self.compiled.call(input_values).as_bool() };
-
-        input_values.clear();
+        let eval_result: Option<bool> = unsafe { self.compiled.call(&inputs_vec.0).as_bool() };
 
         eval_result == Some(true)
     }
