@@ -64,8 +64,11 @@ impl DocPredicate for JitExprPredicate {
         let mut opened_columns: HashMap<&str, DynamicColumn> =
             HashMap::with_capacity(self.inferred_inputs.len());
 
-        // Let's see which column (we can have several column type associated
-        // to the same column name in tantivy!) we will pick for each variable name.
+        // We pick a single column for each variable name. NOTE this CAN yield to unexpected results
+        // for some expression (e.g. (IS_NULL "mycol")).
+        // For instance, a document could be matching in one segment, and not matching if it
+        // was in another segment, just because the presence of column with the same name
+        // and different type could interfere.
         for (name, accepted_types) in &self.inferred_inputs {
             let Some(column) = open_input_column(segment_reader, name, *accepted_types)? else {
                 // If we do not have a valid column for that expression, we do not
@@ -90,7 +93,14 @@ impl DocPredicate for JitExprPredicate {
                 ))
             })?;
 
+        // We ended up with an expression that could not resolve to anything apparently.
+        if compiled_fn.result_type() == VarType::None {
+            return Ok(None);
+        }
+
         if compiled_fn.result_type() != VarType::Bool {
+            // This should never happen: we passed a target inferred type of Bool,
+            // so we should have either Bool or None.
             return Err(TantivyError::InvalidArgument(format!(
                 "the expression is not a predicate {}",
                 self.expression
@@ -342,7 +352,10 @@ mod tests {
         let searcher = index.reader().unwrap().searcher();
         assert_eq!(
             searcher
-                .search(&query(r#"(EQ (REGEXP_EXTRACT "(.).*" label) "o")"#), &Count)
+                .search(
+                    &query(r#"(EQ (REGEXP_EXTRACT label "(.).*" 1u64) "o")"#),
+                    &Count
+                )
                 .unwrap(),
             1
         );
@@ -354,7 +367,7 @@ mod tests {
         let searcher = index.reader().unwrap().searcher();
         assert_eq!(
             searcher
-                .search(&query(r#"(EQ (UPPER "(.).*" label) "TWO")"#), &Count)
+                .search(&query(r#"(EQ (UPPER label) "TWO")"#), &Count)
                 .unwrap(),
             1
         );
@@ -524,4 +537,50 @@ mod tests {
             1
         );
     }
+
+    // THIS FAILS! due to our pick best possible column approach policy.
+    // #[test]
+    // fn test_multi_typed_field_picks_one() {
+    //     let mut schema_builder = Schema::builder();
+    //     let json = schema_builder.add_json_field("json", FAST);
+    //     let index = Index::create_in_ram(schema_builder.build());
+    //     let mut writer = index.writer_for_tests().unwrap();
+    //     writer
+    //         .add_document(doc!(json => serde_json::json!({"myfield": 2u64})))
+    //         .unwrap();
+    //     writer
+    //         .add_document(doc!(json => serde_json::json!({"myfield": "b"})))
+    //         .unwrap();
+    //     writer.commit().unwrap();
+    //     let searcher = index.reader().unwrap().searcher();
+    //     assert_eq!(
+    //         searcher
+    //             .search(&query(r#"(IS_NULL json.myfield)"#), &Count)
+    //             .unwrap(),
+    //         2 // assertion fails, expected 2 got 1
+    //     );
+    // }
+
+    // THIS FAILS DUE TO EQ infer_types being too lenient.
+    // #[test]
+    // fn test_multi_typed_field_eq_too_lenient_failing() {
+    //     let mut schema_builder = Schema::builder();
+    //     let json = schema_builder.add_json_field("json", FAST);
+    //     let index = Index::create_in_ram(schema_builder.build());
+    //     let mut writer = index.writer_for_tests().unwrap();
+    //     writer
+    //         .add_document(doc!(json => serde_json::json!({"myfield": 2u64})))
+    //         .unwrap();
+    //     writer
+    //         .add_document(doc!(json => serde_json::json!({"myfield": "b"})))
+    //         .unwrap();
+    //     writer.commit().unwrap();
+    //     let searcher = index.reader().unwrap().searcher();
+    //     assert_eq!(
+    //         searcher
+    //             .search(&query(r#"(EQ json.myfield "b")"#), &Count)
+    //             .unwrap(),
+    //         1 // assertion fails, expected 2 got 1
+    //     );
+    // }
 }
