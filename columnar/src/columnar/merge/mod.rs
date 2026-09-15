@@ -30,9 +30,10 @@ use crate::{
 ///
 /// See also [README.md].
 ///
-/// The ordering has to match the ordering of the variants in [ColumnType].
+/// Except for generated tie-breakers, the ordering matches the variants in [ColumnType].
 #[derive(Copy, Clone, Eq, PartialOrd, Ord, PartialEq, Hash, Debug)]
 pub(crate) enum ColumnTypeCategory {
+    TieBreaker,
     Numerical,
     Bytes,
     Str,
@@ -88,10 +89,11 @@ pub fn merge_columnar(
         .map(|reader| reader.num_docs())
         .collect::<Vec<u32>>();
 
-    let columns_to_merge = group_columns_for_merge(columnar_readers, required_columns)?;
+    let columns_to_merge =
+        group_columns_for_merge(columnar_readers, required_columns, tie_breaker_columns)?;
     for res in columns_to_merge {
-        let ((column_name, _column_type_category), grouped_columns) = res;
-        if tie_breaker_columns.iter().any(|name| name == &column_name) {
+        let ((column_name, column_type_category), grouped_columns) = res;
+        if column_type_category == ColumnTypeCategory::TieBreaker {
             let mut column_serializer =
                 serializer.start_serialize_column(column_name.as_bytes(), ColumnType::U64);
             crate::column::serialize_generated_tie_breaker_column(
@@ -411,21 +413,37 @@ fn is_empty_after_merge(
 fn group_columns_for_merge<'a>(
     columnar_readers: &'a [&'a ColumnarReader],
     required_columns: &'a [(String, ColumnType)],
+    tie_breaker_columns: &[String],
 ) -> io::Result<BTreeMap<(String, ColumnTypeCategory), GroupedColumnsHandle>> {
     let mut columns: BTreeMap<(String, ColumnTypeCategory), GroupedColumnsHandle> = BTreeMap::new();
+    let tie_breaker_columns: HashSet<&str> =
+        tie_breaker_columns.iter().map(String::as_str).collect();
 
     for &(ref column_name, column_type) in required_columns {
+        if tie_breaker_columns.contains(column_name.as_str()) {
+            continue;
+        }
         columns
             .entry((column_name.clone(), column_type.into()))
             .or_insert_with(|| GroupedColumnsHandle::new(columnar_readers.len()))
             .require_type(column_type)?;
     }
 
+    for column_name in &tie_breaker_columns {
+        columns
+            .entry(((*column_name).to_string(), ColumnTypeCategory::TieBreaker))
+            .or_insert_with(|| GroupedColumnsHandle::new(columnar_readers.len()))
+            .require_type(ColumnType::U64)?;
+    }
+
     for (columnar_id, columnar_reader) in columnar_readers.iter().enumerate() {
         let column_name_and_handle = columnar_reader.iter_columns()?;
 
         for (column_name, handle) in column_name_and_handle {
-            let column_category: ColumnTypeCategory = handle.column_type().into();
+            if tie_breaker_columns.contains(column_name.as_str()) {
+                continue;
+            }
+            let column_category = handle.column_type().into();
             columns
                 .entry((column_name, column_category))
                 .or_insert_with(|| GroupedColumnsHandle::new(columnar_readers.len()))

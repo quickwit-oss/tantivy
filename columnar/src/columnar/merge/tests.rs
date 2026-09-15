@@ -30,7 +30,7 @@ fn test_column_coercion_to_u64() {
     let columnar2 = make_columnar("numbers", &[u64::MAX]);
     let columnars = &[&columnar1, &columnar2];
     let column_map: BTreeMap<(String, ColumnTypeCategory), GroupedColumnsHandle> =
-        group_columns_for_merge(columnars, &[]).unwrap();
+        group_columns_for_merge(columnars, &[], &[]).unwrap();
     assert_eq!(column_map.len(), 1);
     assert!(column_map.contains_key(&("numbers".to_string(), ColumnTypeCategory::Numerical)));
 }
@@ -41,7 +41,7 @@ fn test_column_coercion_to_i64() {
     let columnar2 = make_columnar("numbers", &[2u64]);
     let columnars = &[&columnar1, &columnar2];
     let column_map: BTreeMap<(String, ColumnTypeCategory), GroupedColumnsHandle> =
-        group_columns_for_merge(columnars, &[]).unwrap();
+        group_columns_for_merge(columnars, &[], &[]).unwrap();
     assert_eq!(column_map.len(), 1);
     assert!(column_map.contains_key(&("numbers".to_string(), ColumnTypeCategory::Numerical)));
 }
@@ -65,9 +65,64 @@ fn test_group_columns_with_required_column() {
     let columnar2 = make_columnar("numbers", &[2u64]);
     let columnars = &[&columnar1, &columnar2];
     let column_map: BTreeMap<(String, ColumnTypeCategory), GroupedColumnsHandle> =
-        group_columns_for_merge(columnars, &[("numbers".to_string(), ColumnType::U64)]).unwrap();
+        group_columns_for_merge(columnars, &[("numbers".to_string(), ColumnType::U64)], &[])
+            .unwrap();
     assert_eq!(column_map.len(), 1);
     assert!(column_map.contains_key(&("numbers".to_string(), ColumnTypeCategory::Numerical)));
+}
+
+#[test]
+fn test_group_tie_breaker_column() {
+    let columnar = make_columnar("tie", &[1u64]);
+    let column_map = group_columns_for_merge(&[&columnar], &[], &["tie".to_string()]).unwrap();
+    assert_eq!(column_map.len(), 1);
+    let grouped = column_map
+        .get(&("tie".to_string(), ColumnTypeCategory::TieBreaker))
+        .unwrap();
+    assert!(grouped.columns[0].is_none());
+}
+
+#[test]
+fn test_merge_generated_tie_breaker_columns_stays_small() {
+    fn make_tie_breaker_columnar(num_docs: u32) -> ColumnarReader {
+        let mut writer = ColumnarWriter::default();
+        writer.record_tie_breaker_column("tie");
+        let mut buffer = Vec::new();
+        writer.serialize(num_docs, None, &mut buffer).unwrap();
+        ColumnarReader::open(buffer).unwrap()
+    }
+
+    let columnar1 = make_tie_breaker_columnar(10_000);
+    let columnar2 = make_tie_breaker_columnar(10_000);
+    let columnars = &[&columnar1, &columnar2];
+    let mut buffer = Vec::new();
+    merge_columnar(
+        columnars,
+        &[("tie".to_string(), ColumnType::U64)],
+        &["tie".to_string()],
+        StackMergeOrder::stack(columnars).into(),
+        &mut buffer,
+    )
+    .unwrap();
+
+    assert!(
+        buffer.len() <= 600,
+        "merged columnar is {} bytes",
+        buffer.len()
+    );
+    let merged = ColumnarReader::open(buffer).unwrap();
+    let column = merged.read_columns("tie").unwrap()[0]
+        .open_u64_lenient()
+        .unwrap()
+        .unwrap();
+    assert_eq!(merged.num_docs(), 20_000);
+    assert_eq!(column.get_cardinality(), Cardinality::Full);
+    for block_start in (0..20_000).step_by(512) {
+        let block_end = (block_start + 512).min(20_000);
+        for doc in block_start + 1..block_end {
+            assert_eq!(column.first(doc), Some(column.first(doc - 1).unwrap() + 1));
+        }
+    }
 }
 
 #[test]
@@ -75,9 +130,12 @@ fn test_group_columns_required_column_with_no_existing_columns() {
     let columnar1 = make_columnar("numbers", &[2u64]);
     let columnar2 = make_columnar("numbers", &[2u64]);
     let columnars = &[&columnar1, &columnar2];
-    let column_map: BTreeMap<_, _> =
-        group_columns_for_merge(columnars, &[("required_col".to_string(), ColumnType::Str)])
-            .unwrap();
+    let column_map: BTreeMap<_, _> = group_columns_for_merge(
+        columnars,
+        &[("required_col".to_string(), ColumnType::Str)],
+        &[],
+    )
+    .unwrap();
     assert_eq!(column_map.len(), 2);
     let columns = &column_map
         .get(&("required_col".to_string(), ColumnTypeCategory::Str))
@@ -94,7 +152,8 @@ fn test_group_columns_required_column_is_above_all_columns_have_the_same_type_ru
     let columnar2 = make_columnar("numbers", &[2i64]);
     let columnars = &[&columnar1, &columnar2];
     let column_map: BTreeMap<(String, ColumnTypeCategory), GroupedColumnsHandle> =
-        group_columns_for_merge(columnars, &[("numbers".to_string(), ColumnType::U64)]).unwrap();
+        group_columns_for_merge(columnars, &[("numbers".to_string(), ColumnType::U64)], &[])
+            .unwrap();
     assert_eq!(column_map.len(), 1);
     assert!(column_map.contains_key(&("numbers".to_string(), ColumnTypeCategory::Numerical)));
 }
@@ -105,7 +164,7 @@ fn test_missing_column() {
     let columnar2 = make_columnar("numbers2", &[2u64]);
     let columnars = &[&columnar1, &columnar2];
     let column_map: BTreeMap<(String, ColumnTypeCategory), GroupedColumnsHandle> =
-        group_columns_for_merge(columnars, &[]).unwrap();
+        group_columns_for_merge(columnars, &[], &[]).unwrap();
     assert_eq!(column_map.len(), 2);
     assert!(column_map.contains_key(&("numbers".to_string(), ColumnTypeCategory::Numerical)));
     {
