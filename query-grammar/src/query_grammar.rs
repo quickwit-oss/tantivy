@@ -325,11 +325,10 @@ fn exists(inp: &str) -> IResult<&str, UserInputLeaf> {
             multispace0,
             char('*'),
             peek(alt((
+                value("", multispace1),
                 value(
                     "",
-                    satisfy(|c: char| {
-                        c.is_whitespace() || (ESCAPE_IN_WORD.contains(&c) && c != '\\')
-                    }),
+                    satisfy(|c: char| ESCAPE_IN_WORD.contains(&c) && c != '\\'),
                 ),
                 eof,
             ))),
@@ -345,11 +344,10 @@ fn exists_precond(inp: &str) -> IResult<&str, (), ()> {
             multispace0,
             char('*'),
             peek(alt((
+                value("", multispace1),
                 value(
                     "",
-                    satisfy(|c: char| {
-                        c.is_whitespace() || (ESCAPE_IN_WORD.contains(&c) && c != '\\')
-                    }),
+                    satisfy(|c: char| ESCAPE_IN_WORD.contains(&c) && c != '\\'),
                 ),
                 eof,
             ))), // we need to check this isn't a wildcard query
@@ -687,12 +685,20 @@ fn set_infallible(mut inp: &str) -> JResult<&str, UserInputLeaf> {
             return Ok((inp, (res, errs)));
         }
         errs.append(&mut space_error);
-        // TODO
-        // here we do the assumption term_or_phrase_infallible always consume something if the
-        // first byte is not `)` or ' '. If it did not, we would end up looping.
 
         let (rest, (delim_term, mut err)) = simple_term_infallible("]")(inp)?;
         errs.append(&mut err);
+        if rest.len() == inp.len() {
+            errs.push(LenientErrorInternal {
+                pos: inp.len(),
+                message: "missing ]".to_string(),
+            });
+            let res = UserInputLeaf::Set {
+                field: None,
+                elements,
+            };
+            return Ok((inp, (res, errs)));
+        }
         if let Some((_, term)) = delim_term {
             elements.push(term);
         }
@@ -1125,11 +1131,14 @@ pub fn parse_to_ast(inp: &str) -> IResult<&str, UserInputAst> {
 }
 
 pub fn parse_to_ast_lenient(query_str: &str) -> (UserInputAst, Vec<LenientError>) {
-    if query_str.trim().is_empty() {
+    if query_str
+        .chars()
+        .all(|c| matches!(c, ' ' | '\t' | '\r' | '\n'))
+    {
         return (UserInputAst::Clause(Vec::new()), Vec::new());
     }
     let (left, (res, mut errors)) = ast_infallible(query_str).unwrap();
-    if !left.trim().is_empty() {
+    if !left.is_empty() {
         errors.push(LenientErrorInternal {
             pos: left.len(),
             message: "unparsed end of query".to_string(),
