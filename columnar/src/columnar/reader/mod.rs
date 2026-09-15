@@ -247,11 +247,8 @@ mod tests {
         let handles = columnar.read_columns("tie").unwrap();
         let column = handles[0].open_u64_lenient().unwrap().unwrap();
         assert_eq!(column.index.get_cardinality(), crate::Cardinality::Full);
-        for block_start in [0, 512, 1_024] {
-            let block_end = (block_start + 512).min(1_025);
-            for doc in block_start + 1..block_end {
-                assert_eq!(column.first(doc), Some(column.first(doc - 1).unwrap() + 1));
-            }
+        for doc in 1..1_025 {
+            assert_eq!(column.first(doc), Some(column.first(doc - 1).unwrap() + 1));
         }
     }
 

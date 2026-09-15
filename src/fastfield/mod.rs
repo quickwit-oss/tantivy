@@ -174,11 +174,8 @@ mod tests {
 
         let readers = FastFieldReaders::open(bytes.into(), schema).unwrap();
         let values = readers.u64("tie").unwrap().first_or_default_col(0);
-        for block_start in [0, 512, 1_024] {
-            let block_end = (block_start + 512).min(1_025);
-            for doc in block_start + 1..block_end {
-                assert_eq!(values.get_val(doc), values.get_val(doc - 1) + 1);
-            }
+        for doc in 1..1_025 {
+            assert_eq!(values.get_val(doc), values.get_val(doc - 1) + 1);
         }
     }
 
