@@ -86,11 +86,7 @@ fn terms_on_field(field: &str) -> AggregationRequest {
     })
 }
 
-fn bench_agg(
-    runner: &mut BenchRunner,
-    searcher: &Searcher,
-    execute_filtered: AggregationExecutor,
-) {
+fn bench_agg(runner: &mut BenchRunner, searcher: &Searcher, execute_filtered: AggregationExecutor) {
     let multi_terms_vs_nested = vec![
         benchmark_config!(nested_terms_status_and_zipf_1000),
         benchmark_config!(multi_terms_status_and_zipf_1000),
@@ -877,11 +873,7 @@ fn execute_agg_filtered_on_single_term(searcher: &Searcher, agg_req: Aggregation
     execute_agg_with_query(searcher, agg_req, &filter_query);
 }
 
-fn execute_agg_with_query(
-    searcher: &Searcher,
-    agg_req: AggregationRequest,
-    query: &dyn Query,
-) {
+fn execute_agg_with_query(searcher: &Searcher, agg_req: AggregationRequest, query: &dyn Query) {
     let agg_req: Aggregations = serde_json::from_value(agg_req).unwrap();
     let collector = get_collector(agg_req);
 

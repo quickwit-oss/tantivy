@@ -130,18 +130,18 @@ impl BitUnpacker {
             "Requested range is out of bounds"
         );
 
-        // Only the last few values may need a partial eight-byte load.
-        let fast_len = if data.len() >= 8 {
-            let last_full_load_bit = (data.len() - 8) * 8 + 7;
-            let full_values = last_full_load_bit / self.num_bits + 1;
-            (full_values.max(start_idx) - start_idx).min(output.len())
-        } else {
-            0
-        };
+        // Fall back for ranges overlapping the end, where an eight-byte load would be partial.
+        let last_bit_addr = (start_idx + output.len() - 1) * self.num_bits;
+        if (last_bit_addr >> 3) + 8 > data.len() {
+            for (offset, out) in output.iter_mut().enumerate() {
+                *out = self.get((start_idx + offset) as u32, data);
+            }
+            return;
+        }
+
         let output_len = output.len();
-        let (fast, tail) = output.split_at_mut(fast_len);
         let load = |bit_addr: usize| {
-            // SAFETY: only called for values in `fast`, whose eight-byte loads fit in `data`.
+            // SAFETY: the range-end check above guarantees that this load fits in `data`.
             let packed = unsafe {
                 data.as_ptr()
                     .add(bit_addr >> 3)
@@ -151,10 +151,12 @@ impl BitUnpacker {
             u64::from_le(packed) >> (bit_addr & 7)
         };
         let mut bit_addr = start_idx * self.num_bits;
-        // This is a special case for 64 values of 1-8 bits, where we can decode 8 values at a
-        // time, which is the fastest possible.
-        if output_len == 64 && fast_len == 64 && self.num_bits <= 8 {
-            for chunk in fast.as_chunks_mut::<8>().0 {
+        // Tantivy's `COLLECT_BLOCK_BUFFER_LEN` is 64, so optimize its common full-block case by
+        // decoding eight 1-8 bit values per load. Keep this literal in sync with that constant.
+        if output_len == 64 && self.num_bits <= 8 {
+            let (chunks, remainder) = output.as_chunks_mut::<8>();
+            debug_assert!(remainder.is_empty());
+            for chunk in chunks {
                 let packed = load(bit_addr);
                 for (i, out) in chunk.iter_mut().enumerate() {
                     *out = (packed >> (i * self.num_bits)) & self.mask;
@@ -163,7 +165,8 @@ impl BitUnpacker {
             }
             return;
         }
-        let (chunks, remainder) = fast.as_chunks_mut::<4>();
+        const VALUES_PER_CHUNK: usize = 4;
+        let (chunks, remainder) = output.as_chunks_mut::<VALUES_PER_CHUNK>();
         for chunk in chunks {
             // Four values plus at most seven leading bits fit in one load.
             // At 16 bits, values are byte-aligned, so there are no leading bits.
@@ -185,14 +188,10 @@ impl BitUnpacker {
                     *out = load(bit_addr + i * self.num_bits) & self.mask;
                 }
             }
-            bit_addr += 4 * self.num_bits;
+            bit_addr += VALUES_PER_CHUNK * self.num_bits;
         }
         for out in remainder {
             *out = load(bit_addr) & self.mask;
-            bit_addr += self.num_bits;
-        }
-        for out in tail {
-            *out = Self::get_slow_path(self.mask, bit_addr >> 3, (bit_addr & 7) as u32, data);
             bit_addr += self.num_bits;
         }
     }
