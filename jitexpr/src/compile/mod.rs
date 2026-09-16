@@ -1,3 +1,4 @@
+mod cache;
 mod compile_fn_builder;
 mod compiled_fn;
 mod error;
@@ -8,6 +9,7 @@ mod typed_expr_serialize;
 use std::collections::HashMap;
 use std::sync::Arc;
 
+pub use cache::ExprCompilationCache;
 pub(crate) use compile_fn_builder::CompileFnBuilder;
 pub use compiled_fn::{CompiledFn, CompiledFnCtx};
 use cranelift::codegen::ir::{
