@@ -168,7 +168,7 @@ impl CouponCache {
         if should_use_dense {
             // We don't really care about the value here. We will populate all the values we will
             // read anyway.
-            let uninitialized_coupon = Coupon::from_hash(0);
+            let uninitialized_coupon = Coupon::from_value(0);
             let mut coupon_map: Vec<Coupon> =
                 vec![uninitialized_coupon; highest_term_ord as usize + 1];
 
@@ -557,7 +557,7 @@ fn build_coupon_cache<S: TermOrdAccumulator>(
     let mut coupons: Vec<Coupon> = Vec::with_capacity(term_ords.len());
     let all_term_ords_found: bool =
         dictionary.sorted_ords_to_term_cb(&term_ords, |term_bytes| {
-            let coupon: Coupon = Coupon::from_hash(term_bytes);
+            let coupon: Coupon = Coupon::from_value(term_bytes);
             coupons.push(coupon);
         })?;
     assert!(all_term_ords_found);
@@ -566,14 +566,14 @@ fn build_coupon_cache<S: TermOrdAccumulator>(
     // we populate the cache with the missing key too (if any).
     let missing_coupon_opt: Option<Coupon> = missing_value_opt.map(|missing_key| {
         if let Key::Str(missing_value_str) = missing_key {
-            Coupon::from_hash(missing_value_str.as_bytes())
+            Coupon::from_value(missing_value_str.as_bytes())
         } else {
             // See https://github.com/quickwit-oss/tantivy/issues/2891
             // A missing key with a type different from Str will not work as intended
             // for the moment.
             //
             // Right now this is just a partial workaround.
-            Coupon::from_hash("__tantivy_missing_non_str__".as_bytes())
+            Coupon::from_value("__tantivy_missing_non_str__".as_bytes())
         }
     });
     Ok(CouponCache::new(term_ords, coupons, missing_coupon_opt))
@@ -826,7 +826,8 @@ impl<'de> Deserialize<'de> for CardinalityCollector {
 impl CardinalityCollector {
     fn new(salt: u8) -> Self {
         Self {
-            sketch: HllSketch::new(LG_K, HllType::Hll8),
+            sketch: HllSketch::new(LG_K, HllType::Hll8)
+                .expect("LG_K is within the supported range"),
             salt,
         }
     }
@@ -854,7 +855,7 @@ impl CardinalityCollector {
     }
 
     pub(crate) fn merge_fruits(&mut self, right: CardinalityCollector) -> crate::Result<()> {
-        let mut union = HllUnion::new(LG_K);
+        let mut union = HllUnion::new(LG_K).expect("LG_K is within the supported range");
         union.update(&self.sketch);
         union.update(&right.sketch);
         self.sketch = union.to_sketch(HllType::Hll8);
