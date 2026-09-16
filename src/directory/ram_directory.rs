@@ -42,7 +42,7 @@ impl MemoryUsageTracker {
         }
     }
 
-    fn finish(&mut self) {
+    fn release(&mut self) {
         if self.reported_bytes > 0 {
             self.shared_usage
                 .fetch_sub(self.reported_bytes, Ordering::Relaxed);
@@ -54,7 +54,7 @@ impl MemoryUsageTracker {
 
 impl Drop for MemoryUsageTracker {
     fn drop(&mut self) {
-        self.finish();
+        self.release();
     }
 }
 
@@ -122,7 +122,7 @@ impl TerminatingWrite for VecWriter {
         fs.active_writers.remove(&self.path);
         fs.write_owned(self.path.clone(), data);
         self.is_finished = true;
-        self.memory_usage.finish();
+        self.memory_usage.release();
         Ok(())
     }
 }
