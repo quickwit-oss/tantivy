@@ -158,7 +158,7 @@ impl InnerDirectory {
     }
 
     fn exists(&self, path: &Path) -> bool {
-        self.fs.contains_key(path)
+        self.fs.contains_key(path) || self.active_writers.contains(path)
     }
 
     fn watch(&mut self, watch_handle: WatchCallback) -> WatchHandle {
