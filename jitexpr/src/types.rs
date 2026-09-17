@@ -15,24 +15,21 @@ pub enum VarType {
     None,
 }
 
-/// Wraps a f64 that is not inf nor Nan.
-///
-/// Excluding NaN is what makes the `Eq` and `Ord` impls below sound: every
-/// remaining value compares equal to itself, and no comparison is undefined.
-///
-/// Equality and ordering are *bitwise*, via [`f64::total_cmp`], so `-0.0` and
-/// `0.0` are distinct and `-0.0` sorts first, even though IEEE equality calls
-/// them equal. Callers that key generated code on a literal need that
-/// distinction: the two lower to different machine constants, and the sign of
-/// a zero is observable in a result.
+/// Wraps a f64 that is not inf, nor Nan, nor neg 0.
 #[derive(Copy, Clone)]
 pub struct SafeF64(f64);
 
 impl SafeF64 {
     /// Returns `None` for NaN and for either infinity.
+    ///
+    /// A negative zero is accepted, and folded to `0.0`.
     pub fn new(val: f64) -> Option<Self> {
         if val.is_nan() || val.is_infinite() {
-            None
+            return None;
+        }
+        if val == 0.0 {
+            // True of both zeros; `0.0` is the representative.
+            Some(SafeF64(0.0))
         } else {
             Some(SafeF64(val))
         }
@@ -63,7 +60,7 @@ impl fmt::Debug for SafeF64 {
 
 impl PartialEq for SafeF64 {
     fn eq(&self, other: &SafeF64) -> bool {
-        self.0.to_bits() == other.0.to_bits()
+        self.0 == other.0
     }
 }
 
@@ -71,21 +68,21 @@ impl PartialEq for SafeF64 {
 impl Eq for SafeF64 {}
 
 impl Ord for SafeF64 {
+    #[inline(always)]
     fn cmp(&self, other: &SafeF64) -> Ordering {
-        // `total_cmp` returns `Equal` exactly when the bit patterns match, so
-        // this order is consistent with `PartialEq` above.
-        self.0.total_cmp(&other.0)
+        self.partial_cmp(&other).unwrap()
     }
 }
 
 impl PartialOrd for SafeF64 {
+    #[inline(always)]
     fn partial_cmp(&self, other: &SafeF64) -> Option<Ordering> {
-        Some(self.cmp(other))
+        self.0.partial_cmp(&other.0)
     }
 }
 
-/// Hashes the bit pattern, which is what [`PartialEq`] compares. Hashing the
-/// value any other way would break the `Hash`/`Eq` agreement for signed zero.
+/// Hashes the bit pattern. Because we remove NaN Inf and -0.0,
+/// this is consistent with equality. (x == y => hash(x) == hash(y)).
 impl Hash for SafeF64 {
     fn hash<H: Hasher>(&self, hasher: &mut H) {
         self.0.to_bits().hash(hasher);
@@ -373,6 +370,7 @@ impl<'a> From<VariablePrimitiveOpt> for VariableValue<'a> {
 #[cfg(test)]
 mod tests {
     use std::cmp::Ordering;
+    use std::collections::HashSet;
     use std::collections::hash_map::DefaultHasher;
     use std::hash::{Hash, Hasher};
 
@@ -388,7 +386,7 @@ mod tests {
         hasher.finish()
     }
 
-    /// Values spanning both zero signs and both extremes.
+    /// Values spanning both zeros -- which fold together -- and both extremes.
     fn sample_values() -> Vec<SafeF64> {
         [
             -0.0f64,
@@ -448,13 +446,18 @@ mod tests {
     }
 
     #[test]
-    fn test_safe_f64_distinguishes_signed_zero() {
-        // IEEE equality calls these equal, but they lower to different machine
-        // constants, so the key-facing comparison must keep them apart.
-        assert_eq!(-0.0f64, 0.0f64);
-        assert_ne!(safe(-0.0), safe(0.0));
-        assert_eq!(safe(-0.0).cmp(&safe(0.0)), Ordering::Less);
-        assert_ne!(hash_of(safe(-0.0)), hash_of(safe(0.0)));
+    fn test_safe_f64_folds_negative_zero() {
+        // The fold happens on the way in, so there is a single zero to compare.
+        assert_eq!(safe(-0.0).get().to_bits(), 0.0f64.to_bits());
+        assert!(!safe(-0.0).get().is_sign_negative());
+        assert_eq!(
+            SafeF64::from_integer(0i64).get().to_bits(),
+            0.0f64.to_bits()
+        );
+
+        assert_eq!(safe(-0.0), safe(0.0));
+        assert_eq!(safe(-0.0).cmp(&safe(0.0)), Ordering::Equal);
+        assert_eq!(hash_of(safe(-0.0)), hash_of(safe(0.0)));
     }
 
     #[test]
@@ -481,7 +484,6 @@ mod tests {
     #[test]
     fn test_safe_f64_debug_is_transparent() {
         assert_eq!(format!("{:?}", safe(1.5)), format!("{:?}", 1.5f64));
-        assert_eq!(format!("{:?}", safe(-0.0)), format!("{:?}", -0.0f64));
     }
 
     #[test]
