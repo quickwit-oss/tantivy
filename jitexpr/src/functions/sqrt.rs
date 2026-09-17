@@ -145,8 +145,11 @@ mod tests {
         assert_eq!(eval("(SQRT none)"), None);
         assert_eq!(eval("(SQRT -1i64)"), None);
 
-        let negative_zero = eval("(SQRT -0f64)").unwrap();
-        assert_eq!(negative_zero.to_bits(), (-0.0f64).to_bits());
+        // `SafeF64` folds `-0.0` on construction, so the literal carries a
+        // positive zero and IEEE's `sqrt(-0.0) == -0.0` is unreachable here.
+        // The sign still exists for runtime values, as `abs.rs` exercises.
+        let zero = eval("(SQRT -0f64)").unwrap();
+        assert_eq!(zero.to_bits(), 0.0f64.to_bits());
     }
 
     #[test]
