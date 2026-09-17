@@ -98,7 +98,7 @@ impl From<IsNullFnCall> for FnCallEnum {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ast::{InvalidFnCall, deserialize, infer_types};
+    use crate::ast::{InvalidFnCall, Literal, deserialize, infer_types};
     use crate::compile::compile;
     use crate::functions::ArgumentCount;
     use crate::types::VariableValue;
@@ -164,12 +164,25 @@ mod tests {
 
     #[test]
     fn test_non_finite_values_are_present() {
-        // The textual parser rejects non-finite literals, but programmatically
-        // constructed expressions can still contain them. They are not null.
-        for value in [f64::NAN, f64::INFINITY, f64::NEG_INFINITY] {
-            let expression =
-                UntypedExpr::new_fn_call(Function::IsNull, vec![UntypedExpr::literal(value)])
-                    .unwrap();
+        // `SafeF64` bars non-finite *literals*, but arithmetic still reaches
+        // non-finite *values* at runtime. Those are present, hence not null.
+        let float_literal = |value: f64| UntypedExpr::literal(Literal::try_from(value).unwrap());
+        let multiply = |left: UntypedExpr, right: UntypedExpr| {
+            UntypedExpr::new_fn_call(Function::Multiply, vec![left, right]).unwrap()
+        };
+
+        // `f64::MAX * f64::MAX` overflows to an infinity, and subtracting two
+        // like-signed infinities yields NaN.
+        let positive_infinity = multiply(float_literal(f64::MAX), float_literal(f64::MAX));
+        let negative_infinity = multiply(float_literal(f64::MIN), float_literal(f64::MAX));
+        let not_a_number = UntypedExpr::new_fn_call(
+            Function::Subtract,
+            vec![positive_infinity.clone(), positive_infinity.clone()],
+        )
+        .unwrap();
+
+        for non_finite in [positive_infinity, negative_infinity, not_a_number] {
+            let expression = UntypedExpr::new_fn_call(Function::IsNull, vec![non_finite]).unwrap();
             let mut compiled = compile(&expression, &HashMap::new()).unwrap().context();
             // SAFETY: The expression has no runtime inputs and returns a boolean.
             assert_eq!(unsafe { compiled.call(&[]).as_bool() }, Some(false));

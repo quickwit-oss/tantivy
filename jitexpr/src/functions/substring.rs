@@ -53,7 +53,7 @@ fn constant_usize(
             .ok()
             .and_then(|value| usize::try_from(value).ok()),
         Literal::F64(value) if literal.types().contains(VarType::I64) => {
-            usize::try_from(*value as i64).ok()
+            usize::try_from(value.get() as i64).ok()
         }
         Literal::None => None,
         Literal::Bool(_) | Literal::F64(_) | Literal::String(_) => None,

@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::error::Error;
 use std::sync::Arc;
 
-use jitexpr::ast::{Function, InferredTypeSet, UntypedExpr, infer_types};
+use jitexpr::ast::{Function, InferredTypeSet, Literal, UntypedExpr, infer_types};
 use jitexpr::compile::{CompiledFn, CompiledFnCtx, compile};
 use jitexpr::types::{VarType, VariableValue};
 
@@ -13,7 +13,8 @@ fn main() -> Result<(), Box<dyn Error>> {
         Function::Add,
         vec![
             UntypedExpr::variable("my_col"),
-            UntypedExpr::literal(1.0f64),
+            // A float literal must be finite, so the conversion is fallible.
+            UntypedExpr::literal(Literal::try_from(1.0f64)?),
         ],
     )?;
 

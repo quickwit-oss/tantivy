@@ -39,7 +39,7 @@ fn constant_length(expression: &UntypedExpr) -> Result<Option<usize>, super::Inv
     Ok(match literal {
         Literal::I64(value) => usize::try_from(*value).ok(),
         Literal::U64(value) => usize::try_from(*value).ok(),
-        Literal::F64(value) => usize::try_from(*value as i64).ok(),
+        Literal::F64(value) => usize::try_from(value.get() as i64).ok(),
         Literal::None => None,
         Literal::Bool(_) | Literal::String(_) => None,
     })

@@ -172,7 +172,7 @@ fn lower_literal(
             builder
                 .ins()
                 .f64const(cranelift::codegen::ir::immediates::Ieee64::with_bits(
-                    value.to_bits(),
+                    value.get().to_bits(),
                 ))
         }
         TypedLiteral::String(value) => {

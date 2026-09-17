@@ -128,11 +128,11 @@ impl ExprCompilationCache {
         untyped_expr: &UntypedExpr,
         var_types: &HashMap<&str, VarType>,
     ) -> Option<CompilationSlot> {
+        let key = ExprCacheKey::new(untyped_expr, var_types);
         // That function does take the lock but only does trivial things that
         // cannot panick before releasing it.
         let mut inner_guard = self.inner.lock().unwrap();
         let entries = inner_guard.entries()?;
-        let key = ExprCacheKey::new(untyped_expr, var_types);
         let slot: CompilationSlot = entries.get_or_insert(key, CompilationSlot::default).clone();
         Some(slot)
     }
@@ -176,29 +176,26 @@ mod tests {
 
     #[test]
     fn test_var_types_order_is_not_part_of_the_key() {
-        let cache = ExprCompilationCache::with_capacity(16);
         let untyped_expr = Function::Add
             .call(vec![
-                UntypedExpr::variable("left"),
-                UntypedExpr::variable("right"),
+                UntypedExpr::variable("arg1"),
+                UntypedExpr::variable("arg2"),
+                UntypedExpr::variable("arg3"),
+                UntypedExpr::variable("arg4"),
             ])
             .unwrap();
-
-        let first = cache
-            .compile(
-                &untyped_expr,
-                &HashMap::from([("left", VarType::U64), ("right", VarType::U64)]),
-            )
-            .unwrap();
-        let second = cache
-            .compile(
-                &untyped_expr,
-                &HashMap::from([("right", VarType::U64), ("left", VarType::U64)]),
-            )
-            .unwrap();
-
-        assert!(Arc::ptr_eq(&first, &second));
-        assert_eq!(cache.len(), 1);
+        let var_args = HashMap::from([
+            ("arg2", VarType::I64),
+            ("arg4", VarType::Str),
+            ("arg3", VarType::F64),
+            ("arg1", VarType::U64),
+        ]);
+        let key = ExprCacheKey::new(&untyped_expr, &var_args);
+        assert_eq!(key.var_types.len(), 4);
+        assert_eq!(key.var_types[0].0, "arg1");
+        assert_eq!(key.var_types[1].0, "arg2");
+        assert_eq!(key.var_types[2].0, "arg3");
+        assert_eq!(key.var_types[3].0, "arg4");
     }
 
     #[test]
