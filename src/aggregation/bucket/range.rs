@@ -24,17 +24,17 @@ use crate::TantivyError;
 /// Contains all information required by the SegmentRangeCollector to perform the
 /// range aggregation on a segment.
 #[derive(Debug, Clone)]
-pub struct RangeAggReqData {
+pub(crate) struct RangeAggReqData {
     /// The column accessor to access the fast field values.
-    pub accessor: Column<u64>,
+    pub(crate) accessor: Column<u64>,
     /// The type of the fast field.
-    pub field_type: ColumnType,
+    pub(crate) field_type: ColumnType,
     /// The range aggregation request.
-    pub req: RangeAggregation,
+    pub(crate) req: RangeAggregation,
     /// The name of the aggregation.
-    pub name: String,
+    pub(crate) name: String,
     /// Whether this is a top-level aggregation.
-    pub is_top_level: bool,
+    pub(crate) is_top_level: bool,
 }
 
 impl RangeAggReqData {

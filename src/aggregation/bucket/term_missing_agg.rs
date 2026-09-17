@@ -20,13 +20,13 @@ use crate::aggregation::BucketId;
 /// - The field is not text and missing is provided as string (we cannot use the numeric missing
 ///   value optimization)
 #[derive(Default)]
-pub struct MissingTermAggReqData {
+pub(crate) struct MissingTermAggReqData {
     /// The accessors to check for existence of a value.
-    pub accessors: Vec<(Column<u64>, ColumnType)>,
+    pub(crate) accessors: Vec<(Column<u64>, ColumnType)>,
     /// The name of the aggregation.
-    pub name: String,
+    pub(crate) name: String,
     /// The original terms aggregation request.
-    pub req: TermsAggregation,
+    pub(crate) req: TermsAggregation,
 }
 
 impl MissingTermAggReqData {

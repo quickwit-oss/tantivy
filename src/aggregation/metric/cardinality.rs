@@ -92,19 +92,19 @@ pub struct CardinalityAggregationReq {
 
 /// Contains all information required by the SegmentCardinalityCollector to perform the
 /// cardinality aggregation on a segment.
-pub struct CardinalityAggReqData {
+pub(crate) struct CardinalityAggReqData {
     /// The column accessor to access the fast field values.
-    pub accessor: Column<u64>,
+    pub(crate) accessor: Column<u64>,
     /// The column_type of the field.
-    pub column_type: ColumnType,
+    pub(crate) column_type: ColumnType,
     /// The string dictionary column if the field is of type string.
-    pub str_dict_column: Option<StrColumn>,
+    pub(crate) str_dict_column: Option<StrColumn>,
     /// The missing value normalized to the internal u64 representation of the field type.
-    pub missing_value_for_accessor: Option<u64>,
+    pub(crate) missing_value_for_accessor: Option<u64>,
     /// The name of the aggregation.
-    pub name: String,
+    pub(crate) name: String,
     /// The aggregation request.
-    pub req: CardinalityAggregationReq,
+    pub(crate) req: CardinalityAggregationReq,
 }
 
 impl CardinalityAggReqData {

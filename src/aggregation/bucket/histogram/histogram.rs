@@ -22,21 +22,21 @@ use crate::TantivyError;
 /// Contains all information required by the SegmentHistogramCollector to perform the
 /// histogram or date_histogram aggregation on a segment.
 #[derive(Debug, Clone)]
-pub struct HistogramAggReqData {
+pub(crate) struct HistogramAggReqData {
     /// The column accessor to access the fast field values.
-    pub accessor: Column<u64>,
+    pub(crate) accessor: Column<u64>,
     /// The field type of the fast field.
-    pub field_type: ColumnType,
+    pub(crate) field_type: ColumnType,
     /// The name of the aggregation.
-    pub name: String,
+    pub(crate) name: String,
     /// The histogram aggregation request.
-    pub req: HistogramAggregation,
+    pub(crate) req: HistogramAggregation,
     /// True if this is a date_histogram aggregation.
-    pub is_date_histogram: bool,
+    pub(crate) is_date_histogram: bool,
     /// The bounds to limit the buckets to.
-    pub bounds: HistogramBounds,
+    pub(crate) bounds: HistogramBounds,
     /// The offset used to calculate the bucket position.
-    pub offset: f64,
+    pub(crate) offset: f64,
 }
 impl HistogramAggReqData {
     /// Estimate the memory consumption of this struct in bytes.

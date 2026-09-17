@@ -17,13 +17,13 @@ use crate::{SegmentReader, TantivyError};
 /// Contains all information required by the SegmentCompositeCollector to perform the
 /// composite aggregation on a segment.
 #[derive(Debug, Clone)]
-pub struct CompositeAggReqData {
+pub(crate) struct CompositeAggReqData {
     /// The name of the aggregation.
-    pub name: String,
+    pub(crate) name: String,
     /// The normalized term aggregation request.
-    pub req: CompositeAggregation,
+    pub(crate) req: CompositeAggregation,
     /// Accessors for each source, each source can have multiple accessors (columns).
-    pub composite_accessors: Vec<CompositeSourceAccessors>,
+    pub(crate) composite_accessors: Vec<CompositeSourceAccessors>,
 }
 
 impl CompositeAggReqData {

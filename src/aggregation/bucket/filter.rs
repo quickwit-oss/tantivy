@@ -398,19 +398,17 @@ impl PartialEq for FilterAggregation {
 /// Request data for filter aggregation
 /// This struct holds the per-segment data needed to execute a filter aggregation
 #[derive(Clone)]
-pub struct FilterAggReqData {
+pub(crate) struct FilterAggReqData {
     /// The name of the filter aggregation
-    pub name: String,
-    /// The filter aggregation
-    pub req: FilterAggregation,
+    pub(crate) name: String,
     /// The segment reader
-    pub segment_reader: SegmentReader,
+    pub(crate) segment_reader: SegmentReader,
     /// Document evaluator for the filter query (precomputed BitSet).
     /// Wrapped in `Rc` so cloning the request data does not duplicate the (potentially large)
     /// underlying BitSet.
-    pub evaluator: Rc<DocumentQueryEvaluator>,
+    pub(crate) evaluator: Rc<DocumentQueryEvaluator>,
     /// True if this filter aggregation is at the top level of the aggregation tree (not nested).
-    pub is_top_level: bool,
+    pub(crate) is_top_level: bool,
 }
 
 impl FilterAggReqData {
