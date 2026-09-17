@@ -27,6 +27,7 @@ use std::fmt;
 use std::sync::Arc;
 
 use crate::ast::{Function, Literal, UntypedExpr};
+use crate::types::SafeF64;
 
 /// Serializes an untyped expression into its canonical Lisp-like form.
 pub fn serialize(expr: &UntypedExpr) -> String {
@@ -118,7 +119,7 @@ fn format_literal(literal: &Literal, formatter: &mut fmt::Formatter) -> fmt::Res
         Literal::Bool(value) => write!(formatter, "{value}"),
         Literal::U64(value) => write!(formatter, "{value}u64"),
         Literal::I64(value) => write!(formatter, "{value}i64"),
-        Literal::F64(value) => write!(formatter, "{value}f64"),
+        Literal::F64(value) => write!(formatter, "{}f64", value.get()),
         Literal::String(value) => format_quoted(value, '"', formatter),
     }
 }
@@ -273,7 +274,9 @@ fn parse_literal_atom(atom: &str) -> Option<Literal> {
     }
     if let Some(value_str) = atom.strip_suffix("f64") {
         let val = value_str.parse::<f64>().ok()?;
-        return Some(Literal::F64(val));
+        // Yields `None` for a non-finite float, which `parse_atom` reports as
+        // an error rather than letting it fall through to a variable name.
+        return SafeF64::new(val).map(Literal::F64);
     }
     None
 }
@@ -372,15 +375,18 @@ impl<'a> Parser<'a> {
         let atom_offset = self.offset;
         let atom = self.take_atom();
         if let Some(literal) = parse_literal_atom(atom) {
-            if let Literal::F64(value) = &literal
-                && !value.is_finite()
-            {
-                return Err(DeserializeError::new(
-                    atom_offset,
-                    format!("f64 literal `{atom}` must be finite"),
-                ));
-            }
             return Ok(UntypedExpr::Literal(literal));
+        }
+        // An `f64`-suffixed atom that parses as a float but produced no literal
+        // is non-finite: `SafeF64` cannot hold it, and it must not be mistaken
+        // for a variable name.
+        if let Some(value_str) = atom.strip_suffix("f64")
+            && value_str.parse::<f64>().is_ok()
+        {
+            return Err(DeserializeError::new(
+                atom_offset,
+                format!("f64 literal `{atom}` must be finite"),
+            ));
         }
         Ok(UntypedExpr::Variable(Arc::from(atom)))
     }
@@ -529,8 +535,14 @@ mod tests {
             (UntypedExpr::literal(false), "false"),
             (UntypedExpr::literal(u64::MAX), "18446744073709551615u64"),
             (UntypedExpr::literal(i64::MIN), "-9223372036854775808i64"),
-            (UntypedExpr::literal(1.5f64), "1.5f64"),
-            (UntypedExpr::literal(1.0f64), "1f64"),
+            (
+                UntypedExpr::literal(Literal::try_from(1.5f64).unwrap()),
+                "1.5f64",
+            ),
+            (
+                UntypedExpr::literal(Literal::try_from(1.0f64).unwrap()),
+                "1f64",
+            ),
         ];
 
         for (expr, expected) in cases {
@@ -586,12 +598,12 @@ mod tests {
             f64::from_bits(1),
             -0.0,
         ] {
-            let serialized = serialize(&UntypedExpr::literal(value));
+            let serialized = serialize(&UntypedExpr::literal(Literal::try_from(value).unwrap()));
             let UntypedExpr::Literal(Literal::F64(parsed)) = deserialize(&serialized).unwrap()
             else {
                 panic!("expected an f64 literal");
             };
-            assert_eq!(parsed.to_bits(), value.to_bits());
+            assert_eq!(parsed.get().to_bits(), value.to_bits());
         }
     }
 

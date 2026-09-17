@@ -3,7 +3,7 @@ use std::io;
 
 use columnar::{ColumnType, DynamicColumn, StrColumn};
 use jitexpr::ast::{infer_types_with_target, InferredTypeSet, TypeError, UntypedExpr};
-use jitexpr::compile::{compile, CompiledFnCtx, StringArena};
+use jitexpr::compile::{CompiledFnCtx, StringArena};
 use jitexpr::types::{VarType, VariableValue};
 
 use super::{DocPredicate, SegmentDocPredicate};
@@ -91,8 +91,11 @@ impl DocPredicate for JitExprPredicate {
             opened_columns.insert(name.as_str(), column);
         }
 
-        let compiled_fn =
-            compile(&self.expression, &variable_types).map_err(|compilation_err| {
+        let compiled_fn = segment_reader
+            .index()
+            .expr_compilation_cache()
+            .compile(&self.expression, &variable_types)
+            .map_err(|compilation_err| {
                 TantivyError::InvalidArgument(format!(
                     "the expression compilation failed {:?}. error: {compilation_err}",
                     self.expression

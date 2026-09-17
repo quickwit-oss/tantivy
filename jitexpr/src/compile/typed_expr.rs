@@ -3,7 +3,7 @@ use std::sync::Arc;
 #[cfg(test)]
 use crate::ast::Literal;
 use crate::functions::FnCallEnum;
-use crate::types::VarType;
+use crate::types::{SafeF64, VarType};
 
 #[derive(Clone, PartialEq)]
 pub struct TypedVariable {
@@ -34,29 +34,27 @@ impl TypedExpr {
                     TypedExprAst::Literal(TypedLiteral::I64(value as i64))
                 }
                 (TypedExprAst::Literal(TypedLiteral::U64(value)), VarType::F64) => {
-                    TypedExprAst::Literal(TypedLiteral::F64(value as f64))
+                    TypedExprAst::Literal(TypedLiteral::F64(SafeF64::from_integer(value)))
                 }
                 (TypedExprAst::Literal(TypedLiteral::I64(value)), VarType::U64) if value >= 0 => {
                     TypedExprAst::Literal(TypedLiteral::U64(value as u64))
                 }
                 (TypedExprAst::Literal(TypedLiteral::I64(value)), VarType::F64) => {
-                    TypedExprAst::Literal(TypedLiteral::F64(value as f64))
+                    TypedExprAst::Literal(TypedLiteral::F64(SafeF64::from_integer(value)))
                 }
                 (TypedExprAst::Literal(TypedLiteral::F64(value)), VarType::U64)
-                    if value.is_finite()
-                        && value.fract() == 0.0
-                        && value >= 0.0
-                        && value < u64::MAX as f64 =>
+                    if value.get().fract() == 0.0
+                        && value.get() >= 0.0
+                        && value.get() < u64::MAX as f64 =>
                 {
-                    TypedExprAst::Literal(TypedLiteral::U64(value as u64))
+                    TypedExprAst::Literal(TypedLiteral::U64(value.get() as u64))
                 }
                 (TypedExprAst::Literal(TypedLiteral::F64(value)), VarType::I64)
-                    if value.is_finite()
-                        && value.fract() == 0.0
-                        && value >= i64::MIN as f64
-                        && value < -(i64::MIN as f64) =>
+                    if value.get().fract() == 0.0
+                        && value.get() >= i64::MIN as f64
+                        && value.get() < -(i64::MIN as f64) =>
                 {
-                    TypedExprAst::Literal(TypedLiteral::I64(value as i64))
+                    TypedExprAst::Literal(TypedLiteral::I64(value.get() as i64))
                 }
                 (ast, target_type) => TypedExprAst::Coerce {
                     target_type,
@@ -99,7 +97,7 @@ pub(crate) enum TypedLiteral {
     Bool(bool),
     U64(u64),
     I64(i64),
-    F64(f64),
+    F64(SafeF64),
     String(Arc<str>),
 }
 

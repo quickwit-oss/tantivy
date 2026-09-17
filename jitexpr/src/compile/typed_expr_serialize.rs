@@ -46,7 +46,7 @@ fn format_literal(literal: &TypedLiteral, formatter: &mut fmt::Formatter) -> fmt
         TypedLiteral::Bool(value) => write!(formatter, "{value}"),
         TypedLiteral::U64(value) => write!(formatter, "{value}u64"),
         TypedLiteral::I64(value) => write!(formatter, "{value}i64"),
-        TypedLiteral::F64(value) => write!(formatter, "{value}f64"),
+        TypedLiteral::F64(value) => write!(formatter, "{}f64", value.get()),
         TypedLiteral::String(value) => format_string_literal(value, formatter),
     }
 }

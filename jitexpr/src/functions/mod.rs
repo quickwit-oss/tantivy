@@ -599,7 +599,7 @@ impl FnCallEnum {
 }
 
 /// Error representing an invalid function call.
-#[derive(Debug, Eq, PartialEq, thiserror::Error)]
+#[derive(Debug, Eq, PartialEq, thiserror::Error, Clone)]
 pub enum InvalidFnCall {
     #[error("invalid number of arguments: expected {expected}, got {provided}")]
     InvalidNumberOfArguments {
