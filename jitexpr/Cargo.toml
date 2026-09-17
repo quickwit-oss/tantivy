@@ -8,7 +8,7 @@ repository = "https://github.com/quickwit-oss/tantivy"
 description = "JIT-compiled expression evaluation for tantivy"
 
 [dependencies]
-cranelift = "0.134.3"
+cranelift = "0.135.2"
 cranelift-jit = "0.134.3"
 cranelift-module = "0.134.3"
 cranelift-native = "0.134.3"
