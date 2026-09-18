@@ -4,7 +4,7 @@ use std::collections::HashSet;
 use std::io::Write;
 use std::ops::Deref;
 use std::path::PathBuf;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, RwLock};
 
 use rayon::{ThreadPool, ThreadPoolBuilder};
@@ -464,16 +464,26 @@ impl SegmentUpdater {
         files
     }
 
+    /// Schedules a commit.
+    ///
+    /// `committed_opstamp` is a handle shared with the owning `IndexWriter`. Once the commit
+    /// has been durably persisted (i.e. `save_metas` has succeeded), it is updated to reflect
+    /// the newly committed opstamp, so that `IndexWriter::commit_opstamp()` (and anything else
+    /// relying on it, like rollback/delete_all_documents) always observes the true last
+    /// committed opstamp, even though this task may run on a different thread and complete
+    /// after `schedule_commit` itself returns.
     pub(crate) fn schedule_commit(
         &self,
         opstamp: Opstamp,
         payload: Option<String>,
+        committed_opstamp: Arc<AtomicU64>,
     ) -> FutureResult<Opstamp> {
         let segment_updater: SegmentUpdater = self.clone();
         self.schedule_task(move || {
             let segment_entries = segment_updater.purge_deletes(opstamp)?;
             segment_updater.segment_manager.commit(segment_entries);
             segment_updater.save_metas(opstamp, payload)?;
+            committed_opstamp.store(opstamp, Ordering::SeqCst);
             let _ = garbage_collect_files(segment_updater.clone());
             segment_updater.consider_merge_options();
             Ok(opstamp)

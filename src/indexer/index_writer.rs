@@ -1,4 +1,5 @@
 use std::ops::Range;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 use std::thread;
 use std::thread::JoinHandle;
@@ -89,7 +90,13 @@ pub struct IndexWriter<D: Document = TantivyDocument> {
     delete_queue: DeleteQueue,
 
     stamper: Stamper,
-    committed_opstamp: Opstamp,
+    // Opstamp of the last successful commit, shared with the in-flight commit task scheduled
+    // on the `SegmentUpdater`. It is a `&self`-friendly `Arc<AtomicU64>` (rather than a plain
+    // field updated through `&mut self`) because the commit itself only resolves
+    // asynchronously, on the `SegmentUpdater`'s task queue, well after `PreparedCommit::commit`
+    // /`commit_future` has returned control to (and potentially dropped its borrow of) the
+    // `IndexWriter`. See `SegmentUpdater::schedule_commit`.
+    committed_opstamp: Arc<AtomicU64>,
 }
 
 fn compute_deleted_bitset(
@@ -331,7 +338,7 @@ impl<D: Document> IndexWriter<D> {
 
             delete_queue,
 
-            committed_opstamp: current_opstamp,
+            committed_opstamp: Arc::new(AtomicU64::new(current_opstamp)),
             stamper,
 
             worker_id: 0,
@@ -524,8 +531,9 @@ impl<D: Document> IndexWriter<D> {
         // Delete segments
         self.segment_updater.remove_all_segments();
         // Return new stamp - reverted stamp
-        self.stamper.revert(self.committed_opstamp);
-        Ok(self.committed_opstamp)
+        let committed_opstamp = self.committed_opstamp.load(Ordering::SeqCst);
+        self.stamper.revert(committed_opstamp);
+        Ok(committed_opstamp)
     }
 
     /// Merges a given list of segments.
@@ -563,7 +571,10 @@ impl<D: Document> IndexWriter<D> {
     ///
     /// The opstamp at the last commit is returned.
     pub fn rollback(&mut self) -> crate::Result<Opstamp> {
-        debug!("Rolling back to opstamp {}", self.committed_opstamp);
+        debug!(
+            "Rolling back to opstamp {}",
+            self.committed_opstamp.load(Ordering::SeqCst)
+        );
         // marks the segment updater as killed. From now on, all
         // segment updates will be ignored.
         self.segment_updater.kill();
@@ -593,7 +604,7 @@ impl<D: Document> IndexWriter<D> {
             for _ in document_receiver {}
         }
 
-        Ok(self.committed_opstamp)
+        Ok(self.committed_opstamp.load(Ordering::SeqCst))
     }
 
     /// Prepares a commit.
@@ -683,6 +694,12 @@ impl<D: Document> IndexWriter<D> {
         &self.segment_updater
     }
 
+    /// Returns a shared handle to the `committed_opstamp`, so that it can be updated once an
+    /// in-flight commit (scheduled on the `SegmentUpdater`) actually completes.
+    pub(crate) fn committed_opstamp_handle(&self) -> Arc<AtomicU64> {
+        self.committed_opstamp.clone()
+    }
+
     /// Delete all documents containing a given term.
     ///
     /// Delete operation only affects documents that
@@ -728,7 +745,7 @@ impl<D: Document> IndexWriter<D> {
     /// This is also the opstamp of the commit that is currently
     /// available for searchers.
     pub fn commit_opstamp(&self) -> Opstamp {
-        self.committed_opstamp
+        self.committed_opstamp.load(Ordering::SeqCst)
     }
 
     /// Adds a document.
@@ -1313,7 +1330,12 @@ mod tests {
 
         // delete_all_documents the index
         let clear_tstamp = index_writer.delete_all_documents().unwrap();
-        assert_eq!(clear_tstamp, add_tstamp);
+        // `delete_all_documents` reverts the stamper to the opstamp of the last successful
+        // commit, which is `first_commit_tstamp` here (this also exercises the fix for
+        // https://github.com/quickwit-oss/tantivy/issues/2666: `committed_opstamp` must be
+        // updated when a commit actually completes, rather than staying at whatever it was
+        // when the `IndexWriter` was constructed).
+        assert_eq!(clear_tstamp, first_commit_tstamp);
 
         // commit the clear command - now documents aren't available
         let second_commit = index_writer.commit();
@@ -1332,6 +1354,85 @@ mod tests {
         assert_eq!(rollback_tstamp, second_commit_tstamp);
 
         // working with an empty index == no documents
+        let term_b = Term::from_field_text(text_field, "b");
+        assert_eq!(
+            index
+                .reader()
+                .unwrap()
+                .searcher()
+                .doc_freq(&term_b)
+                .unwrap(),
+            0
+        );
+    }
+
+    // Regression test for https://github.com/quickwit-oss/tantivy/issues/2666.
+    //
+    // `IndexWriter::committed_opstamp` used to only be set once, from the on-disk metadata, at
+    // construction time. The actual commit path (`PreparedCommit::commit`/`commit_future` ->
+    // `SegmentUpdater::schedule_commit`) never wrote the newly committed opstamp back into it.
+    // As a result `commit_opstamp()` kept returning the stale, pre-construction value (usually
+    // 0) forever, contradicting its own doc comment ("the opstamp of the last successful
+    // commit").
+    #[test]
+    fn test_commit_opstamp_is_updated_after_commit() {
+        let mut schema_builder = schema::Schema::builder();
+        let text_field = schema_builder.add_text_field("text", TEXT);
+        let index = Index::create_in_ram(schema_builder.build());
+        let mut index_writer = index
+            .writer_with_num_threads(4, MEMORY_BUDGET_NUM_BYTES_MIN * 4)
+            .unwrap();
+
+        // Before any commit, `commit_opstamp` reflects the (empty) on-disk state.
+        assert_eq!(index_writer.commit_opstamp(), 0);
+
+        index_writer.add_document(doc!(text_field => "a")).unwrap();
+        let first_commit_tstamp = index_writer.commit().unwrap();
+        assert_ne!(first_commit_tstamp, 0);
+        // `commit_opstamp()` must reflect the opstamp that was just committed, not the stale
+        // value captured when the `IndexWriter` was constructed.
+        assert_eq!(index_writer.commit_opstamp(), first_commit_tstamp);
+
+        // A second commit should move `commit_opstamp()` forward again.
+        index_writer.add_document(doc!(text_field => "b")).unwrap();
+        let second_commit_tstamp = index_writer.commit().unwrap();
+        assert!(second_commit_tstamp > first_commit_tstamp);
+        assert_eq!(index_writer.commit_opstamp(), second_commit_tstamp);
+    }
+
+    // Regression test for https://github.com/quickwit-oss/tantivy/issues/2666.
+    //
+    // Because `committed_opstamp` was never refreshed after a real commit, both
+    // `commit_opstamp()` right before a rollback, and the opstamp `rollback()` itself returns,
+    // could report the stale (pre-construction) value instead of the true opstamp of the last
+    // successful commit.
+    #[test]
+    fn test_rollback_reports_true_committed_opstamp() {
+        let mut schema_builder = schema::Schema::builder();
+        let text_field = schema_builder.add_text_field("text", TEXT);
+        let index = Index::create_in_ram(schema_builder.build());
+        let mut index_writer = index
+            .writer_with_num_threads(4, MEMORY_BUDGET_NUM_BYTES_MIN * 4)
+            .unwrap();
+
+        index_writer.add_document(doc!(text_field => "a")).unwrap();
+        let commit_tstamp = index_writer.commit().unwrap();
+        assert_ne!(commit_tstamp, 0);
+
+        // Add more documents after the commit, without committing them.
+        for _ in 0..10 {
+            index_writer.add_document(doc!(text_field => "b")).unwrap();
+        }
+
+        // Right before rolling back, `commit_opstamp()` must still reflect the last real
+        // commit, not the stale value captured at construction time.
+        assert_eq!(index_writer.commit_opstamp(), commit_tstamp);
+
+        // `rollback()` itself must also report the true last-committed opstamp.
+        let rollback_tstamp = index_writer.rollback().unwrap();
+        assert_eq!(rollback_tstamp, commit_tstamp);
+
+        // The uncommitted "b" documents must not be visible after rollback.
         let term_b = Term::from_field_text(text_field, "b");
         assert_eq!(
             index
@@ -1391,8 +1492,9 @@ mod tests {
 
         // clear but don't commit!
         let clear_tstamp = index_writer.delete_all_documents().unwrap();
-        // clear_tstamp should reset to before the last commit
-        assert!(clear_tstamp < commit_tstamp);
+        // clear_tstamp resets the stamper to the opstamp of the last successful commit, which
+        // is exactly `commit_tstamp` here, since nothing has been committed since.
+        assert_eq!(clear_tstamp, commit_tstamp);
 
         // rollback
         let _rollback_tstamp = index_writer.rollback().unwrap();
