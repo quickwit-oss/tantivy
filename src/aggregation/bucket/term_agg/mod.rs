@@ -4,7 +4,7 @@ use std::net::Ipv6Addr;
 
 use columnar::column_values::CompactSpaceU64Accessor;
 use columnar::{
-    Column, ColumnType, Dictionary, MonotonicallyMappableToU128, MonotonicallyMappableToU64,
+    ColumnType, Dictionary, MonotonicallyMappableToU128, MonotonicallyMappableToU64,
     NumericalValue, StrColumn,
 };
 use common::{BitSet, TinySet};
@@ -26,7 +26,7 @@ use crate::aggregation::intermediate_agg_result::{
     IntermediateKey, IntermediateTermBucketEntry, IntermediateTermBucketResult,
 };
 use crate::aggregation::segment_agg_result::{BucketIdProvider, SegmentAggregationCollector};
-use crate::aggregation::{format_date, BucketId, Key};
+use crate::aggregation::{format_date, AggregationValueSource, BucketId, Key};
 use crate::error::DataCorruption;
 use crate::TantivyError;
 
@@ -37,7 +37,7 @@ mod flattened_term_histogram;
 #[derive(Debug, Clone)]
 pub(crate) struct TermsAggReqData {
     /// The column accessor to access the fast field values.
-    pub(crate) accessor: Column<u64>,
+    pub(crate) accessor: AggregationValueSource,
     /// The type of the column.
     pub(crate) column_type: ColumnType,
     /// The string dictionary column if the field is of type text.
@@ -423,7 +423,12 @@ pub(crate) fn build_segment_term_collector(
 
     // Let's see if we can use a vec to aggregate our data
     // instead of a hashmap.
-    let col_max_value = terms_req_data.accessor.max_value();
+    // Without a global ceiling (a computed source) assume the widest possible ordinal space,
+    // which steers the storage choice below to the hash map rather than a dense `Vec`.
+    let col_max_value = terms_req_data
+        .accessor
+        .to_physical()
+        .map_or(u64::MAX, |column| column.max_value());
     let max_column_val: u64 =
         col_max_value.max(terms_req_data.missing_value_for_accessor.unwrap_or(0u64));
 
@@ -1062,7 +1067,7 @@ impl<TermMap: TermAggregationMap, B: SubAggBuffer> SegmentAggregationCollector
 
         agg_data
             .column_block_accessor
-            .fetch_block_with_missing_unique_per_doc(
+            .fetch_source_block_with_missing_unique_per_doc(
                 docs,
                 &req_data.accessor,
                 req_data.missing_value_for_accessor,
@@ -1442,6 +1447,14 @@ where
         } else if term_req.column_type == ColumnType::IpAddr {
             let compact_space_accessor = term_req
                 .accessor
+                .to_physical()
+                .ok_or_else(|| {
+                    TantivyError::AggregationError(
+                        crate::aggregation::AggregationError::InternalError(
+                            "IpAddr term keys require a physical column".to_string(),
+                        ),
+                    )
+                })?
                 .values
                 .clone()
                 .downcast_arc::<CompactSpaceU64Accessor>()

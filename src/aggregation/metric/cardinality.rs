@@ -3,7 +3,7 @@ use std::hash::Hash;
 use std::io;
 
 use columnar::column_values::CompactSpaceU64Accessor;
-use columnar::{Column, ColumnType, Dictionary, StrColumn};
+use columnar::{ColumnType, Dictionary, StrColumn};
 use common::{BitSet, TinySet};
 use datasketches::hll::{Coupon, HllSketch, HllType, HllUnion};
 use rustc_hash::{FxBuildHasher, FxHashMap, FxHashSet};
@@ -94,7 +94,7 @@ pub struct CardinalityAggregationReq {
 /// cardinality aggregation on a segment.
 pub(crate) struct CardinalityAggReqData {
     /// The column accessor to access the fast field values.
-    pub(crate) accessor: Column<u64>,
+    pub(crate) accessor: AggregationValueSource,
     /// The column_type of the field.
     pub(crate) column_type: ColumnType,
     /// The string dictionary column if the field is of type string.
@@ -448,7 +448,7 @@ pub(crate) struct SegmentCardinalityCollector<S: TermOrdAccumulator> {
     buckets: Vec<Option<SegmentCardinalityCollectorBucket<S>>>,
     accessor_idx: usize,
     /// The column accessor to access the fast field values.
-    accessor: Column<u64>,
+    accessor: AggregationValueSource,
     /// The column_type of the field.
     column_type: ColumnType,
     /// The missing value normalized to the internal u64 representation of the field type.
@@ -616,7 +616,7 @@ impl<S: TermOrdAccumulator> SegmentCardinalityCollector<S> {
     pub fn from_req(
         column_type: ColumnType,
         accessor_idx: usize,
-        accessor: Column<u64>,
+        accessor: AggregationValueSource,
         missing_value_for_accessor: Option<u64>,
         max_term_ord_inclusive: u64,
     ) -> Self {
@@ -636,11 +636,9 @@ impl<S: TermOrdAccumulator> SegmentCardinalityCollector<S> {
         docs: &[crate::DocId],
         agg_data: &mut AggregationsSegmentCtx,
     ) {
-        agg_data.column_block_accessor.fetch_block_with_missing(
-            docs,
-            &self.accessor,
-            self.missing_value_for_accessor,
-        );
+        agg_data
+            .column_block_accessor
+            .fetch_source_block_with_missing(docs, &self.accessor, self.missing_value_for_accessor);
     }
 }
 
@@ -716,6 +714,14 @@ impl<S: TermOrdAccumulator + 'static> SegmentAggregationCollector
                 if self.column_type == ColumnType::IpAddr {
                     let compact_space_accessor = self
                         .accessor
+                        .to_physical()
+                        .ok_or_else(|| {
+                            TantivyError::AggregationError(
+                                crate::aggregation::AggregationError::InternalError(
+                                    "IpAddr cardinality requires a physical column".to_string(),
+                                ),
+                            )
+                        })?
                         .values
                         .clone()
                         .downcast_arc::<CompactSpaceU64Accessor>()
