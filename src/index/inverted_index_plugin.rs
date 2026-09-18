@@ -390,9 +390,9 @@ impl InvertedIndexPluginWriter {
                         self.fieldnorms_writer.record(doc_id, field, num_vals);
                     }
                 }
-                // Custom fields are not indexed; the `is_indexed()` guard above skips them.
-                FieldType::Custom(_) => {
-                    unreachable!("the inverted index does not support custom field types")
+                // These fields are not indexed; the `is_indexed()` guard above skips them.
+                FieldType::TieBreaker | FieldType::Custom(_) => {
+                    unreachable!("the inverted index does not support this field type")
                 }
             }
         }
