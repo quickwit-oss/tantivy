@@ -204,6 +204,11 @@ impl<T: Copy + PartialOrd + Debug + 'static> ColumnValues<T> for Arc<dyn ColumnV
     }
 
     #[inline(always)]
+    fn get_vals(&self, indexes: &[u32], output: &mut [T]) {
+        self.as_ref().get_vals(indexes, output)
+    }
+
+    #[inline(always)]
     fn get_vals_opt(&self, indexes: &[u32], output: &mut [Option<T>]) {
         self.as_ref().get_vals_opt(indexes, output)
     }

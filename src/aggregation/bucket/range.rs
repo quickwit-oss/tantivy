@@ -1,7 +1,8 @@
 use std::fmt::Debug;
 use std::ops::Range;
+use std::sync::Arc;
 
-use columnar::{Column, ColumnType};
+use columnar::ColumnType;
 use rustc_hash::FxHashMap;
 use serde::{Deserialize, Serialize};
 
@@ -18,6 +19,7 @@ use crate::aggregation::intermediate_agg_result::{
     IntermediateRangeBucketEntry, IntermediateRangeBucketResult,
 };
 use crate::aggregation::segment_agg_result::{BucketIdProvider, SegmentAggregationCollector};
+use crate::aggregation::value_source::ValueSource;
 use crate::aggregation::*;
 use crate::TantivyError;
 
@@ -26,9 +28,7 @@ use crate::TantivyError;
 #[derive(Debug, Clone)]
 pub(crate) struct RangeAggReqData {
     /// The column accessor to access the fast field values.
-    pub(crate) accessor: Column<u64>,
-    /// The type of the fast field.
-    pub(crate) field_type: ColumnType,
+    pub(crate) accessor: Arc<dyn ValueSource>,
     /// The range aggregation request.
     pub(crate) req: RangeAggregation,
     /// The name of the aggregation.
@@ -161,7 +161,6 @@ pub struct SegmentRangeCollector<B: SubAggBuffer> {
     /// The buckets containing the aggregation data.
     /// One for each ParentBucketId
     parent_buckets: Vec<Vec<SegmentRangeAndBucketEntry>>,
-    column_type: ColumnType,
     pub(crate) req_data: RangeAggReqData,
     sub_agg: Option<BufferedSubAggs<B>>,
     /// Here things get a bit weird. We need to assign unique bucket ids across all
@@ -184,7 +183,7 @@ impl<B: SubAggBuffer> Debug for SegmentRangeCollector<B> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("SegmentRangeCollector")
             .field("parent_buckets_len", &self.parent_buckets.len())
-            .field("column_type", &self.column_type)
+            .field("column_type", &self.req_data.accessor.column_type())
             .field("name", &self.req_data.name)
             .field("has_sub_agg", &self.sub_agg.is_some())
             .finish()
@@ -239,7 +238,7 @@ impl<B: SubAggBuffer> SegmentAggregationCollector for SegmentRangeCollector<B> {
         parent_bucket_id: BucketId,
     ) -> crate::Result<()> {
         self.prepare_max_bucket(parent_bucket_id, agg_data)?;
-        let field_type = self.column_type;
+        let field_type = self.req_data.accessor.column_type();
         let name = self.req_data.name.to_string();
 
         let buckets = std::mem::take(&mut self.parent_buckets[parent_bucket_id as usize]);
@@ -264,7 +263,7 @@ impl<B: SubAggBuffer> SegmentAggregationCollector for SegmentRangeCollector<B> {
 
         let bucket = IntermediateBucketResult::Range(IntermediateRangeBucketResult {
             buckets,
-            column_type: Some(self.column_type),
+            column_type: Some(field_type),
         });
 
         results.push(name, IntermediateAggregationResult::Bucket(bucket))?;
@@ -281,7 +280,7 @@ impl<B: SubAggBuffer> SegmentAggregationCollector for SegmentRangeCollector<B> {
     ) -> crate::Result<()> {
         agg_data
             .column_block_accessor
-            .fetch_block(docs, &self.req_data.accessor);
+            .fetch_block(docs, &*self.req_data.accessor);
 
         let buckets = &mut self.parent_buckets[parent_bucket_id as usize];
 
@@ -343,7 +342,6 @@ pub(crate) fn build_segment_range_collector(
         .context
         .limits
         .add_memory_consumed(req_data.get_memory_consumption() as u64)?;
-    let field_type = req_data.field_type;
 
     // TODO: A better metric instead of is_top_level would be the number of buckets expected.
     // E.g. If range agg is not top level, but the parent is a bucket agg with less than 10 buckets,
@@ -359,7 +357,6 @@ pub(crate) fn build_segment_range_collector(
     if is_low_card {
         Ok(Box::new(SegmentRangeCollector::<LowCardSubAggBuffer> {
             sub_agg: sub_agg.map(LowCardBufferedSubAggs::new),
-            column_type: field_type,
             req_data,
             parent_buckets: Vec::new(),
             bucket_id_provider: BucketIdProvider::default(),
@@ -368,7 +365,6 @@ pub(crate) fn build_segment_range_collector(
     } else {
         Ok(Box::new(SegmentRangeCollector::<HighCardSubAggBuffer> {
             sub_agg: sub_agg.map(BufferedSubAggs::new),
-            column_type: field_type,
             req_data,
             parent_buckets: Vec::new(),
             bucket_id_provider: BucketIdProvider::default(),
@@ -379,8 +375,8 @@ pub(crate) fn build_segment_range_collector(
 
 impl<B: SubAggBuffer> SegmentRangeCollector<B> {
     pub(crate) fn create_new_buckets(&mut self) -> crate::Result<Vec<SegmentRangeAndBucketEntry>> {
-        let field_type = self.column_type;
         let req_data = &self.req_data;
+        let field_type = req_data.accessor.column_type();
         // The range input on the request is f64.
         // We need to convert to u64 ranges, because we read the values as u64.
         // The mapping from the conversion is monotonic so ordering is preserved.
