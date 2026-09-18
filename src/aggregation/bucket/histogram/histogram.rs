@@ -1,6 +1,6 @@
 use std::cmp::Ordering;
 
-use columnar::{Column, ColumnType};
+use columnar::ColumnType;
 use rustc_hash::FxHashMap;
 use serde::{Deserialize, Serialize};
 use tantivy_bitpacker::minmax;
@@ -24,7 +24,7 @@ use crate::TantivyError;
 #[derive(Debug, Clone)]
 pub(crate) struct HistogramAggReqData {
     /// The column accessor to access the fast field values.
-    pub(crate) accessor: Column<u64>,
+    pub(crate) accessor: AggregationValueSource,
     /// The field type of the fast field.
     pub(crate) field_type: ColumnType,
     /// The name of the aggregation.
@@ -491,7 +491,7 @@ impl<B: BucketIdSlot> SegmentAggregationCollector for SegmentHistogramCollector<
 
         agg_data
             .column_block_accessor
-            .fetch_block(docs, &req.accessor);
+            .fetch_source_block(docs, &req.accessor);
         // special path for nested buckets
         if let Some(sub_agg) = &mut self.sub_agg {
             for (doc, val) in agg_data.column_block_accessor.iter_docid_vals(docs) {
@@ -689,9 +689,14 @@ fn normalize_histogram_req(req_data: &mut HistogramAggReqData) -> crate::Result<
     // per-term counts from the grid. Only this collect-time filter is touched — empty-bucket
     // emission reads `req.hard_bounds` directly (see `get_req_min_max`), and `hard_bounds` only
     // ever clips that range, so a wider-than-data bound leaves the result unchanged.
-    if req_data.req.hard_bounds.is_some() {
-        let col_min = f64_from_fastfield_u64(req_data.accessor.min_value(), req_data.field_type);
-        let col_max = f64_from_fastfield_u64(req_data.accessor.max_value(), req_data.field_type);
+    // A computed source has no global range to compare against, so the collapse is simply not
+    // attempted and the per-doc `bounds.contains` check stays.
+    if let (true, Some((min_value, max_value))) = (
+        req_data.req.hard_bounds.is_some(),
+        req_data.accessor.bounds(),
+    ) {
+        let col_min = f64_from_fastfield_u64(min_value, req_data.field_type);
+        let col_max = f64_from_fastfield_u64(max_value, req_data.field_type);
         if col_min >= req_data.bounds.min && col_max <= req_data.bounds.max {
             req_data.bounds = HistogramBounds {
                 min: f64::MIN,
@@ -752,15 +757,19 @@ pub(crate) fn get_bucket_pos_f64(val: f64, interval: f64, offset: f64) -> f64 {
 ///
 /// The column min/max bound every value the collector can see, so a `Vec` sized to this range can
 /// be indexed by `bucket_pos - base_pos` without any out-of-bounds check on the hot path.
+///
+/// Returns `None` for a computed source: there is no global range to size the `Vec` from, so the
+/// histogram keeps its sparse map. The result is identical, just without the dense fast path.
 fn compute_dense_range(
-    accessor: &Column<u64>,
+    accessor: &AggregationValueSource,
     field_type: ColumnType,
     interval: f64,
     offset: f64,
     bounds: HistogramBounds,
 ) -> Option<DenseRange> {
-    let col_min = f64_from_fastfield_u64(accessor.min_value(), field_type);
-    let col_max = f64_from_fastfield_u64(accessor.max_value(), field_type);
+    let (min_value, max_value) = accessor.bounds()?;
+    let col_min = f64_from_fastfield_u64(min_value, field_type);
+    let col_max = f64_from_fastfield_u64(max_value, field_type);
     let lo = col_min.max(bounds.min);
     let hi = col_max.min(bounds.max);
     if lo > hi {

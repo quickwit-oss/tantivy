@@ -1,7 +1,7 @@
 use std::fmt::Debug;
 use std::ops::Range;
 
-use columnar::{Column, ColumnType};
+use columnar::ColumnType;
 use rustc_hash::FxHashMap;
 use serde::{Deserialize, Serialize};
 
@@ -26,7 +26,7 @@ use crate::TantivyError;
 #[derive(Debug, Clone)]
 pub(crate) struct RangeAggReqData {
     /// The column accessor to access the fast field values.
-    pub(crate) accessor: Column<u64>,
+    pub(crate) accessor: AggregationValueSource,
     /// The type of the fast field.
     pub(crate) field_type: ColumnType,
     /// The range aggregation request.
@@ -281,7 +281,7 @@ impl<B: SubAggBuffer> SegmentAggregationCollector for SegmentRangeCollector<B> {
     ) -> crate::Result<()> {
         agg_data
             .column_block_accessor
-            .fetch_block(docs, &self.req_data.accessor);
+            .fetch_source_block(docs, &self.req_data.accessor);
 
         let buckets = &mut self.parent_buckets[parent_bucket_id as usize];
 

@@ -4,8 +4,9 @@ use std::io;
 
 use columnar::{Column, ColumnType};
 
-use crate::aggregation::{f64_to_fastfield_u64, Key};
+use crate::aggregation::{f64_to_fastfield_u64, AggregationValueSource, Key, ValueSourceRegistry};
 use crate::index::SegmentReader;
+use crate::TantivyError;
 
 /// Get the missing value as internal u64 representation
 ///
@@ -56,13 +57,58 @@ pub(crate) fn get_numeric_or_date_column_types() -> &'static [ColumnType] {
 }
 
 /// Get fast field reader or empty as default.
-pub(crate) fn get_ff_reader(
+/// Resolves `field_name` against the registered computed sources.
+///
+/// Returns `Ok(None)` when the name is not registered, leaving the caller to fall back to the
+/// fast-field reader. The registry is consulted first so that a registered name cannot be
+/// rewritten by the fast-field resolver's JSON-path handling.
+fn resolve_registered_source(
     reader: &SegmentReader,
+    value_sources: &ValueSourceRegistry,
     field_name: &str,
     allowed_column_types: Option<&[ColumnType]>,
-) -> crate::Result<(columnar::Column<u64>, ColumnType)> {
+) -> crate::Result<Option<(AggregationValueSource, ColumnType)>> {
+    if value_sources.is_empty() {
+        return Ok(None);
+    }
+    let Some(provider) = value_sources.get(field_name) else {
+        return Ok(None);
+    };
+    // A registered name must never silently change what an existing request means, so a
+    // collision with stored data is an error rather than a precedence rule.
+    let shadows_fast_field = !reader
+        .fast_fields()
+        .u64_lenient_for_type_all(None, field_name)?
+        .is_empty();
+    if shadows_fast_field || reader.schema().get_field(field_name).is_ok() {
+        return Err(TantivyError::InvalidArgument(format!(
+            "Value source `{field_name}` collides with a field or JSON path of the same name"
+        )));
+    }
+    let column_type = provider.column_type();
+    if allowed_column_types.is_some_and(|allowed| !allowed.contains(&column_type)) {
+        return Err(TantivyError::InvalidArgument(format!(
+            "Value source `{field_name}` produces {column_type:?}, which this aggregation does \
+             not accept"
+        )));
+    }
+    let source = provider.for_segment(reader)?;
+    Ok(Some((AggregationValueSource::Virtual(source), column_type)))
+}
+
+pub(crate) fn get_ff_reader(
+    reader: &SegmentReader,
+    value_sources: &ValueSourceRegistry,
+    field_name: &str,
+    allowed_column_types: Option<&[ColumnType]>,
+) -> crate::Result<(AggregationValueSource, ColumnType)> {
+    if let Some(registered) =
+        resolve_registered_source(reader, value_sources, field_name, allowed_column_types)?
+    {
+        return Ok(registered);
+    }
     let ff_fields = reader.fast_fields();
-    let ff_field_with_type = ff_fields
+    let (column, column_type) = ff_fields
         .u64_lenient_for_type(allowed_column_types, field_name)?
         .unwrap_or_else(|| {
             (
@@ -70,7 +116,9 @@ pub(crate) fn get_ff_reader(
                 ColumnType::U64,
             )
         });
-    Ok(ff_field_with_type)
+    // The empty-column shim stays physical on purpose: several fast paths check
+    // `to_physical()` and would otherwise degrade for a merely absent field.
+    Ok((AggregationValueSource::Physical(column), column_type))
 }
 
 pub(crate) fn get_dynamic_columns(
@@ -91,15 +139,27 @@ pub(crate) fn get_dynamic_columns(
 /// Is guaranteed to return at least one column.
 pub(crate) fn get_all_ff_reader_or_empty(
     reader: &SegmentReader,
+    value_sources: &ValueSourceRegistry,
     field_name: &str,
     allowed_column_types: Option<&[ColumnType]>,
     fallback_type: ColumnType,
-) -> crate::Result<Vec<(columnar::Column<u64>, ColumnType)>> {
+) -> crate::Result<Vec<(AggregationValueSource, ColumnType)>> {
+    // A registered source shadows the physical type fan-out entirely: it contributes exactly one
+    // entry. Callers derive "this field has several types" from the length, so a single entry also
+    // keeps computed sources off the mixed-type `missing` machinery, which is physical-only.
+    if let Some(registered) =
+        resolve_registered_source(reader, value_sources, field_name, allowed_column_types)?
+    {
+        return Ok(vec![registered]);
+    }
     let ff_fields = reader.fast_fields();
     let mut ff_field_with_type =
         ff_fields.u64_lenient_for_type_all(allowed_column_types, field_name)?;
     if ff_field_with_type.is_empty() {
         ff_field_with_type.push((Column::build_empty_column(reader.num_docs()), fallback_type));
     }
-    Ok(ff_field_with_type)
+    Ok(ff_field_with_type
+        .into_iter()
+        .map(|(column, column_type)| (AggregationValueSource::Physical(column), column_type))
+        .collect())
 }

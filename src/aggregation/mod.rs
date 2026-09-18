@@ -142,10 +142,13 @@ pub mod intermediate_agg_result;
 pub mod metric;
 
 mod segment_agg_result;
+mod value_sources;
 use std::cmp::Ordering;
 use std::fmt::Display;
 
-pub(crate) use block_accessor::ColumnBlockAccessor;
+pub use block_accessor::BlockValueSource;
+pub(crate) use block_accessor::{AggregationValueSource, ColumnBlockAccessor};
+pub use value_sources::{ValueSourceProvider, ValueSourceRegistry};
 
 #[cfg(test)]
 mod agg_tests;
@@ -184,18 +187,31 @@ pub type BucketId = u32;
 /// This struct holds shared resources needed during aggregation execution:
 /// - `limits`: Memory and bucket limits for the aggregation
 /// - `tokenizers`: TokenizerManager for parsing query strings in filter aggregations
+/// - `value_sources`: Named computed columns that aggregations may read instead of a fast field
 #[derive(Clone, Default)]
 pub struct AggContextParams {
     /// Aggregation limits (memory and bucket count)
     pub limits: AggregationLimitsGuard,
     /// Tokenizer manager for query string parsing
     pub tokenizers: TokenizerManager,
+    /// Computed columns registered by name, resolved in preference to a fast field.
+    pub value_sources: ValueSourceRegistry,
 }
 
 impl AggContextParams {
     /// Create new aggregation context parameters
     pub fn new(limits: AggregationLimitsGuard, tokenizers: TokenizerManager) -> Self {
-        Self { limits, tokenizers }
+        Self {
+            limits,
+            tokenizers,
+            value_sources: ValueSourceRegistry::default(),
+        }
+    }
+
+    /// Attaches named computed columns, which aggregation requests address as field names.
+    pub fn with_value_sources(mut self, value_sources: ValueSourceRegistry) -> Self {
+        self.value_sources = value_sources;
+        self
     }
 }
 

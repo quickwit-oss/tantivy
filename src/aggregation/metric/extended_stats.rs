@@ -322,7 +322,7 @@ pub(crate) struct SegmentExtendedStatsCollector {
     name: String,
     missing: Option<u64>,
     field_type: ColumnType,
-    accessor: columnar::Column<u64>,
+    accessor: AggregationValueSource,
     buckets: Vec<IntermediateExtendedStats>,
     sigma: Option<f64>,
 }
@@ -375,7 +375,7 @@ impl SegmentAggregationCollector for SegmentExtendedStatsCollector {
 
         agg_data
             .column_block_accessor
-            .fetch_block_with_missing(docs, &self.accessor, self.missing);
+            .fetch_source_block_with_missing(docs, &self.accessor, self.missing);
         for val in agg_data.column_block_accessor.iter_vals() {
             let val1 = f64_from_fastfield_u64(val, self.field_type);
             extended_stats.collect(val1);
