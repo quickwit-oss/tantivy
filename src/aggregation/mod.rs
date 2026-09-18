@@ -132,7 +132,6 @@ mod agg_data;
 mod agg_limits;
 pub mod agg_req;
 pub mod agg_result;
-mod block_accessor;
 pub mod bucket;
 pub(crate) mod buffered_sub_aggs;
 mod collector;
@@ -142,10 +141,13 @@ pub mod intermediate_agg_result;
 pub mod metric;
 
 mod segment_agg_result;
+mod value_source;
 use std::cmp::Ordering;
 use std::fmt::Display;
+use std::sync::Arc;
 
-pub(crate) use block_accessor::ColumnBlockAccessor;
+pub(crate) use value_source::ColumnBlockAccessor;
+pub use value_source::{ValueSource, ValueSourceProvider, ValueSourceRegistry};
 
 #[cfg(test)]
 mod agg_tests;
@@ -184,18 +186,31 @@ pub type BucketId = u32;
 /// This struct holds shared resources needed during aggregation execution:
 /// - `limits`: Memory and bucket limits for the aggregation
 /// - `tokenizers`: TokenizerManager for parsing query strings in filter aggregations
+/// - `value_sources`: Named computed columns that aggregations may read instead of a fast field
 #[derive(Clone, Default)]
 pub struct AggContextParams {
     /// Aggregation limits (memory and bucket count)
     pub limits: AggregationLimitsGuard,
     /// Tokenizer manager for query string parsing
     pub tokenizers: TokenizerManager,
+    /// Computed columns registered by name, resolved in preference to a fast field.
+    pub value_sources: Arc<ValueSourceRegistry>,
 }
 
 impl AggContextParams {
     /// Create new aggregation context parameters
     pub fn new(limits: AggregationLimitsGuard, tokenizers: TokenizerManager) -> Self {
-        Self { limits, tokenizers }
+        Self {
+            limits,
+            tokenizers,
+            value_sources: Arc::new(ValueSourceRegistry::default()),
+        }
+    }
+
+    /// Attaches named computed columns, which aggregation requests address as field names.
+    pub fn with_value_sources(mut self, value_sources: Arc<ValueSourceRegistry>) -> Self {
+        self.value_sources = value_sources;
+        self
     }
 }
 
