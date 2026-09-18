@@ -3,7 +3,7 @@ use std::hash::Hash;
 use std::io;
 
 use columnar::column_values::CompactSpaceU64Accessor;
-use columnar::{Column, ColumnType, Dictionary, StrColumn};
+use columnar::{ColumnType, Dictionary, StrColumn};
 use common::{BitSet, TinySet};
 use datasketches::hll::{Coupon, HllSketch, HllType, HllUnion};
 use rustc_hash::{FxBuildHasher, FxHashMap, FxHashSet};
@@ -14,6 +14,7 @@ use crate::aggregation::intermediate_agg_result::{
     IntermediateAggregationResult, IntermediateAggregationResults, IntermediateMetricResult,
 };
 use crate::aggregation::segment_agg_result::SegmentAggregationCollector;
+use crate::aggregation::value_source::AggregationValueSource;
 use crate::aggregation::*;
 use crate::TantivyError;
 
@@ -94,7 +95,7 @@ pub struct CardinalityAggregationReq {
 /// cardinality aggregation on a segment.
 pub(crate) struct CardinalityAggReqData {
     /// The column accessor to access the fast field values.
-    pub(crate) accessor: Column<u64>,
+    pub(crate) accessor: AggregationValueSource,
     /// The column_type of the field.
     pub(crate) column_type: ColumnType,
     /// The string dictionary column if the field is of type string.
@@ -448,7 +449,7 @@ pub(crate) struct SegmentCardinalityCollector<S: TermOrdAccumulator> {
     buckets: Vec<Option<SegmentCardinalityCollectorBucket<S>>>,
     accessor_idx: usize,
     /// The column accessor to access the fast field values.
-    accessor: Column<u64>,
+    accessor: AggregationValueSource,
     /// The column_type of the field.
     column_type: ColumnType,
     /// The missing value normalized to the internal u64 representation of the field type.
@@ -616,7 +617,7 @@ impl<S: TermOrdAccumulator> SegmentCardinalityCollector<S> {
     pub fn from_req(
         column_type: ColumnType,
         accessor_idx: usize,
-        accessor: Column<u64>,
+        accessor: AggregationValueSource,
         missing_value_for_accessor: Option<u64>,
         max_term_ord_inclusive: u64,
     ) -> Self {
@@ -635,12 +636,16 @@ impl<S: TermOrdAccumulator> SegmentCardinalityCollector<S> {
         &mut self,
         docs: &[crate::DocId],
         agg_data: &mut AggregationsSegmentCtx,
-    ) {
-        agg_data.column_block_accessor.fetch_block_with_missing(
-            docs,
-            &self.accessor,
-            self.missing_value_for_accessor,
-        );
+    ) -> crate::Result<()> {
+        agg_data
+            .column_block_accessor
+            .fetch_source_block_with_missing(
+                docs,
+                &self.accessor,
+                &mut agg_data.value_sources,
+                self.missing_value_for_accessor,
+            );
+        Ok(())
     }
 }
 
@@ -694,7 +699,7 @@ impl<S: TermOrdAccumulator + 'static> SegmentAggregationCollector
         docs: &[crate::DocId],
         agg_data: &mut AggregationsSegmentCtx,
     ) -> crate::Result<()> {
-        self.fetch_block_with_field(docs, agg_data);
+        self.fetch_block_with_field(docs, agg_data)?;
         let Some(bucket) = &mut self.buckets[parent_bucket_id as usize].as_mut() else {
             return Err(crate::TantivyError::InternalError(
                 "collection should not happen after finalization".to_string(),
@@ -716,6 +721,8 @@ impl<S: TermOrdAccumulator + 'static> SegmentAggregationCollector
                 if self.column_type == ColumnType::IpAddr {
                     let compact_space_accessor = self
                         .accessor
+                        .physical()
+                        .expect("IP source is physical")
                         .values
                         .clone()
                         .downcast_arc::<CompactSpaceU64Accessor>()

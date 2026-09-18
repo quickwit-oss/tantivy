@@ -140,6 +140,7 @@ mod date;
 mod error;
 pub mod intermediate_agg_result;
 pub mod metric;
+mod value_source;
 
 mod segment_agg_result;
 use std::cmp::Ordering;
@@ -149,6 +150,8 @@ pub(crate) use block_accessor::ColumnBlockAccessor;
 
 #[cfg(test)]
 mod agg_tests;
+#[cfg(test)]
+mod value_source_tests;
 
 use core::fmt;
 

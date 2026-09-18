@@ -16,6 +16,7 @@ use crate::aggregation::intermediate_agg_result::{
     IntermediateHistogramBucketEntry,
 };
 use crate::aggregation::segment_agg_result::{BucketIdProvider, SegmentAggregationCollector};
+use crate::aggregation::value_source::AggregationValueSource;
 use crate::aggregation::*;
 use crate::TantivyError;
 
@@ -24,7 +25,7 @@ use crate::TantivyError;
 #[derive(Debug, Clone)]
 pub(crate) struct HistogramAggReqData {
     /// The column accessor to access the fast field values.
-    pub(crate) accessor: Column<u64>,
+    pub(crate) accessor: AggregationValueSource,
     /// The field type of the fast field.
     pub(crate) field_type: ColumnType,
     /// The name of the aggregation.
@@ -489,9 +490,11 @@ impl<B: BucketIdSlot> SegmentAggregationCollector for SegmentHistogramCollector<
         let offset = req.offset;
         let get_bucket_pos = |val| get_bucket_pos_f64(val, interval, offset) as i64;
 
-        agg_data
-            .column_block_accessor
-            .fetch_block(docs, &req.accessor);
+        agg_data.column_block_accessor.fetch_source_block(
+            docs,
+            &req.accessor,
+            &mut agg_data.value_sources,
+        );
         // special path for nested buckets
         if let Some(sub_agg) = &mut self.sub_agg {
             for (doc, val) in agg_data.column_block_accessor.iter_docid_vals(docs) {
@@ -608,13 +611,15 @@ impl<B: BucketIdSlot> SegmentHistogramCollector<B> {
             .context
             .limits
             .add_memory_consumed(req_data.get_memory_consumption() as u64)?;
-        let dense_range = compute_dense_range(
-            &req_data.accessor,
-            req_data.field_type,
-            req_data.req.interval,
-            req_data.offset,
-            req_data.bounds,
-        );
+        let dense_range = req_data.accessor.physical().and_then(|column| {
+            compute_dense_range(
+                column,
+                req_data.field_type,
+                req_data.req.interval,
+                req_data.offset,
+                req_data.bounds,
+            )
+        });
         let sub_agg = sub_agg.map(BufferedSubAggs::new);
 
         Ok(Self {
@@ -689,9 +694,13 @@ fn normalize_histogram_req(req_data: &mut HistogramAggReqData) -> crate::Result<
     // per-term counts from the grid. Only this collect-time filter is touched — empty-bucket
     // emission reads `req.hard_bounds` directly (see `get_req_min_max`), and `hard_bounds` only
     // ever clips that range, so a wider-than-data bound leaves the result unchanged.
-    if req_data.req.hard_bounds.is_some() {
-        let col_min = f64_from_fastfield_u64(req_data.accessor.min_value(), req_data.field_type);
-        let col_max = f64_from_fastfield_u64(req_data.accessor.max_value(), req_data.field_type);
+    if let Some((min, max)) = req_data
+        .accessor
+        .bounds()
+        .filter(|_| req_data.req.hard_bounds.is_some())
+    {
+        let col_min = f64_from_fastfield_u64(min, req_data.field_type);
+        let col_max = f64_from_fastfield_u64(max, req_data.field_type);
         if col_min >= req_data.bounds.min && col_max <= req_data.bounds.max {
             req_data.bounds = HistogramBounds {
                 min: f64::MIN,
@@ -711,14 +720,19 @@ pub(crate) fn prepare_histogram_dense_range(
 ) -> crate::Result<Option<(HistogramAggReqData, DenseRange)>> {
     let mut req_data = agg_data.per_request.histogram_req_data[node.idx_in_req_data].clone();
     normalize_histogram_req(&mut req_data)?;
-    let dense_range = compute_dense_range(
-        &req_data.accessor,
+    let Some(physical_col) = req_data.accessor.physical() else {
+        return Ok(None);
+    };
+    let Some(dense_range) = compute_dense_range(
+        physical_col,
         req_data.field_type,
         req_data.req.interval,
         req_data.offset,
         req_data.bounds,
-    );
-    Ok(dense_range.map(|range| (req_data, range)))
+    ) else {
+        return Ok(None);
+    };
+    Ok(Some((req_data, dense_range)))
 }
 
 /// Builds a boxed histogram (or date histogram) segment collector, picking the bucket-id storage

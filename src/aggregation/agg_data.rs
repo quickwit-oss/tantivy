@@ -6,9 +6,10 @@ use rustc_hash::FxHashSet;
 use serde::Serialize;
 use tantivy_fst::Regex;
 
+use super::value_source::{AggregationValueSource, SegmentValueSources, VirtualColumns};
 use crate::aggregation::accessor_helpers::{
     get_all_ff_reader_or_empty, get_dynamic_columns, get_ff_reader, get_missing_val_as_u64_lenient,
-    get_numeric_or_date_column_types,
+    get_numeric_missing_val, get_numeric_or_date_column_types,
 };
 use crate::aggregation::agg_req::{Aggregation, AggregationVariants, Aggregations};
 use crate::aggregation::bucket::{
@@ -40,6 +41,7 @@ pub struct AggregationsSegmentCtx {
     pub(crate) per_request: PerRequestAggSegCtx,
     pub(crate) context: AggContextParams,
     pub(crate) column_block_accessor: ColumnBlockAccessor,
+    pub(crate) value_sources: SegmentValueSources,
 }
 
 impl AggregationsSegmentCtx {
@@ -296,7 +298,11 @@ pub(crate) fn build_segment_agg_collector(
             // because its empty Sparse(FxHashSet) costs nothing.
             let is_str = req_data.column_type == ColumnType::Str;
             let max_term_ord_inclusive = if is_str {
-                req_data.accessor.max_value()
+                req_data
+                    .accessor
+                    .physical()
+                    .expect("string source is physical")
+                    .max_value()
             } else {
                 0
             };
@@ -416,17 +422,36 @@ impl AggKind {
     }
 }
 
-/// Build AggregationsData by walking the request tree.
+/// Physical-only convenience used by the existing request-tree tests.
+#[cfg(test)]
 pub(crate) fn build_aggregations_data_from_req(
     aggs: &Aggregations,
     reader: &SegmentReader,
     segment_ordinal: SegmentOrdinal,
     context: AggContextParams,
 ) -> crate::Result<AggregationsSegmentCtx> {
+    build_aggregations_data_from_req_with_virtual_columns(
+        aggs,
+        reader,
+        segment_ordinal,
+        context,
+        &VirtualColumns::default(),
+    )
+}
+
+pub(crate) fn build_aggregations_data_from_req_with_virtual_columns(
+    aggs: &Aggregations,
+    reader: &SegmentReader,
+    segment_ordinal: SegmentOrdinal,
+    context: AggContextParams,
+    virtual_columns: &VirtualColumns,
+) -> crate::Result<AggregationsSegmentCtx> {
+    virtual_columns.validate_request(aggs)?;
     let mut data = AggregationsSegmentCtx {
         per_request: Default::default(),
         context,
         column_block_accessor: ColumnBlockAccessor::default(),
+        value_sources: SegmentValueSources::new(virtual_columns.clone(), reader)?,
     };
 
     for (name, agg) in aggs.iter() {
@@ -447,7 +472,7 @@ fn build_nodes(
     use AggregationVariants::*;
     match &req.agg {
         Range(range_req) => {
-            let (accessor, field_type) = get_ff_reader(
+            let (accessor, field_type) = data.value_sources.resolve(
                 reader,
                 &range_req.field,
                 Some(get_numeric_or_date_column_types()),
@@ -467,7 +492,7 @@ fn build_nodes(
             }])
         }
         Histogram(histo_req) => {
-            let (accessor, field_type) = get_ff_reader(
+            let (accessor, field_type) = data.value_sources.resolve(
                 reader,
                 &histo_req.field,
                 Some(get_numeric_or_date_column_types()),
@@ -492,8 +517,11 @@ fn build_nodes(
             }])
         }
         DateHistogram(date_req) => {
-            let (accessor, field_type) =
-                get_ff_reader(reader, &date_req.field, Some(&[ColumnType::DateTime]))?;
+            let (accessor, field_type) = data.value_sources.resolve(
+                reader,
+                &date_req.field,
+                Some(&[ColumnType::DateTime]),
+            )?;
             // Convert to histogram request, normalize to ns precision
             let mut histo_req = date_req.to_histogram_req()?;
             histo_req.normalize_date_time();
@@ -576,7 +604,9 @@ fn build_nodes(
                     ))
                 }
             };
-            let (accessor, field_type) = get_ff_reader(reader, field, allowed_column_types)?;
+            let (accessor, field_type) =
+                data.value_sources
+                    .resolve(reader, field, allowed_column_types)?;
             let idx_in_req_data = data.push_metric_req_data(MetricAggReqData {
                 accessor,
                 field_type,
@@ -599,7 +629,7 @@ fn build_nodes(
         // Percentiles handled as Metric as well
         AggregationVariants::Percentiles(percentiles_req) => {
             percentiles_req.validate()?;
-            let (accessor, field_type) = get_ff_reader(
+            let (accessor, field_type) = data.value_sources.resolve(
                 reader,
                 percentiles_req.field_name(),
                 Some(get_numeric_or_date_column_types()),
@@ -1037,6 +1067,51 @@ fn build_terms_or_cardinality_nodes(
 ) -> crate::Result<Vec<AggRefNode>> {
     let mut nodes = Vec::new();
 
+    if let Some((accessor, column_type)) = data.value_sources.resolve_virtual(reader, field_name)? {
+        let children = build_children(sub_aggs, reader, segment_ordinal, data)?;
+        let (idx_in_req_data, kind) = match req {
+            TermsOrCardinalityRequest::Terms(req) => {
+                // Numeric include/exclude follows the physical behavior: these are string filters.
+                if req.include.is_some() || req.exclude.is_some() {
+                    return Ok(nodes);
+                }
+                let idx = data.push_term_req_data(TermsAggReqData {
+                    accessor,
+                    column_type,
+                    str_dict_column: None,
+                    missing_value_for_accessor: None,
+                    name: agg_name.to_owned(),
+                    req: TermsAggregationInternal::from_req(&req),
+                    sub_aggregations: sub_aggs.clone(),
+                    allowed_term_ids: None,
+                    is_top_level,
+                });
+                (idx, AggKind::Terms)
+            }
+            TermsOrCardinalityRequest::Cardinality(req) => {
+                // Numeric missing conversion does not inspect the ordinal maximum.
+                let missing_value_for_accessor = match missing {
+                    Some(missing) => get_numeric_missing_val(column_type, missing, field_name)?,
+                    None => None,
+                };
+                let idx = data.push_cardinality_req_data(CardinalityAggReqData {
+                    accessor,
+                    column_type,
+                    str_dict_column: None,
+                    missing_value_for_accessor,
+                    name: agg_name.to_owned(),
+                    req,
+                });
+                (idx, AggKind::Cardinality)
+            }
+        };
+        return Ok(vec![AggRefNode {
+            kind,
+            idx_in_req_data,
+            children,
+        }]);
+    }
+
     let str_dict_column = reader.fast_fields().str(field_name)?;
 
     let include_bytes = matches!(req, TermsOrCardinalityRequest::Terms(_));
@@ -1117,7 +1192,7 @@ fn build_terms_or_cardinality_nodes(
                     )?;
                 };
                 let idx_in_req_data = data.push_term_req_data(TermsAggReqData {
-                    accessor,
+                    accessor: AggregationValueSource::Physical(accessor),
                     column_type,
                     str_dict_column: str_dict_column.clone(),
                     missing_value_for_accessor,
@@ -1141,7 +1216,7 @@ fn build_terms_or_cardinality_nodes(
                     None
                 };
                 let idx_in_req_data = data.push_cardinality_req_data(CardinalityAggReqData {
-                    accessor,
+                    accessor: AggregationValueSource::Physical(accessor),
                     column_type,
                     str_dict_column: str_dict_column_for_req,
                     missing_value_for_accessor,
