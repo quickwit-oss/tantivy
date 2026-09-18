@@ -158,23 +158,21 @@ impl MultiTermsFieldAccessor {
 
 /// Per-request data bundle passed to the segment collector.
 #[derive(Debug, Clone)]
-pub struct MultiTermsAggReqData {
+pub(crate) struct MultiTermsAggReqData {
     /// Aggregation name used to look up this entry in the result tree.
-    pub name: String,
+    pub(crate) name: String,
     /// Original request (needed for final-result conversion).
-    pub req: MultiTermsAggregation,
+    pub(crate) req: MultiTermsAggregation,
     /// One typed accessor per field listed in `req.terms`.
-    pub fields: Vec<MultiTermsFieldAccessor>,
+    pub(crate) fields: Vec<MultiTermsFieldAccessor>,
     /// Missing-value handling corresponding to `fields`. Only the designated physical accessor
     /// choice for each requested field carries `Some`, preventing duplicate missing buckets when
     /// type-specific collectors are merged.
-    pub missing_accessors: Vec<Option<MultiTermsMissingAccessor>>,
-    /// Sub-aggregation descriptor (empty when no sub-aggs).
-    pub sub_aggregations: Aggregations,
+    pub(crate) missing_accessors: Vec<Option<MultiTermsMissingAccessor>>,
     /// True if this multi_terms aggregation is at the top level of the aggregation tree
     /// (not nested). Used to gate the Vec/Paged packed-key storage tiers, which assume a
     /// bounded number of parent buckets (mirrors [`TermsAggReqData::is_top_level`]).
-    pub is_top_level: bool,
+    pub(crate) is_top_level: bool,
 }
 
 impl MultiTermsAggReqData {

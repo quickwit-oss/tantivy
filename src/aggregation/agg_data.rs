@@ -37,8 +37,8 @@ use crate::{SegmentOrdinal, SegmentReader};
 /// It is passed to the collectors during collection.
 pub struct AggregationsSegmentCtx {
     /// Request data for each aggregation type.
-    pub per_request: PerRequestAggSegCtx,
-    pub context: AggContextParams,
+    pub(crate) per_request: PerRequestAggSegCtx,
+    pub(crate) context: AggContextParams,
     pub(crate) column_block_accessor: ColumnBlockAccessor,
 }
 
@@ -115,28 +115,28 @@ impl AggregationsSegmentCtx {
 #[derive(Default)]
 pub struct PerRequestAggSegCtx {
     /// TermsAggReqData contains the request data for a terms aggregation.
-    pub term_req_data: Vec<TermsAggReqData>,
+    pub(crate) term_req_data: Vec<TermsAggReqData>,
     /// HistogramAggReqData contains the request data for a histogram aggregation.
-    pub histogram_req_data: Vec<HistogramAggReqData>,
+    pub(crate) histogram_req_data: Vec<HistogramAggReqData>,
     /// RangeAggReqData contains the request data for a range aggregation.
-    pub range_req_data: Vec<RangeAggReqData>,
+    pub(crate) range_req_data: Vec<RangeAggReqData>,
     /// FilterAggReqData contains the request data for a filter aggregation.
-    pub filter_req_data: Vec<FilterAggReqData>,
+    pub(crate) filter_req_data: Vec<FilterAggReqData>,
     /// Shared by avg, min, max, sum, stats, extended_stats, count
-    pub stats_metric_req_data: Vec<MetricAggReqData>,
+    pub(crate) stats_metric_req_data: Vec<MetricAggReqData>,
     /// CardinalityAggReqData contains the request data for a cardinality aggregation.
-    pub cardinality_req_data: Vec<CardinalityAggReqData>,
+    pub(crate) cardinality_req_data: Vec<CardinalityAggReqData>,
     /// TopHitsAggReqData contains the request data for a top_hits aggregation.
-    pub top_hits_req_data: Vec<TopHitsAggReqData>,
+    pub(crate) top_hits_req_data: Vec<TopHitsAggReqData>,
     /// MissingTermAggReqData contains the request data for a missing term aggregation.
-    pub missing_term_req_data: Vec<MissingTermAggReqData>,
+    pub(crate) missing_term_req_data: Vec<MissingTermAggReqData>,
     /// CompositeAggReqData contains the request data for a composite aggregation.
-    pub composite_req_data: Vec<CompositeAggReqData>,
+    pub(crate) composite_req_data: Vec<CompositeAggReqData>,
     /// MultiTermsAggReqData contains the request data for a multi_terms aggregation.
-    pub multi_terms_req_data: Vec<MultiTermsAggReqData>,
+    pub(crate) multi_terms_req_data: Vec<MultiTermsAggReqData>,
 
     /// Request tree used to build collectors.
-    pub agg_tree: Vec<AggRefNode>,
+    pub(crate) agg_tree: Vec<AggRefNode>,
 }
 
 impl PerRequestAggSegCtx {
@@ -690,7 +690,6 @@ fn build_nodes(
 
             let idx_in_req_data = data.push_filter_req_data(FilterAggReqData {
                 name: agg_name.to_string(),
-                req: filter_req.clone(),
                 segment_reader: reader.clone(),
                 evaluator,
                 is_top_level,
@@ -827,7 +826,6 @@ fn build_multi_terms_nodes(
             req: req.clone(),
             fields,
             missing_accessors,
-            sub_aggregations: sub_aggs.clone(),
             is_top_level,
         });
         let children = build_children(sub_aggs, reader, segment_ordinal, data)?;
@@ -1125,7 +1123,7 @@ fn build_terms_or_cardinality_nodes(
                     missing_value_for_accessor,
                     name: agg_name.to_string(),
                     req: TermsAggregationInternal::from_req(req),
-                    sug_aggregations: sub_aggs.clone(),
+                    sub_aggregations: sub_aggs.clone(),
                     allowed_term_ids,
                     is_top_level,
                 });
