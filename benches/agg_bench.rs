@@ -54,23 +54,46 @@ fn main() {
         bench_agg(&mut runner, &index, execute_filtered);
     }
 
-    bench_many_segments();
+    for num_segments in [100, 1_000] {
+        bench_many_segments(num_segments);
+    }
 }
 
-fn bench_many_segments() {
+fn bench_many_segments(num_segments: usize) {
     let mut runner = BenchRunner::new();
     runner.add_plugin(PeakMemAllocPlugin::new(GLOBAL));
-    let index = get_test_index_bench_with_num_segments(Cardinality::Full, 100).unwrap();
+    runner.config().set_num_iter_for_group(1);
+    let index = get_test_index_bench_with_num_segments(Cardinality::Full, num_segments).unwrap();
     let mut group = runner.new_group();
-    group.set_name("100_segments");
+    group.set_name(format!("{num_segments}_segments"));
+    let mut multi_terms_top500 = multi_terms_many_and_zipf_1000();
+    multi_terms_top500["mt"]["multi_terms"]["size"] = json!(500);
+    let mut nested_terms_top500 = nested_terms_many_and_zipf_1000();
+    // This limits outer buckets, unlike the global tuple limit for multi_terms.
+    nested_terms_top500["my_texts"]["terms"]["size"] = json!(500);
+    let reader = index.reader().unwrap();
+    let searcher = reader.searcher();
     for (benchmark_name, agg_req) in [
         ("terms_7", terms_on_field("text_few_terms_status")),
         ("terms_zipfs_1000", terms_on_field("text_1000_terms_zipf")),
         ("terms_150_000", terms_on_field("text_many_terms")),
         ("terms_all_unique", terms_on_field("text_all_unique_terms")),
+        benchmark_config!(nested_terms_status_and_zipf_1000),
+        benchmark_config!(multi_terms_status_and_zipf_1000),
+        benchmark_config!(nested_terms_many_and_zipf_1000),
+        benchmark_config!(multi_terms_many_and_zipf_1000),
+        (
+            "nested_terms_many_and_zipf_1000_top500",
+            nested_terms_top500,
+        ),
+        ("multi_terms_many_and_zipf_1000_top500", multi_terms_top500),
     ] {
-        group.register_with_input(benchmark_name, &index, move |index| {
-            execute_agg(index, agg_req.clone())
+        let searcher = searcher.clone();
+        group.register_with_input(benchmark_name, &(), move |_| {
+            let agg_req: Aggregations = serde_json::from_value(agg_req.clone()).unwrap();
+            let collector = get_collector(agg_req);
+
+            black_box(searcher.search(&AllQuery, &collector).unwrap());
         });
     }
     group.run();
