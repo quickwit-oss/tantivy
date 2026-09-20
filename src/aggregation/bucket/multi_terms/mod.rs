@@ -250,11 +250,8 @@ trait MultiTermsPacking: Clone + Debug + 'static {
     fn push_full_values<I>(&self, keys: &mut [Self::PackingType], field_idx: usize, values: I)
     where I: IntoIterator<Item = u64>;
 
-    fn unpack(
-        &self,
-        key: &Self::PackingType,
-        req_data: &MultiTermsAggReqData,
-    ) -> crate::Result<Vec<IntermediateKey>>;
+    /// Extract one field's raw value, allowing dictionary lookups to be batched by field.
+    fn unpack_value(&self, key: &Self::PackingType, field_idx: usize) -> u64;
 }
 
 #[derive(Clone, Debug)]
@@ -286,18 +283,8 @@ impl MultiTermsPacking for U64ArrayKeyPacking {
         }
     }
 
-    fn unpack(
-        &self,
-        key: &Self::PackingType,
-        req_data: &MultiTermsAggReqData,
-    ) -> crate::Result<Vec<IntermediateKey>> {
-        key.iter()
-            .zip(req_data.fields.iter())
-            .zip(req_data.missing_accessors.iter())
-            .map(|((value, field_acc), missing)| {
-                resolve_key_value(*value, field_acc, missing.as_ref())
-            })
-            .collect()
+    fn unpack_value(&self, key: &Self::PackingType, field_idx: usize) -> u64 {
+        key[field_idx]
     }
 }
 
@@ -330,20 +317,10 @@ impl MultiTermsPacking for PackedU64KeyPacking {
         }
     }
 
-    fn unpack(
-        &self,
-        key: &Self::PackingType,
-        req_data: &MultiTermsAggReqData,
-    ) -> crate::Result<Vec<IntermediateKey>> {
-        self.packs
-            .iter()
-            .zip(req_data.fields.iter())
-            .zip(req_data.missing_accessors.iter())
-            .map(|((pack, field), missing)| {
-                let offset = key.checked_shr(pack.shift).unwrap_or(0) & pack.mask;
-                resolve_key_value(offset + pack.min_value, field, missing.as_ref())
-            })
-            .collect()
+    fn unpack_value(&self, key: &Self::PackingType, field_idx: usize) -> u64 {
+        let pack = self.packs[field_idx];
+        let offset = key.checked_shr(pack.shift).unwrap_or(0) & pack.mask;
+        offset + pack.min_value
     }
 }
 
@@ -733,8 +710,8 @@ where
         let mut result_entries: FxHashMap<Vec<IntermediateKey>, IntermediateTermBucketEntry> =
             FxHashMap::with_capacity_and_hasher(entries.len(), Default::default());
 
-        for entry in entries {
-            let intermediate_key = packing.unpack(&entry.key, req_data)?;
+        let keys = resolve_bucket_keys(packing, &entries, req_data)?;
+        for (entry, intermediate_key) in entries.into_iter().zip(keys) {
             let mut sub_aggregation_res = IntermediateAggregationResults::default();
             if let Some(sub_agg_collector) = sub_agg_collector.as_deref_mut() {
                 sub_agg_collector.add_intermediate_aggregation_result(
@@ -1093,6 +1070,59 @@ where
         alive_docs: Vec::new(),
         doc_ids_per_partial_combination: Vec::new(),
     }))
+}
+
+/// Resolve only the retained candidates, batching string ordinals by field. Sorted lookups
+/// decode each dictionary block once and reuse decoded terms for repeated ordinals.
+fn resolve_bucket_keys<P: MultiTermsPacking, B>(
+    packing: &P,
+    entries: &[MultiTermsBucketEntry<P::PackingType, B>],
+    req_data: &MultiTermsAggReqData,
+) -> crate::Result<Vec<Vec<IntermediateKey>>> {
+    let mut keys: Vec<_> = (0..entries.len())
+        .map(|_| Vec::with_capacity(req_data.fields.len()))
+        .collect();
+    for (field_idx, (field, missing)) in req_data
+        .fields
+        .iter()
+        .zip(&req_data.missing_accessors)
+        .enumerate()
+    {
+        let mut ords_and_positions = Vec::new();
+        for (position, entry) in entries.iter().enumerate() {
+            let value = packing.unpack_value(&entry.key, field_idx);
+            if field.column_type == ColumnType::Str
+                && !missing.as_ref().is_some_and(|m| m.missing_value == value)
+            {
+                ords_and_positions.push((value, position));
+            } else {
+                keys[position].push(resolve_key_value(value, field, missing.as_ref())?);
+            }
+        }
+        if ords_and_positions.is_empty() {
+            continue;
+        }
+        ords_and_positions.sort_unstable();
+        let (ords, positions): (Vec<_>, Vec<_>) = ords_and_positions.into_iter().unzip();
+        let mut positions = positions.into_iter();
+        let fallback_dict = Dictionary::empty();
+        let dictionary = field
+            .str_dict_column
+            .as_ref()
+            .map(|column| column.dictionary())
+            .unwrap_or(&fallback_dict);
+        let all_found = dictionary.sorted_ords_to_term_cb(&ords, |term| {
+            keys[positions.next().unwrap()].push(IntermediateKey::Str(
+                String::from_utf8(term.to_vec()).expect("term dict returned non-UTF-8"),
+            ));
+        })?;
+        if !all_found {
+            return Err(TantivyError::InternalError(
+                "multi_terms string ordinal not found in dictionary".to_string(),
+            ));
+        }
+    }
+    Ok(keys)
 }
 
 /// Resolve one raw fast-field value, recognizing the configured missing encoding first.
