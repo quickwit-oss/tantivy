@@ -1,3 +1,4 @@
+use std::collections::hash_map::Entry;
 use std::fmt::Debug;
 use std::net::Ipv6Addr;
 use std::sync::Arc;
@@ -724,12 +725,12 @@ where
             // Distinct encoded keys can resolve to the same public key (for example a synthetic
             // missing string and a real date). Merge rather than overwriting either contribution.
             match result_entries.entry(intermediate_key) {
-                std::collections::hash_map::Entry::Occupied(mut occupied) => {
+                Entry::Occupied(mut occupied) => {
                     let existing = occupied.get_mut();
                     existing.doc_count += doc_count;
                     existing.sub_aggregation.merge_fruits(sub_aggregation_res)?;
                 }
-                std::collections::hash_map::Entry::Vacant(vacant) => {
+                Entry::Vacant(vacant) => {
                     vacant.insert(IntermediateTermBucketEntry {
                         doc_count,
                         sub_aggregation: sub_aggregation_res,
@@ -1360,86 +1361,99 @@ impl IntermediateMultiTermsBucketResult {
 
         let req = MultiTermsAggregationInternal::from_req(req);
 
-        let mut buckets: Vec<MultiTermsBucketEntry> = self
-            .entries
-            .into_iter()
-            .filter(|(_, e)| e.doc_count >= req.min_doc_count)
-            .map(|(key_vec, entry)| {
-                let key_as_string = key_vec
-                    .iter()
-                    .map(|k| match k {
-                        // Bool keys need special-casing: `Key` form is numeric (1/0),  but
-                        // `key_as_string` must still carry the "true"/"false" string form.
-                        IntermediateKey::Bool(b) => b.to_string(),
-                        other => Key::from(other.clone()).to_string(),
-                    })
-                    .collect::<Vec<_>>()
-                    .join("|");
-                let keys: Vec<Key> = key_vec.into_iter().map(Key::from).collect();
-                Ok(MultiTermsBucketEntry {
-                    key_as_string,
-                    key: keys,
-                    doc_count: entry.doc_count,
-                    sub_aggregation: entry
-                        .sub_aggregation
-                        .into_final_result_internal(sub_aggregation_req, limits)?,
-                })
-            })
-            .collect::<crate::Result<_>>()?;
+        let mut entries = Vec::with_capacity(self.entries.len());
+        entries.extend(
+            self.entries
+                .into_iter()
+                .filter(|(_, e)| e.doc_count >= req.min_doc_count),
+        );
 
-        // Sort by order.
+        // Select the final buckets before formatting keys or finalizing their sub-aggregations.
         match &req.order.target {
             OrderTarget::Count => {
                 if req.order.order == Order::Desc {
-                    buckets.sort_unstable_by_key(|b| std::cmp::Reverse(b.doc_count));
+                    entries.sort_unstable_by_key(|(_, entry)| std::cmp::Reverse(entry.doc_count));
                 } else {
-                    buckets.sort_unstable_by_key(|b| b.doc_count);
+                    entries.sort_unstable_by_key(|(_, entry)| entry.doc_count);
                 }
             }
             OrderTarget::Key => {
-                buckets.sort_by(|left, right| {
-                    let cmp = left
-                        .key
-                        .iter()
-                        .zip(right.key.iter())
-                        .find_map(|(l, r)| {
-                            let c = l.partial_cmp(r)?;
-                            if c != std::cmp::Ordering::Equal {
-                                Some(c)
-                            } else {
-                                None
-                            }
-                        })
-                        .unwrap_or(std::cmp::Ordering::Equal);
-                    if req.order.order == Order::Asc {
-                        cmp
-                    } else {
-                        cmp.reverse()
-                    }
-                });
+                // Final keys have different ordering from intermediate keys (e.g. IPs are
+                // strings and bools are u64s). Cache the conversion rather than cloning per
+                // comparison.
+                let key = |(key_vec, _): &(Vec<IntermediateKey>, IntermediateTermBucketEntry)| {
+                    key_vec.iter().cloned().map(Key::from).collect::<Vec<_>>()
+                };
+                if req.order.order == Order::Asc {
+                    entries.sort_by_cached_key(key);
+                } else {
+                    entries.sort_by_cached_key(|entry| std::cmp::Reverse(key(entry)));
+                }
             }
             OrderTarget::SubAggregation(name) => {
                 let (agg_name, agg_property) = get_agg_name_and_property(name);
-                let mut buckets_with_val = buckets
+                let mut entries_with_val = entries
                     .into_iter()
-                    .map(|bucket| {
-                        let val = bucket
+                    .map(|entry| {
+                        let sub_req = sub_aggregation_req.get(agg_name).ok_or_else(|| {
+                            TantivyError::InternalError(format!(
+                                "Can't find aggregation {agg_name:?} in sub-aggregations"
+                            ))
+                        })?;
+                        // Only finalize the ordering metric. Its final value can differ from
+                        // the intermediate value, e.g. an empty sum defaults to zero.
+                        let metric = entry
+                            .1
                             .sub_aggregation
+                            .aggs_res
+                            .get(agg_name)
+                            .cloned()
+                            .unwrap_or_else(|| {
+                                crate::aggregation::intermediate_agg_result::empty_from_req(sub_req)
+                            });
+                        let val = metric
+                            .into_final_result(sub_req, limits)?
                             .get_value_from_aggregation(agg_name, agg_property)?
                             .unwrap_or(f64::MIN);
-                        Ok((bucket, val))
+                        Ok((entry, val))
                     })
                     .collect::<crate::Result<Vec<_>>>()?;
-                buckets_with_val.sort_by(|(_, v1), (_, v2)| match req.order.order {
+                entries_with_val.sort_by(|(_, v1), (_, v2)| match req.order.order {
                     Order::Desc => v2.total_cmp(v1),
                     Order::Asc => v1.total_cmp(v2),
                 });
-                buckets = buckets_with_val.into_iter().map(|(b, _)| b).collect();
+                entries = entries_with_val
+                    .into_iter()
+                    .map(|(entry, _)| entry)
+                    .collect();
             }
         }
 
         let (_before_cutoff, sum_other_from_final) =
-            cut_off_buckets(&mut buckets, req.size as usize, None);
+            cut_off_buckets(&mut entries, req.size as usize, None);
+
+        let mut buckets = Vec::with_capacity(entries.len());
+        for (key_vec, entry) in entries {
+            let key_as_string = key_vec
+                .iter()
+                .map(|k| match k {
+                    // Bool keys need special-casing: `Key` form is numeric (1/0), but
+                    // `key_as_string` must still carry the "true"/"false" string form.
+                    IntermediateKey::Bool(b) => b.to_string(),
+                    other => Key::from(other.clone()).to_string(),
+                })
+                .collect::<Vec<_>>()
+                .join("|");
+            let keys: Vec<Key> = key_vec.into_iter().map(Key::from).collect();
+            buckets.push(MultiTermsBucketEntry {
+                key_as_string,
+                key: keys,
+                doc_count: entry.doc_count,
+                sub_aggregation: entry
+                    .sub_aggregation
+                    .into_final_result_internal(sub_aggregation_req, limits)?,
+            });
+        }
 
         let doc_count_error_upper_bound = if req.show_term_doc_count_error {
             Some(self.doc_count_error_upper_bound)
@@ -1582,6 +1596,63 @@ mod tests {
     }
 
     #[test]
+    fn test_multi_terms_final_key_order() -> crate::Result<()> {
+        let keys = [
+            IntermediateKey::IpAddr("::ffff:10.0.0.2".parse().unwrap()),
+            IntermediateKey::IpAddr("::ffff:10.0.0.10".parse().unwrap()),
+            IntermediateKey::Str("0".to_string()),
+            IntermediateKey::Bool(false),
+            IntermediateKey::I64(-1),
+            IntermediateKey::U64(2),
+            IntermediateKey::F64(1.5),
+        ];
+        let expected = ["0", "10.0.0.10", "10.0.0.2", "-1", "false", "2", "1.5"];
+        for order in ["asc", "desc"] {
+            let req = serde_json::from_value(json!({
+                "terms": [{"field": "value"}],
+                "size": 6,
+                "order": {"_key": order}
+            }))?;
+            let intermediate = IntermediateMultiTermsBucketResult {
+                entries: keys
+                    .iter()
+                    .cloned()
+                    .map(|key| {
+                        (
+                            vec![key],
+                            IntermediateTermBucketEntry {
+                                doc_count: 1,
+                                sub_aggregation: Default::default(),
+                            },
+                        )
+                    })
+                    .collect(),
+                ..Default::default()
+            };
+            let result = intermediate.into_final_result(
+                &req,
+                &Default::default(),
+                &mut Default::default(),
+            )?;
+            let result = serde_json::to_value(result)?;
+            let actual: Vec<_> = result["buckets"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .map(|bucket| bucket["key_as_string"].as_str().unwrap())
+                .collect();
+            let mut expected = expected.to_vec();
+            if order == "desc" {
+                expected.reverse();
+            }
+            expected.truncate(6);
+            assert_eq!(actual, expected);
+            assert_eq!(result["sum_other_doc_count"], 1);
+        }
+        Ok(())
+    }
+
+    #[test]
     fn test_multi_terms_min_doc_count() -> crate::Result<()> {
         let index = build_two_field_index(
             &[("rock", Some("A")), ("rock", Some("A")), ("pop", Some("A"))],
@@ -1631,7 +1702,7 @@ mod tests {
         let buckets = res["mt"]["buckets"].as_array().unwrap();
         assert_eq!(buckets.len(), 2);
         assert_eq!(buckets[0]["key_as_string"], "rock|A");
-        assert!(res["mt"]["sum_other_doc_count"].as_u64().unwrap() > 0);
+        assert_eq!(res["mt"]["sum_other_doc_count"], 1);
         Ok(())
     }
 
@@ -2734,7 +2805,7 @@ mod tests {
     }
 
     #[test]
-    fn test_multi_terms_missing_subagg_value_sorts_last_at_segment_cutoff() -> crate::Result<()> {
+    fn test_multi_terms_missing_subagg_value_at_cutoff() -> crate::Result<()> {
         let mut schema_builder = Schema::builder();
         let genre_field = schema_builder.add_text_field("genre", STRING | FAST);
         let product_field = schema_builder.add_text_field("product", STRING | FAST);
@@ -2751,23 +2822,33 @@ mod tests {
             writer.commit()?;
         }
 
-        let agg_req: Aggregations = serde_json::from_value(json!({
-            "mt": {
-                "multi_terms": {
-                    "terms": [{"field": "genre"}, {"field": "product"}],
-                    "size": 1,
-                    "segment_size": 1,
-                    "order": {"avg_delta": "desc"}
-                },
-                "aggs": {
-                    "avg_delta": {"avg": {"field": "delta"}}
+        for (metric, segment_size, expected) in [
+            (json!({"avg": {"field": "delta"}}), 1, "rock|A"),
+            (json!({"avg": {"field": "delta"}}), 2, "rock|A"),
+            // At final cutoff, an empty sum is zero unless none_if_no_match is set.
+            (json!({"sum": {"field": "delta"}}), 2, "rock|B"),
+            (
+                json!({"sum": {"field": "delta", "none_if_no_match": true}}),
+                2,
+                "rock|A",
+            ),
+        ] {
+            let agg_req: Aggregations = serde_json::from_value(json!({
+                "mt": {
+                    "multi_terms": {
+                        "terms": [{"field": "genre"}, {"field": "product"}],
+                        "size": 1,
+                        "segment_size": segment_size,
+                        "order": {"metric": "desc"}
+                    },
+                    "aggs": {"metric": metric}
                 }
-            }
-        }))?;
-        let res = exec_request(agg_req, &index)?;
-        let buckets = res["mt"]["buckets"].as_array().unwrap();
-        assert_eq!(buckets.len(), 1);
-        assert_eq!(buckets[0]["key_as_string"], "rock|A");
+            }))?;
+            let res = exec_request(agg_req, &index)?;
+            let buckets = res["mt"]["buckets"].as_array().unwrap();
+            assert_eq!(buckets.len(), 1);
+            assert_eq!(buckets[0]["key_as_string"], expected);
+        }
         Ok(())
     }
 
