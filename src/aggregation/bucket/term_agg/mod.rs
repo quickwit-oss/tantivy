@@ -1333,11 +1333,18 @@ where
 
         if term_req.column_type == ColumnType::Str {
             let fallback_dict = Dictionary::empty();
-            let term_dict = term_req
-                .str_dict_column
-                .as_ref()
-                .map(|el| el.dictionary())
-                .unwrap_or_else(|| &fallback_dict);
+            let term_dict = match term_req.str_dict_column.as_ref() {
+                Some(column) => column
+                    .as_dictionary_encoded()
+                    .ok_or_else(|| {
+                        TantivyError::InvalidArgument(
+                            "terms aggregation on plain string fast fields is not implemented yet"
+                                .to_string(),
+                        )
+                    })?
+                    .dictionary(),
+                None => &fallback_dict,
+            };
 
             // Collect into a map to dedup by key, then flush into `out`. Two cases need it: a real
             // term may equal the `missing` placeholder, and the min_doc_count==0 fill must skip

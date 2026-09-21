@@ -453,6 +453,13 @@ impl PrecomputedAfterKey {
         let dict = str_dict_column
             .as_ref()
             .expect("dictionary missing for str accessor")
+            .as_dictionary_encoded()
+            .ok_or_else(|| {
+                TantivyError::InvalidArgument(
+                    "composite aggregation on plain string fast fields is not implemented yet"
+                        .to_string(),
+                )
+            })?
             .dictionary();
         let next_ord = dict.term_ord_or_next(key).map_err(|_| {
             TantivyError::InvalidArgument(format!(

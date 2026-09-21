@@ -1,6 +1,7 @@
 use std::borrow::Cow;
 use std::ops::BitOr;
 
+use columnar::PayloadEncoding;
 use serde::{Deserialize, Serialize};
 
 use super::flags::{CoerceFlag, FastFlag};
@@ -26,16 +27,45 @@ pub struct TextOptions {
 }
 
 /// Options controlling how a text fast field is tokenized.
-#[derive(Clone, Debug, PartialEq)]
-pub(crate) struct FastFieldTextOptions {
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+pub struct FastFieldTextOptions {
+    /// Tokenizer applied before values are stored in the fast field.
     pub tokenizer: String,
+    /// Encoding used to store the resulting values.
+    #[serde(default)]
+    pub encoding: PayloadEncoding,
 }
 
 impl Default for FastFieldTextOptions {
     fn default() -> Self {
         FastFieldTextOptions {
             tokenizer: RAW_TOKENIZER_NAME.to_string(),
+            encoding: PayloadEncoding::Dictionary,
         }
+    }
+}
+
+impl FastFieldTextOptions {
+    /// Creates text fast-field options with the given tokenizer and payload encoding.
+    pub fn new(tokenizer: impl ToString, encoding: PayloadEncoding) -> Self {
+        FastFieldTextOptions {
+            tokenizer: tokenizer.to_string(),
+            encoding,
+        }
+    }
+
+    /// Sets the tokenizer used by the text fast field.
+    #[must_use]
+    pub fn set_tokenizer(mut self, tokenizer: impl ToString) -> Self {
+        self.tokenizer = tokenizer.to_string();
+        self
+    }
+
+    /// Sets the payload encoding used by the text fast field.
+    #[must_use]
+    pub fn set_encoding(mut self, encoding: PayloadEncoding) -> Self {
+        self.encoding = encoding;
+        self
     }
 }
 
@@ -43,10 +73,26 @@ pub(super) fn merge_fast_field_options(
     left: Option<FastFieldTextOptions>,
     right: Option<FastFieldTextOptions>,
 ) -> Option<FastFieldTextOptions> {
-    // A configured tokenizer takes precedence over the implicit raw tokenizer.
     match (left, right) {
-        (Some(left), Some(right)) if left.tokenizer == RAW_TOKENIZER_NAME => Some(right),
-        (Some(left), _) => Some(left),
+        (Some(left), Some(right)) => {
+            // Merge tokenizer and encoding independently. This ensures that an implicit
+            // dictionary setting from FAST cannot overwrite an explicit plain encoding.
+            let tokenizer = if left.tokenizer == RAW_TOKENIZER_NAME {
+                right.tokenizer
+            } else {
+                left.tokenizer
+            };
+            let encoding = if left.encoding == PayloadEncoding::Dictionary {
+                right.encoding
+            } else {
+                left.encoding
+            };
+            Some(FastFieldTextOptions {
+                tokenizer,
+                encoding,
+            })
+        }
+        (Some(left), None) => Some(left),
         (None, right) => right,
     }
 }
@@ -54,13 +100,21 @@ pub(super) fn merge_fast_field_options(
 pub(super) mod fast_field_text_options_serde {
     use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
-    use super::{FastFieldTextOptions, RAW_TOKENIZER_NAME};
+    use super::{FastFieldTextOptions, PayloadEncoding, RAW_TOKENIZER_NAME};
+
+    fn is_dictionary(encoding: &PayloadEncoding) -> bool {
+        *encoding == PayloadEncoding::Dictionary
+    }
 
     #[derive(Serialize, Deserialize)]
     #[serde(untagged)]
     enum WireFormat {
         IsEnabled(bool),
-        EnabledWithTokenizer { with_tokenizer: String },
+        EnabledWithTokenizer {
+            with_tokenizer: String,
+            #[serde(default, skip_serializing_if = "is_dictionary")]
+            encoding: PayloadEncoding,
+        },
     }
 
     pub fn serialize<S>(
@@ -72,11 +126,15 @@ pub(super) mod fast_field_text_options_serde {
     {
         let wire_format = match fast_field_options {
             None => WireFormat::IsEnabled(false),
-            Some(fast_field_options) if fast_field_options.tokenizer == RAW_TOKENIZER_NAME => {
+            Some(fast_field_options)
+                if fast_field_options.tokenizer == RAW_TOKENIZER_NAME
+                    && fast_field_options.encoding == PayloadEncoding::Dictionary =>
+            {
                 WireFormat::IsEnabled(true)
             }
             Some(fast_field_options) => WireFormat::EnabledWithTokenizer {
                 with_tokenizer: fast_field_options.tokenizer.clone(),
+                encoding: fast_field_options.encoding,
             },
         };
         wire_format.serialize(serializer)
@@ -88,8 +146,12 @@ pub(super) mod fast_field_text_options_serde {
         match wire_format {
             WireFormat::IsEnabled(false) => Ok(None),
             WireFormat::IsEnabled(true) => Ok(Some(FastFieldTextOptions::default())),
-            WireFormat::EnabledWithTokenizer { with_tokenizer } => Ok(Some(FastFieldTextOptions {
+            WireFormat::EnabledWithTokenizer {
+                with_tokenizer,
+                encoding,
+            } => Ok(Some(FastFieldTextOptions {
                 tokenizer: with_tokenizer,
+                encoding,
             })),
         }
     }
@@ -127,6 +189,12 @@ impl TextOptions {
             .map(|fast_field_options| fast_field_options.tokenizer.as_str())
     }
 
+    /// Returns the text fast-field options, if this is a fast field.
+    #[inline]
+    pub fn get_fast_field_options(&self) -> Option<&FastFieldTextOptions> {
+        self.fast.as_ref()
+    }
+
     /// Returns true if values should be coerced to strings (numbers, null).
     #[inline]
     pub fn should_coerce(&self) -> bool {
@@ -152,7 +220,17 @@ impl TextOptions {
     #[must_use]
     pub fn set_fast(mut self, tokenizer_name: impl ToString) -> TextOptions {
         let tokenizer = tokenizer_name.to_string();
-        self.fast = Some(FastFieldTextOptions { tokenizer });
+        self.fast = Some(FastFieldTextOptions {
+            tokenizer,
+            encoding: PayloadEncoding::Dictionary,
+        });
+        self
+    }
+
+    /// Sets the field as a fast field using the supplied tokenizer and payload encoding.
+    #[must_use]
+    pub fn set_fast_with_options(mut self, options: FastFieldTextOptions) -> TextOptions {
+        self.fast = Some(options);
         self
     }
 
@@ -349,6 +427,7 @@ where
 mod tests {
     use crate::schema::text_options::FastFieldTextOptions;
     use crate::schema::*;
+    use crate::tokenizer::RAW_TOKENIZER_NAME;
 
     #[test]
     fn test_field_options() {
@@ -394,6 +473,27 @@ mod tests {
     }
 
     #[test]
+    fn test_fast_field_options_composition_preserves_plain_encoding() {
+        let plain_options = TextOptions::default().set_fast_with_options(
+            FastFieldTextOptions::default().set_encoding(PayloadEncoding::Plain),
+        );
+        let tokenized_options = TextOptions::default().set_fast("default");
+
+        for options in [
+            plain_options.clone() | tokenized_options.clone(),
+            tokenized_options | plain_options,
+        ] {
+            assert_eq!(
+                options.get_fast_field_options(),
+                Some(&FastFieldTextOptions::new(
+                    "default",
+                    PayloadEncoding::Plain
+                ))
+            );
+        }
+    }
+
+    #[test]
     fn serde_default_test() {
         let json = r#"
         {
@@ -423,7 +523,8 @@ mod tests {
         assert_eq!(
             options.fast,
             Some(FastFieldTextOptions {
-                tokenizer: "default".to_string()
+                tokenizer: "default".to_string(),
+                encoding: PayloadEncoding::Dictionary,
             })
         );
         let serialized = serde_json::to_value(&options).unwrap();
@@ -435,7 +536,8 @@ mod tests {
         assert_eq!(
             options.fast,
             Some(FastFieldTextOptions {
-                tokenizer: "default".to_string()
+                tokenizer: "default".to_string(),
+                encoding: PayloadEncoding::Dictionary,
             })
         );
 
@@ -446,7 +548,8 @@ mod tests {
         assert_eq!(
             options.fast,
             Some(FastFieldTextOptions {
-                tokenizer: "raw".to_string()
+                tokenizer: "raw".to_string(),
+                encoding: PayloadEncoding::Dictionary,
             })
         );
         let serialized = serde_json::to_value(&options).unwrap();
@@ -455,7 +558,8 @@ mod tests {
         assert_eq!(
             options.fast,
             Some(FastFieldTextOptions {
-                tokenizer: "raw".to_string()
+                tokenizer: "raw".to_string(),
+                encoding: PayloadEncoding::Dictionary,
             })
         );
 
@@ -468,5 +572,41 @@ mod tests {
         assert_eq!(serialized["fast"], serde_json::json!(false));
         let options: TextOptions = serde_json::from_value(serialized).unwrap();
         assert_eq!(options.fast, None);
+    }
+
+    #[test]
+    fn serde_plain_fast_field_options() {
+        let options = TextOptions::default().set_fast_with_options(FastFieldTextOptions::new(
+            RAW_TOKENIZER_NAME,
+            PayloadEncoding::Plain,
+        ));
+        let serialized = serde_json::to_value(&options).unwrap();
+        assert_eq!(
+            serialized["fast"],
+            serde_json::json!({
+                "with_tokenizer": "raw",
+                "encoding": "plain"
+            })
+        );
+        assert_eq!(
+            serde_json::from_value::<TextOptions>(serialized).unwrap(),
+            options
+        );
+    }
+
+    #[test]
+    fn fast_field_text_options_default_to_dictionary_encoding() {
+        assert_eq!(
+            FastFieldTextOptions::default().encoding,
+            PayloadEncoding::Dictionary
+        );
+        assert_eq!(
+            TextOptions::default()
+                .set_fast(RAW_TOKENIZER_NAME)
+                .get_fast_field_options()
+                .unwrap()
+                .encoding,
+            PayloadEncoding::Dictionary
+        );
     }
 }

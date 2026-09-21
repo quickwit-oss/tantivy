@@ -528,7 +528,6 @@ impl CompactSpaceDecompressor {
 
 #[cfg(test)]
 mod tests {
-
     use itertools::Itertools;
 
     use super::*;

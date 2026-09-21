@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 
 use super::text_options::{merge_fast_field_options, FastFieldTextOptions};
 use crate::schema::flags::{FastFlag, SchemaFlagList, StoredFlag};
-use crate::schema::{TextFieldIndexing, TextOptions};
+use crate::schema::{PayloadEncoding, TextFieldIndexing, TextOptions};
 
 /// The `JsonObjectOptions` make it possible to
 /// configure how a json object field should be indexed and stored.
@@ -75,6 +75,12 @@ impl JsonObjectOptions {
             .map(|fast_field_options| fast_field_options.tokenizer.as_str())
     }
 
+    /// Returns the text fast-field options used by string subcolumns.
+    #[inline]
+    pub fn get_fast_field_options(&self) -> Option<&FastFieldTextOptions> {
+        self.fast.as_ref()
+    }
+
     /// Returns `true` iff dots in json keys should be expanded.
     ///
     /// When expand_dots is enabled, json object like
@@ -133,7 +139,17 @@ impl JsonObjectOptions {
     #[must_use]
     pub fn set_fast(mut self, tokenizer_name: impl ToString) -> Self {
         let tokenizer = tokenizer_name.to_string();
-        self.fast = Some(FastFieldTextOptions { tokenizer });
+        self.fast = Some(FastFieldTextOptions {
+            tokenizer,
+            encoding: PayloadEncoding::Dictionary,
+        });
+        self
+    }
+
+    /// Sets the field as a fast field using the supplied string-subcolumn options.
+    #[must_use]
+    pub fn set_fast_with_options(mut self, options: FastFieldTextOptions) -> Self {
+        self.fast = Some(options);
         self
     }
 
@@ -264,5 +280,36 @@ mod tests {
             serde_json::to_value(enabled).unwrap()["fast"],
             serde_json::json!(true)
         );
+    }
+
+    #[test]
+    fn test_plain_fast_serde() {
+        let options = JsonObjectOptions::default().set_fast_with_options(
+            FastFieldTextOptions::new(RAW_TOKENIZER_NAME, PayloadEncoding::Plain),
+        );
+        let serialized = serde_json::to_value(&options).unwrap();
+        assert_eq!(
+            serialized["fast"],
+            serde_json::json!({
+                "with_tokenizer": "raw",
+                "encoding": "plain"
+            })
+        );
+        assert_eq!(
+            serde_json::from_value::<JsonObjectOptions>(serialized).unwrap(),
+            options
+        );
+    }
+
+    #[test]
+    fn test_fast_flag_does_not_override_plain_encoding() {
+        let plain = JsonObjectOptions::default()
+            .set_fast_with_options(FastFieldTextOptions::new("default", PayloadEncoding::Plain));
+        for options in [plain.clone() | FAST, JsonObjectOptions::from(FAST) | plain] {
+            assert_eq!(
+                options.get_fast_field_options().unwrap(),
+                &FastFieldTextOptions::new("default", PayloadEncoding::Plain)
+            );
+        }
     }
 }
