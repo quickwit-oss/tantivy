@@ -10,7 +10,8 @@ use std::io::{self, Write};
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, RwLock};
 
-use binggan::{black_box, BenchRunner};
+use binggan::plugins::PeakMemAllocPlugin;
+use binggan::{black_box, BenchRunner, PeakMemAlloc, INSTRUMENTED_SYSTEM};
 use rand::prelude::*;
 use rand::rngs::StdRng;
 use rand::SeedableRng;
@@ -20,8 +21,11 @@ use tantivy::directory::{
     WritePtr,
 };
 use tantivy::indexer::{merge_filtered_segments, NoMergePolicy};
-use tantivy::schema::{Schema, TEXT};
-use tantivy::{doc, HasLen, Index, IndexSettings, Segment};
+use tantivy::schema::{Schema, FAST, TEXT};
+use tantivy::{doc, HasLen, Index, IndexSettings, IndexSortByField, Order, Segment};
+
+#[global_allocator]
+static GLOBAL: &PeakMemAlloc<std::alloc::System> = &INSTRUMENTED_SYSTEM;
 
 #[derive(Clone, Default, Debug)]
 struct NullDirectory {
@@ -196,6 +200,94 @@ fn build_index(
     }
 }
 
+/// Same workload as [`build_index`], with documents sorted by a fast `u64` field.
+///
+/// Sort keys are handed out round-robin across segments (`row * num_segments + segment`),
+/// so the merged doc ids interleave and the postings merge takes the shuffled path.
+fn build_sorted_index(
+    num_segments: usize,
+    docs_per_segment: usize,
+    tokens_per_doc: usize,
+    vocab_size: usize,
+) -> MergeScenario {
+    let mut schema_builder = Schema::builder();
+    let body = schema_builder.add_text_field("body", TEXT);
+    let sort = schema_builder.add_u64_field("sort", FAST);
+    let schema = schema_builder.build();
+    let index = Index::builder()
+        .schema(schema)
+        .settings(IndexSettings {
+            sort_by_field: Some(IndexSortByField {
+                field: "sort".into(),
+                order: Order::Asc,
+            }),
+            ..Default::default()
+        })
+        .create_in_ram()
+        .unwrap();
+
+    assert!(vocab_size > 0);
+    let total_tokens = num_segments * docs_per_segment * tokens_per_doc;
+    let use_unique_terms = vocab_size >= total_tokens;
+    let mut rng = StdRng::from_seed([7u8; 32]);
+    let mut next_token_id: u64 = 0;
+
+    {
+        let mut writer = index.writer_with_num_threads(1, 256_000_000).unwrap();
+        writer.set_merge_policy(Box::new(NoMergePolicy));
+        for segment in 0..num_segments {
+            for row in 0..docs_per_segment {
+                let mut tokens = Vec::with_capacity(tokens_per_doc);
+                for _ in 0..tokens_per_doc {
+                    let token_id = if use_unique_terms {
+                        let id = next_token_id;
+                        next_token_id += 1;
+                        id
+                    } else {
+                        rng.random_range(0..vocab_size as u64)
+                    };
+                    tokens.push(format!("term_{token_id}"));
+                }
+                let sort_key = (row * num_segments + segment) as u64;
+                writer
+                    .add_document(doc!(body => tokens.join(" "), sort => sort_key))
+                    .unwrap();
+            }
+            writer.commit().unwrap();
+        }
+    }
+
+    let segments = index.searchable_segments().unwrap();
+    let settings = index.settings().clone();
+    let label = format!(
+        "segments={}, docs/seg={}, tokens/doc={}, vocab={}",
+        num_segments, docs_per_segment, tokens_per_doc, vocab_size
+    );
+
+    MergeScenario {
+        index,
+        segments,
+        settings,
+        label,
+    }
+}
+
+fn bench_merge(runner: &mut BenchRunner, group_name: String, scenario: MergeScenario) {
+    let mut group = runner.new_group();
+    group.set_name(group_name);
+    let segments = scenario.segments.clone();
+    let settings = scenario.settings.clone();
+    group.register("merge", move |_| {
+        let output_dir = NullDirectory::default();
+        let filter_doc_ids = vec![None; segments.len()];
+        let merged_index =
+            merge_filtered_segments(&segments, settings.clone(), filter_doc_ids, output_dir)
+                .unwrap();
+        black_box(merged_index);
+    });
+    group.run();
+}
+
 fn main() {
     let scenarios = vec![
         build_index(8, 50_000, 12, 8),
@@ -205,20 +297,21 @@ fn main() {
     ];
 
     let mut runner = BenchRunner::new();
+    runner.add_plugin(PeakMemAllocPlugin::new(GLOBAL));
     for scenario in scenarios {
-        let mut group = runner.new_group();
-        group.set_name(format!("merge_segments inv_index — {}", scenario.label));
-        let segments = scenario.segments.clone();
-        let settings = scenario.settings.clone();
-        group.register("merge", move |_| {
-            let output_dir = NullDirectory::default();
-            let filter_doc_ids = vec![None; segments.len()];
-            let merged_index =
-                merge_filtered_segments(&segments, settings.clone(), filter_doc_ids, output_dir)
-                    .unwrap();
-            black_box(merged_index);
-        });
+        let name = format!("merge_segments inv_index — {}", scenario.label);
+        bench_merge(&mut runner, name, scenario);
+    }
 
-        group.run();
+    let sorted_scenarios = vec![
+        build_sorted_index(8, 50_000, 12, 8),
+        build_sorted_index(16, 50_000, 12, 8),
+        build_sorted_index(16, 100_000, 12, 8),
+        build_sorted_index(8, 50_000, 8, 8 * 50_000 * 8),
+    ];
+
+    for scenario in sorted_scenarios {
+        let name = format!("merge_segments sorted inv_index — {}", scenario.label);
+        bench_merge(&mut runner, name, scenario);
     }
 }
