@@ -55,7 +55,7 @@ fn sorted_merge_preserves_postings_with_deletes_and_missing_sort_keys() -> tanti
             writer.commit()?;
             let ids = index.searchable_segment_ids()?;
             assert_eq!(ids.len(), 3);
-            writer.merge_foreground(&ids, true)?;
+            writer.merge(&ids).wait()?;
             let reader = index.reader()?;
             let searcher = reader.searcher();
             assert_eq!(searcher.segment_readers().len(), 1);
