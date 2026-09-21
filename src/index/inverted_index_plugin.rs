@@ -17,7 +17,7 @@ use measure_time::debug_time;
 use tokenizer_api::BoxTokenStream;
 
 use crate::directory::{CompositeFile, Directory};
-use crate::docset::{DocSet, TERMINATED};
+use crate::docset::DocSet;
 use crate::error::DataCorruption;
 use crate::fieldnorm::{FieldNormReader, FieldNormReaders, FieldNormsSerializer, FieldNormsWriter};
 use crate::index::{Segment, SegmentComponent, SegmentReader};
@@ -27,7 +27,8 @@ use crate::json_utils::{index_json_value, IndexingPositionsPerPath};
 use crate::plugin::{PluginMergeContext, PluginWriter, PluginWriterContext, SegmentPlugin};
 use crate::postings::{
     compute_table_memory_size, serialize_postings, IndexingContext, IndexingPosition,
-    InvertedIndexSerializer, PerFieldPostingsWriter, Postings, PostingsWriter, SegmentPostings,
+    InvertedIndexSerializer, PerFieldPostingsWriter, Postings, PostingsMerger, PostingsWriter,
+    SegmentPostings,
 };
 use crate::schema::document::{Document, Value};
 use crate::schema::{Field, FieldType, Schema, DATE_TIME_PRECISION_INDEXED};
@@ -595,7 +596,6 @@ fn write_postings_for_field(
     );
 
     let mut segment_postings_containing_the_term: Vec<(usize, SegmentPostings)> = vec![];
-    let mut doc_id_and_positions = vec![];
 
     while merged_terms.advance() {
         segment_postings_containing_the_term.clear();
@@ -645,43 +645,40 @@ fn write_postings_for_field(
 
         field_serializer.new_term(term_bytes, total_doc_freq, has_term_freq)?;
 
-        for (segment_ord, mut segment_postings) in segment_postings_containing_the_term.drain(..) {
-            let old_to_new_doc_id = &merged_doc_id_map[segment_ord];
-
-            let mut doc = segment_postings.doc();
-            while doc != TERMINATED {
-                if let Some(remapped_doc_id) = old_to_new_doc_id[doc as usize] {
+        if doc_id_mapping.is_trivial() {
+            for (segment_ord, mut postings) in segment_postings_containing_the_term.drain(..) {
+                let mapping = &merged_doc_id_map[segment_ord];
+                while let Some(doc) = crate::postings::next_mapped_doc(&mut postings, mapping) {
                     let term_freq = if has_term_freq {
-                        segment_postings.positions(&mut positions_buffer);
-                        segment_postings.term_freq()
+                        postings.positions(&mut positions_buffer);
+                        postings.term_freq()
                     } else {
                         positions_buffer.clear();
-                        0u32
+                        0
                     };
-
-                    if !doc_id_mapping.is_trivial() {
-                        doc_id_and_positions.push((
-                            remapped_doc_id,
-                            term_freq,
-                            positions_buffer.to_vec(),
-                        ));
-                    } else {
-                        let delta_positions = delta_computer.compute_delta(&positions_buffer);
-                        field_serializer.write_doc(remapped_doc_id, term_freq, delta_positions);
-                    }
+                    let delta_positions = delta_computer.compute_delta(&positions_buffer);
+                    field_serializer.write_doc(doc, term_freq, delta_positions);
+                    postings.advance();
                 }
-
-                doc = segment_postings.advance();
             }
-        }
-        if !doc_id_mapping.is_trivial() {
-            doc_id_and_positions.sort_unstable_by_key(|&(doc_id, _, _)| doc_id);
-
-            for (doc_id, term_freq, positions) in &doc_id_and_positions {
-                let delta_positions = delta_computer.compute_delta(positions);
-                field_serializer.write_doc(*doc_id, *term_freq, delta_positions);
+        } else {
+            // Each segment keeps its own document order, so a cursor per segment
+            // yields mapped docs in order. Positions are read for the current doc only.
+            let mut merger = PostingsMerger::new(
+                segment_postings_containing_the_term.drain(..),
+                &merged_doc_id_map,
+            );
+            while merger.advance() {
+                let term_freq = if has_term_freq {
+                    merger.positions(&mut positions_buffer);
+                    merger.term_freq()
+                } else {
+                    positions_buffer.clear();
+                    0
+                };
+                let delta_positions = delta_computer.compute_delta(&positions_buffer);
+                field_serializer.write_doc(merger.doc(), term_freq, delta_positions);
             }
-            doc_id_and_positions.clear();
         }
         field_serializer.close_term()?;
     }
