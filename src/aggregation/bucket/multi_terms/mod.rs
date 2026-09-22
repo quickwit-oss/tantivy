@@ -1108,15 +1108,15 @@ fn resolve_bucket_keys<P: MultiTermsPacking, B>(
         }
         ords_and_positions.sort_unstable();
         let (ords, positions): (Vec<_>, Vec<_>) = ords_and_positions.into_iter().unzip();
-        let mut positions = positions.into_iter();
         let fallback_dict = Dictionary::empty();
         let dictionary = field
             .str_dict_column
             .as_ref()
             .map(|column| column.dictionary())
             .unwrap_or(&fallback_dict);
+        let mut decoded_keys = Vec::with_capacity(ords.len());
         let all_found = dictionary.sorted_ords_to_term_cb(&ords, |term| {
-            keys[positions.next().unwrap()].push(IntermediateKey::Str(
+            decoded_keys.push(IntermediateKey::Str(
                 String::from_utf8(term.to_vec()).expect("term dict returned non-UTF-8"),
             ));
         })?;
@@ -1124,6 +1124,9 @@ fn resolve_bucket_keys<P: MultiTermsPacking, B>(
             return Err(TantivyError::InternalError(
                 "multi_terms string ordinal not found in dictionary".to_string(),
             ));
+        }
+        for (position, key) in positions.into_iter().zip(decoded_keys) {
+            keys[position].push(key);
         }
     }
     Ok(keys)
