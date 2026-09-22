@@ -1,5 +1,7 @@
 use crate::directory::OwnedBytes;
-use crate::postings::compression::{compressed_block_size, COMPRESSION_BLOCK_SIZE};
+use crate::postings::compression::{
+    compressed_block_size, dense_block_size, COMPRESSION_BLOCK_SIZE,
+};
 use crate::query::Bm25Weight;
 use crate::schema::IndexRecordOption;
 use crate::{DocId, Score, TERMINATED};
@@ -26,6 +28,32 @@ fn decode_bitwidth(raw_bitwidth: u8) -> (u8, bool) {
     let delta_1 = ((raw_bitwidth >> 6) & 1) != 0;
     let bitwidth = raw_bitwidth & 0x1f;
     (bitwidth, delta_1)
+}
+
+/// Marker bit for dense bitset blocks (see `Lucene104PostingsWriter`'s
+/// unary-coding path).
+///
+/// When set on the doc-bitwidth byte, the low 7 bits hold `num_longs` (the
+/// number of u64s, `1..=MAX_DENSE_LONGS`) instead of a FOR bitwidth. The
+/// postings block that follows is `num_longs * 8` bytes of little-endian
+/// bitset, decoded relative to the previous block's last doc (see
+/// `bitset_base_doc`).
+pub(crate) const DENSE_FLAG: u8 = 0x80;
+/// Maximum bitset longs we ever write (mirrors Lucene's
+/// `BLOCK_SIZE / 2` cap of 64 longs = 512 bytes for 128 docs).
+pub(crate) const MAX_DENSE_LONGS: u8 = 64;
+
+fn encode_dense_marker(num_longs: u8) -> u8 {
+    assert!(
+        num_longs >= 1 && num_longs <= MAX_DENSE_LONGS,
+        "dense num_longs out of range: {num_longs}"
+    );
+    DENSE_FLAG | num_longs
+}
+
+fn decode_dense_marker(raw: u8) -> Option<u8> {
+    let num_longs = raw & !DENSE_FLAG;
+    (raw & DENSE_FLAG != 0 && (1..=MAX_DENSE_LONGS).contains(&num_longs)).then_some(num_longs)
 }
 
 #[inline]
@@ -64,6 +92,11 @@ impl SkipSerializer {
     pub fn write_doc(&mut self, last_doc: DocId, doc_num_bits: u8) {
         write_u32(last_doc, &mut self.buffer);
         self.buffer.push(encode_bitwidth(doc_num_bits, true));
+    }
+
+    pub fn write_doc_dense(&mut self, last_doc: DocId, num_longs: u8) {
+        write_u32(last_doc, &mut self.buffer);
+        self.buffer.push(encode_dense_marker(num_longs));
     }
 
     pub fn write_term_freq(&mut self, tf_num_bits: u8) {
@@ -108,6 +141,13 @@ pub(crate) enum BlockInfo {
     BitPacked {
         doc_num_bits: u8,
         strict_delta_encoded: bool,
+        tf_num_bits: u8,
+        tf_sum: u32,
+        block_wand_fieldnorm_id: u8,
+        block_wand_term_freq: u32,
+    },
+    Dense {
+        num_longs: u8,
         tf_num_bits: u8,
         tf_sum: u32,
         block_wand_fieldnorm_id: u8,
@@ -178,6 +218,11 @@ impl SkipReader {
                 block_wand_fieldnorm_id,
                 block_wand_term_freq,
                 ..
+            }
+            | BlockInfo::Dense {
+                block_wand_fieldnorm_id,
+                block_wand_term_freq,
+                ..
             } => Some(bm25_weight.score(block_wand_fieldnorm_id, block_wand_term_freq)),
             BlockInfo::VInt { .. } => None,
         }
@@ -206,6 +251,49 @@ impl SkipReader {
         let bytes = self.owned_read.as_slice();
         let advance_len: usize;
         self.last_doc_in_block = read_u32(bytes);
+        if let Some(num_longs) = decode_dense_marker(bytes[4]) {
+            match self.skip_info {
+                IndexRecordOption::Basic => {
+                    advance_len = 5;
+                    self.block_info = BlockInfo::Dense {
+                        num_longs,
+                        tf_num_bits: 0,
+                        tf_sum: 0,
+                        block_wand_fieldnorm_id: 0,
+                        block_wand_term_freq: 0,
+                    };
+                }
+                IndexRecordOption::WithFreqs => {
+                    let tf_num_bits = bytes[5];
+                    let block_wand_fieldnorm_id = bytes[6];
+                    let block_wand_term_freq = decode_block_wand_max_tf(bytes[7]);
+                    advance_len = 8;
+                    self.block_info = BlockInfo::Dense {
+                        num_longs,
+                        tf_num_bits,
+                        tf_sum: 0,
+                        block_wand_fieldnorm_id,
+                        block_wand_term_freq,
+                    };
+                }
+                IndexRecordOption::WithFreqsAndPositions => {
+                    let tf_num_bits = bytes[5];
+                    let tf_sum = read_u32(&bytes[6..10]);
+                    let block_wand_fieldnorm_id = bytes[10];
+                    let block_wand_term_freq = decode_block_wand_max_tf(bytes[11]);
+                    advance_len = 12;
+                    self.block_info = BlockInfo::Dense {
+                        num_longs,
+                        tf_num_bits,
+                        tf_sum,
+                        block_wand_fieldnorm_id,
+                        block_wand_term_freq,
+                    };
+                }
+            }
+            self.owned_read.advance(advance_len);
+            return;
+        }
         let (doc_num_bits, strict_delta_encoded) = decode_bitwidth(bytes[4]);
         match self.skip_info {
             IndexRecordOption::Basic => {
@@ -282,6 +370,17 @@ impl SkipReader {
             } => {
                 self.remaining_docs -= COMPRESSION_BLOCK_SIZE as u32;
                 self.byte_offset += compressed_block_size(doc_num_bits + tf_num_bits);
+                self.position_offset += tf_sum as u64;
+            }
+            BlockInfo::Dense {
+                num_longs,
+                tf_num_bits,
+                tf_sum,
+                ..
+            } => {
+                self.remaining_docs -= COMPRESSION_BLOCK_SIZE as u32;
+                self.byte_offset +=
+                    dense_block_size(num_longs) + compressed_block_size(tf_num_bits);
                 self.position_offset += tf_sum as u64;
             }
             BlockInfo::VInt { num_docs } => {
@@ -459,5 +558,58 @@ mod tests {
         }
         assert_eq!(0b01000010, encode_bitwidth(0b10, true));
         assert_eq!(0b00000010, encode_bitwidth(0b10, false));
+    }
+
+    #[test]
+    fn test_skip_dense_basic() {
+        use crate::postings::compression::dense_block_size;
+        let buf = {
+            let mut skip_serializer = SkipSerializer::new();
+            skip_serializer.write_doc_dense(200u32, 4u8);
+            skip_serializer.write_doc(500u32, 6u8);
+            skip_serializer.data().to_owned()
+        };
+        let doc_freq = (COMPRESSION_BLOCK_SIZE * 2) as u32;
+        let mut skip_reader =
+            SkipReader::new(OwnedBytes::new(buf), doc_freq, IndexRecordOption::Basic);
+        assert_eq!(skip_reader.last_doc_in_block(), 200u32);
+        assert_eq!(
+            skip_reader.block_info(),
+            BlockInfo::Dense {
+                num_longs: 4u8,
+                tf_num_bits: 0,
+                tf_sum: 0u32,
+                block_wand_fieldnorm_id: 0,
+                block_wand_term_freq: 0,
+            }
+        );
+        assert_eq!(skip_reader.byte_offset(), 0);
+        skip_reader.advance();
+        assert_eq!(skip_reader.last_doc_in_block(), 500u32);
+        assert_eq!(skip_reader.byte_offset(), dense_block_size(4));
+    }
+
+    #[test]
+    fn test_skip_dense_with_freq() {
+        let buf = {
+            let mut skip_serializer = SkipSerializer::new();
+            skip_serializer.write_doc_dense(200u32, 3u8);
+            skip_serializer.write_term_freq(4u8);
+            skip_serializer.write_blockwand_max(9u8, 7u32);
+            skip_serializer.data().to_owned()
+        };
+        let doc_freq = (COMPRESSION_BLOCK_SIZE) as u32 + 5;
+        let skip_reader =
+            SkipReader::new(OwnedBytes::new(buf), doc_freq, IndexRecordOption::WithFreqs);
+        assert_eq!(
+            skip_reader.block_info(),
+            BlockInfo::Dense {
+                num_longs: 3u8,
+                tf_num_bits: 4u8,
+                tf_sum: 0u32,
+                block_wand_fieldnorm_id: 9,
+                block_wand_term_freq: 7,
+            }
+        );
     }
 }
