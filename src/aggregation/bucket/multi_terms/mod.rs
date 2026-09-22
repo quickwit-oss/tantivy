@@ -1093,7 +1093,10 @@ fn resolve_bucket_keys<P: MultiTermsPacking, B>(
         for (position, entry) in entries.iter().enumerate() {
             let value = packing.unpack_value(&entry.key, field_idx);
             if field.column_type == ColumnType::Str
-                && !missing.as_ref().is_some_and(|m| m.missing_value == value)
+                && !missing
+                    .as_ref()
+                    .map(|m| m.missing_value == value)
+                    .unwrap_or(false)
             {
                 ords_and_positions.push((value, position));
             } else {
