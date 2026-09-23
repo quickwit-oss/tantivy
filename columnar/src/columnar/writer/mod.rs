@@ -3,6 +3,7 @@ mod column_writers;
 mod serializer;
 mod value_index;
 
+use std::collections::HashSet;
 use std::io;
 use std::net::Ipv6Addr;
 
@@ -54,6 +55,7 @@ pub struct ColumnarWriter {
     ip_addr_field_hash_map: ArenaHashMap,
     bytes_field_hash_map: ArenaHashMap,
     str_field_hash_map: ArenaHashMap,
+    generated_tie_breaker_columns: HashSet<Vec<u8>>,
     arena: MemoryArena,
     // Dictionaries used to store dictionary-encoded values.
     dictionaries: Vec<DictionaryBuilder>,
@@ -215,6 +217,13 @@ impl ColumnarWriter {
                 |column_opt: Option<ColumnWriter>| column_opt.unwrap_or_default(),
             ),
         }
+    }
+
+    /// Registers a full `u64` column whose values are generated when this writer is serialized.
+    pub fn record_tie_breaker_column(&mut self, column_name: &str) {
+        self.record_column_type(column_name, ColumnType::U64, false);
+        self.generated_tie_breaker_columns
+            .insert(column_name.as_bytes().to_vec());
     }
 
     pub fn record_numerical<T: Into<NumericalValue> + Copy>(
@@ -436,24 +445,31 @@ impl ColumnarWriter {
                     column_serializer.finalize()?;
                 }
                 ColumnType::F64 | ColumnType::I64 | ColumnType::U64 => {
-                    let numerical_column_writer: NumericalColumnWriter =
-                        self.numerical_field_hash_map.read(addr);
-                    let cardinality = numerical_column_writer.cardinality(num_docs);
                     let mut column_serializer =
                         serializer.start_serialize_column(column_name, column_type);
-                    let numerical_type = column_type.numerical_type().unwrap();
-                    serialize_numerical_column(
-                        cardinality,
-                        num_docs,
-                        numerical_type,
-                        numerical_column_writer.operation_iterator(
-                            arena,
-                            old_to_new_row_ids,
-                            &mut symbol_byte_buffer,
-                        ),
-                        buffers,
-                        &mut column_serializer,
-                    )?;
+                    if self.generated_tie_breaker_columns.contains(column_name) {
+                        crate::column::serialize_generated_tie_breaker_column(
+                            num_docs,
+                            &mut column_serializer,
+                        )?;
+                    } else {
+                        let numerical_column_writer: NumericalColumnWriter =
+                            self.numerical_field_hash_map.read(addr);
+                        let cardinality = numerical_column_writer.cardinality(num_docs);
+                        let numerical_type = column_type.numerical_type().unwrap();
+                        serialize_numerical_column(
+                            cardinality,
+                            num_docs,
+                            numerical_type,
+                            numerical_column_writer.operation_iterator(
+                                arena,
+                                old_to_new_row_ids,
+                                &mut symbol_byte_buffer,
+                            ),
+                            buffers,
+                            &mut column_serializer,
+                        )?;
+                    }
                     column_serializer.finalize()?;
                 }
                 ColumnType::DateTime => {

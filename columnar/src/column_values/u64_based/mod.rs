@@ -1,5 +1,5 @@
 mod bitpacked;
-mod blockwise_linear;
+pub(crate) mod blockwise_linear;
 mod line;
 mod linear;
 mod stats_collector;
