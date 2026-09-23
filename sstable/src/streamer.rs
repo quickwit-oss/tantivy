@@ -206,7 +206,7 @@ where TSSTable: SSTable
     pub fn empty() -> Self {
         Streamer {
             automaton: AlwaysMatch,
-            states: Vec::new(),
+            states: vec![AlwaysMatch.start()],
             delta_reader: DeltaReader::empty(),
             key: Vec::new(),
             term_ord: None,
@@ -305,20 +305,34 @@ where
             }
         }
 
+        // (always_match, no_bound)
+        match (
+            self.automaton
+                .will_always_match(&self.states.first().unwrap()),
+            self.upper_bound == Bound::Unbounded,
+        ) {
+            (true, true) => self.advance_inner::<true, true>(),
+            (true, false) => self.advance_inner::<true, false>(),
+            (false, true) => self.advance_inner::<false, true>(),
+            (false, false) => self.advance_inner::<false, false>(),
+        }
+    }
+
+    fn advance_inner<const AUTOMATON_MATCH: bool, const NO_BOUND: bool>(&mut self) -> bool {
         while self.advance_delta_reader() {
             let common_prefix_len = self.delta_reader.common_prefix_len();
             self.states.truncate(common_prefix_len + 1);
 
-            // TODO we could use const-generics to remove this bit when the automaton is an always
-            // match one
             // TODO we could detect when we reach an always match state, and no longer check state
             // until we truncate enough (e.g. for the regex `my_prefix.*`, or `.*my_infix.*`)
             // TODO we could detect when we reach a !can_match, and skip both state and key
             // computation until we truncate that can_t_match out of our state
             let mut state: A::State = self.states.last().unwrap().clone();
-            for &b in self.delta_reader.suffix() {
-                state = self.automaton.accept(&state, b);
-                self.states.push(state.clone());
+            if !AUTOMATON_MATCH {
+                for &b in self.delta_reader.suffix() {
+                    state = self.automaton.accept(&state, b);
+                    self.states.push(state.clone());
+                }
             }
 
             self.key.truncate(common_prefix_len);
@@ -327,17 +341,17 @@ where
             // TODO there is an idea where we only look at the upper bound when our delta_reader
             // reached the last block (if we pruned blocks beforehand (do we always?) we cannot
             // find that key before that block)
-            // TODO we could use const-generics to remove this branch from the loop when no
-            // upper bound is used
-            if !matches_upper_bound(
-                &mut self.upper_bound_comparator,
-                &self.upper_bound,
-                common_prefix_len,
-                self.delta_reader.suffix(),
-            ) {
+            if !NO_BOUND
+                && !matches_upper_bound(
+                    &mut self.upper_bound_comparator,
+                    &self.upper_bound,
+                    common_prefix_len,
+                    self.delta_reader.suffix(),
+                )
+            {
                 return false;
             }
-            if self.automaton.is_match(&state) {
+            if AUTOMATON_MATCH || self.automaton.is_match(&state) {
                 return true;
             }
         }
