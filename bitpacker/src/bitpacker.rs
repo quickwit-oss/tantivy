@@ -132,6 +132,8 @@ impl BitUnpacker {
 
         // Fall back for ranges overlapping the end, where an eight-byte load would be partial.
         let last_bit_addr = (start_idx + output.len() - 1) * self.num_bits;
+        // The optimization happening below requires reading full 8 bytes word.
+        // We check that data is long enough to allow for the last read, and if not, fall back for the following safe implementation
         if (last_bit_addr >> 3) + 8 > data.len() {
             for (offset, out) in output.iter_mut().enumerate() {
                 *out = self.get((start_idx + offset) as u32, data);
