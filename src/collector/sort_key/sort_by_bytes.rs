@@ -1,6 +1,6 @@
 use columnar::BytesColumn;
 
-use crate::collector::sort_key::NaturalComparator;
+use crate::collector::sort_key::{term_ords_to_terms, NaturalComparator};
 use crate::collector::{SegmentSortKeyComputer, SortKeyComputer};
 use crate::termdict::TermOrdinal;
 use crate::{DocId, Score};
@@ -55,17 +55,20 @@ impl SegmentSortKeyComputer for ByBytesColumnSegmentSortKeyComputer {
         bytes_column.ords().first(doc)
     }
 
-    fn convert_segment_sort_key(&self, term_ord_opt: Option<TermOrdinal>) -> Option<Vec<u8>> {
-        // TODO: Individual lookups to the dictionary like this are very likely to repeatedly
-        // decompress the same blocks. See https://github.com/quickwit-oss/tantivy/issues/2776
-        let term_ord = term_ord_opt?;
-        let bytes_column = self.bytes_column_opt.as_ref()?;
-        let mut bytes = Vec::new();
-        bytes_column
-            .dictionary()
-            .ord_to_term(term_ord, &mut bytes)
-            .ok()?;
-        Some(bytes)
+    fn convert_segment_sort_key(&self, term_ord: Option<TermOrdinal>) -> Option<Vec<u8>> {
+        self.convert_segment_sort_keys(vec![term_ord])
+            .pop()
+            .flatten()
+    }
+
+    fn convert_segment_sort_keys(
+        &self,
+        term_ords: Vec<Option<TermOrdinal>>,
+    ) -> Vec<Option<Vec<u8>>> {
+        let Some(bytes_column) = self.bytes_column_opt.as_ref() else {
+            return vec![None; term_ords.len()];
+        };
+        term_ords_to_terms(bytes_column, &term_ords)
     }
 }
 
