@@ -142,8 +142,11 @@ impl BitUnpacker {
         }
 
         let output_len = output.len();
-        let load = |bit_addr: usize| {
-            // SAFETY: the range-end check above guarantees that this load fits in `data`.
+        /// # Safety
+        /// Eight bytes starting at `bit_addr >> 3` must fit in `data`.
+        #[inline(always)]
+        unsafe fn load(data: &[u8], bit_addr: usize) -> u64 {
+            // SAFETY: the caller guarantees that this load fits in `data`.
             let packed = unsafe {
                 data.as_ptr()
                     .add(bit_addr >> 3)
@@ -151,7 +154,7 @@ impl BitUnpacker {
                     .read_unaligned()
             };
             u64::from_le(packed) >> (bit_addr & 7)
-        };
+        }
         let mut bit_addr = start_idx * self.num_bits;
         // Tantivy's `COLLECT_BLOCK_BUFFER_LEN` is 64, so optimize its common full-block case by
         // decoding eight 1-8 bit values per load. Keep this literal in sync with that constant.
@@ -159,7 +162,8 @@ impl BitUnpacker {
             let (chunks, remainder) = output.as_chunks_mut::<8>();
             debug_assert!(remainder.is_empty());
             for chunk in chunks {
-                let packed = load(bit_addr);
+                // SAFETY: the range-end check above guarantees that this load fits in `data`.
+                let packed = unsafe { load(data, bit_addr) };
                 for (i, out) in chunk.iter_mut().enumerate() {
                     *out = (packed >> (i * self.num_bits)) & self.mask;
                 }
@@ -173,7 +177,8 @@ impl BitUnpacker {
             // Four values plus at most seven leading bits fit in one load.
             // At 16 bits, values are byte-aligned, so there are no leading bits.
             if self.num_bits <= 14 || self.num_bits == 16 {
-                let packed = load(bit_addr);
+                // SAFETY: the range-end check above guarantees that this load fits in `data`.
+                let packed = unsafe { load(data, bit_addr) };
                 for (i, out) in chunk.iter_mut().enumerate() {
                     *out = (packed >> (i * self.num_bits)) & self.mask;
                 }
@@ -181,19 +186,22 @@ impl BitUnpacker {
                 // Two values plus at most seven leading bits fit in one load.
                 // At 32 bits, values are byte-aligned, so there are no leading bits.
                 for (pair_idx, pair) in chunk.as_chunks_mut::<2>().0.iter_mut().enumerate() {
-                    let packed = load(bit_addr + pair_idx * 2 * self.num_bits);
+                    // SAFETY: the range-end check above guarantees that this load fits in `data`.
+                    let packed = unsafe { load(data, bit_addr + pair_idx * 2 * self.num_bits) };
                     pair[0] = packed & self.mask;
                     pair[1] = (packed >> self.num_bits) & self.mask;
                 }
             } else {
                 for (i, out) in chunk.iter_mut().enumerate() {
-                    *out = load(bit_addr + i * self.num_bits) & self.mask;
+                    // SAFETY: the range-end check above guarantees that this load fits in `data`.
+                    *out = unsafe { load(data, bit_addr + i * self.num_bits) } & self.mask;
                 }
             }
             bit_addr += VALUES_PER_CHUNK * self.num_bits;
         }
         for out in remainder {
-            *out = load(bit_addr) & self.mask;
+            // SAFETY: the range-end check above guarantees that this load fits in `data`.
+            *out = unsafe { load(data, bit_addr) } & self.mask;
             bit_addr += self.num_bits;
         }
     }
