@@ -159,15 +159,16 @@ impl BitUnpacker {
         // Tantivy's `COLLECT_BLOCK_BUFFER_LEN` is 64, so optimize its common full-block case by
         // decoding eight 1-8 bit values per load. Keep this literal in sync with that constant.
         if output_len == 64 && self.num_bits <= 8 {
-            let (chunks, remainder) = output.as_chunks_mut::<8>();
+            const VALUES_PER_CHUNK: usize = 8;
+            let (chunks, remainder) = output.as_chunks_mut::<VALUES_PER_CHUNK>();
             debug_assert!(remainder.is_empty());
             for chunk in chunks {
                 // SAFETY: the range-end check above guarantees that this load fits in `data`.
-                let packed = unsafe { load(data, bit_addr) };
+                let packed: u64 = unsafe { load(data, bit_addr) };
                 for (i, out) in chunk.iter_mut().enumerate() {
                     *out = (packed >> (i * self.num_bits)) & self.mask;
                 }
-                bit_addr += 8 * self.num_bits;
+                bit_addr += VALUES_PER_CHUNK * self.num_bits;
             }
             return;
         }
