@@ -1106,6 +1106,7 @@ fn convert_to_query(fuzzy: &FxHashMap<Field, Fuzzy>, logical_ast: LogicalAst) ->
 #[cfg(test)]
 mod test {
     use matches::assert_matches;
+    use proptest::prelude::*;
 
     use super::super::logical_ast::*;
     use super::{QueryParser, QueryParserError};
@@ -1169,6 +1170,31 @@ mod test {
 
     fn make_query_parser() -> QueryParser {
         make_query_parser_with_default_fields(&["title", "text"])
+    }
+
+    proptest! {
+        #[test]
+        fn test_query_parser_does_not_panic_after_match_all(
+            suffix in prop::sample::select(vec!['\u{b}', '\u{c}', '\u{85}'])
+        ) {
+            let query_parser = make_query_parser();
+            let query = format!("*{suffix}");
+            prop_assert!(query_parser.parse_query(&query).is_err());
+            let (_, errors) = query_parser.parse_query_lenient(&query);
+            prop_assert!(!errors.is_empty());
+        }
+
+        #[test]
+        fn test_lenient_query_parser_makes_progress_in_invalid_sets(
+            field in proptest::option::of("[a-z]{1,4}"),
+            invalid_char in prop::sample::select(vec!['\0', '\u{b}', '\u{c}', '\u{7f}']),
+        ) {
+            let query_parser = make_query_parser();
+            let field = field.map(|field| format!("{field}:")).unwrap_or_default();
+            let query = format!("{field}IN [{invalid_char}");
+            let (_, errors) = query_parser.parse_query_lenient(&query);
+            prop_assert!(!errors.is_empty());
+        }
     }
 
     fn parse_query_to_logical_ast_with_default_fields(

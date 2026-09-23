@@ -1,6 +1,7 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::io::{self, BufWriter, Cursor, Write};
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, RwLock};
 use std::{fmt, result};
 
@@ -14,6 +15,49 @@ use crate::directory::{
     WatchHandle, WritePtr,
 };
 
+const MEMORY_USAGE_UPDATE_THRESHOLD: usize = 10_000;
+
+struct MemoryUsageTracker {
+    shared_usage: Arc<AtomicUsize>,
+    reported_bytes: usize,
+    unreported_bytes: usize,
+}
+
+impl MemoryUsageTracker {
+    fn new(shared_usage: Arc<AtomicUsize>) -> Self {
+        Self {
+            shared_usage,
+            reported_bytes: 0,
+            unreported_bytes: 0,
+        }
+    }
+
+    fn add(&mut self, num_bytes: usize) {
+        self.unreported_bytes += num_bytes;
+        if self.unreported_bytes >= MEMORY_USAGE_UPDATE_THRESHOLD {
+            self.shared_usage
+                .fetch_add(self.unreported_bytes, Ordering::Relaxed);
+            self.reported_bytes += self.unreported_bytes;
+            self.unreported_bytes = 0;
+        }
+    }
+
+    fn release(&mut self) {
+        if self.reported_bytes > 0 {
+            self.shared_usage
+                .fetch_sub(self.reported_bytes, Ordering::Relaxed);
+            self.reported_bytes = 0;
+        }
+        self.unreported_bytes = 0;
+    }
+}
+
+impl Drop for MemoryUsageTracker {
+    fn drop(&mut self) {
+        self.release();
+    }
+}
+
 /// Writer associated with the [`RamDirectory`].
 ///
 /// The Writer just writes a buffer.
@@ -21,64 +65,82 @@ struct VecWriter {
     path: PathBuf,
     shared_directory: RamDirectory,
     data: Cursor<Vec<u8>>,
-    is_flushed: bool,
+    memory_usage: MemoryUsageTracker,
+    is_finished: bool,
 }
 
 impl VecWriter {
     fn new(path_buf: PathBuf, shared_directory: RamDirectory) -> VecWriter {
+        let memory_usage =
+            MemoryUsageTracker::new(Arc::clone(&shared_directory.active_writer_mem_usage));
         VecWriter {
             path: path_buf,
             data: Cursor::new(Vec::new()),
             shared_directory,
-            is_flushed: true,
+            memory_usage,
+            is_finished: true,
         }
     }
 }
 
 impl Drop for VecWriter {
     fn drop(&mut self) {
-        if !self.is_flushed {
+        if !self.is_finished {
             warn!(
-                "You forgot to flush {:?} before its writer got Drop. Do not rely on drop. This \
-                 also occurs when the indexer crashed, so you may want to check the logs for the \
-                 root cause.",
+                "You forgot to terminate {:?} before its writer got Drop. Do not rely on drop. \
+                 This also occurs when the indexer crashed, so you may want to check the logs for \
+                 the root cause.",
                 self.path
-            )
+            );
+        }
+        if let Ok(mut fs) = self.shared_directory.fs.write() {
+            fs.active_writers.remove(&self.path);
         }
     }
 }
 
 impl Write for VecWriter {
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
-        self.is_flushed = false;
+        self.is_finished = false;
+        let previous_capacity = self.data.get_ref().capacity();
         self.data.write_all(buf)?;
+        let capacity = self.data.get_ref().capacity();
+        self.memory_usage.add(capacity - previous_capacity);
         Ok(buf.len())
     }
 
     fn flush(&mut self) -> io::Result<()> {
-        self.is_flushed = true;
-        let mut fs = self.shared_directory.fs.write().unwrap();
-        fs.write(self.path.clone(), self.data.get_ref());
         Ok(())
     }
 }
 
 impl TerminatingWrite for VecWriter {
     fn terminate_ref(&mut self, _: AntiCallToken) -> io::Result<()> {
-        self.flush()
+        let mut data = std::mem::take(self.data.get_mut());
+        data.shrink_to_fit();
+        let mut fs = self.shared_directory.fs.write().unwrap();
+        fs.active_writers.remove(&self.path);
+        fs.write_owned(self.path.clone(), data);
+        self.is_finished = true;
+        self.memory_usage.release();
+        Ok(())
     }
 }
 
 #[derive(Default)]
 struct InnerDirectory {
     fs: HashMap<PathBuf, FileSlice>,
+    active_writers: HashSet<PathBuf>,
     watch_router: WatchCallbackList,
 }
 
 impl InnerDirectory {
     fn write(&mut self, path: PathBuf, data: &[u8]) -> bool {
-        let data = FileSlice::from(data.to_vec());
-        self.fs.insert(path, data).is_some()
+        self.write_owned(path, data.to_vec())
+    }
+
+    fn write_owned(&mut self, path: PathBuf, data: Vec<u8>) -> bool {
+        self.fs.insert(path, FileSlice::from(data)).is_some()
     }
 
     fn open_read(&self, path: &Path) -> Result<FileSlice, OpenReadError> {
@@ -96,7 +158,7 @@ impl InnerDirectory {
     }
 
     fn exists(&self, path: &Path) -> bool {
-        self.fs.contains_key(path)
+        self.fs.contains_key(path) || self.active_writers.contains(path)
     }
 
     fn watch(&mut self, watch_handle: WatchCallback) -> WatchHandle {
@@ -117,10 +179,11 @@ impl fmt::Debug for RamDirectory {
 /// A Directory storing everything in anonymous memory.
 ///
 /// It is mainly meant for unit testing.
-/// Writes are only made visible upon flushing.
+/// Writes are only made visible upon terminating the writer.
 #[derive(Clone, Default)]
 pub struct RamDirectory {
     fs: Arc<RwLock<InnerDirectory>>,
+    active_writer_mem_usage: Arc<AtomicUsize>,
 }
 
 impl RamDirectory {
@@ -129,24 +192,12 @@ impl RamDirectory {
         Self::default()
     }
 
-    /// Deep clones the directory.
+    /// Returns the size of the files and an estimate of active writer allocations.
     ///
-    /// Ulterior writes on one of the copy
-    /// will not affect the other copy.
-    pub fn deep_clone(&self) -> RamDirectory {
-        let inner_clone = InnerDirectory {
-            fs: self.fs.read().unwrap().fs.clone(),
-            watch_router: Default::default(),
-        };
-        RamDirectory {
-            fs: Arc::new(RwLock::new(inner_clone)),
-        }
-    }
-
-    /// Returns the sum of the size of the different files
-    /// in the [`RamDirectory`].
+    /// Active writer allocations are reported in 10 kB increments.
     pub fn total_mem_usage(&self) -> usize {
         self.fs.read().unwrap().total_mem_usage()
+            + self.active_writer_mem_usage.load(Ordering::Relaxed)
     }
 
     /// Write a copy of all of the files saved in the [`RamDirectory`] in the target [`Directory`].
@@ -198,16 +249,14 @@ impl Directory for RamDirectory {
     }
 
     fn open_write(&self, path: &Path) -> Result<WritePtr, OpenWriteError> {
-        let mut fs = self.fs.write().unwrap();
         let path_buf = PathBuf::from(path);
-        let vec_writer = VecWriter::new(path_buf.clone(), self.clone());
-        let exists = fs.write(path_buf.clone(), &[]);
-        // force the creation of the file to mimic the MMap directory.
-        if exists {
-            Err(OpenWriteError::FileAlreadyExists(path_buf))
-        } else {
-            Ok(BufWriter::new(Box::new(vec_writer)))
+        let mut fs = self.fs.write().unwrap();
+        if fs.exists(path) || !fs.active_writers.insert(path_buf.clone()) {
+            return Err(OpenWriteError::FileAlreadyExists(path_buf));
         }
+        drop(fs);
+        let vec_writer = VecWriter::new(path_buf, self.clone());
+        Ok(BufWriter::new(Box::new(vec_writer)))
     }
 
     fn atomic_read(&self, path: &Path) -> Result<Vec<u8>, OpenReadError> {
@@ -244,7 +293,8 @@ mod tests {
     use std::io::Write;
     use std::path::Path;
 
-    use super::RamDirectory;
+    use super::{RamDirectory, MEMORY_USAGE_UPDATE_THRESHOLD};
+    use crate::directory::TerminatingWrite;
     use crate::Directory;
 
     #[test]
@@ -257,7 +307,7 @@ mod tests {
         assert!(directory.atomic_write(path_atomic, msg_atomic).is_ok());
         let mut wrt = directory.open_write(path_seq).unwrap();
         assert!(wrt.write_all(msg_seq).is_ok());
-        assert!(wrt.flush().is_ok());
+        assert!(wrt.terminate().is_ok());
         let directory_copy = RamDirectory::create();
         assert!(directory.persist(&directory_copy).is_ok());
         assert_eq!(directory_copy.atomic_read(path_atomic).unwrap(), msg_atomic);
@@ -265,21 +315,45 @@ mod tests {
     }
 
     #[test]
-    fn test_ram_directory_deep_clone() {
+    fn test_dropped_writer_releases_path() {
         let dir = RamDirectory::default();
-        let test = Path::new("test");
-        let test2 = Path::new("test2");
-        dir.atomic_write(test, b"firstwrite").unwrap();
-        let dir_clone = dir.deep_clone();
-        assert_eq!(
-            dir_clone.atomic_read(test).unwrap(),
-            dir.atomic_read(test).unwrap()
-        );
-        dir.atomic_write(test, b"original").unwrap();
-        dir_clone.atomic_write(test, b"clone").unwrap();
-        dir_clone.atomic_write(test2, b"clone2").unwrap();
-        assert_eq!(dir.atomic_read(test).unwrap(), b"original");
-        assert_eq!(&dir_clone.atomic_read(test).unwrap(), b"clone");
-        assert_eq!(&dir_clone.atomic_read(test2).unwrap(), b"clone2");
+        let path = Path::new("file");
+        let writer = dir.open_write(path).unwrap();
+        assert!(dir.open_write(path).is_err());
+
+        drop(writer);
+        dir.open_write(path).unwrap().terminate().unwrap();
+        assert!(dir.exists(path).unwrap());
+    }
+
+    #[test]
+    fn test_active_writer_memory_usage() {
+        let dir = RamDirectory::default();
+        let path = Path::new("file");
+        let mut writer = dir.open_write(path).unwrap();
+        assert_eq!(dir.total_mem_usage(), 0);
+
+        writer.write_all(&[0u8]).unwrap();
+        assert_eq!(dir.total_mem_usage(), 0);
+        writer
+            .write_all(&vec![0u8; MEMORY_USAGE_UPDATE_THRESHOLD])
+            .unwrap();
+        let first_capacity = dir.total_mem_usage();
+        assert!(first_capacity >= MEMORY_USAGE_UPDATE_THRESHOLD);
+
+        writer.write_all(&vec![0u8; first_capacity + 1]).unwrap();
+        let grown_capacity = dir.total_mem_usage();
+        assert!(grown_capacity > first_capacity);
+
+        writer.flush().unwrap();
+        assert_eq!(dir.total_mem_usage(), grown_capacity);
+        assert_eq!(dir.clone().total_mem_usage(), dir.total_mem_usage());
+
+        let file_len = 1 + MEMORY_USAGE_UPDATE_THRESHOLD + first_capacity + 1;
+        writer.terminate().unwrap();
+        assert_eq!(dir.total_mem_usage(), file_len);
+
+        dir.delete(path).unwrap();
+        assert_eq!(dir.total_mem_usage(), 0);
     }
 }

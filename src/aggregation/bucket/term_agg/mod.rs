@@ -35,25 +35,25 @@ mod flattened_term_histogram;
 /// Contains all information required by the SegmentTermCollector to perform the
 /// terms aggregation on a segment.
 #[derive(Debug, Clone)]
-pub struct TermsAggReqData {
+pub(crate) struct TermsAggReqData {
     /// The column accessor to access the fast field values.
-    pub accessor: Column<u64>,
+    pub(crate) accessor: Column<u64>,
     /// The type of the column.
-    pub column_type: ColumnType,
+    pub(crate) column_type: ColumnType,
     /// The string dictionary column if the field is of type text.
-    pub str_dict_column: Option<StrColumn>,
+    pub(crate) str_dict_column: Option<StrColumn>,
     /// The missing value as u64 value.
-    pub missing_value_for_accessor: Option<u64>,
+    pub(crate) missing_value_for_accessor: Option<u64>,
     /// Used to build the correct nested result when we have an empty result.
-    pub sug_aggregations: Aggregations,
+    pub(crate) sub_aggregations: Aggregations,
     /// The name of the aggregation.
-    pub name: String,
+    pub(crate) name: String,
     /// The normalized term aggregation request.
-    pub req: TermsAggregationInternal,
+    pub(crate) req: TermsAggregationInternal,
     /// Preloaded allowed term ords (string columns only). If set, only ords present are collected.
-    pub allowed_term_ids: Option<BitSet>,
+    pub(crate) allowed_term_ids: Option<BitSet>,
     /// True if this terms aggregation is at the top level of the aggregation tree (not nested).
-    pub is_top_level: bool,
+    pub(crate) is_top_level: bool,
 }
 
 impl TermsAggReqData {
@@ -1390,7 +1390,7 @@ where
                 // TODO: Handle rev streaming for descending sorting by keys
                 let mut stream = term_dict.stream()?;
                 let empty_sub_aggregation =
-                    IntermediateAggregationResults::empty_from_req(&term_req.sug_aggregations);
+                    IntermediateAggregationResults::empty_from_req(&term_req.sub_aggregations);
                 while stream.advance() {
                     if dict.len() >= term_req.req.segment_size as usize {
                         break;
@@ -1554,7 +1554,7 @@ pub(crate) trait GetDocCount {
     fn doc_count(&self) -> u64;
 }
 
-impl GetDocCount for (String, IntermediateTermBucketEntry) {
+impl<K> GetDocCount for (K, IntermediateTermBucketEntry) {
     fn doc_count(&self) -> u64 {
         self.1.doc_count
     }

@@ -22,9 +22,8 @@ use crate::aggregation::bucket::{
 use crate::aggregation::metric::{
     build_segment_stats_collector, AverageAggregation, CardinalityAggReqData,
     CardinalityAggregationReq, CountAggregation, ExtendedStatsAggregation, MaxAggregation,
-    MetricAggReqData, MinAggregation, SegmentCardinalityCollector, SegmentExtendedStatsCollector,
-    SegmentPercentilesCollector, StatsAggregation, StatsType, SumAggregation, TermOrdSet,
-    TopHitsAggReqData, TopHitsSegmentCollector, BITSET_MAX_TERM_ORD,
+    MetricAggReqData, MinAggregation, SegmentExtendedStatsCollector, SegmentPercentilesCollector,
+    StatsAggregation, StatsType, SumAggregation, TopHitsAggReqData, TopHitsSegmentCollector,
 };
 use crate::aggregation::segment_agg_result::{
     GenericSegmentAggregationResultsCollector, SegmentAggregationCollector,
@@ -37,8 +36,8 @@ use crate::{SegmentOrdinal, SegmentReader};
 /// It is passed to the collectors during collection.
 pub struct AggregationsSegmentCtx {
     /// Request data for each aggregation type.
-    pub per_request: PerRequestAggSegCtx,
-    pub context: AggContextParams,
+    pub(crate) per_request: PerRequestAggSegCtx,
+    pub(crate) context: AggContextParams,
     pub(crate) column_block_accessor: ColumnBlockAccessor,
 }
 
@@ -115,28 +114,28 @@ impl AggregationsSegmentCtx {
 #[derive(Default)]
 pub struct PerRequestAggSegCtx {
     /// TermsAggReqData contains the request data for a terms aggregation.
-    pub term_req_data: Vec<TermsAggReqData>,
+    pub(crate) term_req_data: Vec<TermsAggReqData>,
     /// HistogramAggReqData contains the request data for a histogram aggregation.
-    pub histogram_req_data: Vec<HistogramAggReqData>,
+    pub(crate) histogram_req_data: Vec<HistogramAggReqData>,
     /// RangeAggReqData contains the request data for a range aggregation.
-    pub range_req_data: Vec<RangeAggReqData>,
+    pub(crate) range_req_data: Vec<RangeAggReqData>,
     /// FilterAggReqData contains the request data for a filter aggregation.
-    pub filter_req_data: Vec<FilterAggReqData>,
+    pub(crate) filter_req_data: Vec<FilterAggReqData>,
     /// Shared by avg, min, max, sum, stats, extended_stats, count
-    pub stats_metric_req_data: Vec<MetricAggReqData>,
+    pub(crate) stats_metric_req_data: Vec<MetricAggReqData>,
     /// CardinalityAggReqData contains the request data for a cardinality aggregation.
-    pub cardinality_req_data: Vec<CardinalityAggReqData>,
+    pub(crate) cardinality_req_data: Vec<CardinalityAggReqData>,
     /// TopHitsAggReqData contains the request data for a top_hits aggregation.
-    pub top_hits_req_data: Vec<TopHitsAggReqData>,
+    pub(crate) top_hits_req_data: Vec<TopHitsAggReqData>,
     /// MissingTermAggReqData contains the request data for a missing term aggregation.
-    pub missing_term_req_data: Vec<MissingTermAggReqData>,
+    pub(crate) missing_term_req_data: Vec<MissingTermAggReqData>,
     /// CompositeAggReqData contains the request data for a composite aggregation.
-    pub composite_req_data: Vec<CompositeAggReqData>,
+    pub(crate) composite_req_data: Vec<CompositeAggReqData>,
     /// MultiTermsAggReqData contains the request data for a multi_terms aggregation.
-    pub multi_terms_req_data: Vec<MultiTermsAggReqData>,
+    pub(crate) multi_terms_req_data: Vec<MultiTermsAggReqData>,
 
     /// Request tree used to build collectors.
-    pub agg_tree: Vec<AggRefNode>,
+    pub(crate) agg_tree: Vec<AggRefNode>,
 }
 
 impl PerRequestAggSegCtx {
@@ -286,39 +285,7 @@ pub(crate) fn build_segment_agg_collector(
             Ok(Box::new(TermMissingAgg::new(req, node)?))
         }
         AggKind::Cardinality => {
-            let req_data = req.get_cardinality_req_data(node.idx_in_req_data);
-            // For str columns, choose the per-bucket entries representation
-            // based on the segment's column.max_value():
-            //   * small (< BITSET_MAX_TERM_ORD): `BitSet`, pre-allocated, no promotion machinery.
-            //   * large: `TermOrdSet` (sparse FxHashSet that promotes to a paged bitset).
-            // For non-str columns the `entries` field is unused (values go
-            // straight into the HLL sketch); we still pick `TermOrdSet`
-            // because its empty Sparse(FxHashSet) costs nothing.
-            let is_str = req_data.column_type == ColumnType::Str;
-            let max_term_ord_inclusive = if is_str {
-                req_data.accessor.max_value()
-            } else {
-                0
-            };
-            let collector: Box<dyn SegmentAggregationCollector> =
-                if is_str && max_term_ord_inclusive < BITSET_MAX_TERM_ORD {
-                    Box::new(SegmentCardinalityCollector::<BitSet>::from_req(
-                        req_data.column_type,
-                        node.idx_in_req_data,
-                        req_data.accessor.clone(),
-                        req_data.missing_value_for_accessor,
-                        max_term_ord_inclusive,
-                    ))
-                } else {
-                    Box::new(SegmentCardinalityCollector::<TermOrdSet>::from_req(
-                        req_data.column_type,
-                        node.idx_in_req_data,
-                        req_data.accessor.clone(),
-                        req_data.missing_value_for_accessor,
-                        max_term_ord_inclusive,
-                    ))
-                };
-            Ok(collector)
+            crate::aggregation::metric::build_segment_cardinality_collector(req, node)
         }
         AggKind::StatsKind(stats_type) => {
             let req_data = &mut req.per_request.stats_metric_req_data[node.idx_in_req_data];
@@ -690,7 +657,6 @@ fn build_nodes(
 
             let idx_in_req_data = data.push_filter_req_data(FilterAggReqData {
                 name: agg_name.to_string(),
-                req: filter_req.clone(),
                 segment_reader: reader.clone(),
                 evaluator,
                 is_top_level,
@@ -827,7 +793,6 @@ fn build_multi_terms_nodes(
             req: req.clone(),
             fields,
             missing_accessors,
-            sub_aggregations: sub_aggs.clone(),
             is_top_level,
         });
         let children = build_children(sub_aggs, reader, segment_ordinal, data)?;
@@ -1125,7 +1090,7 @@ fn build_terms_or_cardinality_nodes(
                     missing_value_for_accessor,
                     name: agg_name.to_string(),
                     req: TermsAggregationInternal::from_req(req),
-                    sug_aggregations: sub_aggs.clone(),
+                    sub_aggregations: sub_aggs.clone(),
                     allowed_term_ids,
                     is_top_level,
                 });

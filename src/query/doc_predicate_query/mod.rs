@@ -1,13 +1,19 @@
 use std::sync::Arc;
 
 mod function_predicate;
+#[cfg(feature = "jitexpr")]
+mod jitexpr_predicate;
 
 pub use function_predicate::FunctionPredicate;
+#[cfg(feature = "jitexpr")]
+pub use jitexpr_predicate::{JitExprEvalState, JitExprPredicate};
 
 use crate::docset::{SeekDangerResult, TERMINATED};
 use crate::index::SegmentReader;
 use crate::query::explanation::does_not_match;
-use crate::query::{ConstScorer, EnableScoring, Explanation, Query, Scorer, Weight};
+use crate::query::{
+    AllWeight, ConstScorer, EmptyWeight, EnableScoring, Explanation, Query, Scorer, Weight,
+};
 use crate::{DocId, DocSet, Score};
 
 /// A query that evaluates, for each DocId, whether it matches or not.
@@ -141,14 +147,25 @@ pub trait DocPredicateBoxable: std::fmt::Debug + 'static + Send + Sync {
 
 impl<TDocPredicate: DocPredicate> DocPredicateBoxable for TDocPredicate {
     fn scorer(&self, segment_reader: &SegmentReader, boost: f32) -> crate::Result<Box<dyn Scorer>> {
-        let doc_predicate = self.doc_predicate(segment_reader)?;
-        let mut doc_set = DocPredicateDocSet {
-            doc_predicate,
-            doc: 0u32,
-            max_doc: segment_reader.max_doc(),
-        };
-        doc_set.doc = doc_set.find_match(0);
-        Ok(Box::new(ConstScorer::new(doc_set, boost)) as Box<dyn Scorer>)
+        let const_or_variable_segment_predicate = self.doc_predicate(segment_reader)?;
+        match const_or_variable_segment_predicate {
+            ConstOrVariableSegmentPredicate::Const(always_match) => {
+                if always_match {
+                    AllWeight.scorer(segment_reader, boost)
+                } else {
+                    EmptyWeight.scorer(segment_reader, boost)
+                }
+            }
+            ConstOrVariableSegmentPredicate::Variable(doc_predicate) => {
+                let mut doc_set = DocPredicateDocSet {
+                    doc_predicate,
+                    doc: 0u32,
+                    max_doc: segment_reader.max_doc(),
+                };
+                doc_set.doc = doc_set.find_match(0);
+                Ok(Box::new(ConstScorer::new(doc_set, boost)) as Box<dyn Scorer>)
+            }
+        }
     }
 
     fn scorer_danger(
@@ -157,15 +174,41 @@ impl<TDocPredicate: DocPredicate> DocPredicateBoxable for TDocPredicate {
         target: DocId,
         boost: f32,
     ) -> crate::Result<(SeekDangerResult, Box<dyn Scorer>)> {
-        let doc_predicate = self.doc_predicate(segment_reader)?;
-        let mut doc_set = DocPredicateDocSet {
-            doc_predicate,
-            doc: target,
-            max_doc: segment_reader.max_doc(),
-        };
-        let seek_result = doc_set.seek_danger(target);
-        let scorer = Box::new(ConstScorer::new(doc_set, boost)) as Box<dyn Scorer>;
-        Ok((seek_result, scorer))
+        let const_or_variable_segment_predicate = self.doc_predicate(segment_reader)?;
+        match const_or_variable_segment_predicate {
+            ConstOrVariableSegmentPredicate::Const(always_match) => {
+                if always_match {
+                    AllWeight.scorer_danger(segment_reader, target, boost)
+                } else {
+                    EmptyWeight.scorer_danger(segment_reader, target, boost)
+                }
+            }
+            ConstOrVariableSegmentPredicate::Variable(doc_predicate) => {
+                let mut doc_set = DocPredicateDocSet {
+                    doc_predicate,
+                    doc: target,
+                    max_doc: segment_reader.max_doc(),
+                };
+                let seek_result = doc_set.seek_danger(target);
+                let scorer = Box::new(ConstScorer::new(doc_set, boost)) as Box<dyn Scorer>;
+                Ok((seek_result, scorer))
+            }
+        }
+    }
+}
+
+/// Represents a segment predicate.
+pub enum ConstOrVariableSegmentPredicate<P: SegmentDocPredicate> {
+    /// Can be emitted to hint that a predicate will be always true or false on a segment.
+    /// Returning Const instead of a variable is an optimization.
+    Const(bool),
+    /// Just a regular SegmentDocPredicate.
+    Variable(P),
+}
+
+impl<P: SegmentDocPredicate> From<P> for ConstOrVariableSegmentPredicate<P> {
+    fn from(predicate: P) -> Self {
+        ConstOrVariableSegmentPredicate::Variable(predicate)
     }
 }
 
@@ -186,7 +229,7 @@ pub trait DocPredicate: Send + Sync + 'static + std::fmt::Debug {
     fn doc_predicate(
         &self,
         segment_reader: &SegmentReader,
-    ) -> crate::Result<Self::SegmentDocPredicate>;
+    ) -> crate::Result<ConstOrVariableSegmentPredicate<Self::SegmentDocPredicate>>;
 }
 
 /// The per-segment predicate produced by a [`DocPredicate`].
@@ -214,7 +257,7 @@ pub(crate) mod tests {
 
     fn even_doc_id_query() -> DocPredicateQuery {
         FunctionPredicate::from(|_segment_reader: &SegmentReader| {
-            Ok(move |doc_id: DocId| doc_id % 2 == 0)
+            Ok(move |doc_id: DocId| doc_id.is_multiple_of(2))
         })
         .into()
     }

@@ -28,7 +28,7 @@ aho-corasick = "1.0"
 tantivy-fst = "0.5"
 memmap2 = { version = "0.9.0", optional = true }
 lz4_flex = { version = "0.14", default-features = false, optional = true }
-zstd = { version = "0.13", optional = true, default-features = false }
+zstd = { version = "0.14", optional = true, default-features = false }
 tempfile = { version = "3.12.0", optional = true }
 log = "0.4.16"
 serde = { version = "1.0.219", features = ["derive"] }
@@ -75,6 +75,9 @@ itertools = "0.14.0"
 measure_time = "0.9.0"
 arc-swap = "1.5.0"
 bon = "3.3.1"
+
+# EXPERIMENTAL. The API is likely to change in the near future.
+jitexpr = { version = "0.1", path = "./jitexpr", optional = true }
 
 columnar = { version = "0.7", path = "./columnar", package = "tantivy-columnar" }
 sstable = { version = "0.7", path = "./sstable", package = "tantivy-sstable", optional = true }
@@ -149,6 +152,7 @@ failpoints = ["fail", "fail/failpoints"]
 unstable = []                            # useful for benches.
 
 quickwit = ["sstable", "futures-util", "futures-channel"]
+jitexpr = ["dep:jitexpr"]
 
 # Compares only the hash of a string when indexing data.
 # Increases indexing speed, but may lead to extremely rare missing terms, when there's a hash collision.
@@ -165,6 +169,7 @@ members = [
     "sstable",
     "tokenizer-api",
     "columnar",
+    "jitexpr",
 ]
 
 # Following the "fail" crate best practises, we isolate

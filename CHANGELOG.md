@@ -5,13 +5,21 @@ Tantivy 0.27.0
 - `.set_fast(..)` now takes a &str. The same behavior as `.set_fast(None)` can be obtained with .set_fast(tantivy::tokenizer::RAW_TOKENIZER_NAME).
 
 
+Tantivy 0.26.2
+================================
+
+## Bugfixes
+- Fix term aggregation document-count overflow when merging buckets across segments by widening intermediate counts from `u32` to `u64` (@PSeitz)
+- Fix missing local buffer flushes in nested aggregations that caused incorrect metric results for low-cardinality terms buckets [#2992](https://github.com/quickwit-oss/tantivy/issues/2992)(@PSeitz)
+- Disable the buffered union `seek_danger` override to avoid consuming unaligned scorers [#3086](https://github.com/quickwit-oss/tantivy/issues/3086)(@PSeitz)
+
 Tantivy 0.26.1
 ================================
 
 ## Performance
 - Fix quadratic runtime in nested term and composite aggregations: memory accounting scanned all parent buckets on every collect instead of just the current parent (@PSeitz @fulmicoton)
 
-Tantivy 0.26 (Unreleased)
+Tantivy 0.26
 ================================
 
 ## Bugfixes

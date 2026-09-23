@@ -1,5 +1,4 @@
 use std::net::Ipv6Addr;
-use std::sync::Arc;
 use std::{fmt, io};
 
 use common::file_slice::FileSlice;
@@ -124,11 +123,11 @@ impl DynamicColumn {
         match self {
             DynamicColumn::I64(column) => Some(DynamicColumn::F64(Column {
                 index: column.index,
-                values: Arc::new(monotonic_map_column(column.values, MapI64ToF64)),
+                values: monotonic_map_column(column.values, MapI64ToF64),
             })),
             DynamicColumn::U64(column) => Some(DynamicColumn::F64(Column {
                 index: column.index,
-                values: Arc::new(monotonic_map_column(column.values, MapU64ToF64)),
+                values: monotonic_map_column(column.values, MapU64ToF64),
             })),
             DynamicColumn::F64(_) => Some(self),
             _ => None,
@@ -142,7 +141,7 @@ impl DynamicColumn {
                 }
                 Some(DynamicColumn::I64(Column {
                     index: column.index,
-                    values: Arc::new(monotonic_map_column(column.values, MapU64ToI64)),
+                    values: monotonic_map_column(column.values, MapU64ToI64),
                 }))
             }
             DynamicColumn::I64(_) => Some(self),
@@ -157,7 +156,7 @@ impl DynamicColumn {
                 }
                 Some(DynamicColumn::U64(Column {
                     index: column.index,
-                    values: Arc::new(monotonic_map_column(column.values, MapI64ToU64)),
+                    values: monotonic_map_column(column.values, MapI64ToU64),
                 }))
             }
             DynamicColumn::U64(_) => Some(self),
