@@ -14,6 +14,7 @@ use itertools::Itertools;
 use tantivy_fst::Automaton;
 use tantivy_fst::automaton::AlwaysMatch;
 
+use crate::delta::DeltaKeyComparator;
 use crate::streamer::{Streamer, StreamerBuilder};
 use crate::{BlockAddr, DeltaReader, Reader, SSTable, SSTableIndex, TermOrdinal, VoidSSTable};
 
@@ -356,41 +357,19 @@ impl<TSSTable: SSTable> Dictionary<TSSTable> {
     ) -> io::Result<TermOrdHit> {
         let mut term_ord = 0;
         let key_bytes = key.as_ref();
-        let mut ok_bytes = 0;
+        let mut key_comparator = DeltaKeyComparator::new();
         while sstable_delta_reader.advance()? {
-            let prefix_len = sstable_delta_reader.common_prefix_len();
-            let suffix = sstable_delta_reader.suffix();
-
-            match prefix_len.cmp(&ok_bytes) {
-                Ordering::Less => return Ok(TermOrdHit::Next(term_ord)), /* popped bytes already matched => too far */
-                Ordering::Equal => (),
-                Ordering::Greater => {
-                    // the ok prefix is less than current entry prefix => continue to next elem
+            match key_comparator.compare(
+                key_bytes,
+                sstable_delta_reader.common_prefix_len(),
+                sstable_delta_reader.suffix(),
+            ) {
+                Ordering::Less => {
                     term_ord += 1;
-                    continue;
                 }
+                Ordering::Equal => return Ok(TermOrdHit::Exact(term_ord)),
+                Ordering::Greater => return Ok(TermOrdHit::Next(term_ord)),
             }
-
-            // we have ok_bytes byte of common prefix, check if this key adds more
-            for (key_byte, suffix_byte) in key_bytes[ok_bytes..].iter().zip(suffix) {
-                match suffix_byte.cmp(key_byte) {
-                    Ordering::Less => break,          // byte too small
-                    Ordering::Equal => ok_bytes += 1, // new matching
-                    // byte
-                    Ordering::Greater => return Ok(TermOrdHit::Next(term_ord)), // too far
-                }
-            }
-
-            if ok_bytes == key_bytes.len() {
-                if prefix_len + suffix.len() == ok_bytes {
-                    return Ok(TermOrdHit::Exact(term_ord));
-                } else {
-                    // current key is a prefix of current element, not a match
-                    return Ok(TermOrdHit::Next(term_ord));
-                }
-            }
-
-            term_ord += 1;
         }
 
         Ok(TermOrdHit::Next(term_ord))
