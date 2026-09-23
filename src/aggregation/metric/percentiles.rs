@@ -1,4 +1,5 @@
 use std::fmt::Debug;
+use std::sync::Arc;
 
 use serde::{Deserialize, Serialize};
 
@@ -134,12 +135,10 @@ impl PercentilesAggregationReq {
 pub(crate) struct SegmentPercentilesCollector {
     pub(crate) buckets: Vec<PercentilesCollector>,
     pub(crate) accessor_idx: usize,
-    /// The type of the field.
-    pub field_type: ColumnType,
     /// The missing value normalized to the internal u64 representation of the field type.
     pub missing_u64: Option<u64>,
     /// The column accessor to access the fast field values.
-    pub(crate) accessor: Column<u64>,
+    pub(crate) accessor: Arc<dyn ValueSource>,
 }
 
 #[derive(Clone, Serialize, Deserialize)]
@@ -250,14 +249,12 @@ impl PercentilesCollector {
 
 impl SegmentPercentilesCollector {
     pub fn from_req_and_validate(
-        field_type: ColumnType,
         missing_u64: Option<u64>,
-        accessor: Column<u64>,
+        accessor: Arc<dyn ValueSource>,
         accessor_idx: usize,
     ) -> Self {
         Self {
             buckets: Vec::with_capacity(64),
-            field_type,
             missing_u64,
             accessor,
             accessor_idx,
@@ -299,12 +296,13 @@ impl SegmentAggregationCollector for SegmentPercentilesCollector {
         let percentiles = &mut self.buckets[parent_bucket_id as usize];
         agg_data.column_block_accessor.fetch_block_with_missing(
             docs,
-            &self.accessor,
+            &*self.accessor,
             self.missing_u64,
         );
 
+        let field_type = self.accessor.column_type();
         for val in agg_data.column_block_accessor.iter_vals() {
-            let val1 = f64_from_fastfield_u64(val, self.field_type);
+            let val1 = f64_from_fastfield_u64(val, field_type);
             percentiles.collect(val1);
         }
 

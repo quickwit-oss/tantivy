@@ -28,10 +28,10 @@ mod sum;
 mod top_hits;
 
 use std::collections::HashMap;
+use std::sync::Arc;
 
 pub use average::*;
 pub use cardinality::*;
-use columnar::{Column, ColumnType};
 pub use count::*;
 pub use extended_stats::*;
 pub use max::*;
@@ -43,6 +43,7 @@ pub use stats::*;
 pub use sum::*;
 pub use top_hits::*;
 
+use crate::aggregation::value_source::ValueSource;
 use crate::schema::OwnedValue;
 
 /// Contains all information required by metric aggregations like avg, min, max, sum, stats,
@@ -51,12 +52,10 @@ use crate::schema::OwnedValue;
 pub(crate) struct MetricAggReqData {
     /// True if the field is of number or date type.
     pub(crate) is_number_or_date_type: bool,
-    /// The type of the field.
-    pub(crate) field_type: ColumnType,
     /// The missing value normalized to the internal u64 representation of the field type.
     pub(crate) missing_u64: Option<u64>,
     /// The column accessor to access the fast field values.
-    pub(crate) accessor: Column<u64>,
+    pub(crate) accessor: Arc<dyn ValueSource>,
     /// Used when converting to intermediate result
     pub(crate) collecting_for: StatsType,
     /// The missing value

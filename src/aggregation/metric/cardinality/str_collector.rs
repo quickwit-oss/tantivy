@@ -10,8 +10,9 @@
 
 use std::fmt::Debug;
 use std::io;
+use std::sync::Arc;
 
-use columnar::{Column, ColumnType, Dictionary};
+use columnar::{ColumnType, Dictionary};
 use datasketches::hll::Coupon;
 use rustc_hash::{FxBuildHasher, FxHashMap, FxHashSet};
 
@@ -22,6 +23,7 @@ use crate::aggregation::intermediate_agg_result::{
     IntermediateAggregationResult, IntermediateAggregationResults, IntermediateMetricResult,
 };
 use crate::aggregation::segment_agg_result::SegmentAggregationCollector;
+use crate::aggregation::value_source::ValueSource;
 use crate::aggregation::*;
 
 /// A CouponCache is here to cache the mapping term ordinal -> coupon (see above).
@@ -99,7 +101,7 @@ pub(crate) struct SegmentStrCardinalityCollector<S: TermOrdAccumulator> {
     buckets: Vec<Option<S>>,
     accessor_idx: usize,
     /// The column accessor to access the fast field values (term ordinals).
-    accessor: Column<u64>,
+    accessor: Arc<dyn ValueSource>,
     /// The missing value normalized to the internal u64 representation of the field type.
     missing_value_for_accessor: Option<u64>,
     /// Lazily built at finalization time, shared by every bucket.
@@ -209,7 +211,7 @@ fn append_to_sketch(
 impl<S: TermOrdAccumulator> SegmentStrCardinalityCollector<S> {
     pub fn from_req(
         accessor_idx: usize,
-        accessor: Column<u64>,
+        accessor: Arc<dyn ValueSource>,
         missing_value_for_accessor: Option<u64>,
         max_term_ord_inclusive: u64,
     ) -> Self {
@@ -282,7 +284,7 @@ impl<S: TermOrdAccumulator + 'static> SegmentAggregationCollector
     ) -> crate::Result<()> {
         agg_data.column_block_accessor.fetch_block_with_missing(
             docs,
-            &self.accessor,
+            &*self.accessor,
             self.missing_value_for_accessor,
         );
         let Some(term_ords) = self.buckets[parent_bucket_id as usize].as_mut() else {

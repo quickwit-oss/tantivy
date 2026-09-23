@@ -1,10 +1,12 @@
 //! This will enhance the request tree with access to the fastfield and metadata.
 
 use std::io;
+use std::sync::Arc;
 
-use columnar::{Column, ColumnType};
+use columnar::{Column, ColumnType, DynamicColumn, DynamicColumnHandle};
 
-use crate::aggregation::{f64_to_fastfield_u64, Key};
+use crate::aggregation::value_source::ValueSource;
+use crate::aggregation::{f64_to_fastfield_u64, Key, ValueSourceRegistry};
 use crate::index::SegmentReader;
 
 /// Get the missing value as internal u64 representation
@@ -55,14 +57,38 @@ pub(crate) fn get_numeric_or_date_column_types() -> &'static [ColumnType] {
     ]
 }
 
-/// Get fast field reader or empty as default.
-pub(crate) fn get_ff_reader(
+fn resolve_registered_source(
     reader: &SegmentReader,
+    value_sources: &ValueSourceRegistry,
+    field_name: &str,
+    allowed_column_types_opt: Option<&[ColumnType]>,
+) -> crate::Result<Option<Arc<dyn ValueSource>>> {
+    let Some(provider) = value_sources.get(field_name) else {
+        return Ok(None);
+    };
+    let source = provider.for_segment(reader)?;
+    let column_type = source.column_type();
+    if let Some(allowed_column_types) = allowed_column_types_opt {
+        if !allowed_column_types.contains(&column_type) {
+            return Ok(None);
+        }
+    }
+    Ok(Some(source))
+}
+
+pub(crate) fn get_value_source(
+    reader: &SegmentReader,
+    value_sources: &ValueSourceRegistry,
     field_name: &str,
     allowed_column_types: Option<&[ColumnType]>,
-) -> crate::Result<(columnar::Column<u64>, ColumnType)> {
+) -> crate::Result<Arc<dyn ValueSource>> {
+    if let Some(registered) =
+        resolve_registered_source(reader, value_sources, field_name, allowed_column_types)?
+    {
+        return Ok(registered);
+    }
     let ff_fields = reader.fast_fields();
-    let ff_field_with_type = ff_fields
+    let (column, column_type) = ff_fields
         .u64_lenient_for_type(allowed_column_types, field_name)?
         .unwrap_or_else(|| {
             (
@@ -70,36 +96,52 @@ pub(crate) fn get_ff_reader(
                 ColumnType::U64,
             )
         });
-    Ok(ff_field_with_type)
+    // The empty-column shim stays physical on purpose: several fast paths check
+    // `as_column()` and would otherwise degrade for a merely absent field.
+    Ok(Arc::new((column, column_type)))
 }
 
 pub(crate) fn get_dynamic_columns(
     reader: &SegmentReader,
     field_name: &str,
 ) -> crate::Result<Vec<columnar::DynamicColumn>> {
-    let ff_fields = reader.fast_fields().dynamic_column_handles(field_name)?;
-    let cols = ff_fields
+    let dyn_col_handles: Vec<DynamicColumnHandle> =
+        reader.fast_fields().dynamic_column_handles(field_name)?;
+    let dyn_cols: Vec<DynamicColumn> = dyn_col_handles
         .iter()
-        .map(|h| h.open())
+        .map(DynamicColumnHandle::open)
         .collect::<io::Result<_>>()?;
-    assert!(!ff_fields.is_empty(), "field {field_name} not found");
-    Ok(cols)
+    assert!(!dyn_cols.is_empty(), "field {field_name} not found");
+    Ok(dyn_cols)
 }
 
-/// Get all fast field reader or empty as default.
+/// Get all block_value_sources or empty as default.
 ///
 /// Is guaranteed to return at least one column.
-pub(crate) fn get_all_ff_reader_or_empty(
+pub(crate) fn get_all_value_sources(
     reader: &SegmentReader,
+    value_sources: &ValueSourceRegistry,
     field_name: &str,
     allowed_column_types: Option<&[ColumnType]>,
     fallback_type: ColumnType,
-) -> crate::Result<Vec<(columnar::Column<u64>, ColumnType)>> {
+) -> crate::Result<Vec<Arc<dyn ValueSource>>> {
+    // A registered source shadows the physical type fan-out entirely.
+    if let Some(registered) =
+        resolve_registered_source(reader, value_sources, field_name, allowed_column_types)?
+    {
+        return Ok(vec![registered]);
+    }
     let ff_fields = reader.fast_fields();
-    let mut ff_field_with_type =
+    let mut ff_field_with_type: Vec<(Column, ColumnType)> =
         ff_fields.u64_lenient_for_type_all(allowed_column_types, field_name)?;
     if ff_field_with_type.is_empty() {
         ff_field_with_type.push((Column::build_empty_column(reader.num_docs()), fallback_type));
     }
-    Ok(ff_field_with_type)
+    Ok(ff_field_with_type
+        .into_iter()
+        .map(|(column, column_type)| {
+            let source: Arc<dyn ValueSource> = Arc::new((column, column_type));
+            source
+        })
+        .collect())
 }

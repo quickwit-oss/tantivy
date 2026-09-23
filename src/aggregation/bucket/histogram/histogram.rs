@@ -1,6 +1,7 @@
 use std::cmp::Ordering;
+use std::sync::Arc;
 
-use columnar::{Column, ColumnType};
+use columnar::ColumnType;
 use rustc_hash::FxHashMap;
 use serde::{Deserialize, Serialize};
 use tantivy_bitpacker::minmax;
@@ -24,9 +25,7 @@ use crate::TantivyError;
 #[derive(Debug, Clone)]
 pub(crate) struct HistogramAggReqData {
     /// The column accessor to access the fast field values.
-    pub(crate) accessor: Column<u64>,
-    /// The field type of the fast field.
-    pub(crate) field_type: ColumnType,
+    pub(crate) accessor: Arc<dyn ValueSource>,
     /// The name of the aggregation.
     pub(crate) name: String,
     /// The histogram aggregation request.
@@ -484,6 +483,7 @@ impl<B: BucketIdSlot> SegmentAggregationCollector for SegmentHistogramCollector<
         store.maybe_densify(dense_range);
 
         let req = &self.req_data;
+        let field_type = req.accessor.column_type();
         let bounds = req.bounds;
         let interval = req.req.interval;
         let offset = req.offset;
@@ -491,11 +491,11 @@ impl<B: BucketIdSlot> SegmentAggregationCollector for SegmentHistogramCollector<
 
         agg_data
             .column_block_accessor
-            .fetch_block(docs, &req.accessor);
+            .fetch_block(docs, &*req.accessor);
         // special path for nested buckets
         if let Some(sub_agg) = &mut self.sub_agg {
             for (doc, val) in agg_data.column_block_accessor.iter_docid_vals(docs) {
-                let val = f64_from_fastfield_u64(val, req.field_type);
+                let val = f64_from_fastfield_u64(val, field_type);
                 if bounds.contains(val) {
                     let bucket = store.get_or_create(
                         get_bucket_pos(val),
@@ -508,7 +508,7 @@ impl<B: BucketIdSlot> SegmentAggregationCollector for SegmentHistogramCollector<
             }
         } else {
             for val in agg_data.column_block_accessor.iter_vals() {
-                let val = f64_from_fastfield_u64(val, req.field_type);
+                let val = f64_from_fastfield_u64(val, field_type);
                 if bounds.contains(val) {
                     let bucket = store.get_or_create(
                         get_bucket_pos(val),
@@ -586,7 +586,7 @@ impl<B: BucketIdSlot> SegmentHistogramCollector<B> {
         }
         buckets.sort_unstable_by(|b1, b2| b1.key.total_cmp(&b2.key));
 
-        let is_date_agg = self.req_data.field_type == ColumnType::DateTime;
+        let is_date_agg = self.req_data.accessor.column_type() == ColumnType::DateTime;
         Ok(IntermediateBucketResult::Histogram {
             buckets,
             is_date_agg,
@@ -609,8 +609,7 @@ impl<B: BucketIdSlot> SegmentHistogramCollector<B> {
             .limits
             .add_memory_consumed(req_data.get_memory_consumption() as u64)?;
         let dense_range = compute_dense_range(
-            &req_data.accessor,
-            req_data.field_type,
+            &*req_data.accessor,
             req_data.req.interval,
             req_data.offset,
             req_data.bounds,
@@ -675,7 +674,8 @@ impl SegmentHistogramCollector<()> {
 /// `histogram` on a date column) and resolves `bounds`/`offset` from the request.
 fn normalize_histogram_req(req_data: &mut HistogramAggReqData) -> crate::Result<()> {
     req_data.req.validate()?;
-    if req_data.field_type == ColumnType::DateTime && !req_data.is_date_histogram {
+    let field_type = req_data.accessor.column_type();
+    if field_type == ColumnType::DateTime && !req_data.is_date_histogram {
         req_data.req.normalize_date_time();
     }
     req_data.bounds = req_data.req.hard_bounds.unwrap_or(HistogramBounds {
@@ -690,13 +690,15 @@ fn normalize_histogram_req(req_data: &mut HistogramAggReqData) -> crate::Result<
     // emission reads `req.hard_bounds` directly (see `get_req_min_max`), and `hard_bounds` only
     // ever clips that range, so a wider-than-data bound leaves the result unchanged.
     if req_data.req.hard_bounds.is_some() {
-        let col_min = f64_from_fastfield_u64(req_data.accessor.min_value(), req_data.field_type);
-        let col_max = f64_from_fastfield_u64(req_data.accessor.max_value(), req_data.field_type);
-        if col_min >= req_data.bounds.min && col_max <= req_data.bounds.max {
-            req_data.bounds = HistogramBounds {
-                min: f64::MIN,
-                max: f64::MAX,
-            };
+        if let Some((min_value, max_value)) = req_data.accessor.bounds() {
+            let col_min = f64_from_fastfield_u64(min_value, field_type);
+            let col_max = f64_from_fastfield_u64(max_value, field_type);
+            if col_min >= req_data.bounds.min && col_max <= req_data.bounds.max {
+                req_data.bounds = HistogramBounds {
+                    min: f64::MIN,
+                    max: f64::MAX,
+                };
+            }
         }
     }
     Ok(())
@@ -712,8 +714,7 @@ pub(crate) fn prepare_histogram_dense_range(
     let mut req_data = agg_data.per_request.histogram_req_data[node.idx_in_req_data].clone();
     normalize_histogram_req(&mut req_data)?;
     let dense_range = compute_dense_range(
-        &req_data.accessor,
-        req_data.field_type,
+        &*req_data.accessor,
         req_data.req.interval,
         req_data.offset,
         req_data.bounds,
@@ -752,15 +753,19 @@ pub(crate) fn get_bucket_pos_f64(val: f64, interval: f64, offset: f64) -> f64 {
 ///
 /// The column min/max bound every value the collector can see, so a `Vec` sized to this range can
 /// be indexed by `bucket_pos - base_pos` without any out-of-bounds check on the hot path.
+///
+/// Returns `None` for a computed source: there is no global range to size the `Vec` from, so the
+/// histogram keeps its sparse map. The result is identical, just without the dense fast path.
 fn compute_dense_range(
-    accessor: &Column<u64>,
-    field_type: ColumnType,
+    accessor: &dyn ValueSource,
     interval: f64,
     offset: f64,
     bounds: HistogramBounds,
 ) -> Option<DenseRange> {
-    let col_min = f64_from_fastfield_u64(accessor.min_value(), field_type);
-    let col_max = f64_from_fastfield_u64(accessor.max_value(), field_type);
+    let (min_value, max_value) = accessor.bounds()?;
+    let field_type = accessor.column_type();
+    let col_min = f64_from_fastfield_u64(min_value, field_type);
+    let col_max = f64_from_fastfield_u64(max_value, field_type);
     let lo = col_min.max(bounds.min);
     let hi = col_max.min(bounds.max);
     if lo > hi {
