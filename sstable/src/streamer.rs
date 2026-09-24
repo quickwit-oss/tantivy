@@ -142,9 +142,16 @@ where
             Bound::Unbounded => 0,
         };
 
+        let always_match_at = if self.automaton.will_always_match(&start_state) {
+            Some(0)
+        } else {
+            None
+        };
+
         Ok(Streamer {
             automaton: self.automaton,
             states: vec![start_state],
+            always_match_at,
             delta_reader,
             key: Vec::new(),
             term_ord: first_term.checked_sub(1),
@@ -198,6 +205,7 @@ where
     // this field is used to please the type-interface of a dictionary in tantivy
     _lifetime: std::marker::PhantomData<&'a ()>,
     lower_bound_reached: bool,
+    always_match_at: Option<usize>,
 }
 
 impl<TSSTable> Streamer<'_, TSSTable, AlwaysMatch>
@@ -207,6 +215,7 @@ where TSSTable: SSTable
         Streamer {
             automaton: AlwaysMatch,
             states: vec![AlwaysMatch.start()],
+            always_match_at: Some(0),
             delta_reader: DeltaReader::empty(),
             key: Vec::new(),
             term_ord: None,
@@ -305,57 +314,93 @@ where
             }
         }
 
-        // (always_match, no_bound)
         match (
+            // we could check always_match_at == Some(0), but this actually gets
+            // inlined into `true` with AlwaysMatch, which is even faster
             self.automaton
                 .will_always_match(&self.states.first().unwrap()),
             self.upper_bound == Bound::Unbounded,
         ) {
-            (true, true) => self.advance_inner::<true, true>(),
-            (true, false) => self.advance_inner::<true, false>(),
-            (false, true) => self.advance_inner::<false, true>(),
-            (false, false) => self.advance_inner::<false, false>(),
+            (true, true) => self.advance_always_match::<true>(),
+            (true, false) => self.advance_always_match::<false>(),
+            (false, true) => self.advance_with_automaton::<true>(),
+            (false, false) => self.advance_with_automaton::<false>(),
         }
     }
 
-    fn advance_inner<const AUTOMATON_MATCH: bool, const NO_BOUND: bool>(&mut self) -> bool {
-        while self.advance_delta_reader() {
-            let common_prefix_len = self.delta_reader.common_prefix_len();
-            self.states.truncate(common_prefix_len + 1);
+    fn advance_always_match<const NO_BOUND: bool>(&mut self) -> bool {
+        if !self.advance_delta_reader() {
+            return false;
+        }
+        self.reconstruct_key_and_check_upper_bound::<NO_BOUND>()
+    }
 
-            // TODO we could detect when we reach an always match state, and no longer check state
-            // until we truncate enough (e.g. for the regex `my_prefix.*`, or `.*my_infix.*`)
-            // TODO we could detect when we reach a !can_match, and skip both state and key
-            // computation until we truncate that can_t_match out of our state
-            let mut state: A::State = self.states.last().unwrap().clone();
-            if !AUTOMATON_MATCH {
-                for &b in self.delta_reader.suffix() {
-                    state = self.automaton.accept(&state, b);
-                    self.states.push(state.clone());
-                }
-            }
-
-            self.key.truncate(common_prefix_len);
-            self.key.extend_from_slice(self.delta_reader.suffix());
-
-            // TODO there is an idea where we only look at the upper bound when our delta_reader
-            // reached the last block (if we pruned blocks beforehand (do we always?) we cannot
-            // find that key before that block)
-            if !NO_BOUND
-                && !matches_upper_bound(
-                    &mut self.upper_bound_comparator,
-                    &self.upper_bound,
-                    common_prefix_len,
-                    self.delta_reader.suffix(),
-                )
-            {
+    fn advance_with_automaton<const NO_BOUND: bool>(&mut self) -> bool {
+        // fast path, check if prefix always match and we can skip Vec<state> management
+        if let Some(always_match_at) = self.always_match_at.take() {
+            if !self.advance_delta_reader() {
                 return false;
             }
-            if AUTOMATON_MATCH || self.automaton.is_match(&state) {
+            let common_prefix_len = self.delta_reader.common_prefix_len();
+            if always_match_at <= common_prefix_len {
+                self.always_match_at = Some(always_match_at);
+                return self.reconstruct_key_and_check_upper_bound::<NO_BOUND>();
+            }
+        } else if !self.advance_delta_reader() {
+            return false;
+        }
+
+        loop {
+            let common_prefix_len = self.delta_reader.common_prefix_len();
+            self.states.truncate(common_prefix_len + 1);
+            // TODO we could detect when we reach a !can_match, and skip both state and key
+            // computation until we truncate that can_t_match out of our state. it's already
+            // done at the block layer, so not as important
+            let mut state: A::State = self.states.last().unwrap().clone();
+            for &b in self.delta_reader.suffix() {
+                state = self.automaton.accept(&state, b);
+                self.states.push(state.clone());
+            }
+            let matches = self.automaton.is_match(&state);
+            if matches {
+                self.always_match_at = self
+                    .states
+                    .iter()
+                    .enumerate()
+                    .rev()
+                    .take_while(|(_i, state)| self.automaton.will_always_match(state))
+                    .last()
+                    .map(|(i, _state)| i);
+            }
+
+            if !self.reconstruct_key_and_check_upper_bound::<NO_BOUND>() {
+                return false;
+            }
+            if matches {
                 return true;
             }
+            if !self.advance_delta_reader() {
+                return false;
+            }
         }
-        false
+    }
+
+    #[inline(always)]
+    fn reconstruct_key_and_check_upper_bound<const NO_BOUND: bool>(&mut self) -> bool {
+        let common_prefix_len = self.delta_reader.common_prefix_len();
+        self.key.truncate(common_prefix_len);
+        self.key.extend_from_slice(self.delta_reader.suffix());
+
+        // TODO there is an idea where we only look at the upper bound when our delta_reader
+        // reached the last block (if we pruned blocks beforehand (do we always?) we cannot
+        // find that key before that block)
+        NO_BOUND
+            || matches_upper_bound(
+                &mut self.upper_bound_comparator,
+                &self.upper_bound,
+                common_prefix_len,
+                self.delta_reader.suffix(),
+            )
     }
 
     /// Returns the `TermOrdinal` of the given term.
