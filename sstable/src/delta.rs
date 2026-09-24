@@ -1,3 +1,4 @@
+use std::cmp::Ordering;
 use std::io::{self, BufWriter, Write};
 use std::ops::Range;
 
@@ -11,6 +12,64 @@ use super::{BlockReader, value, vint};
 const FOUR_BIT_LIMITS: usize = 1 << 4;
 const VINT_MODE: u8 = 1u8;
 const BLOCK_LEN: usize = 4_000;
+
+/// Incrementally compares delta-encoded keys with a fixed target key.
+pub(crate) struct DeltaKeyComparator {
+    num_matching_bytes: usize,
+}
+
+impl DeltaKeyComparator {
+    pub(crate) fn new() -> Self {
+        DeltaKeyComparator {
+            num_matching_bytes: 0,
+        }
+    }
+
+    #[inline(always)]
+    pub(crate) fn compare(
+        &mut self,
+        target: &[u8],
+        common_prefix_len: usize,
+        suffix: &[u8],
+    ) -> Ordering {
+        match common_prefix_len.cmp(&self.num_matching_bytes) {
+            // popped bytes already matched => too far
+            Ordering::Less => return Ordering::Greater,
+            Ordering::Equal => (),
+            // the ok prefix is less than current entry prefix => continue to next element
+            Ordering::Greater => return Ordering::Less,
+        }
+
+        for (key_byte, target_byte) in suffix.iter().zip(&target[self.num_matching_bytes..]) {
+            match key_byte.cmp(target_byte) {
+                Ordering::Equal => self.num_matching_bytes += 1,
+                ordering => return ordering,
+            }
+        }
+
+        (common_prefix_len + suffix.len()).cmp(&target.len())
+    }
+
+    #[inline(always)]
+    pub(crate) fn compare_across_blocks(
+        &mut self,
+        target: &[u8],
+        common_prefix_len: usize,
+        suffix: &[u8],
+    ) -> Ordering {
+        // blocks are independent. On each new block we get a common_prefix_len=0 entry.
+        // reset our state with it
+        if common_prefix_len == 0 {
+            self.num_matching_bytes = target
+                .iter()
+                .zip(suffix)
+                .take_while(|(target_byte, key_byte)| target_byte == key_byte)
+                .count();
+            return suffix.cmp(target);
+        }
+        self.compare(target, common_prefix_len, suffix)
+    }
+}
 
 pub struct DeltaWriter<W, TValueWriter>
 where W: io::Write
@@ -241,12 +300,34 @@ where TValueReader: value::ValueReader
 
 #[cfg(test)]
 mod tests {
-    use super::DeltaReader;
+    use std::cmp::Ordering;
+
+    use super::{DeltaKeyComparator, DeltaReader};
     use crate::value::U64MonotonicValueReader;
 
     #[test]
     fn test_empty() {
         let mut delta_reader: DeltaReader<U64MonotonicValueReader> = DeltaReader::empty();
         assert!(!delta_reader.advance().unwrap());
+    }
+
+    #[test]
+    fn test_delta_key_comparator_across_block_reset() {
+        let mut comparator = DeltaKeyComparator::new();
+        let target = b"bba";
+
+        assert_eq!(
+            comparator.compare_across_blocks(target, 0, b"baaaaa"),
+            Ordering::Less
+        );
+        assert_eq!(
+            comparator.compare_across_blocks(target, 2, b"baaa"),
+            Ordering::Less
+        );
+        // A zero-length common prefix marks a block reset, so the suffix is a complete key.
+        assert_eq!(
+            comparator.compare_across_blocks(target, 0, b"bbbaaa"),
+            Ordering::Greater
+        );
     }
 }

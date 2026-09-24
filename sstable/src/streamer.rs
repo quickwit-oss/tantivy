@@ -1,9 +1,11 @@
+use std::cmp::Ordering;
 use std::io;
 use std::ops::Bound;
 
 use tantivy_fst::Automaton;
 use tantivy_fst::automaton::AlwaysMatch;
 
+use crate::delta::DeltaKeyComparator;
 use crate::dictionary::Dictionary;
 use crate::{DeltaReader, SSTable, TermOrdinal};
 
@@ -28,6 +30,22 @@ fn bound_as_byte_slice(bound: &Bound<Vec<u8>>) -> Bound<&[u8]> {
         Bound::Excluded(key) => Bound::Excluded(key.as_slice()),
         Bound::Unbounded => Bound::Unbounded,
     }
+}
+
+#[inline(always)]
+fn matches_upper_bound(
+    comparator: &mut DeltaKeyComparator,
+    upper_bound: &Bound<Vec<u8>>,
+    common_prefix_len: usize,
+    suffix: &[u8],
+) -> bool {
+    let (upper_bound_key, inclusive) = match upper_bound {
+        Bound::Unbounded => return true,
+        Bound::Included(upper_bound_key) => (upper_bound_key, true),
+        Bound::Excluded(upper_bound_key) => (upper_bound_key, false),
+    };
+    let ordering = comparator.compare_across_blocks(upper_bound_key, common_prefix_len, suffix);
+    ordering == Ordering::Less || inclusive && ordering == Ordering::Equal
 }
 
 impl<'a, TSSTable, A> StreamerBuilder<'a, TSSTable, A>
@@ -124,14 +142,23 @@ where
             Bound::Unbounded => 0,
         };
 
+        let always_match_at = if self.automaton.will_always_match(&start_state) {
+            Some(0)
+        } else {
+            None
+        };
+
         Ok(Streamer {
             automaton: self.automaton,
             states: vec![start_state],
+            always_match_at,
             delta_reader,
             key: Vec::new(),
             term_ord: first_term.checked_sub(1),
+            lower_bound_reached: self.lower == Bound::Unbounded,
             lower_bound: self.lower,
             upper_bound: self.upper,
+            upper_bound_comparator: DeltaKeyComparator::new(),
             _lifetime: std::marker::PhantomData,
         })
     }
@@ -174,8 +201,11 @@ where
     term_ord: Option<TermOrdinal>,
     lower_bound: Bound<Vec<u8>>,
     upper_bound: Bound<Vec<u8>>,
+    upper_bound_comparator: DeltaKeyComparator,
     // this field is used to please the type-interface of a dictionary in tantivy
     _lifetime: std::marker::PhantomData<&'a ()>,
+    lower_bound_reached: bool,
+    always_match_at: Option<usize>,
 }
 
 impl<TSSTable> Streamer<'_, TSSTable, AlwaysMatch>
@@ -184,12 +214,15 @@ where TSSTable: SSTable
     pub fn empty() -> Self {
         Streamer {
             automaton: AlwaysMatch,
-            states: Vec::new(),
+            states: vec![AlwaysMatch.start()],
+            always_match_at: Some(0),
             delta_reader: DeltaReader::empty(),
             key: Vec::new(),
             term_ord: None,
+            lower_bound_reached: true,
             lower_bound: Bound::Unbounded,
             upper_bound: Bound::Unbounded,
+            upper_bound_comparator: DeltaKeyComparator::new(),
             _lifetime: std::marker::PhantomData,
         }
     }
@@ -201,53 +234,173 @@ where
     A::State: Clone,
     TSSTable: SSTable,
 {
+    #[inline(always)]
+    fn advance_delta_reader(&mut self) -> bool {
+        if !self.delta_reader.advance().unwrap() {
+            return false;
+        }
+        // An automaton prunes whole blocks, so the ordinal is not simply the previous one
+        // plus one: on entering a new slice it jumps to that slice's first term ordinal.
+        // Counting alone would report a term's position among the blocks actually scanned.
+        self.term_ord = Some(match self.delta_reader.take_first_ordinal() {
+            Some(first_ordinal) => first_ordinal,
+            None => self
+                .term_ord
+                .map(|term_ord| term_ord + 1u64)
+                .unwrap_or(0u64),
+        });
+        true
+    }
+
+    /// Make progress up to the lower bound
+    ///
+    /// Returns whether the reader was positioned on a key matching the lower bound.
+    /// If false, the delta_reader has been exhausted without finding such a key.
+    fn initialize(&mut self) -> bool {
+        debug_assert!(!self.lower_bound_reached);
+        let mut lower_bound_comparator = DeltaKeyComparator::new();
+        while self.advance_delta_reader() {
+            let common_prefix_len = self.delta_reader.common_prefix_len();
+            let suffix = self.delta_reader.suffix();
+            let (lower_bound_key, inclusive) = match &self.lower_bound {
+                Bound::Unbounded => unreachable!("unbounded streamers do not need initialization"),
+                Bound::Included(lower_bound_key) => (lower_bound_key, true),
+                Bound::Excluded(lower_bound_key) => (lower_bound_key, false),
+            };
+            let ordering = lower_bound_comparator.compare_across_blocks(
+                lower_bound_key,
+                common_prefix_len,
+                suffix,
+            );
+            let match_lower_bound =
+                ordering == Ordering::Greater || inclusive && ordering == Ordering::Equal;
+            if match_lower_bound {
+                self.key.clear();
+                self.key
+                    .extend_from_slice(&lower_bound_key[..common_prefix_len]);
+                self.key.extend_from_slice(suffix);
+                let mut state: A::State = self.states.last().unwrap().clone();
+                for b in &self.key {
+                    state = self.automaton.accept(&state, *b);
+                    self.states.push(state.clone());
+                }
+                self.lower_bound_reached = true;
+                return true;
+            }
+        }
+        self.lower_bound_reached = true;
+        false
+    }
+
     /// Advance position the stream on the next item.
     /// Before the first call to `.advance()`, the stream
     /// is an uninitialized state.
     pub fn advance(&mut self) -> bool {
-        while self.delta_reader.advance().unwrap() {
-            // An automaton prunes whole blocks, so the ordinal is not simply the previous one
-            // plus one: on entering a new slice it jumps to that slice's first term ordinal.
-            // Counting alone would report a term's position among the blocks actually scanned.
-            self.term_ord = Some(match self.delta_reader.take_first_ordinal() {
-                Some(first_ordinal) => first_ordinal,
-                None => self
-                    .term_ord
-                    .map(|term_ord| term_ord + 1u64)
-                    .unwrap_or(0u64),
-            });
+        if !self.lower_bound_reached {
+            if !self.initialize() {
+                // no key higher than lower-bound at all
+                return false;
+            }
+            if !matches_upper_bound(
+                &mut self.upper_bound_comparator,
+                &self.upper_bound,
+                0,
+                &self.key,
+            ) {
+                return false;
+            }
+            if self.automaton.is_match(self.states.last().unwrap()) {
+                return true;
+            }
+        }
+
+        match (
+            // we could check always_match_at == Some(0), but this actually gets
+            // inlined into `true` with AlwaysMatch, which is even faster
+            self.automaton
+                .will_always_match(&self.states.first().unwrap()),
+            self.upper_bound == Bound::Unbounded,
+        ) {
+            (true, true) => self.advance_always_match::<true>(),
+            (true, false) => self.advance_always_match::<false>(),
+            (false, true) => self.advance_with_automaton::<true>(),
+            (false, false) => self.advance_with_automaton::<false>(),
+        }
+    }
+
+    fn advance_always_match<const NO_BOUND: bool>(&mut self) -> bool {
+        if !self.advance_delta_reader() {
+            return false;
+        }
+        self.reconstruct_key_and_check_upper_bound::<NO_BOUND>()
+    }
+
+    fn advance_with_automaton<const NO_BOUND: bool>(&mut self) -> bool {
+        // fast path, check if prefix always match and we can skip Vec<state> management
+        if let Some(always_match_at) = self.always_match_at.take() {
+            if !self.advance_delta_reader() {
+                return false;
+            }
+            let common_prefix_len = self.delta_reader.common_prefix_len();
+            if always_match_at <= common_prefix_len {
+                self.always_match_at = Some(always_match_at);
+                return self.reconstruct_key_and_check_upper_bound::<NO_BOUND>();
+            }
+        } else if !self.advance_delta_reader() {
+            return false;
+        }
+
+        loop {
             let common_prefix_len = self.delta_reader.common_prefix_len();
             self.states.truncate(common_prefix_len + 1);
-            self.key.truncate(common_prefix_len);
+            // TODO we could detect when we reach a !can_match, and skip both state and key
+            // computation until we truncate that can_t_match out of our state. it's already
+            // done at the block layer, so not as important
             let mut state: A::State = self.states.last().unwrap().clone();
             for &b in self.delta_reader.suffix() {
                 state = self.automaton.accept(&state, b);
                 self.states.push(state.clone());
             }
-            self.key.extend_from_slice(self.delta_reader.suffix());
-            let match_lower_bound = match &self.lower_bound {
-                Bound::Unbounded => true,
-                Bound::Included(lower_bound_key) => lower_bound_key[..] <= self.key[..],
-                Bound::Excluded(lower_bound_key) => lower_bound_key[..] < self.key[..],
-            };
-            if !match_lower_bound {
-                continue;
+            let matches = self.automaton.is_match(&state);
+            if matches {
+                self.always_match_at = self
+                    .states
+                    .iter()
+                    .enumerate()
+                    .rev()
+                    .take_while(|(_i, state)| self.automaton.will_always_match(state))
+                    .last()
+                    .map(|(i, _state)| i);
             }
-            // We match the lower key once. All subsequent keys will pass that bar.
-            self.lower_bound = Bound::Unbounded;
-            let match_upper_bound = match &self.upper_bound {
-                Bound::Unbounded => true,
-                Bound::Included(upper_bound_key) => upper_bound_key[..] >= self.key[..],
-                Bound::Excluded(upper_bound_key) => upper_bound_key[..] > self.key[..],
-            };
-            if !match_upper_bound {
+
+            if !self.reconstruct_key_and_check_upper_bound::<NO_BOUND>() {
                 return false;
             }
-            if self.automaton.is_match(&state) {
+            if matches {
                 return true;
             }
+            if !self.advance_delta_reader() {
+                return false;
+            }
         }
-        false
+    }
+
+    #[inline(always)]
+    fn reconstruct_key_and_check_upper_bound<const NO_BOUND: bool>(&mut self) -> bool {
+        let common_prefix_len = self.delta_reader.common_prefix_len();
+        self.key.truncate(common_prefix_len);
+        self.key.extend_from_slice(self.delta_reader.suffix());
+
+        // TODO there is an idea where we only look at the upper bound when our delta_reader
+        // reached the last block (if we pruned blocks beforehand (do we always?) we cannot
+        // find that key before that block)
+        NO_BOUND
+            || matches_upper_bound(
+                &mut self.upper_bound_comparator,
+                &self.upper_bound,
+                common_prefix_len,
+                self.delta_reader.suffix(),
+            )
     }
 
     /// Returns the `TermOrdinal` of the given term.
