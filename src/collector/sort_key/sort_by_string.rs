@@ -58,19 +58,14 @@ impl SegmentSortKeyComputer for ByStringColumnSegmentSortKeyComputer {
     }
 
     fn convert_segment_sort_key(&self, term_ord: Option<TermOrdinal>) -> Option<String> {
-        self.convert_segment_sort_keys(vec![term_ord])
-            .pop()
-            .flatten()
+        self.convert_segment_sort_keys(&[term_ord]).pop().flatten()
     }
 
-    fn convert_segment_sort_keys(
-        &self,
-        term_ords: Vec<Option<TermOrdinal>>,
-    ) -> Vec<Option<String>> {
+    fn convert_segment_sort_keys(&self, term_ords: &[Option<TermOrdinal>]) -> Vec<Option<String>> {
         let Some(str_column) = self.str_column_opt.as_ref() else {
             return vec![None; term_ords.len()];
         };
-        term_ords_to_terms(str_column, &term_ords)
+        term_ords_to_terms(str_column, term_ords)
             .into_iter()
             .map(|term| String::try_from(term?).ok())
             .collect()
@@ -116,7 +111,7 @@ mod tests {
             .iter()
             .map(|term_ord| term_ord.map(|term| format!("term-{term:08}")))
             .collect();
-        assert_eq!(computer.convert_segment_sort_keys(term_ords), expected);
+        assert_eq!(computer.convert_segment_sort_keys(&term_ords), expected);
         assert_eq!(
             computer.convert_segment_sort_key(Some(7)).as_deref(),
             Some("term-00000007")

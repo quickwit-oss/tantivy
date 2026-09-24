@@ -513,10 +513,7 @@ where
             .convert_segment_sort_key(sort_key)
     }
 
-    fn convert_segment_sort_keys(
-        &self,
-        sort_keys: Vec<Self::SegmentSortKey>,
-    ) -> Vec<Self::SortKey> {
+    fn convert_segment_sort_keys(&self, sort_keys: &[Self::SegmentSortKey]) -> Vec<Self::SortKey> {
         self.segment_sort_key_computer
             .convert_segment_sort_keys(sort_keys)
     }

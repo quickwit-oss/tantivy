@@ -56,19 +56,14 @@ impl SegmentSortKeyComputer for ByBytesColumnSegmentSortKeyComputer {
     }
 
     fn convert_segment_sort_key(&self, term_ord: Option<TermOrdinal>) -> Option<Vec<u8>> {
-        self.convert_segment_sort_keys(vec![term_ord])
-            .pop()
-            .flatten()
+        self.convert_segment_sort_keys(&[term_ord]).pop().flatten()
     }
 
-    fn convert_segment_sort_keys(
-        &self,
-        term_ords: Vec<Option<TermOrdinal>>,
-    ) -> Vec<Option<Vec<u8>>> {
+    fn convert_segment_sort_keys(&self, term_ords: &[Option<TermOrdinal>]) -> Vec<Option<Vec<u8>>> {
         let Some(bytes_column) = self.bytes_column_opt.as_ref() else {
             return vec![None; term_ords.len()];
         };
-        term_ords_to_terms(bytes_column, &term_ords)
+        term_ords_to_terms(bytes_column, term_ords)
     }
 }
 

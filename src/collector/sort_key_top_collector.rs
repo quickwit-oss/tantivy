@@ -129,7 +129,7 @@ where
             .map(|comparable_doc| (comparable_doc.sort_key, comparable_doc.doc))
             .unzip();
         self.segment_sort_key_computer
-            .convert_segment_sort_keys(segment_sort_keys)
+            .convert_segment_sort_keys(&segment_sort_keys)
             .into_iter()
             .zip(doc_ids)
             .map(|(sort_key, doc_id)| {

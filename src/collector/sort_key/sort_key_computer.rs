@@ -86,12 +86,10 @@ pub trait SegmentSortKeyComputer: 'static {
     /// The top-k collector converts a segment's hits in one call. Override this when
     /// converting keys together is cheaper than one at a time, e.g. dictionary lookups
     /// of term ordinals.
-    fn convert_segment_sort_keys(
-        &self,
-        sort_keys: Vec<Self::SegmentSortKey>,
-    ) -> Vec<Self::SortKey> {
+    fn convert_segment_sort_keys(&self, sort_keys: &[Self::SegmentSortKey]) -> Vec<Self::SortKey> {
         sort_keys
-            .into_iter()
+            .iter()
+            .cloned()
             .map(|sort_key| self.convert_segment_sort_key(sort_key))
             .collect()
     }
@@ -282,15 +280,12 @@ where
         )
     }
 
-    fn convert_segment_sort_keys(
-        &self,
-        sort_keys: Vec<Self::SegmentSortKey>,
-    ) -> Vec<Self::SortKey> {
-        let (head_sort_keys, tail_sort_keys): (Vec<_>, Vec<_>) = sort_keys.into_iter().unzip();
+    fn convert_segment_sort_keys(&self, sort_keys: &[Self::SegmentSortKey]) -> Vec<Self::SortKey> {
+        let (head_sort_keys, tail_sort_keys): (Vec<_>, Vec<_>) = sort_keys.iter().cloned().unzip();
         self.0
-            .convert_segment_sort_keys(head_sort_keys)
+            .convert_segment_sort_keys(&head_sort_keys)
             .into_iter()
-            .zip(self.1.convert_segment_sort_keys(tail_sort_keys))
+            .zip(self.1.convert_segment_sort_keys(&tail_sort_keys))
             .collect()
     }
 }
@@ -347,7 +342,7 @@ where
 
     fn convert_segment_sort_keys(
         &self,
-        segment_sort_keys: Vec<Self::SegmentSortKey>,
+        segment_sort_keys: &[Self::SegmentSortKey],
     ) -> Vec<Self::SortKey> {
         self.sort_key_computer
             .convert_segment_sort_keys(segment_sort_keys)
