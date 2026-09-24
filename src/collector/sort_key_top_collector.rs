@@ -122,24 +122,26 @@ where
 
     fn harvest(self) -> Self::Fruit {
         let segment_ord = self.segment_ord;
-        let segment_hits: Vec<(TSegmentSortKeyComputer::SortKey, DocAddress)> = self
+        let (segment_sort_keys, doc_ids): (Vec<_>, Vec<_>) = self
             .topn_computer
             .into_vec()
             .into_iter()
-            .map(|comparable_doc| {
-                let sort_key = self
-                    .segment_sort_key_computer
-                    .convert_segment_sort_key(comparable_doc.sort_key);
+            .map(|comparable_doc| (comparable_doc.sort_key, comparable_doc.doc))
+            .unzip();
+        self.segment_sort_key_computer
+            .convert_segment_sort_keys(&segment_sort_keys)
+            .into_iter()
+            .zip(doc_ids)
+            .map(|(sort_key, doc_id)| {
                 (
                     sort_key,
                     DocAddress {
                         segment_ord,
-                        doc_id: comparable_doc.doc,
+                        doc_id,
                     },
                 )
             })
-            .collect();
-        segment_hits
+            .collect()
     }
 }
 
