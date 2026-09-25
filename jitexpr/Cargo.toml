@@ -15,3 +15,6 @@ cranelift-native = "0.134.3"
 lru = "0.18.2"
 regex = "1"
 thiserror = "2.0.1"
+
+[dev-dependencies]
+proptest = "1.7.0"
