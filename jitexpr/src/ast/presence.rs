@@ -16,11 +16,12 @@ use crate::ast::{Function, Literal, UntypedExpr};
 /// It is meant to be used as a necessary condition: it is implied by some property of an
 /// expression (producing a value, or evaluating to `true`), but it does not imply it.
 ///
-/// Conditions built with [`PresenceCondition::all`] and [`PresenceCondition::any`] are simplified:
-/// `All` and `Any` then have at least two distinct children, none of which is `Always`, `Never`,
-/// or a node of the same kind.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub enum PresenceCondition {
+/// Conditions are kept in a canonical form, so that `Eq` and `Hash` identify conditions that
+/// only differ by the order, grouping, or repetition of their children. Two equivalent
+/// conditions may still compare as different (e.g. `a ∧ (a ∨ b)` and `a`): deciding logical
+/// equivalence in general is too expensive.
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum VariablePresenceCondition {
     /// Always satisfied. This condition carries no information.
     Always,
     /// Never satisfied.
@@ -28,110 +29,124 @@ pub enum PresenceCondition {
     /// Satisfied when the variable is present.
     Present(Arc<str>),
     /// Satisfied when all of the conditions are satisfied.
-    All(Vec<PresenceCondition>),
+    All(ConditionSet),
     /// Satisfied when at least one of the conditions is satisfied.
-    Any(Vec<PresenceCondition>),
+    Any(ConditionSet),
 }
 
-impl PresenceCondition {
-    /// Builds the simplified conjunction of `conditions`.
-    pub fn all(conditions: impl IntoIterator<Item = PresenceCondition>) -> PresenceCondition {
-        let mut children: Vec<PresenceCondition> = Vec::new();
+/// The children of a [`PresenceCondition::All`] or [`PresenceCondition::Any`] node.
+///
+/// It can only be built through [`PresenceCondition::all`] and [`PresenceCondition::any`], which
+/// uphold the following hidden contract, on which the derived `Eq` and `Hash` rely:
+/// - children are sorted and distinct, and there are at least two of them;
+/// - no child is `Always`, `Never`, or a node of the same kind as the parent.
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct ConditionSet(Vec<VariablePresenceCondition>);
+
+impl ConditionSet {
+    /// Returns the children, in canonical order.
+    pub fn iter(&self) -> impl Iterator<Item = &VariablePresenceCondition> {
+        self.0.iter()
+    }
+}
+
+impl VariablePresenceCondition {
+    /// Builds the canonical conjunction of `conditions`.
+    pub fn all(
+        conditions: impl IntoIterator<Item = VariablePresenceCondition>,
+    ) -> VariablePresenceCondition {
+        let mut children: Vec<VariablePresenceCondition> = Vec::new();
         for condition in conditions {
             match condition {
-                PresenceCondition::Always => {}
-                PresenceCondition::Never => return PresenceCondition::Never,
-                PresenceCondition::All(grand_children) => {
-                    for grand_child in grand_children {
-                        push_unique(&mut children, grand_child);
-                    }
-                }
-                condition => push_unique(&mut children, condition),
+                VariablePresenceCondition::Always => {}
+                VariablePresenceCondition::Never => return VariablePresenceCondition::Never,
+                VariablePresenceCondition::All(grand_children) => children.extend(grand_children.0),
+                condition => children.push(condition),
             }
         }
+        children.sort();
+        children.dedup();
         match children.len() {
-            0 => PresenceCondition::Always,
+            0 => VariablePresenceCondition::Always,
             1 => children.pop().unwrap(),
-            _ => PresenceCondition::All(children),
+            _ => VariablePresenceCondition::All(ConditionSet(children)),
         }
     }
 
-    /// Builds the simplified disjunction of `conditions`.
-    pub fn any(conditions: impl IntoIterator<Item = PresenceCondition>) -> PresenceCondition {
-        let mut children: Vec<PresenceCondition> = Vec::new();
+    /// Builds the canonical disjunction of `conditions`.
+    pub fn any(
+        conditions: impl IntoIterator<Item = VariablePresenceCondition>,
+    ) -> VariablePresenceCondition {
+        let mut children: Vec<VariablePresenceCondition> = Vec::new();
         for condition in conditions {
             match condition {
-                PresenceCondition::Never => {}
-                PresenceCondition::Always => return PresenceCondition::Always,
-                PresenceCondition::Any(grand_children) => {
-                    for grand_child in grand_children {
-                        push_unique(&mut children, grand_child);
-                    }
-                }
-                condition => push_unique(&mut children, condition),
+                VariablePresenceCondition::Never => {}
+                VariablePresenceCondition::Always => return VariablePresenceCondition::Always,
+                VariablePresenceCondition::Any(grand_children) => children.extend(grand_children.0),
+                condition => children.push(condition),
             }
         }
+        children.sort();
+        children.dedup();
         match children.len() {
-            0 => PresenceCondition::Never,
+            0 => VariablePresenceCondition::Never,
             1 => children.pop().unwrap(),
-            _ => PresenceCondition::Any(children),
+            _ => VariablePresenceCondition::Any(ConditionSet(children)),
         }
     }
 
     /// Evaluates the condition, given the presence of each variable.
+    #[cfg(test)]
     pub fn eval(&self, is_present: &mut impl FnMut(&str) -> bool) -> bool {
         match self {
-            PresenceCondition::Always => true,
-            PresenceCondition::Never => false,
-            PresenceCondition::Present(variable_name) => is_present(variable_name),
-            PresenceCondition::All(conditions) => conditions
+            VariablePresenceCondition::Always => true,
+            VariablePresenceCondition::Never => false,
+            VariablePresenceCondition::Present(variable_name) => is_present(variable_name),
+            VariablePresenceCondition::All(conditions) => conditions
                 .iter()
                 .all(|condition| condition.eval(&mut *is_present)),
-            PresenceCondition::Any(conditions) => conditions
+            VariablePresenceCondition::Any(conditions) => conditions
                 .iter()
                 .any(|condition| condition.eval(&mut *is_present)),
         }
     }
 }
 
-fn push_unique(conditions: &mut Vec<PresenceCondition>, condition: PresenceCondition) {
-    if !conditions.contains(&condition) {
-        conditions.push(condition);
-    }
-}
-
-/// Returns a necessary condition for `expr` to evaluate to a present value.
-///
-/// A variable is considered present when its value is not null. A variable missing from the
-/// variable types given to the compiler is null for all evaluations, and should therefore be
-/// considered absent.
-pub fn required_presence(expr: &UntypedExpr) -> PresenceCondition {
+/// Returns a necessary presence condition for `expr` to evaluate to a non-null value.
+pub fn required_presence(expr: &UntypedExpr) -> VariablePresenceCondition {
     match expr {
         // Literals never constrain variables. `none` could be mapped to `Never`, but some
         // functions take literal configuration arguments (delimiters, precision, ...), and we
         // prefer not to depend on how each of them handles a `none` there.
-        UntypedExpr::Literal(_) => PresenceCondition::Always,
-        UntypedExpr::Variable(variable_name) => PresenceCondition::Present(variable_name.clone()),
+        UntypedExpr::Literal(_) => VariablePresenceCondition::Always,
+        UntypedExpr::Variable(variable_name) => {
+            VariablePresenceCondition::Present(variable_name.clone())
+        }
         UntypedExpr::FnCall { function, args } => required_presence_for_fn_call(*function, args),
     }
 }
 
-/// Returns a necessary condition for `expr` to evaluate to a present `true`.
+/// Returns a necessary presence condition for `expr` to evaluate to a present `true`.
 ///
 /// See [`required_presence`] for the definition of a present variable.
-pub fn required_presence_for_true(expr: &UntypedExpr) -> PresenceCondition {
+pub fn required_presence_for_true(expr: &UntypedExpr) -> VariablePresenceCondition {
     match expr {
-        UntypedExpr::Literal(Literal::Bool(true)) => PresenceCondition::Always,
+        UntypedExpr::Literal(Literal::Bool(true)) => VariablePresenceCondition::Always,
         // No other literal is `true`.
-        UntypedExpr::Literal(_) => PresenceCondition::Never,
-        UntypedExpr::Variable(variable_name) => PresenceCondition::Present(variable_name.clone()),
+        UntypedExpr::Literal(_) => VariablePresenceCondition::Never,
+        UntypedExpr::Variable(variable_name) => {
+            VariablePresenceCondition::Present(variable_name.clone())
+        }
         UntypedExpr::FnCall { function, args } => {
             required_presence_for_true_for_fn_call(*function, args)
         }
     }
 }
 
-fn required_presence_for_fn_call(function: Function, args: &[UntypedExpr]) -> PresenceCondition {
+fn required_presence_for_fn_call(
+    function: Function,
+    args: &[UntypedExpr],
+) -> VariablePresenceCondition {
     // This match must remain exhaustive: classifying a function returning a present value for a
     // null argument as "null in, null out" would make callers skip matching documents.
     match function {
@@ -168,18 +183,18 @@ fn required_presence_for_fn_call(function: Function, args: &[UntypedExpr]) -> Pr
         | Function::Subtract
         | Function::TextJoin
         | Function::Trim
-        | Function::Upper => PresenceCondition::all(args.iter().map(required_presence)),
+        | Function::Upper => VariablePresenceCondition::all(args.iter().map(required_presence)),
         // OR is null only if all of its arguments are null.
-        Function::Or => PresenceCondition::any(args.iter().map(required_presence)),
+        Function::Or => VariablePresenceCondition::any(args.iter().map(required_presence)),
         // IF is null if its condition is null. Otherwise it takes the presence of the selected
         // branch.
         Function::If => {
             let [condition, when_true, when_false] = args else {
-                return PresenceCondition::Always;
+                return VariablePresenceCondition::Always;
             };
-            PresenceCondition::all([
+            VariablePresenceCondition::all([
                 required_presence(condition),
-                PresenceCondition::any([
+                VariablePresenceCondition::any([
                     required_presence(when_true),
                     required_presence(when_false),
                 ]),
@@ -192,24 +207,26 @@ fn required_presence_for_fn_call(function: Function, args: &[UntypedExpr]) -> Pr
         | Function::IsNull
         | Function::Neq
         | Function::Not
-        | Function::RegexpLike => PresenceCondition::Always,
+        | Function::RegexpLike => VariablePresenceCondition::Always,
     }
 }
 
 fn required_presence_for_true_for_fn_call(
     function: Function,
     args: &[UntypedExpr],
-) -> PresenceCondition {
+) -> VariablePresenceCondition {
     match function {
-        Function::And => PresenceCondition::all(args.iter().map(required_presence_for_true)),
-        Function::Or => PresenceCondition::any(args.iter().map(required_presence_for_true)),
+        Function::And => {
+            VariablePresenceCondition::all(args.iter().map(required_presence_for_true))
+        }
+        Function::Or => VariablePresenceCondition::any(args.iter().map(required_presence_for_true)),
         Function::If => {
             let [condition, when_true, when_false] = args else {
-                return PresenceCondition::Always;
+                return VariablePresenceCondition::Always;
             };
-            PresenceCondition::all([
+            VariablePresenceCondition::all([
                 required_presence(condition),
-                PresenceCondition::any([
+                VariablePresenceCondition::any([
                     required_presence_for_true(when_true),
                     required_presence_for_true(when_false),
                 ]),
@@ -217,14 +234,14 @@ fn required_presence_for_true_for_fn_call(
         }
         Function::IsNotNull => {
             let [arg] = args else {
-                return PresenceCondition::Always;
+                return VariablePresenceCondition::Always;
             };
             required_presence(arg)
         }
         // REGEXP_LIKE returns `false` for a null input.
         Function::RegexpLike => {
             let Some(input) = args.first() else {
-                return PresenceCondition::Always;
+                return VariablePresenceCondition::Always;
             };
             required_presence(input)
         }
@@ -240,6 +257,8 @@ fn required_presence_for_true_for_fn_call(
 #[cfg(test)]
 mod tests {
     use std::collections::HashMap;
+    use std::collections::hash_map::DefaultHasher;
+    use std::hash::{Hash, Hasher};
 
     use proptest::prelude::*;
     use proptest::strategy::BoxedStrategy;
@@ -249,39 +268,42 @@ mod tests {
     use crate::compile::{StringArena, compile};
     use crate::types::{VarType, VariableValue};
 
-    fn present(variable_name: &str) -> PresenceCondition {
-        PresenceCondition::Present(Arc::from(variable_name))
+    fn present(variable_name: &str) -> VariablePresenceCondition {
+        VariablePresenceCondition::Present(Arc::from(variable_name))
     }
 
-    fn all(conditions: Vec<PresenceCondition>) -> PresenceCondition {
-        PresenceCondition::All(conditions)
+    fn all(conditions: Vec<VariablePresenceCondition>) -> VariablePresenceCondition {
+        VariablePresenceCondition::all(conditions)
     }
 
-    fn any(conditions: Vec<PresenceCondition>) -> PresenceCondition {
-        PresenceCondition::Any(conditions)
+    fn any(conditions: Vec<VariablePresenceCondition>) -> VariablePresenceCondition {
+        VariablePresenceCondition::any(conditions)
     }
 
-    fn for_true(expr: &str) -> PresenceCondition {
+    fn for_true(expr: &str) -> VariablePresenceCondition {
         required_presence_for_true(&deserialize(expr).unwrap())
     }
 
-    fn for_value(expr: &str) -> PresenceCondition {
+    fn for_value(expr: &str) -> VariablePresenceCondition {
         required_presence(&deserialize(expr).unwrap())
     }
 
     #[test]
     fn test_all_simplification() {
-        assert_eq!(PresenceCondition::all([]), PresenceCondition::Always);
         assert_eq!(
-            PresenceCondition::all([PresenceCondition::Always, present("a")]),
+            VariablePresenceCondition::all([]),
+            VariablePresenceCondition::Always
+        );
+        assert_eq!(
+            VariablePresenceCondition::all([VariablePresenceCondition::Always, present("a")]),
             present("a")
         );
         assert_eq!(
-            PresenceCondition::all([present("a"), PresenceCondition::Never]),
-            PresenceCondition::Never
+            VariablePresenceCondition::all([present("a"), VariablePresenceCondition::Never]),
+            VariablePresenceCondition::Never
         );
         assert_eq!(
-            PresenceCondition::all([
+            VariablePresenceCondition::all([
                 present("a"),
                 all(vec![present("b"), present("a")]),
                 present("c"),
@@ -289,26 +311,201 @@ mod tests {
             all(vec![present("a"), present("b"), present("c")])
         );
         assert_eq!(
-            PresenceCondition::all([any(vec![present("a"), present("b")]), present("c")]),
+            VariablePresenceCondition::all([any(vec![present("a"), present("b")]), present("c")]),
             all(vec![any(vec![present("a"), present("b")]), present("c")])
         );
     }
 
     #[test]
     fn test_any_simplification() {
-        assert_eq!(PresenceCondition::any([]), PresenceCondition::Never);
         assert_eq!(
-            PresenceCondition::any([PresenceCondition::Never, present("a")]),
+            VariablePresenceCondition::any([]),
+            VariablePresenceCondition::Never
+        );
+        assert_eq!(
+            VariablePresenceCondition::any([VariablePresenceCondition::Never, present("a")]),
             present("a")
         );
         assert_eq!(
-            PresenceCondition::any([present("a"), PresenceCondition::Always]),
-            PresenceCondition::Always
+            VariablePresenceCondition::any([present("a"), VariablePresenceCondition::Always]),
+            VariablePresenceCondition::Always
         );
         assert_eq!(
-            PresenceCondition::any([present("a"), any(vec![present("b"), present("a")])]),
+            VariablePresenceCondition::any([present("a"), any(vec![present("b"), present("a")])]),
             any(vec![present("a"), present("b")])
         );
+    }
+
+    fn hash_of(condition: &VariablePresenceCondition) -> u64 {
+        let mut hasher = DefaultHasher::new();
+        condition.hash(&mut hasher);
+        hasher.finish()
+    }
+
+    fn assert_same(left: VariablePresenceCondition, right: VariablePresenceCondition) {
+        assert_eq!(left, right);
+        assert_eq!(hash_of(&left), hash_of(&right));
+    }
+
+    #[test]
+    fn test_canonical_order() {
+        let (a, b, c) = (present("a"), present("b"), present("c"));
+        assert_same(
+            VariablePresenceCondition::all([a.clone(), b.clone()]),
+            VariablePresenceCondition::all([b.clone(), a.clone()]),
+        );
+        assert_same(
+            VariablePresenceCondition::any([c.clone(), a.clone(), b.clone()]),
+            VariablePresenceCondition::any([b.clone(), c.clone(), a.clone()]),
+        );
+        assert_ne!(
+            VariablePresenceCondition::all([a.clone(), b.clone()]),
+            VariablePresenceCondition::any([a.clone(), b.clone()])
+        );
+        let VariablePresenceCondition::All(children) =
+            VariablePresenceCondition::all([c.clone(), a.clone()])
+        else {
+            panic!("expected an All node");
+        };
+        assert_eq!(children.iter().collect::<Vec<_>>(), vec![&a, &c]);
+    }
+
+    #[test]
+    fn test_canonical_grouping_and_repetition() {
+        let (a, b, c) = (present("a"), present("b"), present("c"));
+        assert_same(
+            VariablePresenceCondition::all([
+                a.clone(),
+                VariablePresenceCondition::all([b.clone(), c.clone()]),
+            ]),
+            VariablePresenceCondition::all([
+                VariablePresenceCondition::all([c.clone(), a.clone()]),
+                b.clone(),
+            ]),
+        );
+        assert_same(
+            VariablePresenceCondition::all([a.clone(), a.clone()]),
+            a.clone(),
+        );
+        assert_same(
+            VariablePresenceCondition::any([
+                VariablePresenceCondition::all([a.clone(), b.clone()]),
+                VariablePresenceCondition::all([b.clone(), a.clone()]),
+            ]),
+            VariablePresenceCondition::all([a.clone(), b.clone()]),
+        );
+    }
+
+    /// A condition tree built without any normalization.
+    #[derive(Clone, Debug)]
+    enum RawCondition {
+        Always,
+        Never,
+        Present(usize),
+        All(Vec<RawCondition>),
+        Any(Vec<RawCondition>),
+    }
+
+    const RAW_VARIABLES: [&str; 4] = ["a", "b", "c", "d"];
+
+    impl RawCondition {
+        fn eval(&self, present_mask: u32) -> bool {
+            match self {
+                RawCondition::Always => true,
+                RawCondition::Never => false,
+                RawCondition::Present(variable_ord) => present_mask & (1 << variable_ord) != 0,
+                RawCondition::All(children) => {
+                    children.iter().all(|child| child.eval(present_mask))
+                }
+                RawCondition::Any(children) => {
+                    children.iter().any(|child| child.eval(present_mask))
+                }
+            }
+        }
+
+        /// Builds the canonical condition, visiting children in reverse order if `reverse`.
+        fn build(&self, reverse: bool) -> VariablePresenceCondition {
+            let build_children = |children: &[RawCondition]| {
+                let mut built: Vec<VariablePresenceCondition> =
+                    children.iter().map(|child| child.build(reverse)).collect();
+                if reverse {
+                    built.reverse();
+                }
+                built
+            };
+            match self {
+                RawCondition::Always => VariablePresenceCondition::Always,
+                RawCondition::Never => VariablePresenceCondition::Never,
+                RawCondition::Present(variable_ord) => present(RAW_VARIABLES[*variable_ord]),
+                RawCondition::All(children) => {
+                    VariablePresenceCondition::all(build_children(children))
+                }
+                RawCondition::Any(children) => {
+                    VariablePresenceCondition::any(build_children(children))
+                }
+            }
+        }
+    }
+
+    fn raw_conditions() -> impl Strategy<Value = RawCondition> {
+        let leaf = prop_oneof![
+            1 => Just(RawCondition::Always),
+            1 => Just(RawCondition::Never),
+            6 => (0..RAW_VARIABLES.len()).prop_map(RawCondition::Present),
+        ];
+        leaf.prop_recursive(4, 32, 4, |inner| {
+            prop_oneof![
+                prop::collection::vec(inner.clone(), 0..4).prop_map(RawCondition::All),
+                prop::collection::vec(inner, 0..4).prop_map(RawCondition::Any),
+            ]
+        })
+    }
+
+    /// Checks the hidden contract of `ConditionSet`, recursively.
+    fn assert_canonical(condition: &VariablePresenceCondition) {
+        let (children, is_all) = match condition {
+            VariablePresenceCondition::All(children) => (children, true),
+            VariablePresenceCondition::Any(children) => (children, false),
+            _ => return,
+        };
+        let children: Vec<&VariablePresenceCondition> = children.iter().collect();
+        assert!(children.len() >= 2, "{condition:?}");
+        assert!(
+            children.windows(2).all(|pair| pair[0] < pair[1]),
+            "{condition:?}"
+        );
+        for child in &children {
+            assert_canonical(child);
+            match (child, is_all) {
+                (VariablePresenceCondition::Always | VariablePresenceCondition::Never, _) => {
+                    panic!("neutral or absorbing child in {condition:?}")
+                }
+                (VariablePresenceCondition::All(_), true)
+                | (VariablePresenceCondition::Any(_), false) => {
+                    panic!("same-kind child in {condition:?}")
+                }
+                _ => {}
+            }
+        }
+    }
+
+    proptest! {
+        #[test]
+        fn proptest_canonical_form(raw in raw_conditions()) {
+            let condition = raw.build(false);
+            assert_canonical(&condition);
+            let reversed = raw.build(true);
+            prop_assert_eq!(&condition, &reversed);
+            prop_assert_eq!(hash_of(&condition), hash_of(&reversed));
+            for present_mask in 0..(1u32 << RAW_VARIABLES.len()) {
+                let mut is_present = |variable_name: &str| {
+                    let variable_ord =
+                        RAW_VARIABLES.iter().position(|name| *name == variable_name).unwrap();
+                    present_mask & (1 << variable_ord) != 0
+                };
+                prop_assert_eq!(condition.eval(&mut is_present), raw.eval(present_mask));
+            }
+        }
     }
 
     fn presence_of<'a>(present_names: &'a [&'a str]) -> impl FnMut(&str) -> bool + 'a {
@@ -321,17 +518,17 @@ mod tests {
         assert!(condition.eval(&mut presence_of(&["a", "c"])));
         assert!(!condition.eval(&mut presence_of(&["a"])));
         assert!(!condition.eval(&mut presence_of(&["b", "c"])));
-        assert!(PresenceCondition::Always.eval(&mut presence_of(&[])));
-        assert!(!PresenceCondition::Never.eval(&mut presence_of(&["a"])));
+        assert!(VariablePresenceCondition::Always.eval(&mut presence_of(&[])));
+        assert!(!VariablePresenceCondition::Never.eval(&mut presence_of(&["a"])));
     }
 
     #[test]
     fn test_literals() {
-        assert_eq!(for_true("true"), PresenceCondition::Always);
-        assert_eq!(for_true("false"), PresenceCondition::Never);
-        assert_eq!(for_true("none"), PresenceCondition::Never);
-        assert_eq!(for_value("none"), PresenceCondition::Always);
-        assert_eq!(for_value("1u64"), PresenceCondition::Always);
+        assert_eq!(for_true("true"), VariablePresenceCondition::Always);
+        assert_eq!(for_true("false"), VariablePresenceCondition::Never);
+        assert_eq!(for_true("none"), VariablePresenceCondition::Never);
+        assert_eq!(for_value("none"), VariablePresenceCondition::Always);
+        assert_eq!(for_value("1u64"), VariablePresenceCondition::Always);
         // `none` in a strict function is conservatively ignored.
         assert_eq!(for_true("(EQ a none)"), present("a"));
     }
@@ -353,11 +550,8 @@ mod tests {
             for_value(r#"(CONCAT "," "true" (UPPER a) (SUBSTRING b 0i64 2i64))"#),
             all(vec![present("a"), present("b")])
         );
-        assert_eq!(
-            for_value(r#"(REGEXP_EXTRACT a "(x+)" 1u64)"#),
-            present("a")
-        );
-        assert_eq!(for_value("(ADD)"), PresenceCondition::Always);
+        assert_eq!(for_value(r#"(REGEXP_EXTRACT a "(x+)" 1u64)"#), present("a"));
+        assert_eq!(for_value("(ADD)"), VariablePresenceCondition::Always);
     }
 
     #[test]
@@ -375,10 +569,7 @@ mod tests {
             all(vec![any(vec![present("a"), present("b")]), present("c")])
         );
         // AND is null as soon as one of its arguments is null.
-        assert_eq!(
-            for_value("(AND (NOT a) b)"),
-            present("b")
-        );
+        assert_eq!(for_value("(AND (NOT a) b)"), present("b"));
         assert_eq!(
             for_value("(OR (EQ a 1i64) (EQ b 2i64))"),
             any(vec![present("a"), present("b")])
@@ -387,21 +578,30 @@ mod tests {
 
     #[test]
     fn test_null_tolerant_functions() {
-        assert_eq!(for_true("(NOT (EQ a 1i64))"), PresenceCondition::Always);
-        assert_eq!(for_true("(NEQ a 1i64)"), PresenceCondition::Always);
-        assert_eq!(for_true("(IS_NULL a)"), PresenceCondition::Always);
-        assert_eq!(for_value("(IS_NOT_NULL a)"), PresenceCondition::Always);
-        assert_eq!(for_true("(IS_NOT_NULL (ADD a b))"), all(vec![present("a"), present("b")]));
-        assert_eq!(for_value(r#"(REGEXP_LIKE a "x")"#), PresenceCondition::Always);
+        assert_eq!(
+            for_true("(NOT (EQ a 1i64))"),
+            VariablePresenceCondition::Always
+        );
+        assert_eq!(for_true("(NEQ a 1i64)"), VariablePresenceCondition::Always);
+        assert_eq!(for_true("(IS_NULL a)"), VariablePresenceCondition::Always);
+        assert_eq!(
+            for_value("(IS_NOT_NULL a)"),
+            VariablePresenceCondition::Always
+        );
+        assert_eq!(
+            for_true("(IS_NOT_NULL (ADD a b))"),
+            all(vec![present("a"), present("b")])
+        );
+        assert_eq!(
+            for_value(r#"(REGEXP_LIKE a "x")"#),
+            VariablePresenceCondition::Always
+        );
         assert_eq!(for_true(r#"(REGEXP_LIKE a "x")"#), present("a"));
         assert_eq!(
             for_true("(OR (EQ a 1i64) (IS_NULL b))"),
-            PresenceCondition::Always
+            VariablePresenceCondition::Always
         );
-        assert_eq!(
-            for_true("(AND (EQ a 1i64) (IS_NULL b))"),
-            present("a")
-        );
+        assert_eq!(for_true("(AND (EQ a 1i64) (IS_NULL b))"), present("a"));
     }
 
     #[test]
@@ -415,7 +615,10 @@ mod tests {
             all(vec![present("c"), any(vec![present("a"), present("b")])])
         );
         assert_eq!(for_true("(IF c true false)"), present("c"));
-        assert_eq!(for_true("(IF c false false)"), PresenceCondition::Never);
+        assert_eq!(
+            for_true("(IF c false false)"),
+            VariablePresenceCondition::Never
+        );
         assert_eq!(for_value("(IF c 1i64 a)"), present("c"));
     }
 
@@ -591,7 +794,7 @@ mod tests {
         expr_str: &str,
         target_type: InferredTypeSet,
         assignments: &[Assignment],
-        required: fn(&UntypedExpr) -> PresenceCondition,
+        required: fn(&UntypedExpr) -> VariablePresenceCondition,
         holds: fn(VarType, VariableValue) -> bool,
     ) -> Result<(), TestCaseError> {
         let expr = deserialize(expr_str).unwrap();
@@ -629,12 +832,12 @@ mod tests {
             let args: Vec<VariableValue> = compiled_fn
                 .inputs()
                 .iter()
-                .map(|input| {
-                    match assignment[variable_ord(&input.variable_name)] {
+                .map(
+                    |input| match assignment[variable_ord(&input.variable_name)] {
                         Some(value_ord) => variable_value(input.r#type, value_ord),
                         None => VariableValue::none(),
-                    }
-                })
+                    },
+                )
                 .collect();
             // SAFETY: Each slot follows the compiled input order, and uses the input type.
             let result = unsafe { compiled_fn.call(&args, &mut string_arena) };
@@ -673,7 +876,11 @@ mod tests {
     }
 
     proptest! {
-        #![proptest_config(ProptestConfig::with_cases(512))]
+        // Compiler debug assertions reject a fraction of the generated expressions.
+        #![proptest_config(ProptestConfig {
+            max_global_rejects: 1 << 16,
+            ..ProptestConfig::with_cases(512)
+        })]
 
         #[test]
         fn proptest_required_presence_for_true_is_necessary(

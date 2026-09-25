@@ -1,15 +1,21 @@
 use std::collections::HashMap;
 use std::io;
 
-use columnar::{ColumnType, DynamicColumn, StrColumn};
-use jitexpr::ast::{infer_types_with_target, InferredTypeSet, TypeError, UntypedExpr};
+use columnar::{ColumnIndex, ColumnType, DynamicColumn, StrColumn};
+use jitexpr::ast::{
+    infer_types_with_target, required_presence_for_true, InferredTypeSet, TypeError, UntypedExpr,
+    VariablePresenceCondition,
+};
 use jitexpr::compile::{CompiledFnCtx, StringArena};
 use jitexpr::types::{VarType, VariableValue};
 
 use super::{DocPredicate, SegmentDocPredicate};
 use crate::index::SegmentReader;
 use crate::query::doc_predicate_query::ConstOrVariableSegmentPredicate;
-use crate::{DocId, TantivyError};
+use crate::query::exist_query::{ExistsColumnIndex, ExistsDocSet};
+use crate::query::union::SimpleUnion;
+use crate::query::Intersection;
+use crate::{DocId, DocSet, TantivyError};
 
 /// A [`DocPredicate`] that evaluates a boolean JIT expression against fast fields.
 ///
@@ -25,6 +31,10 @@ use crate::{DocId, TantivyError};
 ///
 /// Only a present `true` result matches.
 ///
+/// Documents missing the fields required for the expression to be `true` are skipped without
+/// being evaluated. For instance, `(EQ (ADD price 1u64) 10u64)` is only evaluated on the
+/// documents having a `price` value.
+///
 /// ```
 /// use tantivy::jitexpr::ast::deserialize;
 /// use tantivy::query::doc_predicate_query::{DocPredicateQuery, JitExprPredicate};
@@ -36,6 +46,8 @@ use crate::{DocId, TantivyError};
 pub struct JitExprPredicate {
     expression: UntypedExpr,
     inferred_inputs: Vec<(String, InferredTypeSet)>,
+    // A necessary condition, on the presence of the variables, for the expression to be `true`.
+    required_presence: VariablePresenceCondition,
 }
 
 impl JitExprPredicate {
@@ -47,9 +59,11 @@ impl JitExprPredicate {
             .into_iter()
             .map(|(name, types)| (name.to_string(), types))
             .collect();
+        let required_presence = required_presence_for_true(&expression);
         Ok(Self {
             expression,
             inferred_inputs,
+            required_presence,
         })
     }
 
@@ -90,6 +104,18 @@ impl DocPredicate for JitExprPredicate {
             variable_types.insert(name.as_str(), var_type);
             opened_columns.insert(name.as_str(), column);
         }
+
+        // The variables are bound to the columns opened above, and only to them: the presence
+        // of a variable is the presence of a value in its column.
+        let necessary_condition: Option<Box<dyn DocSet>> = match build_necessary_condition_docset(
+            &self.required_presence,
+            &opened_columns,
+            segment_reader.max_doc(),
+        ) {
+            ResolvedCondition::NoDocs => return Ok(ConstOrVariableSegmentPredicate::Const(false)),
+            ResolvedCondition::AllDocs => None,
+            ResolvedCondition::DocSet(necessary_condition) => Some(necessary_condition),
+        };
 
         let compiled_fn = segment_reader
             .index()
@@ -157,13 +183,87 @@ impl DocPredicate for JitExprPredicate {
             .filter(|column_opt| matches!(column_opt, Some(DynamicColumn::Str(_))))
             .count();
         let num_inputs = columns_opt.len();
-        Ok(JitExprEvalState {
+        let predicate = JitExprEvalState {
             compiled: compiled_fn.context(),
             columns_opt,
             string_inputs: vec![String::new(); num_string_inputs],
             input_values: Vec::with_capacity(num_inputs),
+        };
+        Ok(ConstOrVariableSegmentPredicate::Variable {
+            predicate,
+            necessary_condition,
+        })
+    }
+}
+
+/// A [`PresenceCondition`] resolved against the columns of a segment.
+enum ResolvedCondition {
+    /// Satisfied by all of the documents of the segment.
+    AllDocs,
+    /// Satisfied by none of the documents of the segment.
+    NoDocs,
+    /// Satisfied by the documents of the `DocSet`, positioned on its first document.
+    DocSet(Box<dyn DocSet>),
+}
+
+/// Builds a docset off the variable presence condition.
+///
+/// Variables are bound to the columns of `columns`. A variable missing from `columns` is null
+/// for all documents.
+fn build_necessary_condition_docset(
+    condition: &VariablePresenceCondition,
+    columns: &HashMap<&str, DynamicColumn>,
+    max_doc: DocId,
+) -> ResolvedCondition {
+    match condition {
+        VariablePresenceCondition::Always => ResolvedCondition::AllDocs,
+        VariablePresenceCondition::Never => ResolvedCondition::NoDocs,
+        VariablePresenceCondition::Present(variable_name) => {
+            let Some(column) = columns.get(variable_name.as_ref()) else {
+                return ResolvedCondition::NoDocs;
+            };
+            let exists_column_index = match column.column_index() {
+                ColumnIndex::Empty { .. } => return ResolvedCondition::NoDocs,
+                ColumnIndex::Full => return ResolvedCondition::AllDocs,
+                ColumnIndex::Optional(optional_index) => {
+                    ExistsColumnIndex::Optional(optional_index.clone())
+                }
+                ColumnIndex::Multivalued(multivalued_index) => {
+                    ExistsColumnIndex::Multivalued(multivalued_index.clone())
+                }
+            };
+            ResolvedCondition::DocSet(Box::new(ExistsDocSet::new(exists_column_index)))
         }
-        .into())
+        VariablePresenceCondition::All(conditions) => {
+            let mut doc_sets: Vec<Box<dyn DocSet>> = Vec::new();
+            for condition in conditions.iter() {
+                match build_necessary_condition_docset(condition, columns, max_doc) {
+                    ResolvedCondition::AllDocs => {}
+                    ResolvedCondition::NoDocs => return ResolvedCondition::NoDocs,
+                    ResolvedCondition::DocSet(doc_set) => doc_sets.push(doc_set),
+                }
+            }
+            match doc_sets.len() {
+                0 => ResolvedCondition::AllDocs,
+                1 => ResolvedCondition::DocSet(doc_sets.pop().unwrap()),
+                _ => ResolvedCondition::DocSet(Box::new(Intersection::new(doc_sets, max_doc))),
+            }
+        }
+        VariablePresenceCondition::Any(conditions) => {
+            let mut doc_sets: Vec<Box<dyn DocSet>> = Vec::new();
+            for condition in conditions.iter() {
+                match build_necessary_condition_docset(condition, columns, max_doc) {
+                    ResolvedCondition::AllDocs => return ResolvedCondition::AllDocs,
+                    ResolvedCondition::NoDocs => {}
+                    ResolvedCondition::DocSet(doc_set) => doc_sets.push(doc_set),
+                }
+            }
+            match doc_sets.len() {
+                0 => ResolvedCondition::NoDocs,
+                1 => ResolvedCondition::DocSet(doc_sets.pop().unwrap()),
+                _ => ResolvedCondition::DocSet(Box::new(SimpleUnion::build(doc_sets))),
+            }
+        }
     }
 }
 
@@ -317,10 +417,11 @@ fn load_str_input<'buffer>(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::collector::Count;
+    use crate::collector::{Count, DocSetCollector};
     use crate::query::doc_predicate_query::DocPredicateQuery;
-    use crate::schema::{Schema, FAST, STORED, STRING};
-    use crate::Index;
+    use crate::query::{EnableScoring, Query};
+    use crate::schema::{Schema, FAST, INDEXED, STORED, STRING};
+    use crate::{Index, TantivyDocument, Term};
 
     fn create_index() -> Index {
         let mut schema_builder = Schema::builder();
@@ -587,6 +688,132 @@ mod tests {
                 .unwrap(),
             1
         );
+    }
+
+    /// Two segments with sparse, multivalued, and segment-dependent columns, and deleted docs.
+    ///
+    /// `label` only has values in the second segment.
+    fn create_sparse_index() -> Index {
+        let mut schema_builder = Schema::builder();
+        let id = schema_builder.add_u64_field("id", FAST | INDEXED);
+        let number = schema_builder.add_u64_field("number", FAST);
+        let score = schema_builder.add_i64_field("score", FAST);
+        let flag = schema_builder.add_bool_field("flag", FAST);
+        let label = schema_builder.add_text_field("label", STRING | FAST);
+        let tags = schema_builder.add_text_field("tags", STRING | FAST);
+        let index = Index::create_in_ram(schema_builder.build());
+        let mut writer = index.writer_for_tests().unwrap();
+        for segment_ord in 0..2u64 {
+            for i in 0..300u64 {
+                let mut doc = TantivyDocument::default();
+                doc.add_u64(id, segment_ord * 1000 + i);
+                if i % 3 == 0 {
+                    doc.add_u64(number, i);
+                }
+                if i % 5 == 0 {
+                    doc.add_i64(score, (i % 7) as i64 - 3);
+                }
+                if i % 2 == 0 {
+                    doc.add_bool(flag, i % 4 == 0);
+                }
+                if segment_ord == 1 && i % 4 == 0 {
+                    doc.add_text(label, ["a", "b", "ab"][(i % 3) as usize]);
+                }
+                if i % 6 == 0 {
+                    doc.add_text(tags, "x");
+                    doc.add_text(tags, "y");
+                } else if i % 6 == 1 {
+                    doc.add_text(tags, "y");
+                }
+                writer.add_document(doc).unwrap();
+            }
+            writer.commit().unwrap();
+        }
+        writer.delete_term(Term::from_field_u64(id, 30));
+        writer.delete_term(Term::from_field_u64(id, 1060));
+        writer.commit().unwrap();
+        index
+    }
+
+    /// Returns a query matching the same documents as `query(expression)`, but requiring the
+    /// presence of no field, so that all documents are evaluated.
+    ///
+    /// `(NOT true)` is a present `false`: the disjunction is `true` if and only if `expression` is.
+    /// As `NOT` requires the presence of no field, neither does the disjunction.
+    fn query_without_required_presence(expression: &str) -> DocPredicateQuery {
+        query(&format!("(OR {expression} (NOT true))"))
+    }
+
+    #[test]
+    fn test_required_presence_does_not_change_results() {
+        let index = create_sparse_index();
+        let searcher = index.reader().unwrap().searcher();
+        assert_eq!(searcher.segment_readers().len(), 2);
+        let expressions = [
+            "true",
+            "false",
+            "flag",
+            "(EQ number 33u64)",
+            "(EQ number 30u64)",
+            "(IS_NOT_NULL number)",
+            "(IS_NULL score)",
+            "(NOT (EQ number 3u64))",
+            "(NEQ score 1i64)",
+            "(GT (ADD number score) 10i64)",
+            "(OR (EQ number 3u64) (EQ score 1i64))",
+            "(AND flag (IS_NOT_NULL label))",
+            r#"(EQ label "a")"#,
+            r#"(OR (EQ label "b") flag)"#,
+            r#"(REGEXP_LIKE label "b")"#,
+            r#"(EQ (UPPER tags) "X")"#,
+            "(IF flag (GT number 100u64) (LT score 0i64))",
+            "(IS_NOT_NULL (IF flag number score))",
+            "(AND (EQ missing 1i64) flag)",
+            "(OR (IS_NOT_NULL missing) (EQ score 2i64))",
+            "(OR (IS_NULL missing) (EQ score 2i64))",
+        ];
+        for expression in expressions {
+            let expected = searcher
+                .search(
+                    &query_without_required_presence(expression),
+                    &DocSetCollector,
+                )
+                .unwrap();
+            let accelerated = searcher
+                .search(&query(expression), &DocSetCollector)
+                .unwrap();
+            assert_eq!(accelerated, expected, "{expression}");
+        }
+        // Sanity checks: the index does exercise the predicates.
+        let count = |expression: &str| searcher.search(&query(expression), &Count).unwrap();
+        assert_eq!(count("(EQ number 33u64)"), 2);
+        // Doc 30 of the first segment is deleted.
+        assert_eq!(count("(EQ number 30u64)"), 1);
+        // `label` is "a" on 25 docs of the second segment, one of which (1060) is deleted.
+        assert_eq!(count(r#"(EQ label "a")"#), 24);
+    }
+
+    #[test]
+    fn test_required_presence_restricts_evaluated_docs() {
+        let index = create_sparse_index();
+        let searcher = index.reader().unwrap().searcher();
+        let segment_reader = searcher.segment_reader(0);
+        let size_hint = |query: DocPredicateQuery| {
+            query
+                .weight(EnableScoring::disabled_from_searcher(&searcher))
+                .unwrap()
+                .scorer(segment_reader, 1.0)
+                .unwrap()
+                .size_hint()
+        };
+        // `number` has a value in one doc out of three.
+        assert_eq!(size_hint(query("(GT number 10u64)")), 100);
+        assert_eq!(
+            size_hint(query_without_required_presence("(GT number 10u64)")),
+            300
+        );
+        // Nothing to require: all docs are evaluated.
+        assert_eq!(size_hint(query("(NOT (GT number 10u64))")), 300);
     }
 
     // THIS FAILS! due to our pick best possible column approach policy.

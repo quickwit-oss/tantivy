@@ -47,6 +47,7 @@ pub struct AllScorer {
 impl AllScorer {
     /// Creates a new AllScorer with `max_doc` docs.
     pub fn new(max_doc: DocId) -> AllScorer {
+        let doc = if max_doc == 0u32 { TERMINATED } else { 0 };
         AllScorer { doc: 0u32, max_doc }
     }
 }
