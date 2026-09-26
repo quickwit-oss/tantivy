@@ -23,6 +23,10 @@ impl<TPostings: Postings> PostingsWithOffset<TPostings> {
     pub fn positions(&mut self, output: &mut Vec<u32>) {
         self.postings.positions_with_offset(self.offset, output)
     }
+
+    fn term_freq(&self) -> u32 {
+        self.postings.term_freq()
+    }
 }
 
 impl<TPostings: Postings> DocSet for PostingsWithOffset<TPostings> {
@@ -448,6 +452,56 @@ impl<TPostings: Postings> PhraseScorer<TPostings> {
 
     pub fn phrase_count(&self) -> u32 {
         self.phrase_count
+    }
+
+    /// Collect exact phrase matches while avoiding position reads for documents
+    /// whose term frequencies cannot produce a competitive phrase score.
+    pub(crate) fn for_each_pruning_exact(
+        &mut self,
+        mut threshold: Score,
+        callback: &mut dyn FnMut(DocId, Score) -> Score,
+    ) {
+        debug_assert_eq!(self.slop, 0);
+        debug_assert!(self.similarity_weight_opt.is_some());
+
+        // The constructor has already checked the first phrase match.
+        let mut doc = self.doc();
+        while doc != TERMINATED {
+            let score = self.score();
+            if score > threshold {
+                threshold = callback(doc, score);
+            }
+
+            loop {
+                doc = self.intersection_docset.advance();
+                if doc == TERMINATED {
+                    return;
+                }
+
+                // An exact phrase cannot occur more often than any of its terms.
+                // Check the resulting BM25 bound before loading positions.
+                let mut max_phrase_freq = u32::MAX;
+                for i in 0..self.num_terms {
+                    let freq = self
+                        .intersection_docset
+                        .docset_mut_specialized(i)
+                        .term_freq();
+                    max_phrase_freq = max_phrase_freq.min(freq);
+                }
+                let fieldnorm_id = self.fieldnorm_reader.fieldnorm_id(doc);
+                let max_score = self
+                    .similarity_weight_opt
+                    .as_ref()
+                    .expect("phrase pruning requires scoring")
+                    .score(fieldnorm_id, max_phrase_freq);
+                if max_score <= threshold {
+                    continue;
+                }
+                if self.phrase_match() {
+                    break;
+                }
+            }
+        }
     }
 
     pub(crate) fn get_intersection(&mut self) -> &[u32] {
