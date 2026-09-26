@@ -2,7 +2,7 @@ use std::cmp::Ordering;
 
 use crate::docset::{DocSet, SeekDangerResult, TERMINATED};
 use crate::fieldnorm::FieldNormReader;
-use crate::postings::Postings;
+use crate::postings::{Postings, SegmentPostings};
 use crate::query::bm25::Bm25Weight;
 use crate::query::{Intersection, Scorer};
 use crate::{DocId, Score};
@@ -454,56 +454,6 @@ impl<TPostings: Postings> PhraseScorer<TPostings> {
         self.phrase_count
     }
 
-    /// Collect exact phrase matches while avoiding position reads for documents
-    /// whose term frequencies cannot produce a competitive phrase score.
-    pub(crate) fn for_each_pruning_exact(
-        &mut self,
-        mut threshold: Score,
-        callback: &mut dyn FnMut(DocId, Score) -> Score,
-    ) {
-        debug_assert_eq!(self.slop, 0);
-        debug_assert!(self.similarity_weight_opt.is_some());
-
-        // The constructor has already checked the first phrase match.
-        let mut doc = self.doc();
-        while doc != TERMINATED {
-            let score = self.score();
-            if score > threshold {
-                threshold = callback(doc, score);
-            }
-
-            loop {
-                doc = self.intersection_docset.advance();
-                if doc == TERMINATED {
-                    return;
-                }
-
-                // An exact phrase cannot occur more often than any of its terms.
-                // Check the resulting BM25 bound before loading positions.
-                let mut max_phrase_freq = u32::MAX;
-                for i in 0..self.num_terms {
-                    let freq = self
-                        .intersection_docset
-                        .docset_mut_specialized(i)
-                        .term_freq();
-                    max_phrase_freq = max_phrase_freq.min(freq);
-                }
-                let fieldnorm_id = self.fieldnorm_reader.fieldnorm_id(doc);
-                let max_score = self
-                    .similarity_weight_opt
-                    .as_ref()
-                    .expect("phrase pruning requires scoring")
-                    .score(fieldnorm_id, max_phrase_freq);
-                if max_score <= threshold {
-                    continue;
-                }
-                if self.phrase_match() {
-                    break;
-                }
-            }
-        }
-    }
-
     pub(crate) fn get_intersection(&mut self) -> &[u32] {
         intersection(&mut self.left_positions, &self.right_positions);
         &self.left_positions
@@ -606,6 +556,87 @@ impl<TPostings: Postings> PhraseScorer<TPostings> {
 
     fn has_slop(&self) -> bool {
         self.slop > 0
+    }
+}
+
+impl PhraseScorer<SegmentPostings> {
+    /// The phrase frequency is at most the frequency of any constituent term.
+    /// Compute a block bound using the query's BM25 weight, as the stored block
+    /// impact was chosen using segment-local statistics at indexing time.
+    fn first_term_block_bound(&mut self) -> (DocId, Score) {
+        let cursor = &self
+            .intersection_docset
+            .docset_mut_specialized(0)
+            .postings
+            .block_cursor;
+        let end = cursor.skip_reader().last_doc_in_block();
+        let weight = self.similarity_weight_opt.as_ref().unwrap();
+        let max_score = cursor
+            .docs()
+            .iter()
+            .zip(cursor.freqs())
+            .map(|(&doc, &freq)| weight.score(self.fieldnorm_reader.fieldnorm_id(doc), freq))
+            .fold(0.0f32, Score::max);
+        (end, max_score)
+    }
+
+    /// Collect exact phrase matches while pruning uncompetitive blocks and
+    /// avoiding position reads for uncompetitive documents.
+    pub(crate) fn for_each_pruning_exact(
+        &mut self,
+        mut threshold: Score,
+        callback: &mut dyn FnMut(DocId, Score) -> Score,
+    ) {
+        debug_assert_eq!(self.slop, 0);
+        debug_assert!(self.similarity_weight_opt.is_some());
+
+        // The constructor has already checked the first phrase match.
+        let mut doc = self.doc();
+        let mut block_end = 0;
+        let mut block_bound = Score::MAX;
+        while doc != TERMINATED {
+            let score = self.score();
+            if score > threshold {
+                threshold = callback(doc, score);
+            }
+
+            loop {
+                // Scores are nonnegative. Until the collector has a positive
+                // threshold, a block cannot be pruned, so avoid scanning it.
+                if threshold > 0.0 && doc > block_end {
+                    (block_end, block_bound) = self.first_term_block_bound();
+                }
+                doc = if threshold > 0.0 && block_end < TERMINATED && block_bound <= threshold {
+                    self.intersection_docset.seek(block_end + 1)
+                } else {
+                    self.intersection_docset.advance()
+                };
+                if doc == TERMINATED {
+                    return;
+                }
+
+                let mut max_phrase_freq = u32::MAX;
+                for i in 0..self.num_terms {
+                    let freq = self
+                        .intersection_docset
+                        .docset_mut_specialized(i)
+                        .term_freq();
+                    max_phrase_freq = max_phrase_freq.min(freq);
+                }
+                let fieldnorm_id = self.fieldnorm_reader.fieldnorm_id(doc);
+                let max_score = self
+                    .similarity_weight_opt
+                    .as_ref()
+                    .unwrap()
+                    .score(fieldnorm_id, max_phrase_freq);
+                if max_score <= threshold {
+                    continue;
+                }
+                if self.phrase_match() {
+                    break;
+                }
+            }
+        }
     }
 }
 

@@ -160,7 +160,8 @@ mod tests {
     use crate::docset::{SeekDangerResult, TERMINATED};
     use crate::query::weight::for_each_pruning_scorer;
     use crate::query::{EnableScoring, PhraseQuery, Weight};
-    use crate::{DocSet, Score, Term};
+    use crate::schema::{Schema, TEXT};
+    use crate::{DocSet, Index, Score, Term};
 
     #[test]
     pub fn test_phrase_count() -> crate::Result<()> {
@@ -289,6 +290,54 @@ mod tests {
                 }
             }
         }
+        Ok(())
+    }
+
+    #[test]
+    fn test_phrase_pruning_skips_full_blocks_with_global_statistics() -> crate::Result<()> {
+        let mut schema_builder = Schema::builder();
+        let field = schema_builder.add_text_field("text", TEXT);
+        let index = Index::create_in_ram(schema_builder.build());
+        let mut writer = index.writer_for_tests()?;
+        for _ in 0..256 {
+            writer.add_document(doc!(field => "a b"))?;
+        }
+        writer.add_document(doc!(field => "a b ".repeat(20)))?;
+        writer.commit()?;
+        // This segment changes the global average field length after the first
+        // segment's block impact was serialized.
+        for _ in 0..256 {
+            writer.add_document(doc!(field => "c ".repeat(100)))?;
+        }
+        writer.commit()?;
+
+        let searcher = index.reader()?.searcher();
+        let weight = PhraseQuery::new(vec![
+            Term::from_field_text(field, "a"),
+            Term::from_field_text(field, "b"),
+        ])
+        .phrase_weight(EnableScoring::enabled_from_searcher(&searcher))?;
+        let reader = searcher
+            .segment_readers()
+            .iter()
+            .find(|reader| reader.max_doc() == 257)
+            .unwrap();
+        let threshold = weight.scorer(reader, 1.0)?.score() + 0.01;
+
+        let mut exhaustive = Vec::new();
+        let mut scorer = weight.scorer(reader, 1.0)?;
+        for_each_pruning_scorer(scorer.as_mut(), threshold, &mut |doc, score| {
+            exhaustive.push((doc, score));
+            threshold
+        });
+        let mut pruned = Vec::new();
+        weight.for_each_pruning(threshold, reader, &mut |doc, score| {
+            pruned.push((doc, score));
+            threshold
+        })?;
+        assert_eq!(exhaustive.len(), 1);
+        assert_eq!(exhaustive[0].0, 256);
+        assert_eq!(pruned, exhaustive);
         Ok(())
     }
 }
