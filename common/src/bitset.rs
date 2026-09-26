@@ -142,6 +142,18 @@ impl TinySet {
         TinySet(self.0 | other.0)
     }
 
+    /// In-place union.
+    #[inline]
+    pub fn union_mut(&mut self, other: TinySet) {
+        self.0 |= other.0;
+    }
+
+    /// TinySet from a raw 64-bit word (bit `i` is element `i`).
+    #[inline]
+    pub fn from_bits(bits: u64) -> TinySet {
+        TinySet(bits)
+    }
+
     /// Returns true iff the `TinySet` is empty.
     #[inline]
     pub fn is_empty(self) -> bool {
