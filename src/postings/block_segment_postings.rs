@@ -448,6 +448,22 @@ impl BlockSegmentPostings {
     pub(crate) fn skip_reader(&self) -> &SkipReader {
         &self.skip_reader
     }
+
+    /// Advance the skip list without decoding the next block.
+    pub(crate) fn advance_skip_only(&mut self) {
+        self.skip_reader.advance();
+        self.block_loaded = false;
+        self.block_max_score_cache = None;
+    }
+
+    pub(crate) fn postings_bytes(&self) -> &[u8] {
+        self.data.as_slice()
+    }
+
+    pub(crate) fn seek_within_loaded_block(&self, target: DocId) -> usize {
+        debug_assert!(self.block_is_loaded());
+        self.doc_decoder.seek_within_block(target)
+    }
 }
 
 #[cfg(test)]

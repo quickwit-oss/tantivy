@@ -17,9 +17,10 @@ pub const TERMINATED: DocId = i32::MAX as u32;
 pub const COLLECT_BLOCK_BUFFER_LEN: usize = 64;
 
 /// Number of `TinySet` (64-bit) buckets in a block used by [`DocSet::fill_bitset_block`].
-pub const BLOCK_NUM_TINYBITSETS: usize = 16;
+/// 64 buckets × 64 docs = 4096, matching Lucene's `BooleanScorer` window.
+pub const BLOCK_NUM_TINYBITSETS: usize = 64;
 
-/// Number of doc IDs covered by one block: `BLOCK_NUM_TINYBITSETS * 64 = 1024`.
+/// Number of doc IDs covered by one block: `BLOCK_NUM_TINYBITSETS * 64 = 4096`.
 pub const BLOCK_WINDOW: u32 = BLOCK_NUM_TINYBITSETS as u32 * 64;
 
 /// Represents an iterable set of sorted doc ids.
@@ -178,8 +179,22 @@ pub trait DocSet: Send {
         min_doc: DocId,
         mask: &mut [TinySet; BLOCK_NUM_TINYBITSETS],
     ) -> DocId {
-        self.seek(min_doc);
-        let horizon = min_doc + BLOCK_WINDOW;
+        debug_assert_eq!(BLOCK_WINDOW, BLOCK_NUM_TINYBITSETS as u32 * 64);
+        self.fill_bitset_window(min_doc, mask)
+    }
+
+    /// OR this docset's hits in `[min_doc, min_doc + mask.len()*64)` into `mask`.
+    ///
+    /// `mask[i]` covers `[min_doc + i*64, min_doc + (i+1)*64)`. Returns the next
+    /// doc `>=` the window end, or [`TERMINATED`].
+    fn fill_bitset_window(&mut self, min_doc: DocId, mask: &mut [TinySet]) -> DocId {
+        if mask.is_empty() {
+            return self.doc();
+        }
+        if self.doc() < min_doc {
+            self.seek(min_doc);
+        }
+        let horizon = min_doc.saturating_add(mask.len() as u32 * 64);
         loop {
             let doc = self.doc();
             if doc >= horizon {
@@ -263,6 +278,10 @@ impl DocSet for &mut dyn DocSet {
         (**self).fill_bitset_block(min_doc, mask)
     }
 
+    fn fill_bitset_window(&mut self, min_doc: DocId, mask: &mut [TinySet]) -> DocId {
+        (**self).fill_bitset_window(min_doc, mask)
+    }
+
     fn doc(&self) -> u32 {
         (**self).doc()
     }
@@ -312,6 +331,11 @@ impl<TDocSet: DocSet + ?Sized> DocSet for Box<TDocSet> {
     ) -> DocId {
         let unboxed: &mut TDocSet = self.borrow_mut();
         unboxed.fill_bitset_block(min_doc, mask)
+    }
+
+    fn fill_bitset_window(&mut self, min_doc: DocId, mask: &mut [TinySet]) -> DocId {
+        let unboxed: &mut TDocSet = self.borrow_mut();
+        unboxed.fill_bitset_window(min_doc, mask)
     }
 
     fn doc(&self) -> DocId {
