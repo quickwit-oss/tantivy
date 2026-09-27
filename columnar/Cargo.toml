@@ -57,5 +57,9 @@ harness = false
 name = "bench_optional_index"
 harness = false
 
+[[bench]]
+name = "bench_multivalue_docids"
+harness = false
+
 [features]
 zstd-compression = ["sstable/zstd-compression"]
