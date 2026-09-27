@@ -563,7 +563,7 @@ impl PhraseScorer<SegmentPostings> {
     /// The phrase frequency is at most the frequency of any constituent term.
     /// Compute a block bound using the query's BM25 weight, as the stored block
     /// impact was chosen using segment-local statistics at indexing time.
-    fn first_term_block_bound(&mut self) -> (DocId, Score) {
+    fn first_term_block_can_compete(&mut self, threshold: Score) -> (DocId, bool) {
         let cursor = &self
             .intersection_docset
             .docset_mut_specialized(0)
@@ -571,13 +571,14 @@ impl PhraseScorer<SegmentPostings> {
             .block_cursor;
         let end = cursor.skip_reader().last_doc_in_block();
         let weight = self.similarity_weight_opt.as_ref().unwrap();
-        let max_score = cursor
+        let can_compete = cursor
             .docs()
             .iter()
             .zip(cursor.freqs())
-            .map(|(&doc, &freq)| weight.score(self.fieldnorm_reader.fieldnorm_id(doc), freq))
-            .fold(0.0f32, Score::max);
-        (end, max_score)
+            .any(|(&doc, &freq)| {
+                weight.can_score_exceed(self.fieldnorm_reader.fieldnorm_id(doc), freq, threshold)
+            });
+        (end, can_compete)
     }
 
     /// Collect exact phrase matches while pruning uncompetitive blocks and
@@ -593,7 +594,7 @@ impl PhraseScorer<SegmentPostings> {
         // The constructor has already checked the first phrase match.
         let mut doc = self.doc();
         let mut block_end = 0;
-        let mut block_bound = Score::MAX;
+        let mut block_can_compete = true;
         while doc != TERMINATED {
             let score = self.score();
             if score > threshold {
@@ -604,9 +605,9 @@ impl PhraseScorer<SegmentPostings> {
                 // Scores are nonnegative. Until the collector has a positive
                 // threshold, a block cannot be pruned, so avoid scanning it.
                 if threshold > 0.0 && doc > block_end {
-                    (block_end, block_bound) = self.first_term_block_bound();
+                    (block_end, block_can_compete) = self.first_term_block_can_compete(threshold);
                 }
-                doc = if threshold > 0.0 && block_end < TERMINATED && block_bound <= threshold {
+                doc = if threshold > 0.0 && block_end < TERMINATED && !block_can_compete {
                     self.intersection_docset.seek(block_end + 1)
                 } else {
                     self.intersection_docset.advance()
@@ -624,12 +625,12 @@ impl PhraseScorer<SegmentPostings> {
                     max_phrase_freq = max_phrase_freq.min(freq);
                 }
                 let fieldnorm_id = self.fieldnorm_reader.fieldnorm_id(doc);
-                let max_score = self
+                if !self
                     .similarity_weight_opt
                     .as_ref()
                     .unwrap()
-                    .score(fieldnorm_id, max_phrase_freq);
-                if max_score <= threshold {
+                    .can_score_exceed(fieldnorm_id, max_phrase_freq, threshold)
+                {
                     continue;
                 }
                 if self.phrase_match() {
