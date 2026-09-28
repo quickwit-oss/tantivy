@@ -66,10 +66,6 @@ impl Weight for DocPredicateQuery {
     }
 }
 
-/// The cost of a [`DocPredicateDocSet`] is the cost of its necessary condition,
-/// multiplied by this factor.
-const PREDICATE_EVAL_COST_FACTOR: u64 = 100;
-
 /// A [`DocSet`] that walks the documents of a necessary condition, and evaluates a
 /// [`SegmentDocPredicate`] on each of them.
 ///
@@ -181,9 +177,13 @@ impl<TSegmentDocPredicate: SegmentDocPredicate> DocSet
     }
 
     fn cost(&self) -> u64 {
-        self.necessary_condition
-            .cost()
-            .saturating_mul(PREDICATE_EVAL_COST_FACTOR)
+        // `cost` is the method used to tell  how costly it is to consume a DocSet entirely.
+        //
+        // This is used in intersection to have cheaper docset "lead" the intersection.
+        //
+        // Here, we naturally use a model where we use the cost of the necessary condition
+        // multiplied by some factor expressing how slow it is to evaluate an expression.
+        self.necessary_condition.cost() * self.doc_predicate.cost()
     }
 }
 
@@ -300,6 +300,19 @@ pub trait DocPredicate: Send + Sync + 'static + std::fmt::Debug {
 pub trait SegmentDocPredicate: Send + 'static {
     /// Returns whether `doc_id` matches the predicate.
     fn eval(&mut self, doc_id: DocId) -> bool;
+
+    /// Cost for the evaluation of a given predicate.
+    ///
+    /// This is used to infer the cost of consuming an associated `DocPredicateDocSet`.
+    /// This does not need to be accurate. It is only used by the intersection scorer
+    /// to choose which `DocSet` should "drive" the intersection.
+    ///
+    /// 1 is the time it takes to call `TermScorer::advance` (a few cycles). We defensively default
+    /// to 100.
+    fn cost(&self) -> u64 {
+        // We assume a default value of 100.
+        100u64
+    }
 }
 
 #[cfg(test)]
