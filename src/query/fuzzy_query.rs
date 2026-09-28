@@ -116,6 +116,17 @@ impl FuzzyTermQuery {
     /// Returns the automaton this query matches terms with.
     ///
     /// For a JSON term, it matches the term's text only, not its JSON path.
+    ///
+    /// ```rust
+    /// use tantivy::query::{DfaWrapper, FuzzyTermQuery};
+    /// use tantivy::schema::{Schema, TEXT};
+    /// use tantivy::Term;
+    ///
+    /// let mut schema_builder = Schema::builder();
+    /// let title = schema_builder.add_text_field("title", TEXT);
+    /// let query = FuzzyTermQuery::new(Term::from_field_text(title, "diary"), 1, true);
+    /// let _automaton: DfaWrapper = query.automaton().unwrap();
+    /// ```
     pub fn automaton(&self) -> crate::Result<DfaWrapper> {
         static AUTOMATON_BUILDER: [[OnceCell<LevenshteinAutomatonBuilder>; 2]; 3] = [
             [OnceCell::new(), OnceCell::new()],
