@@ -59,8 +59,11 @@ fn main() -> tantivy::Result<()> {
         let snippet = snippet_generator.snippet_from_doc(&doc);
         println!("Document score {score}:");
         println!("title: {}", doc.get_first(title).unwrap().as_str().unwrap());
-        println!("snippet: {}", snippet.to_html());
-        println!("custom highlighting: {}", highlight(snippet));
+
+        if let Some(snippet) = snippet {
+            println!("snippet: {}", snippet.to_html());
+            println!("custom highlighting: {}", highlight(snippet));
+        }
     }
 
     Ok(())
