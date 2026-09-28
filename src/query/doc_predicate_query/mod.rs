@@ -468,13 +468,13 @@ pub(crate) mod tests {
             .unwrap();
         let scorer = weight.scorer(searcher.segment_reader(0), 1.0).unwrap();
         assert_eq!(scorer.size_hint(), 6);
-        assert_eq!(scorer.cost(), 6 * PREDICATE_EVAL_COST_FACTOR);
+        assert_eq!(scorer.cost(), 600);
         // Without a necessary condition, all docs are candidates.
         let scorer = even_doc_id_query()
             .scorer(searcher.segment_reader(0), 1.0)
             .unwrap();
         assert_eq!(scorer.size_hint(), 10);
-        assert_eq!(scorer.cost(), 10 * PREDICATE_EVAL_COST_FACTOR);
+        assert_eq!(scorer.cost(), 1000);
     }
 
     #[test]
