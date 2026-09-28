@@ -20,7 +20,7 @@ type UnionType = SimpleUnion<Box<dyn Postings + 'static>>;
 /// See RegexPhraseWeight::get_union_from_term_infos for some design decisions.
 pub struct RegexPhraseWeight {
     field: Field,
-    phrase_terms: Vec<(usize, String)>,
+    phrase_terms: Vec<(usize, Arc<Regex>)>,
     similarity_weight_opt: Option<Bm25Weight>,
     slop: u32,
     max_expansions: u32,
@@ -31,7 +31,7 @@ impl RegexPhraseWeight {
     /// If `similarity_weight_opt` is None, then scoring is disabled
     pub fn new(
         field: Field,
-        phrase_terms: Vec<(usize, String)>,
+        phrase_terms: Vec<(usize, Arc<Regex>)>,
         similarity_weight_opt: Option<Bm25Weight>,
         max_expansions: u32,
         slop: u32,
@@ -67,12 +67,9 @@ impl RegexPhraseWeight {
         let mut posting_lists = Vec::new();
         let inverted_index = reader.inverted_index(self.field)?;
         let mut num_terms = 0;
-        for &(offset, ref term) in &self.phrase_terms {
-            let regex = Regex::new(term)
-                .map_err(|e| crate::TantivyError::InvalidArgument(format!("Invalid regex: {e}")))?;
-
+        for &(offset, ref regex) in &self.phrase_terms {
             let automaton: AutomatonWeight<Regex> =
-                AutomatonWeight::new(self.field, Arc::new(regex));
+                AutomatonWeight::new(self.field, Arc::clone(regex));
             let term_infos = automaton.get_match_term_infos(reader)?;
             // If term_infos is empty, the phrase can not match any documents.
             if term_infos.is_empty() {
@@ -349,6 +346,20 @@ mod tests {
             }
             prop_assert_eq!(phrase_scorer.advance(), TERMINATED);
         }
+    }
+
+    #[test]
+    pub fn test_phrase_regex_invalid_pattern_fails_at_weight() -> crate::Result<()> {
+        let index = create_index(&["a b"])?;
+        let text_field = index.schema().get_field("text").unwrap();
+        let searcher = index.reader()?.searcher();
+        let phrase_query = RegexPhraseQuery::new(text_field, vec!["a".into(), "(".into()]);
+        let enable_scoring = EnableScoring::enabled_from_searcher(&searcher);
+        assert!(matches!(
+            phrase_query.regex_phrase_weight(enable_scoring),
+            Err(crate::TantivyError::InvalidArgument(_))
+        ));
+        Ok(())
     }
 
     #[test]

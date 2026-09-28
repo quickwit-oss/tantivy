@@ -1,3 +1,7 @@
+use std::sync::Arc;
+
+use tantivy_fst::Regex;
+
 use super::regex_phrase_weight::RegexPhraseWeight;
 use crate::query::bm25::Bm25Weight;
 use crate::query::{EnableScoring, Query, Weight};
@@ -149,9 +153,21 @@ impl RegexPhraseQuery {
             } => Some(Bm25Weight::for_terms(statistics_provider, &terms)?),
             EnableScoring::Disabled { .. } => None,
         };
+        // Compiled once here rather than per segment: determinizing a large
+        // pattern can dominate the cost of the query.
+        let phrase_terms = self
+            .phrase_terms
+            .iter()
+            .map(|(offset, term)| {
+                let regex = Regex::new(term).map_err(|e| {
+                    crate::TantivyError::InvalidArgument(format!("Invalid regex: {e}"))
+                })?;
+                Ok((*offset, Arc::new(regex)))
+            })
+            .collect::<crate::Result<Vec<_>>>()?;
         let weight = RegexPhraseWeight::new(
             self.field,
-            self.phrase_terms.clone(),
+            phrase_terms,
             bm25_weight_opt,
             self.max_expansions,
             self.slop,
