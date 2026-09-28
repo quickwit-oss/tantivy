@@ -106,6 +106,12 @@ impl<TSegmentDocPredicate: SegmentDocPredicate> DocPredicateDocSet<TSegmentDocPr
             doc_predicate,
             necessary_condition,
         };
+        if target >= TERMINATED {
+            if doc_set.necessary_condition.doc() < TERMINATED {
+                doc_set.necessary_condition.seek(TERMINATED);
+            }
+            return (SeekDangerResult::SeekLowerBound(TERMINATED), doc_set);
+        }
         let seek_result = match first_candidate.cmp(&target) {
             Ordering::Less => doc_set.seek_danger(target),
             Ordering::Equal => doc_set.eval_candidate(target),
