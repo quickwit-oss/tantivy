@@ -200,10 +200,7 @@ fn build_index(
     }
 }
 
-/// Same workload as [`build_index`], with documents sorted by a fast `u64` field.
-///
-/// Sort keys are handed out round-robin across segments (`row * num_segments + segment`),
-/// so the merged doc ids interleave and the postings merge takes the shuffled path.
+/// Like [`build_index`], sorted by a `u64` key that interleaves docs across segments.
 fn build_sorted_index(
     num_segments: usize,
     docs_per_segment: usize,

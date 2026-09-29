@@ -596,6 +596,7 @@ fn write_postings_for_field(
     );
 
     let mut segment_postings_containing_the_term: Vec<(usize, SegmentPostings)> = vec![];
+    let mut merger = PostingsMerger::new(&merged_doc_id_map);
 
     while merged_terms.advance() {
         segment_postings_containing_the_term.clear();
@@ -662,12 +663,7 @@ fn write_postings_for_field(
                 }
             }
         } else {
-            // Each segment keeps its own document order, so a cursor per segment
-            // yields mapped docs in order. Positions are read for the current doc only.
-            let mut merger = PostingsMerger::new(
-                segment_postings_containing_the_term.drain(..),
-                &merged_doc_id_map,
-            );
+            merger.reset(segment_postings_containing_the_term.drain(..));
             while merger.advance() {
                 let term_freq = if has_term_freq {
                     merger.positions(&mut positions_buffer);

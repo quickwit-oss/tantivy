@@ -1,9 +1,6 @@
 //! Merge per-segment postings into increasing mapped document id order.
-//!
-//! One cursor is kept per input segment. Positions are read only for the
-//! current document, into a buffer supplied by the caller.
 
-use std::cmp::{Ordering, Reverse};
+use std::cmp::Reverse;
 use std::collections::binary_heap::PeekMut;
 use std::collections::BinaryHeap;
 
@@ -11,7 +8,7 @@ use crate::docset::{DocSet, TERMINATED};
 use crate::postings::{Postings, SegmentPostings};
 use crate::DocId;
 
-/// Skip deleted or filtered documents, leaving the cursor on the next mapped posting.
+/// Skip to the next posting whose document is present in `mapping`.
 pub(crate) fn next_mapped_doc(
     postings: &mut SegmentPostings,
     mapping: &[Option<DocId>],
@@ -25,149 +22,104 @@ pub(crate) fn next_mapped_doc(
     None
 }
 
-/// One segment's postings, positioned on a document that survives the merge mapping.
 struct MappedPostings<'a> {
     postings: SegmentPostings,
     mapping: &'a [Option<DocId>],
-    current_doc: DocId,
 }
 
-impl<'a> MappedPostings<'a> {
-    fn new(mut postings: SegmentPostings, mapping: &'a [Option<DocId>]) -> Option<Self> {
-        let current_doc = next_mapped_doc(&mut postings, mapping)?;
-        Some(Self {
-            postings,
-            mapping,
-            current_doc,
-        })
-    }
-
-    /// Move to the next mapped doc. `false` when this segment is exhausted.
-    fn advance(&mut self) -> bool {
+impl MappedPostings<'_> {
+    fn advance(&mut self) -> Option<DocId> {
         self.postings.advance();
-        match next_mapped_doc(&mut self.postings, self.mapping) {
-            Some(doc) => {
-                debug_assert!(
-                    doc > self.current_doc,
-                    "merge mapping must preserve per-segment order"
-                );
-                self.current_doc = doc;
-                true
-            }
-            None => false,
-        }
+        next_mapped_doc(&mut self.postings, self.mapping)
     }
 }
-
-impl Ord for MappedPostings<'_> {
-    fn cmp(&self, other: &Self) -> Ordering {
-        self.current_doc.cmp(&other.current_doc)
-    }
-}
-
-impl PartialOrd for MappedPostings<'_> {
-    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        Some(self.cmp(other))
-    }
-}
-
-impl PartialEq for MappedPostings<'_> {
-    fn eq(&self, other: &Self) -> bool {
-        self.current_doc == other.current_doc
-    }
-}
-
-impl Eq for MappedPostings<'_> {}
 
 /// Streams postings from several segments in increasing mapped document id.
 ///
-/// Built once per term for a shuffled merge. Memory is one [`SegmentPostings`]
-/// cursor per input segment that still contains the term, plus the positions
-/// buffer the caller passes to [`Self::positions`].
+/// Create once per field and call [`Self::reset`] for each term.
 pub(crate) struct PostingsMerger<'a> {
-    /// Max-heap of reversed cursors, so the smallest mapped doc sits on top.
-    ///
-    /// Cursors are boxed so a sift swaps a pointer. `MappedPostings` embeds the
-    /// postings block decoders, which are about 2KB.
-    heap: BinaryHeap<Reverse<Box<MappedPostings<'a>>>>,
-    /// `advance` reports the heap's first doc before moving any cursor.
+    doc_id_map: &'a [Vec<Option<DocId>>],
+    cursors: Vec<MappedPostings<'a>>,
+    /// Min-heap of `(current mapped doc, index into cursors)`.
+    heap: BinaryHeap<Reverse<(DocId, usize)>>,
     primed: bool,
 }
 
 impl<'a> PostingsMerger<'a> {
-    /// `segments` are `(segment_ord, postings)` for segments that contain the term.
-    /// `doc_id_map[segment_ord][local_doc]` is the mapped doc, or `None` when that
-    /// document is deleted or filtered out.
-    pub(crate) fn new(
-        segments: impl IntoIterator<Item = (usize, SegmentPostings)>,
-        doc_id_map: &'a [Vec<Option<DocId>>],
-    ) -> Self {
-        let segments = segments.into_iter();
-        let (lower, _) = segments.size_hint();
-        let mut heap = BinaryHeap::with_capacity(lower);
-        for (segment_ord, postings) in segments {
-            if let Some(cursor) = MappedPostings::new(postings, &doc_id_map[segment_ord]) {
-                heap.push(Reverse(Box::new(cursor)));
-            }
-        }
+    /// `doc_id_map[segment_ord][local_doc]` is the mapped doc, or `None` if dropped.
+    pub(crate) fn new(doc_id_map: &'a [Vec<Option<DocId>>]) -> Self {
         Self {
-            heap,
+            doc_id_map,
+            cursors: Vec::new(),
+            heap: BinaryHeap::new(),
             primed: false,
         }
     }
 
-    /// Advance to the next mapped document.
-    ///
-    /// Returns `true` when a document is available. [`Self::doc`], [`Self::term_freq`],
-    /// and [`Self::positions`] may be called only after this returns `true`.
+    /// Start merging a new term from `(segment_ord, postings)` pairs.
+    pub(crate) fn reset(&mut self, segments: impl IntoIterator<Item = (usize, SegmentPostings)>) {
+        self.cursors.clear();
+        self.heap.clear();
+        self.primed = false;
+        let doc_id_map = self.doc_id_map;
+        for (segment_ord, mut postings) in segments {
+            let mapping = &doc_id_map[segment_ord][..];
+            if let Some(doc) = next_mapped_doc(&mut postings, mapping) {
+                self.heap.push(Reverse((doc, self.cursors.len())));
+                self.cursors.push(MappedPostings { postings, mapping });
+            }
+        }
+    }
+
+    /// Advance to the next document. Must return `true` before the accessors are called.
     pub(crate) fn advance(&mut self) -> bool {
         if !self.primed {
             self.primed = true;
             return !self.heap.is_empty();
         }
-        let Some(previous) = self.heap.peek().map(|cursor| cursor.0.current_doc) else {
-            return false;
-        };
-        {
-            let mut top = self.heap.peek_mut().expect("heap top exists");
-            if !top.0.advance() {
-                PeekMut::pop(top);
+        let previous = {
+            let Some(mut top) = self.heap.peek_mut() else {
+                return false;
+            };
+            let Reverse((previous, cursor_ord)) = *top;
+            match self.cursors[cursor_ord].advance() {
+                Some(doc) => {
+                    debug_assert!(
+                        doc > previous,
+                        "merge mapping must preserve per-segment order"
+                    );
+                    *top = Reverse((doc, cursor_ord));
+                }
+                None => {
+                    PeekMut::pop(top);
+                }
             }
-        }
-        if let Some(top) = self.heap.peek() {
+            previous
+        };
+        if let Some(Reverse((next, _))) = self.heap.peek() {
             debug_assert!(
-                top.0.current_doc > previous,
+                *next > previous,
                 "mapped doc ids must be strictly increasing"
             );
         }
         !self.heap.is_empty()
     }
 
+    fn current(&self) -> (DocId, usize) {
+        self.heap.peek().expect("advance() returned true").0
+    }
+
     pub(crate) fn doc(&self) -> DocId {
-        self.heap
-            .peek()
-            .expect("advance() returned true")
-            .0
-            .current_doc
+        self.current().0
     }
 
     pub(crate) fn term_freq(&self) -> u32 {
-        self.heap
-            .peek()
-            .expect("advance() returned true")
-            .0
-            .postings
-            .term_freq()
+        self.cursors[self.current().1].postings.term_freq()
     }
 
-    /// Fill `output` with the current document's positions.
     pub(crate) fn positions(&mut self, output: &mut Vec<u32>) {
-        self.heap
-            .peek_mut()
-            .expect("advance() returned true")
-            .0
-            .postings
-            .positions(output);
+        let cursor_ord = self.current().1;
+        self.cursors[cursor_ord].postings.positions(output);
     }
 }
 
@@ -175,23 +127,65 @@ impl<'a> PostingsMerger<'a> {
 mod tests {
     use super::PostingsMerger;
     use crate::postings::SegmentPostings;
-    use crate::DocId;
+    use crate::schema::{IndexRecordOption, Schema, TEXT};
+    use crate::{DocId, Index, IndexWriter, Term};
 
-    fn collect(merger: &mut PostingsMerger<'_>) -> Vec<(DocId, u32)> {
+    fn collect(merger: &mut PostingsMerger<'_>) -> Vec<(DocId, u32, Vec<u32>)> {
         let mut docs = Vec::new();
         let mut positions = vec![7, 7, 7];
         while merger.advance() {
             merger.positions(&mut positions);
-            assert!(positions.is_empty());
-            docs.push((merger.doc(), merger.term_freq()));
+            docs.push((merger.doc(), merger.term_freq(), positions.clone()));
         }
         assert!(!merger.advance());
         docs
     }
 
+    fn without_positions(docs: &[(DocId, u32)]) -> Vec<(DocId, u32, Vec<u32>)> {
+        docs.iter()
+            .map(|&(doc, tf)| (doc, tf, Vec::new()))
+            .collect()
+    }
+
+    /// Postings with positions for each token, one segment per inner slice.
+    fn postings_with_positions(
+        segments: &[&[&str]],
+        tokens: &[&str],
+    ) -> crate::Result<Vec<Vec<(usize, SegmentPostings)>>> {
+        let mut schema_builder = Schema::builder();
+        let text = schema_builder.add_text_field("text", TEXT);
+        let schema = schema_builder.build();
+        let mut readers = Vec::new();
+        for docs in segments {
+            let index = Index::create_in_ram(schema.clone());
+            let mut writer: IndexWriter = index.writer_for_tests()?;
+            for body in *docs {
+                writer.add_document(doc!(text => *body))?;
+            }
+            writer.commit()?;
+            let searcher = index.reader()?.searcher();
+            assert_eq!(searcher.segment_readers().len(), 1);
+            readers.push(searcher.segment_reader(0).inverted_index(text)?);
+        }
+        let mut terms = Vec::new();
+        for token in tokens {
+            let term = Term::from_field_text(text, token);
+            let mut postings = Vec::new();
+            for (segment_ord, reader) in readers.iter().enumerate() {
+                if let Some(segment_postings) =
+                    reader.read_postings(&term, IndexRecordOption::WithFreqsAndPositions)?
+                {
+                    postings.push((segment_ord, segment_postings));
+                }
+            }
+            terms.push(postings);
+        }
+        Ok(terms)
+    }
+
     #[test]
     fn test_merges_segments_skipping_deletes() {
-        // Segment 2 is fully deleted. Segment 3 has no postings, so its map is never read.
+        // Segment 2 is fully deleted and segment 3 has no postings.
         let doc_id_map = vec![
             vec![Some(1), None, Some(3)],
             vec![Some(0), Some(2)],
@@ -213,15 +207,20 @@ mod tests {
             ),
             (3, SegmentPostings::empty()),
         ];
-        let mut merger = PostingsMerger::new(segments, &doc_id_map);
-        assert_eq!(collect(&mut merger), vec![(0, 4), (1, 1), (2, 5), (3, 3)]);
+        let mut merger = PostingsMerger::new(&doc_id_map);
+        merger.reset(segments);
+        assert_eq!(
+            collect(&mut merger),
+            without_positions(&[(0, 4), (1, 1), (2, 5), (3, 3)])
+        );
     }
 
     #[test]
     fn test_empty_term_yields_nothing() {
         let doc_id_map = vec![vec![Some(0)]];
-        let mut merger = PostingsMerger::new([(0, SegmentPostings::empty())], &doc_id_map);
-        assert_eq!(collect(&mut merger), Vec::<(DocId, u32)>::new());
+        let mut merger = PostingsMerger::new(&doc_id_map);
+        merger.reset([(0, SegmentPostings::empty())]);
+        assert_eq!(collect(&mut merger), Vec::new());
     }
 
     #[test]
@@ -234,13 +233,11 @@ mod tests {
             .collect();
         let map1: Vec<Option<DocId>> = (0..N).map(|doc| Some(doc * 2 + 1)).collect();
         let doc_id_map = vec![map0, map1];
-        let mut merger = PostingsMerger::new(
-            [
-                (0, SegmentPostings::create_from_docs_and_tfs(&seg0, None)),
-                (1, SegmentPostings::create_from_docs_and_tfs(&seg1, None)),
-            ],
-            &doc_id_map,
-        );
+        let mut merger = PostingsMerger::new(&doc_id_map);
+        merger.reset([
+            (0, SegmentPostings::create_from_docs_and_tfs(&seg0, None)),
+            (1, SegmentPostings::create_from_docs_and_tfs(&seg1, None)),
+        ]);
 
         let mut expected = Vec::new();
         for doc in 0..N {
@@ -250,6 +247,59 @@ mod tests {
             expected.push((doc * 2 + 1, 1_000 + doc));
         }
         expected.sort_unstable();
-        assert_eq!(collect(&mut merger), expected);
+        assert_eq!(collect(&mut merger), without_positions(&expected));
+    }
+
+    #[test]
+    fn test_positions_follow_their_document() -> crate::Result<()> {
+        let segments: [&[&str]; 2] = [&["a b a", "b", "b a b a a"], &["a", "b b a", "a b", "b"]];
+        let doc_id_map = vec![
+            vec![Some(1), None, Some(4)],
+            vec![Some(0), Some(2), None, Some(3)],
+        ];
+        let mut terms = postings_with_positions(&segments, &["a", "b"])?.into_iter();
+        let mut merger = PostingsMerger::new(&doc_id_map);
+
+        merger.reset(terms.next().unwrap());
+        assert_eq!(
+            collect(&mut merger),
+            vec![
+                (0, 1, vec![0]),
+                (1, 2, vec![0, 2]),
+                (2, 1, vec![2]),
+                (4, 3, vec![1, 3, 4]),
+            ]
+        );
+
+        merger.reset(terms.next().unwrap());
+        assert_eq!(
+            collect(&mut merger),
+            vec![
+                (1, 1, vec![1]),
+                (2, 2, vec![0, 1]),
+                (3, 1, vec![0]),
+                (4, 2, vec![0, 2]),
+            ]
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn test_reset_discards_unfinished_term() -> crate::Result<()> {
+        let segments: [&[&str]; 2] = [&["a b", "a"], &["b a", "a b", "a"]];
+        let doc_id_map = vec![vec![Some(0), Some(2)], vec![Some(1), Some(3), Some(4)]];
+        let mut terms = postings_with_positions(&segments, &["a", "b"])?.into_iter();
+        let mut merger = PostingsMerger::new(&doc_id_map);
+
+        merger.reset(terms.next().unwrap());
+        assert!(merger.advance());
+        assert_eq!(merger.doc(), 0);
+
+        merger.reset(terms.next().unwrap());
+        assert_eq!(
+            collect(&mut merger),
+            vec![(0, 1, vec![1]), (1, 1, vec![0]), (3, 1, vec![1])]
+        );
+        Ok(())
     }
 }
