@@ -60,12 +60,10 @@ impl DeltaKeyComparator {
         // blocks are independent. On each new block we get a common_prefix_len=0 entry.
         // reset our state with it
         if common_prefix_len == 0 {
-            self.num_matching_bytes = target
-                .iter()
-                .zip(suffix)
-                .take_while(|(target_byte, key_byte)| target_byte == key_byte)
-                .count();
-            return suffix.cmp(target);
+            let num_matching_bytes = crate::common_prefix_len(target, suffix);
+            self.num_matching_bytes = num_matching_bytes;
+            // cannot panicm at worth we might compare empty slices if num_matching_bytes==len()
+            return suffix[num_matching_bytes..].cmp(&target[num_matching_bytes..]);
         }
         self.compare(target, common_prefix_len, suffix)
     }

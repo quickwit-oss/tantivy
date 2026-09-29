@@ -70,7 +70,7 @@ const SSTABLE_VERSION: u32 = 3;
 
 /// Given two byte string returns the length of
 /// the longest common prefix.
-fn common_prefix_len(left: &[u8], right: &[u8]) -> usize {
+pub(crate) fn common_prefix_len(left: &[u8], right: &[u8]) -> usize {
     left.iter()
         .cloned()
         .zip(right.iter().cloned())
