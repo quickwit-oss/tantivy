@@ -432,7 +432,7 @@ fn missing_value_for_source(
 /// Extracts the materialized column, rejecting a computed source.
 ///
 /// For the aggregations that read values through per-document random access or
-/// `ColumnIndex::has_value`, neither of which `BlockValueSource` can express.
+/// `ColumnIndex::has_value`, neither of which `ValueSource` can express.
 fn require_physical_column(
     source: &dyn ValueSource,
     field_name: &str,
@@ -459,7 +459,7 @@ fn build_nodes(
         Range(range_req) => {
             let accessor = get_value_source(
                 reader,
-                &value_sources,
+                value_sources,
                 &range_req.field,
                 Some(get_numeric_or_date_column_types()),
             )?;
@@ -479,7 +479,7 @@ fn build_nodes(
         Histogram(histo_req) => {
             let accessor = get_value_source(
                 reader,
-                &value_sources,
+                value_sources,
                 &histo_req.field,
                 Some(get_numeric_or_date_column_types()),
             )?;
@@ -504,7 +504,7 @@ fn build_nodes(
         DateHistogram(date_req) => {
             let accessor = get_value_source(
                 reader,
-                &value_sources,
+                value_sources,
                 &date_req.field,
                 Some(&[ColumnType::DateTime]),
             )?;
@@ -589,7 +589,7 @@ fn build_nodes(
                     ))
                 }
             };
-            let accessor = get_value_source(reader, &value_sources, field, allowed_column_types)?;
+            let accessor = get_value_source(reader, value_sources, field, allowed_column_types)?;
             let field_type = accessor.column_type();
             let idx_in_req_data = data.push_metric_req_data(MetricAggReqData {
                 accessor,
@@ -614,7 +614,7 @@ fn build_nodes(
             percentiles_req.validate()?;
             let accessor = get_value_source(
                 reader,
-                &value_sources,
+                value_sources,
                 percentiles_req.field_name(),
                 Some(get_numeric_or_date_column_types()),
             )?;
@@ -648,7 +648,7 @@ fn build_nodes(
                 .map(|field| {
                     let source = get_value_source(
                         reader,
-                        &value_sources,
+                        value_sources,
                         field,
                         Some(get_numeric_or_date_column_types()),
                     )?;
@@ -1103,7 +1103,7 @@ fn build_terms_or_cardinality_nodes(
             .unwrap_or(ColumnType::U64);
         // This path inspects `ColumnIndex::has_value` per document per accessor to decide which
         // documents are missing across several typed columns. There is no way to ask that through
-        // `BlockValueSource`, so it stays physical-only.
+        // `ValueSource`, so it stays physical-only.
         let all_accessors =
             get_all_value_sources(reader, &value_sources, field_name, None, fallback_type)?
                 .into_iter()

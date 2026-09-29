@@ -365,7 +365,7 @@ struct FlattenedTermHistogramCollector<R: BucketResolver, const LANES: usize> {
     /// `bucket_pos` mapped to time-bucket index 0.
     base_pos: i64,
     terms_req_data: TermsAggReqData,
-    /// The full terms full column's values
+    /// The terms full column's values
     terms_values: Arc<dyn ColumnValues>,
     hist_req_data: HistogramAggReqData,
     /// Private term block accessor. The bucket resolver owns a histogram block accessor when it

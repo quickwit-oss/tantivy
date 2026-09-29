@@ -21,10 +21,18 @@ pub trait ValueSource: std::fmt::Debug {
     fn column_type(&self) -> ColumnType;
 
     /// Loads the values for `docs` into `values`.
-    /// If the source is not full, the matching document
-    /// are also added in the self.docs.
     ///
-    /// `docs` has to be strictly increasing.
+    /// Precondition: `docs` has to be strictly increasing.
+    ///
+    /// The output buffers are reused across blocks: on entry, `values` and `docids`
+    /// hold stale data from a previous call. Implementations must clear their
+    /// content (not append to it).
+    ///
+    /// On return, depending on the returned `Cardinality`:
+    /// - `Full`: `values.len() == docs.len()` and `values[i]` is the value of `docs[i]`. `docids`
+    ///   is left unspecified and must not be read by the caller.
+    /// - `Optional` / `Multivalued`: `docids.len() == values.len()` and `values[i]` is a value of
+    ///   `docids[i]`. `docids` only contains docs from `docs`. A doc is repeated once per value.
     ///
     /// `row_ids` is scratch the implementation may use freely.
     fn load_block(
