@@ -705,14 +705,14 @@ fn write_postings_merge(
     Ok(())
 }
 
-#[cfg(not(feature = "compare_hash_only"))]
 #[cfg(test)]
 mod tests {
 
-    use super::compute_initial_table_size;
-
+    #[cfg(not(feature = "compare_hash_only"))]
     #[test]
     fn test_hashmap_size() {
+        use super::compute_initial_table_size;
+
         assert_eq!(compute_initial_table_size(100_000).unwrap(), 1 << 12);
         assert_eq!(compute_initial_table_size(1_000_000).unwrap(), 1 << 15);
         assert_eq!(compute_initial_table_size(15_000_000).unwrap(), 1 << 19);

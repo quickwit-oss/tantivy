@@ -25,10 +25,16 @@ pub(crate) struct ColumnBlockAccessor {
     row_id_cache: Vec<RowId>,
     /// Cardinality here is describes the relationship with the loaded doc_id_cache and val_cache.
     ///
-    /// For physical columns, we typically set the full column cardinality,
-    /// even though the loaded block might have exactly one value per value.
+    /// Cheaply hints the cardinality of the given block.
     ///
-    /// Use [`Self::has_one_value_per_doc`] rather than this field to detect that.
+    /// It is to be read as a "lower-bound" hint.
+    /// For instance, a block with one value per doc could have a cardinality property
+    /// set to full, optional or multivalued (both are technically true). For physical column
+    /// for instance, we just set cardinality to the column cardinality (although individual
+    /// blocks could have a stricter cardinality).
+    ///
+    /// See also [`Self::has_one_value_per_doc`] if you need a stricter notion of
+    /// cardinality.
     cardinality: Cardinality,
 }
 
@@ -300,7 +306,7 @@ fn find_missing_docs(docs: &[u32], hits: &[u32], output: &mut Vec<u32>) {
 mod tests {
     use std::sync::Arc;
 
-    use columnar::{Column, ColumnType, MonotonicallyMappableToU64};
+    use columnar::{Column, ColumnType};
 
     use super::*;
 
@@ -429,7 +435,7 @@ mod tests {
         let docs: &[u32] = &[1, 2, 3, 4, 5];
         let hits: &[u32] = &[];
         let mut missing_docs: Vec<u32> = vec![10];
-        find_missing_docs(&docs, &hits, &mut missing_docs);
+        find_missing_docs(docs, hits, &mut missing_docs);
         assert_eq!(&missing_docs, &[1u32, 2, 3, 4, 5]);
     }
 
