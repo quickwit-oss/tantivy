@@ -338,9 +338,7 @@ impl MultiValueIndexV2 {
         }
         ranks.truncate(write_doc_pos);
 
-        for rank in ranks.iter_mut() {
-            *rank = self.optional_index.select(*rank);
-        }
+        self.optional_index.select_batch(&mut ranks[..]);
     }
 }
 
