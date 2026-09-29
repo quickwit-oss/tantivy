@@ -96,6 +96,36 @@ impl RegexPhraseQuery {
         }
     }
 
+    /// Creates a new `RegexPhraseQuery` from already compiled regexes, e.g. built with a
+    /// non-default state limit.
+    ///
+    /// Each term is `(offset, pattern, regex)`, where `regex` is the compilation of
+    /// `pattern`; the pattern is what [`RegexPhraseQuery::phrase_terms`] returns.
+    pub fn from_regexes(
+        field: Field,
+        mut terms: Vec<(usize, String, Arc<Regex>)>,
+        slop: u32,
+    ) -> RegexPhraseQuery {
+        assert!(
+            terms.len() > 1,
+            "A phrase query is required to have strictly more than one term."
+        );
+        terms.sort_by_key(|&(offset, _, _)| offset);
+        let (phrase_terms, regexes): (Vec<_>, Vec<_>) = terms
+            .into_iter()
+            .map(|(offset, pattern, regex)| ((offset, pattern), regex))
+            .unzip();
+        let compiled = OnceCell::new();
+        let _ = compiled.set(regexes);
+        RegexPhraseQuery {
+            field,
+            phrase_terms,
+            slop,
+            max_expansions: 1 << 14,
+            regexes: CompiledRegexes(compiled),
+        }
+    }
+
     /// Slop allowed for the phrase.
     ///
     /// The query will match if its terms are separated by `slop` terms at most.

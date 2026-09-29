@@ -383,6 +383,37 @@ mod tests {
     }
 
     #[test]
+    pub fn test_phrase_from_regexes_uses_the_given_automata() -> crate::Result<()> {
+        use std::sync::Arc;
+
+        use tantivy_fst::Regex;
+
+        use crate::collector::Count;
+
+        let index = create_index(&["a b", "aa b", "b a", "a c"])?;
+        let text_field = index.schema().get_field("text").unwrap();
+        let searcher = index.reader()?.searcher();
+        let regex_a = Arc::new(Regex::new("a.*").unwrap());
+        let regex_b = Arc::new(Regex::new("b").unwrap());
+        let from_regexes = RegexPhraseQuery::from_regexes(
+            text_field,
+            vec![
+                (1, "b".into(), regex_b.clone()),
+                (0, "a.*".into(), regex_a.clone()),
+            ],
+            0,
+        );
+        let regexes = from_regexes.regexes()?;
+        assert!(Arc::ptr_eq(&regexes[0], &regex_a));
+        assert!(Arc::ptr_eq(&regexes[1], &regex_b));
+
+        let from_patterns = RegexPhraseQuery::new(text_field, vec!["a.*".into(), "b".into()]);
+        assert_eq!(searcher.search(&from_regexes, &Count)?, 2);
+        assert_eq!(searcher.search(&from_patterns, &Count)?, 2);
+        Ok(())
+    }
+
+    #[test]
     pub fn test_phrase_count() -> crate::Result<()> {
         let index = create_index(&["a c", "a a b d a b c", " a b"])?;
         let schema = index.schema();
