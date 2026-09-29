@@ -1,5 +1,7 @@
+use std::fmt;
 use std::sync::Arc;
 
+use once_cell::sync::OnceCell;
 use tantivy_fst::Regex;
 
 use super::regex_phrase_weight::RegexPhraseWeight;
@@ -29,6 +31,21 @@ pub struct RegexPhraseQuery {
     phrase_terms: Vec<(usize, String)>,
     slop: u32,
     max_expansions: u32,
+    regexes: CompiledRegexes,
+}
+
+/// The compiled `phrase_terms`, built on first use. Its `Debug` omits the automata.
+#[derive(Clone, Default)]
+struct CompiledRegexes(OnceCell<Vec<Arc<Regex>>>);
+
+impl fmt::Debug for CompiledRegexes {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(if self.0.get().is_some() {
+            "CompiledRegexes(compiled)"
+        } else {
+            "CompiledRegexes(pending)"
+        })
+    }
 }
 
 /// Transform a wildcard query to a regex string.
@@ -75,6 +92,7 @@ impl RegexPhraseQuery {
             phrase_terms: terms,
             slop,
             max_expansions: 1 << 14,
+            regexes: CompiledRegexes::default(),
         }
     }
 
@@ -115,6 +133,24 @@ impl RegexPhraseQuery {
             .collect::<Vec<Term>>()
     }
 
+    /// The compiled regex of each phrase term, in offset order.
+    ///
+    /// Compiled on first call and cached, so a query that is reused across searchers,
+    /// or inspected before searching, determinizes each pattern once.
+    pub fn regexes(&self) -> crate::Result<&[Arc<Regex>]> {
+        let regexes = self.regexes.0.get_or_try_init(|| {
+            self.phrase_terms
+                .iter()
+                .map(|(_, term)| {
+                    Regex::new(term).map(Arc::new).map_err(|e| {
+                        crate::TantivyError::InvalidArgument(format!("Invalid regex: {e}"))
+                    })
+                })
+                .collect::<crate::Result<Vec<_>>>()
+        })?;
+        Ok(regexes)
+    }
+
     /// Returns the [`RegexPhraseWeight`] for the given phrase query given a specific `searcher`.
     ///
     /// This function is the same as [`Query::weight()`] except it returns
@@ -153,18 +189,12 @@ impl RegexPhraseQuery {
             } => Some(Bm25Weight::for_terms(statistics_provider, &terms)?),
             EnableScoring::Disabled { .. } => None,
         };
-        // Compiled once here rather than per segment: determinizing a large
-        // pattern can dominate the cost of the query.
         let phrase_terms = self
             .phrase_terms
             .iter()
-            .map(|(offset, term)| {
-                let regex = Regex::new(term).map_err(|e| {
-                    crate::TantivyError::InvalidArgument(format!("Invalid regex: {e}"))
-                })?;
-                Ok((*offset, Arc::new(regex)))
-            })
-            .collect::<crate::Result<Vec<_>>>()?;
+            .map(|(offset, _)| *offset)
+            .zip(self.regexes()?.iter().cloned())
+            .collect();
         let weight = RegexPhraseWeight::new(
             self.field,
             phrase_terms,

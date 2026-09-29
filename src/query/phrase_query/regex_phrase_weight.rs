@@ -363,6 +363,26 @@ mod tests {
     }
 
     #[test]
+    pub fn test_phrase_regexes_are_compiled_once_and_shared() -> crate::Result<()> {
+        let index = create_index(&["a b"])?;
+        let text_field = index.schema().get_field("text").unwrap();
+        let searcher = index.reader()?.searcher();
+        let phrase_query = RegexPhraseQuery::new(text_field, vec!["a.*".into(), "b".into()]);
+        let first = phrase_query.regexes()?.as_ptr();
+        assert_eq!(phrase_query.regexes()?.as_ptr(), first);
+
+        let enable_scoring = EnableScoring::enabled_from_searcher(&searcher);
+        let _weight = phrase_query.regex_phrase_weight(enable_scoring)?;
+        let clone = phrase_query.clone();
+        let _clone_weight = clone.regex_phrase_weight(enable_scoring)?;
+        // The query, its clone and both weights hold the same automata.
+        for regex in phrase_query.regexes()? {
+            assert_eq!(std::sync::Arc::strong_count(regex), 4);
+        }
+        Ok(())
+    }
+
+    #[test]
     pub fn test_phrase_count() -> crate::Result<()> {
         let index = create_index(&["a c", "a a b d a b c", " a b"])?;
         let schema = index.schema();
