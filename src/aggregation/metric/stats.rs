@@ -199,36 +199,88 @@ pub enum StatsType {
 
 fn create_collector<const TYPE_ID: u8>(
     req: &MetricAggReqData,
+    precomputed: bool,
 ) -> Box<dyn SegmentAggregationCollector> {
-    Box::new(SegmentStatsCollector::<TYPE_ID> {
+    if precomputed {
+        create_stats_collector::<TYPE_ID, true>(req)
+    } else {
+        create_stats_collector::<TYPE_ID, false>(req)
+    }
+}
+
+fn create_stats_collector<const TYPE_ID: u8, const PRECOMPUTED: bool>(
+    req: &MetricAggReqData,
+) -> Box<dyn SegmentAggregationCollector> {
+    let mut stats = IntermediateStats::default();
+    if PRECOMPUTED {
+        stats.count = u64::from(req.accessor.values.num_vals());
+        if stats.count != 0 && !matches!(req.collecting_for, StatsType::Count) {
+            let min = f64_from_fastfield_u64(req.accessor.min_value(), req.field_type);
+            let max = f64_from_fastfield_u64(req.accessor.max_value(), req.field_type);
+            stats.min = stats.min.min(min);
+            stats.max = stats.max.max(max);
+        }
+    }
+    Box::new(SegmentStatsCollector::<TYPE_ID, PRECOMPUTED> {
         name: req.name.clone(),
         collecting_for: req.collecting_for,
         is_number_or_date_type: req.is_number_or_date_type,
         missing_u64: req.missing_u64,
         accessor: req.accessor.clone(),
-        buckets: vec![IntermediateStats::default()],
+        buckets: vec![stats],
     })
 }
 
-/// Build a concrete `SegmentStatsCollector` depending on the column type.
+/// Build a stats collector, using column statistics when the entire segment is collected.
 pub(crate) fn build_segment_stats_collector(
     req: &MetricAggReqData,
+    collect_all: bool,
 ) -> crate::Result<Box<dyn SegmentAggregationCollector>> {
+    let precomputed = collect_all
+        && req.missing.is_none()
+        && matches!(
+            req.collecting_for,
+            StatsType::Min | StatsType::Max | StatsType::Count
+        );
     match req.field_type {
-        ColumnType::I64 => Ok(create_collector::<{ ColumnType::I64 as u8 }>(req)),
-        ColumnType::U64 => Ok(create_collector::<{ ColumnType::U64 as u8 }>(req)),
-        ColumnType::F64 => Ok(create_collector::<{ ColumnType::F64 as u8 }>(req)),
-        ColumnType::Bool => Ok(create_collector::<{ ColumnType::Bool as u8 }>(req)),
-        ColumnType::DateTime => Ok(create_collector::<{ ColumnType::DateTime as u8 }>(req)),
-        ColumnType::Bytes => Ok(create_collector::<{ ColumnType::Bytes as u8 }>(req)),
-        ColumnType::Str => Ok(create_collector::<{ ColumnType::Str as u8 }>(req)),
-        ColumnType::IpAddr => Ok(create_collector::<{ ColumnType::IpAddr as u8 }>(req)),
+        ColumnType::I64 => Ok(create_collector::<{ ColumnType::I64 as u8 }>(
+            req,
+            precomputed,
+        )),
+        ColumnType::U64 => Ok(create_collector::<{ ColumnType::U64 as u8 }>(
+            req,
+            precomputed,
+        )),
+        ColumnType::F64 => Ok(create_collector::<{ ColumnType::F64 as u8 }>(
+            req,
+            precomputed,
+        )),
+        ColumnType::Bool => Ok(create_collector::<{ ColumnType::Bool as u8 }>(
+            req,
+            precomputed,
+        )),
+        ColumnType::DateTime => Ok(create_collector::<{ ColumnType::DateTime as u8 }>(
+            req,
+            precomputed,
+        )),
+        ColumnType::Bytes => Ok(create_collector::<{ ColumnType::Bytes as u8 }>(
+            req,
+            precomputed,
+        )),
+        ColumnType::Str => Ok(create_collector::<{ ColumnType::Str as u8 }>(
+            req,
+            precomputed,
+        )),
+        ColumnType::IpAddr => Ok(create_collector::<{ ColumnType::IpAddr as u8 }>(
+            req,
+            precomputed,
+        )),
     }
 }
 
 #[repr(C)]
 #[derive(Clone, Debug)]
-pub(crate) struct SegmentStatsCollector<const COLUMN_TYPE_ID: u8> {
+pub(crate) struct SegmentStatsCollector<const COLUMN_TYPE_ID: u8, const PRECOMPUTED: bool> {
     pub(crate) missing_u64: Option<u64>,
     pub(crate) accessor: Column<u64>,
     pub(crate) is_number_or_date_type: bool,
@@ -237,8 +289,8 @@ pub(crate) struct SegmentStatsCollector<const COLUMN_TYPE_ID: u8> {
     pub(crate) collecting_for: StatsType,
 }
 
-impl<const COLUMN_TYPE_ID: u8> SegmentAggregationCollector
-    for SegmentStatsCollector<COLUMN_TYPE_ID>
+impl<const COLUMN_TYPE_ID: u8, const PRECOMPUTED: bool> SegmentAggregationCollector
+    for SegmentStatsCollector<COLUMN_TYPE_ID, PRECOMPUTED>
 {
     #[inline]
     fn add_intermediate_aggregation_result(
@@ -285,6 +337,9 @@ impl<const COLUMN_TYPE_ID: u8> SegmentAggregationCollector
         docs: &[crate::DocId],
         agg_data: &mut AggregationsSegmentCtx,
     ) -> crate::Result<()> {
+        if PRECOMPUTED {
+            return Ok(());
+        }
         // Fast path: the caller hands us a single doc, which is the dominant case when a metric
         // sub-agg sits under a high-cardinality bucket agg. Streaming straight from the column
         // skips the block accessor's buffers entirely.
