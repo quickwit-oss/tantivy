@@ -10,7 +10,7 @@ use std::fmt::Debug;
 use std::sync::Arc;
 
 use columnar::column_values::CompactSpaceU64Accessor;
-use columnar::{Column, ColumnType};
+use columnar::ColumnType;
 
 use super::CardinalityCollector;
 use crate::aggregation::agg_data::AggregationsSegmentCtx;
@@ -18,6 +18,7 @@ use crate::aggregation::intermediate_agg_result::{
     IntermediateAggregationResult, IntermediateAggregationResults, IntermediateMetricResult,
 };
 use crate::aggregation::segment_agg_result::SegmentAggregationCollector;
+use crate::aggregation::value_source::ValueSource;
 use crate::aggregation::*;
 use crate::TantivyError;
 
@@ -33,7 +34,7 @@ pub(crate) struct SegmentNumericCardinalityCollector {
     buckets: Vec<Option<CardinalityCollector>>,
     accessor_idx: usize,
     /// The column accessor to access the fast field values.
-    accessor: Column<u64>,
+    accessor: Arc<dyn ValueSource>,
     /// The column_type of the field.
     column_type: ColumnType,
     /// Set iff `column_type == ColumnType::IpAddr`. Resolved once at
@@ -58,14 +59,22 @@ impl Debug for SegmentNumericCardinalityCollector {
 
 impl SegmentNumericCardinalityCollector {
     pub fn from_req(
-        column_type: ColumnType,
         accessor_idx: usize,
-        accessor: Column<u64>,
+        accessor: Arc<dyn ValueSource>,
         missing_value_for_accessor: Option<u64>,
     ) -> crate::Result<Self> {
+        let column_type = accessor.column_type();
         assert_ne!(column_type, ColumnType::Str);
         let compact_space_accessor = if column_type == ColumnType::IpAddr {
             let compact_space_accessor = accessor
+                .as_column()
+                .ok_or_else(|| {
+                    TantivyError::AggregationError(
+                        crate::aggregation::AggregationError::InternalError(
+                            "IpAddr cardinality requires a physical column".to_string(),
+                        ),
+                    )
+                })?
                 .values
                 .clone()
                 .downcast_arc::<CompactSpaceU64Accessor>()
@@ -127,7 +136,7 @@ impl SegmentAggregationCollector for SegmentNumericCardinalityCollector {
     ) -> crate::Result<()> {
         agg_data.column_block_accessor.fetch_block_with_missing(
             docs,
-            &self.accessor,
+            &*self.accessor,
             self.missing_value_for_accessor,
         );
         let cardinality = self.buckets[parent_bucket_id as usize]

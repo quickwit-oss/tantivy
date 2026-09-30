@@ -229,7 +229,7 @@ fn fetch_field_block(
     let missing_value = block_missing_value(missing);
     block_accessor.fetch_block_with_missing_unique_per_doc(
         docs,
-        &field.column,
+        &(&field.column, field.column_type),
         missing_value,
         true,
     );
