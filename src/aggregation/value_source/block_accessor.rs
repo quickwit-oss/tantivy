@@ -40,7 +40,7 @@ pub(crate) struct ColumnBlockAccessor {
 
 impl ColumnBlockAccessor {
     #[inline]
-    pub(crate) fn fetch_block(&mut self, docs: &[DocId], source: &dyn ValueSource) {
+    pub(crate) fn fetch_block<S: ValueSource + ?Sized>(&mut self, docs: &[DocId], source: &S) {
         self.cardinality = source.load_block(
             docs,
             &mut self.val_cache,
@@ -69,10 +69,10 @@ impl ColumnBlockAccessor {
 
     /// Fetches a block and appends `missing_opt` for documents without a value.
     #[inline]
-    pub(crate) fn fetch_block_with_missing(
+    pub(crate) fn fetch_block_with_missing<S: ValueSource + ?Sized>(
         &mut self,
         docs: &[DocId],
-        source: &dyn ValueSource,
+        source: &S,
         missing_opt: Option<u64>,
     ) {
         self.fetch_block_with_missing_ordered(docs, source, missing_opt, false)
@@ -82,10 +82,10 @@ impl ColumnBlockAccessor {
     /// true, the missing entries are inserted in document order instead of appended as a second
     /// run.
     #[inline]
-    pub(crate) fn fetch_block_with_missing_ordered(
+    pub(crate) fn fetch_block_with_missing_ordered<S: ValueSource + ?Sized>(
         &mut self,
         docs: &[DocId],
-        source: &dyn ValueSource,
+        source: &S,
         missing_opt: Option<u64>,
         ordered: bool,
     ) {

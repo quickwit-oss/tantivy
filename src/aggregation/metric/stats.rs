@@ -1,7 +1,7 @@
 use std::fmt::Debug;
 use std::sync::Arc;
 
-use columnar::ColumnType;
+use columnar::{Column, ColumnType};
 use serde::{Deserialize, Serialize};
 
 use super::*;
@@ -206,6 +206,10 @@ fn create_collector<const TYPE_ID: u8>(
         collecting_for: req.collecting_for,
         is_number_or_date_type: req.is_number_or_date_type,
         missing_u64: req.missing_u64,
+        column_opt: req
+            .accessor
+            .as_column()
+            .map(|column| (column.clone(), req.accessor.column_type())),
         accessor: req.accessor.clone(),
         buckets: vec![IntermediateStats::default()],
     })
@@ -232,6 +236,12 @@ pub(crate) fn build_segment_stats_collector(
 pub(crate) struct SegmentStatsCollector<const COLUMN_TYPE_ID: u8> {
     pub(crate) missing_u64: Option<u64>,
     pub(crate) accessor: Arc<dyn ValueSource>,
+    /// The physical column backing `accessor`, if any, resolved once at construction.
+    ///
+    /// `collect` is called once per bucket, often with a single doc (e.g. under a
+    /// high-cardinality terms agg), so a per-call virtual dispatch through `accessor` is
+    /// measurable.
+    pub(crate) column_opt: Option<(Column<u64>, ColumnType)>,
     pub(crate) is_number_or_date_type: bool,
     pub(crate) buckets: Vec<IntermediateStats>,
     pub(crate) name: String,
@@ -295,22 +305,27 @@ impl<const COLUMN_TYPE_ID: u8> SegmentAggregationCollector
         // access, which a computed source cannot offer. Those fall through to the block path
         // below, which is semantically identical.
         // TODO: remove once we fetch all values for all bucket ids in one go
-        if docs.len() == 1 && self.missing_u64.is_none() {
-            if let Some(column) = self.accessor.as_column() {
+        if let Some(column_source) = &self.column_opt {
+            if docs.len() == 1 && self.missing_u64.is_none() {
                 collect_stats::<COLUMN_TYPE_ID>(
                     &mut self.buckets[parent_bucket_id as usize],
-                    column.values_for_doc(docs[0]),
+                    column_source.0.values_for_doc(docs[0]),
                     self.is_number_or_date_type,
                 )?;
-
                 return Ok(());
             }
+            agg_data.column_block_accessor.fetch_block_with_missing(
+                docs,
+                column_source,
+                self.missing_u64,
+            );
+        } else {
+            agg_data.column_block_accessor.fetch_block_with_missing(
+                docs,
+                &*self.accessor,
+                self.missing_u64,
+            );
         }
-        agg_data.column_block_accessor.fetch_block_with_missing(
-            docs,
-            &*self.accessor,
-            self.missing_u64,
-        );
         collect_stats::<COLUMN_TYPE_ID>(
             &mut self.buckets[parent_bucket_id as usize],
             agg_data.column_block_accessor.iter_vals(),
