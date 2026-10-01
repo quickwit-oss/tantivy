@@ -320,6 +320,12 @@ impl IndexBuilder {
                     ))
                 })?;
                 let entry = schema.get_field_entry(schema_field);
+                if matches!(entry.field_type(), FieldType::TieBreaker) {
+                    return Err(TantivyError::InvalidArgument(format!(
+                        "Field {} is a tie-breaker field and cannot be used to sort an index",
+                        sort_by_field.field
+                    )));
+                }
                 if !entry.is_fast() {
                     return Err(TantivyError::InvalidArgument(format!(
                         "Field {} is no fast field. Field needs to be a single value fast field \

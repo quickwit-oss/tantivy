@@ -722,6 +722,29 @@ mod tests_indexsorting {
     }
 
     #[test]
+    fn test_index_builder_rejects_tie_breaker_sort_by_field() {
+        for order in [Order::Asc, Order::Desc] {
+            let mut schema_builder = Schema::builder();
+            schema_builder.add_tie_breaker_field("tie");
+            let schema = schema_builder.build();
+            let settings = IndexSettings {
+                sort_by_field: Some(IndexSortByField {
+                    field: "tie".to_string(),
+                    order,
+                }),
+                ..Default::default()
+            };
+
+            let error = Index::builder()
+                .schema(schema)
+                .settings(settings)
+                .create_in_ram()
+                .unwrap_err();
+            assert!(matches!(error, TantivyError::InvalidArgument(_)));
+        }
+    }
+
+    #[test]
     fn test_doc_mapping() {
         let doc_mapping = DocIdMapping::from_new_id_to_old_id(vec![3, 2, 5]);
         assert_eq!(doc_mapping.get_old_doc_id(0), 3);
