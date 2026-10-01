@@ -602,7 +602,7 @@ where
 
             // Until expansion, sparse single-value fields can filter keys in place.
             if self.doc_ids_per_partial_combination.is_empty()
-                && !block_accessor.is_multivalued()
+                && !block_accessor.is_batch_multivalued()
                 && missing.is_none()
             {
                 let mut source_idx = 0usize;
