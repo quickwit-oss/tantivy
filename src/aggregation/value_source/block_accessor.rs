@@ -193,7 +193,7 @@ impl ColumnBlockAccessor {
                 end += 1;
             }
             if end - start > 2 {
-                self.val_cache[start..end].sort();
+                self.val_cache[start..end].sort_unstable();
             }
             start = end;
         }
@@ -236,7 +236,7 @@ impl ColumnBlockAccessor {
     }
 
     #[inline]
-    pub(crate) fn is_multivalued(&self) -> bool {
+    pub(crate) fn is_batch_multivalued(&self) -> bool {
         self.cardinality.is_multivalue()
     }
 

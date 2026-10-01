@@ -157,7 +157,7 @@ pub(crate) struct SegmentRangeAndBucketEntry {
 
 /// The collector puts values from the fast field into the correct buckets and does a conversion to
 /// the correct datatype.
-pub struct SegmentRangeCollector<B: SubAggBuffer> {
+pub struct SegmentRangeCollector<B: SubAggBuffer, const IS_MULTI_VALUED: bool> {
     /// The buckets containing the aggregation data.
     /// One for each ParentBucketId
     parent_buckets: Vec<Vec<SegmentRangeAndBucketEntry>>,
@@ -179,7 +179,9 @@ pub struct SegmentRangeCollector<B: SubAggBuffer> {
     limits: AggregationLimitsGuard,
 }
 
-impl<B: SubAggBuffer> Debug for SegmentRangeCollector<B> {
+impl<B: SubAggBuffer, const IS_MULTI_VALUED: bool> Debug
+    for SegmentRangeCollector<B, IS_MULTI_VALUED>
+{
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("SegmentRangeCollector")
             .field("parent_buckets_len", &self.parent_buckets.len())
@@ -230,7 +232,9 @@ impl SegmentRangeBucketEntry {
     }
 }
 
-impl<B: SubAggBuffer> SegmentAggregationCollector for SegmentRangeCollector<B> {
+impl<B: SubAggBuffer, const IS_MULTI_VALUED: bool> SegmentAggregationCollector
+    for SegmentRangeCollector<B, IS_MULTI_VALUED>
+{
     fn add_intermediate_aggregation_result(
         &mut self,
         agg_data: &AggregationsSegmentCtx,
@@ -278,14 +282,31 @@ impl<B: SubAggBuffer> SegmentAggregationCollector for SegmentRangeCollector<B> {
         docs: &[crate::DocId],
         agg_data: &mut AggregationsSegmentCtx,
     ) -> crate::Result<()> {
-        agg_data
-            .column_block_accessor
-            .fetch_block(docs, &*self.req_data.accessor);
+        let accessor = &mut agg_data.column_block_accessor;
+        if IS_MULTI_VALUED {
+            accessor.fetch_block_with_missing_unique_per_doc(
+                docs,
+                &*self.req_data.accessor,
+                None,
+                false,
+            );
+        } else {
+            accessor.fetch_block(docs, &*self.req_data.accessor);
+        }
 
         let buckets = &mut self.parent_buckets[parent_bucket_id as usize];
 
-        for (doc, val) in agg_data.column_block_accessor.iter_docid_vals(docs) {
+        let multivalued = IS_MULTI_VALUED && accessor.is_batch_multivalued();
+        let mut previous = None;
+        for (doc, val) in accessor.iter_docid_vals(docs) {
             let bucket_pos = get_bucket_pos(val, buckets);
+            if multivalued {
+                // The fetcher makes equal range hits consecutive within each document.
+                if previous == Some((doc, bucket_pos)) {
+                    continue;
+                }
+                previous = Some((doc, bucket_pos));
+            }
             let bucket = &mut buckets[bucket_pos];
             bucket.bucket.doc_count += 1;
             if let Some(sub_agg) = self.sub_agg.as_mut() {
@@ -331,9 +352,24 @@ impl<B: SubAggBuffer> SegmentAggregationCollector for SegmentRangeCollector<B> {
         None
     }
 }
-/// Build a concrete `SegmentRangeCollector` with either a Vec- or HashMap-backed
-/// bucket storage, depending on the column type and aggregation level.
+/// Build a range collector specialized for the source cardinality and aggregation level.
 pub(crate) fn build_segment_range_collector(
+    agg_data: &mut AggregationsSegmentCtx,
+    node: &AggRefNode,
+) -> crate::Result<Box<dyn SegmentAggregationCollector>> {
+    let accessor = &agg_data.per_request.range_req_data[node.idx_in_req_data].accessor;
+    // Computed sources may change cardinality between blocks.
+    let multivalued = accessor.as_column().map_or(true, |column| {
+        column.index.get_cardinality().is_multivalue()
+    });
+    if multivalued {
+        build_range_collector_with_cardinality::<true>(agg_data, node)
+    } else {
+        build_range_collector_with_cardinality::<false>(agg_data, node)
+    }
+}
+
+fn build_range_collector_with_cardinality<const IS_MULTI_VALUED: bool>(
     agg_data: &mut AggregationsSegmentCtx,
     node: &AggRefNode,
 ) -> crate::Result<Box<dyn SegmentAggregationCollector>> {
@@ -355,7 +391,10 @@ pub(crate) fn build_segment_range_collector(
     };
 
     if is_low_card {
-        Ok(Box::new(SegmentRangeCollector::<LowCardSubAggBuffer> {
+        Ok(Box::new(SegmentRangeCollector::<
+            LowCardSubAggBuffer,
+            IS_MULTI_VALUED,
+        > {
             sub_agg: sub_agg.map(LowCardBufferedSubAggs::new),
             req_data,
             parent_buckets: Vec::new(),
@@ -363,7 +402,10 @@ pub(crate) fn build_segment_range_collector(
             limits: agg_data.context.limits.clone(),
         }))
     } else {
-        Ok(Box::new(SegmentRangeCollector::<HighCardSubAggBuffer> {
+        Ok(Box::new(SegmentRangeCollector::<
+            HighCardSubAggBuffer,
+            IS_MULTI_VALUED,
+        > {
             sub_agg: sub_agg.map(BufferedSubAggs::new),
             req_data,
             parent_buckets: Vec::new(),
@@ -373,7 +415,7 @@ pub(crate) fn build_segment_range_collector(
     }
 }
 
-impl<B: SubAggBuffer> SegmentRangeCollector<B> {
+impl<B: SubAggBuffer, const IS_MULTI_VALUED: bool> SegmentRangeCollector<B, IS_MULTI_VALUED> {
     pub(crate) fn create_new_buckets(&mut self) -> crate::Result<Vec<SegmentRangeAndBucketEntry>> {
         let req_data = &self.req_data;
         let field_type = req_data.accessor.column_type();
@@ -592,6 +634,122 @@ mod tests {
                 }
             })
             .collect()
+    }
+
+    #[test]
+    fn range_counts_each_document_once_per_bucket() -> crate::Result<()> {
+        use crate::schema::{Schema, FAST};
+        use crate::Index;
+
+        for rows in [
+            vec![vec![12], vec![15], vec![25]],
+            vec![vec![12], vec![], vec![25]],
+            vec![
+                vec![12, 15],         // Distinct values in one range.
+                vec![18, 11],         // Two descending values in one range.
+                vec![25, 12],         // Two descending values in different ranges.
+                vec![12, 25, 15],     // Return to an earlier range.
+                vec![12, 12, 25, 25], // Repeated raw values in different ranges.
+                vec![],
+                vec![12],
+            ],
+        ] {
+            let mut schema = Schema::builder();
+            let value = schema.add_u64_field("value", FAST);
+            let score = schema.add_u64_field("score", FAST);
+            let index = Index::create_in_ram(schema.build());
+            let mut writer = index.writer_with_num_threads(1, 20_000_000)?;
+            for (doc, values) in rows.iter().enumerate() {
+                let mut document = doc!(score => doc as u64 + 1);
+                for &val in values {
+                    document.add_u64(value, val);
+                }
+                writer.add_document(document)?;
+            }
+            writer.commit()?;
+
+            for (with_children, nested) in [(false, false), (true, false), (true, true)] {
+                let mut request = json!({
+                    "ranges": {
+                        "range": {
+                            "field": "value",
+                            "ranges": [{"from": 10, "to": 20}, {"from": 20, "to": 30}]
+                        }
+                    }
+                });
+                if with_children {
+                    request["ranges"]["aggs"] = json!({
+                        "score": {"sum": {"field": "score"}},
+                        "values": {"sum": {"field": "value"}}
+                    });
+                }
+                if nested {
+                    request = json!({"parent": {"filter": "*", "aggs": request}});
+                }
+                let result = exec_request(serde_json::from_value(request)?, &index)?;
+                let result = if nested { &result["parent"] } else { &result };
+                let buckets = result["ranges"]["buckets"].as_array().unwrap();
+                for range in [10..20, 20..30] {
+                    let key = format!("{}-{}", range.start, range.end);
+                    let bucket = buckets.iter().find(|bucket| bucket["key"] == key).unwrap();
+                    let matching_docs: Vec<_> = rows
+                        .iter()
+                        .enumerate()
+                        .filter(|(_, values)| values.iter().any(|val| range.contains(val)))
+                        .collect();
+                    assert_eq!(bucket["doc_count"], matching_docs.len() as u64);
+                    if with_children {
+                        let score_sum: u64 =
+                            matching_docs.iter().map(|(doc, _)| *doc as u64 + 1).sum();
+                        let value_sum: u64 = matching_docs
+                            .iter()
+                            .map(|(_, values)| values.iter().sum::<u64>())
+                            .sum();
+                        assert_eq!(bucket["score"]["value"], score_sum as f64);
+                        // Children still see all values, including repeated values.
+                        assert_eq!(bucket["values"]["value"], value_sum as f64);
+                    }
+                }
+            }
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn range_counts_repeated_documents_in_separate_calls() -> crate::Result<()> {
+        use crate::aggregation::agg_data::{
+            build_aggregations_data_from_req, build_segment_agg_collectors_root,
+        };
+        use crate::schema::{Schema, FAST};
+        use crate::Index;
+
+        let mut schema = Schema::builder();
+        let value = schema.add_u64_field("value", FAST);
+        let index = Index::create_in_ram(schema.build());
+        let mut writer = index.writer_with_num_threads(1, 20_000_000)?;
+        writer.add_document(doc!(value => 12u64, value => 15u64))?;
+        writer.commit()?;
+        let reader = index.reader()?;
+        let searcher = reader.searcher();
+        let request = serde_json::from_value(json!({
+            "ranges": {"range": {"field": "value", "ranges": [{"from": 10, "to": 20}]}}
+        }))?;
+        let mut ctx = build_aggregations_data_from_req(
+            &request,
+            searcher.segment_reader(0),
+            0,
+            Default::default(),
+        )?;
+        let mut collector = build_segment_agg_collectors_root(&mut ctx)?;
+        collector.prepare_max_bucket(0, &ctx)?;
+        collector.collect(0, &[0], &mut ctx)?;
+        collector.collect(0, &[0], &mut ctx)?;
+        collector.flush(&mut ctx)?;
+        let mut result = IntermediateAggregationResults::default();
+        collector.add_intermediate_aggregation_result(&ctx, &mut result, 0)?;
+        let result = serde_json::to_value(result.into_final_result(request, Default::default())?)?;
+        assert_eq!(result["ranges"]["buckets"][1]["doc_count"], 2);
+        Ok(())
     }
 
     #[test]
