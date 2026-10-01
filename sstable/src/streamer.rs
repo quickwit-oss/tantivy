@@ -272,6 +272,16 @@ where
         &self.key
     }
 
+    /// Accesses the automaton state after consuming the current key.
+    ///
+    /// Only valid after `.advance()` returns `true` or `.next()` returns `Some`.
+    /// This reuses the traversal state without evaluating the key again.
+    pub fn automaton_state(&self) -> &A::State {
+        self.states
+            .last()
+            .expect("stream is not positioned on a key")
+    }
+
     /// Accesses the current value.
     ///
     /// Calling `.value()` after the end of the stream will return the
@@ -301,6 +311,7 @@ mod tests {
     use std::io;
 
     use common::OwnedBytes;
+    use tantivy_fst::{Automaton, Regex};
 
     use crate::{Dictionary, MonotonicU64SSTable};
 
@@ -332,6 +343,31 @@ mod tests {
         assert_eq!(streamer.key(), b"abandon");
         assert_eq!(streamer.value(), &3);
         assert!(!streamer.advance());
+        Ok(())
+    }
+
+    #[test]
+    fn test_stream_automaton_state() -> io::Result<()> {
+        let mut builder = Dictionary::<MonotonicU64SSTable>::builder(Vec::new())?;
+        for key in ["", "a", "ab", "abc", "b"] {
+            builder.insert(key.as_bytes(), &0)?;
+        }
+        let dict =
+            Dictionary::<MonotonicU64SSTable>::from_bytes(OwnedBytes::new(builder.finish()?))?;
+        let automaton = Regex::new("a.*|").unwrap();
+        let mut stream = dict.search(&automaton).into_stream()?;
+        let mut keys = Vec::new();
+        while stream.advance() {
+            let state = stream.key().iter().fold(automaton.start(), |state, &byte| {
+                automaton.accept(&state, byte)
+            });
+            assert_eq!(stream.automaton_state(), &state);
+            keys.push(stream.key().to_vec());
+        }
+        assert_eq!(
+            keys,
+            [b"".to_vec(), b"a".to_vec(), b"ab".to_vec(), b"abc".to_vec()]
+        );
         Ok(())
     }
 
