@@ -1844,4 +1844,42 @@ mod tests {
 
         Ok(())
     }
+
+    /// A doc with two values in the same histogram bucket is pushed twice to the sub-agg, so the
+    /// sub-agg receives the non strictly increasing block `[0, 0, 2]`. On a full column, this
+    /// block is mistaken for the contiguous range `0..3`, and doc 1 leaks into the bucket.
+    #[test]
+    fn histogram_multivalued_sub_agg_duplicate_docs() {
+        let mut schema_builder = crate::schema::Schema::builder();
+        let bucket_field = schema_builder.add_f64_field("bucket_field", crate::schema::FAST);
+        let metric_field = schema_builder.add_f64_field("metric_field", crate::schema::FAST);
+        let index = crate::Index::create_in_ram(schema_builder.build());
+        let mut index_writer: crate::IndexWriter = index.writer_for_tests().unwrap();
+        // in the bucket
+        index_writer
+            .add_document(doc!(bucket_field => 1.0, bucket_field => 2.0, metric_field => 10.0))
+            .unwrap();
+        // out of the bucket
+        index_writer
+            .add_document(doc!(bucket_field => 100.0, metric_field => 1000.0))
+            .unwrap();
+        // in of the bucket
+        index_writer
+            .add_document(doc!(bucket_field => 3.0, metric_field => 10.0))
+            .unwrap();
+        index_writer.commit().unwrap();
+
+        let agg_req: Aggregations = serde_json::from_value(json!({
+            "histo": {
+                "histogram": { "field": "bucket_field", "interval": 10.0 },
+                "aggs": { "avg_metric": { "avg": { "field": "metric_field" } } }
+            }
+        }))
+        .unwrap();
+
+        let res = exec_request(agg_req, &index).unwrap();
+        let first_bucket = &res["histo"]["buckets"][0];
+        assert_eq!(first_bucket["key"], 0.0);
+        assert_eq!(first_bucket["avg_metric"]["value"], 10.0);
+    }
 }
