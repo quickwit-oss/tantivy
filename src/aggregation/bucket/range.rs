@@ -157,7 +157,7 @@ pub(crate) struct SegmentRangeAndBucketEntry {
 
 /// The collector puts values from the fast field into the correct buckets and does a conversion to
 /// the correct datatype.
-pub struct SegmentRangeCollector<B: SubAggBuffer, const IS_MULTI_VALUED: bool> {
+pub struct SegmentRangeCollector<B: SubAggBuffer, const SOURCE_CONTAINS_MULTIVALUES: bool> {
     /// The buckets containing the aggregation data.
     /// One for each ParentBucketId
     parent_buckets: Vec<Vec<SegmentRangeAndBucketEntry>>,
@@ -179,8 +179,8 @@ pub struct SegmentRangeCollector<B: SubAggBuffer, const IS_MULTI_VALUED: bool> {
     limits: AggregationLimitsGuard,
 }
 
-impl<B: SubAggBuffer, const IS_MULTI_VALUED: bool> Debug
-    for SegmentRangeCollector<B, IS_MULTI_VALUED>
+impl<B: SubAggBuffer, const SOURCE_CONTAINS_MULTIVALUES: bool> Debug
+    for SegmentRangeCollector<B, SOURCE_CONTAINS_MULTIVALUES>
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("SegmentRangeCollector")
@@ -232,8 +232,8 @@ impl SegmentRangeBucketEntry {
     }
 }
 
-impl<B: SubAggBuffer, const IS_MULTI_VALUED: bool> SegmentAggregationCollector
-    for SegmentRangeCollector<B, IS_MULTI_VALUED>
+impl<B: SubAggBuffer, const SOURCE_CONTAINS_MULTIVALUES: bool> SegmentAggregationCollector
+    for SegmentRangeCollector<B, SOURCE_CONTAINS_MULTIVALUES>
 {
     fn add_intermediate_aggregation_result(
         &mut self,
@@ -283,7 +283,7 @@ impl<B: SubAggBuffer, const IS_MULTI_VALUED: bool> SegmentAggregationCollector
         agg_data: &mut AggregationsSegmentCtx,
     ) -> crate::Result<()> {
         let accessor = &mut agg_data.column_block_accessor;
-        if IS_MULTI_VALUED {
+        if SOURCE_CONTAINS_MULTIVALUES {
             accessor.fetch_block_with_missing_unique_per_doc(
                 docs,
                 &*self.req_data.accessor,
@@ -296,7 +296,8 @@ impl<B: SubAggBuffer, const IS_MULTI_VALUED: bool> SegmentAggregationCollector
 
         let buckets = &mut self.parent_buckets[parent_bucket_id as usize];
 
-        let multivalued = IS_MULTI_VALUED && accessor.is_batch_multivalued();
+        // Known single-valued sources compile out deduplication; otherwise check the loaded batch.
+        let multivalued = SOURCE_CONTAINS_MULTIVALUES && accessor.is_batch_multivalued();
         let mut previous = None;
         for (doc, val) in accessor.iter_docid_vals(docs) {
             let bucket_pos = get_bucket_pos(val, buckets);
@@ -359,17 +360,17 @@ pub(crate) fn build_segment_range_collector(
 ) -> crate::Result<Box<dyn SegmentAggregationCollector>> {
     let accessor = &agg_data.per_request.range_req_data[node.idx_in_req_data].accessor;
     // Computed sources may change cardinality between blocks.
-    let multivalued = accessor.as_column().map_or(true, |column| {
+    let source_contains_multivalues = accessor.as_column().map_or(true, |column| {
         column.index.get_cardinality().is_multivalue()
     });
-    if multivalued {
+    if source_contains_multivalues {
         build_range_collector_with_cardinality::<true>(agg_data, node)
     } else {
         build_range_collector_with_cardinality::<false>(agg_data, node)
     }
 }
 
-fn build_range_collector_with_cardinality<const IS_MULTI_VALUED: bool>(
+fn build_range_collector_with_cardinality<const SOURCE_CONTAINS_MULTIVALUES: bool>(
     agg_data: &mut AggregationsSegmentCtx,
     node: &AggRefNode,
 ) -> crate::Result<Box<dyn SegmentAggregationCollector>> {
@@ -393,7 +394,7 @@ fn build_range_collector_with_cardinality<const IS_MULTI_VALUED: bool>(
     if is_low_card {
         Ok(Box::new(SegmentRangeCollector::<
             LowCardSubAggBuffer,
-            IS_MULTI_VALUED,
+            SOURCE_CONTAINS_MULTIVALUES,
         > {
             sub_agg: sub_agg.map(LowCardBufferedSubAggs::new),
             req_data,
@@ -404,7 +405,7 @@ fn build_range_collector_with_cardinality<const IS_MULTI_VALUED: bool>(
     } else {
         Ok(Box::new(SegmentRangeCollector::<
             HighCardSubAggBuffer,
-            IS_MULTI_VALUED,
+            SOURCE_CONTAINS_MULTIVALUES,
         > {
             sub_agg: sub_agg.map(BufferedSubAggs::new),
             req_data,
@@ -415,7 +416,9 @@ fn build_range_collector_with_cardinality<const IS_MULTI_VALUED: bool>(
     }
 }
 
-impl<B: SubAggBuffer, const IS_MULTI_VALUED: bool> SegmentRangeCollector<B, IS_MULTI_VALUED> {
+impl<B: SubAggBuffer, const SOURCE_CONTAINS_MULTIVALUES: bool>
+    SegmentRangeCollector<B, SOURCE_CONTAINS_MULTIVALUES>
+{
     pub(crate) fn create_new_buckets(&mut self) -> crate::Result<Vec<SegmentRangeAndBucketEntry>> {
         let req_data = &self.req_data;
         let field_type = req_data.accessor.column_type();

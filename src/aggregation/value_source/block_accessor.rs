@@ -235,9 +235,13 @@ impl ColumnBlockAccessor {
             && (self.cardinality.is_full() || self.docid_cache == docs)
     }
 
+    /// Whether any document has multiple values in the loaded batch.
+    /// Values must be grouped by document.
     #[inline]
     pub(crate) fn is_batch_multivalued(&self) -> bool {
+        // Full/Optional cannot repeat documents; Full may leave docid_cache stale.
         self.cardinality.is_multivalue()
+            && self.docid_cache.windows(2).any(|pair| pair[0] == pair[1])
     }
 
     #[inline]
@@ -370,6 +374,52 @@ mod tests {
             index: ColumnIndex::Full,
             values: serialize_and_load_u64_based_column_values::<u64>(&vals, &ALL_U64_CODEC_TYPES),
         }
+    }
+
+    #[test]
+    fn test_is_batch_multivalued_checks_loaded_values() {
+        let docs = [0, 1, 2];
+        let mut accessor = ColumnBlockAccessor::default();
+        for (entries, expected) in [
+            (vec![], false),
+            (vec![(0, 12)], false),
+            (vec![(0, 12), (1, 15), (2, 25)], false),
+            (vec![(0, 12), (2, 25)], false),
+            (vec![(0, 12), (0, 15)], true),
+            (vec![(0, 12), (2, 25), (2, 28)], true),
+        ] {
+            let source = TestValueSource {
+                cardinality: Cardinality::Multivalued,
+                entries,
+            };
+            accessor.fetch_block(&docs, &source);
+            assert_eq!(accessor.is_batch_multivalued(), expected);
+        }
+
+        let source = TestValueSource {
+            cardinality: Cardinality::Multivalued,
+            entries: vec![(0, 12), (0, 12)],
+        };
+        accessor.fetch_block(&docs, &source);
+        assert!(accessor.is_batch_multivalued());
+        accessor.fetch_block_with_missing_unique_per_doc(&docs, &source, None, false);
+        assert!(!accessor.is_batch_multivalued());
+    }
+
+    #[test]
+    fn test_is_batch_multivalued_ignores_stale_full_docids() {
+        let mut accessor = ColumnBlockAccessor::default();
+        let source = TestValueSource {
+            cardinality: Cardinality::Multivalued,
+            entries: vec![(0, 12), (0, 15)],
+        };
+        accessor.fetch_block(&[0], &source);
+        assert!(accessor.is_batch_multivalued());
+
+        let column = full_column(&[25]);
+        accessor.fetch_full_column_block(&[0], &*column.values);
+        assert_eq!(accessor.docids(), &[0, 0]);
+        assert!(!accessor.is_batch_multivalued());
     }
 
     #[test]

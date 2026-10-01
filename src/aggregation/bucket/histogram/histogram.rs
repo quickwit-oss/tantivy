@@ -440,7 +440,7 @@ impl<B: BucketIdSlot> HistogramBuckets<B> {
 /// The collector puts values from the fast field into the correct buckets and does a conversion to
 /// the correct datatype.
 #[derive(Debug)]
-pub struct SegmentHistogramCollector<B> {
+pub struct SegmentHistogramCollector<B, const SOURCE_CONTAINS_MULTIVALUES: bool> {
     /// The buckets containing the aggregation data.
     /// One Histogram bucket per parent bucket id.
     parent_buckets: Vec<HistogramBuckets<B>>,
@@ -453,7 +453,9 @@ pub struct SegmentHistogramCollector<B> {
     dense_range: Option<DenseRange>,
 }
 
-impl<B: BucketIdSlot> SegmentAggregationCollector for SegmentHistogramCollector<B> {
+impl<B: BucketIdSlot, const SOURCE_CONTAINS_MULTIVALUES: bool> SegmentAggregationCollector
+    for SegmentHistogramCollector<B, SOURCE_CONTAINS_MULTIVALUES>
+{
     fn add_intermediate_aggregation_result(
         &mut self,
         agg_data: &AggregationsSegmentCtx,
@@ -489,25 +491,40 @@ impl<B: BucketIdSlot> SegmentAggregationCollector for SegmentHistogramCollector<
         let offset = req.offset;
         let get_bucket_pos = |val| get_bucket_pos_f64(val, interval, offset) as i64;
 
-        agg_data
-            .column_block_accessor
-            .fetch_block(docs, &*req.accessor);
-        // special path for nested buckets
-        if let Some(sub_agg) = &mut self.sub_agg {
-            for (doc, val) in agg_data.column_block_accessor.iter_docid_vals(docs) {
+        let accessor = &mut agg_data.column_block_accessor;
+        if SOURCE_CONTAINS_MULTIVALUES {
+            accessor.fetch_block_with_missing_unique_per_doc(docs, &*req.accessor, None, false);
+        } else {
+            accessor.fetch_block(docs, &*req.accessor);
+        }
+        // Known single-valued sources compile out deduplication; otherwise check the loaded batch.
+        let multivalued = SOURCE_CONTAINS_MULTIVALUES && accessor.is_batch_multivalued();
+        // Document IDs are needed for child collection and multivalued deduplication.
+        if self.sub_agg.is_some() || multivalued {
+            let mut previous = None;
+            for (doc, val) in accessor.iter_docid_vals(docs) {
                 let val = f64_from_fastfield_u64(val, self.column_type);
                 if bounds.contains(val) {
-                    let bucket = store.get_or_create(
-                        get_bucket_pos(val),
-                        &mut self.bucket_id_provider,
-                        |pos| get_bucket_key_from_pos(pos as f64, interval, offset),
-                    );
+                    let bucket_pos = get_bucket_pos(val);
+                    if multivalued {
+                        // The fetcher makes equal bucket hits consecutive within each document.
+                        if previous == Some((doc, bucket_pos)) {
+                            continue;
+                        }
+                        previous = Some((doc, bucket_pos));
+                    }
+                    let bucket =
+                        store.get_or_create(bucket_pos, &mut self.bucket_id_provider, |pos| {
+                            get_bucket_key_from_pos(pos as f64, interval, offset)
+                        });
                     bucket.doc_count += 1;
-                    sub_agg.push(bucket.bucket_id.to_bucket_id(), doc);
+                    if let Some(sub_agg) = &mut self.sub_agg {
+                        sub_agg.push(bucket.bucket_id.to_bucket_id(), doc);
+                    }
                 }
             }
         } else {
-            for val in agg_data.column_block_accessor.iter_vals() {
+            for val in accessor.iter_vals() {
                 let val = f64_from_fastfield_u64(val, self.column_type);
                 if bounds.contains(val) {
                     let bucket = store.get_or_create(
@@ -565,7 +582,9 @@ impl<B: BucketIdSlot> SegmentAggregationCollector for SegmentHistogramCollector<
     }
 }
 
-impl<B: BucketIdSlot> SegmentHistogramCollector<B> {
+impl<B: BucketIdSlot, const SOURCE_CONTAINS_MULTIVALUES: bool>
+    SegmentHistogramCollector<B, SOURCE_CONTAINS_MULTIVALUES>
+{
     fn get_memory_consumption(&self, parent_bucket_id: BucketId) -> u64 {
         self.parent_buckets[parent_bucket_id as usize].memory_consumption()
     }
@@ -627,7 +646,7 @@ impl<B: BucketIdSlot> SegmentHistogramCollector<B> {
     }
 }
 
-impl SegmentHistogramCollector<()> {
+impl SegmentHistogramCollector<(), false> {
     /// Builds a histogram collector whose parent `t` is a dense histogram filled from
     /// `counts[t * num_time_buckets .. (t + 1) * num_time_buckets]` (row-major), consolidating each
     /// cell's count lanes. Used by the flattened terms×histogram collector to turn its flat 2D
@@ -725,21 +744,38 @@ pub(crate) fn prepare_histogram_dense_range(
     Ok(dense_range.map(|range| (req_data, range)))
 }
 
-/// Builds a boxed histogram (or date histogram) segment collector, picking the bucket-id storage
-/// based on whether there are sub aggregations: `()` (no id stored) when there are none, otherwise
-/// [`BucketId`].
+/// Builds a histogram (or date histogram) collector specialized for source cardinality and
+/// bucket-id storage: `()` when there are no sub aggregations, otherwise [`BucketId`].
 pub(crate) fn build_segment_histogram_collector(
     agg_data: &mut AggregationsSegmentCtx,
     node: &AggRefNode,
 ) -> crate::Result<Box<dyn SegmentAggregationCollector>> {
-    if node.children.is_empty() {
-        Ok(Box::new(
-            SegmentHistogramCollector::<()>::from_req_and_validate(agg_data, node)?,
-        ))
+    let accessor = &agg_data.per_request.histogram_req_data[node.idx_in_req_data].accessor;
+    // Computed sources may change cardinality between blocks.
+    let source_contains_multivalues = accessor.as_column().map_or(true, |column| {
+        column.index.get_cardinality().is_multivalue()
+    });
+    if source_contains_multivalues {
+        build_histogram_collector_with_cardinality::<true>(agg_data, node)
     } else {
-        Ok(Box::new(
-            SegmentHistogramCollector::<BucketId>::from_req_and_validate(agg_data, node)?,
-        ))
+        build_histogram_collector_with_cardinality::<false>(agg_data, node)
+    }
+}
+
+fn build_histogram_collector_with_cardinality<const SOURCE_CONTAINS_MULTIVALUES: bool>(
+    agg_data: &mut AggregationsSegmentCtx,
+    node: &AggRefNode,
+) -> crate::Result<Box<dyn SegmentAggregationCollector>> {
+    if node.children.is_empty() {
+        Ok(Box::new(SegmentHistogramCollector::<
+            (),
+            SOURCE_CONTAINS_MULTIVALUES,
+        >::from_req_and_validate(agg_data, node)?))
+    } else {
+        Ok(Box::new(SegmentHistogramCollector::<
+            BucketId,
+            SOURCE_CONTAINS_MULTIVALUES,
+        >::from_req_and_validate(agg_data, node)?))
     }
 }
 
@@ -957,6 +993,136 @@ mod tests {
         get_test_index_2_segments, get_test_index_from_values, get_test_index_with_num_docs,
     };
     use crate::query::AllQuery;
+
+    #[test]
+    fn histogram_counts_each_document_once_per_bucket() -> crate::Result<()> {
+        use std::collections::{BTreeMap, BTreeSet};
+
+        use crate::schema::{Schema, FAST};
+        use crate::{DateTime, Index};
+
+        let rows = [
+            vec![12, 15],         // Distinct values in one bucket.
+            vec![18, 11],         // Two descending values in one bucket.
+            vec![25, 12],         // Two descending values in different buckets.
+            vec![12, 25, 15],     // Return to an earlier bucket.
+            vec![12, 12, 25, 25], // Repeated raw values.
+            vec![-18, -15],       // Negative bucket positions.
+            vec![],
+            vec![12],
+        ];
+        // One block uses sparse storage; multiple blocks allow densification.
+        for repetitions in [1, 16] {
+            let mut schema = Schema::builder();
+            let value = schema.add_i64_field("value", FAST);
+            let date = schema.add_date_field("date", FAST);
+            let score = schema.add_u64_field("score", FAST);
+            let index = Index::create_in_ram(schema.build());
+            let mut writer = index.writer_with_num_threads(1, 20_000_000)?;
+            let documents: Vec<_> = rows.iter().cycle().take(rows.len() * repetitions).collect();
+            for (doc, values) in documents.iter().enumerate() {
+                let mut document = doc!(score => doc as u64 + 1);
+                for &val in values.iter() {
+                    document.add_i64(value, val);
+                    document.add_date(date, DateTime::from_timestamp_secs(val));
+                }
+                writer.add_document(document)?;
+            }
+            writer.commit()?;
+
+            for (date_histogram, bounded) in [(false, false), (false, true), (true, false)] {
+                let offset = if bounded { 2 } else { 0 };
+                for with_children in [false, true] {
+                    let mut histogram = if date_histogram {
+                        json!({"date_histogram": {
+                            "field": "date", "fixed_interval": "10s", "min_doc_count": 1
+                        }})
+                    } else {
+                        json!({"histogram": {
+                            "field": "value", "interval": 10, "offset": offset, "min_doc_count": 1
+                        }})
+                    };
+                    if bounded {
+                        histogram["histogram"]["hard_bounds"] = json!({"min": 12, "max": 25});
+                    }
+                    if with_children {
+                        histogram["aggs"] = json!({
+                            "score": {"sum": {"field": "score"}},
+                            "values": {"sum": {"field": "value"}}
+                        });
+                    }
+                    let request = serde_json::from_value(json!({"histogram": histogram}))?;
+                    let result = exec_request(request, &index)?;
+                    let mut expected = BTreeMap::<i64, (u64, u64, i64)>::new();
+                    for (doc, values) in documents.iter().enumerate() {
+                        let keys: BTreeSet<_> = values
+                            .iter()
+                            .filter(|&&val| !bounded || (12..=25).contains(&val))
+                            .map(|&val| (val - offset).div_euclid(10) * 10 + offset)
+                            .collect();
+                        for key in keys {
+                            let entry = expected.entry(key).or_default();
+                            entry.0 += 1;
+                            entry.1 += doc as u64 + 1;
+                            entry.2 += values.iter().sum::<i64>();
+                        }
+                    }
+                    let buckets = result["histogram"]["buckets"].as_array().unwrap();
+                    assert_eq!(buckets.len(), expected.len());
+                    for (bucket, (key, (count, score_sum, value_sum))) in
+                        buckets.iter().zip(expected)
+                    {
+                        let key = if date_histogram { key * 1000 } else { key };
+                        assert_eq!(bucket["key"], key as f64);
+                        assert_eq!(bucket["doc_count"], count);
+                        if with_children {
+                            assert_eq!(bucket["score"]["value"], score_sum as f64);
+                            // Children retain every raw value, including duplicates.
+                            assert_eq!(bucket["values"]["value"], value_sum as f64);
+                        }
+                    }
+                }
+            }
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn histogram_counts_repeated_documents_in_separate_calls() -> crate::Result<()> {
+        use crate::aggregation::agg_data::{
+            build_aggregations_data_from_req, build_segment_agg_collectors_root,
+        };
+        use crate::schema::{Schema, FAST};
+        use crate::Index;
+
+        let mut schema = Schema::builder();
+        let value = schema.add_u64_field("value", FAST);
+        let index = Index::create_in_ram(schema.build());
+        let mut writer = index.writer_with_num_threads(1, 20_000_000)?;
+        writer.add_document(doc!(value => 12u64, value => 15u64))?;
+        writer.commit()?;
+        let reader = index.reader()?;
+        let searcher = reader.searcher();
+        let request = serde_json::from_value(json!({
+            "histogram": {"histogram": {"field": "value", "interval": 10}}
+        }))?;
+        let mut ctx = build_aggregations_data_from_req(
+            &request,
+            searcher.segment_reader(0),
+            0,
+            Default::default(),
+        )?;
+        let mut collector = build_segment_agg_collectors_root(&mut ctx)?;
+        collector.prepare_max_bucket(0, &ctx)?;
+        collector.collect(0, &[0], &mut ctx)?;
+        collector.collect(0, &[0], &mut ctx)?;
+        collector.flush(&mut ctx)?;
+        let mut result = IntermediateAggregationResults::default();
+        collector.add_intermediate_aggregation_result(&ctx, &mut result, 0)?;
+        let result = serde_json::to_value(result.into_final_result(request, Default::default())?)?;
+        assert_eq!(result["histogram"]["buckets"][0]["doc_count"], 2);
+        Ok(())
+    }
 
     #[test]
     fn histogram_test_crooked_values() -> crate::Result<()> {

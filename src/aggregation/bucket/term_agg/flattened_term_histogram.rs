@@ -423,7 +423,7 @@ impl<R: BucketResolver, const LANES: usize> SegmentAggregationCollector
                 })
                 .collect(),
         };
-        let mut histogram = SegmentHistogramCollector::<()>::from_dense_rows(
+        let mut histogram = SegmentHistogramCollector::<(), false>::from_dense_rows(
             self.hist_req_data.clone(),
             self.base_pos,
             num_time_buckets,
