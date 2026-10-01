@@ -31,7 +31,13 @@ pub trait SegmentAggregationCollector: Debug {
         parent_bucket_id: BucketId,
     ) -> crate::Result<()>;
 
-    /// Note: The caller needs to call `prepare_max_bucket` before calling `collect`.
+    /// Collect docs for one bucket.
+    ///
+    /// `docs` must be sorted ascending without duplicates. There is no ordering or
+    /// uniqueness guarantee between separate calls.
+    ///
+    /// The caller must call `prepare_max_bucket` for at least `parent_bucket_id`
+    /// before collecting.
     fn collect(
         &mut self,
         parent_bucket_id: BucketId,
@@ -42,7 +48,17 @@ pub trait SegmentAggregationCollector: Debug {
     /// Collect docs for multiple buckets in one call.
     /// Minimizes dynamic dispatch overhead when collecting many buckets.
     ///
-    /// Note: The caller needs to call `prepare_max_bucket` before calling `collect`.
+    /// `bucket_ids` and `docs` must have equal lengths; each aligned pair is one
+    /// submission. Within each consecutive run of the same bucket ID, doc IDs
+    /// must be sorted ascending. No `(bucket_id, doc_id)` pair may occur more than
+    /// once in the call, including across separate runs. A doc ID may appear for
+    /// different buckets.
+    ///
+    /// No ordering is required between runs. There is no ordering or uniqueness
+    /// guarantee between separate calls to either collection method.
+    ///
+    /// The caller must call `prepare_max_bucket` for at least the largest submitted
+    /// bucket ID before collecting.
     fn collect_multiple(
         &mut self,
         bucket_ids: &[BucketId],
