@@ -32,7 +32,8 @@ pub trait ValueSource: std::fmt::Debug {
     /// - `Full`: `values.len() == docs.len()` and `values[i]` is the value of `docs[i]`. `docids`
     ///   is left unspecified and must not be read by the caller.
     /// - `Optional` / `Multivalued`: `docids.len() == values.len()` and `values[i]` is a value of
-    ///   `docids[i]`. `docids` only contains docs from `docs`. A doc is repeated once per value.
+    ///   `docids[i]`. `docids` only contains docs from `docs`. A doc is repeated once per value,
+    ///   and the entries of a given doc are contiguous.
     ///
     /// `row_ids` is scratch the implementation may use freely.
     fn load_block(
@@ -90,7 +91,7 @@ impl<ColumnRef: Borrow<Column<u64>> + std::fmt::Debug> ValueSource for (ColumnRe
     }
 }
 
-/// `docs` has to be sorted ascending and free of duplicates.
+/// `docs` can be in any order and contain duplicates.
 #[inline]
 fn load_full_column_values(
     docs: &[DocId],
@@ -112,15 +113,15 @@ fn load_full_column_values(
 
 /// Returns true if `docs` is a contiguous ascending run `[d, d + 1, ..., d + n - 1]`.
 ///
-/// `docs` has to be sorted ascending and free of duplicates.
+/// Accepts any input: sub-aggregations can receive duplicated or unordered docs.
 #[inline]
 fn is_contiguous(docs: &[u32]) -> bool {
     let (Some(&first), Some(&last)) = (docs.first(), docs.last()) else {
         return false;
     };
-    debug_assert!(
-        docs.windows(2).all(|w| w[0] < w[1]),
-        "fetch_block requires docs sorted ascending without duplicates"
-    );
-    (last - first) as usize + 1 == docs.len()
+    if last < first || (last - first) as usize + 1 != docs.len() {
+        return false;
+    }
+    // The span check alone is fooled by duplicates or unordered docs, e.g. `[0, 0, 2]`.
+    docs.windows(2).all(|pair| pair[0] + 1 == pair[1])
 }
