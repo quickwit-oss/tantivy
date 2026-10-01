@@ -182,7 +182,7 @@ impl Weight for FastFieldExistsWeight {
     }
 }
 
-enum ExistsColumnIndex {
+pub(crate) enum ExistsColumnIndex {
     Optional(OptionalIndex),
     Multivalued(MultiValueIndex),
 }

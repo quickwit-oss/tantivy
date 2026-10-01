@@ -70,6 +70,11 @@ impl SegmentReader {
         &self.schema
     }
 
+    /// Returns the index this segment belongs to.
+    pub fn index(&self) -> &Index {
+        &self.index
+    }
+
     /// Return the number of documents that have been
     /// deleted in the segment.
     pub fn num_deleted_docs(&self) -> DocId {

@@ -47,8 +47,9 @@ impl UserInputLeaf {
                 upper,
             },
             UserInputLeaf::Set { field: _, elements } => UserInputLeaf::Set { field, elements },
-            UserInputLeaf::Exists { field: _ } => UserInputLeaf::Exists {
-                field: field.expect("Exist query without a field isn't allowed"),
+            UserInputLeaf::Exists { field: _ } => match field {
+                Some(field) => UserInputLeaf::Exists { field },
+                None => UserInputLeaf::All,
             },
             UserInputLeaf::Regex { field: _, pattern } => UserInputLeaf::Regex { field, pattern },
         }

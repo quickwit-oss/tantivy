@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use crate::ast::InferredTypeSet;
+use crate::types::SafeF64;
 #[cfg(test)]
 use crate::types::VarType;
 
@@ -11,7 +12,7 @@ pub enum Literal {
     Bool(bool),
     U64(u64),
     I64(i64),
-    F64(f64),
+    F64(SafeF64),
     String(Arc<str>),
 }
 
@@ -43,10 +44,11 @@ impl Literal {
                 ..InferredTypeSet::NONE
             },
             Literal::F64(value) => {
+                let value: f64 = value.get();
                 let is_integral: bool = value.fract() == 0.0;
                 InferredTypeSet {
-                    i64: is_integral && *value >= i64::MIN as f64 && *value < -(i64::MIN as f64),
-                    u64: is_integral && *value >= 0.0 && *value < u64::MAX as f64,
+                    i64: is_integral && value >= i64::MIN as f64 && value < -(i64::MIN as f64),
+                    u64: is_integral && value >= 0.0 && value < u64::MAX as f64,
                     f64: true,
                     ..InferredTypeSet::NONE
                 }
@@ -86,9 +88,18 @@ impl From<i64> for Literal {
     }
 }
 
-impl From<f64> for Literal {
-    fn from(value: f64) -> Self {
-        Literal::F64(value)
+/// A float could not become a literal because it was NaN or infinite.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, thiserror::Error)]
+#[error("an f64 literal must be finite, and neither NaN nor infinite")]
+pub struct NonFiniteFloat;
+
+impl TryFrom<f64> for Literal {
+    type Error = NonFiniteFloat;
+
+    /// Fails for NaN and for either infinity: [`SafeF64`] holds only finite
+    /// values, so those have no literal representation.
+    fn try_from(value: f64) -> Result<Literal, NonFiniteFloat> {
+        SafeF64::new(value).map(Literal::F64).ok_or(NonFiniteFloat)
     }
 }
 
@@ -108,6 +119,10 @@ impl From<&str> for Literal {
 mod tests {
     use super::*;
 
+    fn f64_literal(val: f64) -> Literal {
+        Literal::try_from(val).unwrap()
+    }
+
     #[test]
     fn test_literal_types_depend_on_representable_value() {
         let i64_f64 = InferredTypeSet {
@@ -125,8 +140,8 @@ mod tests {
         assert_eq!(Literal::I64(1).types(), InferredTypeSet::NUMERICAL);
         assert_eq!(Literal::I64(-1).types(), i64_f64);
         assert_eq!(Literal::U64(1 << 63).types(), u64_f64);
-        assert_eq!(Literal::F64(1.2).types(), InferredTypeSet::F64);
-        assert_eq!(Literal::F64(1.0).types(), InferredTypeSet::NUMERICAL);
+        assert_eq!(f64_literal(1.2).types(), InferredTypeSet::F64);
+        assert_eq!(f64_literal(1.0).types(), InferredTypeSet::NUMERICAL);
     }
 
     #[test]
@@ -162,22 +177,16 @@ mod tests {
     }
 
     #[test]
-    fn test_f64_literal_types_handle_integer_boundaries_and_special_values() {
+    fn test_f64_literal_types_handle_integer_boundaries() {
         assert_eq!(
-            Literal::F64(2f64.powi(63)).types(),
+            f64_literal(2f64.powi(63)).types(),
             InferredTypeSet {
                 u64: true,
                 f64: true,
                 ..InferredTypeSet::NONE
             }
         );
-        assert_eq!(Literal::F64(2f64.powi(64)).types(), InferredTypeSet::F64);
-        assert_eq!(Literal::F64(-0.0).types(), InferredTypeSet::NUMERICAL);
-        assert_eq!(Literal::F64(f64::NAN).types(), InferredTypeSet::F64);
-        assert_eq!(Literal::F64(f64::INFINITY).types(), InferredTypeSet::F64);
-        assert_eq!(
-            Literal::F64(f64::NEG_INFINITY).types(),
-            InferredTypeSet::F64
-        );
+        assert_eq!(f64_literal(2f64.powi(64)).types(), InferredTypeSet::F64);
+        assert_eq!(f64_literal(-0.0).types(), InferredTypeSet::NUMERICAL);
     }
 }

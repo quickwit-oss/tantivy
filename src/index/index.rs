@@ -6,6 +6,9 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use std::thread::available_parallelism;
 
+#[cfg(feature = "jitexpr")]
+use jitexpr::compile::ExprCompilationCache;
+
 use super::segment::Segment;
 use super::segment_reader::merge_field_meta_data;
 use super::{FieldMetadata, IndexSettings};
@@ -382,6 +385,8 @@ pub struct Index {
     fast_field_tokenizers: TokenizerManager,
     inventory: SegmentMetaInventory,
     custom_plugins: Vec<Arc<dyn SegmentPlugin>>,
+    #[cfg(feature = "jitexpr")]
+    expr_compilation_cache: ExprCompilationCache,
 }
 
 impl Index {
@@ -502,6 +507,9 @@ impl Index {
             executor: Executor::single_thread(),
             inventory,
             custom_plugins: Vec::new(),
+            // We default to a capacity of 64, but it only allocates if used.
+            #[cfg(feature = "jitexpr")]
+            expr_compilation_cache: ExprCompilationCache::with_capacity(64),
         }
     }
 
@@ -910,8 +918,21 @@ impl Index {
     }
 }
 
+#[cfg(feature = "jitexpr")]
+impl Index {
+    /// Setter for the expression compilation cache.
+    pub fn set_expr_compilation_cache(&mut self, cache: ExprCompilationCache) {
+        self.expr_compilation_cache = cache;
+    }
+
+    /// Accessor for the expression compilation cache.
+    pub fn expr_compilation_cache(&self) -> &ExprCompilationCache {
+        &self.expr_compilation_cache
+    }
+}
+
 impl fmt::Debug for Index {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "Index({:?})", self.directory)
     }
 }

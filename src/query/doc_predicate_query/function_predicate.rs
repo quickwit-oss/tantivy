@@ -1,5 +1,7 @@
 use super::{DocPredicate, SegmentDocPredicate};
 use crate::index::SegmentReader;
+use crate::query::doc_predicate_query::ConstOrVariableSegmentPredicate;
+use crate::query::AllScorer;
 use crate::DocId;
 
 /// Blanket [`SegmentDocPredicate`] implementation for any per-document
@@ -48,8 +50,15 @@ where
 {
     type SegmentDocPredicate = SegmentF;
 
-    fn doc_predicate(&self, segment_reader: &SegmentReader) -> crate::Result<SegmentF> {
-        (self.segment_predicate_factory)(segment_reader)
+    fn doc_predicate(
+        &self,
+        segment_reader: &SegmentReader,
+    ) -> crate::Result<ConstOrVariableSegmentPredicate<SegmentF>> {
+        let predicate = (self.segment_predicate_factory)(segment_reader)?;
+        Ok(ConstOrVariableSegmentPredicate::Variable {
+            predicate,
+            necessary_condition: Box::new(AllScorer::new(segment_reader.max_doc())),
+        })
     }
 }
 

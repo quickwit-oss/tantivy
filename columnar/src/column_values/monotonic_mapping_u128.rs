@@ -4,6 +4,9 @@ use std::net::Ipv6Addr;
 /// Monotonic maps a value to u128 value space
 /// Monotonic mapping enables `PartialOrd` on u128 space without conversion to original space.
 pub trait MonotonicallyMappableToU128: 'static + PartialOrd + Copy + Debug + Send + Sync {
+    /// Whether conversion to and from u128 leaves values unchanged.
+    const IS_IDENTITY: bool = false;
+
     /// Converts a value to u128.
     ///
     /// Internally all fast field values are encoded as u64.
@@ -17,6 +20,8 @@ pub trait MonotonicallyMappableToU128: 'static + PartialOrd + Copy + Debug + Sen
 }
 
 impl MonotonicallyMappableToU128 for u128 {
+    const IS_IDENTITY: bool = true;
+
     fn to_u128(self) -> u128 {
         self
     }

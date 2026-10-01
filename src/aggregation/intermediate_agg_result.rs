@@ -1213,18 +1213,19 @@ trait MergeFruits {
     fn merge_fruits(&mut self, other: Self) -> crate::Result<()>;
 }
 
-fn merge_maps<V: MergeFruits + Clone, T: Eq + PartialEq + Hash>(
+fn merge_maps<V: MergeFruits, T: Eq + Hash>(
     entries_left: &mut FxHashMap<T, V>,
-    mut entries_right: FxHashMap<T, V>,
+    entries_right: FxHashMap<T, V>,
 ) -> crate::Result<()> {
-    for (name, entry_left) in entries_left.iter_mut() {
-        if let Some(entry_right) = entries_right.remove(name) {
-            entry_left.merge_fruits(entry_right)?;
+    // Visit incoming entries, not the growing accumulator, so folding many results
+    // does not repeatedly hash all previously merged keys.
+    for (key, entry_right) in entries_right {
+        match entries_left.entry(key) {
+            Entry::Occupied(mut entry) => entry.get_mut().merge_fruits(entry_right)?,
+            Entry::Vacant(entry) => {
+                entry.insert(entry_right);
+            }
         }
-    }
-
-    for (key, res) in entries_right.into_iter() {
-        entries_left.entry(key).or_insert(res);
     }
     Ok(())
 }
@@ -1696,6 +1697,106 @@ mod tests {
         ]);
 
         assert_range_trees_eq(&tree_left, &tree_expected);
+    }
+
+    #[test]
+    fn test_multi_terms_repeated_merge_and_prune() {
+        let key = |id: u64| {
+            vec![
+                IntermediateKey::Str(format!("host-{}", id % 2)),
+                IntermediateKey::U64(id / 2),
+            ]
+        };
+        let make_result =
+            |data: &[(u64, u64)], source: &str| IntermediateBucketResult::MultiTerms {
+                buckets: IntermediateMultiTermsBucketResult {
+                    entries: data
+                        .iter()
+                        .map(|&(id, count)| {
+                            (
+                                key(id),
+                                IntermediateTermBucketEntry {
+                                    doc_count: count,
+                                    sub_aggregation: get_sub_test_tree(&[
+                                        ("shared".to_string(), count),
+                                        (source.to_string(), count),
+                                    ]),
+                                },
+                            )
+                        })
+                        .collect(),
+                    sum_other_doc_count: 2,
+                    doc_count_error_upper_bound: 1,
+                },
+            };
+        let mut merged = IntermediateBucketResult::MultiTerms {
+            buckets: Default::default(),
+        };
+        merged
+            .merge_fruits(make_result(&[(0, 3), (1, 5)], "first"))
+            .unwrap();
+        merged
+            .merge_fruits(make_result(&[(1, 7), (2, 11)], "second"))
+            .unwrap();
+        // A distributed fold may resume after serializing an intermediate result.
+        merged = postcard::from_bytes(&postcard::to_allocvec(&merged).unwrap()).unwrap();
+        merged.merge_fruits(make_result(&[], "empty")).unwrap();
+        merged
+            .merge_fruits(make_result(&[(0, 13), (3, 17)], "third"))
+            .unwrap();
+
+        let IntermediateBucketResult::MultiTerms { buckets } = &mut merged else {
+            panic!("expected multi_terms");
+        };
+        assert_eq!(buckets.entries.len(), 4);
+        assert_eq!(buckets.sum_other_doc_count, 8);
+        assert_eq!(buckets.doc_count_error_upper_bound, 4);
+        for (id, count, sources) in [
+            (0, 16, vec![("first", 3), ("third", 13)]),
+            (1, 12, vec![("first", 5), ("second", 7)]),
+            (2, 11, vec![("second", 11)]),
+            (3, 17, vec![("third", 17)]),
+        ] {
+            let entry = &buckets.entries[&key(id)];
+            assert_eq!(entry.doc_count, count);
+            let mut expected = vec![("shared".to_string(), count)];
+            expected.extend(
+                sources
+                    .into_iter()
+                    .map(|(name, count)| (name.to_string(), count)),
+            );
+            assert_range_trees_eq(&entry.sub_aggregation, &get_sub_test_tree(&expected));
+        }
+
+        let req = serde_json::from_value(serde_json::json!({
+            "terms": [{"field": "host"}, {"field": "path"}],
+            "size": 1,
+            "segment_size": 2
+        }))
+        .unwrap();
+        buckets
+            .prune_intermediate_results(&req, &Default::default(), PruneMode::Intermediate)
+            .unwrap();
+        assert_eq!(buckets.entries.len(), 2);
+        assert_eq!(buckets.sum_other_doc_count, 31); // 8 + 12 + 11
+        assert_eq!(buckets.doc_count_error_upper_bound, 16); // 4 + cutoff 12
+
+        // A previously pruned key can be inserted again in a subsequent fold.
+        merged
+            .merge_fruits(make_result(&[(2, 19)], "fourth"))
+            .unwrap();
+        let IntermediateBucketResult::MultiTerms { buckets } = &mut merged else {
+            unreachable!();
+        };
+        assert_eq!(buckets.entries.len(), 3);
+        assert_eq!(buckets.entries[&key(2)].doc_count, 19);
+        buckets
+            .prune_intermediate_results(&req, &Default::default(), PruneMode::Final)
+            .unwrap();
+        assert_eq!(buckets.entries.len(), 1);
+        assert_eq!(buckets.entries[&key(2)].doc_count, 19);
+        assert_eq!(buckets.sum_other_doc_count, 66); // 31 + 2 + 16 + 17
+        assert_eq!(buckets.doc_count_error_upper_bound, 17); // 16 + 1, no final cutoff
     }
 
     #[test]

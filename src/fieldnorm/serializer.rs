@@ -22,7 +22,6 @@ impl FieldNormsSerializer {
     pub fn serialize_field(&mut self, field: Field, fieldnorms_data: &[u8]) -> io::Result<()> {
         let write = self.composite_write.for_field(field);
         write.write_all(fieldnorms_data)?;
-        write.flush()?;
         Ok(())
     }
 

@@ -319,7 +319,7 @@ impl Drop for ReleaseLockFile {
 }
 
 /// This Write wraps a File, but has the specificity of
-/// call `sync_all` on flush.
+/// calling `sync_all` on terminate.
 struct SafeFileWriter(File);
 
 impl SafeFileWriter {
@@ -432,17 +432,13 @@ impl Directory for MmapDirectory {
             .create_new(true)
             .open(full_path);
 
-        let mut file = open_res.map_err(|io_err| {
+        let file = open_res.map_err(|io_err| {
             if io_err.kind() == io::ErrorKind::AlreadyExists {
                 OpenWriteError::FileAlreadyExists(path.to_path_buf())
             } else {
                 OpenWriteError::wrap_io_error(io_err, path.to_path_buf())
             }
         })?;
-
-        // making sure the file is created.
-        file.flush()
-            .map_err(|io_error| OpenWriteError::wrap_io_error(io_error, path.to_path_buf()))?;
 
         // Note we actually do not sync the parent directory here.
         //
@@ -559,10 +555,11 @@ mod tests {
         // In that case the directory returns a SharedVecSlice.
         let mmap_directory = MmapDirectory::create_from_tempdir().unwrap();
         let path = PathBuf::from("test");
-        {
-            let mut w = mmap_directory.open_write(&path).unwrap();
-            w.flush().unwrap();
-        }
+        mmap_directory
+            .open_write(&path)
+            .unwrap()
+            .terminate()
+            .unwrap();
         let readonlymap = mmap_directory.open_read(&path).unwrap();
         assert_eq!(readonlymap.len(), 0);
     }
@@ -578,12 +575,10 @@ mod tests {
         let paths: Vec<PathBuf> = (0..num_paths)
             .map(|i| PathBuf::from(&*format!("file_{i}")))
             .collect();
-        {
-            for path in &paths {
-                let mut w = mmap_directory.open_write(path).unwrap();
-                w.write_all(content).unwrap();
-                w.flush().unwrap();
-            }
+        for path in &paths {
+            let mut w = mmap_directory.open_write(path).unwrap();
+            w.write_all(content).unwrap();
+            w.terminate().unwrap();
         }
 
         let mut keep = vec![];

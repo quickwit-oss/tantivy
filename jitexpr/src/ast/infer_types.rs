@@ -136,7 +136,7 @@ impl std::fmt::Display for InferredTypeSet {
     }
 }
 
-#[derive(Debug, thiserror::Error)]
+#[derive(Debug, thiserror::Error, Clone)]
 pub enum TypeError {
     #[error(transparent)]
     InvalidFnCall(#[from] InvalidFnCall),

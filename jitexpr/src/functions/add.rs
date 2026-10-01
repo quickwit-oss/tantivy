@@ -181,7 +181,10 @@ mod tests {
     fn test_infer_types_rejects_string_argument() {
         let expr = UntypedExpr::new_fn_call(
             Function::Add,
-            vec![UntypedExpr::literal(1.0), UntypedExpr::literal("hello")],
+            vec![
+                UntypedExpr::literal(Literal::try_from(1.0).unwrap()),
+                UntypedExpr::literal("hello"),
+            ],
         )
         .unwrap();
         let error = infer_types(&expr).unwrap_err();
@@ -387,7 +390,7 @@ mod tests {
             vec![
                 UntypedExpr::variable("myfield"),
                 UntypedExpr::literal(-2i64),
-                UntypedExpr::literal(0.5f64),
+                UntypedExpr::literal(Literal::try_from(0.5f64).unwrap()),
             ],
         )
         .unwrap();
@@ -428,7 +431,10 @@ mod tests {
     fn test_compile_u64_to_float_coercion_is_unsigned() {
         let expression = UntypedExpr::new_fn_call(
             Function::Add,
-            vec![UntypedExpr::variable("x"), UntypedExpr::literal(0.5f64)],
+            vec![
+                UntypedExpr::variable("x"),
+                UntypedExpr::literal(Literal::try_from(0.5f64).unwrap()),
+            ],
         )
         .unwrap();
         let variable_types = HashMap::from([("x", VarType::U64)]);
@@ -467,7 +473,10 @@ mod tests {
     fn test_compile_can_coerce_variable_when_necessary() {
         let expression = UntypedExpr::new_fn_call(
             Function::Add,
-            vec![UntypedExpr::variable("x"), UntypedExpr::literal(1.2f64)],
+            vec![
+                UntypedExpr::variable("x"),
+                UntypedExpr::literal(Literal::try_from(1.2f64).unwrap()),
+            ],
         )
         .unwrap();
         let variable_types = HashMap::from([("x", VarType::U64)]);
@@ -497,7 +506,10 @@ mod tests {
 
     #[test]
     fn test_no_variable_works() {
-        let args = vec![UntypedExpr::literal(1.2f64), UntypedExpr::literal(1u64)];
+        let args = vec![
+            UntypedExpr::literal(Literal::try_from(1.2f64).unwrap()),
+            UntypedExpr::literal(1u64),
+        ];
         let variable_types = HashMap::new();
         let typed_expr = crate::typed_expr_from_str("(ADD 1.2f64 1u64)", &variable_types);
         assert_eq!(typed_expr.return_type, VarType::F64);

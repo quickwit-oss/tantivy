@@ -15,7 +15,7 @@ use super::{
 };
 use crate::ast::{InferredTypeSet, Literal, UntypedExpr};
 use crate::functions::{declare_native_functions, register_jit_symbols};
-use crate::types::VarType;
+use crate::types::{SafeF64, VarType};
 
 pub(crate) struct CompileFnBuilder<'types, 'names> {
     variable_types: &'types HashMap<&'names str, VarType>,
@@ -109,8 +109,8 @@ impl<'types, 'names> CompileFnBuilder<'types, 'names> {
             match literal {
                 Literal::U64(value) => TypedLiteral::I64(*value as i64),
                 Literal::I64(value) => TypedLiteral::I64(*value),
-                Literal::F64(value) if f64_to_i64_lossless(*value).is_some() => {
-                    TypedLiteral::I64(f64_to_i64_lossless(*value).unwrap())
+                Literal::F64(value) if f64_to_i64_lossless(value.get()).is_some() => {
+                    TypedLiteral::I64(f64_to_i64_lossless(value.get()).unwrap())
                 }
                 _ => panic!("cannot coerce literal {literal:?} to i64"),
             }
@@ -118,15 +118,15 @@ impl<'types, 'names> CompileFnBuilder<'types, 'names> {
             match literal {
                 Literal::U64(value) => TypedLiteral::U64(*value),
                 Literal::I64(value) => TypedLiteral::U64(*value as u64),
-                Literal::F64(value) if f64_to_u64_lossless(*value).is_some() => {
-                    TypedLiteral::U64(f64_to_u64_lossless(*value).unwrap())
+                Literal::F64(value) if f64_to_u64_lossless(value.get()).is_some() => {
+                    TypedLiteral::U64(f64_to_u64_lossless(value.get()).unwrap())
                 }
                 _ => panic!("cannot coerce literal {literal:?} to u64"),
             }
         } else if intersection.contains(VarType::F64) {
             match literal {
-                Literal::U64(value) => TypedLiteral::F64(*value as f64),
-                Literal::I64(value) => TypedLiteral::F64(*value as f64),
+                Literal::U64(value) => TypedLiteral::F64(SafeF64::from_integer(*value)),
+                Literal::I64(value) => TypedLiteral::F64(SafeF64::from_integer(*value)),
                 Literal::F64(value) => TypedLiteral::F64(*value),
                 _ => panic!("cannot coerce literal {literal:?} to f64"),
             }

@@ -57,12 +57,11 @@ fn constant_precision(
         Literal::I64(value) => Some(*value),
         Literal::U64(value) => i64::try_from(*value).ok(),
         Literal::F64(value)
-            if value.is_finite()
-                && value.fract() == 0.0
-                && *value >= i64::MIN as f64
-                && *value < -(i64::MIN as f64) =>
+            if value.get().fract() == 0.0
+                && value.get() >= i64::MIN as f64
+                && value.get() < -(i64::MIN as f64) =>
         {
-            Some(*value as i64)
+            Some(value.get() as i64)
         }
         Literal::None => None,
         Literal::F64(_) | Literal::Bool(_) | Literal::String(_) => None,

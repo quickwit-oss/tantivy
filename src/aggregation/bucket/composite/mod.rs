@@ -15,8 +15,9 @@ use rustc_hash::FxHashMap;
 use serde::{Deserialize, Serialize};
 
 use crate::aggregation::agg_result::CompositeKey;
+pub(crate) use crate::aggregation::bucket::composite::accessors::CompositeAggReqData;
 pub use crate::aggregation::bucket::composite::accessors::{
-    CompositeAccessor, CompositeAggReqData, CompositeSourceAccessors, PrecomputedDateInterval,
+    CompositeAccessor, CompositeSourceAccessors, PrecomputedDateInterval,
 };
 pub use crate::aggregation::bucket::composite::collector::SegmentCompositeCollector;
 use crate::aggregation::bucket::composite::numeric_types::num_cmp::{

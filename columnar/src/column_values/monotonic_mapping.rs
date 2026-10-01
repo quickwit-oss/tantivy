@@ -9,6 +9,9 @@ use crate::RowId;
 /// Monotonic maps a value to u64 value space.
 /// Monotonic mapping enables `PartialOrd` on u64 space without conversion to original space.
 pub trait MonotonicallyMappableToU64: 'static + PartialOrd + Debug + Copy + Send + Sync {
+    /// Whether conversion to and from u64 leaves values unchanged.
+    const IS_IDENTITY: bool = false;
+
     /// Converts a value to u64.
     ///
     /// Internally all fast field values are encoded as u64.
@@ -32,6 +35,10 @@ pub trait MonotonicallyMappableToU64: 'static + PartialOrd + Debug + Copy + Send
 /// so a value can be converted back to its original domain (e.g. ip address or f64) from its
 /// internal representation.
 pub trait StrictlyMonotonicFn<External, Internal> {
+    /// Whether both mapping directions leave values unchanged.
+    /// Only used to bypass mapping when the input and output types also match.
+    const IS_IDENTITY: bool = false;
+
     /// Strictly monotonically maps the value from External to Internal.
     fn mapping(&self, inp: External) -> Internal;
     /// Inverse of `mapping`. Maps the value from Internal to External.
@@ -58,6 +65,8 @@ impl<T> From<T> for StrictlyMonotonicMappingInverter<T> {
 impl<From, To, T> StrictlyMonotonicFn<To, From> for StrictlyMonotonicMappingInverter<T>
 where T: StrictlyMonotonicFn<From, To>
 {
+    const IS_IDENTITY: bool = T::IS_IDENTITY;
+
     #[inline(always)]
     fn mapping(&self, val: To) -> From {
         self.orig_mapping.inverse(val)
@@ -86,6 +95,8 @@ impl<External: MonotonicallyMappableToU128, T: MonotonicallyMappableToU128>
     StrictlyMonotonicFn<External, u128> for StrictlyMonotonicMappingToInternal<T>
 where T: MonotonicallyMappableToU128
 {
+    const IS_IDENTITY: bool = External::IS_IDENTITY;
+
     #[inline(always)]
     fn mapping(&self, inp: External) -> u128 {
         External::to_u128(inp)
@@ -101,6 +112,8 @@ impl<External: MonotonicallyMappableToU64, T: MonotonicallyMappableToU64>
     StrictlyMonotonicFn<External, u64> for StrictlyMonotonicMappingToInternal<T>
 where T: MonotonicallyMappableToU64
 {
+    const IS_IDENTITY: bool = External::IS_IDENTITY;
+
     #[inline(always)]
     fn mapping(&self, inp: External) -> u64 {
         External::to_u64(inp)
@@ -113,6 +126,8 @@ where T: MonotonicallyMappableToU64
 }
 
 impl MonotonicallyMappableToU64 for u64 {
+    const IS_IDENTITY: bool = true;
+
     #[inline(always)]
     fn to_u64(self) -> u64 {
         self

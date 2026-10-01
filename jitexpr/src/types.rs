@@ -1,5 +1,9 @@
 //! Source types and nullable runtime value representations.
 
+use std::cmp::Ordering;
+use std::fmt;
+use std::hash::{Hash, Hasher};
+
 /// A value type supported by compiled expressions.
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq, Ord, PartialOrd)]
 pub enum VarType {
@@ -9,6 +13,82 @@ pub enum VarType {
     I64,
     Str,
     None,
+}
+
+/// Wraps a f64 that is not inf, nor Nan, nor neg 0.
+#[derive(Copy, Clone)]
+pub struct SafeF64(f64);
+
+impl SafeF64 {
+    /// Returns `None` for NaN and for either infinity.
+    ///
+    /// A negative zero is accepted, and folded to `0.0`.
+    pub fn new(val: f64) -> Option<Self> {
+        if val.is_nan() || val.is_infinite() {
+            return None;
+        }
+        if val == 0.0 {
+            // True of both zeros; `0.0` is the representative.
+            Some(SafeF64(0.0))
+        } else {
+            Some(SafeF64(val))
+        }
+    }
+
+    /// Converts an integer to the nearest `f64`.
+    ///
+    /// Total, hence infallible: every `i64` and `u64` magnitude is far inside
+    /// `f64`'s finite range, so no non-finite value can come out. The
+    /// conversion may still round, exactly as `as f64` would.
+    pub fn from_integer(value: impl Into<i128>) -> SafeF64 {
+        SafeF64(value.into() as f64)
+    }
+
+    /// Returns the wrapped value, which is guaranteed finite.
+    pub fn get(self) -> f64 {
+        self.0
+    }
+}
+
+/// Forwards to the wrapped `f64`, so a `SafeF64` is indistinguishable from the
+/// number it holds.
+impl fmt::Debug for SafeF64 {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fmt::Debug::fmt(&self.0, formatter)
+    }
+}
+
+impl PartialEq for SafeF64 {
+    fn eq(&self, other: &SafeF64) -> bool {
+        self.0 == other.0
+    }
+}
+
+// Sound because NaN is excluded, so equality is reflexive.
+impl Eq for SafeF64 {}
+
+impl Ord for SafeF64 {
+    #[inline(always)]
+    fn cmp(&self, other: &SafeF64) -> Ordering {
+        self.0
+            .partial_cmp(&other.0)
+            .expect("SafeF64 excludes NaN, so values are totally ordered")
+    }
+}
+
+impl PartialOrd for SafeF64 {
+    #[inline(always)]
+    fn partial_cmp(&self, other: &SafeF64) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+/// Hashes the bit pattern. Because we remove NaN Inf and -0.0,
+/// this is consistent with equality. (x == y => hash(x) == hash(y)).
+impl Hash for SafeF64 {
+    fn hash<H: Hasher>(&self, hasher: &mut H) {
+        self.0.to_bits().hash(hasher);
+    }
 }
 
 /// The payload of a primitive runtime value.
@@ -291,7 +371,121 @@ impl<'a> From<VariablePrimitiveOpt> for VariableValue<'a> {
 
 #[cfg(test)]
 mod tests {
-    use crate::types::{VariablePrimitive, VariablePrimitiveOpt, VariableValue};
+    use std::cmp::Ordering;
+    use std::collections::hash_map::DefaultHasher;
+    use std::hash::{Hash, Hasher};
+
+    use crate::types::{SafeF64, VariablePrimitive, VariablePrimitiveOpt, VariableValue};
+
+    fn safe(val: f64) -> SafeF64 {
+        SafeF64::new(val).unwrap()
+    }
+
+    fn hash_of(val: SafeF64) -> u64 {
+        let mut hasher = DefaultHasher::new();
+        val.hash(&mut hasher);
+        hasher.finish()
+    }
+
+    /// Values spanning both zeros -- which fold together -- and both extremes.
+    fn sample_values() -> Vec<SafeF64> {
+        [
+            -0.0f64,
+            0.0,
+            1.0,
+            -1.0,
+            1.5,
+            -1.5,
+            f64::MIN,
+            f64::MAX,
+            f64::MIN_POSITIVE,
+        ]
+        .into_iter()
+        .map(safe)
+        .collect()
+    }
+
+    #[test]
+    fn test_safe_f64_rejects_non_finite() {
+        assert!(SafeF64::new(f64::NAN).is_none());
+        assert!(SafeF64::new(-f64::NAN).is_none());
+        assert!(SafeF64::new(f64::INFINITY).is_none());
+        assert!(SafeF64::new(f64::NEG_INFINITY).is_none());
+        assert_eq!(SafeF64::new(1.5).unwrap().get(), 1.5);
+        assert_eq!(SafeF64::new(f64::MAX).unwrap().get(), f64::MAX);
+    }
+
+    #[test]
+    fn test_safe_f64_eq_and_ord_laws() {
+        let values = sample_values();
+        for left in &values {
+            // Reflexivity is what NaN would have broken, making `Eq` unsound.
+            assert_eq!(left, left);
+            assert_eq!(left.cmp(left), Ordering::Equal);
+            for right in &values {
+                assert_eq!(left == right, right == left, "symmetry");
+                assert_eq!(left.cmp(right), right.cmp(left).reverse(), "antisymmetry");
+                // `Ord` must agree with `Eq`, and `Hash` with both.
+                assert_eq!(
+                    left == right,
+                    left.cmp(right) == Ordering::Equal,
+                    "cmp agrees with eq"
+                );
+                if left == right {
+                    assert_eq!(hash_of(*left), hash_of(*right), "equal values hash equally");
+                }
+                for third in &values {
+                    if left == right && right == third {
+                        assert_eq!(left, third, "transitivity of eq");
+                    }
+                    if left <= right && right <= third {
+                        assert!(left <= third, "transitivity of ord");
+                    }
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn test_safe_f64_folds_negative_zero() {
+        // The fold happens on the way in, so there is a single zero to compare.
+        assert_eq!(safe(-0.0).get().to_bits(), 0.0f64.to_bits());
+        assert!(!safe(-0.0).get().is_sign_negative());
+        assert_eq!(
+            SafeF64::from_integer(0i64).get().to_bits(),
+            0.0f64.to_bits()
+        );
+
+        assert_eq!(safe(-0.0), safe(0.0));
+        assert_eq!(safe(-0.0).cmp(&safe(0.0)), Ordering::Equal);
+        assert_eq!(hash_of(safe(-0.0)), hash_of(safe(0.0)));
+    }
+
+    #[test]
+    fn test_safe_f64_sorts_in_numeric_order() {
+        let mut values = sample_values();
+        values.sort();
+        let sorted: Vec<f64> = values.iter().map(|value| value.get()).collect();
+        assert_eq!(
+            sorted,
+            vec![
+                f64::MIN,
+                -1.5,
+                -1.0,
+                -0.0,
+                0.0,
+                f64::MIN_POSITIVE,
+                1.0,
+                1.5,
+                f64::MAX
+            ]
+        );
+    }
+
+    #[test]
+    fn test_safe_f64_debug_is_transparent() {
+        assert_eq!(format!("{:?}", safe(1.5)), format!("{:?}", 1.5f64));
+    }
 
     #[test]
     fn test_runtime_value_layouts() {

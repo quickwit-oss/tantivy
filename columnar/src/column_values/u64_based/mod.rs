@@ -114,7 +114,7 @@ impl CodecType {
         bytes: OwnedBytes,
     ) -> io::Result<Arc<dyn ColumnValues<T>>> {
         match self {
-            CodecType::Bitpacked => load_specific_codec::<BitpackedCodec, T>(bytes),
+            CodecType::Bitpacked => bitpacked::load::<T>(bytes),
             CodecType::Linear => load_specific_codec::<LinearCodec, T>(bytes),
             CodecType::BlockwiseLinear => load_specific_codec::<BlockwiseLinearCodec, T>(bytes),
         }
@@ -124,12 +124,16 @@ impl CodecType {
 fn load_specific_codec<C: ColumnCodec, T: MonotonicallyMappableToU64>(
     bytes: OwnedBytes,
 ) -> io::Result<Arc<dyn ColumnValues<T>>> {
-    let reader = C::load(bytes)?;
-    let reader_typed = monotonic_map_column(
+    Ok(map_column_values::<_, T>(C::load(bytes)?))
+}
+
+fn map_column_values<C: ColumnValues + 'static, T: MonotonicallyMappableToU64>(
+    reader: C,
+) -> Arc<dyn ColumnValues<T>> {
+    monotonic_map_column(
         reader,
         StrictlyMonotonicMappingInverter::from(StrictlyMonotonicMappingToInternal::<T>::new()),
-    );
-    Ok(Arc::new(reader_typed))
+    )
 }
 
 impl CodecType {
