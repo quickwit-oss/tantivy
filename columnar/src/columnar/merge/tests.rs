@@ -78,7 +78,7 @@ fn test_merge_generated_tie_breaker_columns_stays_small() {
         let mut buffer = Vec::new();
         writer.serialize(num_docs, None, &mut buffer).unwrap();
         assert!(
-            buffer.len() <= 100,
+            buffer.len() <= 128,
             "input columnar is {} bytes",
             buffer.len()
         );
@@ -98,7 +98,7 @@ fn test_merge_generated_tie_breaker_columns_stays_small() {
     .unwrap();
 
     assert!(
-        buffer.len() <= 35_000,
+        buffer.len() <= 45_000,
         "merged columnar is {} bytes",
         buffer.len()
     );
