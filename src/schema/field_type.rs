@@ -191,6 +191,8 @@ pub enum FieldType {
     /// Unsigned 64-bits integers field type configuration
     U64(NumericOptions),
     /// Generated tie-breaker field, exposed as a `u64` fast field.
+    ///
+    /// Values are almost always distinct, but not guaranteed to be unique across segments.
     TieBreaker,
     /// Signed 64-bits integers 64 field type configuration
     I64(NumericOptions),

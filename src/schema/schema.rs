@@ -62,6 +62,10 @@ impl SchemaBuilder {
     /// The field is exposed as a `u64` fast field, but its generated values fit in a `u32`.
     /// Values supplied by documents for this field are ignored.
     ///
+    /// Values are consecutive within a segment, starting at a random offset. Ranges of
+    /// different segments may overlap, so values are almost always distinct but not
+    /// guaranteed to be unique.
+    ///
     /// # Panics
     ///
     /// Panics when field already exists.

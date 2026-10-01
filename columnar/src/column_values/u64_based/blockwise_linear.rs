@@ -11,7 +11,7 @@ use crate::column_values::u64_based::line::Line;
 use crate::column_values::u64_based::{ColumnCodec, ColumnCodecEstimator, ColumnStats};
 use crate::column_values::{ColumnValues, VecColumn};
 
-pub(crate) const BLOCK_SIZE: u32 = 512u32;
+const BLOCK_SIZE: u32 = 512u32;
 
 #[derive(Debug, Default)]
 struct Block {

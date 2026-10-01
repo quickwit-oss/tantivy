@@ -30,15 +30,13 @@ pub(crate) fn serialize_generated_tie_breaker_column(
     num_docs: u32,
     output: &mut impl Write,
 ) -> io::Result<()> {
-    let max_start = u32::MAX - num_docs.saturating_sub(1);
-    let random = rand::rng().random::<u32>();
-    let start = ((random as u64 * (u64::from(max_start) + 1)) >> 32) as u32;
-    let values: Vec<u64> = (0..num_docs)
-        .map(|offset| (start + offset) as u64)
-        .collect();
+    let max_start = (u32::MAX - num_docs.saturating_sub(1)) as u64;
+    let start: u64 = rand::rng().random_range(0..=max_start);
+    let end = start + num_docs as u64;
+    let values = start..end;
     let column_index_num_bytes = serialize_column_index(SerializableColumnIndex::Full, output)?;
     serialize_u64_based_column_values(
-        &&values[..],
+        &values,
         &[
             CodecType::Bitpacked,
             CodecType::Linear,

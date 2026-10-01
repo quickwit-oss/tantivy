@@ -12,7 +12,7 @@ use crate::schema::document::{
     DeserializeError, Document, DocumentDeserialize, DocumentDeserializer,
 };
 use crate::schema::field_type::ValueParsingError;
-use crate::schema::{Facet, Field, NamedFieldDocument, OwnedValue, Schema};
+use crate::schema::{Facet, Field, FieldType, NamedFieldDocument, OwnedValue, Schema};
 use crate::tokenizer::PreTokenizedString;
 
 #[repr(C, packed)]
@@ -219,6 +219,9 @@ impl CompactDoc {
             if let Ok(field) = schema.get_field(&field_name) {
                 let field_entry = schema.get_field_entry(field);
                 let field_type = field_entry.field_type();
+                if matches!(field_type, FieldType::TieBreaker) {
+                    continue;
+                }
                 match json_value {
                     serde_json::Value::Array(json_items) => {
                         for json_item in json_items {
@@ -750,6 +753,19 @@ mod tests {
         let schema = schema_builder.build();
         let _val = doc.get_first(text_field).unwrap();
         let _json = doc.to_named_doc(&schema);
+    }
+
+    #[test]
+    fn test_parse_json_ignores_tie_breaker_values() {
+        let mut schema_builder = Schema::builder();
+        let title = schema_builder.add_text_field("title", TEXT);
+        let tie = schema_builder.add_tie_breaker_field("tie");
+        let schema = schema_builder.build();
+        let doc =
+            TantivyDocument::parse_json(&schema, r#"{"title": "hello", "tie": [1, "two", null]}"#)
+                .unwrap();
+        assert!(doc.get_first(title).is_some());
+        assert!(doc.get_first(tie).is_none());
     }
 
     #[test]
