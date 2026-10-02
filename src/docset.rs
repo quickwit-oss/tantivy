@@ -223,6 +223,7 @@ pub trait DocSet: Send {
     }
 }
 
+/// The result of [`DocSet::seek_danger`].
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum SeekDangerResult {
     /// The target was found in the DocSet.
