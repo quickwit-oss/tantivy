@@ -1,3 +1,4 @@
+use std::collections::hash_map::Entry;
 use std::fmt::Debug;
 use std::hash::Hash;
 use std::net::Ipv6Addr;
@@ -1351,15 +1352,16 @@ where
             let mut dict: FxHashMap<IntermediateKey, IntermediateTermBucketEntry> =
                 FxHashMap::with_capacity_and_hasher(entries.len(), Default::default());
 
-            if let Some((intermediate_key, bucket)) = extract_missing_value(&mut entries, term_req)
-            {
-                let intermediate_entry = into_intermediate_bucket_entry(
-                    bucket,
-                    reborrow_opt_collector(&mut sub_agg_collector),
-                    agg_data,
-                )?;
-                dict.insert(intermediate_key, intermediate_entry);
-            }
+            let missing_entry = extract_missing_value(&mut entries, term_req)
+                .map(|(intermediate_key, bucket)| {
+                    let intermediate_entry = into_intermediate_bucket_entry(
+                        bucket,
+                        reborrow_opt_collector(&mut sub_agg_collector),
+                        agg_data,
+                    )?;
+                    crate::Result::Ok((intermediate_key, intermediate_entry))
+                })
+                .transpose()?;
 
             // Sort by term ord
             entries.sort_unstable_by_key(|bucket| bucket.0);
@@ -1389,6 +1391,23 @@ where
                     intermediate_entry,
                 );
             })?;
+
+            // Inserted after the real terms so that it is merged into, rather than overwritten
+            // by, a term equal to the `missing` key.
+            if let Some((missing_key, missing_entry)) = missing_entry {
+                match dict.entry(missing_key) {
+                    Entry::Occupied(mut existing) => {
+                        let existing = existing.get_mut();
+                        existing.doc_count += missing_entry.doc_count;
+                        existing
+                            .sub_aggregation
+                            .merge_fruits(missing_entry.sub_aggregation)?;
+                    }
+                    Entry::Vacant(vacant) => {
+                        vacant.insert(missing_entry);
+                    }
+                }
+            }
 
             if term_req.req.min_doc_count == 0 {
                 // TODO: Handle rev streaming for descending sorting by keys
@@ -3450,6 +3469,52 @@ mod tests {
         assert_eq!(res["my_ids"]["buckets"][1]["key"], 1.0);
         assert_eq!(res["my_ids"]["buckets"][1]["doc_count"], 2);
         assert_eq!(res["my_ids"]["buckets"][2]["key"], serde_json::Value::Null);
+
+        Ok(())
+    }
+    #[test]
+    fn terms_aggregation_missing_key_equals_existing_term() -> crate::Result<()> {
+        let mut schema_builder = Schema::builder();
+        let text_field = schema_builder.add_text_field("text", FAST);
+        let score_field = schema_builder.add_u64_field("score", FAST);
+        let index = Index::create_in_ram(schema_builder.build());
+        {
+            let mut index_writer = index.writer_with_num_threads(1, 20_000_000)?;
+            index_writer.add_document(doc!(text_field => "foo", score_field => 1u64))?;
+            index_writer.add_document(doc!(text_field => "bar", score_field => 2u64))?;
+            index_writer.add_document(doc!(text_field => "bar", score_field => 3u64))?;
+            // No text value: counted in the `missing` bucket, whose key is the existing "bar".
+            index_writer.add_document(doc!(score_field => 10u64))?;
+            index_writer.commit()?;
+        }
+
+        let agg_req: Aggregations = serde_json::from_value(json!({
+            "my_texts": {
+                "terms": {
+                    "field": "text",
+                    "missing": "bar",
+                    "order": { "_key": "asc" }
+                },
+                "aggs": {
+                    "max_score": { "max": { "field": "score" } }
+                }
+            }
+        }))
+        .unwrap();
+
+        let res = exec_request_with_query(agg_req, &index, None)?;
+
+        assert_eq!(res["my_texts"]["buckets"][0]["key"], "bar");
+        assert_eq!(res["my_texts"]["buckets"][0]["doc_count"], 3);
+        assert_eq!(res["my_texts"]["buckets"][0]["max_score"]["value"], 10.0);
+        assert_eq!(res["my_texts"]["buckets"][1]["key"], "foo");
+        assert_eq!(res["my_texts"]["buckets"][1]["doc_count"], 1);
+        assert_eq!(res["my_texts"]["buckets"][1]["max_score"]["value"], 1.0);
+        assert_eq!(
+            res["my_texts"]["buckets"][2]["key"],
+            serde_json::Value::Null
+        );
+        assert_eq!(res["my_texts"]["sum_other_doc_count"], 0);
 
         Ok(())
     }
