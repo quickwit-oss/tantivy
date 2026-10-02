@@ -280,7 +280,7 @@ impl<TDocSet: DocSet, TOtherDocSet: DocSet> Intersection<TDocSet, TOtherDocSet> 
 
     /// Dense block-wise bitmask intersection count.
     ///
-    /// Fills a 1024-doc window from each iterator, ANDs the bitmasks together,
+    /// Fills a 4096-doc window from each iterator, ANDs the bitmasks together,
     /// and popcounts the result. `fill_bitset_block` handles seeking tails forward
     /// when they lag behind the current block.
     fn count_including_deleted_dense(&mut self) -> u32 {
@@ -576,7 +576,7 @@ mod tests {
         assert_eq!(intersection.count_including_deleted(), expected);
     }
 
-    /// Test that spans multiple blocks (>1024 docs).
+    /// Test that spans multiple blocks (>4096 docs).
     #[test]
     fn test_count_including_deleted_multi_block() {
         let docs_a: Vec<u32> = (0..5000).collect();
