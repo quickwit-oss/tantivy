@@ -14,7 +14,7 @@ use smallvec::SmallVec;
 
 use super::{BucketIdSlot, CustomOrder, Order, OrderTarget};
 use crate::aggregation::agg_data::{
-    build_segment_agg_collectors, AggRefNode, AggregationsSegmentCtx, PerRequestAggSegCtx,
+    build_sub_agg_collectors, find_sub_agg, AggNode, AggregationsSegmentCtx,
 };
 use crate::aggregation::agg_req::Aggregations;
 use crate::aggregation::bucket::term_agg::{
@@ -158,7 +158,7 @@ impl MultiTermsFieldAccessor {
 }
 
 /// Per-request data bundle passed to the segment collector.
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub(crate) struct MultiTermsAggReqData {
     /// Aggregation name used to look up this entry in the result tree.
     pub(crate) name: String,
@@ -229,7 +229,7 @@ fn fetch_field_block(
     let missing_value = block_missing_value(missing);
     block_accessor.fetch_block_with_missing_unique_per_doc(
         docs,
-        &(&field.column, field.column_type),
+        &mut (&field.column, field.column_type),
         missing_value,
         true,
     );
@@ -376,8 +376,7 @@ where
 /// exists.
 fn validate_multi_terms(
     req_data: &MultiTermsAggReqData,
-    node: &AggRefNode,
-    per_request: &PerRequestAggSegCtx,
+    children: &[AggNode],
 ) -> crate::Result<()> {
     if req_data.fields.is_empty() {
         return Err(TantivyError::InvalidArgument(
@@ -405,7 +404,7 @@ fn validate_multi_terms(
     let req_agg = MultiTermsAggregationInternal::from_req(&req_data.req);
     if let OrderTarget::SubAggregation(sub_agg_name) = &req_agg.order.target {
         let (agg_name, _) = get_agg_name_and_property(sub_agg_name);
-        node.get_sub_agg(agg_name, per_request).ok_or_else(|| {
+        find_sub_agg(children, agg_name).ok_or_else(|| {
             TantivyError::InvalidArgument(format!(
                 "could not find aggregation with name {agg_name} in metric sub_aggregations"
             ))
@@ -519,16 +518,17 @@ fn expand_partial_combinations_for_field<Packing: MultiTermsPacking>(
 /// uses [`MultiTermsKey`].
 pub(crate) fn build_segment_multi_terms_collector(
     req: &mut AggregationsSegmentCtx,
-    node: &AggRefNode,
+    req_data: MultiTermsAggReqData,
+    children: Vec<AggNode>,
 ) -> crate::Result<Box<dyn SegmentAggregationCollector>> {
-    let req_data = req.per_request.multi_terms_req_data[node.idx_in_req_data].clone();
-    validate_multi_terms(&req_data, node, &req.per_request)?;
+    validate_multi_terms(&req_data, &children)?;
+    let sub_agg = build_sub_agg_collectors(req, children)?;
 
     let packed_layout = compute_packed_u64_layout(&req_data.fields, &req_data.missing_accessors);
-    if node.children.is_empty() {
-        build_multi_terms_collector::<()>(req, node, req_data, packed_layout)
+    if sub_agg.is_none() {
+        build_multi_terms_collector::<()>(req, sub_agg, req_data, packed_layout)
     } else {
-        build_multi_terms_collector::<BucketId>(req, node, req_data, packed_layout)
+        build_multi_terms_collector::<BucketId>(req, sub_agg, req_data, packed_layout)
     }
 }
 
@@ -974,7 +974,7 @@ struct PackedU64KeyPacking {
 /// Selects the key packing and bucket storage, then boxes the concrete collector.
 fn build_multi_terms_collector<BucketSlot: BucketIdSlot>(
     req: &mut AggregationsSegmentCtx,
-    node: &AggRefNode,
+    sub_agg: Option<Box<dyn SegmentAggregationCollector>>,
     req_data: MultiTermsAggReqData,
     packed_layout: Option<Vec<FieldPack>>,
 ) -> crate::Result<Box<dyn SegmentAggregationCollector>> {
@@ -984,12 +984,9 @@ fn build_multi_terms_collector<BucketSlot: BucketIdSlot>(
         let num_terms = max_packed.saturating_add(1);
         let packing = PackedU64KeyPacking { packs };
 
-        if is_top_level
-            && !node.children.is_empty()
-            && max_packed < MAX_NUM_TERMS_FOR_LOWCARD_SUBAGG
-        {
+        if is_top_level && sub_agg.is_some() && max_packed < MAX_NUM_TERMS_FOR_LOWCARD_SUBAGG {
             return box_multi_terms_collector::<LowCardSubAggBuffer, _, VecTermBuckets<BucketSlot>>(
-                req, node, req_data, packing, num_terms, true,
+                req, sub_agg, req_data, packing, num_terms, true,
             );
         }
         if is_top_level && max_packed < MAX_NUM_TERMS_FOR_VEC {
@@ -998,19 +995,19 @@ fn build_multi_terms_collector<BucketSlot: BucketIdSlot>(
                     HighCardSubAggBuffer,
                     _,
                     VecTermBuckets<BucketSlot, true>,
-                >(req, node, req_data, packing, num_terms, true);
+                >(req, sub_agg, req_data, packing, num_terms, true);
             }
             return box_multi_terms_collector::<HighCardSubAggBuffer, _, VecTermBuckets<BucketSlot>>(
-                req, node, req_data, packing, num_terms, true,
+                req, sub_agg, req_data, packing, num_terms, true,
             );
         }
         if is_top_level && max_packed < MAX_NUM_TERMS_FOR_PAGED_MAP {
             return box_multi_terms_collector::<HighCardSubAggBuffer, _, PagedTermMap<BucketSlot>>(
-                req, node, req_data, packing, max_packed, false,
+                req, sub_agg, req_data, packing, max_packed, false,
             );
         }
         return box_multi_terms_collector::<HighCardSubAggBuffer, _, HashMapTermBuckets<BucketSlot>>(
-            req, node, req_data, packing, 0, false,
+            req, sub_agg, req_data, packing, 0, false,
         );
     }
 
@@ -1021,12 +1018,12 @@ fn build_multi_terms_collector<BucketSlot: BucketIdSlot>(
         HighCardSubAggBuffer,
         _,
         HashMapTermBuckets<BucketSlot, MultiTermsKey>,
-    >(req, node, req_data, packing, 0, false)
+    >(req, sub_agg, req_data, packing, 0, false)
 }
 
 fn box_multi_terms_collector<Buffer, Packing, BucketMap>(
     req: &mut AggregationsSegmentCtx,
-    node: &AggRefNode,
+    sub_agg: Option<Box<dyn SegmentAggregationCollector>>,
     req_data: MultiTermsAggReqData,
     packing: Packing,
     map_init_value: u64,
@@ -1044,13 +1041,7 @@ where
             .limits
             .add_memory_consumed(buckets.get_memory_consumption() as u64)?;
     }
-    let sub_agg = if node.children.is_empty() {
-        None
-    } else {
-        Some(BufferedSubAggs::<Buffer>::new(
-            build_segment_agg_collectors(req, &node.children)?,
-        ))
-    };
+    let sub_agg = sub_agg.map(BufferedSubAggs::<Buffer>::new);
     let all_fields_full = req_data
         .fields
         .iter()

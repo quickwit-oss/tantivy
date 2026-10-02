@@ -14,7 +14,7 @@ impl ValueSource for Constant {
     }
 
     fn load_block(
-        &self,
+        &mut self,
         docs: &[DocId],
         values: &mut Vec<u64>,
         _docids: &mut Vec<DocId>,
@@ -29,8 +29,8 @@ impl ValueSource for Constant {
 pub(crate) struct ConstantProvider(pub u64);
 
 impl ValueSourceProvider for ConstantProvider {
-    fn for_segment(&self, _reader: &SegmentReader) -> crate::Result<Arc<dyn ValueSource>> {
-        Ok(Arc::new(Constant(self.0)))
+    fn for_segment(&self, _reader: &SegmentReader) -> crate::Result<Box<dyn ValueSource>> {
+        Ok(Box::new(Constant(self.0)))
     }
 }
 fn index_with_scores(scores: &[u64]) -> crate::Index {

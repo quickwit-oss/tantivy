@@ -12,7 +12,7 @@ use std::sync::Arc;
 use columnar::column_values::CompactSpaceU64Accessor;
 use columnar::ColumnType;
 
-use super::CardinalityCollector;
+use super::{CardinalityAggReqData, CardinalityCollector};
 use crate::aggregation::agg_data::AggregationsSegmentCtx;
 use crate::aggregation::intermediate_agg_result::{
     IntermediateAggregationResult, IntermediateAggregationResults, IntermediateMetricResult,
@@ -32,9 +32,10 @@ pub(crate) struct SegmentNumericCardinalityCollector {
     /// Buckets are Some(_) until they get consumed by
     /// `add_intermediate_aggregation_result`.
     buckets: Vec<Option<CardinalityCollector>>,
-    accessor_idx: usize,
+    /// The name of the aggregation.
+    name: String,
     /// The column accessor to access the fast field values.
-    accessor: Arc<dyn ValueSource>,
+    accessor: Box<dyn ValueSource>,
     /// The column_type of the field.
     column_type: ColumnType,
     /// Set iff `column_type == ColumnType::IpAddr`. Resolved once at
@@ -58,11 +59,13 @@ impl Debug for SegmentNumericCardinalityCollector {
 }
 
 impl SegmentNumericCardinalityCollector {
-    pub fn from_req(
-        accessor_idx: usize,
-        accessor: Arc<dyn ValueSource>,
-        missing_value_for_accessor: Option<u64>,
-    ) -> crate::Result<Self> {
+    pub(crate) fn from_req(req_data: CardinalityAggReqData) -> crate::Result<Self> {
+        let CardinalityAggReqData {
+            accessor,
+            missing_value_for_accessor,
+            name,
+            ..
+        } = req_data;
         let column_type = accessor.column_type();
         assert_ne!(column_type, ColumnType::Str);
         let compact_space_accessor = if column_type == ColumnType::IpAddr {
@@ -92,7 +95,7 @@ impl SegmentNumericCardinalityCollector {
         };
         Ok(Self {
             buckets: Vec::new(),
-            accessor_idx,
+            name,
             accessor,
             column_type,
             compact_space_accessor,
@@ -109,10 +112,7 @@ impl SegmentAggregationCollector for SegmentNumericCardinalityCollector {
         bucket_id: BucketId,
     ) -> crate::Result<()> {
         self.prepare_max_bucket(bucket_id, agg_data)?;
-        let name = agg_data
-            .get_cardinality_req_data(self.accessor_idx)
-            .name
-            .to_string();
+        let name = self.name.clone();
         // take the bucket in buckets and replace it with a new empty one
         let Some(cardinality) = self.buckets[bucket_id as usize].take() else {
             return Err(crate::TantivyError::InternalError(
@@ -136,7 +136,7 @@ impl SegmentAggregationCollector for SegmentNumericCardinalityCollector {
     ) -> crate::Result<()> {
         agg_data.column_block_accessor.fetch_block_with_missing(
             docs,
-            &*self.accessor,
+            &mut *self.accessor,
             self.missing_value_for_accessor,
         );
         let cardinality = self.buckets[parent_bucket_id as usize]
@@ -179,10 +179,9 @@ impl SegmentAggregationCollector for SegmentNumericCardinalityCollector {
         bucket_id: BucketId,
         sub_agg_name: &str,
         sub_agg_property: &str,
-        agg_data: &AggregationsSegmentCtx,
+        _agg_data: &AggregationsSegmentCtx,
     ) -> Option<f64> {
-        let req_data = &agg_data.get_cardinality_req_data(self.accessor_idx);
-        if req_data.name != sub_agg_name || !sub_agg_property.is_empty() {
+        if self.name != sub_agg_name || !sub_agg_property.is_empty() {
             return None;
         }
         let cardinality = self.buckets.get(bucket_id as usize)?.as_ref()?;

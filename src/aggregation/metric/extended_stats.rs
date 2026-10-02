@@ -1,6 +1,5 @@
 use std::fmt::Debug;
 use std::mem;
-use std::sync::Arc;
 
 use serde::{Deserialize, Serialize};
 
@@ -318,23 +317,23 @@ impl IntermediateExtendedStats {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Debug)]
 pub(crate) struct SegmentExtendedStatsCollector {
     name: String,
     missing: Option<u64>,
-    accessor: Arc<dyn ValueSource>,
+    accessor: Box<dyn ValueSource>,
     buckets: Vec<IntermediateExtendedStats>,
     sigma: Option<f64>,
 }
 
 impl SegmentExtendedStatsCollector {
-    pub fn from_req(req: &MetricAggReqData, sigma: Option<f64>) -> Self {
+    pub(crate) fn from_req(req: MetricAggReqData, sigma: Option<f64>) -> Self {
         let missing = req
             .missing
             .and_then(|val| f64_to_fastfield_u64(val, &req.accessor.column_type()));
         Self {
-            name: req.name.clone(),
-            accessor: req.accessor.clone(),
+            name: req.name,
+            accessor: req.accessor,
             missing,
             buckets: vec![IntermediateExtendedStats::with_sigma(sigma); 16],
             sigma,
@@ -374,7 +373,7 @@ impl SegmentAggregationCollector for SegmentExtendedStatsCollector {
 
         agg_data.column_block_accessor.fetch_block_with_missing(
             docs,
-            &*self.accessor,
+            &mut *self.accessor,
             self.missing,
         );
         let field_type = self.accessor.column_type();

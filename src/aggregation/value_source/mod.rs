@@ -35,8 +35,11 @@ pub trait ValueSource: std::fmt::Debug {
     ///   `docids[i]`. `docids` only contains docs from `docs`. A doc is repeated once per value.
     ///
     /// `row_ids` is scratch the implementation may use freely.
+    ///
+    /// Takes `&mut self` so that implementations can keep per-segment state (caches, scratch
+    /// buffers) across blocks. Each source is owned by a single collector.
     fn load_block(
-        &self,
+        &mut self,
         docs: &[DocId],
         values: &mut Vec<u64>,
         docids: &mut Vec<DocId>,
@@ -64,7 +67,7 @@ impl<ColumnRef: Borrow<Column<u64>> + std::fmt::Debug> ValueSource for (ColumnRe
 
     #[inline]
     fn load_block(
-        &self,
+        &mut self,
         docs: &[DocId],
         values: &mut Vec<u64>,
         docids: &mut Vec<DocId>,

@@ -1,12 +1,10 @@
 use std::fmt::Debug;
-use std::rc::Rc;
 
 use common::BitSet;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
-use crate::aggregation::agg_data::{
-    build_segment_agg_collectors, AggRefNode, AggregationsSegmentCtx,
-};
+use crate::aggregation::agg_data::{build_sub_agg_collectors, AggNode, AggregationsSegmentCtx};
+use crate::aggregation::agg_limits::MemoryConsumption;
 use crate::aggregation::buffered_sub_aggs::{
     BufferedSubAggs, HighCardSubAggBuffer, LowCardSubAggBuffer, SubAggBuffer,
 };
@@ -397,27 +395,21 @@ impl PartialEq for FilterAggregation {
 
 /// Request data for filter aggregation
 /// This struct holds the per-segment data needed to execute a filter aggregation
-#[derive(Clone)]
 pub(crate) struct FilterAggReqData {
     /// The name of the filter aggregation
     pub(crate) name: String,
     /// The segment reader
     pub(crate) segment_reader: SegmentReader,
     /// Document evaluator for the filter query (precomputed BitSet).
-    /// Wrapped in `Rc` so cloning the request data does not duplicate the (potentially large)
-    /// underlying BitSet.
-    pub(crate) evaluator: Rc<DocumentQueryEvaluator>,
+    pub(crate) evaluator: DocumentQueryEvaluator,
     /// True if this filter aggregation is at the top level of the aggregation tree (not nested).
     pub(crate) is_top_level: bool,
 }
 
 impl FilterAggReqData {
     pub(crate) fn get_memory_consumption(&self) -> usize {
-        // Estimate: name + segment reader reference + bitset
-        self.name.len()
-        + std::mem::size_of::<SegmentReader>()
-        + self.evaluator.bitset.len() / 8 // BitSet memory (bits to bytes)
-        + std::mem::size_of::<bool>()
+        // The struct itself (including the segment reader handle), the name and the bitset.
+        std::mem::size_of::<Self>() + self.name.len() + self.evaluator.bitset.memory_consumption()
     }
 }
 
@@ -516,52 +508,39 @@ pub struct SegmentFilterCollector<B: SubAggBuffer> {
 impl<B: SubAggBuffer> SegmentFilterCollector<B> {
     /// Create a new filter segment collector following the new agg_data pattern
     pub(crate) fn from_req_and_validate(
-        req: &mut AggregationsSegmentCtx,
-        node: &AggRefNode,
         req_data: FilterAggReqData,
-    ) -> crate::Result<Self> {
-        // Build sub-aggregation collectors if any
-        let sub_agg_collector = if !node.children.is_empty() {
-            Some(build_segment_agg_collectors(req, &node.children)?)
-        } else {
-            None
-        };
-        let sub_agg_collector = sub_agg_collector.map(BufferedSubAggs::new);
-
+        sub_agg: Option<Box<dyn SegmentAggregationCollector>>,
+    ) -> Self {
         let max_doc = req_data.segment_reader.max_doc();
         let buffer_capacity = crate::docset::COLLECT_BLOCK_BUFFER_LEN.min(max_doc as usize);
 
-        Ok(SegmentFilterCollector {
+        SegmentFilterCollector {
             parent_buckets: Vec::new(),
-            sub_aggregations: sub_agg_collector,
+            sub_aggregations: sub_agg.map(BufferedSubAggs::new),
             req_data,
             bucket_id_provider: BucketIdProvider::default(),
             matching_docs_buffer: Vec::with_capacity(buffer_capacity),
-        })
+        }
     }
 }
 
 pub(crate) fn build_segment_filter_collector(
     req: &mut AggregationsSegmentCtx,
-    node: &AggRefNode,
+    req_data: FilterAggReqData,
+    children: Vec<AggNode>,
 ) -> crate::Result<Box<dyn SegmentAggregationCollector>> {
-    let req_data = req.per_request.filter_req_data[node.idx_in_req_data].clone();
-    req.context
-        .limits
-        .add_memory_consumed(req_data.get_memory_consumption() as u64)?;
     let is_top_level = req_data.is_top_level;
+    let sub_agg = build_sub_agg_collectors(req, children)?;
 
     if is_top_level {
         Ok(Box::new(
-            SegmentFilterCollector::<LowCardSubAggBuffer>::from_req_and_validate(
-                req, node, req_data,
-            )?,
+            SegmentFilterCollector::<LowCardSubAggBuffer>::from_req_and_validate(req_data, sub_agg),
         ))
     } else {
         Ok(Box::new(
             SegmentFilterCollector::<HighCardSubAggBuffer>::from_req_and_validate(
-                req, node, req_data,
-            )?,
+                req_data, sub_agg,
+            ),
         ))
     }
 }

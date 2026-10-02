@@ -16,7 +16,7 @@ use crate::{SegmentReader, TantivyError};
 
 /// Contains all information required by the SegmentCompositeCollector to perform the
 /// composite aggregation on a segment.
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub(crate) struct CompositeAggReqData {
     /// The name of the aggregation.
     pub(crate) name: String,
