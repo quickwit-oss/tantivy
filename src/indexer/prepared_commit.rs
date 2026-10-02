@@ -46,8 +46,11 @@ impl<'a, D: Document> PreparedCommit<'a, D> {
     /// At this point deletes have not been flushed yet.
     pub fn commit_future(self) -> FutureResult<Opstamp> {
         debug!("committing {}", self.opstamp);
-        self.index_writer
-            .segment_updater()
-            .schedule_commit(self.opstamp, self.payload)
+        let committed_opstamp_handle = self.index_writer.committed_opstamp_handle();
+        self.index_writer.segment_updater().schedule_commit(
+            self.opstamp,
+            self.payload,
+            committed_opstamp_handle,
+        )
     }
 }
