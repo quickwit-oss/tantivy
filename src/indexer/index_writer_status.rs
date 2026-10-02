@@ -34,6 +34,21 @@ impl<D: Document> IndexWriterStatus<D> {
             inner: Some(self.inner.clone()),
         }
     }
+
+    /// Replaces the operation receiver in place (a commit installs the next
+    /// epoch's channel). Keeps the same `Inner`, so the bombs handed to the
+    /// persistent indexing workers stay armed across commits. No-op if the
+    /// writer was killed.
+    pub(crate) fn replace_receiver(&self, receiver: AddBatchReceiver<D>) {
+        let mut wlock = self
+            .inner
+            .receive_channel
+            .write()
+            .expect("This lock should never be poisoned");
+        if self.inner.is_alive() {
+            *wlock = Some(receiver);
+        }
+    }
 }
 
 struct Inner<D: Document> {
