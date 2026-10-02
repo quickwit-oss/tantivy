@@ -59,13 +59,11 @@ impl SchemaBuilder {
 
     /// Adds a generated tie-breaker fast field.
     ///
-    /// The field is exposed as a `u64` fast field. Its generated values are temporarily limited
-    /// to the `u32` range for downstream compatibility; this limit will eventually be lifted.
-    /// Values supplied by documents for this field are ignored.
+    /// The field is exposed as a `u64` fast field. Values are consecutive within a segment,
+    /// starting at a random offset. Ranges of different segments may overlap, so values are
+    /// almost always distinct but not guaranteed to be unique.
     ///
-    /// Values are consecutive within a segment, starting at a random offset. Ranges of
-    /// different segments may overlap, so values are almost always distinct but not
-    /// guaranteed to be unique.
+    /// Values supplied by documents for this field are ignored.
     ///
     /// # Panics
     ///
