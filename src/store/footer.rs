@@ -39,7 +39,7 @@ impl BinarySerializable for DocStoreFooter {
         Ok(DocStoreFooter {
             offset,
             doc_store_version,
-            decompressor: Decompressor::from_id(compressor_id),
+            decompressor: Decompressor::from_id(compressor_id)?,
         })
     }
 }

@@ -30,14 +30,17 @@ impl From<Compressor> for Decompressor {
 }
 
 impl Decompressor {
-    pub(crate) fn from_id(id: u8) -> Decompressor {
+    pub(crate) fn from_id(id: u8) -> io::Result<Decompressor> {
         match id {
-            0 => Decompressor::None,
+            0 => Ok(Decompressor::None),
             #[cfg(feature = "lz4-compression")]
-            1 => Decompressor::Lz4,
+            1 => Ok(Decompressor::Lz4),
             #[cfg(feature = "zstd-compression")]
-            4 => Decompressor::Zstd,
-            _ => panic!("unknown compressor id {id:?}"),
+            4 => Ok(Decompressor::Zstd),
+            _ => Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                format!("unknown compressor id {id:?}"),
+            )),
         }
     }
 
