@@ -3,6 +3,10 @@ Tantivy 0.27.0
 
 ## Breaking change
 - `.set_fast(..)` now takes a &str. The same behavior as `.set_fast(None)` can be obtained with .set_fast(tantivy::tokenizer::RAW_TOKENIZER_NAME).
+- Added the `FieldType::TieBreaker` variant; exhaustive matches on `FieldType` need a new arm.
+
+## Features/Improvements
+- Add generated tie-breaker fast fields via `SchemaBuilder::add_tie_breaker_field`. Values are consecutive within a segment, start at a random offset, and are preserved across merges.
 
 
 Tantivy 0.26.2

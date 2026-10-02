@@ -453,7 +453,7 @@ impl QueryParser {
             )));
         }
         match *field_type {
-            FieldType::U64(_) => {
+            FieldType::U64(_) | FieldType::TieBreaker => {
                 let val: u64 = u64::from_str(phrase)?;
                 Ok(Term::from_field_u64(field, val))
             }
@@ -635,10 +635,10 @@ impl QueryParser {
                 let term = Term::from_field_ip_addr(field, ip_v6);
                 Ok(vec![LogicalLiteral::Term(term)])
             }
-            // Custom fields are not indexed, so the `is_indexed()` guard above returns
+            // These fields are not indexed, so the `is_indexed()` guard above returns
             // `FieldNotIndexed` before this match.
-            FieldType::Custom(_) => {
-                unreachable!("the query parser does not support custom field types")
+            FieldType::TieBreaker | FieldType::Custom(_) => {
+                unreachable!("the query parser does not support this field type")
             }
         }
     }

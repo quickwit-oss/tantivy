@@ -3,6 +3,7 @@ use std::io::Write;
 use std::sync::Arc;
 
 use common::OwnedBytes;
+use rand::Rng;
 use sstable::Dictionary;
 
 use crate::column::{BytesColumn, Column};
@@ -21,6 +22,29 @@ pub fn serialize_column_mappable_to_u128<T: MonotonicallyMappableToU128>(
 ) -> io::Result<()> {
     let column_index_num_bytes = serialize_column_index(column_index, output)?;
     serialize_column_values_u128(iterable, output)?;
+    output.write_all(&column_index_num_bytes.to_le_bytes())?;
+    Ok(())
+}
+
+pub(crate) fn serialize_generated_tie_breaker_column(
+    num_docs: u32,
+    output: &mut impl Write,
+) -> io::Result<()> {
+    // TODO: Lift this temporary u32 limit once downstream consumers support the full u64 range.
+    let max_start = (u32::MAX - num_docs) as u64;
+    let start: u64 = rand::rng().random_range(0..=max_start);
+    let end = start + num_docs as u64;
+    let values = start..end;
+    let column_index_num_bytes = serialize_column_index(SerializableColumnIndex::Full, output)?;
+    serialize_u64_based_column_values(
+        &values,
+        &[
+            CodecType::Bitpacked,
+            CodecType::Linear,
+            CodecType::BlockwiseLinear,
+        ],
+        output,
+    )?;
     output.write_all(&column_index_num_bytes.to_le_bytes())?;
     Ok(())
 }

@@ -52,6 +52,10 @@ impl FastFieldsWriter {
             if !field_entry.field_type().is_fast() {
                 continue;
             }
+            if matches!(field_entry.field_type(), FieldType::TieBreaker) {
+                columnar_writer.record_tie_breaker_column(field_entry.name());
+                continue;
+            }
             fast_field_names[field_id.field_id() as usize] = Some(field_entry.name().to_string());
             let value_type = field_entry.field_type().value_type();
             if let FieldType::Date(date_options) = field_entry.field_type() {

@@ -41,6 +41,11 @@ impl FieldEntry {
         Self::new(field_name, FieldType::U64(int_options))
     }
 
+    /// Creates a generated tie-breaker field entry.
+    pub fn new_tie_breaker(field_name: String) -> FieldEntry {
+        Self::new(field_name, FieldType::TieBreaker)
+    }
+
     /// Creates a new i64 field entry.
     pub fn new_i64(field_name: String, int_options: NumericOptions) -> FieldEntry {
         Self::new(field_name, FieldType::I64(int_options))
@@ -135,7 +140,7 @@ impl FieldEntry {
             FieldType::Bytes(ref options) => options.is_stored(),
             FieldType::JsonObject(ref options) => options.is_stored(),
             FieldType::IpAddr(ref options) => options.is_stored(),
-            FieldType::Custom(_) => false,
+            FieldType::TieBreaker | FieldType::Custom(_) => false,
         }
     }
 }

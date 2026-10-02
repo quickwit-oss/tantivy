@@ -18,11 +18,11 @@ common = { version= "0.11", path = "../common", package = "tantivy-common" }
 tantivy-bitpacker = { version= "0.10", path = "../bitpacker/" }
 serde = "1.0.152"
 downcast-rs = "2.0.1"
+rand = "0.9"
 
 [dev-dependencies]
 proptest = "1"
 more-asserts = "0.3.1"
-rand = "0.9"
 binggan = "0.17.0"
 
 [[bench]]

@@ -69,8 +69,10 @@ fn posting_writer_from_field_entry(field_entry: &FieldEntry) -> Box<dyn Postings
                 JsonPostingsWriter::<DocIdRecorder>::default().into()
             }
         }
-        // Custom fields are never indexed, so this writer is never fed terms. It only needs to
+        // These fields are never indexed, so this writer is never fed terms. It only needs to
         // occupy the per-field slot (the vector is indexed by field id).
-        FieldType::Custom(_) => Box::<SpecializedPostingsWriter<DocIdRecorder>>::default(),
+        FieldType::TieBreaker | FieldType::Custom(_) => {
+            Box::<SpecializedPostingsWriter<DocIdRecorder>>::default()
+        }
     }
 }

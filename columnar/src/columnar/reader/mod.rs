@@ -237,6 +237,22 @@ mod tests {
     }
 
     #[test]
+    fn test_generated_tie_breaker_column() {
+        let mut columnar_writer = ColumnarWriter::default();
+        columnar_writer.record_tie_breaker_column("tie");
+        let mut buffer = Vec::new();
+        columnar_writer.serialize(1_025, None, &mut buffer).unwrap();
+
+        let columnar = ColumnarReader::open(buffer).unwrap();
+        let handles = columnar.read_columns("tie").unwrap();
+        let column = handles[0].open_u64_lenient().unwrap().unwrap();
+        assert_eq!(column.index.get_cardinality(), crate::Cardinality::Full);
+        for doc in 1..1_025 {
+            assert_eq!(column.first(doc), Some(column.first(doc - 1).unwrap() + 1));
+        }
+    }
+
+    #[test]
     fn test_list_columns_strict_typing_prevents_coercion() {
         let mut columnar_writer = ColumnarWriter::default();
         columnar_writer.record_column_type("count", ColumnType::U64, false);
