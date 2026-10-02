@@ -15,9 +15,9 @@ use crate::aggregation::bucket::{
     build_segment_filter_collector, build_segment_histogram_collector,
     build_segment_multi_terms_collector, build_segment_range_collector, CompositeAggReqData,
     CompositeAggregation, CompositeSourceAccessors, FilterAggReqData, HistogramAggReqData,
-    HistogramBounds, IncludeExcludeParam, MissingTermAggReqData, MultiTermsAggReqData,
-    MultiTermsAggregation, MultiTermsFieldAccessor, MultiTermsMissingAccessor, RangeAggReqData,
-    TermMissingAgg, TermsAggReqData, TermsAggregation, TermsAggregationInternal,
+    IncludeExcludeParam, MissingTermAggReqData, MultiTermsAggReqData, MultiTermsAggregation,
+    MultiTermsFieldAccessor, MultiTermsMissingAccessor, RangeAggReqData, TermMissingAgg,
+    TermsAggReqData, TermsAggregation, TermsAggregationInternal,
 };
 use crate::aggregation::metric::{
     build_segment_stats_collector, AverageAggregation, CardinalityAggReqData,
@@ -34,236 +34,152 @@ use crate::aggregation::{
 };
 use crate::{SegmentOrdinal, SegmentReader};
 
-#[derive(Default)]
-/// Datastructure holding all request data for executing aggregations on a segment.
-/// It is passed to the collectors during collection.
+/// Shared state passed to the collectors during collection on a segment.
 pub struct AggregationsSegmentCtx {
-    /// Request data for each aggregation type.
-    pub(crate) per_request: PerRequestAggSegCtx,
     pub(crate) context: AggContextParams,
+    /// Scratch buffers shared by all of the collectors of the tree, to load a block of values.
     pub(crate) column_block_accessor: ColumnBlockAccessor,
 }
 
 impl AggregationsSegmentCtx {
-    pub(crate) fn push_term_req_data(&mut self, data: TermsAggReqData) -> usize {
-        self.per_request.term_req_data.push(data);
-        self.per_request.term_req_data.len() - 1
-    }
-    pub(crate) fn push_cardinality_req_data(&mut self, data: CardinalityAggReqData) -> usize {
-        self.per_request.cardinality_req_data.push(data);
-        self.per_request.cardinality_req_data.len() - 1
-    }
-    pub(crate) fn push_metric_req_data(&mut self, data: MetricAggReqData) -> usize {
-        self.per_request.stats_metric_req_data.push(data);
-        self.per_request.stats_metric_req_data.len() - 1
-    }
-    pub(crate) fn push_top_hits_req_data(&mut self, data: TopHitsAggReqData) -> usize {
-        self.per_request.top_hits_req_data.push(data);
-        self.per_request.top_hits_req_data.len() - 1
-    }
-    pub(crate) fn push_missing_term_req_data(&mut self, data: MissingTermAggReqData) -> usize {
-        self.per_request.missing_term_req_data.push(data);
-        self.per_request.missing_term_req_data.len() - 1
-    }
-    pub(crate) fn push_histogram_req_data(&mut self, data: HistogramAggReqData) -> usize {
-        self.per_request.histogram_req_data.push(data);
-        self.per_request.histogram_req_data.len() - 1
-    }
-    pub(crate) fn push_range_req_data(&mut self, data: RangeAggReqData) -> usize {
-        self.per_request.range_req_data.push(data);
-        self.per_request.range_req_data.len() - 1
-    }
-    pub(crate) fn push_filter_req_data(&mut self, data: FilterAggReqData) -> usize {
-        self.per_request.filter_req_data.push(data);
-        self.per_request.filter_req_data.len() - 1
-    }
-    pub(crate) fn push_composite_req_data(&mut self, data: CompositeAggReqData) -> usize {
-        self.per_request.composite_req_data.push(data);
-        self.per_request.composite_req_data.len() - 1
-    }
-    pub(crate) fn push_multi_terms_req_data(&mut self, data: MultiTermsAggReqData) -> usize {
-        self.per_request.multi_terms_req_data.push(data);
-        self.per_request.multi_terms_req_data.len() - 1
-    }
-
-    #[inline]
-    pub(crate) fn get_term_req_data(&self, idx: usize) -> &TermsAggReqData {
-        &self.per_request.term_req_data[idx]
-    }
-    #[inline]
-    pub(crate) fn get_cardinality_req_data(&self, idx: usize) -> &CardinalityAggReqData {
-        &self.per_request.cardinality_req_data[idx]
-    }
-    #[inline]
-    pub(crate) fn get_metric_req_data(&self, idx: usize) -> &MetricAggReqData {
-        &self.per_request.stats_metric_req_data[idx]
-    }
-    #[inline]
-    pub(crate) fn get_top_hits_req_data(&self, idx: usize) -> &TopHitsAggReqData {
-        &self.per_request.top_hits_req_data[idx]
-    }
-    #[inline]
-    pub(crate) fn get_missing_term_req_data(&self, idx: usize) -> &MissingTermAggReqData {
-        &self.per_request.missing_term_req_data[idx]
+    pub(crate) fn new(context: AggContextParams) -> Self {
+        AggregationsSegmentCtx {
+            context,
+            column_block_accessor: ColumnBlockAccessor::default(),
+        }
     }
 }
 
-/// Each type of aggregation has its own request data struct. This struct holds
-/// all request data to execute the aggregation request on a single segment.
+/// A node of the per-segment aggregation request tree.
 ///
-/// The request tree is represented by `agg_tree`. Tree nodes contain the index
-/// of their context in corresponding request data vector (e.g. `term_req_data`
-/// for a node with [AggKind::Terms]).
-#[derive(Default)]
-pub struct PerRequestAggSegCtx {
-    /// TermsAggReqData contains the request data for a terms aggregation.
-    pub(crate) term_req_data: Vec<TermsAggReqData>,
-    /// HistogramAggReqData contains the request data for a histogram aggregation.
-    pub(crate) histogram_req_data: Vec<HistogramAggReqData>,
-    /// RangeAggReqData contains the request data for a range aggregation.
-    pub(crate) range_req_data: Vec<RangeAggReqData>,
-    /// FilterAggReqData contains the request data for a filter aggregation.
-    pub(crate) filter_req_data: Vec<FilterAggReqData>,
-    /// Shared by avg, min, max, sum, stats, extended_stats, count
-    pub(crate) stats_metric_req_data: Vec<MetricAggReqData>,
-    /// CardinalityAggReqData contains the request data for a cardinality aggregation.
-    pub(crate) cardinality_req_data: Vec<CardinalityAggReqData>,
-    /// TopHitsAggReqData contains the request data for a top_hits aggregation.
-    pub(crate) top_hits_req_data: Vec<TopHitsAggReqData>,
-    /// MissingTermAggReqData contains the request data for a missing term aggregation.
-    pub(crate) missing_term_req_data: Vec<MissingTermAggReqData>,
-    /// CompositeAggReqData contains the request data for a composite aggregation.
-    pub(crate) composite_req_data: Vec<CompositeAggReqData>,
-    /// MultiTermsAggReqData contains the request data for a multi_terms aggregation.
-    pub(crate) multi_terms_req_data: Vec<MultiTermsAggReqData>,
-
-    /// Request tree used to build collectors.
-    pub(crate) agg_tree: Vec<AggRefNode>,
+/// A node owns the request data of its aggregation, including its value source. Building the
+/// collectors consumes the tree: each node is turned into exactly one collector, which takes
+/// ownership of the node's request data.
+///
+/// A single aggregation of the request can expand into several sibling nodes (e.g. a terms
+/// aggregation over a JSON field with several column types).
+pub(crate) struct AggNode {
+    pub(crate) data: AggNodeData,
+    pub(crate) children: Vec<AggNode>,
 }
 
-impl PerRequestAggSegCtx {
-    /// Estimate the memory consumption of this struct in bytes.
-    fn get_memory_consumption(&self) -> usize {
-        self.term_req_data
-            .iter()
-            .map(|t| t.get_memory_consumption())
-            .sum::<usize>()
-            + self
-                .histogram_req_data
-                .iter()
-                .map(|t| t.get_memory_consumption())
-                .sum::<usize>()
-            + self
-                .range_req_data
-                .iter()
-                .map(|t| t.get_memory_consumption())
-                .sum::<usize>()
-            + self
-                .filter_req_data
-                .iter()
-                .map(|t| t.get_memory_consumption())
-                .sum::<usize>()
-            + self
-                .stats_metric_req_data
-                .iter()
-                .map(|t| t.get_memory_consumption())
-                .sum::<usize>()
-            + self
-                .cardinality_req_data
-                .iter()
-                .map(|t| t.get_memory_consumption())
-                .sum::<usize>()
-            + self
-                .top_hits_req_data
-                .iter()
-                .map(|t| t.get_memory_consumption())
-                .sum::<usize>()
-            + self
-                .missing_term_req_data
-                .iter()
-                .map(|t| t.get_memory_consumption())
-                .sum::<usize>()
-            + self
-                .composite_req_data
-                .iter()
-                .map(|t| t.get_memory_consumption())
-                .sum::<usize>()
-            + self
-                .multi_terms_req_data
-                .iter()
-                .map(|t| t.get_memory_consumption())
-                .sum::<usize>()
-            + self.agg_tree.len() * std::mem::size_of::<AggRefNode>()
+/// The request data of an [`AggNode`]. Each type of aggregation has its own request data
+/// struct.
+pub(crate) enum AggNodeData {
+    Terms(TermsAggReqData),
+    MissingTerm(MissingTermAggReqData),
+    Cardinality(CardinalityAggReqData),
+    /// Shared by avg, min, max, sum, stats, extended_stats, count and percentiles.
+    Metric(MetricAggReqData),
+    TopHits(Box<TopHitsAggReqData>),
+    /// Shared by histogram and date_histogram.
+    Histogram(HistogramAggReqData),
+    Range(RangeAggReqData),
+    Filter(Box<FilterAggReqData>),
+    Composite(CompositeAggReqData),
+    MultiTerms(MultiTermsAggReqData),
+}
+
+impl AggNode {
+    fn new(data: AggNodeData, children: Vec<AggNode>) -> Self {
+        AggNode { data, children }
     }
 
-    pub fn get_name(&self, node: &AggRefNode) -> &str {
-        let idx = node.idx_in_req_data;
-        let kind = node.kind;
-        match kind {
-            AggKind::Terms => self.term_req_data[idx].name.as_str(),
-            AggKind::Cardinality => &self.cardinality_req_data[idx].name,
-            AggKind::StatsKind(_) => &self.stats_metric_req_data[idx].name,
-            AggKind::TopHits => &self.top_hits_req_data[idx].name,
-            AggKind::MissingTerm => &self.missing_term_req_data[idx].name,
-            AggKind::Histogram => self.histogram_req_data[idx].name.as_str(),
-            AggKind::DateHistogram => self.histogram_req_data[idx].name.as_str(),
-            AggKind::Range => self.range_req_data[idx].name.as_str(),
-            AggKind::Filter => self.filter_req_data[idx].name.as_str(),
-            AggKind::Composite => self.composite_req_data[idx].name.as_str(),
-            AggKind::MultiTerms => self.multi_terms_req_data[idx].name.as_str(),
+    /// Name of the aggregation, as given in the request.
+    pub(crate) fn name(&self) -> &str {
+        match &self.data {
+            AggNodeData::Terms(req_data) => &req_data.name,
+            AggNodeData::MissingTerm(req_data) => &req_data.name,
+            AggNodeData::Cardinality(req_data) => &req_data.name,
+            AggNodeData::Metric(req_data) => &req_data.name,
+            AggNodeData::TopHits(req_data) => &req_data.name,
+            AggNodeData::Histogram(req_data) => &req_data.name,
+            AggNodeData::Range(req_data) => &req_data.name,
+            AggNodeData::Filter(req_data) => &req_data.name,
+            AggNodeData::Composite(req_data) => &req_data.name,
+            AggNodeData::MultiTerms(req_data) => &req_data.name,
         }
     }
 
-    /// Convert the aggregation tree into a serializable struct representation.
-    /// Each node contains: { name, kind, children }.
-    #[allow(dead_code)]
-    pub fn get_view_tree(&self) -> Vec<AggTreeViewNode> {
-        fn node_to_view(node: &AggRefNode, pr: &PerRequestAggSegCtx) -> AggTreeViewNode {
-            let mut children: Vec<AggTreeViewNode> =
-                node.children.iter().map(|c| node_to_view(c, pr)).collect();
-            children.sort_by_key(|v| serde_json::to_string(v).unwrap());
-            AggTreeViewNode {
-                name: pr.get_name(node).to_string(),
-                kind: node.kind.as_str().to_string(),
-                children,
-            }
+    #[cfg_attr(not(test), allow(dead_code))]
+    fn kind_name(&self) -> &'static str {
+        match &self.data {
+            AggNodeData::Terms(_) => "Terms",
+            AggNodeData::MissingTerm(_) => "MissingTerm",
+            AggNodeData::Cardinality(_) => "Cardinality",
+            AggNodeData::Metric(_) => "Metric",
+            AggNodeData::TopHits(_) => "TopHits",
+            AggNodeData::Histogram(req_data) if req_data.is_date_histogram => "DateHistogram",
+            AggNodeData::Histogram(_) => "Histogram",
+            AggNodeData::Range(_) => "Range",
+            AggNodeData::Filter(_) => "Filter",
+            AggNodeData::Composite(_) => "Composite",
+            AggNodeData::MultiTerms(_) => "MultiTerms",
         }
+    }
 
-        let mut roots: Vec<AggTreeViewNode> = self
-            .agg_tree
-            .iter()
-            .map(|n| node_to_view(n, self))
-            .collect();
-        roots.sort_by_key(|v| serde_json::to_string(v).unwrap());
-        roots
+    /// Estimate the memory consumption of this node's request data in bytes, excluding its
+    /// children.
+    ///
+    /// The node itself is not counted: it is consumed when building its collector, which only
+    /// keeps the request data.
+    pub(crate) fn get_memory_consumption(&self) -> usize {
+        match &self.data {
+            AggNodeData::Terms(req_data) => req_data.get_memory_consumption(),
+            AggNodeData::MissingTerm(req_data) => req_data.get_memory_consumption(),
+            AggNodeData::Cardinality(req_data) => req_data.get_memory_consumption(),
+            AggNodeData::Metric(req_data) => req_data.get_memory_consumption(),
+            AggNodeData::TopHits(req_data) => req_data.get_memory_consumption(),
+            AggNodeData::Histogram(req_data) => req_data.get_memory_consumption(),
+            AggNodeData::Range(req_data) => req_data.get_memory_consumption(),
+            AggNodeData::Filter(req_data) => req_data.get_memory_consumption(),
+            AggNodeData::Composite(req_data) => req_data.get_memory_consumption(),
+            AggNodeData::MultiTerms(req_data) => req_data.get_memory_consumption(),
+        }
     }
 }
 
-pub(crate) fn build_segment_agg_collectors_root(
-    req: &mut AggregationsSegmentCtx,
-) -> crate::Result<Box<dyn SegmentAggregationCollector>> {
-    build_segment_agg_collectors_generic(req, &req.per_request.agg_tree.clone())
+/// Returns the child aggregation named `name`, if any.
+pub(crate) fn find_sub_agg<'a>(children: &'a [AggNode], name: &str) -> Option<&'a AggNode> {
+    children.iter().find(|child| child.name() == name)
 }
 
+/// Convert the aggregation tree into a serializable struct representation.
+/// Each node contains: { name, kind, children }.
+#[cfg_attr(not(test), allow(dead_code))]
+pub(crate) fn get_view_tree(nodes: &[AggNode]) -> Vec<AggTreeViewNode> {
+    let mut views: Vec<AggTreeViewNode> = nodes
+        .iter()
+        .map(|node| AggTreeViewNode {
+            name: node.name().to_string(),
+            kind: node.kind_name().to_string(),
+            children: get_view_tree(&node.children),
+        })
+        .collect();
+    views.sort_by_key(|view| serde_json::to_string(view).unwrap());
+    views
+}
+
+/// Builds the collectors for `nodes`, consuming them.
+///
+/// This is where the request data of `nodes` is charged to the memory limits. Hidden contract:
+/// collector builders must not charge their request data again, and a builder that consumes a
+/// child node without calling this function (e.g. the flattened terms×histogram collector) has to
+/// charge that child itself.
 pub(crate) fn build_segment_agg_collectors(
-    req: &mut AggregationsSegmentCtx,
-    nodes: &[AggRefNode],
+    ctx: &mut AggregationsSegmentCtx,
+    nodes: Vec<AggNode>,
 ) -> crate::Result<Box<dyn SegmentAggregationCollector>> {
-    build_segment_agg_collectors_generic(req, nodes)
-}
-
-fn build_segment_agg_collectors_generic(
-    req: &mut AggregationsSegmentCtx,
-    nodes: &[AggRefNode],
-) -> crate::Result<Box<dyn SegmentAggregationCollector>> {
-    let mut collectors = Vec::new();
-    for node in nodes.iter() {
-        collectors.push(build_segment_agg_collector(req, node)?);
+    // The request data is moved into the collectors, so we need to measure it beforehand.
+    let memory_consumption: usize = nodes.iter().map(AggNode::get_memory_consumption).sum();
+    let mut collectors = Vec::with_capacity(nodes.len());
+    for node in nodes {
+        collectors.push(build_segment_agg_collector(ctx, node)?);
     }
 
-    req.context
+    ctx.context
         .limits
-        .add_memory_consumed(req.per_request.get_memory_consumption() as u64)?;
+        .add_memory_consumed(memory_consumption as u64)?;
     // Single collector special case
     if collectors.len() == 1 {
         return Ok(collectors.pop().unwrap());
@@ -272,137 +188,92 @@ fn build_segment_agg_collectors_generic(
     Ok(Box::new(agg))
 }
 
+/// Builds the sub-aggregation collectors of a bucket aggregation, consuming `children`.
+///
+/// Returns `None` when there are no children: collectors rely on `None` to skip doc buffering.
+pub(crate) fn build_sub_agg_collectors(
+    ctx: &mut AggregationsSegmentCtx,
+    children: Vec<AggNode>,
+) -> crate::Result<Option<Box<dyn SegmentAggregationCollector>>> {
+    if children.is_empty() {
+        return Ok(None);
+    }
+    Ok(Some(build_segment_agg_collectors(ctx, children)?))
+}
+
+/// Builds the collector for `node`, consuming it.
 pub(crate) fn build_segment_agg_collector(
-    req: &mut AggregationsSegmentCtx,
-    node: &AggRefNode,
+    ctx: &mut AggregationsSegmentCtx,
+    node: AggNode,
 ) -> crate::Result<Box<dyn SegmentAggregationCollector>> {
-    match node.kind {
-        AggKind::Terms => crate::aggregation::bucket::build_segment_term_collector(req, node),
-        AggKind::MissingTerm => {
-            let req_data = &mut req.per_request.missing_term_req_data[node.idx_in_req_data];
+    let AggNode { data, children } = node;
+    match data {
+        AggNodeData::Terms(req_data) => {
+            crate::aggregation::bucket::build_segment_term_collector(ctx, req_data, children)
+        }
+        AggNodeData::MissingTerm(req_data) => {
             if req_data.accessors.is_empty() {
                 return Err(crate::TantivyError::InternalError(
                     "MissingTerm aggregation requires at least one field accessor.".to_string(),
                 ));
             }
-            Ok(Box::new(TermMissingAgg::new(req, node)?))
+            let sub_agg = build_sub_agg_collectors(ctx, children)?;
+            Ok(Box::new(TermMissingAgg::new(req_data, sub_agg)))
         }
-        AggKind::Cardinality => {
-            crate::aggregation::metric::build_segment_cardinality_collector(req, node)
+        AggNodeData::Cardinality(req_data) => {
+            crate::aggregation::metric::build_segment_cardinality_collector(req_data)
         }
-        AggKind::StatsKind(stats_type) => {
-            let req_data = &mut req.per_request.stats_metric_req_data[node.idx_in_req_data];
-            match stats_type {
-                StatsType::Sum
-                | StatsType::Average
-                | StatsType::Count
-                | StatsType::Max
-                | StatsType::Min
-                | StatsType::Stats => build_segment_stats_collector(req_data),
-                StatsType::ExtendedStats(sigma) => Ok(Box::new(
-                    SegmentExtendedStatsCollector::from_req(req_data, sigma),
-                )),
-                StatsType::Percentiles => {
-                    let req_data = req.get_metric_req_data(node.idx_in_req_data);
-                    Ok(Box::new(
-                        SegmentPercentilesCollector::from_req_and_validate(
-                            req_data.missing_u64,
-                            req_data.accessor.clone(),
-                            node.idx_in_req_data,
-                        ),
-                    ))
-                }
-            }
+        AggNodeData::Metric(req_data) => match req_data.collecting_for {
+            StatsType::Sum
+            | StatsType::Average
+            | StatsType::Count
+            | StatsType::Max
+            | StatsType::Min
+            | StatsType::Stats => build_segment_stats_collector(req_data),
+            StatsType::ExtendedStats(sigma) => Ok(Box::new(
+                SegmentExtendedStatsCollector::from_req(req_data, sigma),
+            )),
+            StatsType::Percentiles => Ok(Box::new(
+                SegmentPercentilesCollector::from_req_and_validate(req_data),
+            )),
+        },
+        AggNodeData::TopHits(req_data) => {
+            Ok(Box::new(TopHitsSegmentCollector::from_req(*req_data)))
         }
-        AggKind::TopHits => {
-            let req_data = &mut req.per_request.top_hits_req_data[node.idx_in_req_data];
-            Ok(Box::new(TopHitsSegmentCollector::from_req(
-                &req_data.req,
-                node.idx_in_req_data,
-                req_data.segment_ordinal,
-            )))
+        AggNodeData::Histogram(req_data) => {
+            build_segment_histogram_collector(ctx, req_data, children)
         }
-        AggKind::Histogram => build_segment_histogram_collector(req, node),
-        AggKind::DateHistogram => build_segment_histogram_collector(req, node),
-        AggKind::Range => Ok(build_segment_range_collector(req, node)?),
-        AggKind::Filter => build_segment_filter_collector(req, node),
-        AggKind::Composite => Ok(Box::new(
-            crate::aggregation::bucket::SegmentCompositeCollector::from_req_and_validate(
-                req, node,
-            )?,
-        )),
-        AggKind::MultiTerms => build_segment_multi_terms_collector(req, node),
-    }
-}
-
-/// See [PerRequestAggSegCtx]
-#[derive(Debug, Clone)]
-pub struct AggRefNode {
-    pub kind: AggKind,
-    pub idx_in_req_data: usize,
-    pub children: Vec<AggRefNode>,
-}
-impl AggRefNode {
-    pub fn get_sub_agg(&self, name: &str, pr: &PerRequestAggSegCtx) -> Option<&AggRefNode> {
-        self.children
-            .iter()
-            .find(|&child| pr.get_name(child) == name)
-    }
-}
-
-#[derive(Copy, Clone, Debug)]
-pub enum AggKind {
-    Terms,
-    Cardinality,
-    /// One of: Statistics, Average, Min, Max, Sum, Count, Stats, ExtendedStats
-    StatsKind(StatsType),
-    TopHits,
-    MissingTerm,
-    Histogram,
-    DateHistogram,
-    Range,
-    Filter,
-    Composite,
-    MultiTerms,
-}
-
-impl AggKind {
-    #[cfg_attr(not(test), allow(dead_code))]
-    fn as_str(&self) -> &'static str {
-        match self {
-            AggKind::Terms => "Terms",
-            AggKind::Cardinality => "Cardinality",
-            AggKind::StatsKind(_) => "Metric",
-            AggKind::TopHits => "TopHits",
-            AggKind::MissingTerm => "MissingTerm",
-            AggKind::Histogram => "Histogram",
-            AggKind::DateHistogram => "DateHistogram",
-            AggKind::Range => "Range",
-            AggKind::Filter => "Filter",
-            AggKind::Composite => "Composite",
-            AggKind::MultiTerms => "MultiTerms",
+        AggNodeData::Range(req_data) => build_segment_range_collector(ctx, req_data, children),
+        AggNodeData::Filter(req_data) => build_segment_filter_collector(ctx, *req_data, children),
+        AggNodeData::Composite(req_data) => {
+            let sub_agg = build_sub_agg_collectors(ctx, children)?;
+            Ok(Box::new(
+                crate::aggregation::bucket::SegmentCompositeCollector::from_req_and_validate(
+                    req_data, sub_agg,
+                )?,
+            ))
+        }
+        AggNodeData::MultiTerms(req_data) => {
+            build_segment_multi_terms_collector(ctx, req_data, children)
         }
     }
 }
 
-/// Build AggregationsData by walking the request tree.
+/// Builds the aggregation request tree for a segment.
+///
+/// This resolves the value sources of every aggregation and validates field types.
 pub(crate) fn build_aggregations_data_from_req(
     aggs: &Aggregations,
     reader: &SegmentReader,
     segment_ordinal: SegmentOrdinal,
-    context: AggContextParams,
-) -> crate::Result<AggregationsSegmentCtx> {
-    let mut data = AggregationsSegmentCtx {
-        per_request: Default::default(),
-        context,
-        column_block_accessor: ColumnBlockAccessor::default(),
-    };
-
+    context: &AggContextParams,
+) -> crate::Result<Vec<AggNode>> {
+    let mut agg_tree = Vec::with_capacity(aggs.len());
     for (name, agg) in aggs.iter() {
-        let nodes = build_nodes(name, agg, reader, segment_ordinal, &mut data, true)?;
-        data.per_request.agg_tree.extend(nodes);
+        let nodes = build_nodes(name, agg, reader, segment_ordinal, context, true)?;
+        agg_tree.extend(nodes);
     }
-    Ok(data)
+    Ok(agg_tree)
 }
 
 /// Resolves the substitute value used for documents that have none.
@@ -450,11 +321,11 @@ fn build_nodes(
     req: &Aggregation,
     reader: &SegmentReader,
     segment_ordinal: SegmentOrdinal,
-    data: &mut AggregationsSegmentCtx,
+    context: &AggContextParams,
     is_top_level: bool,
-) -> crate::Result<Vec<AggRefNode>> {
+) -> crate::Result<Vec<AggNode>> {
     use AggregationVariants::*;
-    let value_sources = &data.context.value_sources;
+    let value_sources = &context.value_sources;
     match &req.agg {
         Range(range_req) => {
             let accessor = get_value_source(
@@ -463,18 +334,14 @@ fn build_nodes(
                 &range_req.field,
                 Some(get_numeric_or_date_column_types()),
             )?;
-            let idx_in_req_data = data.push_range_req_data(RangeAggReqData {
+            let node_data = AggNodeData::Range(RangeAggReqData {
                 accessor,
                 name: agg_name.to_string(),
                 req: range_req.clone(),
                 is_top_level,
             });
-            let children = build_children(&req.sub_aggregation, reader, segment_ordinal, data)?;
-            Ok(vec![AggRefNode {
-                kind: AggKind::Range,
-                idx_in_req_data,
-                children,
-            }])
+            let children = build_children(&req.sub_aggregation, reader, segment_ordinal, context)?;
+            Ok(vec![AggNode::new(node_data, children)])
         }
         Histogram(histo_req) => {
             let accessor = get_value_source(
@@ -483,23 +350,11 @@ fn build_nodes(
                 &histo_req.field,
                 Some(get_numeric_or_date_column_types()),
             )?;
-            let idx_in_req_data = data.push_histogram_req_data(HistogramAggReqData {
-                accessor,
-                name: agg_name.to_string(),
-                req: histo_req.clone(),
-                is_date_histogram: false,
-                bounds: HistogramBounds {
-                    min: f64::MIN,
-                    max: f64::MAX,
-                },
-                offset: 0.0,
-            });
-            let children = build_children(&req.sub_aggregation, reader, segment_ordinal, data)?;
-            Ok(vec![AggRefNode {
-                kind: AggKind::Histogram,
-                idx_in_req_data,
-                children,
-            }])
+            let req_data =
+                HistogramAggReqData::new(accessor, agg_name.to_string(), histo_req.clone(), false)?;
+            let node_data = AggNodeData::Histogram(req_data);
+            let children = build_children(&req.sub_aggregation, reader, segment_ordinal, context)?;
+            Ok(vec![AggNode::new(node_data, children)])
         }
         DateHistogram(date_req) => {
             let accessor = get_value_source(
@@ -511,23 +366,11 @@ fn build_nodes(
             // Convert to histogram request, normalize to ns precision
             let mut histo_req = date_req.to_histogram_req()?;
             histo_req.normalize_date_time();
-            let idx_in_req_data = data.push_histogram_req_data(HistogramAggReqData {
-                accessor,
-                name: agg_name.to_string(),
-                req: histo_req,
-                is_date_histogram: true,
-                bounds: HistogramBounds {
-                    min: f64::MIN,
-                    max: f64::MAX,
-                },
-                offset: 0.0,
-            });
-            let children = build_children(&req.sub_aggregation, reader, segment_ordinal, data)?;
-            Ok(vec![AggRefNode {
-                kind: AggKind::DateHistogram,
-                idx_in_req_data,
-                children,
-            }])
+            let req_data =
+                HistogramAggReqData::new(accessor, agg_name.to_string(), histo_req, true)?;
+            let node_data = AggNodeData::Histogram(req_data);
+            let children = build_children(&req.sub_aggregation, reader, segment_ordinal, context)?;
+            Ok(vec![AggNode::new(node_data, children)])
         }
         Terms(terms_req) => build_terms_or_cardinality_nodes(
             agg_name,
@@ -535,7 +378,7 @@ fn build_nodes(
             &terms_req.missing,
             reader,
             segment_ordinal,
-            data,
+            context,
             &req.sub_aggregation,
             TermsOrCardinalityRequest::Terms(terms_req.clone()),
             is_top_level,
@@ -546,7 +389,7 @@ fn build_nodes(
             &card_req.missing,
             reader,
             segment_ordinal,
-            data,
+            context,
             &req.sub_aggregation,
             TermsOrCardinalityRequest::Cardinality(card_req.clone()),
             is_top_level,
@@ -591,7 +434,7 @@ fn build_nodes(
             };
             let accessor = get_value_source(reader, value_sources, field, allowed_column_types)?;
             let field_type = accessor.column_type();
-            let idx_in_req_data = data.push_metric_req_data(MetricAggReqData {
+            let node_data = AggNodeData::Metric(MetricAggReqData {
                 accessor,
                 name: agg_name.to_string(),
                 collecting_for,
@@ -602,12 +445,8 @@ fn build_nodes(
                     ColumnType::I64 | ColumnType::U64 | ColumnType::F64 | ColumnType::DateTime
                 ),
             });
-            let children = build_children(&req.sub_aggregation, reader, segment_ordinal, data)?;
-            Ok(vec![AggRefNode {
-                kind: AggKind::StatsKind(collecting_for),
-                idx_in_req_data,
-                children,
-            }])
+            let children = build_children(&req.sub_aggregation, reader, segment_ordinal, context)?;
+            Ok(vec![AggNode::new(node_data, children)])
         }
         // Percentiles handled as Metric as well
         AggregationVariants::Percentiles(percentiles_req) => {
@@ -619,7 +458,7 @@ fn build_nodes(
                 Some(get_numeric_or_date_column_types()),
             )?;
             let field_type = accessor.column_type();
-            let idx_in_req_data = data.push_metric_req_data(MetricAggReqData {
+            let node_data = AggNodeData::Metric(MetricAggReqData {
                 accessor,
                 name: agg_name.to_string(),
                 collecting_for: StatsType::Percentiles,
@@ -632,12 +471,8 @@ fn build_nodes(
                     ColumnType::I64 | ColumnType::U64 | ColumnType::F64 | ColumnType::DateTime
                 ),
             });
-            let children = build_children(&req.sub_aggregation, reader, segment_ordinal, data)?;
-            Ok(vec![AggRefNode {
-                kind: AggKind::StatsKind(StatsType::Percentiles),
-                idx_in_req_data,
-                children,
-            }])
+            let children = build_children(&req.sub_aggregation, reader, segment_ordinal, context)?;
+            Ok(vec![AggNode::new(node_data, children)])
         }
         AggregationVariants::TopHits(top_hits_req) => {
             let mut top_hits = top_hits_req.clone();
@@ -670,25 +505,21 @@ fn build_nodes(
                 })
                 .collect::<crate::Result<_>>()?;
 
-            let idx_in_req_data = data.push_top_hits_req_data(TopHitsAggReqData {
+            let node_data = AggNodeData::TopHits(Box::new(TopHitsAggReqData {
                 accessors,
                 value_accessors,
                 segment_ordinal,
                 name: agg_name.to_string(),
                 req: top_hits.clone(),
-            });
-            let children = build_children(&req.sub_aggregation, reader, segment_ordinal, data)?;
-            Ok(vec![AggRefNode {
-                kind: AggKind::TopHits,
-                idx_in_req_data,
-                children,
-            }])
+            }));
+            let children = build_children(&req.sub_aggregation, reader, segment_ordinal, context)?;
+            Ok(vec![AggNode::new(node_data, children)])
         }
         AggregationVariants::Composite(composite_req) => Ok(vec![build_composite_node(
             agg_name,
             reader,
             segment_ordinal,
-            data,
+            context,
             &req.sub_aggregation,
             composite_req,
         )?]),
@@ -696,7 +527,7 @@ fn build_nodes(
             agg_name,
             reader,
             segment_ordinal,
-            data,
+            context,
             &req.sub_aggregation,
             multi_terms_req,
             is_top_level,
@@ -704,27 +535,22 @@ fn build_nodes(
         AggregationVariants::Filter(filter_req) => {
             // Build the query and evaluator upfront
             let schema = reader.schema();
-            let tokenizers = &data.context.tokenizers;
+            let tokenizers = &context.tokenizers;
             let query = filter_req.parse_query(schema, tokenizers)?;
-            let evaluator =
-                std::rc::Rc::new(crate::aggregation::bucket::DocumentQueryEvaluator::new(
-                    query,
-                    schema.clone(),
-                    reader,
-                )?);
+            let evaluator = crate::aggregation::bucket::DocumentQueryEvaluator::new(
+                query,
+                schema.clone(),
+                reader,
+            )?;
 
-            let idx_in_req_data = data.push_filter_req_data(FilterAggReqData {
+            let node_data = AggNodeData::Filter(Box::new(FilterAggReqData {
                 name: agg_name.to_string(),
                 segment_reader: reader.clone(),
                 evaluator,
                 is_top_level,
-            });
-            let children = build_children(&req.sub_aggregation, reader, segment_ordinal, data)?;
-            Ok(vec![AggRefNode {
-                kind: AggKind::Filter,
-                idx_in_req_data,
-                children,
-            }])
+            }));
+            let children = build_children(&req.sub_aggregation, reader, segment_ordinal, context)?;
+            Ok(vec![AggNode::new(node_data, children)])
         }
     }
 }
@@ -733,10 +559,10 @@ fn build_composite_node(
     agg_name: &str,
     reader: &SegmentReader,
     _segment_ordinal: SegmentOrdinal,
-    data: &mut AggregationsSegmentCtx,
+    context: &AggContextParams,
     sub_aggs: &Aggregations,
     req: &CompositeAggregation,
-) -> crate::Result<AggRefNode> {
+) -> crate::Result<AggNode> {
     let mut composite_accessors = Vec::with_capacity(req.sources.len());
     for source in &req.sources {
         let source_after_key_opt = req.after.get(source.name()).map(|k| &k.0);
@@ -749,31 +575,26 @@ fn build_composite_node(
         req: req.clone(),
         composite_accessors,
     };
-    let idx = data.push_composite_req_data(agg);
-    let children = build_children(sub_aggs, reader, _segment_ordinal, data)?;
-    Ok(AggRefNode {
-        kind: AggKind::Composite,
-        idx_in_req_data: idx,
-        children,
-    })
+    let children = build_children(sub_aggs, reader, _segment_ordinal, context)?;
+    Ok(AggNode::new(AggNodeData::Composite(agg), children))
 }
 
 fn build_multi_terms_nodes(
     agg_name: &str,
     reader: &SegmentReader,
     segment_ordinal: SegmentOrdinal,
-    data: &mut AggregationsSegmentCtx,
+    context: &AggContextParams,
     sub_aggs: &Aggregations,
     req: &MultiTermsAggregation,
     is_top_level: bool,
-) -> crate::Result<Vec<AggRefNode>> {
+) -> crate::Result<Vec<AggNode>> {
     if req.terms.is_empty() {
         return Err(crate::TantivyError::InvalidArgument(
             "multi_terms aggregation requires at least one field".to_string(),
         ));
     }
 
-    let value_sources = data.context.value_sources.clone();
+    let value_sources = &context.value_sources;
     let mut accessors_by_field = Vec::with_capacity(req.terms.len());
     for field_def in &req.terms {
         let field_name = &field_def.field;
@@ -781,7 +602,7 @@ fn build_multi_terms_nodes(
         // multi_terms resolves missing values through `ColumnIndex::has_value` per document, and
         // exposes its columns on a public struct, so it stays physical-only.
         let columns =
-            get_term_agg_accessors(reader, &value_sources, field_name, &field_def.missing, true)?
+            get_term_agg_accessors(reader, value_sources, field_name, &field_def.missing, true)?
                 .into_iter()
                 .map(|source| {
                     let column = require_physical_column(&*source, field_name, "multi_terms")?;
@@ -856,19 +677,15 @@ fn build_multi_terms_nodes(
     let mut nodes = Vec::with_capacity(field_combinations.len());
     for field_choices in field_combinations {
         let (fields, missing_accessors) = field_choices.into_iter().unzip();
-        let idx = data.push_multi_terms_req_data(MultiTermsAggReqData {
+        let node_data = AggNodeData::MultiTerms(MultiTermsAggReqData {
             name: agg_name.to_string(),
             req: req.clone(),
             fields,
             missing_accessors,
             is_top_level,
         });
-        let children = build_children(sub_aggs, reader, segment_ordinal, data)?;
-        nodes.push(AggRefNode {
-            kind: AggKind::MultiTerms,
-            idx_in_req_data: idx,
-            children,
-        });
+        let children = build_children(sub_aggs, reader, segment_ordinal, context)?;
+        nodes.push(AggNode::new(node_data, children));
     }
     Ok(nodes)
 }
@@ -983,8 +800,8 @@ fn build_children(
     aggs: &Aggregations,
     reader: &SegmentReader,
     segment_ordinal: SegmentOrdinal,
-    data: &mut AggregationsSegmentCtx,
-) -> crate::Result<Vec<AggRefNode>> {
+    context: &AggContextParams,
+) -> crate::Result<Vec<AggNode>> {
     let mut children = Vec::new();
     for (name, agg) in aggs.iter() {
         children.extend(build_nodes(
@@ -992,7 +809,7 @@ fn build_children(
             agg,
             reader,
             segment_ordinal,
-            data,
+            context,
             false,
         )?);
     }
@@ -1005,7 +822,7 @@ fn get_term_agg_accessors(
     field_name: &str,
     missing: &Option<Key>,
     include_bytes: bool,
-) -> crate::Result<Vec<Arc<dyn ValueSource>>> {
+) -> crate::Result<Vec<Box<dyn ValueSource>>> {
     // `terms` and `multi_terms` both explicitly reject `Bytes` columns downstream, which needs
     // to actually see them as a real column (rather than the empty shim below) to do so.
     // `cardinality` has no such rejection: it would hash raw `Bytes` term ordinals as if they
@@ -1067,19 +884,19 @@ fn build_terms_or_cardinality_nodes(
     missing: &Option<Key>,
     reader: &SegmentReader,
     segment_ordinal: SegmentOrdinal,
-    data: &mut AggregationsSegmentCtx,
+    context: &AggContextParams,
     sub_aggs: &Aggregations,
     req: TermsOrCardinalityRequest,
     is_top_level: bool,
-) -> crate::Result<Vec<AggRefNode>> {
+) -> crate::Result<Vec<AggNode>> {
     let mut nodes = Vec::new();
 
     let str_dict_column = reader.fast_fields().str(field_name)?;
-    let value_sources = data.context.value_sources.clone();
+    let value_sources = &context.value_sources;
 
     let include_bytes = matches!(req, TermsOrCardinalityRequest::Terms(_));
     let sources =
-        get_term_agg_accessors(reader, &value_sources, field_name, missing, include_bytes)?;
+        get_term_agg_accessors(reader, value_sources, field_name, missing, include_bytes)?;
 
     // Special handling when missing + multi column or incompatible type on text/date.
     let missing_and_more_than_one_col = sources.len() > 1 && missing.is_some();
@@ -1105,7 +922,7 @@ fn build_terms_or_cardinality_nodes(
         // documents are missing across several typed columns. There is no way to ask that through
         // `ValueSource`, so it stays physical-only.
         let all_accessors =
-            get_all_value_sources(reader, &value_sources, field_name, None, fallback_type)?
+            get_all_value_sources(reader, value_sources, field_name, None, fallback_type)?
                 .into_iter()
                 .map(|source| {
                     let column = require_physical_column(
@@ -1124,17 +941,13 @@ fn build_terms_or_cardinality_nodes(
             )
         })?;
 
-        let children = build_children(sub_aggs, reader, segment_ordinal, data)?;
-        let idx_in_req_data = data.push_missing_term_req_data(MissingTermAggReqData {
+        let children = build_children(sub_aggs, reader, segment_ordinal, context)?;
+        let node_data = AggNodeData::MissingTerm(MissingTermAggReqData {
             accessors: all_accessors,
             name: agg_name.to_string(),
             req,
         });
-        nodes.push(AggRefNode {
-            kind: AggKind::MissingTerm,
-            idx_in_req_data,
-            children,
-        });
+        nodes.push(AggNode::new(node_data, children));
     }
 
     // Add one node per accessor
@@ -1148,8 +961,8 @@ fn build_terms_or_cardinality_nodes(
             None
         };
 
-        let children = build_children(sub_aggs, reader, segment_ordinal, data)?;
-        let (idx, kind) = match req {
+        let children = build_children(sub_aggs, reader, segment_ordinal, context)?;
+        let node_data = match req {
             TermsOrCardinalityRequest::Terms(ref req) => {
                 let mut allowed_term_ids = None;
                 if req.include.is_some() || req.exclude.is_some() {
@@ -1168,7 +981,7 @@ fn build_terms_or_cardinality_nodes(
                         missing.is_some(),
                     )?;
                 };
-                let idx_in_req_data = data.push_term_req_data(TermsAggReqData {
+                AggNodeData::Terms(TermsAggReqData {
                     accessor,
                     str_dict_column: str_dict_column.clone(),
                     missing_value_for_accessor,
@@ -1177,8 +990,7 @@ fn build_terms_or_cardinality_nodes(
                     sub_aggregations: sub_aggs.clone(),
                     allowed_term_ids,
                     is_top_level,
-                });
-                (idx_in_req_data, AggKind::Terms)
+                })
             }
             TermsOrCardinalityRequest::Cardinality(ref req) => {
                 // `str_dict_column` is computed once per field; for JSON paths
@@ -1191,21 +1003,16 @@ fn build_terms_or_cardinality_nodes(
                 } else {
                     None
                 };
-                let idx_in_req_data = data.push_cardinality_req_data(CardinalityAggReqData {
+                AggNodeData::Cardinality(CardinalityAggReqData {
                     accessor,
                     str_dict_column: str_dict_column_for_req,
                     missing_value_for_accessor,
                     name: agg_name.to_string(),
                     req: req.clone(),
-                });
-                (idx_in_req_data, AggKind::Cardinality)
+                })
             }
         };
-        nodes.push(AggRefNode {
-            kind,
-            idx_in_req_data: idx,
-            children,
-        });
+        nodes.push(AggNode::new(node_data, children));
     }
 
     Ok(nodes)
@@ -1297,6 +1104,16 @@ mod tests {
         serde_json::from_value(val).unwrap()
     }
 
+    fn multi_terms_req_data(agg_tree: &[AggNode]) -> Vec<&MultiTermsAggReqData> {
+        agg_tree
+            .iter()
+            .filter_map(|node| match &node.data {
+                AggNodeData::MultiTerms(req_data) => Some(req_data),
+                _ => None,
+            })
+            .collect()
+    }
+
     #[test]
     fn test_multi_terms_expands_physical_column_cartesian_product() -> crate::Result<()> {
         let mut schema_builder = crate::schema::Schema::builder();
@@ -1326,24 +1143,19 @@ mod tests {
         }));
         let aggs: Aggregations = vec![("mt".to_string(), agg)].into_iter().collect();
         let searcher = index.reader()?.searcher();
-        let data = build_aggregations_data_from_req(
+        let agg_tree = build_aggregations_data_from_req(
             &aggs,
             searcher.segment_reader(0),
             0,
-            Default::default(),
+            &Default::default(),
         )?;
+        let multi_terms_req_data = multi_terms_req_data(&agg_tree);
 
-        assert_eq!(data.per_request.agg_tree.len(), 4);
-        assert_eq!(data.per_request.multi_terms_req_data.len(), 4);
-        assert!(data
-            .per_request
-            .agg_tree
-            .iter()
-            .all(|node| node.children.len() == 1));
+        assert_eq!(agg_tree.len(), 4);
+        assert_eq!(multi_terms_req_data.len(), 4);
+        assert!(agg_tree.iter().all(|node| node.children.len() == 1));
 
-        let actual_types: FxHashSet<Vec<ColumnType>> = data
-            .per_request
-            .multi_terms_req_data
+        let actual_types: FxHashSet<Vec<ColumnType>> = multi_terms_req_data
             .iter()
             .map(|req_data| {
                 req_data
@@ -1362,9 +1174,7 @@ mod tests {
         .into_iter()
         .collect();
         assert_eq!(actual_types, expected_types);
-        assert!(data
-            .per_request
-            .multi_terms_req_data
+        assert!(multi_terms_req_data
             .iter()
             .flat_map(|req_data| &req_data.fields)
             .all(|field| {
@@ -1391,22 +1201,19 @@ mod tests {
         }));
         let aggs: Aggregations = vec![("mt".to_string(), agg)].into_iter().collect();
         let searcher = index.reader()?.searcher();
-        let data = build_aggregations_data_from_req(
+        let agg_tree = build_aggregations_data_from_req(
             &aggs,
             searcher.segment_reader(0),
             0,
-            Default::default(),
+            &Default::default(),
         )?;
+        let multi_terms_req_data = multi_terms_req_data(&agg_tree);
 
-        assert_eq!(data.per_request.multi_terms_req_data.len(), 2);
-        assert!(data
-            .per_request
-            .multi_terms_req_data
+        assert_eq!(multi_terms_req_data.len(), 2);
+        assert!(multi_terms_req_data
             .iter()
             .any(|req_data| req_data.fields[0].column.get_cardinality().is_full()));
-        assert!(data
-            .per_request
-            .multi_terms_req_data
+        assert!(multi_terms_req_data
             .iter()
             .all(|req_data| req_data.missing_accessors.iter().all(Option::is_none)));
 
@@ -1445,8 +1252,9 @@ mod tests {
         .into_iter()
         .collect();
 
-        let data = build_aggregations_data_from_req(&aggs, seg_reader, 0u32, Default::default())?;
-        let printed_nodes = data.per_request.get_view_tree();
+        let agg_tree =
+            build_aggregations_data_from_req(&aggs, seg_reader, 0u32, &Default::default())?;
+        let printed_nodes = get_view_tree(&agg_tree);
         let printed = serde_json::to_value(&printed_nodes).unwrap();
 
         let expected = json!([

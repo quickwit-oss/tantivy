@@ -28,7 +28,6 @@ mod sum;
 mod top_hits;
 
 use std::collections::HashMap;
-use std::sync::Arc;
 
 pub use average::*;
 pub use cardinality::*;
@@ -55,7 +54,7 @@ pub(crate) struct MetricAggReqData {
     /// The missing value normalized to the internal u64 representation of the field type.
     pub(crate) missing_u64: Option<u64>,
     /// The column accessor to access the fast field values.
-    pub(crate) accessor: Arc<dyn ValueSource>,
+    pub(crate) accessor: Box<dyn ValueSource>,
     /// Used when converting to intermediate result
     pub(crate) collecting_for: StatsType,
     /// The missing value

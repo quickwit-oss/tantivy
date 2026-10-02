@@ -1,14 +1,11 @@
 use std::fmt::Debug;
 use std::ops::Range;
-use std::sync::Arc;
 
 use columnar::ColumnType;
 use rustc_hash::FxHashMap;
 use serde::{Deserialize, Serialize};
 
-use crate::aggregation::agg_data::{
-    build_segment_agg_collectors, AggRefNode, AggregationsSegmentCtx,
-};
+use crate::aggregation::agg_data::{build_sub_agg_collectors, AggNode, AggregationsSegmentCtx};
 use crate::aggregation::agg_limits::AggregationLimitsGuard;
 use crate::aggregation::buffered_sub_aggs::{
     BufferedSubAggs, HighCardSubAggBuffer, LowCardBufferedSubAggs, LowCardSubAggBuffer,
@@ -25,10 +22,10 @@ use crate::TantivyError;
 
 /// Contains all information required by the SegmentRangeCollector to perform the
 /// range aggregation on a segment.
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub(crate) struct RangeAggReqData {
     /// The column accessor to access the fast field values.
-    pub(crate) accessor: Arc<dyn ValueSource>,
+    pub(crate) accessor: Box<dyn ValueSource>,
     /// The range aggregation request.
     pub(crate) req: RangeAggregation,
     /// The name of the aggregation.
@@ -285,7 +282,7 @@ impl<B: SubAggBuffer, const SOURCE_CONTAINS_MULTIVALUES: bool> SegmentAggregatio
         let accessor = &mut agg_data.column_block_accessor;
         accessor.fetch_block_with_missing_unique_per_doc(
             docs,
-            &*self.req_data.accessor,
+            &mut *self.req_data.accessor,
             None,
             false,
         );
@@ -352,40 +349,31 @@ impl<B: SubAggBuffer, const SOURCE_CONTAINS_MULTIVALUES: bool> SegmentAggregatio
 /// Build a range collector specialized for the source cardinality and aggregation level.
 pub(crate) fn build_segment_range_collector(
     agg_data: &mut AggregationsSegmentCtx,
-    node: &AggRefNode,
+    req_data: RangeAggReqData,
+    children: Vec<AggNode>,
 ) -> crate::Result<Box<dyn SegmentAggregationCollector>> {
-    let accessor = &agg_data.per_request.range_req_data[node.idx_in_req_data].accessor;
     // Computed sources may change cardinality between blocks.
-    let source_contains_multivalues = accessor.as_column().map_or(true, |column| {
+    let source_contains_multivalues = req_data.accessor.as_column().map_or(true, |column| {
         column.index.get_cardinality().is_multivalue()
     });
     if source_contains_multivalues {
-        build_range_collector_with_cardinality::<true>(agg_data, node)
+        build_range_collector_with_cardinality::<true>(agg_data, req_data, children)
     } else {
-        build_range_collector_with_cardinality::<false>(agg_data, node)
+        build_range_collector_with_cardinality::<false>(agg_data, req_data, children)
     }
 }
 
 fn build_range_collector_with_cardinality<const SOURCE_CONTAINS_MULTIVALUES: bool>(
     agg_data: &mut AggregationsSegmentCtx,
-    node: &AggRefNode,
+    req_data: RangeAggReqData,
+    children: Vec<AggNode>,
 ) -> crate::Result<Box<dyn SegmentAggregationCollector>> {
-    let req_data = agg_data.per_request.range_req_data[node.idx_in_req_data].clone();
-    agg_data
-        .context
-        .limits
-        .add_memory_consumed(req_data.get_memory_consumption() as u64)?;
-
     // TODO: A better metric instead of is_top_level would be the number of buckets expected.
     // E.g. If range agg is not top level, but the parent is a bucket agg with less than 10 buckets,
     // we can are still in low cardinality territory.
     let is_low_card = req_data.is_top_level && req_data.req.ranges.len() <= 64;
 
-    let sub_agg = if !node.children.is_empty() {
-        Some(build_segment_agg_collectors(agg_data, &node.children)?)
-    } else {
-        None
-    };
+    let sub_agg = build_sub_agg_collectors(agg_data, children)?;
 
     if is_low_card {
         Ok(Box::new(SegmentRangeCollector::<
@@ -717,8 +705,9 @@ mod tests {
     #[test]
     fn range_counts_repeated_documents_in_separate_calls() -> crate::Result<()> {
         use crate::aggregation::agg_data::{
-            build_aggregations_data_from_req, build_segment_agg_collectors_root,
+            build_aggregations_data_from_req, build_segment_agg_collectors, AggregationsSegmentCtx,
         };
+        use crate::aggregation::AggContextParams;
         use crate::schema::{Schema, FAST};
         use crate::Index;
 
@@ -733,13 +722,11 @@ mod tests {
         let request = serde_json::from_value(json!({
             "ranges": {"range": {"field": "value", "ranges": [{"from": 10, "to": 20}]}}
         }))?;
-        let mut ctx = build_aggregations_data_from_req(
-            &request,
-            searcher.segment_reader(0),
-            0,
-            Default::default(),
-        )?;
-        let mut collector = build_segment_agg_collectors_root(&mut ctx)?;
+        let context = AggContextParams::default();
+        let agg_tree =
+            build_aggregations_data_from_req(&request, searcher.segment_reader(0), 0, &context)?;
+        let mut ctx = AggregationsSegmentCtx::new(context);
+        let mut collector = build_segment_agg_collectors(&mut ctx, agg_tree)?;
         collector.prepare_max_bucket(0, &ctx)?;
         collector.collect(0, &[0], &mut ctx)?;
         collector.collect(0, &[0], &mut ctx)?;

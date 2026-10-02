@@ -1,7 +1,6 @@
 //! This will enhance the request tree with access to the fastfield and metadata.
 
 use std::io;
-use std::sync::Arc;
 
 use columnar::{Column, ColumnType, DynamicColumn, DynamicColumnHandle};
 
@@ -62,7 +61,7 @@ fn resolve_registered_source(
     value_sources: &ValueSourceRegistry,
     field_name: &str,
     allowed_column_types_opt: Option<&[ColumnType]>,
-) -> crate::Result<Option<Arc<dyn ValueSource>>> {
+) -> crate::Result<Option<Box<dyn ValueSource>>> {
     let Some(provider) = value_sources.get(field_name) else {
         return Ok(None);
     };
@@ -81,7 +80,7 @@ pub(crate) fn get_value_source(
     value_sources: &ValueSourceRegistry,
     field_name: &str,
     allowed_column_types: Option<&[ColumnType]>,
-) -> crate::Result<Arc<dyn ValueSource>> {
+) -> crate::Result<Box<dyn ValueSource>> {
     if let Some(registered) =
         resolve_registered_source(reader, value_sources, field_name, allowed_column_types)?
     {
@@ -98,7 +97,7 @@ pub(crate) fn get_value_source(
         });
     // The empty-column shim stays physical on purpose: several fast paths check
     // `as_column()` and would otherwise degrade for a merely absent field.
-    Ok(Arc::new((column, column_type)))
+    Ok(Box::new((column, column_type)))
 }
 
 pub(crate) fn get_dynamic_columns(
@@ -124,7 +123,7 @@ pub(crate) fn get_all_value_sources(
     field_name: &str,
     allowed_column_types: Option<&[ColumnType]>,
     fallback_type: ColumnType,
-) -> crate::Result<Vec<Arc<dyn ValueSource>>> {
+) -> crate::Result<Vec<Box<dyn ValueSource>>> {
     // A registered source shadows the physical type fan-out entirely.
     if let Some(registered) =
         resolve_registered_source(reader, value_sources, field_name, allowed_column_types)?
@@ -140,7 +139,7 @@ pub(crate) fn get_all_value_sources(
     Ok(ff_field_with_type
         .into_iter()
         .map(|(column, column_type)| {
-            let source: Arc<dyn ValueSource> = Arc::new((column, column_type));
+            let source: Box<dyn ValueSource> = Box::new((column, column_type));
             source
         })
         .collect())

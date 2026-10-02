@@ -9,7 +9,7 @@ use crate::SegmentReader;
 /// Creates a value source for each segment.
 pub trait ValueSourceProvider: Send + Sync + 'static {
     /// Binds this definition to a single segment.
-    fn for_segment(&self, reader: &SegmentReader) -> crate::Result<Arc<dyn ValueSource>>;
+    fn for_segment(&self, reader: &SegmentReader) -> crate::Result<Box<dyn ValueSource>>;
 }
 
 /// Named computed sources available to an aggregation request.
@@ -58,7 +58,7 @@ mod tests {
         writer.commit().unwrap();
         let searcher = index.reader().unwrap().searcher();
         let value_source_provider = registry.get("computed").unwrap();
-        let value_source = value_source_provider
+        let mut value_source = value_source_provider
             .for_segment(searcher.segment_reader(0u32))
             .unwrap();
         let mut values = Vec::new();

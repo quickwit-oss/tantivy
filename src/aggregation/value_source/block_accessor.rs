@@ -47,7 +47,7 @@ impl ColumnBlockAccessor {
     /// [`Self::fetch_block_with_missing_unique_per_doc`] instead, so duplicate values do not
     /// inflate document counts.
     #[inline]
-    fn fetch_block<S: ValueSource + ?Sized>(&mut self, docs: &[DocId], source: &S) {
+    fn fetch_block<S: ValueSource + ?Sized>(&mut self, docs: &[DocId], source: &mut S) {
         self.cardinality = source.load_block(
             docs,
             &mut self.val_cache,
@@ -83,7 +83,7 @@ impl ColumnBlockAccessor {
     pub(crate) fn fetch_block_with_missing<S: ValueSource + ?Sized>(
         &mut self,
         docs: &[DocId],
-        source: &S,
+        source: &mut S,
         missing_opt: Option<u64>,
     ) {
         self.fetch_block_with_missing_ordered(docs, source, missing_opt, false)
@@ -96,7 +96,7 @@ impl ColumnBlockAccessor {
     pub(crate) fn fetch_block_with_missing_ordered<S: ValueSource + ?Sized>(
         &mut self,
         docs: &[DocId],
-        source: &S,
+        source: &mut S,
         missing_opt: Option<u64>,
         ordered: bool,
     ) {
@@ -166,7 +166,7 @@ impl ColumnBlockAccessor {
     pub(crate) fn fetch_block_with_missing_unique_per_doc(
         &mut self,
         docs: &[DocId],
-        source: &dyn ValueSource,
+        source: &mut dyn ValueSource,
         missing: Option<u64>,
         ordered: bool,
     ) {
@@ -321,7 +321,6 @@ fn find_missing_docs(docs: &[u32], hits: &[u32], output: &mut Vec<u32>) {
 #[cfg(test)]
 #[allow(clippy::field_reassign_with_default)]
 mod tests {
-    use std::sync::Arc;
 
     use columnar::{Column, ColumnType};
 
@@ -339,7 +338,7 @@ mod tests {
         }
 
         fn load_block(
-            &self,
+            &mut self,
             docs: &[DocId],
             values: &mut Vec<u64>,
             docids: &mut Vec<DocId>,
@@ -362,11 +361,11 @@ mod tests {
     #[test]
     fn test_fetch_block_accepts_trait_object() {
         let docs = [2, 4, 8];
-        let source = TestValueSource {
+        let mut source = TestValueSource {
             cardinality: Cardinality::Full,
             entries: vec![(2, 20), (4, 40), (8, 80)],
         };
-        let dyn_source: &dyn ValueSource = &source;
+        let dyn_source: &mut dyn ValueSource = &mut source;
         let mut accessor = ColumnBlockAccessor::default();
 
         accessor.fetch_block(&docs, dyn_source);
@@ -401,37 +400,37 @@ mod tests {
             (vec![(0, 12), (0, 15)], true),
             (vec![(0, 12), (2, 25), (2, 28)], true),
         ] {
-            let source = TestValueSource {
+            let mut source = TestValueSource {
                 cardinality: Cardinality::Multivalued,
                 entries,
             };
-            accessor.fetch_block(&docs, &source);
+            accessor.fetch_block(&docs, &mut source);
             assert_eq!(accessor.is_batch_multivalued(), expected);
-            accessor.fetch_block_with_missing_unique_per_doc(&docs, &source, Some(99), true);
+            accessor.fetch_block_with_missing_unique_per_doc(&docs, &mut source, Some(99), true);
             assert_eq!(accessor.is_batch_multivalued(), expected);
         }
 
-        let source = TestValueSource {
+        let mut source = TestValueSource {
             cardinality: Cardinality::Multivalued,
             entries: vec![(0, 12), (0, 12)],
         };
-        accessor.fetch_block(&docs, &source);
+        accessor.fetch_block(&docs, &mut source);
         assert!(accessor.is_batch_multivalued());
-        accessor.fetch_block_with_missing_unique_per_doc(&docs, &source, None, false);
+        accessor.fetch_block_with_missing_unique_per_doc(&docs, &mut source, None, false);
         assert!(!accessor.is_batch_multivalued());
 
-        accessor.fetch_block(&docs, &source);
+        accessor.fetch_block(&docs, &mut source);
         assert!(accessor.is_batch_multivalued());
     }
 
     #[test]
     fn test_is_batch_multivalued_ignores_stale_full_docids() {
         let mut accessor = ColumnBlockAccessor::default();
-        let source = TestValueSource {
+        let mut source = TestValueSource {
             cardinality: Cardinality::Multivalued,
             entries: vec![(0, 12), (0, 15)],
         };
-        accessor.fetch_block_with_missing_unique_per_doc(&[0], &source, None, false);
+        accessor.fetch_block_with_missing_unique_per_doc(&[0], &mut source, None, false);
         assert!(accessor.is_batch_multivalued());
 
         let column = full_column(&[25]);
@@ -442,11 +441,11 @@ mod tests {
 
     #[test]
     fn test_as_column_distinguishes_the_two_kinds() {
-        let column: Arc<dyn ValueSource> = Arc::new((full_column(&[5, 6, 7]), ColumnType::U64));
+        let column: Box<dyn ValueSource> = Box::new((full_column(&[5, 6, 7]), ColumnType::U64));
         assert!(column.as_column().is_some());
         assert_eq!(column.bounds(), Some((5, 7)));
 
-        let computed: Arc<dyn ValueSource> = Arc::new(TestValueSource {
+        let computed: Box<dyn ValueSource> = Box::new(TestValueSource {
             cardinality: Cardinality::Full,
             entries: vec![(0, 1)],
         });
@@ -460,20 +459,20 @@ mod tests {
         // A computed source reports what it produced: docs 0 and 2 have no value, so they are
         // absent from `docids` and the source is `Optional`.
         let docs = [0, 1, 2, 3];
-        let computed: Arc<dyn ValueSource> = Arc::new(TestValueSource {
+        let mut computed: Box<dyn ValueSource> = Box::new(TestValueSource {
             cardinality: Cardinality::Optional,
             entries: vec![(1, 11), (3, 33)],
         });
         let mut accessor = ColumnBlockAccessor::default();
 
-        accessor.fetch_block(&docs, &*computed);
+        accessor.fetch_block(&docs, &mut *computed);
         assert!(!accessor.has_one_value_per_doc(&docs));
         assert_eq!(
             accessor.iter_docid_vals(&docs).collect::<Vec<_>>(),
             [(1, 11), (3, 33)]
         );
 
-        accessor.fetch_block_with_missing(&docs, &*computed, Some(99));
+        accessor.fetch_block_with_missing(&docs, &mut *computed, Some(99));
         let mut pairs = accessor.iter_docid_vals(&docs).collect::<Vec<_>>();
         pairs.sort_unstable();
         assert_eq!(pairs, [(0, 99), (1, 11), (2, 99), (3, 33)]);
@@ -510,12 +509,12 @@ mod tests {
     #[test]
     fn test_source_neutral_full_block_alignment() {
         let docs = [2, 4, 8];
-        let source = TestValueSource {
+        let mut source = TestValueSource {
             cardinality: Cardinality::Full,
             entries: vec![(2, 20), (4, 40), (8, 80)],
         };
         let mut accessor = ColumnBlockAccessor::default();
-        accessor.fetch_block(&docs, &source);
+        accessor.fetch_block(&docs, &mut source);
         assert!(accessor.has_one_value_per_doc(&docs));
         assert_eq!(
             accessor.iter_docid_vals(&docs).collect::<Vec<_>>(),
@@ -526,13 +525,13 @@ mod tests {
     #[test]
     fn test_source_neutral_optional_block_with_missing() {
         let docs = [0, 1, 2, 4];
-        let source = TestValueSource {
+        let mut source = TestValueSource {
             cardinality: Cardinality::Optional,
             entries: vec![(1, 10), (4, 40)],
         };
         let mut accessor = ColumnBlockAccessor::default();
 
-        accessor.fetch_block_with_missing_ordered(&docs, &source, Some(99), true);
+        accessor.fetch_block_with_missing_ordered(&docs, &mut source, Some(99), true);
 
         assert!(accessor.has_one_value_per_doc(&docs));
         assert_eq!(
@@ -544,13 +543,13 @@ mod tests {
     #[test]
     fn test_source_neutral_multivalue_block_deduplication() {
         let docs = [0, 1];
-        let source = TestValueSource {
+        let mut source = TestValueSource {
             cardinality: Cardinality::Multivalued,
             entries: vec![(0, 3), (0, 1), (0, 3), (1, 5), (1, 5)],
         };
         let mut accessor = ColumnBlockAccessor::default();
 
-        accessor.fetch_block_with_missing_unique_per_doc(&docs, &source, None, false);
+        accessor.fetch_block_with_missing_unique_per_doc(&docs, &mut source, None, false);
 
         assert!(!accessor.has_one_value_per_doc(&docs));
         assert_eq!(
@@ -578,7 +577,7 @@ mod tests {
 
         accessor.fetch_block_with_missing_ordered(
             &docs,
-            &(&column, ColumnType::U64),
+            &mut (&column, ColumnType::U64),
             Some(99),
             true,
         );
@@ -681,7 +680,7 @@ mod tests {
         };
 
         let check = |accessor: &mut ColumnBlockAccessor, docs: &[u32]| {
-            accessor.fetch_block(docs, &(&column, ColumnType::U64));
+            accessor.fetch_block(docs, &mut (&column, ColumnType::U64));
             let got: Vec<(u32, u64)> = accessor.iter_docid_vals(docs).collect();
             let expected: Vec<(u32, u64)> = docs.iter().map(|&d| (d, vals[d as usize])).collect();
             assert_eq!(got, expected);
