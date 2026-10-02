@@ -6,6 +6,7 @@ mod sort_by_static_fast_value;
 mod sort_by_string;
 mod sort_key_computer;
 
+use columnar::BytesColumn;
 pub use order::*;
 pub use sort_by_bytes::SortByBytes;
 pub use sort_by_erased_type::SortByErasedType;
@@ -13,6 +14,39 @@ pub use sort_by_score::SortBySimilarityScore;
 pub use sort_by_static_fast_value::SortByStaticFastValue;
 pub use sort_by_string::SortByString;
 pub use sort_key_computer::{SegmentSortKeyComputer, SortKeyComputer};
+
+use crate::termdict::TermOrdinal;
+
+/// Looks up the terms of `term_ords` in `bytes_column`'s dictionary, in order.
+///
+/// The dictionary is walked once in ordinal order, decompressing each block at most
+/// once, instead of once per lookup. An ordinal that is `None` or cannot be resolved
+/// yields `None`.
+pub(crate) fn term_ords_to_terms(
+    bytes_column: &BytesColumn,
+    term_ords: &[Option<TermOrdinal>],
+) -> Vec<Option<Vec<u8>>> {
+    let mut positions: Vec<usize> = (0..term_ords.len())
+        .filter(|&position| term_ords[position].is_some())
+        .collect();
+    positions.sort_unstable_by_key(|&position| term_ords[position]);
+    let sorted_ords: Vec<TermOrdinal> = positions
+        .iter()
+        .filter_map(|&position| term_ords[position])
+        .collect();
+    let mut terms = vec![None; term_ords.len()];
+    let mut resolved_positions = positions.iter();
+    // A missing ordinal or an I/O error stops the walk early, leaving the remaining
+    // terms `None`.
+    let _ = bytes_column
+        .dictionary()
+        .sorted_ords_to_term_cb(&sorted_ords, |term| {
+            if let Some(&position) = resolved_positions.next() {
+                terms[position] = Some(term.to_vec());
+            }
+        });
+    terms
+}
 
 #[cfg(test)]
 pub(crate) mod tests {
