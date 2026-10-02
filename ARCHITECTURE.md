@@ -84,7 +84,7 @@ Indeed, while having several segments instead of one does not hurt search too mu
 
 The user of the library usually does not need to know about the existence of Segments.
 Searching is done through an object called a [`Searcher`](src/core/searcher.rs), that captures a
-snapshot of the index at one point of time, by holding a list of [SegmentReader](src/core/segment_reader.rs).
+snapshot of the index at one point of time, by holding a list of [SegmentReader](src/index/segment_reader.rs).
 
 In other words, regardless of commits, file garbage collection, or segment merge that might happen, as long as the user holds and reuse the same [Searcher](src/core/searcher.rs), search will happen on an immutable snapshot of the index.
 

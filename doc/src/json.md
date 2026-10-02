@@ -99,9 +99,10 @@ This is a product decision.
 The user can still target the JSON field by specifying its name explicitly:
 `json_dynamic.text:hello`.
 
-## Range queries are not supported
+## `RangeQuery` requires a fast field
 
-Json field do not support range queries.
+`RangeQuery` on a json field is only supported if the field is `FAST`, and only for
+string, numeric and date values. Otherwise it returns an `InvalidArgument` error.
 
 ## Arrays do not work like nested object
 
