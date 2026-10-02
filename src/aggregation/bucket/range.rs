@@ -1,14 +1,11 @@
 use std::fmt::Debug;
 use std::ops::Range;
-use std::sync::Arc;
 
 use columnar::ColumnType;
 use rustc_hash::FxHashMap;
 use serde::{Deserialize, Serialize};
 
-use crate::aggregation::agg_data::{
-    build_segment_agg_collectors, AggRefNode, AggregationsSegmentCtx,
-};
+use crate::aggregation::agg_data::{build_sub_agg_collectors, AggNode, AggregationsSegmentCtx};
 use crate::aggregation::agg_limits::AggregationLimitsGuard;
 use crate::aggregation::buffered_sub_aggs::{
     BufferedSubAggs, HighCardSubAggBuffer, LowCardBufferedSubAggs, LowCardSubAggBuffer,
@@ -25,10 +22,10 @@ use crate::TantivyError;
 
 /// Contains all information required by the SegmentRangeCollector to perform the
 /// range aggregation on a segment.
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub(crate) struct RangeAggReqData {
     /// The column accessor to access the fast field values.
-    pub(crate) accessor: Arc<dyn ValueSource>,
+    pub(crate) accessor: Box<dyn ValueSource>,
     /// The range aggregation request.
     pub(crate) req: RangeAggregation,
     /// The name of the aggregation.
@@ -280,7 +277,7 @@ impl<B: SubAggBuffer> SegmentAggregationCollector for SegmentRangeCollector<B> {
     ) -> crate::Result<()> {
         agg_data
             .column_block_accessor
-            .fetch_block(docs, &*self.req_data.accessor);
+            .fetch_block(docs, &mut *self.req_data.accessor);
 
         let buckets = &mut self.parent_buckets[parent_bucket_id as usize];
 
@@ -335,24 +332,15 @@ impl<B: SubAggBuffer> SegmentAggregationCollector for SegmentRangeCollector<B> {
 /// bucket storage, depending on the column type and aggregation level.
 pub(crate) fn build_segment_range_collector(
     agg_data: &mut AggregationsSegmentCtx,
-    node: &AggRefNode,
+    req_data: RangeAggReqData,
+    children: Vec<AggNode>,
 ) -> crate::Result<Box<dyn SegmentAggregationCollector>> {
-    let req_data = agg_data.per_request.range_req_data[node.idx_in_req_data].clone();
-    agg_data
-        .context
-        .limits
-        .add_memory_consumed(req_data.get_memory_consumption() as u64)?;
-
     // TODO: A better metric instead of is_top_level would be the number of buckets expected.
     // E.g. If range agg is not top level, but the parent is a bucket agg with less than 10 buckets,
     // we can are still in low cardinality territory.
     let is_low_card = req_data.is_top_level && req_data.req.ranges.len() <= 64;
 
-    let sub_agg = if !node.children.is_empty() {
-        Some(build_segment_agg_collectors(agg_data, &node.children)?)
-    } else {
-        None
-    };
+    let sub_agg = build_sub_agg_collectors(agg_data, children)?;
 
     if is_low_card {
         Ok(Box::new(SegmentRangeCollector::<LowCardSubAggBuffer> {

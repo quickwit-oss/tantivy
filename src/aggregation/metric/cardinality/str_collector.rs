@@ -10,20 +10,18 @@
 
 use std::fmt::Debug;
 use std::io;
-use std::sync::Arc;
 
 use columnar::{ColumnType, Dictionary};
 use datasketches::hll::Coupon;
 use rustc_hash::{FxBuildHasher, FxHashMap, FxHashSet};
 
 use super::term_ord_accumulator::TermOrdAccumulator;
-use super::CardinalityCollector;
+use super::{CardinalityAggReqData, CardinalityCollector};
 use crate::aggregation::agg_data::AggregationsSegmentCtx;
 use crate::aggregation::intermediate_agg_result::{
     IntermediateAggregationResult, IntermediateAggregationResults, IntermediateMetricResult,
 };
 use crate::aggregation::segment_agg_result::SegmentAggregationCollector;
-use crate::aggregation::value_source::ValueSource;
 use crate::aggregation::*;
 
 /// A CouponCache is here to cache the mapping term ordinal -> coupon (see above).
@@ -99,11 +97,8 @@ pub(crate) struct SegmentStrCardinalityCollector<S: TermOrdAccumulator> {
     /// Buckets are Some(_) until they get consumed by
     /// `add_intermediate_aggregation_result`.
     buckets: Vec<Option<S>>,
-    accessor_idx: usize,
-    /// The column accessor to access the fast field values (term ordinals).
-    accessor: Arc<dyn ValueSource>,
-    /// The missing value normalized to the internal u64 representation of the field type.
-    missing_value_for_accessor: Option<u64>,
+    /// The request data. Its accessor gives access to the term ordinals.
+    req_data: CardinalityAggReqData,
     /// Lazily built at finalization time, shared by every bucket.
     coupon_cache: Option<CouponCache>,
     /// Largest term_ord that may be inserted into a bucket, i.e.
@@ -117,7 +112,7 @@ impl<S: TermOrdAccumulator> Debug for SegmentStrCardinalityCollector<S> {
             .field("num_buckets", &self.buckets.len())
             .field(
                 "missing_value_for_accessor",
-                &self.missing_value_for_accessor,
+                &self.req_data.missing_value_for_accessor,
             )
             .finish()
     }
@@ -209,17 +204,10 @@ fn append_to_sketch(
 }
 
 impl<S: TermOrdAccumulator> SegmentStrCardinalityCollector<S> {
-    pub fn from_req(
-        accessor_idx: usize,
-        accessor: Arc<dyn ValueSource>,
-        missing_value_for_accessor: Option<u64>,
-        max_term_ord_inclusive: u64,
-    ) -> Self {
+    pub(crate) fn from_req(req_data: CardinalityAggReqData, max_term_ord_inclusive: u64) -> Self {
         Self {
             buckets: Vec::new(),
-            accessor_idx,
-            accessor,
-            missing_value_for_accessor,
+            req_data,
             coupon_cache: None,
             max_term_ord_inclusive,
         }
@@ -236,7 +224,7 @@ impl<S: TermOrdAccumulator + 'static> SegmentAggregationCollector
         bucket_id: BucketId,
     ) -> crate::Result<()> {
         self.prepare_max_bucket(bucket_id, agg_data)?;
-        let req_data = &agg_data.get_cardinality_req_data(self.accessor_idx);
+        let req_data = &self.req_data;
         let Some(str_dict_column) = &req_data.str_dict_column else {
             return Err(crate::TantivyError::InternalError(
                 "a str cardinality collector requires a str dictionary column".to_string(),
@@ -284,8 +272,8 @@ impl<S: TermOrdAccumulator + 'static> SegmentAggregationCollector
     ) -> crate::Result<()> {
         agg_data.column_block_accessor.fetch_block_with_missing(
             docs,
-            &*self.accessor,
-            self.missing_value_for_accessor,
+            &mut *self.req_data.accessor,
+            self.req_data.missing_value_for_accessor,
         );
         let Some(term_ords) = self.buckets[parent_bucket_id as usize].as_mut() else {
             return Err(crate::TantivyError::InternalError(
@@ -322,10 +310,9 @@ impl<S: TermOrdAccumulator + 'static> SegmentAggregationCollector
         bucket_id: BucketId,
         sub_agg_name: &str,
         sub_agg_property: &str,
-        agg_data: &AggregationsSegmentCtx,
+        _agg_data: &AggregationsSegmentCtx,
     ) -> Option<f64> {
-        let req_data = &agg_data.get_cardinality_req_data(self.accessor_idx);
-        if req_data.name != sub_agg_name || !sub_agg_property.is_empty() {
+        if self.req_data.name != sub_agg_name || !sub_agg_property.is_empty() {
             return None;
         }
         // The sketch isn't built until finalization; the term_ord set's len is
