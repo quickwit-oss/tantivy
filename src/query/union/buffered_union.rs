@@ -49,6 +49,13 @@ fn refill<TScorer: Scorer, TScoreCombiner: ScoreCombiner>(
     score_combiner: &mut [TScoreCombiner; HORIZON as usize],
     min_doc: DocId,
 ) {
+    if !TScoreCombiner::NEEDS_PER_DOC_SCORES {
+        for scorer in scorers.iter_mut() {
+            scorer.fill_bitset_window(min_doc, bitsets);
+        }
+        scorers.retain(|scorer| scorer.doc() != TERMINATED);
+        return;
+    }
     let horizon = min_doc + HORIZON;
     for scorer in scorers.iter_mut() {
         loop {

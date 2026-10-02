@@ -4,6 +4,7 @@ mod block_search;
 
 pub(crate) use self::block_search::search_block;
 
+mod bitset_fill;
 mod block_segment_postings;
 pub(crate) mod compression;
 mod indexing_context;
