@@ -15,6 +15,30 @@ use crate::postings::{BlockSegmentPostings, SegmentPostings, TermInfo};
 use crate::schema::{IndexRecordOption, Term, Type};
 use crate::termdict::TermDictionary;
 
+#[cfg(feature = "quickwit")]
+// This is how many bytes we can hope to receive during a TTFB from S3 (~80MiB/s, 50ms).
+const MERGE_HOLES_UNDER_BYTES: usize = (80 * 1024 * 1024 * 50) / 1000;
+
+#[cfg(feature = "quickwit")]
+fn send_coalesced_posting_ranges(
+    posting_ranges: impl Iterator<Item = std::ops::Range<usize>>,
+    sender: futures_channel::mpsc::UnboundedSender<std::ops::Range<usize>>,
+) -> io::Result<()> {
+    let merged_posting_ranges = posting_ranges.coalesce(|range1, range2| {
+        if range1.end + MERGE_HOLES_UNDER_BYTES >= range2.start {
+            Ok(range1.start..range2.end)
+        } else {
+            Err((range1, range2))
+        }
+    });
+    for posting_range in merged_posting_ranges {
+        sender
+            .unbounded_send(posting_range)
+            .map_err(|_| io::Error::other("failed to send posting range back"))?;
+    }
+    Ok(())
+}
+
 /// The inverted index reader is in charge of accessing
 /// the inverted index associated with a specific field.
 ///
@@ -393,6 +417,22 @@ impl InvertedIndexReader {
         Ok(true)
     }
 
+    async fn download_posting_ranges(
+        &self,
+        posting_ranges: futures_channel::mpsc::UnboundedReceiver<std::ops::Range<usize>>,
+    ) -> io::Result<bool> {
+        let slices_downloaded = posting_ranges
+            .map(|posting_range| {
+                self.postings_file_slice
+                    .read_bytes_slice_async(posting_range)
+                    .map(|result| result.map(|_slice| ()))
+            })
+            .buffer_unordered(5)
+            .try_collect::<Vec<()>>()
+            .await?;
+        Ok(!slices_downloaded.is_empty())
+    }
+
     /// Warmup a block postings given a range of `Term`s.
     /// This method is for an advanced usage only.
     ///
@@ -411,10 +451,7 @@ impl InvertedIndexReader {
     where
         A::State: Clone,
     {
-        // merge holes under 4MiB, that's how many bytes we can hope to receive during a TTFB from
-        // S3 (~80MiB/s, and 50ms latency)
-        const MERGE_HOLES_UNDER_BYTES: usize = (80 * 1024 * 1024 * 50) / 1000;
-        // we build a first iterator to download everything. Simply calling the function already
+        // We build a first iterator to download everything. Simply calling the function already
         // download everything we need from the sstable, but doesn't start iterating over it.
         let _term_info_iter = self
             .get_term_range_async(.., automaton.clone(), None, MERGE_HOLES_UNDER_BYTES)
@@ -433,45 +470,75 @@ impl InvertedIndexReader {
             // more leaky abstraction-wise, but a lot better than the alternative
             let mut stream = termdict.search(automaton).without_keys().into_stream()?;
 
-            // we could do without an iterator, but this allows us access to coalesce which simplify
-            // things
-            let posting_ranges_iter = std::iter::from_fn(move || {
+            let posting_ranges = std::iter::from_fn(move || {
                 stream
                     .next_without_key()
                     .map(|value| value.postings_range.clone())
             });
-
-            let merged_posting_ranges_iter = posting_ranges_iter.coalesce(|range1, range2| {
-                if range1.end + MERGE_HOLES_UNDER_BYTES >= range2.start {
-                    Ok(range1.start..range2.end)
-                } else {
-                    Err((range1, range2))
-                }
-            });
-
-            for posting_range in merged_posting_ranges_iter {
-                if sender.unbounded_send(posting_range).is_err() {
-                    // this should happen only when search is cancelled
-                    return Err(io::Error::other("failed to send posting range back"));
-                }
-            }
-            Ok(())
+            send_coalesced_posting_ranges(posting_ranges, sender)
         };
         let task_handle = executor(Box::new(cpu_bound_task));
 
-        let posting_downloader = posting_ranges_to_load_stream
-            .map(|posting_slice| {
-                self.postings_file_slice
-                    .read_bytes_slice_async(posting_slice)
-                    .map(|result| result.map(|_slice| ()))
-            })
-            .buffer_unordered(5)
-            .try_collect::<Vec<()>>();
+        let (_, postings_found) = futures_util::future::try_join(
+            task_handle,
+            self.download_posting_ranges(posting_ranges_to_load_stream),
+        )
+        .await?;
+        Ok(postings_found)
+    }
 
-        let (_, slices_downloaded) =
-            futures_util::future::try_join(task_handle, posting_downloader).await?;
+    /// Warms postings for one automaton and returns the matching term infos.
+    ///
+    /// The term infos belong to this reader and allow reading the warmed postings without
+    /// searching the dictionary again. The directory must cache asynchronous reads for
+    /// subsequent synchronous reads. The executor must run independently of this future and
+    /// complete only after its task finishes. That task enumerates terms and queues downloads;
+    /// it does not wait for I/O or decode postings.
+    pub async fn warm_postings_automaton_with_term_infos<
+        A: Automaton + Send + 'static,
+        E: FnOnce(Box<dyn FnOnce() -> io::Result<()> + Send>) -> F,
+        F: std::future::Future<Output = io::Result<()>>,
+    >(
+        &self,
+        automaton: A,
+        executor: E,
+    ) -> io::Result<Vec<TermInfo>>
+    where
+        A::State: Clone,
+    {
+        let term_info_stream = self
+            .termdict
+            .search(&automaton)
+            .into_stream_async_merging_holes(MERGE_HOLES_UNDER_BYTES)
+            .await?;
+        drop(term_info_stream);
 
-        Ok(!slices_downloaded.is_empty())
+        let (posting_range_sender, posting_range_receiver) = futures_channel::mpsc::unbounded();
+        let (term_infos_sender, term_infos_receiver) = futures_channel::oneshot::channel();
+        let termdict = self.termdict.clone();
+        let cpu_bound_task = move || {
+            let mut stream = termdict.search(automaton).into_stream()?;
+            let matching_terms: Vec<TermInfo> =
+                std::iter::from_fn(|| stream.next().map(|(_, info)| info.clone())).collect();
+            send_coalesced_posting_ranges(
+                matching_terms
+                    .iter()
+                    .map(|info| info.postings_range.clone()),
+                posting_range_sender,
+            )?;
+            term_infos_sender
+                .send(matching_terms)
+                .map_err(|_| io::Error::other("failed to send automaton term infos"))?;
+            Ok(())
+        };
+        futures_util::future::try_join(
+            executor(Box::new(cpu_bound_task)),
+            self.download_posting_ranges(posting_range_receiver),
+        )
+        .await?;
+        term_infos_receiver
+            .await
+            .map_err(|_| io::Error::other("automaton term info task stopped unexpectedly"))
     }
 
     /// Warmup the block postings for all terms.
@@ -494,5 +561,91 @@ impl InvertedIndexReader {
             .await?
             .map(|term_info| term_info.doc_freq)
             .unwrap_or(0u32))
+    }
+}
+
+#[cfg(all(test, feature = "quickwit"))]
+mod tests {
+    use std::io;
+
+    use futures::channel::oneshot;
+    use tantivy_fst::Regex;
+
+    use crate::schema::{Schema, STRING};
+    use crate::{DocSet, Index, IndexWriter, TERMINATED};
+
+    fn execute_on_thread(
+        task: Box<dyn FnOnce() -> io::Result<()> + Send>,
+    ) -> impl std::future::Future<Output = io::Result<()>> {
+        let (sender, receiver) = oneshot::channel();
+        std::thread::spawn(move || {
+            let _ = sender.send(task());
+        });
+        async move {
+            receiver
+                .await
+                .map_err(|_| io::Error::other("executor task panicked"))?
+        }
+    }
+
+    #[test]
+    fn test_warm_postings_automaton_with_term_infos() -> crate::Result<()> {
+        let mut schema_builder = Schema::builder();
+        let field = schema_builder.add_text_field("field", STRING);
+        let index = Index::create_in_ram(schema_builder.build());
+        let mut writer: IndexWriter = index.writer_for_tests()?;
+        writer.add_document(doc!(field => "apple", field => "banana"))?;
+        writer.add_document(doc!(field => "apricot"))?;
+        writer.add_document(doc!(field => "banana", field => "berry"))?;
+        writer.add_document(doc!(field => "carrot"))?;
+        // Exercise full postings blocks as well as short lists and duplicate matches.
+        for _ in 0..260 {
+            writer.add_document(doc!(field => "apple", field => "apricot"))?;
+        }
+        writer.commit()?;
+        let searcher = index.reader()?.searcher();
+        let segment_reader = searcher.segment_reader(0);
+        let inverted_index = segment_reader.inverted_index(field)?;
+        for (pattern, expected) in [
+            ("b.*", vec![0, 2]),
+            ("z.*", vec![]),
+            ("a.*", [vec![0, 1], (4..264).collect()].concat()),
+            (".*", (0..264).collect()),
+        ] {
+            let term_infos = futures::executor::block_on(
+                inverted_index.warm_postings_automaton_with_term_infos(
+                    Regex::new(pattern).unwrap(),
+                    execute_on_thread,
+                ),
+            )?;
+            let mut docs = Vec::new();
+            for term_info in term_infos {
+                let mut postings = inverted_index.read_postings_from_terminfo(
+                    &term_info,
+                    crate::schema::IndexRecordOption::Basic,
+                )?;
+                while postings.doc() != TERMINATED {
+                    docs.push(postings.doc());
+                    postings.advance();
+                }
+            }
+            docs.sort_unstable();
+            docs.dedup();
+            assert_eq!(docs, expected);
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn test_warm_postings_automaton_with_term_infos_empty_index() -> crate::Result<()> {
+        let inverted_index =
+            super::InvertedIndexReader::empty(crate::schema::IndexRecordOption::Basic);
+        let term_infos =
+            futures::executor::block_on(inverted_index.warm_postings_automaton_with_term_infos(
+                Regex::new(".*").unwrap(),
+                execute_on_thread,
+            ))?;
+        assert!(term_infos.is_empty());
+        Ok(())
     }
 }
