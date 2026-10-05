@@ -36,6 +36,8 @@ pub(crate) struct ColumnBlockAccessor {
     /// See also [`Self::has_one_value_per_doc`] if you need a stricter notion of
     /// cardinality.
     cardinality: Cardinality,
+    /// Whether any document has multiple values in the loaded block.
+    multivalued: bool,
 }
 
 impl ColumnBlockAccessor {
@@ -47,6 +49,9 @@ impl ColumnBlockAccessor {
             &mut self.docid_cache,
             &mut self.row_id_cache,
         );
+        // Full/Optional cannot repeat documents; Full may leave docid_cache stale.
+        self.multivalued = self.cardinality.is_multivalue()
+            && self.docid_cache.windows(2).any(|pair| pair[0] == pair[1]);
         debug_assert!(
             !self.cardinality.is_full() || self.val_cache.len() == docs.len(),
             "a Full source must return exactly one value per input doc"
@@ -65,6 +70,7 @@ impl ColumnBlockAccessor {
     ) {
         super::load_full_column_values(docs, column_values, &mut self.val_cache);
         self.cardinality = Cardinality::Full;
+        self.multivalued = false;
     }
 
     /// Fetches a block and appends `missing_opt` for documents without a value.
@@ -174,13 +180,7 @@ impl ColumnBlockAccessor {
     ///
     /// Skips entirely if no doc_id appears more than once in the block.
     fn dedup_docid_val_pairs(&mut self) {
-        if self.docid_cache.len() <= 1 {
-            return;
-        }
-
-        // Quick check: if no consecutive doc_ids are equal, no dedup needed.
-        let has_multivalue = self.docid_cache.windows(2).any(|w| w[0] == w[1]);
-        if !has_multivalue {
+        if !self.multivalued {
             return;
         }
 
@@ -200,10 +200,12 @@ impl ColumnBlockAccessor {
 
         // Now duplicates are adjacent — deduplicate in place.
         let mut write = 0;
+        self.multivalued = false;
         for read in 1..self.docid_cache.len() {
             if self.docid_cache[read] != self.docid_cache[write]
                 || self.val_cache[read] != self.val_cache[write]
             {
+                self.multivalued |= self.docid_cache[read] == self.docid_cache[write];
                 write += 1;
                 if write != read {
                     self.docid_cache[write] = self.docid_cache[read];
@@ -239,9 +241,7 @@ impl ColumnBlockAccessor {
     /// Values must be grouped by document.
     #[inline]
     pub(crate) fn is_batch_multivalued(&self) -> bool {
-        // Full/Optional cannot repeat documents; Full may leave docid_cache stale.
-        self.cardinality.is_multivalue()
-            && self.docid_cache.windows(2).any(|pair| pair[0] == pair[1])
+        self.multivalued
     }
 
     #[inline]
@@ -394,6 +394,8 @@ mod tests {
             };
             accessor.fetch_block(&docs, &source);
             assert_eq!(accessor.is_batch_multivalued(), expected);
+            accessor.fetch_block_with_missing_unique_per_doc(&docs, &source, Some(99), true);
+            assert_eq!(accessor.is_batch_multivalued(), expected);
         }
 
         let source = TestValueSource {
@@ -404,6 +406,9 @@ mod tests {
         assert!(accessor.is_batch_multivalued());
         accessor.fetch_block_with_missing_unique_per_doc(&docs, &source, None, false);
         assert!(!accessor.is_batch_multivalued());
+
+        accessor.fetch_block(&docs, &source);
+        assert!(accessor.is_batch_multivalued());
     }
 
     #[test]
@@ -413,7 +418,7 @@ mod tests {
             cardinality: Cardinality::Multivalued,
             entries: vec![(0, 12), (0, 15)],
         };
-        accessor.fetch_block(&[0], &source);
+        accessor.fetch_block_with_missing_unique_per_doc(&[0], &source, None, false);
         assert!(accessor.is_batch_multivalued());
 
         let column = full_column(&[25]);
@@ -580,9 +585,11 @@ mod tests {
         let mut accessor = ColumnBlockAccessor::default();
         accessor.docid_cache = vec![0, 0, 2, 3];
         accessor.val_cache = vec![10, 10, 10, 10];
+        accessor.multivalued = true;
         accessor.dedup_docid_val_pairs();
         assert_eq!(accessor.docid_cache, [0, 2, 3]);
         assert_eq!(accessor.val_cache, [10, 10, 10]);
+        assert!(!accessor.is_batch_multivalued());
     }
 
     #[test]
@@ -591,9 +598,11 @@ mod tests {
         let mut accessor = ColumnBlockAccessor::default();
         accessor.docid_cache = vec![0, 0, 0];
         accessor.val_cache = vec![1, 2, 1];
+        accessor.multivalued = true;
         accessor.dedup_docid_val_pairs();
         assert_eq!(accessor.docid_cache, [0, 0]);
         assert_eq!(accessor.val_cache, [1, 2]);
+        assert!(accessor.is_batch_multivalued());
     }
 
     #[test]
@@ -602,9 +611,11 @@ mod tests {
         let mut accessor = ColumnBlockAccessor::default();
         accessor.docid_cache = vec![0, 0, 0, 1, 1];
         accessor.val_cache = vec![3, 1, 3, 5, 5];
+        accessor.multivalued = true;
         accessor.dedup_docid_val_pairs();
         assert_eq!(accessor.docid_cache, [0, 0, 1]);
         assert_eq!(accessor.val_cache, [1, 3, 5]);
+        assert!(accessor.is_batch_multivalued());
     }
 
     #[test]
@@ -612,9 +623,11 @@ mod tests {
         let mut accessor = ColumnBlockAccessor::default();
         accessor.docid_cache = vec![0, 0, 1];
         accessor.val_cache = vec![1, 2, 3];
+        accessor.multivalued = true;
         accessor.dedup_docid_val_pairs();
         assert_eq!(accessor.docid_cache, [0, 0, 1]);
         assert_eq!(accessor.val_cache, [1, 2, 3]);
+        assert!(accessor.is_batch_multivalued());
     }
 
     #[test]
