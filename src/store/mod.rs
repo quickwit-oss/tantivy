@@ -59,8 +59,10 @@ pub(crate) mod tests {
 
     use std::path::Path;
 
+    use common::FixedSize;
+
     use super::*;
-    use crate::directory::{Directory, RamDirectory, WritePtr};
+    use crate::directory::{Directory, FileSlice, RamDirectory, WritePtr};
     use crate::fastfield::AliveBitSet;
     use crate::schema::{
         self, Schema, TantivyDocument, TextFieldIndexing, TextOptions, Value, STORED, TEXT,
@@ -189,6 +191,28 @@ pub(crate) mod tests {
                 format!("Doc {i}")
             );
         }
+        Ok(())
+    }
+
+    #[test]
+    fn test_store_unknown_compressor_id_is_an_error() -> crate::Result<()> {
+        let path = Path::new("store");
+        let directory = RamDirectory::create();
+        let store_wrt = directory.open_write(path)?;
+        write_lorem_ipsum_store(store_wrt, 10, Compressor::None, BLOCK_SIZE, false);
+        let mut bytes = directory.open_read(path)?.read_bytes()?.as_slice().to_vec();
+        // Footer: doc store version (4 bytes), offset (8 bytes), compressor id (1 byte), reserved.
+        let compressor_id_pos = bytes.len() - footer::DocStoreFooter::SIZE_IN_BYTES + 12;
+        assert_eq!(bytes[compressor_id_pos], Decompressor::None.get_id());
+        bytes[compressor_id_pos] = u8::MAX;
+        let Err(err) = StoreReader::open(FileSlice::from(bytes), 10) else {
+            panic!("a store with an unknown compressor id should not open");
+        };
+        assert_eq!(err.kind(), std::io::ErrorKind::InvalidData);
+        assert!(
+            err.to_string().contains("unknown compressor id 255"),
+            "{err}"
+        );
         Ok(())
     }
 
