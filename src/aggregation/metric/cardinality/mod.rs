@@ -17,7 +17,7 @@ mod term_ord_accumulator;
 
 use std::hash::Hash;
 
-use columnar::{ColumnType, StrColumn};
+use columnar::ColumnType;
 use common::BitSet;
 use datasketches::hll::{Coupon, HllSketch, HllType, HllUnion};
 pub(crate) use numeric_collector::SegmentNumericCardinalityCollector;
@@ -101,8 +101,6 @@ pub struct CardinalityAggregationReq {
 pub(crate) struct CardinalityAggReqData {
     /// The column accessor to access the fast field values.
     pub(crate) accessor: Box<dyn ValueSource>,
-    /// The string dictionary column if the field is of type string.
-    pub(crate) str_dict_column: Option<StrColumn>,
     /// The missing value normalized to the internal u64 representation of the field type.
     pub(crate) missing_value_for_accessor: Option<u64>,
     /// The name of the aggregation.
@@ -226,28 +224,39 @@ pub(crate) fn build_segment_cardinality_collector(
         )?));
     }
     // For str columns, we need to collect the set of term ordinals encounterred.
+    //
+    //
+    // In the case of physical columns, the dictionary is known so we have an upperbound
+    // of the term ord that will be encounterred.
+    //
     // We choose a different representation depending on the number of maximum
     // number of terms.
     //   * small (< BITSET_MAX_TERM_ORD): `BitSet`, pre-allocated.
     //   * large: `TermOrdSet` (sparse HashSet that promotes to a paged bitset).
-    let Some(column) = req_data.accessor.as_column() else {
-        return Err(crate::TantivyError::InvalidArgument(
-            "cardinality over str virtual columns is not supported yet".to_string(),
-        ));
-    };
-    let max_term_ord_inclusive = column.max_value();
-    if max_term_ord_inclusive < BITSET_MAX_TERM_ORD {
-        Ok(Box::new(
-            SegmentStrCardinalityCollector::<BitSet>::from_req(req_data, max_term_ord_inclusive),
-        ))
-    } else {
-        Ok(Box::new(
-            SegmentStrCardinalityCollector::<TermOrdSet>::from_req(
+    Ok(if let Some(column) = req_data.accessor.as_column() {
+        let max_term_ord_inclusive = column.max_value();
+        if max_term_ord_inclusive < BITSET_MAX_TERM_ORD {
+            Box::new(SegmentStrCardinalityCollector::<BitSet>::from_req(
                 req_data,
                 max_term_ord_inclusive,
-            ),
+            ))
+        } else {
+            Box::new(SegmentStrCardinalityCollector::<TermOrdSet>::from_req(
+                req_data,
+                max_term_ord_inclusive,
+            ))
+        }
+    } else {
+        // For the moment, for non physical str column, we rely on the regular
+        // term ord set.
+        // TODO fix me! Although we do not have control over this, these values are likely
+        // created using a inc counter, with their unicity given by a hashmap already.
+        // We probably do not need another HashSet.
+        Box::new(SegmentStrCardinalityCollector::<TermOrdSet>::from_req(
+            req_data,
+            u64::MAX,
         ))
-    }
+    })
 }
 
 #[cfg(test)]

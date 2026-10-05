@@ -3,13 +3,27 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
+use columnar::ColumnType;
+
 use super::ValueSource;
 use crate::SegmentReader;
 
 /// Creates a value source for each segment.
 pub trait ValueSourceProvider: Send + Sync + 'static {
     /// Binds this definition to a single segment.
-    fn for_segment(&self, reader: &SegmentReader) -> crate::Result<Box<dyn ValueSource>>;
+    ///
+    /// `allowed_column_types` is the set of column types the aggregation can consume, if it is
+    /// restricted. Providers can use it to steer type resolution.
+    ///
+    /// - A definition that can never produce one of these types (independently of the segment)
+    ///   should return an error.
+    /// - A source whose type is not allowed for this specific segment is accepted, and treated by
+    ///   the aggregation as if the field had no value in this segment.
+    fn for_segment(
+        &self,
+        reader: &SegmentReader,
+        allowed_column_types: Option<&[ColumnType]>,
+    ) -> crate::Result<Box<dyn ValueSource>>;
 }
 
 /// Named computed sources available to an aggregation request.
@@ -59,7 +73,7 @@ mod tests {
         let searcher = index.reader().unwrap().searcher();
         let value_source_provider = registry.get("computed").unwrap();
         let mut value_source = value_source_provider
-            .for_segment(searcher.segment_reader(0u32))
+            .for_segment(searcher.segment_reader(0u32), None)
             .unwrap();
         let mut values = Vec::new();
         let mut doc_ids = Vec::new();
