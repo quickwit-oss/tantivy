@@ -41,8 +41,13 @@ pub(crate) struct ColumnBlockAccessor {
 }
 
 impl ColumnBlockAccessor {
+    /// Fetches a block without deduplicating values within each document.
+    ///
+    /// Bucket aggregations on multivalued sources should use
+    /// [`Self::fetch_block_with_missing_unique_per_doc`] instead, so duplicate values do not
+    /// inflate document counts.
     #[inline]
-    pub(crate) fn fetch_block<S: ValueSource + ?Sized>(&mut self, docs: &[DocId], source: &S) {
+    fn fetch_block<S: ValueSource + ?Sized>(&mut self, docs: &[DocId], source: &S) {
         self.cardinality = source.load_block(
             docs,
             &mut self.val_cache,

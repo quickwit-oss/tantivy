@@ -283,16 +283,12 @@ impl<B: SubAggBuffer, const SOURCE_CONTAINS_MULTIVALUES: bool> SegmentAggregatio
         agg_data: &mut AggregationsSegmentCtx,
     ) -> crate::Result<()> {
         let accessor = &mut agg_data.column_block_accessor;
-        if SOURCE_CONTAINS_MULTIVALUES {
-            accessor.fetch_block_with_missing_unique_per_doc(
-                docs,
-                &*self.req_data.accessor,
-                None,
-                false,
-            );
-        } else {
-            accessor.fetch_block(docs, &*self.req_data.accessor);
-        }
+        accessor.fetch_block_with_missing_unique_per_doc(
+            docs,
+            &*self.req_data.accessor,
+            None,
+            false,
+        );
 
         let buckets = &mut self.parent_buckets[parent_bucket_id as usize];
 
