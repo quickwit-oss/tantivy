@@ -56,6 +56,10 @@ pub(crate) fn get_numeric_or_date_column_types() -> &'static [ColumnType] {
     ]
 }
 
+/// Returns the registered source for `field_name` in this segment, if any.
+///
+/// Returns `None` if the field name is not registered, or if the registered source has a type
+/// the aggregation cannot consume in this segment.
 fn resolve_registered_source(
     reader: &SegmentReader,
     value_sources: &ValueSourceRegistry,
@@ -65,7 +69,7 @@ fn resolve_registered_source(
     let Some(provider) = value_sources.get(field_name) else {
         return Ok(None);
     };
-    let source = provider.for_segment(reader)?;
+    let source = provider.for_segment(reader, allowed_column_types_opt)?;
     let column_type = source.column_type();
     if let Some(allowed_column_types) = allowed_column_types_opt {
         if !allowed_column_types.contains(&column_type) {
@@ -86,18 +90,17 @@ pub(crate) fn get_value_source(
     {
         return Ok(registered);
     }
-    let ff_fields = reader.fast_fields();
-    let (column, column_type) = ff_fields
-        .u64_lenient_for_type(allowed_column_types, field_name)?
-        .unwrap_or_else(|| {
-            (
-                Column::build_empty_column(reader.num_docs()),
-                ColumnType::U64,
-            )
-        });
+    if let Some(source) =
+        open_physical_sources(reader, field_name, allowed_column_types, true)?.pop()
+    {
+        return Ok(source);
+    }
     // The empty-column shim stays physical on purpose: several fast paths check
     // `as_column()` and would otherwise degrade for a merely absent field.
-    Ok(Box::new((column, column_type)))
+    Ok(Box::new((
+        Column::build_empty_column(reader.num_docs()),
+        ColumnType::U64,
+    )))
 }
 
 pub(crate) fn get_dynamic_columns(
@@ -130,17 +133,54 @@ pub(crate) fn get_all_value_sources(
     {
         return Ok(vec![registered]);
     }
-    let ff_fields = reader.fast_fields();
-    let mut ff_field_with_type: Vec<(Column, ColumnType)> =
-        ff_fields.u64_lenient_for_type_all(allowed_column_types, field_name)?;
-    if ff_field_with_type.is_empty() {
-        ff_field_with_type.push((Column::build_empty_column(reader.num_docs()), fallback_type));
+    let mut sources: Vec<Box<dyn ValueSource>> =
+        open_physical_sources(reader, field_name, allowed_column_types, false)?;
+    if sources.is_empty() {
+        sources.push(Box::new((
+            Column::build_empty_column(reader.num_docs()),
+            fallback_type,
+        )));
     }
-    Ok(ff_field_with_type
-        .into_iter()
-        .map(|(column, column_type)| {
-            let source: Box<dyn ValueSource> = Box::new((column, column_type));
-            source
-        })
-        .collect())
+    Ok(sources)
+}
+
+/// Opens the fast-field columns of `field_name` whose type is allowed, in columnar order.
+///
+/// Text columns are opened as `StrColumn`, so that the source carries its dictionary. Other
+/// columns use their monotonic `u64` mapping.
+///
+/// If `first_only` is true, at most the first allowed column is returned.
+fn open_physical_sources(
+    reader: &SegmentReader,
+    field_name: &str,
+    allowed_column_types: Option<&[ColumnType]>,
+    first_only: bool,
+) -> crate::Result<Vec<Box<dyn ValueSource>>> {
+    let column_handles: Vec<DynamicColumnHandle> =
+        reader.fast_fields().dynamic_column_handles(field_name)?;
+    let mut sources: Vec<Box<dyn ValueSource>> = Vec::with_capacity(column_handles.len());
+    for handle in column_handles {
+        let column_type = handle.column_type();
+        if let Some(allowed_column_types) = allowed_column_types {
+            if !allowed_column_types.contains(&column_type) {
+                continue;
+            }
+        }
+        if column_type == ColumnType::Str {
+            let DynamicColumn::Str(str_column) = handle.open()? else {
+                return Err(crate::TantivyError::InternalError(format!(
+                    "the text column of `{field_name}` could not be opened as a text column"
+                )));
+            };
+            sources.push(Box::new(str_column));
+        } else if let Some(column) = handle.open_u64_lenient()? {
+            sources.push(Box::new((column, column_type)));
+        } else {
+            continue;
+        }
+        if first_only {
+            break;
+        }
+    }
+    Ok(sources)
 }

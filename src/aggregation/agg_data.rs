@@ -316,6 +316,22 @@ fn require_physical_column(
     })
 }
 
+/// Returns an error if a field name maps to a registered value source.
+///
+/// This is useful for aggregations that require a regular physical column.
+fn reject_registered_source(
+    value_sources: &ValueSourceRegistry,
+    field_name: &str,
+    agg_kind: &str,
+) -> crate::Result<()> {
+    if value_sources.get(field_name).is_some() {
+        return Err(crate::TantivyError::InvalidArgument(format!(
+            "{agg_kind} does not support the computed value source `{field_name}`"
+        )));
+    }
+    Ok(())
+}
+
 fn build_nodes(
     agg_name: &str,
     req: &Aggregation,
@@ -565,6 +581,7 @@ fn build_composite_node(
 ) -> crate::Result<AggNode> {
     let mut composite_accessors = Vec::with_capacity(req.sources.len());
     for source in &req.sources {
+        reject_registered_source(&context.value_sources, source.field(), "composite")?;
         let source_after_key_opt = req.after.get(source.name()).map(|k| &k.0);
         let source_accessor =
             CompositeSourceAccessors::build_for_source(reader, source, source_after_key_opt)?;
@@ -598,6 +615,7 @@ fn build_multi_terms_nodes(
     let mut accessors_by_field = Vec::with_capacity(req.terms.len());
     for field_def in &req.terms {
         let field_name = &field_def.field;
+        reject_registered_source(value_sources, field_name, "multi_terms")?;
         let str_dict_column = reader.fast_fields().str(field_name)?;
         // multi_terms resolves missing values through `ColumnIndex::has_value` per document, and
         // exposes its columns on a public struct, so it stays physical-only.
@@ -891,7 +909,6 @@ fn build_terms_or_cardinality_nodes(
 ) -> crate::Result<Vec<AggNode>> {
     let mut nodes = Vec::new();
 
-    let str_dict_column = reader.fast_fields().str(field_name)?;
     let value_sources = &context.value_sources;
 
     let include_bytes = matches!(req, TermsOrCardinalityRequest::Terms(_));
@@ -971,19 +988,24 @@ fn build_terms_or_cardinality_nodes(
                         // When excluding, the behavior could be to include non-string values
                         continue;
                     }
-                    let str_col = str_dict_column
-                        .as_ref()
-                        .expect("str_dict_column must exist for string column");
-                    allowed_term_ids = build_allowed_term_ids_for_str(
-                        str_col,
-                        &req.include,
-                        &req.exclude,
-                        missing.is_some(),
-                    )?;
+                    if let Some(str_col) = accessor.as_str_column() {
+                        allowed_term_ids = build_allowed_term_ids_for_str(
+                            str_col,
+                            &req.include,
+                            &req.exclude,
+                            missing.is_some(),
+                        )?;
+                    } else if accessor.term_dictionary().is_some() {
+                        // Filters are resolved by searching the sstable dictionary.
+                        return Err(crate::TantivyError::InvalidArgument(format!(
+                            "terms aggregation with `include` / `exclude` requires a physical \
+                             text field, but `{field_name}` is a computed value source"
+                        )));
+                    }
+                    // Otherwise, the source has no value: there is nothing to filter.
                 };
                 AggNodeData::Terms(TermsAggReqData {
                     accessor,
-                    str_dict_column: str_dict_column.clone(),
                     missing_value_for_accessor,
                     name: agg_name.to_string(),
                     req: TermsAggregationInternal::from_req(req),
@@ -993,19 +1015,8 @@ fn build_terms_or_cardinality_nodes(
                 })
             }
             TermsOrCardinalityRequest::Cardinality(ref req) => {
-                // `str_dict_column` is computed once per field; for JSON paths
-                // with mixed types it's `Some` even on the numeric req_data.
-                // Cardinality only consults it for the str column path, so
-                // gate by column_type to avoid driving non-str collectors
-                // through the coupon-cache path.
-                let str_dict_column_for_req = if column_type == ColumnType::Str {
-                    str_dict_column.clone()
-                } else {
-                    None
-                };
                 AggNodeData::Cardinality(CardinalityAggReqData {
                     accessor,
-                    str_dict_column: str_dict_column_for_req,
                     missing_value_for_accessor,
                     name: agg_name.to_string(),
                     req: req.clone(),
