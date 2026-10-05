@@ -282,10 +282,21 @@ impl<B: SubAggBuffer> SegmentAggregationCollector for SegmentRangeCollector<B> {
             .column_block_accessor
             .fetch_block(docs, &*self.req_data.accessor);
 
+        // Like Elasticsearch, a doc is counted once per bucket, even if several of its values
+        // fall in that bucket. Ranges do not overlap, so once the values of a doc are sorted, its
+        // bucket positions are non-decreasing, and comparing with the previous (doc, bucket_pos)
+        // is enough. Outside of multivalued blocks, a doc never appears twice.
+        agg_data.column_block_accessor.sort_values_within_docs();
+
         let buckets = &mut self.parent_buckets[parent_bucket_id as usize];
 
+        let mut previous_doc_bucket_pos: Option<(crate::DocId, usize)> = None;
         for (doc, val) in agg_data.column_block_accessor.iter_docid_vals(docs) {
             let bucket_pos = get_bucket_pos(val, buckets);
+            if previous_doc_bucket_pos == Some((doc, bucket_pos)) {
+                continue;
+            }
+            previous_doc_bucket_pos = Some((doc, bucket_pos));
             let bucket = &mut buckets[bucket_pos];
             bucket.bucket.doc_count += 1;
             if let Some(sub_agg) = self.sub_agg.as_mut() {
@@ -949,5 +960,48 @@ mod tests {
         assert_eq!(search(100f64.to_u64()), 2);
         assert_eq!(search(u64::MAX - 1), 2); // Since the end range is never included,
                                              // the max value
+    }
+
+    /// Like Elasticsearch, a doc is counted once per range, even if several of its values fall
+    /// in it. Values are deliberately unsorted within the doc.
+    #[test]
+    fn range_multivalued_doc_counted_once_per_bucket() {
+        let mut schema_builder = crate::schema::Schema::builder();
+        let range_field = schema_builder.add_f64_field("range_field", crate::schema::FAST);
+        let metric_field = schema_builder.add_f64_field("metric_field", crate::schema::FAST);
+        let index = crate::Index::create_in_ram(schema_builder.build());
+        let mut index_writer: crate::IndexWriter = index.writer_for_tests().unwrap();
+        index_writer
+            .add_document(doc!(
+                range_field => 3.0,
+                range_field => 25.0,
+                range_field => 1.0,
+                metric_field => 10.0
+            ))
+            .unwrap();
+        index_writer
+            .add_document(doc!(range_field => 2.0, metric_field => 20.0))
+            .unwrap();
+        index_writer.commit().unwrap();
+
+        let agg_req: Aggregations = serde_json::from_value(json!({
+            "my_range": {
+                "range": {
+                    "field": "range_field",
+                    "ranges": [{ "to": 10.0 }, { "from": 20.0, "to": 30.0 }]
+                },
+                "aggs": { "sum_metric": { "sum": { "field": "metric_field" } } }
+            }
+        }))
+        .unwrap();
+
+        let res = exec_request(agg_req, &index).unwrap();
+        let buckets = &res["my_range"]["buckets"];
+        assert_eq!(buckets[0]["key"], "*-10");
+        assert_eq!(buckets[0]["doc_count"], 2);
+        assert_eq!(buckets[0]["sum_metric"]["value"], 30.0);
+        assert_eq!(buckets[2]["key"], "20-30");
+        assert_eq!(buckets[2]["doc_count"], 1);
+        assert_eq!(buckets[2]["sum_metric"]["value"], 10.0);
     }
 }

@@ -55,8 +55,6 @@ impl ColumnBlockAccessor {
 
     /// Fetches a block from a column known to be full (hence we pass the ColumnValue Object
     /// directly).
-    ///
-    /// docs needs to be strictly increasing.
     #[inline]
     pub(crate) fn fetch_full_column_block(
         &mut self,
@@ -162,6 +160,30 @@ impl ColumnBlockAccessor {
         self.fetch_block_with_missing_ordered(docs, source, missing, ordered);
         if self.cardinality.is_multivalue() {
             self.dedup_docid_val_pairs();
+        }
+    }
+
+    /// Sorts the values of each document of a multivalued block, so that the values of a given doc
+    /// come in ascending `u64` order. No-op for non-multivalued blocks.
+    ///
+    /// Precondition: the entries of a given doc are contiguous in the docid cache. This holds
+    /// for blocks loaded by `fetch_block` (see [`ValueSource::load_block`]), but not after
+    /// `fetch_block_with_missing` with `ordered == false`.
+    pub(crate) fn sort_values_within_docs(&mut self) {
+        if !self.cardinality.is_multivalue() {
+            return;
+        }
+        let mut start = 0;
+        while start < self.docid_cache.len() {
+            let doc = self.docid_cache[start];
+            let num_values_for_doc: usize = 1 + self.docid_cache[start + 1..]
+                .iter()
+                .take_while(|next_doc| **next_doc == doc)
+                .count();
+            if num_values_for_doc > 1 {
+                self.val_cache[start..][..num_values_for_doc].sort_unstable();
+            }
+            start += num_values_for_doc;
         }
     }
 
