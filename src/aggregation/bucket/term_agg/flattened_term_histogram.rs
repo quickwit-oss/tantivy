@@ -369,7 +369,7 @@ struct FlattenedTermHistogramCollector<R: BucketResolver, const LANES: usize> {
     terms_values: Arc<dyn ColumnValues>,
     /// Histogram collector without any bucket. It is only used to produce the histogram
     /// intermediate results, once filled from `counts`.
-    histogram: SegmentHistogramCollector<(), false>,
+    intermediate_result_histogram_collector: SegmentHistogramCollector<(), false>,
     /// Private term block accessor. The bucket resolver owns a histogram block accessor when it
     /// needs one; the single-bucket resolver deliberately does not.
     term_block: ColumnBlockAccessor,
@@ -425,12 +425,12 @@ impl<R: BucketResolver, const LANES: usize> SegmentAggregationCollector
                 })
                 .collect(),
         };
-        self.histogram
+        self.intermediate_result_histogram_collector
             .fill_from_dense_rows(self.base_pos, num_time_buckets, &self.counts);
         let name = self.terms_req_data.name.clone();
         let bucket = SegmentTermCollector::<VecTermBuckets<BucketId>, LowCardSubAggBuffer>::into_intermediate_bucket_result(
             &self.terms_req_data,
-            Some(&mut self.histogram as &mut dyn SegmentAggregationCollector),
+            Some(&mut self.intermediate_result_histogram_collector as &mut dyn SegmentAggregationCollector),
             term_buckets,
             agg_data,
         )?;
@@ -499,7 +499,7 @@ impl<R: BucketResolver, const LANES: usize> SegmentAggregationCollector
 
 /// The resolved inputs of the flattened terms×histogram collector, computed by
 /// [`plan_flattened_collector`].
-pub(super) struct FlattenedPlan {
+pub(super) struct TermHistogramFlattenedPlanInputs {
     terms_values: Arc<dyn ColumnValues>,
     hist_values: Arc<dyn ColumnValues>,
     num_terms: usize,
@@ -521,7 +521,7 @@ pub(super) fn plan_flattened_collector(
     children: &[AggNode],
     col_max_val: u64,
     is_top_level: bool,
-) -> Option<FlattenedPlan> {
+) -> Option<TermHistogramFlattenedPlanInputs> {
     // Both columns must be full (one value per doc) so their values align positionally with `docs`
     // and we can zip them. Requiring full columns also makes the terms agg's `missing` config a
     // no-op (`fetch_block_with_missing` early-returns on full columns), so we needn't check for it.
@@ -540,6 +540,8 @@ pub(super) fn plan_flattened_collector(
     {
         return None;
     }
+
+    // This also includes DateHistogram.
     let [AggNode {
         data: AggNodeData::Histogram(hist_req_data),
         children: hist_children,
@@ -577,7 +579,7 @@ pub(super) fn plan_flattened_collector(
     if num_grid_cells.saturating_mul(num_count_lanes) > MAX_FLATTENED_GRID_COUNTERS {
         return None;
     }
-    Some(FlattenedPlan {
+    Some(TermHistogramFlattenedPlanInputs {
         terms_values,
         hist_values,
         num_terms,
@@ -593,7 +595,7 @@ pub(super) fn plan_flattened_collector(
 /// `terms_req_data` and `children`.
 pub(super) fn build_flattened_collector_from_plan(
     agg_data: &mut AggregationsSegmentCtx,
-    plan: FlattenedPlan,
+    plan: TermHistogramFlattenedPlanInputs,
     terms_req_data: TermsAggReqData,
     mut children: Vec<AggNode>,
 ) -> crate::Result<Box<dyn SegmentAggregationCollector>> {
@@ -614,7 +616,7 @@ pub(super) fn build_flattened_collector_from_plan(
             "the flattened terms×histogram collector requires a single histogram child".to_string(),
         ));
     };
-    let FlattenedPlan {
+    let TermHistogramFlattenedPlanInputs {
         terms_values,
         hist_values,
         num_terms,
@@ -767,7 +769,9 @@ fn build_flattened_collector_with_resolver<R: BucketResolver, const LANES: usize
         base_pos,
         terms_req_data,
         terms_values,
-        histogram: SegmentHistogramCollector::from_dense_rows(hist_req_data),
+        intermediate_result_histogram_collector: SegmentHistogramCollector::from_dense_rows(
+            hist_req_data,
+        ),
         term_block: ColumnBlockAccessor::default(),
         bucket_resolver,
         all_docs_in_bounds,
