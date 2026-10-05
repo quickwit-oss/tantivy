@@ -138,11 +138,20 @@ pub(crate) struct InternalRangeAggregationRange {
     key: Option<String>,
     /// `u64` range value
     range: Range<u64>,
+    /// The requested `from` bound, `None` when the range is open ended.
+    from: Option<f64>,
+    /// The requested `to` bound, `None` when the range is open ended.
+    to: Option<f64>,
 }
 
-impl From<Range<u64>> for InternalRangeAggregationRange {
-    fn from(range: Range<u64>) -> Self {
-        InternalRangeAggregationRange { key: None, range }
+impl InternalRangeAggregationRange {
+    fn new(range: Range<u64>, from: Option<f64>, to: Option<f64>) -> Self {
+        InternalRangeAggregationRange {
+            key: None,
+            range,
+            from,
+            to,
+        }
     }
 }
 
@@ -258,7 +267,7 @@ impl<B: SubAggBuffer, const SOURCE_CONTAINS_MULTIVALUES: bool> SegmentAggregatio
                             bucket_id,
                         )?;
                 }
-                Ok((range_to_string(&range_bucket.range, &field_type)?, agg))
+                Ok((range_to_string(agg.from, agg.to, &field_type)?, agg))
             })
             .collect::<crate::Result<_>>()?;
 
@@ -417,17 +426,7 @@ impl<B: SubAggBuffer, const SOURCE_CONTAINS_MULTIVALUES: bool>
                     .key
                     .clone()
                     .map(|key| Ok(Key::Str(key)))
-                    .unwrap_or_else(|| range_to_key(&range.range, &field_type))?;
-                let to = if range.range.end == u64::MAX {
-                    None
-                } else {
-                    Some(f64_from_fastfield_u64(range.range.end, field_type))
-                };
-                let from = if range.range.start == u64::MIN {
-                    None
-                } else {
-                    Some(f64_from_fastfield_u64(range.range.start, field_type))
-                };
+                    .unwrap_or_else(|| range_to_key(range.from, range.to, &field_type))?;
                 // let sub_aggregation = sub_agg_prototype.clone();
 
                 Ok(SegmentRangeAndBucketEntry {
@@ -436,8 +435,8 @@ impl<B: SubAggBuffer, const SOURCE_CONTAINS_MULTIVALUES: bool>
                         doc_count: 0,
                         bucket_id,
                         key,
-                        from,
-                        to,
+                        from: range.from,
+                        to: range.to,
                     },
                 })
             })
@@ -451,9 +450,9 @@ impl<B: SubAggBuffer, const SOURCE_CONTAINS_MULTIVALUES: bool>
 }
 #[inline]
 fn get_bucket_pos(val: u64, buckets: &[SegmentRangeAndBucketEntry]) -> usize {
-    let pos = buckets
-        .binary_search_by_key(&val, |probe| probe.range.start)
-        .unwrap_or_else(|pos| pos - 1);
+    // A fractional range on an integer column can be empty (e.g. `1..1`) and share its start with
+    // the next bucket, so pick the last bucket starting at or before `val`.
+    let pos = buckets.partition_point(|probe| probe.range.start <= val) - 1;
     debug_assert!(buckets[pos].range.contains(&val));
     pos
 }
@@ -470,27 +469,43 @@ fn get_bucket_pos(val: u64, buckets: &[SegmentRangeAndBucketEntry]) -> usize {
 /// fast field.
 /// The alternative would be that every value read would be converted to the f64 range, but that is
 /// more computational expensive when many documents are hit.
+///
+/// On integer columns a fractional bound is rounded up: `from` is inclusive and `to` is exclusive,
+/// so `1.5 <= val < 3.5` holds for exactly the integers in `2..4`.
 fn to_u64_range(
     range: &RangeAggregationRange,
     field_type: &ColumnType,
 ) -> crate::Result<InternalRangeAggregationRange> {
+    let to_fastfield_u64 = |val: f64| {
+        let val = match field_type {
+            ColumnType::U64 | ColumnType::I64 | ColumnType::DateTime | ColumnType::Bool => {
+                val.ceil()
+            }
+            _ => val,
+        };
+        f64_to_fastfield_u64(val, field_type)
+            .ok_or_else(|| TantivyError::InvalidArgument("invalid field type".to_string()))
+    };
     let start = if let Some(from) = range.from {
-        f64_to_fastfield_u64(from, field_type)
-            .ok_or_else(|| TantivyError::InvalidArgument("invalid field type".to_string()))?
+        to_fastfield_u64(from)?
     } else {
         u64::MIN
     };
 
     let end = if let Some(to) = range.to {
-        f64_to_fastfield_u64(to, field_type)
-            .ok_or_else(|| TantivyError::InvalidArgument("invalid field type".to_string()))?
+        to_fastfield_u64(to)?
     } else {
         u64::MAX
     };
 
+    // Report the requested bounds, so that the bucket keys are the same for every column type.
+    let from = range.from.filter(|_| start != u64::MIN);
+    let to = range.to.filter(|_| end != u64::MAX);
     Ok(InternalRangeAggregationRange {
         key: range.key.clone(),
         range: start..end,
+        from,
+        to,
     })
 }
 
@@ -506,13 +521,17 @@ fn extend_validate_ranges(
         .collect::<crate::Result<Vec<_>>>()?;
 
     converted_buckets.sort_by_key(|bucket| bucket.range.start);
-    if converted_buckets[0].range.start != u64::MIN {
-        converted_buckets.insert(0, (u64::MIN..converted_buckets[0].range.start).into());
+    let first = &converted_buckets[0];
+    if first.range.start != u64::MIN {
+        let bucket =
+            InternalRangeAggregationRange::new(u64::MIN..first.range.start, None, first.from);
+        converted_buckets.insert(0, bucket);
     }
 
-    if converted_buckets[converted_buckets.len() - 1].range.end != u64::MAX {
-        converted_buckets
-            .push((converted_buckets[converted_buckets.len() - 1].range.end..u64::MAX).into());
+    let last = &converted_buckets[converted_buckets.len() - 1];
+    if last.range.end != u64::MAX {
+        let bucket = InternalRangeAggregationRange::new(last.range.end..u64::MAX, last.to, None);
+        converted_buckets.push(bucket);
     }
 
     // fill up holes in the ranges
@@ -532,40 +551,41 @@ fn extend_validate_ranges(
     };
 
     while let Some(hole_pos) = find_hole(&converted_buckets)? {
-        let new_range =
-            converted_buckets[hole_pos].range.end..converted_buckets[hole_pos + 1].range.start;
-        converted_buckets.insert(hole_pos + 1, new_range.into());
+        let (left, right) = (
+            &converted_buckets[hole_pos],
+            &converted_buckets[hole_pos + 1],
+        );
+        let new_range = InternalRangeAggregationRange::new(
+            left.range.end..right.range.start,
+            left.to,
+            right.from,
+        );
+        converted_buckets.insert(hole_pos + 1, new_range);
     }
 
     Ok(converted_buckets)
 }
 
 pub(crate) fn range_to_string(
-    range: &Range<u64>,
+    from: Option<f64>,
+    to: Option<f64>,
     field_type: &ColumnType,
 ) -> crate::Result<String> {
-    // is_start is there for malformed requests, e.g. ig the user passes the range u64::MIN..0.0,
-    // it should be rendered as "*-0" and not "*-*"
-    let to_str = |val: u64, is_start: bool| {
-        if (is_start && val == u64::MIN) || (!is_start && val == u64::MAX) {
-            Ok("*".to_string())
-        } else if *field_type == ColumnType::DateTime {
-            let val = i64::from_u64(val);
-            format_date(val)
-        } else {
-            Ok(f64_from_fastfield_u64(val, *field_type).to_string())
-        }
+    let to_str = |val: Option<f64>| match val {
+        None => Ok("*".to_string()),
+        Some(val) if *field_type == ColumnType::DateTime => format_date(val as i64),
+        Some(val) => Ok(val.to_string()),
     };
 
-    Ok(format!(
-        "{}-{}",
-        to_str(range.start, true)?,
-        to_str(range.end, false)?
-    ))
+    Ok(format!("{}-{}", to_str(from)?, to_str(to)?))
 }
 
-pub(crate) fn range_to_key(range: &Range<u64>, field_type: &ColumnType) -> crate::Result<Key> {
-    Ok(Key::Str(range_to_string(range, field_type)?))
+pub(crate) fn range_to_key(
+    from: Option<f64>,
+    to: Option<f64>,
+    field_type: &ColumnType,
+) -> crate::Result<Key> {
+    Ok(Key::Str(range_to_string(from, to, field_type)?))
 }
 
 #[cfg(test)]
@@ -577,8 +597,11 @@ mod tests {
     use crate::aggregation::agg_req::Aggregations;
     use crate::aggregation::tests::{
         exec_request, exec_request_with_query, get_test_index_2_segments,
-        get_test_index_with_num_docs,
+        get_test_index_from_values, get_test_index_with_num_docs,
     };
+    use crate::indexer::NoMergePolicy;
+    use crate::schema::{Schema, FAST};
+    use crate::{Index, IndexWriter};
 
     pub fn build_test_buckets(
         ranges: &[RangeAggregationRange],
@@ -597,25 +620,15 @@ mod tests {
                     .key
                     .clone()
                     .map(|key| Ok(Key::Str(key)))
-                    .unwrap_or_else(|| range_to_key(&range.range, &field_type))
+                    .unwrap_or_else(|| range_to_key(range.from, range.to, &field_type))
                     .expect("unexpected error in range_to_key");
-                let to = if range.range.end == u64::MAX {
-                    None
-                } else {
-                    Some(f64_from_fastfield_u64(range.range.end, field_type))
-                };
-                let from = if range.range.start == u64::MIN {
-                    None
-                } else {
-                    Some(f64_from_fastfield_u64(range.range.start, field_type))
-                };
                 SegmentRangeAndBucketEntry {
                     range: range.range.clone(),
                     bucket: SegmentRangeBucketEntry {
                         doc_count: 0,
                         key,
-                        from,
-                        to,
+                        from: range.from,
+                        to: range.to,
                         bucket_id: 0,
                     },
                 }
@@ -803,6 +816,97 @@ mod tests {
         assert_eq!(res["range"]["buckets"][2]["doc_count"], 10);
         assert_eq!(res["range"]["buckets"][3]["key"], "0.2-*");
         assert_eq!(res["range"]["buckets"][3]["doc_count"], 80);
+
+        Ok(())
+    }
+
+    #[test]
+    fn range_fraction_bounds_on_integer_columns() -> crate::Result<()> {
+        let index = get_test_index_from_values(false, &[-4.0, -1.0, 0.0, 1.0, 2.0, 3.0, 4.0])?;
+
+        for field in ["score", "score_i64", "score_f64"] {
+            let agg_req: Aggregations = serde_json::from_value(json!({
+                "range": {
+                    "range": {
+                        "field": field,
+                        "ranges": [{"from": 1.5, "to": 3.5}]
+                    },
+                }
+            }))
+            .unwrap();
+            let res = exec_request_with_query(agg_req, &index, None)?;
+            let buckets = &res["range"]["buckets"];
+            assert_eq!(buckets[1]["key"], "1.5-3.5", "{field}");
+            assert_eq!(buckets[1]["from"], 1.5, "{field}");
+            assert_eq!(buckets[1]["to"], 3.5, "{field}");
+            // 2 and 3
+            assert_eq!(buckets[1]["doc_count"], 2, "{field}");
+            assert_eq!(buckets[2]["key"], "3.5-*", "{field}");
+            assert_eq!(buckets[2]["doc_count"], 1, "{field}");
+        }
+
+        let agg_req: Aggregations = serde_json::from_value(json!({
+            "range": {
+                "range": {
+                    "field": "score_i64",
+                    "ranges": [{"from": -3.5, "to": 0.5}, {"from": 0.5, "to": 0.7}]
+                },
+            }
+        }))
+        .unwrap();
+        let res = exec_request_with_query(agg_req, &index, None)?;
+        let buckets = &res["range"]["buckets"];
+        assert_eq!(buckets[0]["key"], "*--3.5");
+        assert_eq!(buckets[0]["doc_count"], 1);
+        assert_eq!(buckets[1]["key"], "-3.5-0.5");
+        // -1 and 0
+        assert_eq!(buckets[1]["doc_count"], 2);
+        // no integer in [0.5, 0.7)
+        assert_eq!(buckets[2]["key"], "0.5-0.7");
+        assert_eq!(buckets[2]["doc_count"], 0);
+        assert_eq!(buckets[3]["key"], "0.7-*");
+        assert_eq!(buckets[3]["doc_count"], 4);
+
+        Ok(())
+    }
+
+    #[test]
+    fn range_fraction_bounds_on_json_segments_with_int_and_float_columns() -> crate::Result<()> {
+        let mut schema_builder = Schema::builder();
+        let json = schema_builder.add_json_field("json", FAST);
+        let index = Index::create_in_ram(schema_builder.build());
+        let mut index_writer: IndexWriter = index.writer_for_tests()?;
+        index_writer.set_merge_policy(Box::new(NoMergePolicy));
+        // Segment where `json.price` is an integer column.
+        for price in [1, 2, 3, 4] {
+            index_writer.add_document(doc!(json => json!({"price": price})))?;
+        }
+        index_writer.commit()?;
+        // Segment where `json.price` is a float column.
+        for price in [1.5, 2.5] {
+            index_writer.add_document(doc!(json => json!({"price": price})))?;
+        }
+        index_writer.commit()?;
+
+        let agg_req: Aggregations = serde_json::from_value(json!({
+            "range": {
+                "range": {
+                    "field": "json.price",
+                    "ranges": [{"from": 1.5, "to": 3.5}]
+                },
+            }
+        }))
+        .unwrap();
+        let res = exec_request_with_query(agg_req, &index, None)?;
+        let buckets = res["range"]["buckets"].as_array().unwrap();
+        assert_eq!(buckets.len(), 3, "{buckets:?}");
+        assert_eq!(buckets[0]["key"], "*-1.5");
+        assert_eq!(buckets[0]["doc_count"], 1);
+        assert_eq!(buckets[1]["key"], "1.5-3.5");
+        // 2, 3, 1.5 and 2.5
+        assert_eq!(buckets[1]["doc_count"], 4);
+        assert_eq!(buckets[2]["key"], "3.5-*");
+        assert_eq!(buckets[2]["doc_count"], 1);
 
         Ok(())
     }
