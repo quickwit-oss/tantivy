@@ -492,11 +492,7 @@ impl<B: BucketIdSlot, const SOURCE_CONTAINS_MULTIVALUES: bool> SegmentAggregatio
         let get_bucket_pos = |val| get_bucket_pos_f64(val, interval, offset) as i64;
 
         let accessor = &mut agg_data.column_block_accessor;
-        if SOURCE_CONTAINS_MULTIVALUES {
-            accessor.fetch_block_with_missing_unique_per_doc(docs, &*req.accessor, None, false);
-        } else {
-            accessor.fetch_block(docs, &*req.accessor);
-        }
+        accessor.fetch_block_with_missing_unique_per_doc(docs, &*req.accessor, None, false);
         // Known single-valued sources compile out deduplication; otherwise check the loaded batch.
         let multivalued = SOURCE_CONTAINS_MULTIVALUES && accessor.is_batch_multivalued();
         // Document IDs are needed for child collection and multivalued deduplication.
