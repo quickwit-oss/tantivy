@@ -10,9 +10,7 @@ use columnar::{
 use rustc_hash::FxHashMap;
 use smallvec::SmallVec;
 
-use crate::aggregation::agg_data::{
-    build_segment_agg_collectors, AggRefNode, AggregationsSegmentCtx,
-};
+use crate::aggregation::agg_data::AggregationsSegmentCtx;
 use crate::aggregation::bucket::composite::accessors::{
     CompositeAccessor, CompositeAggReqData, PrecomputedDateInterval,
 };
@@ -213,24 +211,11 @@ impl SegmentCompositeCollector {
     }
 
     pub(crate) fn from_req_and_validate(
-        req_data: &mut AggregationsSegmentCtx,
-        node: &AggRefNode,
+        composite_req_data: CompositeAggReqData,
+        sub_agg: Option<Box<dyn SegmentAggregationCollector>>,
     ) -> crate::Result<Self> {
-        let composite_req_data =
-            req_data.per_request.composite_req_data[node.idx_in_req_data].clone();
         validate_req(&composite_req_data)?;
-        req_data
-            .context
-            .limits
-            .add_memory_consumed(composite_req_data.get_memory_consumption() as u64)?;
-
-        let has_sub_aggregations = !node.children.is_empty();
-        let sub_agg = if has_sub_aggregations {
-            let sub_agg_collector = build_segment_agg_collectors(req_data, &node.children)?;
-            Some(BufferedSubAggs::new(sub_agg_collector))
-        } else {
-            None
-        };
+        let sub_agg = sub_agg.map(BufferedSubAggs::new);
 
         let num_sources = composite_req_data.req.sources.len();
 
