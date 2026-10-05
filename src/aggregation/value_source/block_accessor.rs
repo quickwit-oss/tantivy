@@ -176,6 +176,24 @@ impl ColumnBlockAccessor {
         }
     }
 
+    /// Sorts values within each document when needed for deduplication.
+    /// Entries must already be grouped by document. Groups of at most two values do not
+    /// need sorting for deduplication, so only larger groups are sorted.
+    fn sort_values_per_doc_for_dedup(&mut self) {
+        let mut start = 0;
+        while start < self.docid_cache.len() {
+            let doc = self.docid_cache[start];
+            let mut end = start + 1;
+            while end < self.docid_cache.len() && self.docid_cache[end] == doc {
+                end += 1;
+            }
+            if end - start > 2 {
+                self.val_cache[start..end].sort_unstable();
+            }
+            start = end;
+        }
+    }
+
     /// Removes duplicate (doc_id, value) pairs from the caches.
     ///
     /// After `fetch_block`, entries are sorted by doc_id, but values within
@@ -189,19 +207,7 @@ impl ColumnBlockAccessor {
             return;
         }
 
-        // Sort values within each doc_id group so duplicates become adjacent.
-        let mut start = 0;
-        while start < self.docid_cache.len() {
-            let doc = self.docid_cache[start];
-            let mut end = start + 1;
-            while end < self.docid_cache.len() && self.docid_cache[end] == doc {
-                end += 1;
-            }
-            if end - start > 2 {
-                self.val_cache[start..end].sort_unstable();
-            }
-            start = end;
-        }
+        self.sort_values_per_doc_for_dedup();
 
         // Now duplicates are adjacent — deduplicate in place.
         let mut write = 0;
@@ -583,6 +589,18 @@ mod tests {
             accessor.iter_docid_vals(&docs).collect::<Vec<_>>(),
             [(0, 99), (1, 10), (2, 99), (4, 40), (7, 70), (8, 99)]
         );
+    }
+
+    #[test]
+    fn test_sort_values_per_doc_for_dedup() {
+        let mut accessor = ColumnBlockAccessor::default();
+        accessor.docid_cache = vec![0, 0, 1, 1, 1, 2, 2, 2, 2];
+        accessor.val_cache = vec![3, 1, 4, 2, 4, 9, 5, 7, 5];
+
+        accessor.sort_values_per_doc_for_dedup();
+
+        assert_eq!(accessor.docid_cache, [0, 0, 1, 1, 1, 2, 2, 2, 2]);
+        assert_eq!(accessor.val_cache, [3, 1, 2, 4, 4, 5, 5, 7, 9]);
     }
 
     #[test]
