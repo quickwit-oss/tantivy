@@ -216,6 +216,8 @@ impl ColumnBlockAccessor {
             if self.docid_cache[read] != self.docid_cache[write]
                 || self.val_cache[read] != self.val_cache[write]
             {
+                // write has not been incremented yet, so
+                // self.docid_cache[write] is the last written value.
                 self.multivalued |= self.docid_cache[read] == self.docid_cache[write];
                 write += 1;
                 if write != read {
