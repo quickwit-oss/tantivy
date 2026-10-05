@@ -35,6 +35,28 @@ pub(crate) struct HistogramAggReqData {
     pub(crate) offset: f64,
 }
 
+/// If the entire column is within the request hard bound,
+/// we can remove them.
+fn get_simplified_bounds(
+    req_bound_opt: Option<HistogramBounds>,
+    value_source: &dyn ValueSource,
+) -> HistogramBounds {
+    let Some(req_bound) = req_bound_opt else {
+        return HistogramBounds::UNBOUNDED;
+    };
+    let Some((col_min_typed, col_max_typed)) = value_source.bounds() else {
+        return req_bound;
+    };
+    let column_type = value_source.column_type();
+    let col_min = f64_from_fastfield_u64(col_min_typed, column_type);
+    let col_max = f64_from_fastfield_u64(col_max_typed, column_type);
+    if col_min >= req_bound.min && col_max <= req_bound.max {
+        HistogramBounds::UNBOUNDED
+    } else {
+        req_bound
+    }
+}
+
 impl HistogramAggReqData {
     /// Creates the request data of a histogram aggregation, validating and normalizing `req`.
     pub(crate) fn new(
@@ -50,28 +72,7 @@ impl HistogramAggReqData {
             req.normalize_date_time();
         }
 
-        let bounds = req
-            .hard_bounds
-            .as_ref()
-            .filter(|hard_bounds| {
-                // Drop `hard_bounds` that can't exclude any value (the column's range already sits
-                // inside them): the per-doc `bounds.contains` check is then a no-op, so collapsing
-                // to the unbounded sentinel lets the histogram hot loop skip it and the flattened
-                // term×histogram path derive per-term counts from the grid. Only this
-                // collect-time filter is touched — empty-bucket emission reads `req.hard_bounds`
-                // directly (see `get_req_min_max`), and `hard_bounds` only ever clips that range,
-                // so a wider-than-data bound leaves the result unchanged.
-                let Some((min_value, max_value)) = accessor.bounds() else {
-                    return true;
-                };
-                f64_from_fastfield_u64(min_value, field_type) < hard_bounds.min
-                    || f64_from_fastfield_u64(max_value, field_type) > hard_bounds.max
-            })
-            .cloned()
-            .unwrap_or(HistogramBounds {
-                min: f64::MIN,
-                max: f64::MAX,
-            });
+        let bounds = get_simplified_bounds(req.hard_bounds, &*accessor);
         let offset = req.offset.unwrap_or(0.0);
         Ok(HistogramAggReqData {
             accessor,
@@ -255,6 +256,13 @@ pub struct HistogramBounds {
     /// The upper bounds.
     #[serde(deserialize_with = "deserialize_date_or_num")]
     pub max: f64,
+}
+
+impl HistogramBounds {
+    const UNBOUNDED: HistogramBounds = HistogramBounds {
+        min: f64::MIN,
+        max: f64::MAX,
+    };
 }
 
 fn deserialize_date_or_num<'de, D>(deserializer: D) -> Result<f64, D::Error>
