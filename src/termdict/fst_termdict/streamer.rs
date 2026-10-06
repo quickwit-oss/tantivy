@@ -1,5 +1,7 @@
 use std::io;
+use std::marker::PhantomData;
 
+use common::{KeyTracking, WithoutKeys};
 use tantivy_fst::automaton::AlwaysMatch;
 use tantivy_fst::map::{Stream, StreamBuilder};
 use tantivy_fst::{Automaton, IntoStreamer, Streamer};
@@ -10,23 +12,45 @@ use crate::termdict::TermOrdinal;
 
 /// `TermStreamerBuilder` is a helper object used to define
 /// a range of terms that should be streamed.
-pub struct TermStreamerBuilder<'a, A = AlwaysMatch>
-where A: Automaton
+pub struct TermStreamerBuilder<'a, A = AlwaysMatch, K = Vec<u8>>
+where
+    A: Automaton,
+    K: KeyTracking,
 {
     fst_map: &'a TermDictionary,
     stream_builder: StreamBuilder<'a, A>,
+    _key_tracking: PhantomData<K>,
 }
 
-impl<'a, A> TermStreamerBuilder<'a, A>
+impl<'a, A> TermStreamerBuilder<'a, A, Vec<u8>>
 where A: Automaton
 {
     pub(crate) fn new(fst_map: &'a TermDictionary, stream_builder: StreamBuilder<'a, A>) -> Self {
         TermStreamerBuilder {
             fst_map,
             stream_builder,
+            _key_tracking: PhantomData,
         }
     }
 
+    /// Makes the resulting [`TermStreamer`] skip copying keys.
+    ///
+    /// Use this when only term ordinals or values are needed.
+    /// `.key()` and `.next()` are not available on the resulting [`TermStreamer`].
+    pub fn without_keys(self) -> TermStreamerBuilder<'a, A, WithoutKeys> {
+        TermStreamerBuilder {
+            fst_map: self.fst_map,
+            stream_builder: self.stream_builder,
+            _key_tracking: PhantomData,
+        }
+    }
+}
+
+impl<'a, A, K> TermStreamerBuilder<'a, A, K>
+where
+    A: Automaton,
+    K: KeyTracking,
+{
     /// Limit the range to terms greater or equal to the bound
     pub fn ge<T: AsRef<[u8]>>(mut self, bound: T) -> Self {
         self.stream_builder = self.stream_builder.ge(bound);
@@ -59,12 +83,12 @@ where A: Automaton
 
     /// Creates the stream corresponding to the range
     /// of terms defined using the `TermStreamerBuilder`.
-    pub fn into_stream(self) -> io::Result<TermStreamer<'a, A>> {
+    pub fn into_stream(self) -> io::Result<TermStreamer<'a, A, K>> {
         Ok(TermStreamer {
             fst_map: self.fst_map,
             stream: self.stream_builder.into_stream(),
             term_ord: 0u64,
-            current_key: Vec::with_capacity(100),
+            current_key: K::make_default(),
             current_value: TermInfo::default(),
         })
     }
@@ -72,26 +96,29 @@ where A: Automaton
 
 /// `TermStreamer` acts as a cursor over a range of terms of a segment.
 /// Terms are guaranteed to be sorted.
-pub struct TermStreamer<'a, A = AlwaysMatch>
-where A: Automaton
+pub struct TermStreamer<'a, A = AlwaysMatch, K = Vec<u8>>
+where
+    A: Automaton,
+    K: KeyTracking,
 {
     pub(crate) fst_map: &'a TermDictionary,
     pub(crate) stream: Stream<'a, A>,
     term_ord: TermOrdinal,
-    current_key: Vec<u8>,
+    current_key: K,
     current_value: TermInfo,
 }
 
-impl<A> TermStreamer<'_, A>
-where A: Automaton
+impl<A, K> TermStreamer<'_, A, K>
+where
+    A: Automaton,
+    K: KeyTracking,
 {
     /// Advance position the stream on the next item.
     /// Before the first call to `.advance()`, the stream
     /// is an uninitialized state.
     pub fn advance(&mut self) -> bool {
         if let Some((term, term_ord)) = self.stream.next() {
-            self.current_key.clear();
-            self.current_key.extend_from_slice(term);
+            self.current_key.set_key(term);
             self.term_ord = term_ord;
             self.current_value = self.fst_map.term_info_from_ord(term_ord);
             true
@@ -108,6 +135,23 @@ where A: Automaton
         self.term_ord
     }
 
+    /// Accesses the current value.
+    ///
+    /// Calling `.value()` after the end of the stream will return the
+    /// last `.value()` encountered.
+    ///
+    /// # Panics
+    ///
+    /// Calling `.value()` before the first call to `.advance()` returns
+    /// `V::default()`.
+    pub fn value(&self) -> &TermInfo {
+        &self.current_value
+    }
+}
+
+impl<A> TermStreamer<'_, A, Vec<u8>>
+where A: Automaton
+{
     /// Accesses the current key.
     ///
     /// `.key()` should return the key that was returned
@@ -120,19 +164,6 @@ where A: Automaton
     /// Before any call to `.next()`, `.key()` returns an empty array.
     pub fn key(&self) -> &[u8] {
         &self.current_key
-    }
-
-    /// Accesses the current value.
-    ///
-    /// Calling `.value()` after the end of the stream will return the
-    /// last `.value()` encountered.
-    ///
-    /// # Panics
-    ///
-    /// Calling `.value()` before the first call to `.advance()` returns
-    /// `V::default()`.
-    pub fn value(&self) -> &TermInfo {
-        &self.current_value
     }
 
     /// Return the next `(key, value)` pair.

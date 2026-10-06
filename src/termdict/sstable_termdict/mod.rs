@@ -25,13 +25,14 @@ pub type TermDictionaryBuilder<W> = sstable::Writer<W, TermInfoValueWriter>;
 
 /// `TermStreamer` acts as a cursor over a range of terms of a segment.
 /// Terms are guaranteed to be sorted.
-pub type TermStreamer<'a, A = AlwaysMatch> = sstable::Streamer<'a, TermSSTable, A>;
+pub type TermStreamer<'a, A = AlwaysMatch, K = Vec<u8>> = sstable::Streamer<'a, TermSSTable, A, K>;
 
 /// SSTable used to store TermInfo objects.
 #[derive(Clone)]
 pub struct TermSSTable;
 
-pub type TermStreamerBuilder<'a, A = AlwaysMatch> = sstable::StreamerBuilder<'a, TermSSTable, A>;
+pub type TermStreamerBuilder<'a, A = AlwaysMatch, K = Vec<u8>> =
+    sstable::StreamerBuilder<'a, TermSSTable, A, K>;
 
 impl SSTable for TermSSTable {
     type Value = TermInfo;

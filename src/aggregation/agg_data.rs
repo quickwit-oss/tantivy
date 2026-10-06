@@ -1065,7 +1065,11 @@ fn for_each_matching_term_ord(
                 crate::TantivyError::InvalidArgument(format!("Invalid regex `{}`: {}", pattern, e))
             })?;
             // TODO: we can handle patterns like `^prefix.*` more efficiently
-            let mut stream = str_col.dictionary().search(re).into_stream()?;
+            let mut stream = str_col
+                .dictionary()
+                .search(re)
+                .without_keys()
+                .into_stream()?;
             while stream.advance() {
                 cb(stream.term_ord() as u32);
             }

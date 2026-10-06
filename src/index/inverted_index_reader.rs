@@ -298,7 +298,8 @@ impl InvertedIndexReader {
         A::State: Clone,
     {
         use std::ops::Bound;
-        let range_builder = self.termdict.search(automaton);
+        // Matching terms are only used for their `TermInfo`.
+        let range_builder = self.termdict.search(automaton).without_keys();
         let range_builder = match terms.start_bound() {
             Bound::Included(bound) => range_builder.ge(bound.serialized_value_bytes()),
             Bound::Excluded(bound) => range_builder.gt(bound.serialized_value_bytes()),
@@ -319,7 +320,7 @@ impl InvertedIndexReader {
             .into_stream_async_merging_holes(merge_holes_under_bytes)
             .await?;
 
-        let iter = std::iter::from_fn(move || stream.next().map(|(_k, v)| v.clone()));
+        let iter = std::iter::from_fn(move || stream.next_without_key().cloned());
 
         // limit on stream is only an optimization to load less data, the stream may still return
         // more than limit elements.
@@ -430,12 +431,15 @@ impl InvertedIndexReader {
             // We build things from this closure otherwise we get into lifetime issues that can only
             // be solved with self referential strucs. Returning an io::Result from here is a bit
             // more leaky abstraction-wise, but a lot better than the alternative
-            let mut stream = termdict.search(automaton).into_stream()?;
+            let mut stream = termdict.search(automaton).without_keys().into_stream()?;
 
             // we could do without an iterator, but this allows us access to coalesce which simplify
             // things
-            let posting_ranges_iter =
-                std::iter::from_fn(move || stream.next().map(|(_k, v)| v.postings_range.clone()));
+            let posting_ranges_iter = std::iter::from_fn(move || {
+                stream
+                    .next_without_key()
+                    .map(|value| value.postings_range.clone())
+            });
 
             let merged_posting_ranges_iter = posting_ranges_iter.coalesce(|range1, range2| {
                 if range1.end + MERGE_HOLES_UNDER_BYTES >= range2.start {

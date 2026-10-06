@@ -3,6 +3,7 @@ use std::ops::Bound;
 
 use common::bounds::{map_bound, BoundsRange};
 use common::BitSet;
+use tantivy_fst::automaton::AlwaysMatch;
 
 use super::range_query_fastfield::FastFieldRangeWeight;
 use crate::index::SegmentReader;
@@ -10,7 +11,7 @@ use crate::query::explanation::does_not_match;
 use crate::query::range_query::is_type_valid_for_fastfield_range_query;
 use crate::query::{BitSetDocSet, ConstScorer, EnableScoring, Explanation, Query, Scorer, Weight};
 use crate::schema::{Field, IndexRecordOption, Term, Type};
-use crate::termdict::{TermDictionary, TermStreamer};
+use crate::termdict::{TermDictionary, TermStreamer, WithoutKeys};
 use crate::{DocId, Score};
 
 /// `RangeQuery` matches all documents that have at least one term within a defined range.
@@ -190,9 +191,13 @@ impl InvertedIndexRangeWeight {
         }
     }
 
-    fn term_range<'a>(&self, term_dict: &'a TermDictionary) -> io::Result<TermStreamer<'a>> {
+    fn term_range<'a>(
+        &self,
+        term_dict: &'a TermDictionary,
+    ) -> io::Result<TermStreamer<'a, AlwaysMatch, WithoutKeys>> {
         use std::ops::Bound::*;
-        let mut term_stream_builder = term_dict.range();
+        // Terms in the range are only used for their `TermInfo`.
+        let mut term_stream_builder = term_dict.range().without_keys();
         term_stream_builder = match self.lower_bound {
             Included(ref term_val) => term_stream_builder.ge(term_val),
             Excluded(ref term_val) => term_stream_builder.gt(term_val),
