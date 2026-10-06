@@ -173,7 +173,9 @@ mod tests {
         writer.serialize(&mut bytes, None).unwrap();
 
         let readers = FastFieldReaders::open(bytes.into(), schema).unwrap();
-        let values = readers.u64("tie").unwrap().first_or_default_col(0);
+        let values = readers.i64("tie").unwrap().first_or_default_col(0);
+        assert!(values.get_val(0) >= i64::from(i32::MIN));
+        assert!(values.get_val(1_024) <= i64::from(i32::MAX));
         for doc in 1..1_025 {
             assert_eq!(values.get_val(doc), values.get_val(doc - 1) + 1);
         }

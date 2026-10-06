@@ -91,7 +91,7 @@ fn test_merge_generated_tie_breaker_columns_stays_small() {
     let mut buffer = Vec::new();
     merge_columnar(
         &columnar_refs,
-        &[("tie".to_string(), ColumnType::U64)],
+        &[("tie".to_string(), ColumnType::I64)],
         StackMergeOrder::stack(&columnar_refs).into(),
         &mut buffer,
     )
@@ -103,10 +103,9 @@ fn test_merge_generated_tie_breaker_columns_stays_small() {
         buffer.len()
     );
     let merged = ColumnarReader::open(buffer).unwrap();
-    let column = merged.read_columns("tie").unwrap()[0]
-        .open_u64_lenient()
-        .unwrap()
-        .unwrap();
+    let DynamicColumn::I64(column) = merged.read_columns("tie").unwrap()[0].open().unwrap() else {
+        panic!("expected an i64 tie-breaker column");
+    };
     assert_eq!(merged.num_docs(), 1_000_000);
     assert_eq!(column.get_cardinality(), Cardinality::Full);
     for split_start in (0..1_000_000).step_by(250_000) {
