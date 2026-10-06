@@ -222,7 +222,7 @@ impl FieldType {
         match *self {
             FieldType::Str(_) => Type::Str,
             FieldType::U64(_) => Type::U64,
-            FieldType::TieBreaker | FieldType::I64(_) => Type::I64,
+            FieldType::I64(_) | FieldType::TieBreaker => Type::I64,
             FieldType::F64(_) => Type::F64,
             FieldType::Bool(_) => Type::Bool,
             FieldType::Date(_) => Type::Date,

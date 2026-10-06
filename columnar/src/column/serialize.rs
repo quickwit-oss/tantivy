@@ -15,10 +15,6 @@ use crate::column_values::{
 use crate::iterable::Iterable;
 use crate::{StrColumn, Version};
 
-fn shift_u32_to_i64(value: u32) -> i64 {
-    i64::from(value) + i64::from(i32::MIN)
-}
-
 pub fn serialize_column_mappable_to_u128<T: MonotonicallyMappableToU128>(
     column_index: SerializableColumnIndex<'_>,
     iterable: &dyn Iterable<T>,
@@ -34,9 +30,8 @@ pub(crate) fn serialize_generated_tie_breaker_column(
     num_docs: u32,
     output: &mut impl Write,
 ) -> io::Result<()> {
-    let max_start = u32::MAX - num_docs;
-    let unsigned_start: u32 = rand::rng().random_range(0..=max_start);
-    let start = shift_u32_to_i64(unsigned_start);
+    let max_start = i64::from(i32::MAX) - i64::from(num_docs.saturating_sub(1));
+    let start = rand::rng().random_range(i64::from(i32::MIN)..=max_start);
     let end = start + i64::from(num_docs);
     let values = start..end;
     let column_index_num_bytes = serialize_column_index(SerializableColumnIndex::Full, output)?;
@@ -51,18 +46,6 @@ pub(crate) fn serialize_generated_tie_breaker_column(
     )?;
     output.write_all(&column_index_num_bytes.to_le_bytes())?;
     Ok(())
-}
-
-#[cfg(test)]
-mod tests {
-    use super::shift_u32_to_i64;
-
-    #[test]
-    fn test_shift_u32_to_i64_covers_i32_range() {
-        assert_eq!(shift_u32_to_i64(u32::MIN), i64::from(i32::MIN));
-        assert_eq!(shift_u32_to_i64(1 << 31), 0);
-        assert_eq!(shift_u32_to_i64(u32::MAX), i64::from(i32::MAX));
-    }
 }
 
 pub fn serialize_column_mappable_to_u64<T: MonotonicallyMappableToU64>(
