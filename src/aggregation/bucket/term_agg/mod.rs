@@ -1060,18 +1060,16 @@ impl<TermMap: TermAggregationMap, B: SubAggBuffer> SegmentAggregationCollector
 
         let req_data = &mut self.terms_req_data;
 
-        agg_data
-            .column_block_accessor
-            .fetch_block_with_missing_unique_per_doc(
-                docs,
-                &mut *req_data.accessor,
-                req_data.missing_value_for_accessor,
-                false,
-            );
+        let block = agg_data.column_block_accessor.fetch_unique_per_doc(
+            docs,
+            &mut *req_data.accessor,
+            req_data.missing_value_for_accessor,
+            false,
+        );
 
         if let Some(sub_agg) = &mut self.sub_agg {
             let term_buckets = &mut self.parent_buckets[parent_bucket_id as usize];
-            let it = agg_data.column_block_accessor.iter_docid_vals(docs);
+            let it = block.iter_docid_vals();
             if let Some(allowed_bs) = req_data.allowed_term_ids.as_ref() {
                 let it = it.filter(move |&(_doc, term_id)| allowed_bs.contains(term_id as u32));
                 Self::collect_terms_with_docs(
@@ -1090,7 +1088,7 @@ impl<TermMap: TermAggregationMap, B: SubAggBuffer> SegmentAggregationCollector
             }
         } else {
             let term_buckets = &mut self.parent_buckets[parent_bucket_id as usize];
-            let it = agg_data.column_block_accessor.iter_vals();
+            let it = block.values().iter().copied();
             if let Some(allowed_bs) = req_data.allowed_term_ids.as_ref() {
                 let it = it.filter(move |&term_id| allowed_bs.contains(term_id as u32));
                 Self::collect_terms(it, term_buckets, &mut self.bucket_id_provider);

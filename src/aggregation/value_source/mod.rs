@@ -6,7 +6,7 @@ pub(crate) mod tests;
 
 use std::borrow::Borrow;
 
-pub(crate) use block_accessor::ColumnBlockAccessor;
+pub(crate) use block_accessor::{ColumnBlockAccessor, DocValueBlock};
 use columnar::{Cardinality, Column, ColumnType, ColumnValues, RowId};
 pub use value_source_registry::{ValueSourceProvider, ValueSourceRegistry};
 
@@ -93,16 +93,19 @@ impl<ColumnRef: Borrow<Column<u64>> + std::fmt::Debug> ValueSource for (ColumnRe
     }
 }
 
+/// Loads the values of a full column for `docs`, aligned with `docs`.
+///
 /// `docs` has to be sorted ascending and free of duplicates.
 #[inline]
-fn load_full_column_values(
+pub(crate) fn load_full_column_values(
     docs: &[DocId],
     column_values: &dyn ColumnValues<u64>,
     values: &mut Vec<u64>,
 ) {
     // Skip the resize when already the right length (common case: fixed-size blocks).
-    if values.len() != docs.len() {
-        values.resize(docs.len(), 0u64);
+    let len = docs.len();
+    if values.len() != len {
+        values.resize(len, 0u64);
     }
     // When the docs form a contiguous ascending run we can fetch the values as a single range.
     // This lets codecs (e.g. bitpacked) bulk-decode the slice instead of gathering value-by-value.

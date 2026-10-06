@@ -23,7 +23,7 @@ use crate::aggregation::intermediate_agg_result::{
     IntermediateAggregationResult, IntermediateAggregationResults,
 };
 use crate::aggregation::segment_agg_result::{BucketIdProvider, SegmentAggregationCollector};
-use crate::aggregation::value_source::ColumnBlockAccessor;
+use crate::aggregation::value_source::load_full_column_values;
 use crate::aggregation::{f64_from_fastfield_u64, BucketId, ValueSource};
 
 /// Maximum number of physical counters in the flattened flat grid. Above this the grid would be too
@@ -51,16 +51,16 @@ trait BucketResolver: 'static {
 
     /// Resolves and counts one bucket per term when every histogram value is in bounds. Keeping the
     /// loop inside the resolver lets each implementation compile to its simplest block traversal.
-    fn collect_block<const LANES: usize>(
-        &mut self,
-        term_ids: impl Iterator<Item = u64>,
-        counts: &mut [[u32; LANES]],
-    );
+    ///
+    /// `term_ids[i]` is the term of the i-th doc passed to the preceding `prepare_block` call.
+    fn collect_block<const LANES: usize>(&mut self, term_ids: &[u64], counts: &mut [[u32; LANES]]);
 
     /// Resolves values with hard bounds while preserving each term's total document count.
+    ///
+    /// `term_ids[i]` is the term of the i-th doc passed to the preceding `prepare_block` call.
     fn collect_block_with_bounds<const LANES: usize>(
         &mut self,
-        term_ids: impl Iterator<Item = u64>,
+        term_ids: &[u64],
         counts: &mut [[u32; LANES]],
         term_counts: &mut [[u32; LANES]],
     );
@@ -98,12 +98,8 @@ impl BucketResolver for SingleBucketResolver {
     }
 
     #[inline]
-    fn collect_block<const LANES: usize>(
-        &mut self,
-        term_ids: impl Iterator<Item = u64>,
-        counts: &mut [[u32; LANES]],
-    ) {
-        for term_id in term_ids {
+    fn collect_block<const LANES: usize>(&mut self, term_ids: &[u64], counts: &mut [[u32; LANES]]) {
+        for &term_id in term_ids {
             self.next_count_lane = (self.next_count_lane + 1) % LANES;
             increment_grid_count(counts, term_id, 0, 1, self.next_count_lane);
         }
@@ -111,7 +107,7 @@ impl BucketResolver for SingleBucketResolver {
 
     fn collect_block_with_bounds<const LANES: usize>(
         &mut self,
-        _term_ids: impl Iterator<Item = u64>,
+        _term_ids: &[u64],
         _counts: &mut [[u32; LANES]],
         _term_counts: &mut [[u32; LANES]],
     ) {
@@ -122,7 +118,8 @@ impl BucketResolver for SingleBucketResolver {
 /// The general resolver. It preserves the existing field conversion and floating-point bucket
 /// calculation for histograms that do not use a specialized resolver.
 struct ComputedBucketResolver {
-    hist_block: ColumnBlockAccessor,
+    /// Histogram column values of the block loaded by `prepare_block`, aligned with its docs.
+    hist_values: Vec<u64>,
     next_count_lane: usize,
     column_values: Arc<dyn ColumnValues>,
     field_type: ColumnType,
@@ -141,7 +138,7 @@ impl ComputedBucketResolver {
         num_buckets: usize,
     ) -> Self {
         Self {
-            hist_block: ColumnBlockAccessor::default(),
+            hist_values: Vec::new(),
             next_count_lane: 0,
             column_values: hist_values,
             field_type: hist_req_data.accessor.column_type(),
@@ -157,8 +154,7 @@ impl ComputedBucketResolver {
 impl BucketResolver for ComputedBucketResolver {
     #[inline]
     fn prepare_block(&mut self, docs: &[crate::DocId]) {
-        self.hist_block
-            .fetch_full_column_block(docs, &*self.column_values);
+        load_full_column_values(docs, &*self.column_values, &mut self.hist_values);
     }
 
     #[inline]
@@ -167,17 +163,15 @@ impl BucketResolver for ComputedBucketResolver {
     }
 
     #[inline]
-    fn collect_block<const LANES: usize>(
-        &mut self,
-        term_ids: impl Iterator<Item = u64>,
-        counts: &mut [[u32; LANES]],
-    ) {
+    fn collect_block<const LANES: usize>(&mut self, term_ids: &[u64], counts: &mut [[u32; LANES]]) {
         let field_type = self.field_type;
         let interval = self.interval;
         let offset = self.offset;
         let base_pos = self.base_pos;
         let num_buckets = self.num_buckets;
-        for (term_id, hist_raw) in term_ids.zip(self.hist_block.iter_vals()) {
+        let hist_values: &[u64] = &self.hist_values;
+        debug_assert_eq!(term_ids.len(), hist_values.len());
+        for (&term_id, &hist_raw) in term_ids.iter().zip(hist_values) {
             let val = f64_from_fastfield_u64(hist_raw, field_type);
             let bucket = (get_bucket_pos_f64(val, interval, offset) as i64 - base_pos) as usize;
             self.next_count_lane = (self.next_count_lane + 1) % LANES;
@@ -188,7 +182,7 @@ impl BucketResolver for ComputedBucketResolver {
     #[inline]
     fn collect_block_with_bounds<const LANES: usize>(
         &mut self,
-        term_ids: impl Iterator<Item = u64>,
+        term_ids: &[u64],
         counts: &mut [[u32; LANES]],
         term_counts: &mut [[u32; LANES]],
     ) {
@@ -199,7 +193,9 @@ impl BucketResolver for ComputedBucketResolver {
         let num_buckets = self.num_buckets;
         let bounds = self.bounds;
         let mut next_count_lane = self.next_count_lane;
-        for (term_id, hist_raw) in term_ids.zip(self.hist_block.iter_vals()) {
+        let hist_values: &[u64] = &self.hist_values;
+        debug_assert_eq!(term_ids.len(), hist_values.len());
+        for (&term_id, &hist_raw) in term_ids.iter().zip(hist_values) {
             let val = f64_from_fastfield_u64(hist_raw, field_type);
             if bounds.contains(val) {
                 let bucket = (get_bucket_pos_f64(val, interval, offset) as i64 - base_pos) as usize;
@@ -216,7 +212,8 @@ impl BucketResolver for ComputedBucketResolver {
 /// Resolver for a small histogram grid. Bucket starts are precomputed in monotonic fast-field
 /// `u64` space, then scanned linearly. `NUM_BUCKETS` is fixed so the optimizer can unroll the scan.
 struct LinearBucketResolver<const NUM_BUCKETS: usize> {
-    hist_block: ColumnBlockAccessor,
+    /// Histogram column values of the block loaded by `prepare_block`, aligned with its docs.
+    hist_values: Vec<u64>,
     next_count_lane: usize,
     column_values: Arc<dyn ColumnValues>,
     boundaries: [u64; NUM_BUCKETS],
@@ -250,7 +247,7 @@ impl<const NUM_BUCKETS: usize> LinearBucketResolver<NUM_BUCKETS> {
             boundaries[bucket - 1] = bucket_start;
         }
         Some(Self {
-            hist_block: ColumnBlockAccessor::default(),
+            hist_values: Vec::new(),
             next_count_lane: 0,
             column_values,
             boundaries,
@@ -271,8 +268,7 @@ impl<const NUM_BUCKETS: usize> LinearBucketResolver<NUM_BUCKETS> {
 impl<const NUM_BUCKETS: usize> BucketResolver for LinearBucketResolver<NUM_BUCKETS> {
     #[inline]
     fn prepare_block(&mut self, docs: &[crate::DocId]) {
-        self.hist_block
-            .fetch_full_column_block(docs, &*self.column_values);
+        load_full_column_values(docs, &*self.column_values, &mut self.hist_values);
     }
 
     #[inline]
@@ -281,14 +277,12 @@ impl<const NUM_BUCKETS: usize> BucketResolver for LinearBucketResolver<NUM_BUCKE
     }
 
     #[inline]
-    fn collect_block<const LANES: usize>(
-        &mut self,
-        term_ids: impl Iterator<Item = u64>,
-        counts: &mut [[u32; LANES]],
-    ) {
+    fn collect_block<const LANES: usize>(&mut self, term_ids: &[u64], counts: &mut [[u32; LANES]]) {
         let num_buckets = self.num_buckets;
         let boundaries = &self.boundaries;
-        for (term_id, hist_raw) in term_ids.zip(self.hist_block.iter_vals()) {
+        let hist_values: &[u64] = &self.hist_values;
+        debug_assert_eq!(term_ids.len(), hist_values.len());
+        for (&term_id, &hist_raw) in term_ids.iter().zip(hist_values) {
             let bucket = Self::resolve(boundaries, hist_raw);
             self.next_count_lane = (self.next_count_lane + 1) % LANES;
             increment_grid_count(counts, term_id, bucket, num_buckets, self.next_count_lane);
@@ -297,7 +291,7 @@ impl<const NUM_BUCKETS: usize> BucketResolver for LinearBucketResolver<NUM_BUCKE
 
     fn collect_block_with_bounds<const LANES: usize>(
         &mut self,
-        _term_ids: impl Iterator<Item = u64>,
+        _term_ids: &[u64],
         _counts: &mut [[u32; LANES]],
         _term_counts: &mut [[u32; LANES]],
     ) {
@@ -370,9 +364,9 @@ struct FlattenedTermHistogramCollector<R: BucketResolver, const LANES: usize> {
     /// Histogram collector without any bucket. It is only used to produce the histogram
     /// intermediate results, once filled from `counts`.
     intermediate_result_histogram_collector: SegmentHistogramCollector<(), false>,
-    /// Private term block accessor. The bucket resolver owns a histogram block accessor when it
+    /// Private term values buffer. The bucket resolver owns a histogram values buffer when it
     /// needs one; the single-bucket resolver deliberately does not.
-    term_block: ColumnBlockAccessor,
+    term_values: Vec<u64>,
     bucket_resolver: R,
     /// No hard bounds, so every doc is in-bounds.
     all_docs_in_bounds: bool,
@@ -452,8 +446,7 @@ impl<R: BucketResolver, const LANES: usize> SegmentAggregationCollector
 
         // The term column is always needed. The resolver fetches the histogram column only when
         // bucket selection depends on its values; `SingleBucketResolver` makes this a no-op.
-        self.term_block
-            .fetch_full_column_block(docs, &*self.terms_values);
+        load_full_column_values(docs, &*self.terms_values, &mut self.term_values);
         self.bucket_resolver.prepare_block(docs);
 
         // Keep separate bounded and unbounded entry points so the common path has no bounds branch,
@@ -461,10 +454,10 @@ impl<R: BucketResolver, const LANES: usize> SegmentAggregationCollector
         // iterator of `Option<usize>`.
         if self.all_docs_in_bounds {
             self.bucket_resolver
-                .collect_block::<LANES>(self.term_block.iter_vals(), &mut self.counts);
+                .collect_block::<LANES>(&self.term_values, &mut self.counts);
         } else {
             self.bucket_resolver.collect_block_with_bounds::<LANES>(
-                self.term_block.iter_vals(),
+                &self.term_values,
                 &mut self.counts,
                 &mut self.term_counts,
             );
@@ -524,7 +517,7 @@ pub(super) fn plan_flattened_collector(
 ) -> Option<TermHistogramFlattenedPlanInputs> {
     // Both columns must be full (one value per doc) so their values align positionally with `docs`
     // and we can zip them. Requiring full columns also makes the terms agg's `missing` config a
-    // no-op (`fetch_block_with_missing` early-returns on full columns), so we needn't check for it.
+    // no-op (`fetch_unique_per_doc` early-returns on full columns), so we needn't check for it.
     //
     // We don't cap the term cardinality here: the flat grid is bounded by the total physical
     // counter count (`num_terms * num_time_buckets * LANES <= MAX_FLATTENED_GRID_COUNTERS`) checked
@@ -772,7 +765,7 @@ fn build_flattened_collector_with_resolver<R: BucketResolver, const LANES: usize
         intermediate_result_histogram_collector: SegmentHistogramCollector::from_dense_rows(
             hist_req_data,
         ),
-        term_block: ColumnBlockAccessor::default(),
+        term_values: Vec::new(),
         bucket_resolver,
         all_docs_in_bounds,
     }))

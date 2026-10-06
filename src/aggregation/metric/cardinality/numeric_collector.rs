@@ -134,7 +134,7 @@ impl SegmentAggregationCollector for SegmentNumericCardinalityCollector {
         docs: &[crate::DocId],
         agg_data: &mut AggregationsSegmentCtx,
     ) -> crate::Result<()> {
-        agg_data.column_block_accessor.fetch_block_with_missing(
+        let values = agg_data.column_block_accessor.fetch_values(
             docs,
             &mut *self.accessor,
             self.missing_value_for_accessor,
@@ -146,14 +146,13 @@ impl SegmentAggregationCollector for SegmentNumericCardinalityCollector {
                     "collection should not happen after finalization".to_string(),
                 )
             })?;
-        let col_block_accessor = &agg_data.column_block_accessor;
         if let Some(compact_space_accessor) = self.compact_space_accessor.as_ref() {
-            for val in col_block_accessor.iter_vals() {
+            for &val in values {
                 let val: u128 = compact_space_accessor.compact_to_u128(val as u32);
                 cardinality.insert(val);
             }
         } else {
-            for val in col_block_accessor.iter_vals() {
+            for &val in values {
                 cardinality.insert(val);
             }
         }

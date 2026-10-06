@@ -279,8 +279,7 @@ impl<B: SubAggBuffer, const SOURCE_CONTAINS_MULTIVALUES: bool> SegmentAggregatio
         docs: &[crate::DocId],
         agg_data: &mut AggregationsSegmentCtx,
     ) -> crate::Result<()> {
-        let accessor = &mut agg_data.column_block_accessor;
-        accessor.fetch_block_with_missing_unique_per_doc(
+        let block = agg_data.column_block_accessor.fetch_unique_per_doc(
             docs,
             &mut *self.req_data.accessor,
             None,
@@ -290,9 +289,9 @@ impl<B: SubAggBuffer, const SOURCE_CONTAINS_MULTIVALUES: bool> SegmentAggregatio
         let buckets = &mut self.parent_buckets[parent_bucket_id as usize];
 
         // Known single-valued sources compile out deduplication; otherwise check the loaded batch.
-        let multivalued = SOURCE_CONTAINS_MULTIVALUES && accessor.is_batch_multivalued();
+        let multivalued = SOURCE_CONTAINS_MULTIVALUES && block.is_multivalued();
         let mut previous = None;
-        for (doc, val) in accessor.iter_docid_vals(docs) {
+        for (doc, val) in block.iter_docid_vals() {
             let bucket_pos = get_bucket_pos(val, buckets);
             if multivalued {
                 // The fetcher makes equal range hits consecutive within each document.

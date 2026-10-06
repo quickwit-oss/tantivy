@@ -31,6 +31,7 @@ use crate::aggregation::intermediate_agg_result::{
     IntermediateKey, IntermediateTermBucketEntry, PruneMode,
 };
 use crate::aggregation::segment_agg_result::{BucketIdProvider, SegmentAggregationCollector};
+use crate::aggregation::value_source::DocValueBlock;
 use crate::aggregation::{f64_to_fastfield_u64, format_date, BucketId, ColumnBlockAccessor, Key};
 use crate::{DocId, TantivyError};
 
@@ -218,22 +219,20 @@ fn block_missing_value(missing: Option<&MultiTermsMissingAccessor>) -> Option<u6
 
 /// Fetches one field into the shared block accessor and forwards safe missing handling. Ordering
 /// is requested only by multi-terms, which needs values from different fields aligned by document.
-/// Returns whether decoding produced exactly one aligned value per document.
 #[inline]
-fn fetch_field_block(
-    docs: &[crate::DocId],
+fn fetch_field_block<'acc, 'docs>(
+    docs: &'docs [crate::DocId],
     field: &MultiTermsFieldAccessor,
     missing: Option<&MultiTermsMissingAccessor>,
-    block_accessor: &mut ColumnBlockAccessor,
-) -> bool {
+    block_accessor: &'acc mut ColumnBlockAccessor,
+) -> DocValueBlock<'acc, 'docs> {
     let missing_value = block_missing_value(missing);
-    block_accessor.fetch_block_with_missing_unique_per_doc(
+    block_accessor.fetch_unique_per_doc(
         docs,
         &mut (&field.column, field.column_type),
         missing_value,
         true,
-    );
-    block_accessor.has_one_value_per_doc(docs)
+    )
 }
 
 /// Packing operations used by the unified collector.
@@ -248,8 +247,9 @@ trait MultiTermsPacking: Clone + Debug + 'static {
     fn push(&self, key: &mut Self::PackingType, field_idx: usize, value: u64);
 
     /// Pushes one field's aligned values into every active key buffer.
-    fn push_full_values<I>(&self, keys: &mut [Self::PackingType], field_idx: usize, values: I)
-    where I: IntoIterator<Item = u64>;
+    ///
+    /// `values[i]` is the value for `keys[i]`: both slices must have the same length.
+    fn push_full_values(&self, keys: &mut [Self::PackingType], field_idx: usize, values: &[u64]);
 
     /// Extract one field's raw value, allowing dictionary lookups to be batched by field.
     fn unpack_value(&self, key: &Self::PackingType, field_idx: usize) -> u64;
@@ -276,9 +276,9 @@ impl MultiTermsPacking for U64ArrayKeyPacking {
         key.push(value);
     }
 
-    fn push_full_values<I>(&self, keys: &mut [Self::PackingType], field_idx: usize, values: I)
-    where I: IntoIterator<Item = u64> {
-        for (key, value) in keys.iter_mut().zip(values) {
+    fn push_full_values(&self, keys: &mut [Self::PackingType], field_idx: usize, values: &[u64]) {
+        debug_assert_eq!(keys.len(), values.len());
+        for (key, &value) in keys.iter_mut().zip(values) {
             debug_assert!(key.len() <= field_idx);
             key.push(value);
         }
@@ -308,10 +308,10 @@ impl MultiTermsPacking for PackedU64KeyPacking {
     }
 
     #[inline]
-    fn push_full_values<I>(&self, keys: &mut [Self::PackingType], field_idx: usize, values: I)
-    where I: IntoIterator<Item = u64> {
+    fn push_full_values(&self, keys: &mut [Self::PackingType], field_idx: usize, values: &[u64]) {
+        debug_assert_eq!(keys.len(), values.len());
         let pack = self.packs[field_idx];
-        for (key, value) in keys.iter_mut().zip(values) {
+        for (key, &value) in keys.iter_mut().zip(values) {
             let offset = value - pack.min_value;
             debug_assert!(offset <= pack.max_offset);
             *key |= shift_packed_bits(offset, pack.shift);
@@ -434,7 +434,7 @@ fn expand_partial_combinations_for_field<Packing: MultiTermsPacking>(
     packing: &Packing,
     field_idx: usize,
     missing: Option<&MultiTermsMissingAccessor>,
-    block_accessor: &ColumnBlockAccessor,
+    block: &DocValueBlock,
     keys_buf: &mut Vec<Packing::PackingType>,
     alive_docs: &mut Vec<DocId>,
     doc_ids_per_partial_combination: &mut Vec<DocId>,
@@ -454,7 +454,7 @@ fn expand_partial_combinations_for_field<Packing: MultiTermsPacking>(
     );
 
     {
-        let mut field_values = block_accessor.iter_docid_vals(alive_docs).peekable();
+        let mut field_values = block.iter_docid_vals().peekable();
         let mut doc_values = SmallVec::<[u64; 2]>::new();
         let mut combination_start = 0;
 
@@ -548,17 +548,14 @@ where
         block_accessor: &mut ColumnBlockAccessor,
     ) {
         for (field_idx, field) in self.req_data.fields.iter().enumerate() {
-            fetch_field_block(
+            let block = fetch_field_block(
                 docs,
                 field,
                 self.req_data.missing_accessors[field_idx].as_ref(),
                 block_accessor,
             );
-            self.packing.push_full_values(
-                &mut self.keys_buf,
-                field_idx,
-                block_accessor.iter_vals(),
-            );
+            self.packing
+                .push_full_values(&mut self.keys_buf, field_idx, block.values());
         }
     }
 
@@ -573,17 +570,13 @@ where
 
         for (field_idx, field) in self.req_data.fields.iter().enumerate() {
             let missing = self.req_data.missing_accessors[field_idx].as_ref();
-            let has_one_value_per_doc =
-                fetch_field_block(&self.alive_docs, field, missing, block_accessor);
-            if has_one_value_per_doc {
+            let block = fetch_field_block(&self.alive_docs, field, missing, block_accessor);
+            if block.has_one_value_per_doc() {
                 if self.doc_ids_per_partial_combination.is_empty() {
-                    self.packing.push_full_values(
-                        &mut self.keys_buf,
-                        field_idx,
-                        block_accessor.iter_vals(),
-                    );
+                    self.packing
+                        .push_full_values(&mut self.keys_buf, field_idx, block.values());
                 } else {
-                    let mut values = block_accessor.iter_vals();
+                    let mut values = block.values().iter().copied();
                     let mut keys = self.keys_buf.iter_mut();
                     for key_doc_group in self
                         .doc_ids_per_partial_combination
@@ -600,15 +593,18 @@ where
                 continue;
             }
 
+            // A full block always has one value per doc, so the docids were loaded. Unlike
+            // `block.docids()`, they do not borrow `self.alive_docs`, which we modify below.
+            let block = block.try_drop_docs_lifetime().unwrap();
+
             // Until expansion, sparse single-value fields can filter keys in place.
             if self.doc_ids_per_partial_combination.is_empty()
-                && !block_accessor.is_batch_multivalued()
+                && !block.is_multivalued()
                 && missing.is_none()
             {
                 let mut source_idx = 0usize;
                 let mut target_idx = 0usize;
-                for (&doc_id, &value) in block_accessor.docids().iter().zip(block_accessor.values())
-                {
+                for (doc_id, value) in block.iter_docid_vals() {
                     while self.alive_docs[source_idx] < doc_id {
                         source_idx += 1;
                     }
@@ -631,7 +627,7 @@ where
                 &self.packing,
                 field_idx,
                 missing,
-                block_accessor,
+                &block,
                 &mut self.keys_buf,
                 &mut self.alive_docs,
                 &mut self.doc_ids_per_partial_combination,
