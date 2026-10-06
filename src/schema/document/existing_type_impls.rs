@@ -55,12 +55,12 @@ impl<'a> Value<'a> for &'a serde_json::Value {
             }
             serde_json::Value::String(text) => {
                 if can_be_rfc3339_date_time(text) {
-                    match OffsetDateTime::parse(text, &Rfc3339) {
-                        Ok(dt) => {
-                            let dt_utc = dt.to_offset(time::UtcOffset::UTC);
-                            ReferenceValueLeaf::Date(DateTime::from_utc(dt_utc)).into()
-                        }
-                        Err(_) => ReferenceValueLeaf::Str(text).into(),
+                    match OffsetDateTime::parse(text, &Rfc3339)
+                        .ok()
+                        .and_then(|dt| DateTime::try_from_utc(dt.to_offset(time::UtcOffset::UTC)))
+                    {
+                        Some(dt) => ReferenceValueLeaf::Date(dt).into(),
+                        None => ReferenceValueLeaf::Str(text).into(),
                     }
                 } else {
                     ReferenceValueLeaf::Str(text).into()

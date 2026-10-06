@@ -406,10 +406,16 @@ impl FieldType {
                         OffsetDateTime::parse(&field_text, &Rfc3339).map_err(|_err| {
                             ValueParsingError::TypeError {
                                 expected: "rfc3339 format",
-                                json: JsonValue::String(field_text),
+                                json: JsonValue::String(field_text.clone()),
                             }
                         })?;
-                    Ok(DateTime::from_utc(dt_with_fixed_tz).into())
+                    let dt = DateTime::try_from_utc(dt_with_fixed_tz).ok_or(
+                        ValueParsingError::OverflowError {
+                            expected: "date between 1677-09-21 and 2262-04-11",
+                            json: JsonValue::String(field_text),
+                        },
+                    )?;
+                    Ok(dt.into())
                 }
                 FieldType::Str(_) => Ok(OwnedValue::Str(field_text)),
                 FieldType::U64(opt) => {
@@ -737,6 +743,19 @@ mod tests {
         let date = OwnedValue::from(doc.get_first(date_field).unwrap());
         // Time zone is converted to UTC
         assert_eq!("Date(2019-10-12T05:20:50.52Z)", format!("{date:?}"));
+    }
+
+    #[test]
+    fn test_deserialize_json_date_out_of_range() {
+        let date_type = FieldType::Date(Default::default());
+        assert!(matches!(
+            date_type.value_from_json(json!("1601-01-01T00:00:00Z")),
+            Err(ValueParsingError::OverflowError { .. })
+        ));
+        assert!(matches!(
+            date_type.value_from_json(json!("9999-12-31T23:59:59Z")),
+            Err(ValueParsingError::OverflowError { .. })
+        ));
     }
 
     #[test]

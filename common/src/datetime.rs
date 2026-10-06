@@ -84,9 +84,26 @@ impl DateTime {
     ///
     /// The given date/time is converted to UTC and the actual
     /// time zone is discarded.
+    ///
+    /// Dates outside the range representable with i64 nanoseconds
+    /// saturate to [`Self::MIN`] or [`Self::MAX`].
+    /// Use [`Self::try_from_utc()`] to detect such dates.
     pub fn from_utc(dt: OffsetDateTime) -> Self {
-        let timestamp_nanos = dt.unix_timestamp_nanos() as i64;
+        let timestamp_nanos = dt
+            .unix_timestamp_nanos()
+            .clamp(i64::MIN as i128, i64::MAX as i128) as i64;
         Self { timestamp_nanos }
+    }
+
+    /// Create new from `OffsetDateTime`
+    ///
+    /// The given date/time is converted to UTC and the actual
+    /// time zone is discarded.
+    ///
+    /// Returns `None` if `dt` is outside the range representable with i64 nanoseconds.
+    pub fn try_from_utc(dt: OffsetDateTime) -> Option<Self> {
+        let timestamp_nanos = i64::try_from(dt.unix_timestamp_nanos()).ok()?;
+        Some(Self { timestamp_nanos })
     }
 
     /// Create new from `PrimitiveDateTime`
@@ -172,5 +189,47 @@ impl BinarySerializable for DateTime {
     fn deserialize<R: Read>(reader: &mut R) -> std::io::Result<Self> {
         let timestamp_micros = <i64 as BinarySerializable>::deserialize(reader)?;
         Ok(Self::from_timestamp_micros(timestamp_micros))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn parse(rfc3339: &str) -> OffsetDateTime {
+        OffsetDateTime::parse(rfc3339, &Rfc3339).unwrap()
+    }
+
+    #[test]
+    fn test_try_from_utc_boundaries() {
+        let min = OffsetDateTime::from_unix_timestamp_nanos(i64::MIN as i128).unwrap();
+        let max = OffsetDateTime::from_unix_timestamp_nanos(i64::MAX as i128).unwrap();
+        assert_eq!(DateTime::try_from_utc(min), Some(DateTime::MIN));
+        assert_eq!(DateTime::try_from_utc(max), Some(DateTime::MAX));
+        let one_ns = time::Duration::nanoseconds(1);
+        assert_eq!(DateTime::try_from_utc(min - one_ns), None);
+        assert_eq!(DateTime::try_from_utc(max + one_ns), None);
+    }
+
+    #[test]
+    fn test_try_from_utc_in_range() {
+        let dt = parse("2026-06-30T17:20:27Z");
+        assert_eq!(
+            DateTime::try_from_utc(dt),
+            Some(DateTime::from_timestamp_secs(dt.unix_timestamp()))
+        );
+    }
+
+    #[test]
+    fn test_from_utc_saturates() {
+        let before_min = parse("1601-01-01T00:00:00Z");
+        let after_max = parse("9999-12-31T23:59:59Z");
+        assert_eq!(DateTime::from_utc(before_min), DateTime::MIN);
+        assert_eq!(DateTime::from_utc(after_max), DateTime::MAX);
+        let before_min_primitive = PrimitiveDateTime::new(before_min.date(), before_min.time());
+        assert_eq!(
+            DateTime::from_primitive(before_min_primitive),
+            DateTime::MIN
+        );
     }
 }
