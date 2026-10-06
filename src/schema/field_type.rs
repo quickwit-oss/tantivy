@@ -190,7 +190,7 @@ pub enum FieldType {
     Str(TextOptions),
     /// Unsigned 64-bits integers field type configuration
     U64(NumericOptions),
-    /// Generated tie-breaker field, exposed as a `u64` fast field.
+    /// Generated tie-breaker field, exposed as an `i64` fast field.
     ///
     /// Values are almost always distinct, but not guaranteed to be unique across segments.
     TieBreaker,
@@ -221,8 +221,8 @@ impl FieldType {
     pub fn value_type(&self) -> Type {
         match *self {
             FieldType::Str(_) => Type::Str,
-            FieldType::U64(_) | FieldType::TieBreaker => Type::U64,
-            FieldType::I64(_) => Type::I64,
+            FieldType::U64(_) => Type::U64,
+            FieldType::TieBreaker | FieldType::I64(_) => Type::I64,
             FieldType::F64(_) => Type::F64,
             FieldType::Bool(_) => Type::Bool,
             FieldType::Date(_) => Type::Date,

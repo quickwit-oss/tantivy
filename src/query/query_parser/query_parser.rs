@@ -453,11 +453,11 @@ impl QueryParser {
             )));
         }
         match *field_type {
-            FieldType::U64(_) | FieldType::TieBreaker => {
+            FieldType::U64(_) => {
                 let val: u64 = u64::from_str(phrase)?;
                 Ok(Term::from_field_u64(field, val))
             }
-            FieldType::I64(_) => {
+            FieldType::TieBreaker | FieldType::I64(_) => {
                 let val: i64 = i64::from_str(phrase)?;
                 Ok(Term::from_field_i64(field, val))
             }

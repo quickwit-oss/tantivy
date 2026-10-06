@@ -219,9 +219,9 @@ impl ColumnarWriter {
         }
     }
 
-    /// Registers a full `u64` column whose values are generated when this writer is serialized.
+    /// Registers a full `i64` column whose values are generated when this writer is serialized.
     pub fn record_tie_breaker_column(&mut self, column_name: &str) {
-        self.record_column_type(column_name, ColumnType::U64, false);
+        self.record_column_type(column_name, ColumnType::I64, false);
         self.generated_tie_breaker_columns
             .insert(column_name.as_bytes().to_vec());
     }
