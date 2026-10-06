@@ -30,8 +30,9 @@ pub(crate) fn serialize_generated_tie_breaker_column(
     num_docs: u32,
     output: &mut impl Write,
 ) -> io::Result<()> {
-    // TODO: Lift this temporary u32 limit once downstream consumers support the full u64 range.
-    let max_start = (u32::MAX - num_docs) as u64;
+    // Temporary i32 cap: some downstream pagination cursors still store the tie-breaker as
+    // int32. Lift this once those consumers can represent the full u64 range.
+    let max_start = (i32::MAX as u64).saturating_sub(u64::from(num_docs.saturating_sub(1)));
     let start: u64 = rand::rng().random_range(0..=max_start);
     let end = start + num_docs as u64;
     let values = start..end;

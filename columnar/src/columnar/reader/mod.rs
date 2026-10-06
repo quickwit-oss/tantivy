@@ -247,6 +247,8 @@ mod tests {
         let handles = columnar.read_columns("tie").unwrap();
         let column = handles[0].open_u64_lenient().unwrap().unwrap();
         assert_eq!(column.index.get_cardinality(), crate::Cardinality::Full);
+        assert!(column.first(0).unwrap() <= i32::MAX as u64);
+        assert!(column.first(1_024).unwrap() <= i32::MAX as u64);
         for doc in 1..1_025 {
             assert_eq!(column.first(doc), Some(column.first(doc - 1).unwrap() + 1));
         }

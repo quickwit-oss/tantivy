@@ -6,7 +6,7 @@ Tantivy 0.27.0
 - Added the `FieldType::TieBreaker` variant; exhaustive matches on `FieldType` need a new arm.
 
 ## Features/Improvements
-- Add generated tie-breaker fast fields via `SchemaBuilder::add_tie_breaker_field`. Values are consecutive within a segment, start at a random offset, and are preserved across merges.
+- Add generated tie-breaker fast fields via `SchemaBuilder::add_tie_breaker_field`. Values are consecutive within a segment, start at a random offset within `[0, i32::MAX]`, and are preserved across merges.
 
 
 Tantivy 0.26.2
