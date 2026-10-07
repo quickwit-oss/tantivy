@@ -207,6 +207,8 @@ pub mod store;
 pub mod termdict;
 
 mod docset;
+#[cfg(feature = "jitexpr")]
+mod jitexpr_binding;
 mod reader;
 
 #[cfg(test)]

@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::io;
 
-use columnar::{ColumnIndex, ColumnType, DynamicColumn, StrColumn};
+use columnar::{ColumnIndex, DynamicColumn, StrColumn};
 use jitexpr::ast::{
     infer_types_with_target, required_presence_for_true, InferredTypeSet, TypeError, UntypedExpr,
     VariablePresenceCondition,
@@ -11,6 +11,7 @@ use jitexpr::types::{VarType, VariableValue};
 
 use super::{DocPredicate, SegmentDocPredicate};
 use crate::index::SegmentReader;
+use crate::jitexpr_binding::{find_input_column_handle, var_type_for_column_type};
 use crate::query::doc_predicate_query::ConstOrVariableSegmentPredicate;
 use crate::query::exist_query::{ExistsColumnIndex, ExistsDocSet};
 use crate::query::union::SimpleUnion;
@@ -76,11 +77,7 @@ impl DocPredicate for JitExprPredicate {
         let mut opened_columns: HashMap<&str, DynamicColumn> =
             HashMap::with_capacity(self.inferred_inputs.len());
 
-        // We pick a single column for each variable name. NOTE this CAN yield to unexpected results
-        // for some expression (e.g. (IS_NULL "mycol")).
-        // For instance, a document could be matching in one segment, and not matching if it
-        // was in another segment, just because the presence of column with the same name
-        // and different type could interfere.
+        // We pick a single column for each variable name. See `find_input_column_handle`.
         for (name, accepted_types) in &self.inferred_inputs {
             let Some(column) = open_input_column(segment_reader, name, *accepted_types)? else {
                 // If we do not have a valid column for that expression, we do not
@@ -244,32 +241,10 @@ fn open_input_column(
     name: &str,
     accepted_types: InferredTypeSet,
 ) -> io::Result<Option<DynamicColumn>> {
-    let Ok(column_handles) = reader.fast_fields().dynamic_column_handles(name) else {
-        // If the call to dynamic_column_handles fails (for instance because the column is not a
-        // fast field) we choose to act as if the column was absent.
+    let Some(handle) = find_input_column_handle(reader, name, accepted_types)? else {
         return Ok(None);
     };
-    for handle in column_handles {
-        // We return the first column that could be accepted
-        let Some(var_type) = var_type_for_column_type(handle.column_type()) else {
-            continue;
-        };
-        if accepted_types.contains(var_type) {
-            return Ok(Some(handle.open()?));
-        }
-    }
-    Ok(None)
-}
-
-fn var_type_for_column_type(column_type: ColumnType) -> Option<VarType> {
-    match column_type {
-        ColumnType::Bool => Some(VarType::Bool),
-        ColumnType::I64 => Some(VarType::I64),
-        ColumnType::U64 => Some(VarType::U64),
-        ColumnType::F64 => Some(VarType::F64),
-        ColumnType::Str => Some(VarType::Str),
-        ColumnType::Bytes | ColumnType::IpAddr | ColumnType::DateTime => None,
-    }
+    Ok(Some(handle.open()?))
 }
 
 /// The [`SegmentDocPredicate`] produced by [`JitExprPredicate`] for one segment.

@@ -147,6 +147,8 @@ use std::fmt::Display;
 use std::sync::Arc;
 
 pub(crate) use value_source::ColumnBlockAccessor;
+#[cfg(feature = "jitexpr")]
+pub use value_source::JitExprValueSourceProvider;
 pub use value_source::{
     ValueSource, ValueSourceDictionary, ValueSourceProvider, ValueSourceRegistry,
 };
