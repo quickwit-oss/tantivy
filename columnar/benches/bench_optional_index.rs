@@ -55,6 +55,31 @@ fn walk_over_data_from_positions(
     dense_idx
 }
 
+/// Number of doc ids per call to `rank_if_exists_batch`, matching tantivy's
+/// `COLLECT_BLOCK_BUFFER_LEN`.
+const BATCH_LEN: usize = 64;
+
+struct BatchInput {
+    optional_index: OptionalIndex,
+    /// Sorted doc ids, queried in chunks of `BATCH_LEN`.
+    doc_ids: Vec<u32>,
+}
+
+fn rank_if_exists_batch_over_chunks(input: &BatchInput) -> usize {
+    let mut doc_ids_out: Vec<u32> = Vec::with_capacity(BATCH_LEN);
+    let mut row_ids_out: Vec<u32> = Vec::with_capacity(BATCH_LEN);
+    let mut num_found = 0;
+    for doc_ids in input.doc_ids.chunks(BATCH_LEN) {
+        doc_ids_out.clear();
+        row_ids_out.clear();
+        input
+            .optional_index
+            .rank_if_exists_batch(doc_ids, &mut doc_ids_out, &mut row_ids_out);
+        num_found += row_ids_out.len();
+    }
+    num_found
+}
+
 fn main() {
     // Build separate inputs for each fill ratio.
     let inputs: Vec<(String, OptionalIndex)> = vec![
@@ -103,4 +128,41 @@ fn main() {
     });
 
     group.run();
+
+    // `rank_if_exists_batch` on sorted batches of doc ids. fill=1% and fill=5% only produce
+    // sparse blocks, fill=50% only dense blocks. `step` is the average distance between
+    // queried doc ids.
+    let mut batch_inputs: Vec<(String, BatchInput)> = Vec::new();
+    for (fill_name, fill_ratio) in [("1%", 0.01), ("5%", 0.05), ("50%", 0.50)] {
+        for avg_step_size in [1u32, 10, 100] {
+            let doc_ids: Vec<u32> = if avg_step_size == 1 {
+                (0..TOTAL_NUM_VALUES).collect()
+            } else {
+                random_range_iterator(0, TOTAL_NUM_VALUES, avg_step_size, avg_step_size - 1)
+                    .collect()
+            };
+            batch_inputs.push((
+                format!("fill={fill_name} step={avg_step_size}"),
+                BatchInput {
+                    optional_index: gen_optional_index(fill_ratio),
+                    doc_ids,
+                },
+            ));
+        }
+    }
+    // Mirrors the `sparse` runner of `agg_bench` filtered on `single_term`: one doc in 21 has a
+    // value (sparse blocks), and exactly those docs are queried, so every lookup is a hit.
+    let every_21st_doc: Vec<u32> = (0..TOTAL_NUM_VALUES).step_by(21).collect();
+    batch_inputs.push((
+        "every 21st doc, all hits".to_string(),
+        BatchInput {
+            optional_index: OptionalIndex::for_test(TOTAL_NUM_VALUES, &every_21st_doc),
+            doc_ids: every_21st_doc,
+        },
+    ));
+    let mut batch_group: InputGroup<BatchInput> = InputGroup::new_with_inputs(batch_inputs);
+    batch_group.register("rank_if_exists_batch", |input: &BatchInput| {
+        black_box(rank_if_exists_batch_over_chunks(input));
+    });
+    batch_group.run();
 }
