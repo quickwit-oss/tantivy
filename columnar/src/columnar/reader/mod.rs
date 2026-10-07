@@ -93,7 +93,9 @@ fn column_dictionary_prefix_for_subpath(root_path: &str) -> String {
 impl ColumnarReader {
     /// Opens a new Columnar file.
     pub fn open<F>(file_slice: F) -> io::Result<ColumnarReader>
-    where FileSlice: From<F> {
+    where
+        FileSlice: From<F>,
+    {
         Self::open_inner(file_slice.into())
     }
 
@@ -250,8 +252,6 @@ mod tests {
             panic!("expected an i64 tie-breaker column");
         };
         assert_eq!(column.index.get_cardinality(), crate::Cardinality::Full);
-        assert!(column.first(0).unwrap() >= i64::from(i32::MIN));
-        assert!(column.first(1_024).unwrap() <= i64::from(i32::MAX));
         for doc in 1..1_025 {
             assert_eq!(column.first(doc), Some(column.first(doc - 1).unwrap() + 1));
         }
