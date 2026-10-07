@@ -1,120 +1,153 @@
 use std::cmp::Ordering;
 
-use columnar::{Cardinality, ColumnValues, RowId};
+use columnar::{Cardinality, RowId};
 
 use crate::aggregation::value_source::ValueSource;
 use crate::DocId;
 
-/// Buffers the values associated with a block of documents loaded from a [`ValueSource`].
+/// Reusable buffers to load the values associated with a block of documents from a
+/// [`ValueSource`].
 ///
 /// Regardless of their original types, values are loaded in their `u64` representation using the
 /// associated monotonic mapping.
+///
+/// The accessor holds no queryable state of its own: each `fetch_*` method returns a view of what
+/// it loaded, borrowing the accessor. This makes it impossible to read the result of a previous
+/// fetch, or to interpret the buffers with a different `docs` slice than the one they were loaded
+/// for.
 #[derive(Debug, Default, Clone)]
 pub(crate) struct ColumnBlockAccessor {
     /// Values loaded for the latest document block, in monotonic `u64` representation.
     val_cache: Vec<u64>,
     /// Document ID corresponding to each value in `val_cache` for a non-full source.
-    /// For full sources, this is likely to be empty.
     ///
-    /// A document can occur more than once for a multivalued source. For a full source this buffer
-    /// is ignored because `val_cache` is aligned directly with the requested document block.
+    /// Left stale by full sources: it must only be exposed for non-full blocks.
     docid_cache: Vec<DocId>,
     /// Scratch buffer used to identify documents for which a missing value must be inserted.
     missing_docids_cache: Vec<DocId>,
     /// Scratch buffer available to sources for translating document IDs into value row IDs.
     row_id_cache: Vec<RowId>,
-    /// Cardinality here is describes the relationship with the loaded doc_id_cache and val_cache.
-    ///
-    /// Cheaply hints the cardinality of the given block.
-    ///
-    /// It is to be read as a "lower-bound" hint.
-    /// For instance, a block with one value per doc could have a cardinality property
-    /// set to full, optional or multivalued (both are technically true). For physical column
-    /// for instance, we just set cardinality to the column cardinality (although individual
-    /// blocks could have a stricter cardinality).
-    ///
-    /// See also [`Self::has_one_value_per_doc`] if you need a stricter notion of
-    /// cardinality.
-    cardinality: Cardinality,
-    /// Whether any document has multiple values in the loaded block.
-    multivalued: bool,
 }
 
 impl ColumnBlockAccessor {
-    /// Fetches a block without deduplicating values within each document.
-    ///
-    /// Bucket aggregations on multivalued sources should use
-    /// [`Self::fetch_block_with_missing_unique_per_doc`] instead, so duplicate values do not
-    /// inflate document counts.
+    /// Loads the raw block from the source, without any missing value handling or deduplication.
     #[inline]
-    fn fetch_block<S: ValueSource + ?Sized>(&mut self, docs: &[DocId], source: &mut S) {
-        self.cardinality = source.load_block(
+    fn load_block<S: ValueSource + ?Sized>(
+        &mut self,
+        docs: &[DocId],
+        source: &mut S,
+    ) -> Cardinality {
+        let cardinality = source.load_block(
             docs,
             &mut self.val_cache,
             &mut self.docid_cache,
             &mut self.row_id_cache,
         );
-        // Full/Optional cannot repeat documents; Full may leave docid_cache stale.
-        self.multivalued = self.cardinality.is_multivalue()
-            && self.docid_cache.windows(2).any(|pair| pair[0] == pair[1]);
         debug_assert!(
-            !self.cardinality.is_full() || self.val_cache.len() == docs.len(),
+            !cardinality.is_full() || self.val_cache.len() == docs.len(),
             "a Full source must return exactly one value per input doc"
         );
+        cardinality
     }
 
-    /// Fetches a block from a column known to be full (hence we pass the ColumnValue Object
-    /// directly).
+    /// Fetches the values of a block, for consumers that do not care about which document a value
+    /// belongs to (e.g. metric aggregations).
     ///
-    /// docs needs to be strictly increasing.
+    /// `missing_opt` is appended once for every document without a value. The returned values
+    /// are not in document order.
+    ///
+    /// Duplicate values within a document are kept.
     #[inline]
-    pub(crate) fn fetch_full_column_block(
-        &mut self,
-        docs: &[DocId],
-        column_values: &dyn ColumnValues<u64>,
-    ) {
-        super::load_full_column_values(docs, column_values, &mut self.val_cache);
-        self.cardinality = Cardinality::Full;
-        self.multivalued = false;
-    }
-
-    /// Fetches a block and appends `missing_opt` for documents without a value.
-    #[inline]
-    pub(crate) fn fetch_block_with_missing<S: ValueSource + ?Sized>(
+    pub(crate) fn fetch_values<S: ValueSource + ?Sized>(
         &mut self,
         docs: &[DocId],
         source: &mut S,
         missing_opt: Option<u64>,
-    ) {
-        self.fetch_block_with_missing_ordered(docs, source, missing_opt, false)
+    ) -> &[u64] {
+        let cardinality = self.load_block(docs, source);
+        let Some(missing) = missing_opt else {
+            return &self.val_cache;
+        };
+        // We only need the number of documents without a value, not their IDs.
+        // This relies on the `ValueSource` contract: `docid_cache` only contains docs from `docs`,
+        // grouped by doc.
+        let num_docs_with_values = match cardinality {
+            Cardinality::Full => return &self.val_cache,
+            Cardinality::Optional => self.docid_cache.len(),
+            Cardinality::Multivalued => count_distinct_grouped(&self.docid_cache),
+        };
+        let num_missing = docs.len() - num_docs_with_values;
+        self.val_cache
+            .resize(self.val_cache.len() + num_missing, missing);
+        &self.val_cache
     }
 
-    /// Fetches a block and adds `missing_opt` for documents without a value. When `ordered` is
-    /// true, the missing entries are inserted in document order instead of appended as a second
-    /// run.
+    /// Fetches the (doc, value) pairs of a block, adding `missing_opt` for documents without a
+    /// value, and deduplicating (doc, value) pairs so that each unique value per document is
+    /// returned only once.
+    ///
+    /// Deduplication is necessary for correct document counting in bucket aggregations, where
+    /// multi-valued fields can produce duplicate entries that inflate counts.
+    ///
+    /// When `ordered` is true, the missing entries are inserted in document order, so that the
+    /// returned docids are sorted. Otherwise, they are appended as a second run.
     #[inline]
-    pub(crate) fn fetch_block_with_missing_ordered<S: ValueSource + ?Sized>(
-        &mut self,
-        docs: &[DocId],
-        source: &mut S,
+    pub(crate) fn fetch_unique_per_doc<'acc, 'docs>(
+        &'acc mut self,
+        docs: &'docs [DocId],
+        source: &mut dyn ValueSource,
         missing_opt: Option<u64>,
         ordered: bool,
-    ) {
-        self.fetch_block(docs, source);
-        let cardinality = self.cardinality;
-        // no missing values
+    ) -> DocValueBlock<'acc, 'docs> {
+        let cardinality = self.load_block(docs, source);
         if cardinality.is_full() {
-            return;
+            return DocValueBlock {
+                values: &self.val_cache,
+                docids: BlockDocIds::Input(docs),
+                multivalued: false,
+                one_value_per_doc: true,
+            };
         }
-        let Some(missing) = missing_opt else {
-            return;
+        // Optional sources cannot repeat documents.
+        let mut multivalued = cardinality.is_multivalue()
+            && self.docid_cache.windows(2).any(|pair| pair[0] == pair[1]);
+        let docids_sorted = match missing_opt {
+            Some(missing) => self.add_missing(docs, cardinality, missing, ordered),
+            None => true,
         };
+        if multivalued {
+            multivalued = self.dedup_docid_val_pairs();
+        }
+        // `docid_cache` is a duplicate-free subset of `docs` (when not multivalued), so having
+        // the same length means it contains every doc. If it is also sorted, it is equal to
+        // `docs`.
+        let one_value_per_doc = !multivalued && docids_sorted && self.val_cache.len() == docs.len();
+        DocValueBlock {
+            values: &self.val_cache,
+            docids: BlockDocIds::Loaded(&self.docid_cache),
+            multivalued,
+            one_value_per_doc,
+        }
+    }
 
+    /// Adds `missing` for the documents of `docs` absent from `docid_cache`.
+    ///
+    /// Precondition: the block was loaded from a non-full source.
+    ///
+    /// Returns whether `docid_cache` is still sorted afterwards.
+    fn add_missing(
+        &mut self,
+        docs: &[DocId],
+        cardinality: Cardinality,
+        missing: u64,
+        ordered: bool,
+    ) -> bool {
+        debug_assert!(!cardinality.is_full());
         // We can compare docid_cache length with docs to find missing docs.
         // For multi value columns we can't rely on the length and always need to scan.
         let is_multivalue = cardinality.is_multivalue();
         if !is_multivalue && docs.len() == self.docid_cache.len() {
-            return;
+            return true;
         }
 
         if ordered && !is_multivalue {
@@ -133,19 +166,23 @@ impl ColumnBlockAccessor {
             debug_assert_eq!(remaining_hits, 0);
             self.docid_cache.clear();
             self.docid_cache.extend_from_slice(docs);
-            return;
+            return true;
         }
 
         find_missing_docs(docs, &self.docid_cache, &mut self.missing_docids_cache);
 
         if !ordered {
+            let docids_sorted = match (self.docid_cache.last(), self.missing_docids_cache.first()) {
+                (Some(last_hit), Some(first_missing)) => last_hit < first_missing,
+                _ => true,
+            };
             self.val_cache.resize(
                 self.val_cache.len() + self.missing_docids_cache.len(),
                 missing,
             );
             self.docid_cache
                 .extend_from_slice(&self.missing_docids_cache);
-            return;
+            return docids_sorted;
         }
 
         for &doc in &self.missing_docids_cache {
@@ -155,25 +192,7 @@ impl ColumnBlockAccessor {
             self.docid_cache.insert(pos, doc);
             self.val_cache.insert(pos, missing);
         }
-    }
-
-    /// Like `fetch_block_with_missing`, but deduplicates (doc_id, value) pairs
-    /// so that each unique value per document is returned only once.
-    ///
-    /// This is necessary for correct document counting in aggregations,
-    /// where multi-valued fields can produce duplicate entries that inflate counts.
-    #[inline]
-    pub(crate) fn fetch_block_with_missing_unique_per_doc(
-        &mut self,
-        docs: &[DocId],
-        source: &mut dyn ValueSource,
-        missing: Option<u64>,
-        ordered: bool,
-    ) {
-        self.fetch_block_with_missing_ordered(docs, source, missing, ordered);
-        if self.cardinality.is_multivalue() {
-            self.dedup_docid_val_pairs();
-        }
+        true
     }
 
     /// Sorts values within each document when needed for deduplication.
@@ -196,29 +215,29 @@ impl ColumnBlockAccessor {
 
     /// Removes duplicate (doc_id, value) pairs from the caches.
     ///
-    /// After `fetch_block`, entries are sorted by doc_id, but values within
-    /// the same doc may not be sorted (e.g. `(0,1), (0,2), (0,1)`).
-    /// We group consecutive entries by doc_id, sort values within each group
-    /// if it has more than 2 elements, then deduplicate adjacent pairs.
+    /// Entries must be grouped by doc_id, but values within the same doc may not be sorted
+    /// (e.g. `(0,1), (0,2), (0,1)`).
+    /// We sort values within each group if it has more than 2 elements, then deduplicate
+    /// adjacent pairs.
     ///
-    /// Skips entirely if no doc_id appears more than once in the block.
-    fn dedup_docid_val_pairs(&mut self) {
-        if !self.multivalued {
-            return;
+    /// Returns whether any document still has multiple values after deduplication.
+    fn dedup_docid_val_pairs(&mut self) -> bool {
+        if self.docid_cache.is_empty() {
+            return false;
         }
 
         self.sort_values_per_doc_for_dedup();
 
         // Now duplicates are adjacent — deduplicate in place.
         let mut write = 0;
-        self.multivalued = false;
+        let mut multivalued = false;
         for read in 1..self.docid_cache.len() {
             if self.docid_cache[read] != self.docid_cache[write]
                 || self.val_cache[read] != self.val_cache[write]
             {
                 // write has not been incremented yet, so
                 // self.docid_cache[write] is the last written value.
-                self.multivalued |= self.docid_cache[read] == self.docid_cache[write];
+                multivalued |= self.docid_cache[read] == self.docid_cache[write];
                 write += 1;
                 if write != read {
                     self.docid_cache[write] = self.docid_cache[read];
@@ -229,59 +248,99 @@ impl ColumnBlockAccessor {
         let new_len = write + 1;
         self.docid_cache.truncate(new_len);
         self.val_cache.truncate(new_len);
+        multivalued
     }
+}
 
-    /// Returns the values fetched by the last `fetch_block*` call.
+/// Where the document IDs of a [`DocValueBlock`] come from.
+#[derive(Debug, Clone, Copy)]
+enum BlockDocIds<'acc, 'docs> {
+    /// Full source: values are aligned with the requested docs.
+    Input(&'docs [DocId]),
+    /// Non-full source: document IDs were loaded alongside the values.
+    Loaded(&'acc [DocId]),
+}
+
+/// (doc, value) pairs returned by [`ColumnBlockAccessor::fetch_unique_per_doc`].
+///
+/// Entries are grouped by document, and each (doc, value) pair appears at most once.
+#[derive(Debug, Clone)]
+pub(crate) struct DocValueBlock<'acc, 'docs> {
+    values: &'acc [u64],
+    docids: BlockDocIds<'acc, 'docs>,
+    /// Whether any document has multiple (distinct) values.
+    multivalued: bool,
+    /// Whether `values` contains exactly one value per requested doc, in the order of the
+    /// requested docs.
+    one_value_per_doc: bool,
+}
+
+impl<'acc> DocValueBlock<'acc, '_> {
+    /// Returning the same doc value block without the doc ids lifetime.
     #[inline]
-    pub(crate) fn values(&self) -> &[u64] {
-        &self.val_cache
+    pub(crate) fn try_drop_docs_lifetime(self) -> Option<DocValueBlock<'acc, 'static>> {
+        let BlockDocIds::Loaded(items) = self.docids else {
+            return None;
+        };
+        let docids: BlockDocIds<'acc, 'static> = BlockDocIds::Loaded(items);
+        Some(DocValueBlock {
+            values: self.values,
+            docids,
+            multivalued: self.multivalued,
+            one_value_per_doc: self.one_value_per_doc,
+        })
     }
 
-    /// Returns the document IDs corresponding to [`Self::values`] for a non-full column.
+    #[inline]
+    pub(crate) fn values(&self) -> &'acc [u64] {
+        self.values
+    }
+
+    /// Returns the document ID of each value. A document can occur more than once.
     #[inline]
     pub(crate) fn docids(&self) -> &[DocId] {
-        &self.docid_cache
+        match self.docids {
+            BlockDocIds::Input(docids) => docids,
+            BlockDocIds::Loaded(docids) => docids,
+        }
     }
 
-    /// Returns whether the last fetched block contains exactly one aligned value per input doc.
     #[inline]
-    pub(crate) fn has_one_value_per_doc(&self, docs: &[DocId]) -> bool {
-        self.val_cache.len() == docs.len()
-            && (self.cardinality.is_full() || self.docid_cache == docs)
+    pub(crate) fn iter_docid_vals(&self) -> impl Iterator<Item = (DocId, u64)> + '_ {
+        self.docids()
+            .iter()
+            .copied()
+            .zip(self.values.iter().copied())
     }
 
-    /// Whether any document has multiple values in the loaded batch.
-    /// Values must be grouped by document.
+    /// Whether any document has multiple values in the block.
     #[inline]
-    pub(crate) fn is_batch_multivalued(&self) -> bool {
+    pub(crate) fn is_multivalued(&self) -> bool {
         self.multivalued
     }
 
+    /// Whether the block contains exactly one value per requested doc, aligned with the
+    /// requested docs.
     #[inline]
-    pub(crate) fn iter_vals(&self) -> impl ExactSizeIterator<Item = u64> + '_ {
-        self.val_cache.iter().cloned()
+    pub(crate) fn has_one_value_per_doc(&self) -> bool {
+        self.one_value_per_doc
     }
+}
 
-    #[inline]
-    /// Returns an iterator over the docids and values
-    /// The passed in `docs` slice needs to be the same slice that was passed to `fetch_block` or
-    /// `fetch_block_with_missing`.
-    ///
-    /// The docs are used if the source is full (each doc has exactly one value); otherwise the
-    /// internal docid vec is used and may contain duplicate docs.
-    pub(crate) fn iter_docid_vals<'a>(
-        &'a self,
-        docs: &'a [DocId],
-    ) -> impl Iterator<Item = (DocId, u64)> + 'a {
-        if self.cardinality.is_full() {
-            docs.iter().cloned().zip(self.val_cache.iter().cloned())
-        } else {
-            self.docid_cache
-                .iter()
-                .cloned()
-                .zip(self.val_cache.iter().cloned())
+/// Counts the distinct values of a slice in which equal values are contiguous.
+fn count_distinct_grouped(docids: &[DocId]) -> usize {
+    let Some(&first) = docids.first() else {
+        return 0;
+    };
+    let mut count = 1;
+    let mut previous = first;
+    for &doc in &docids[1..] {
+        if doc != previous {
+            count += 1;
+            previous = doc;
         }
     }
+    count
 }
 
 /// Given two sorted lists of docids `docs` and `hits`, hits is a subset of `docs`.
@@ -368,11 +427,11 @@ mod tests {
         let dyn_source: &mut dyn ValueSource = &mut source;
         let mut accessor = ColumnBlockAccessor::default();
 
-        accessor.fetch_block(&docs, dyn_source);
+        let block = accessor.fetch_unique_per_doc(&docs, dyn_source, None, false);
 
-        assert!(accessor.has_one_value_per_doc(&docs));
+        assert!(block.has_one_value_per_doc());
         assert_eq!(
-            accessor.iter_docid_vals(&docs).collect::<Vec<_>>(),
+            block.iter_docid_vals().collect::<Vec<_>>(),
             [(2, 20), (4, 40), (8, 80)]
         );
     }
@@ -389,7 +448,7 @@ mod tests {
     }
 
     #[test]
-    fn test_is_batch_multivalued_checks_loaded_values() {
+    fn test_is_multivalued_checks_loaded_values() {
         let docs = [0, 1, 2];
         let mut accessor = ColumnBlockAccessor::default();
         for (entries, expected) in [
@@ -404,39 +463,37 @@ mod tests {
                 cardinality: Cardinality::Multivalued,
                 entries,
             };
-            accessor.fetch_block(&docs, &mut source);
-            assert_eq!(accessor.is_batch_multivalued(), expected);
-            accessor.fetch_block_with_missing_unique_per_doc(&docs, &mut source, Some(99), true);
-            assert_eq!(accessor.is_batch_multivalued(), expected);
+            let block = accessor.fetch_unique_per_doc(&docs, &mut source, None, false);
+            assert_eq!(block.is_multivalued(), expected);
+            let block = accessor.fetch_unique_per_doc(&docs, &mut source, Some(99), true);
+            assert_eq!(block.is_multivalued(), expected);
         }
 
+        // Duplicate values are removed before computing the flag.
         let mut source = TestValueSource {
             cardinality: Cardinality::Multivalued,
             entries: vec![(0, 12), (0, 12)],
         };
-        accessor.fetch_block(&docs, &mut source);
-        assert!(accessor.is_batch_multivalued());
-        accessor.fetch_block_with_missing_unique_per_doc(&docs, &mut source, None, false);
-        assert!(!accessor.is_batch_multivalued());
-
-        accessor.fetch_block(&docs, &mut source);
-        assert!(accessor.is_batch_multivalued());
+        let block = accessor.fetch_unique_per_doc(&docs, &mut source, None, false);
+        assert!(!block.is_multivalued());
     }
 
     #[test]
-    fn test_is_batch_multivalued_ignores_stale_full_docids() {
+    fn test_full_block_does_not_expose_stale_docids() {
         let mut accessor = ColumnBlockAccessor::default();
         let mut source = TestValueSource {
             cardinality: Cardinality::Multivalued,
             entries: vec![(0, 12), (0, 15)],
         };
-        accessor.fetch_block_with_missing_unique_per_doc(&[0], &mut source, None, false);
-        assert!(accessor.is_batch_multivalued());
+        let block = accessor.fetch_unique_per_doc(&[0], &mut source, None, false);
+        assert!(block.is_multivalued());
 
-        let column = full_column(&[25]);
-        accessor.fetch_full_column_block(&[0], &*column.values);
-        assert_eq!(accessor.docids(), &[0, 0]);
-        assert!(!accessor.is_batch_multivalued());
+        let mut column = (full_column(&[25]), ColumnType::U64);
+        let block = accessor.fetch_unique_per_doc(&[0], &mut column, None, false);
+        assert!(!block.is_multivalued());
+        assert_eq!(block.docids(), &[0]);
+        assert_eq!(block.iter_docid_vals().collect::<Vec<_>>(), [(0, 25)]);
+        assert!(block.try_drop_docs_lifetime().is_none());
     }
 
     #[test]
@@ -465,17 +522,23 @@ mod tests {
         });
         let mut accessor = ColumnBlockAccessor::default();
 
-        accessor.fetch_block(&docs, &mut *computed);
-        assert!(!accessor.has_one_value_per_doc(&docs));
+        let block = accessor.fetch_unique_per_doc(&docs, &mut *computed, None, false);
+        assert!(!block.has_one_value_per_doc());
         assert_eq!(
-            accessor.iter_docid_vals(&docs).collect::<Vec<_>>(),
+            block.iter_docid_vals().collect::<Vec<_>>(),
             [(1, 11), (3, 33)]
         );
 
-        accessor.fetch_block_with_missing(&docs, &mut *computed, Some(99));
-        let mut pairs = accessor.iter_docid_vals(&docs).collect::<Vec<_>>();
+        let block = accessor.fetch_unique_per_doc(&docs, &mut *computed, Some(99), false);
+        let mut pairs = block.iter_docid_vals().collect::<Vec<_>>();
         pairs.sort_unstable();
         assert_eq!(pairs, [(0, 99), (1, 11), (2, 99), (3, 33)]);
+
+        let mut values = accessor
+            .fetch_values(&docs, &mut *computed, Some(99))
+            .to_vec();
+        values.sort_unstable();
+        assert_eq!(values, [11, 33, 99, 99]);
     }
 
     #[test]
@@ -514,10 +577,10 @@ mod tests {
             entries: vec![(2, 20), (4, 40), (8, 80)],
         };
         let mut accessor = ColumnBlockAccessor::default();
-        accessor.fetch_block(&docs, &mut source);
-        assert!(accessor.has_one_value_per_doc(&docs));
+        let block = accessor.fetch_unique_per_doc(&docs, &mut source, None, false);
+        assert!(block.has_one_value_per_doc());
         assert_eq!(
-            accessor.iter_docid_vals(&docs).collect::<Vec<_>>(),
+            block.iter_docid_vals().collect::<Vec<_>>(),
             [(2, 20), (4, 40), (8, 80)]
         );
     }
@@ -531,11 +594,11 @@ mod tests {
         };
         let mut accessor = ColumnBlockAccessor::default();
 
-        accessor.fetch_block_with_missing_ordered(&docs, &mut source, Some(99), true);
+        let block = accessor.fetch_unique_per_doc(&docs, &mut source, Some(99), true);
 
-        assert!(accessor.has_one_value_per_doc(&docs));
+        assert!(block.has_one_value_per_doc());
         assert_eq!(
-            accessor.iter_docid_vals(&docs).collect::<Vec<_>>(),
+            block.iter_docid_vals().collect::<Vec<_>>(),
             [(0, 99), (1, 10), (2, 99), (4, 40)]
         );
     }
@@ -549,17 +612,17 @@ mod tests {
         };
         let mut accessor = ColumnBlockAccessor::default();
 
-        accessor.fetch_block_with_missing_unique_per_doc(&docs, &mut source, None, false);
+        let block = accessor.fetch_unique_per_doc(&docs, &mut source, None, false);
 
-        assert!(!accessor.has_one_value_per_doc(&docs));
+        assert!(!block.has_one_value_per_doc());
         assert_eq!(
-            accessor.iter_docid_vals(&docs).collect::<Vec<_>>(),
+            block.iter_docid_vals().collect::<Vec<_>>(),
             [(0, 1), (0, 3), (1, 5)]
         );
     }
 
     #[test]
-    fn test_fetch_block_with_missing_ordered() {
+    fn test_fetch_unique_per_doc_with_missing_ordered() {
         use columnar::column_index::{ColumnIndex, OptionalIndex};
         use columnar::column_values::{
             serialize_and_load_u64_based_column_values, ALL_U64_CODEC_TYPES,
@@ -575,19 +638,12 @@ mod tests {
         let docs = [0, 1, 2, 4, 7, 8];
         let mut accessor = ColumnBlockAccessor::default();
 
-        accessor.fetch_block_with_missing_ordered(
-            &docs,
-            &mut (&column, ColumnType::U64),
-            Some(99),
-            true,
-        );
+        let block =
+            accessor.fetch_unique_per_doc(&docs, &mut (&column, ColumnType::U64), Some(99), true);
 
+        assert_eq!(block.values(), [99, 10, 99, 40, 70, 99]);
         assert_eq!(
-            accessor.iter_vals().collect::<Vec<_>>(),
-            [99, 10, 99, 40, 70, 99]
-        );
-        assert_eq!(
-            accessor.iter_docid_vals(&docs).collect::<Vec<_>>(),
+            block.iter_docid_vals().collect::<Vec<_>>(),
             [(0, 99), (1, 10), (2, 99), (4, 40), (7, 70), (8, 99)]
         );
     }
@@ -609,11 +665,9 @@ mod tests {
         let mut accessor = ColumnBlockAccessor::default();
         accessor.docid_cache = vec![0, 0, 2, 3];
         accessor.val_cache = vec![10, 10, 10, 10];
-        accessor.multivalued = true;
-        accessor.dedup_docid_val_pairs();
+        assert!(!accessor.dedup_docid_val_pairs());
         assert_eq!(accessor.docid_cache, [0, 2, 3]);
         assert_eq!(accessor.val_cache, [10, 10, 10]);
-        assert!(!accessor.is_batch_multivalued());
     }
 
     #[test]
@@ -622,11 +676,9 @@ mod tests {
         let mut accessor = ColumnBlockAccessor::default();
         accessor.docid_cache = vec![0, 0, 0];
         accessor.val_cache = vec![1, 2, 1];
-        accessor.multivalued = true;
-        accessor.dedup_docid_val_pairs();
+        assert!(accessor.dedup_docid_val_pairs());
         assert_eq!(accessor.docid_cache, [0, 0]);
         assert_eq!(accessor.val_cache, [1, 2]);
-        assert!(accessor.is_batch_multivalued());
     }
 
     #[test]
@@ -635,11 +687,9 @@ mod tests {
         let mut accessor = ColumnBlockAccessor::default();
         accessor.docid_cache = vec![0, 0, 0, 1, 1];
         accessor.val_cache = vec![3, 1, 3, 5, 5];
-        accessor.multivalued = true;
-        accessor.dedup_docid_val_pairs();
+        assert!(accessor.dedup_docid_val_pairs());
         assert_eq!(accessor.docid_cache, [0, 0, 1]);
         assert_eq!(accessor.val_cache, [1, 3, 5]);
-        assert!(accessor.is_batch_multivalued());
     }
 
     #[test]
@@ -647,11 +697,9 @@ mod tests {
         let mut accessor = ColumnBlockAccessor::default();
         accessor.docid_cache = vec![0, 0, 1];
         accessor.val_cache = vec![1, 2, 3];
-        accessor.multivalued = true;
-        accessor.dedup_docid_val_pairs();
+        assert!(accessor.dedup_docid_val_pairs());
         assert_eq!(accessor.docid_cache, [0, 0, 1]);
         assert_eq!(accessor.val_cache, [1, 2, 3]);
-        assert!(accessor.is_batch_multivalued());
     }
 
     #[test]
@@ -659,7 +707,7 @@ mod tests {
         let mut accessor = ColumnBlockAccessor::default();
         accessor.docid_cache = vec![0];
         accessor.val_cache = vec![1];
-        accessor.dedup_docid_val_pairs();
+        assert!(!accessor.dedup_docid_val_pairs());
         assert_eq!(accessor.docid_cache, [0]);
         assert_eq!(accessor.val_cache, [1]);
     }
@@ -680,8 +728,9 @@ mod tests {
         };
 
         let check = |accessor: &mut ColumnBlockAccessor, docs: &[u32]| {
-            accessor.fetch_block(docs, &mut (&column, ColumnType::U64));
-            let got: Vec<(u32, u64)> = accessor.iter_docid_vals(docs).collect();
+            let block =
+                accessor.fetch_unique_per_doc(docs, &mut (&column, ColumnType::U64), None, false);
+            let got: Vec<(u32, u64)> = block.iter_docid_vals().collect();
             let expected: Vec<(u32, u64)> = docs.iter().map(|&d| (d, vals[d as usize])).collect();
             assert_eq!(got, expected);
         };
@@ -694,5 +743,93 @@ mod tests {
         // Single doc and full span.
         check(&mut accessor, &[42]);
         check(&mut accessor, &(0..200).collect::<Vec<u32>>());
+    }
+
+    #[test]
+    fn test_fetch_values_appends_missing() {
+        let docs = [0, 1, 2, 3];
+        let mut accessor = ColumnBlockAccessor::default();
+        for (cardinality, entries, expected_with_missing) in [
+            (
+                Cardinality::Optional,
+                vec![(1, 11), (3, 33)],
+                vec![11, 33, 99, 99],
+            ),
+            (Cardinality::Optional, vec![], vec![99, 99, 99, 99]),
+            (
+                Cardinality::Multivalued,
+                vec![(1, 11), (1, 11), (1, 12), (3, 33)],
+                vec![11, 11, 12, 33, 99, 99],
+            ),
+            (
+                Cardinality::Multivalued,
+                vec![(0, 1), (1, 2), (2, 3), (3, 4), (3, 5)],
+                vec![1, 2, 3, 4, 5],
+            ),
+            (
+                Cardinality::Full,
+                vec![(0, 1), (1, 2), (2, 3), (3, 4)],
+                vec![1, 2, 3, 4],
+            ),
+        ] {
+            let mut source = TestValueSource {
+                cardinality,
+                entries: entries.clone(),
+            };
+            let values_without_missing: Vec<u64> =
+                entries.iter().map(|(_doc, value)| *value).collect();
+            assert_eq!(
+                accessor.fetch_values(&docs, &mut source, None),
+                &values_without_missing[..]
+            );
+            assert_eq!(
+                accessor.fetch_values(&docs, &mut source, Some(99)),
+                &expected_with_missing[..]
+            );
+        }
+    }
+
+    #[test]
+    fn test_has_one_value_per_doc_requires_alignment() {
+        let mut accessor = ColumnBlockAccessor::default();
+        // Unordered missing values appended after the hits break the alignment with `docs`...
+        let mut source = TestValueSource {
+            cardinality: Cardinality::Optional,
+            entries: vec![(1, 11)],
+        };
+        let block = accessor.fetch_unique_per_doc(&[0, 1], &mut source, Some(99), false);
+        assert_eq!(
+            block.iter_docid_vals().collect::<Vec<_>>(),
+            [(1, 11), (0, 99)]
+        );
+        assert!(!block.has_one_value_per_doc());
+        // ... unless all of them come after the hits.
+        let block = accessor.fetch_unique_per_doc(&[1, 2], &mut source, Some(99), false);
+        assert_eq!(
+            block.iter_docid_vals().collect::<Vec<_>>(),
+            [(1, 11), (2, 99)]
+        );
+        assert!(block.has_one_value_per_doc());
+
+        // Multivalued source with one value per doc, after deduplication.
+        let mut source = TestValueSource {
+            cardinality: Cardinality::Multivalued,
+            entries: vec![(0, 1), (0, 1), (1, 2)],
+        };
+        let block = accessor.fetch_unique_per_doc(&[0, 1], &mut source, None, false);
+        assert!(block.has_one_value_per_doc());
+        let block = accessor.fetch_unique_per_doc(&[0, 1, 2], &mut source, None, false);
+        assert!(!block.has_one_value_per_doc());
+        let block = accessor.fetch_unique_per_doc(&[0, 1, 2], &mut source, Some(99), true);
+        assert!(block.has_one_value_per_doc());
+        assert_eq!(block.values(), [1, 2, 99]);
+    }
+
+    #[test]
+    fn test_count_distinct_grouped() {
+        assert_eq!(count_distinct_grouped(&[]), 0);
+        assert_eq!(count_distinct_grouped(&[3]), 1);
+        assert_eq!(count_distinct_grouped(&[3, 3, 3]), 1);
+        assert_eq!(count_distinct_grouped(&[1, 3, 3, 4, 7, 7]), 4);
     }
 }

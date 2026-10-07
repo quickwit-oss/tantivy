@@ -290,14 +290,13 @@ impl SegmentAggregationCollector for SegmentPercentilesCollector {
         agg_data: &mut AggregationsSegmentCtx,
     ) -> crate::Result<()> {
         let percentiles = &mut self.buckets[parent_bucket_id as usize];
-        agg_data.column_block_accessor.fetch_block_with_missing(
+        let field_type = self.accessor.column_type();
+        let values = agg_data.column_block_accessor.fetch_values(
             docs,
             &mut *self.accessor,
             self.missing_u64,
         );
-
-        let field_type = self.accessor.column_type();
-        for val in agg_data.column_block_accessor.iter_vals() {
+        for &val in values {
             let val1 = f64_from_fastfield_u64(val, field_type);
             percentiles.collect(val1);
         }

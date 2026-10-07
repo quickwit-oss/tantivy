@@ -305,7 +305,7 @@ impl<const COLUMN_TYPE_ID: u8> SegmentAggregationCollector
         // access, which a computed source cannot offer. Those fall through to the block path
         // below, which is semantically identical.
         // TODO: remove once we fetch all values for all bucket ids in one go
-        if let Some(column_source) = &mut self.column_opt {
+        let values: &[u64] = if let Some(column_source) = &mut self.column_opt {
             if docs.len() == 1 && self.missing_u64.is_none() {
                 collect_stats::<COLUMN_TYPE_ID>(
                     &mut self.buckets[parent_bucket_id as usize],
@@ -314,21 +314,17 @@ impl<const COLUMN_TYPE_ID: u8> SegmentAggregationCollector
                 )?;
                 return Ok(());
             }
-            agg_data.column_block_accessor.fetch_block_with_missing(
-                docs,
-                column_source,
-                self.missing_u64,
-            );
+            agg_data
+                .column_block_accessor
+                .fetch_values(docs, column_source, self.missing_u64)
         } else {
-            agg_data.column_block_accessor.fetch_block_with_missing(
-                docs,
-                &mut *self.accessor,
-                self.missing_u64,
-            );
-        }
+            agg_data
+                .column_block_accessor
+                .fetch_values(docs, &mut *self.accessor, self.missing_u64)
+        };
         collect_stats::<COLUMN_TYPE_ID>(
             &mut self.buckets[parent_bucket_id as usize],
-            agg_data.column_block_accessor.iter_vals(),
+            values.iter().copied(),
             self.is_number_or_date_type,
         )?;
 

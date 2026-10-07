@@ -270,7 +270,7 @@ impl<S: TermOrdAccumulator + 'static> SegmentAggregationCollector
         docs: &[crate::DocId],
         agg_data: &mut AggregationsSegmentCtx,
     ) -> crate::Result<()> {
-        agg_data.column_block_accessor.fetch_block_with_missing(
+        let values = agg_data.column_block_accessor.fetch_values(
             docs,
             &mut *self.req_data.accessor,
             self.req_data.missing_value_for_accessor,
@@ -287,7 +287,7 @@ impl<S: TermOrdAccumulator + 'static> SegmentAggregationCollector
         // for adaptive variants and inlines to a tight loop for the
         // BitSet path.
         term_ords.maybe_compact();
-        term_ords.extend_from_iter(agg_data.column_block_accessor.iter_vals());
+        term_ords.extend_from_iter(values.iter().copied());
         Ok(())
     }
 

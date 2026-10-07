@@ -371,13 +371,12 @@ impl SegmentAggregationCollector for SegmentExtendedStatsCollector {
     ) -> crate::Result<()> {
         let mut extended_stats = self.buckets[parent_bucket_id as usize].clone();
 
-        agg_data.column_block_accessor.fetch_block_with_missing(
-            docs,
-            &mut *self.accessor,
-            self.missing,
-        );
         let field_type = self.accessor.column_type();
-        for val in agg_data.column_block_accessor.iter_vals() {
+        let values =
+            agg_data
+                .column_block_accessor
+                .fetch_values(docs, &mut *self.accessor, self.missing);
+        for &val in values {
             let val1 = f64_from_fastfield_u64(val, field_type);
             extended_stats.collect(val1);
         }

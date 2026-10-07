@@ -544,19 +544,18 @@ impl<B: BucketIdSlot, const SOURCE_CONTAINS_MULTIVALUES: bool> SegmentAggregatio
         let offset = self.req_data.offset;
         let get_bucket_pos = |val| get_bucket_pos_f64(val, interval, offset) as i64;
 
-        let accessor = &mut agg_data.column_block_accessor;
-        accessor.fetch_block_with_missing_unique_per_doc(
+        let block = agg_data.column_block_accessor.fetch_unique_per_doc(
             docs,
             &mut *self.req_data.accessor,
             None,
             false,
         );
         // Known single-valued sources compile out deduplication; otherwise check the loaded batch.
-        let multivalued = SOURCE_CONTAINS_MULTIVALUES && accessor.is_batch_multivalued();
+        let multivalued = SOURCE_CONTAINS_MULTIVALUES && block.is_multivalued();
         // Document IDs are needed for child collection and multivalued deduplication.
         if self.sub_agg.is_some() || multivalued {
             let mut previous = None;
-            for (doc, val) in accessor.iter_docid_vals(docs) {
+            for (doc, val) in block.iter_docid_vals() {
                 let val = f64_from_fastfield_u64(val, self.column_type);
                 if bounds.contains(val) {
                     let bucket_pos = get_bucket_pos(val);
@@ -578,7 +577,7 @@ impl<B: BucketIdSlot, const SOURCE_CONTAINS_MULTIVALUES: bool> SegmentAggregatio
                 }
             }
         } else {
-            for val in accessor.iter_vals() {
+            for &val in block.values() {
                 let val = f64_from_fastfield_u64(val, self.column_type);
                 if bounds.contains(val) {
                     let bucket = store.get_or_create(
