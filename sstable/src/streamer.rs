@@ -128,7 +128,7 @@ where
     fn into_stream_given_delta_reader(
         self,
         delta_reader: DeltaReader<<TSSTable as SSTable>::ValueReader>,
-    ) -> io::Result<Streamer<'a, TSSTable, A>> {
+    ) -> io::Result<Streamer<TSSTable, A>> {
         let start_state = self.automaton.start();
         let start_key = bound_as_byte_slice(&self.lower);
 
@@ -159,12 +159,11 @@ where
             lower_bound: self.lower,
             upper_bound: self.upper,
             upper_bound_comparator: DeltaKeyComparator::new(),
-            _lifetime: std::marker::PhantomData,
         })
     }
 
     /// See `into_stream(..)`
-    pub async fn into_stream_async(self) -> io::Result<Streamer<'a, TSSTable, A>> {
+    pub async fn into_stream_async(self) -> io::Result<Streamer<TSSTable, A>> {
         self.into_stream_async_merging_holes(0).await
     }
 
@@ -173,14 +172,14 @@ where
     pub async fn into_stream_async_merging_holes(
         self,
         merge_holes_under_bytes: usize,
-    ) -> io::Result<Streamer<'a, TSSTable, A>> {
+    ) -> io::Result<Streamer<TSSTable, A>> {
         let delta_reader = self.delta_reader_async(merge_holes_under_bytes).await?;
         self.into_stream_given_delta_reader(delta_reader)
     }
 
     /// Creates the stream corresponding to the range
     /// of terms defined using the `StreamerBuilder`.
-    pub fn into_stream(self) -> io::Result<Streamer<'a, TSSTable, A>> {
+    pub fn into_stream(self) -> io::Result<Streamer<TSSTable, A>> {
         let delta_reader = self.delta_reader()?;
         self.into_stream_given_delta_reader(delta_reader)
     }
@@ -188,7 +187,7 @@ where
 
 /// `Streamer` acts as a cursor over a range of terms of a segment.
 /// Terms are guaranteed to be sorted.
-pub struct Streamer<'a, TSSTable, A = AlwaysMatch>
+pub struct Streamer<TSSTable, A = AlwaysMatch>
 where
     A: Automaton,
     A::State: Clone,
@@ -202,13 +201,11 @@ where
     lower_bound: Bound<Vec<u8>>,
     upper_bound: Bound<Vec<u8>>,
     upper_bound_comparator: DeltaKeyComparator,
-    // this field is used to please the type-interface of a dictionary in tantivy
-    _lifetime: std::marker::PhantomData<&'a ()>,
     lower_bound_reached: bool,
     always_match_at: Option<usize>,
 }
 
-impl<TSSTable> Streamer<'_, TSSTable, AlwaysMatch>
+impl<TSSTable> Streamer<TSSTable, AlwaysMatch>
 where TSSTable: SSTable
 {
     pub fn empty() -> Self {
@@ -223,12 +220,11 @@ where TSSTable: SSTable
             lower_bound: Bound::Unbounded,
             upper_bound: Bound::Unbounded,
             upper_bound_comparator: DeltaKeyComparator::new(),
-            _lifetime: std::marker::PhantomData,
         }
     }
 }
 
-impl<TSSTable, A> Streamer<'_, TSSTable, A>
+impl<TSSTable, A> Streamer<TSSTable, A>
 where
     A: Automaton,
     A::State: Clone,

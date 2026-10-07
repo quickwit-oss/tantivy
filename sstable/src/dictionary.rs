@@ -613,7 +613,7 @@ impl<TSSTable: SSTable> Dictionary<TSSTable> {
     }
 
     /// A stream of all the sorted terms.
-    pub fn stream(&self) -> io::Result<Streamer<'_, TSSTable>> {
+    pub fn stream(&self) -> io::Result<Streamer<TSSTable>> {
         self.range().into_stream()
     }
 

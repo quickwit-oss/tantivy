@@ -6,27 +6,27 @@ use sstable::TermOrdinal;
 use crate::Streamer;
 
 /// The terms of a column with the ordinal of the segment.
-pub struct TermsWithSegmentOrd<'a> {
-    pub terms: Streamer<'a>,
+pub struct TermsWithSegmentOrd {
+    pub terms: Streamer,
     pub segment_ord: usize,
 }
 
-impl PartialEq for TermsWithSegmentOrd<'_> {
+impl PartialEq for TermsWithSegmentOrd {
     fn eq(&self, other: &Self) -> bool {
         self.segment_ord == other.segment_ord
     }
 }
 
-impl Eq for TermsWithSegmentOrd<'_> {}
+impl Eq for TermsWithSegmentOrd {}
 
-impl<'a> PartialOrd for TermsWithSegmentOrd<'a> {
-    fn partial_cmp(&self, other: &TermsWithSegmentOrd<'a>) -> Option<Ordering> {
+impl PartialOrd for TermsWithSegmentOrd {
+    fn partial_cmp(&self, other: &TermsWithSegmentOrd) -> Option<Ordering> {
         Some(self.cmp(other))
     }
 }
 
-impl<'a> Ord for TermsWithSegmentOrd<'a> {
-    fn cmp(&self, other: &TermsWithSegmentOrd<'a>) -> Ordering {
+impl Ord for TermsWithSegmentOrd {
+    fn cmp(&self, other: &TermsWithSegmentOrd) -> Ordering {
         (&other.terms.key(), &other.segment_ord).cmp(&(&self.terms.key(), &self.segment_ord))
     }
 }
@@ -37,23 +37,21 @@ impl<'a> Ord for TermsWithSegmentOrd<'a> {
 /// The item yield is actually a pair with
 /// - the term
 /// - a slice with the ordinal of the segments containing the terms.
-pub struct TermMerger<'a> {
-    heap: BinaryHeap<TermsWithSegmentOrd<'a>>,
-    term_streams_with_segment: Vec<TermsWithSegmentOrd<'a>>,
+pub struct TermMerger {
+    heap: BinaryHeap<TermsWithSegmentOrd>,
+    term_streams_with_segment: Vec<TermsWithSegmentOrd>,
 }
 
-impl<'a> TermMerger<'a> {
+impl TermMerger {
     /// Stream of merged term dictionary
-    pub fn new(term_streams_with_segment: Vec<TermsWithSegmentOrd<'a>>) -> TermMerger<'a> {
+    pub fn new(term_streams_with_segment: Vec<TermsWithSegmentOrd>) -> TermMerger {
         TermMerger {
             heap: BinaryHeap::new(),
             term_streams_with_segment,
         }
     }
 
-    pub(crate) fn matching_segments<'b: 'a>(
-        &'b self,
-    ) -> impl 'b + Iterator<Item = (usize, TermOrdinal)> {
+    pub(crate) fn matching_segments(&self) -> impl Iterator<Item = (usize, TermOrdinal)> {
         self.term_streams_with_segment
             .iter()
             .map(|heap_item| (heap_item.segment_ord, heap_item.terms.term_ord()))

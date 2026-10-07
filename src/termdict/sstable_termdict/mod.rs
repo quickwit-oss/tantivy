@@ -8,6 +8,7 @@ use common::VInt;
 use sstable::value::{ValueReader, ValueWriter};
 use sstable::SSTable;
 use tantivy_fst::automaton::AlwaysMatch;
+use tantivy_fst::Automaton;
 
 pub use self::merger::TermMerger;
 use crate::postings::TermInfo;
@@ -25,13 +26,141 @@ pub type TermDictionaryBuilder<W> = sstable::Writer<W, TermInfoValueWriter>;
 
 /// `TermStreamer` acts as a cursor over a range of terms of a segment.
 /// Terms are guaranteed to be sorted.
-pub type TermStreamer<'a, A = AlwaysMatch> = sstable::Streamer<'a, TermSSTable, A>;
+pub struct TermStreamer<'a, A = AlwaysMatch>
+where
+    A: Automaton,
+    A::State: Clone,
+{
+    inner: sstable::Streamer<TermSSTable, A>,
+    // needed to share the same interface as FST-based term dictionary
+    _phantom: std::marker::PhantomData<&'a ()>,
+}
+
+impl<'a, A> TermStreamer<'a, A>
+where
+    A: Automaton,
+    A::State: Clone,
+{
+    pub(crate) fn new(inner: sstable::Streamer<TermSSTable, A>) -> Self {
+        TermStreamer {
+            inner,
+            _phantom: std::marker::PhantomData,
+        }
+    }
+}
+
+impl<'a, A> std::ops::Deref for TermStreamer<'a, A>
+where
+    A: Automaton,
+    A::State: Clone,
+{
+    type Target = sstable::Streamer<TermSSTable, A>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.inner
+    }
+}
+
+impl<'a, A> std::ops::DerefMut for TermStreamer<'a, A>
+where
+    A: Automaton,
+    A::State: Clone,
+{
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.inner
+    }
+}
+
+impl<'a, A> From<sstable::Streamer<TermSSTable, A>> for TermStreamer<'a, A>
+where
+    A: Automaton,
+    A::State: Clone,
+{
+    fn from(inner: sstable::Streamer<TermSSTable, A>) -> Self {
+        TermStreamer::new(inner)
+    }
+}
+
+/// `TermStreamerBuilder` is a helper object used to define a range of terms that should be
+/// streamed.
+pub struct TermStreamerBuilder<'a, A = AlwaysMatch>(sstable::StreamerBuilder<'a, TermSSTable, A>)
+where
+    A: Automaton,
+    A::State: Clone;
+
+impl<'a, A> From<sstable::StreamerBuilder<'a, TermSSTable, A>> for TermStreamerBuilder<'a, A>
+where
+    A: Automaton,
+    A::State: Clone,
+{
+    fn from(inner: sstable::StreamerBuilder<'a, TermSSTable, A>) -> Self {
+        TermStreamerBuilder(inner)
+    }
+}
+
+impl<'a, A> TermStreamerBuilder<'a, A>
+where
+    A: Automaton,
+    A::State: Clone,
+{
+    /// Limit the range to terms greater or equal to the bound
+    pub fn ge<T: AsRef<[u8]>>(self, bound: T) -> Self {
+        TermStreamerBuilder(self.0.ge(bound))
+    }
+
+    /// Limit the range to terms strictly greater than the bound
+    pub fn gt<T: AsRef<[u8]>>(self, bound: T) -> Self {
+        TermStreamerBuilder(self.0.gt(bound))
+    }
+
+    /// Limit the range to terms lesser or equal to the bound
+    pub fn le<T: AsRef<[u8]>>(self, bound: T) -> Self {
+        TermStreamerBuilder(self.0.le(bound))
+    }
+
+    /// Limit the range to terms strictly lesser than the bound
+    pub fn lt<T: AsRef<[u8]>>(self, bound: T) -> Self {
+        TermStreamerBuilder(self.0.lt(bound))
+    }
+
+    /// Load no more data than what's required to get `limit`
+    /// matching entries.
+    ///
+    /// The resulting [`TermStreamer`] can still return marginally
+    /// more than `limit` elements.
+    pub fn limit(self, limit: u64) -> Self {
+        TermStreamerBuilder(self.0.limit(limit))
+    }
+
+    /// Creates the stream corresponding to the range
+    /// of terms defined using the `TermStreamerBuilder`.
+    pub fn into_stream(self) -> io::Result<TermStreamer<'a, A>> {
+        Ok(TermStreamer::new(self.0.into_stream()?))
+    }
+
+    /// Async version of [`TermStreamerBuilder::into_stream`].
+    pub async fn into_stream_async(self) -> io::Result<TermStreamer<'a, A>> {
+        Ok(TermStreamer::new(self.0.into_stream_async().await?))
+    }
+
+    /// Same as [`TermStreamerBuilder::into_stream_async`], but tries to issue a
+    /// single io operation when requesting blocks that are not consecutive,
+    /// but also less than `merge_holes_under_bytes` bytes apart.
+    pub async fn into_stream_async_merging_holes(
+        self,
+        merge_holes_under_bytes: usize,
+    ) -> io::Result<TermStreamer<'a, A>> {
+        Ok(TermStreamer::new(
+            self.0
+                .into_stream_async_merging_holes(merge_holes_under_bytes)
+                .await?,
+        ))
+    }
+}
 
 /// SSTable used to store TermInfo objects.
 #[derive(Clone)]
 pub struct TermSSTable;
-
-pub type TermStreamerBuilder<'a, A = AlwaysMatch> = sstable::StreamerBuilder<'a, TermSSTable, A>;
 
 impl SSTable for TermSSTable {
     type Value = TermInfo;

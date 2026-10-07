@@ -53,7 +53,7 @@ impl fmt::Debug for ColumnarReader {
 /// It takes a stream from the column sstable and return the list of
 /// `DynamicColumn` available in it.
 fn read_all_columns_in_stream(
-    mut stream: sstable::Streamer<'_, RangeSSTable>,
+    mut stream: sstable::Streamer<RangeSSTable>,
     column_data: &FileSlice,
     format_version: Version,
 ) -> io::Result<Vec<DynamicColumnHandle>> {

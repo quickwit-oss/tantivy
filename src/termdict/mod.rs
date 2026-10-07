@@ -141,19 +141,40 @@ impl TermDictionary {
     /// Returns a range builder, to stream all of the terms
     /// within an interval.
     pub fn range(&self) -> TermStreamerBuilder<'_> {
-        self.0.range()
+        #[cfg(feature = "quickwit")]
+        {
+            self.0.range().into()
+        }
+        #[cfg(not(feature = "quickwit"))]
+        {
+            self.0.range()
+        }
     }
 
     /// A stream of all the sorted terms.
     pub fn stream(&self) -> io::Result<TermStreamer<'_>> {
-        self.0.stream()
+        #[cfg(feature = "quickwit")]
+        {
+            self.0.stream().map(Into::into)
+        }
+        #[cfg(not(feature = "quickwit"))]
+        {
+            self.0.stream()
+        }
     }
 
     /// Returns a search builder, to stream all of the terms
     /// within the Automaton
     pub fn search<'a, A: Automaton + 'a>(&'a self, automaton: A) -> TermStreamerBuilder<'a, A>
     where A::State: Clone {
-        self.0.search(automaton)
+        #[cfg(feature = "quickwit")]
+        {
+            self.0.search(automaton).into()
+        }
+        #[cfg(not(feature = "quickwit"))]
+        {
+            self.0.search(automaton)
+        }
     }
 
     #[cfg(feature = "quickwit")]
