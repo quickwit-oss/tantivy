@@ -30,9 +30,10 @@ pub(crate) fn serialize_generated_tie_breaker_column(
     num_docs: u32,
     output: &mut impl Write,
 ) -> io::Result<()> {
-    let max_start = i64::from(i32::MAX) - i64::from(num_docs.saturating_sub(1));
-    let start = rand::rng().random_range(i64::from(i32::MIN)..=max_start);
-    let end = start + i64::from(num_docs);
+    // TODO: Lift this temporary i32 limit once downstream consumers support the full i64 range.
+    let max_start = i32::MAX as i64 - num_docs as i64;
+    let start: i64 = rand::rng().random_range(i32::MIN as i64..=max_start);
+    let end = start + num_docs as i64;
     let values = start..end;
     let column_index_num_bytes = serialize_column_index(SerializableColumnIndex::Full, output)?;
     serialize_u64_based_column_values(
