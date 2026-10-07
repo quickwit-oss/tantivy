@@ -458,10 +458,6 @@ where
     ///
     /// Calling `.value()` after the end of the stream will return the
     /// last `.value()` encountered.
-    ///
-    /// # Panics
-    ///
-    /// Calling `.value()` before the first call to `.advance()` returns
     /// `V::default()`.
     pub fn value(&self) -> &TSSTable::Value {
         self.delta_reader.value()
@@ -500,11 +496,12 @@ where
     }
 }
 
-impl<TSSTable, A> Streamer<'_, TSSTable, A, WithoutKeys>
+impl<TSSTable, A, K> Streamer<'_, TSSTable, A, K>
 where
     A: Automaton,
     A::State: Clone,
     TSSTable: SSTable,
+    K: KeyTracking,
 {
     /// Return the next `(key, value)` pair.
     #[inline(always)]

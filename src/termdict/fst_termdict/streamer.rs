@@ -140,8 +140,6 @@ where
     /// Calling `.value()` after the end of the stream will return the
     /// last `.value()` encountered.
     ///
-    /// # Panics
-    ///
     /// Calling `.value()` before the first call to `.advance()` returns
     /// `V::default()`.
     pub fn value(&self) -> &TermInfo {
