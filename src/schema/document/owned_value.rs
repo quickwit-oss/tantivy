@@ -428,12 +428,12 @@ impl From<serde_json::Value> for OwnedValue {
             }
             serde_json::Value::String(text) => {
                 if can_be_rfc3339_date_time(&text) {
-                    match OffsetDateTime::parse(&text, &Rfc3339) {
-                        Ok(dt) => {
-                            let dt_utc = dt.to_offset(time::UtcOffset::UTC);
-                            Self::Date(DateTime::from_utc(dt_utc))
-                        }
-                        Err(_) => Self::Str(text),
+                    match OffsetDateTime::parse(&text, &Rfc3339)
+                        .ok()
+                        .and_then(|dt| DateTime::try_from_utc(dt.to_offset(time::UtcOffset::UTC)))
+                    {
+                        Some(dt) => Self::Date(dt),
+                        None => Self::Str(text),
                     }
                 } else {
                     Self::Str(text)
@@ -533,5 +533,22 @@ mod tests {
         // The time zone information gets lost by conversion into `Value::Date` and
         // implicitly becomes UTC.
         assert_eq!(serialized_value_json, r#""1996-12-20T01:39:57Z""#);
+    }
+
+    #[test]
+    fn test_from_json_out_of_range_date_is_str() {
+        for text in ["1601-01-01T00:00:00Z", "9999-12-31T23:59:59Z"] {
+            assert_eq!(
+                OwnedValue::from(serde_json::json!(text)),
+                OwnedValue::Str(text.to_string())
+            );
+        }
+        let in_range = "2026-06-30T17:20:27Z";
+        assert_eq!(
+            OwnedValue::from(serde_json::json!(in_range)),
+            OwnedValue::Date(DateTime::from_utc(
+                OffsetDateTime::parse(in_range, &Rfc3339).unwrap()
+            ))
+        );
     }
 }
