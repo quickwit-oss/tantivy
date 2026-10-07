@@ -67,6 +67,23 @@ impl DeltaKeyComparator {
         }
         self.compare(target, common_prefix_len, suffix)
     }
+
+    /// Compares the key `prefix + suffix` with `target`.
+    ///
+    /// Like a call to `compare_across_blocks` with a zero `common_prefix_len`, this resets the
+    /// comparator: subsequent keys can then be compared incrementally.
+    pub(crate) fn compare_prefix_and_suffix(
+        &mut self,
+        target: &[u8],
+        prefix: &[u8],
+        suffix: &[u8],
+    ) -> Ordering {
+        if self.compare_across_blocks(target, 0, prefix) == Ordering::Greater {
+            // `prefix` is already past `target`, and so is any key starting with it.
+            return Ordering::Greater;
+        }
+        self.compare(target, prefix.len(), suffix)
+    }
 }
 
 pub struct DeltaWriter<W, TValueWriter>
@@ -327,5 +344,52 @@ mod tests {
             comparator.compare_across_blocks(target, 0, b"bbbaaa"),
             Ordering::Greater
         );
+    }
+
+    #[test]
+    fn test_delta_key_comparator_prefix_and_suffix() {
+        let mut keys: Vec<Vec<u8>> = vec![Vec::new()];
+        for len in 1..=3 {
+            let shorter_keys: Vec<Vec<u8>> = keys
+                .iter()
+                .filter(|key| key.len() == len - 1)
+                .cloned()
+                .collect();
+            for shorter_key in shorter_keys {
+                for &b in b"ab" {
+                    let mut key = shorter_key.clone();
+                    key.push(b);
+                    keys.push(key);
+                }
+            }
+        }
+        for target in &keys {
+            for key in &keys {
+                for split in 0..=key.len() {
+                    let mut comparator = DeltaKeyComparator::new();
+                    let ordering =
+                        comparator.compare_prefix_and_suffix(target, &key[..split], &key[split..]);
+                    assert_eq!(ordering, key.cmp(target));
+                    if ordering == Ordering::Greater {
+                        // A streamer stops at the first key past its target.
+                        continue;
+                    }
+                    // The comparator keeps comparing the following keys incrementally.
+                    for next_key in keys.iter().filter(|next_key| *next_key > key) {
+                        let mut comparator = DeltaKeyComparator::new();
+                        comparator.compare_prefix_and_suffix(target, &key[..split], &key[split..]);
+                        let common_prefix_len = crate::common_prefix_len(key, next_key);
+                        assert_eq!(
+                            comparator.compare(
+                                target,
+                                common_prefix_len,
+                                &next_key[common_prefix_len..]
+                            ),
+                            next_key.cmp(target)
+                        );
+                    }
+                }
+            }
+        }
     }
 }

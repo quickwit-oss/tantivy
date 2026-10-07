@@ -429,3 +429,56 @@ fn test_automaton_search() -> crate::Result<()> {
     assert!(!range.advance());
     Ok(())
 }
+
+#[test]
+fn test_range_without_keys() {
+    let term_dict = stream_range_test_dict().unwrap();
+    let mut stream = term_dict
+        .range()
+        .ge([2u8])
+        .lt([5u8])
+        .without_keys()
+        .into_stream()
+        .unwrap();
+    for term_ord in 2u64..5u64 {
+        assert!(stream.advance());
+        assert_eq!(stream.term_ord(), term_ord);
+        assert_eq!(stream.value(), &make_term_info(term_ord));
+    }
+    assert!(!stream.advance());
+}
+
+#[test]
+fn test_search_without_keys() {
+    const COUNTRIES: [&str; 7] = [
+        "San Marino",
+        "Serbia",
+        "Slovakia",
+        "Slovenia",
+        "Spain",
+        "Sweden",
+        "Switzerland",
+    ];
+    let buffer: Vec<u8> = {
+        let mut term_dictionary_builder = TermDictionaryBuilder::create(Vec::new()).unwrap();
+        for (term_ord, term) in COUNTRIES.iter().enumerate() {
+            term_dictionary_builder
+                .insert(term.as_bytes(), &make_term_info(term_ord as u64))
+                .unwrap();
+        }
+        term_dictionary_builder.finish().unwrap()
+    };
+    let term_dict = TermDictionary::open(FileSlice::from(buffer)).unwrap();
+    let regex = tantivy_fst::Regex::new("S[lw].*").unwrap();
+    let mut stream = term_dict
+        .search(regex)
+        .without_keys()
+        .into_stream()
+        .unwrap();
+    for term_ord in [2u64, 3, 5, 6] {
+        assert!(stream.advance());
+        assert_eq!(stream.term_ord(), term_ord);
+        assert_eq!(stream.value(), &make_term_info(term_ord));
+    }
+    assert!(!stream.advance());
+}

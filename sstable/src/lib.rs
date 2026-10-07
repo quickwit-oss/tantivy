@@ -50,6 +50,7 @@ pub mod value;
 mod index;
 pub use index::{BlockAddr, SSTableIndex, SSTableIndexBuilder};
 pub(crate) mod vint;
+pub use common::{KeyTracking, WithoutKeys};
 pub use dictionary::{Dictionary, TermOrdHit};
 pub use streamer::{Streamer, StreamerBuilder};
 
