@@ -26,6 +26,7 @@ proptest = "1"
 criterion = { version = "0.8", default-features = false }
 names = "0.14"
 rand = "0.9"
+async-trait = "0.1"
 
 [[bench]]
 name = "stream_bench"

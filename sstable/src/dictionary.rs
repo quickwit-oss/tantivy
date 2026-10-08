@@ -676,6 +676,7 @@ mod tests {
     struct PermissionedHandle {
         bytes: OwnedBytes,
         allowed_range: Mutex<Range<usize>>,
+        read_ranges: Mutex<Vec<Range<usize>>>,
     }
 
     impl PermissionedHandle {
@@ -683,12 +684,18 @@ mod tests {
             let bytes = OwnedBytes::new(bytes);
             PermissionedHandle {
                 allowed_range: Mutex::new(0..bytes.len()),
+                read_ranges: Mutex::new(Vec::new()),
                 bytes,
             }
         }
 
         fn restrict(&self, range: Range<usize>) {
             *self.allowed_range.lock().unwrap() = range;
+        }
+
+        /// The ranges that were successfully read so far.
+        fn read_ranges(&self) -> Vec<Range<usize>> {
+            self.read_ranges.lock().unwrap().clone()
         }
     }
 
@@ -698,6 +705,7 @@ mod tests {
         }
     }
 
+    #[async_trait::async_trait]
     impl common::file_slice::FileHandle for PermissionedHandle {
         fn read_bytes(&self, range: Range<usize>) -> std::io::Result<OwnedBytes> {
             let allowed_range = self.allowed_range.lock().unwrap();
@@ -707,7 +715,12 @@ mod tests {
                 )));
             }
 
+            self.read_ranges.lock().unwrap().push(range.clone());
             Ok(self.bytes.slice(range))
+        }
+
+        async fn read_bytes_async(&self, range: Range<usize>) -> std::io::Result<OwnedBytes> {
+            self.read_bytes(range)
         }
     }
 
@@ -1173,5 +1186,112 @@ mod tests {
             seen += 1;
         }
         assert_eq!(seen, 3); // 0FFFF, 1FFFF, 2FFFF — the dictionary stops below 3FFFF
+    }
+
+    /// Minimal executor: the futures used here (in-memory async reads) never actually
+    /// yield, so spinning on `Poll::Pending` is enough.
+    fn block_on<F: std::future::Future>(fut: F) -> F::Output {
+        use std::task::{Context, Poll, RawWaker, RawWakerVTable, Waker};
+
+        fn waker_clone(_: *const ()) -> RawWaker {
+            noop_raw_waker()
+        }
+        fn noop(_: *const ()) {}
+        fn noop_raw_waker() -> RawWaker {
+            static VTABLE: RawWakerVTable = RawWakerVTable::new(waker_clone, noop, noop, noop);
+            RawWaker::new(std::ptr::null(), &VTABLE)
+        }
+
+        let waker = unsafe { Waker::from_raw(noop_raw_waker()) };
+        let mut cx = Context::from_waker(&waker);
+        let mut fut = std::pin::pin!(fut);
+        loop {
+            if let Poll::Ready(output) = fut.as_mut().poll(&mut cx) {
+                return output;
+            }
+            std::thread::yield_now();
+        }
+    }
+
+    #[test]
+    fn test_merged_block_group_skips_non_matching_blocks() {
+        // define an sstable with
+        let elems_per_region: u64 = 10_000;
+        let (dict, handle) = {
+            let mut builder = Dictionary::<MonotonicU64SSTable>::builder(Vec::new()).unwrap();
+            let mut ord = 0u64;
+            for prefix in ['A', 'B', 'C'] {
+                for elem in 0..elems_per_region {
+                    builder
+                        .insert(format!("{prefix}{elem:05}").as_bytes(), &ord)
+                        .unwrap();
+                    ord += 1;
+                }
+            }
+            let table = Arc::new(PermissionedHandle::new(builder.finish().unwrap()));
+            let dict = Dictionary::<MonotonicU64SSTable>::open(common::file_slice::FileSlice::new(
+                table.clone(),
+            ))
+            .unwrap();
+            assert!(dict.sstable_index.locate_with_ord(u64::MAX) > 2);
+            (dict, table)
+        };
+
+        let pattern = tantivy_fst::Regex::new("[^B].*").unwrap();
+
+        // verify there is a block that doesn't match the automaton at all
+        // (if we have only 2 blocks, one of A+B and one of B+C, this test doesn't work,
+        // we need at least one block of full B
+        let matching_ranges: Vec<_> = dict
+            .sstable_index
+            .get_block_for_automaton(&pattern)
+            .map(|(_, block_addr)| block_addr.byte_range)
+            .collect();
+        let middle_block = dict.sstable_index.get_block_with_key(b"B05000").unwrap();
+        assert!(!matching_ranges.is_empty());
+        assert!(!matching_ranges.contains(&middle_block.byte_range));
+
+        // count what should be decoded
+        let num_blocks = dict.sstable_index.locate_with_ord(u64::MAX);
+        let mut expected_seen = 0usize;
+        for block_id in 0..=num_blocks {
+            let block = dict.sstable_index.get_block(block_id).unwrap();
+            let end_ord = dict
+                .sstable_index
+                .get_block(block_id + 1)
+                .map(|block| block.first_ordinal)
+                .unwrap_or(dict.num_terms() as u64);
+            if matching_ranges.contains(&block.byte_range) {
+                expected_seen += (end_ord - block.first_ordinal) as usize;
+            }
+        }
+        assert!(expected_seen > 20_000);
+        assert!(expected_seen < 30_000);
+
+        // a merge threshold big enough to coalesce the 'A' and 'C' block groups into a
+        // single read, downloading the non-matching 'B' blocks in between.
+        let merge_holes_under_bytes = 1 << 30;
+
+        let mut delta_reader = block_on(dict.sstable_delta_reader_for_key_range_async(
+            ..,
+            None,
+            &pattern,
+            merge_holes_under_bytes,
+        ))
+        .unwrap();
+
+        // check one read went through the whole table
+        let first_matching_block = dict.sstable_index.get_block_with_key(b"A00000").unwrap();
+        let last_matching_block = dict.sstable_index.get_block_with_key(b"C09999").unwrap();
+        let expected_range =
+            first_matching_block.byte_range.start..last_matching_block.byte_range.end;
+        assert!(handle.read_ranges().contains(&expected_range));
+
+        // check the delta-reader only decodes matching blocks
+        let mut seen = 0;
+        while delta_reader.advance().unwrap() {
+            seen += 1;
+        }
+        assert_eq!(seen, expected_seen);
     }
 }
