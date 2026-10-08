@@ -22,6 +22,13 @@ use crate::DocId;
 /// TODO: consider using a more advanced data structure for high cardinality
 /// aggregations.
 /// What this datastructure does in general is to group docs by bucket id.
+///
+/// Submissions can accumulate across parent collection calls. Both backends preserve
+/// submission order for each bucket without sorting or deduplicating, so callers must
+/// supply strictly increasing document IDs per bucket, as required by
+/// [`SegmentAggregationCollector`]. Otherwise a flush can pass unordered or duplicate
+/// document IDs to a child collector even when each parent call contained sorted,
+/// duplicate-free input.
 #[derive(Debug)]
 pub(crate) struct BufferedSubAggs<B: SubAggBuffer> {
     buffer: B,

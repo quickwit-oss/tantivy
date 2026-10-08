@@ -216,8 +216,8 @@ fn block_missing_value(missing: Option<&MultiTermsMissingAccessor>) -> Option<u6
         .map(|missing| missing.missing_value)
 }
 
-/// Fetches one field into the shared block accessor and forwards safe missing handling. Ordering
-/// is requested only by multi-terms, which needs values from different fields aligned by document.
+/// Fetches one field into the shared block accessor with missing values in document order,
+/// keeping values from different fields aligned by document.
 /// Returns whether decoding produced exactly one aligned value per document.
 #[inline]
 fn fetch_field_block(

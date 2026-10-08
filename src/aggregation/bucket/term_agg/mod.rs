@@ -1066,7 +1066,7 @@ impl<TermMap: TermAggregationMap, B: SubAggBuffer> SegmentAggregationCollector
                 docs,
                 &mut *req_data.accessor,
                 req_data.missing_value_for_accessor,
-                false,
+                self.sub_agg.is_some(),
             );
 
         if let Some(sub_agg) = &mut self.sub_agg {
@@ -3184,6 +3184,47 @@ mod tests {
         let res = exec_request_with_query(agg_req, &index, None);
         assert!(res.is_err(), "expected error for Bytes field, got {res:?}");
 
+        Ok(())
+    }
+
+    #[test]
+    fn terms_missing_with_child_missing_sum() -> crate::Result<()> {
+        for group_values in [&[5u64][..], &[5u64, 6][..]] {
+            let mut schema_builder = Schema::builder();
+            let group = schema_builder.add_u64_field("group", FAST);
+            let metric = schema_builder.add_u64_field("metric", FAST);
+            let index = Index::create_in_ram(schema_builder.build());
+            let mut index_writer = index.writer_with_num_threads(1, 20_000_000)?;
+            // Both documents belong to group 5. Appending missing documents would produce
+            // [1, 0], which breaks the child's missing lookup.
+            index_writer.add_document(doc!(metric => 10u64))?;
+            let mut document = doc!();
+            for &value in group_values {
+                document.add_u64(group, value);
+            }
+            index_writer.add_document(document)?;
+            index_writer.commit()?;
+
+            let request: Aggregations = serde_json::from_value(json!({
+                "groups": {
+                    "terms": { "field": "group", "missing": 5 },
+                    "aggs": {
+                        "total": { "sum": { "field": "metric", "missing": 100 } }
+                    }
+                }
+            }))?;
+            let result = exec_request_with_query(request, &index, None)?;
+            let buckets = result["groups"]["buckets"].as_array().unwrap();
+            assert_eq!(buckets.len(), group_values.len());
+            assert_eq!(buckets[0]["key"], 5.0);
+            assert_eq!(buckets[0]["doc_count"], 2);
+            assert_eq!(buckets[0]["total"]["value"], 110.0);
+            if group_values.len() > 1 {
+                assert_eq!(buckets[1]["key"], 6.0);
+                assert_eq!(buckets[1]["doc_count"], 1);
+                assert_eq!(buckets[1]["total"]["value"], 100.0);
+            }
+        }
         Ok(())
     }
 
