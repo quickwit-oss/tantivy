@@ -361,7 +361,7 @@ where
             // we could check always_match_at == Some(0), but this actually gets
             // inlined into `true` with AlwaysMatch, which is even faster
             self.automaton
-                .will_always_match(&self.states.first().unwrap()),
+                .will_always_match(self.states.first().unwrap()),
             self.upper_bound == Bound::Unbounded,
         ) {
             (true, true) => self.advance_always_match::<true>(),

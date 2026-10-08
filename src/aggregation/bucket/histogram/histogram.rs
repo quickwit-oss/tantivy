@@ -759,9 +759,10 @@ pub(crate) fn build_segment_histogram_collector(
     children: Vec<AggNode>,
 ) -> crate::Result<Box<dyn SegmentAggregationCollector>> {
     // Computed sources may change cardinality between blocks.
-    let source_contains_multivalues = req_data.accessor.as_column().map_or(true, |column| {
-        column.index.get_cardinality().is_multivalue()
-    });
+    let source_contains_multivalues = req_data
+        .accessor
+        .as_column()
+        .is_none_or(|column| column.index.get_cardinality().is_multivalue());
     if source_contains_multivalues {
         build_histogram_collector_with_cardinality::<true>(agg_data, req_data, children)
     } else {
