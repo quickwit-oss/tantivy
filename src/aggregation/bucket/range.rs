@@ -353,9 +353,11 @@ pub(crate) fn build_segment_range_collector(
     children: Vec<AggNode>,
 ) -> crate::Result<Box<dyn SegmentAggregationCollector>> {
     // Computed sources may change cardinality between blocks.
-    let source_contains_multivalues = req_data.accessor.as_column().map_or(true, |column| {
+    let source_contains_multivalues = if let Some(column) = req_data.accessor.as_column() {
         column.index.get_cardinality().is_multivalue()
-    });
+    } else {
+        true
+    };
     if source_contains_multivalues {
         build_range_collector_with_cardinality::<true>(agg_data, req_data, children)
     } else {
