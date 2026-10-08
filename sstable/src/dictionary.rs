@@ -3,7 +3,7 @@
 use std::cmp::Ordering;
 use std::io;
 use std::marker::PhantomData;
-use std::ops::{Bound, RangeBounds};
+use std::ops::{Bound, Range, RangeBounds};
 use std::sync::Arc;
 
 use common::bounds::{TransformBound, transform_bound_inner_res};
@@ -84,6 +84,24 @@ impl TermOrdHit {
     }
 }
 
+fn merged_block_group_byte_range(blocks: &[BlockAddr]) -> Range<usize> {
+    debug_assert!(!blocks.is_empty());
+    blocks.first().unwrap().byte_range.start..blocks.last().unwrap().byte_range.end
+}
+
+/// Splits bytes read over a merged group of blocks back into the individual blocks.
+fn split_merged_block_bytes(
+    bytes: OwnedBytes,
+    base_offset: usize,
+    blocks: impl IntoIterator<Item = BlockAddr>,
+) -> impl Iterator<Item = (OwnedBytes, u64)> {
+    blocks.into_iter().map(move |block_addr| {
+        let start = block_addr.byte_range.start - base_offset;
+        let end = block_addr.byte_range.end - base_offset;
+        (bytes.slice(start..end), block_addr.first_ordinal)
+    })
+}
+
 impl<TSSTable: SSTable> Dictionary<TSSTable> {
     pub fn builder<W: io::Write>(wrt: W) -> io::Result<crate::Writer<W, TSSTable::ValueWriter>> {
         Ok(TSSTable::writer(wrt))
@@ -110,24 +128,29 @@ impl<TSSTable: SSTable> Dictionary<TSSTable> {
             let data = slice.read_bytes_async().await?;
             Ok(TSSTable::delta_reader(data))
         } else {
-            let blocks = stream::iter(self.get_block_iterator_for_range_and_automaton(
+            let block_groups = stream::iter(self.get_block_iterator_for_range_and_automaton(
                 key_range,
                 automaton,
                 merge_holes_under_bytes,
             ));
-            let data = blocks
-                .map(|block_addr| {
-                    let first_ordinal = block_addr.first_ordinal;
+            let data = block_groups
+                .map(|blocks| {
+                    let byte_range = merged_block_group_byte_range(&blocks);
                     async move {
                         let bytes = self
                             .sstable_slice
-                            .read_bytes_slice_async(block_addr.byte_range)
+                            .read_bytes_slice_async(byte_range.clone())
                             .await?;
-                        io::Result::Ok((bytes, first_ordinal))
+                        // split back into individual blocks without holes so delta reader doesn't
+                        // scan non-matching blocks
+                        io::Result::Ok(split_merged_block_bytes(bytes, byte_range.start, blocks))
                     }
                 })
                 .buffered(5)
-                .try_collect::<Vec<_>>()
+                .try_fold(Vec::new(), |mut blocks, block_iter| async move {
+                    blocks.extend(block_iter);
+                    Ok(blocks)
+                })
                 .await?;
             Ok(DeltaReader::from_multiple_blocks(data))
         }
@@ -147,12 +170,14 @@ impl<TSSTable: SSTable> Dictionary<TSSTable> {
         } else {
             // if operations are sync, we assume latency is almost null, and there is no point in
             // merging across holes
-            let blocks = self.get_block_iterator_for_range_and_automaton(key_range, automaton, 0);
-            let data = blocks
-                .map(|block_addr| {
-                    let first_ordinal = block_addr.first_ordinal;
+            let block_groups =
+                self.get_block_iterator_for_range_and_automaton(key_range, automaton, 0);
+            let data = block_groups
+                .map(|blocks| {
+                    let byte_range = merged_block_group_byte_range(&blocks);
+                    let first_ordinal = blocks[0].first_ordinal;
                     self.sstable_slice
-                        .read_bytes_slice(block_addr.byte_range)
+                        .read_bytes_slice(byte_range)
                         .map(|bytes| (bytes, first_ordinal))
                 })
                 .collect::<Result<Vec<_>, _>>()?;
@@ -255,7 +280,7 @@ impl<TSSTable: SSTable> Dictionary<TSSTable> {
         key_range: impl RangeBounds<[u8]>,
         automaton: &'a impl Automaton,
         merge_holes_under_bytes: usize,
-    ) -> impl Iterator<Item = BlockAddr> + 'a {
+    ) -> impl Iterator<Item = Vec<BlockAddr>> + 'a {
         let lower_bound = match key_range.start_bound() {
             Bound::Included(key) | Bound::Excluded(key) => {
                 self.sstable_index.locate_with_key(key).unwrap_or(u64::MAX)
@@ -273,15 +298,15 @@ impl<TSSTable: SSTable> Dictionary<TSSTable> {
         self.sstable_index
             .get_block_for_automaton(automaton)
             .filter(move |(block_id, _)| block_range.contains(block_id))
-            .map(|(_, block_addr)| block_addr)
-            .coalesce(move |first, second| {
-                if first.byte_range.end + merge_holes_under_bytes >= second.byte_range.start {
-                    Ok(BlockAddr {
-                        first_ordinal: first.first_ordinal,
-                        byte_range: first.byte_range.start..second.byte_range.end,
-                    })
+            .map(|(_, block_addr)| vec![block_addr])
+            .coalesce(move |mut group, next_group| {
+                let group_end = group.last().unwrap().byte_range.end;
+                let next_start = next_group.first().unwrap().byte_range.start;
+                if group_end + merge_holes_under_bytes >= next_start {
+                    group.extend(next_group);
+                    Ok(group)
                 } else {
-                    Err((first, second))
+                    Err((group, next_group))
                 }
             })
     }
