@@ -1,5 +1,4 @@
 use std::io::{self, Write};
-use std::num::NonZeroU64;
 use std::ops::{Range, RangeInclusive};
 use std::sync::Arc;
 
@@ -16,14 +15,6 @@ pub struct BitpackedReader<const NUM_BITS: u8 = { u8::MAX }> {
     data: OwnedBytes,
     bit_unpacker: BitUnpacker,
     stats: ColumnStats,
-}
-
-#[inline(always)]
-const fn div_ceil(n: u64, q: NonZeroU64) -> u64 {
-    // copied from unstable rust standard library.
-    let d = n / q.get();
-    let r = n % q.get();
-    if r > 0 { d + 1 } else { d }
 }
 
 // The bitpacked codec applies a linear transformation `f` over data that are bitpacked.
@@ -43,7 +34,7 @@ fn transform_range_before_linear_transformation(
     }
     let shifted_range =
         range.start().saturating_sub(stats.min_value)..=range.end().saturating_sub(stats.min_value);
-    let start_before_gcd_multiplication: u64 = div_ceil(*shifted_range.start(), stats.gcd);
+    let start_before_gcd_multiplication = shifted_range.start().div_ceil(stats.gcd.get());
     let end_before_gcd_multiplication: u64 = *shifted_range.end() / stats.gcd;
     Some(start_before_gcd_multiplication..=end_before_gcd_multiplication)
 }
