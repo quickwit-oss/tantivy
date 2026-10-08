@@ -415,25 +415,14 @@ impl InvertedIndexReader {
         const MERGE_HOLES_UNDER_BYTES: usize = (80 * 1024 * 1024 * 50) / 1000;
         // we build a first iterator to download everything. Simply calling the function already
         // download everything we need from the sstable, but doesn't start iterating over it.
-        let _term_info_iter = self
+        let mut stream = self
             .get_term_range_async(.., automaton.clone(), None, MERGE_HOLES_UNDER_BYTES)
             .await?;
 
         let (sender, posting_ranges_to_load_stream) = futures_channel::mpsc::unbounded();
         let termdict = self.termdict.clone();
         let cpu_bound_task = move || {
-            // then we build a 2nd iterator, this one with no holes, so we don't go through blocks
-            // we can't match.
-            // This makes the assumption there is a caching layer below us, which gives sync read
-            // for free after the initial async access. This might not always be true, but is in
-            // Quickwit.
-            // We build things from this closure otherwise we get into lifetime issues that can only
-            // be solved with self referential strucs. Returning an io::Result from here is a bit
-            // more leaky abstraction-wise, but a lot better than the alternative
-            let mut stream = termdict.search(automaton).into_stream()?;
-
-            // we could do without an iterator, but this allows us access to coalesce which simplify
-            // things
+            // we only start iterating from inside the cpu_bound task
             let posting_ranges_iter =
                 std::iter::from_fn(move || stream.next().map(|(_k, v)| v.postings_range.clone()));
 
