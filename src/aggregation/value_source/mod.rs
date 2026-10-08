@@ -1,4 +1,6 @@
 mod block_accessor;
+#[cfg(feature = "jitexpr")]
+mod jitexpr_value_source;
 mod value_source_registry;
 
 #[cfg(test)]
@@ -9,6 +11,8 @@ use std::io;
 
 pub(crate) use block_accessor::ColumnBlockAccessor;
 use columnar::{Cardinality, Column, ColumnType, ColumnValues, Dictionary, RowId, StrColumn};
+#[cfg(feature = "jitexpr")]
+pub use jitexpr_value_source::JitExprValueSourceProvider;
 pub use value_source_registry::{ValueSourceProvider, ValueSourceRegistry};
 
 use crate::DocId;

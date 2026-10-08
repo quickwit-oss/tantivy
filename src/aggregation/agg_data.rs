@@ -16,8 +16,8 @@ use crate::aggregation::bucket::{
     build_segment_multi_terms_collector, build_segment_range_collector, CompositeAggReqData,
     CompositeAggregation, CompositeSourceAccessors, FilterAggReqData, HistogramAggReqData,
     IncludeExcludeParam, MissingTermAggReqData, MultiTermsAggReqData, MultiTermsAggregation,
-    MultiTermsFieldAccessor, MultiTermsMissingAccessor, RangeAggReqData, TermMissingAgg,
-    TermsAggReqData, TermsAggregation, TermsAggregationInternal,
+    MultiTermsFieldAccessor, MultiTermsMissingAccessor, OrderTarget, RangeAggReqData,
+    TermMissingAgg, TermsAggReqData, TermsAggregation, TermsAggregationInternal,
 };
 use crate::aggregation::metric::{
     build_segment_stats_collector, AverageAggregation, CardinalityAggReqData,
@@ -1002,11 +1002,17 @@ fn build_terms_or_cardinality_nodes(
                         missing.is_some(),
                     )?;
                 };
+                let req_internal = TermsAggregationInternal::from_req(req);
+                if let Some(term_dictionary) = accessor.term_dictionary() {
+                    if !term_dictionary.ords_sorted_with_terms() {
+                        check_terms_req_for_unsorted_ords(&req_internal, field_name)?;
+                    }
+                }
                 AggNodeData::Terms(TermsAggReqData {
                     accessor,
                     missing_value_for_accessor,
                     name: agg_name.to_string(),
-                    req: TermsAggregationInternal::from_req(req),
+                    req: req_internal,
                     sub_aggregations: sub_aggs.clone(),
                     allowed_term_ids,
                     is_top_level,
@@ -1025,6 +1031,30 @@ fn build_terms_or_cardinality_nodes(
     }
 
     Ok(nodes)
+}
+
+/// Rejects the terms options that require term ords sorted with the terms.
+///
+/// Some computed text sources assign term ords in first-seen order:
+/// - with `_key` ordering, the segment cut-off selects the buckets by term ord.
+/// - `min_doc_count: 0` requires a dictionary listing the terms of all of the docs.
+fn check_terms_req_for_unsorted_ords(
+    req: &TermsAggregationInternal,
+    field_name: &str,
+) -> crate::Result<()> {
+    if req.order.target == OrderTarget::Key {
+        return Err(crate::TantivyError::InvalidArgument(format!(
+            "terms aggregation ordered by `_key` is not supported on the computed value source \
+             `{field_name}`"
+        )));
+    }
+    if req.min_doc_count == 0 {
+        return Err(crate::TantivyError::InvalidArgument(format!(
+            "terms aggregation with `min_doc_count: 0` is not supported on the computed value \
+             source `{field_name}`"
+        )));
+    }
+    Ok(())
 }
 
 /// Builds a single BitSet of allowed term ordinals for a string dictionary column according to
