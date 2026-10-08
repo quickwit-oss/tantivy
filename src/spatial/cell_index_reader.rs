@@ -15,8 +15,17 @@ pub struct CellIndexReader<'a> {
 }
 
 impl<'a> CellIndexReader<'a> {
-    /// Opens a cell index reader from the raw bytes of a serialized cell index.
+    /// Opens a cell index reader from the raw bytes of a serialized cell index. Bytes too short
+    /// to hold the footer read as an empty index: the merger opens a segment that has no
+    /// geometry for the field as empty bytes.
     pub fn open(data: &'a [u8]) -> Self {
+        if data.len() < 12 {
+            return CellIndexReader {
+                data,
+                cell_count: 0,
+                dir_offset: 0,
+            };
+        }
         let n = data.len();
         let dir_offset = u64::from_le_bytes(data[n - 8..n].try_into().unwrap());
         let cell_count = u32::from_le_bytes(data[n - 12..n - 8].try_into().unwrap());
@@ -164,5 +173,18 @@ impl<'a> Iterator for CellIndexIter<'a> {
         }
         self.pos += 1;
         Some(self.reader.read_cell(offset as usize))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_open_without_a_cell_index_is_empty() {
+        let reader = CellIndexReader::open(&[]);
+        assert_eq!(reader.cell_count(), 0);
+        assert!(reader.iter().next().is_none());
+        assert!(reader.find(S2CellId::from_face(0)).is_none());
     }
 }

@@ -738,6 +738,57 @@ mod tests {
         IndexWriter, Searcher,
     };
 
+    fn spatial_index() -> crate::Result<(Index, schema::Field)> {
+        let mut schema_builder = schema::Schema::builder();
+        schema_builder.add_text_field("text", TEXT);
+        let geometry = schema_builder.add_spatial_field("geometry", schema::SPATIAL);
+        Ok((Index::create_in_ram(schema_builder.build()), geometry))
+    }
+
+    fn add_json(writer: &mut IndexWriter, index: &Index, json: &str) -> crate::Result<()> {
+        writer.add_document(TantivyDocument::parse_json(&index.schema(), json)?)?;
+        writer.commit()?;
+        Ok(())
+    }
+
+    #[test]
+    fn test_merge_spatial_segments_without_geometry() -> crate::Result<()> {
+        let (index, geometry) = spatial_index()?;
+        let mut writer: IndexWriter = index.writer_for_tests()?;
+        writer.set_merge_policy(Box::new(NoMergePolicy));
+        add_json(&mut writer, &index, r#"{"text": "no place"}"#)?;
+        add_json(&mut writer, &index, r#"{"text": "nowhere"}"#)?;
+        add_json(
+            &mut writer,
+            &index,
+            r#"{"text": "here", "geometry": {"type": "Point", "coordinates": [19.94, 50.06]}}"#,
+        )?;
+        let segment_ids = index.searchable_segment_ids()?;
+        assert_eq!(segment_ids.len(), 3);
+        writer.merge(&segment_ids).wait()?;
+
+        let searcher = index.reader()?.searcher();
+        assert_eq!(searcher.segment_readers().len(), 1);
+        assert_eq!(searcher.num_docs(), 3);
+        let krakow =
+            crate::query::SpatialQuery::from_bounds(geometry, [[19.9, 50.0], [20.0, 50.1]]);
+        assert_eq!(searcher.search(&krakow, &Count)?, 1);
+        Ok(())
+    }
+
+    #[test]
+    fn test_merge_spatial_field_never_written() -> crate::Result<()> {
+        let (index, _) = spatial_index()?;
+        let mut writer: IndexWriter = index.writer_for_tests()?;
+        writer.set_merge_policy(Box::new(NoMergePolicy));
+        add_json(&mut writer, &index, r#"{"text": "no place"}"#)?;
+        add_json(&mut writer, &index, r#"{"text": "nowhere"}"#)?;
+        let segment_ids = index.searchable_segment_ids()?;
+        writer.merge(&segment_ids).wait()?;
+        assert_eq!(index.reader()?.searcher().num_docs(), 2);
+        Ok(())
+    }
+
     #[test]
     fn test_index_merger_no_deletes() -> crate::Result<()> {
         let mut schema_builder = schema::Schema::builder();
