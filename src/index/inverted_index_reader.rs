@@ -1,6 +1,8 @@
 use std::io;
 
 use common::json_path_writer::JSON_END_OF_PATH;
+#[cfg(feature = "quickwit")]
+use common::BitSet;
 use common::{BinarySerializable, ByteCount};
 #[cfg(feature = "quickwit")]
 use futures_util::{FutureExt, StreamExt, TryStreamExt};
@@ -14,6 +16,8 @@ use crate::positions::PositionReader;
 use crate::postings::{BlockSegmentPostings, SegmentPostings, TermInfo};
 use crate::schema::{IndexRecordOption, Term, Type};
 use crate::termdict::TermDictionary;
+#[cfg(feature = "quickwit")]
+use crate::Executor;
 
 #[cfg(feature = "quickwit")]
 // This is how many bytes we can hope to receive during a TTFB from S3 (~80MiB/s, 50ms).
@@ -487,22 +491,18 @@ impl InvertedIndexReader {
         Ok(postings_found)
     }
 
-    /// Warms postings for one automaton and returns the matching term infos.
+    /// Warms postings for one automaton and returns a bitset of matching document IDs.
     ///
-    /// The term infos belong to this reader and allow reading the warmed postings without
-    /// searching the dictionary again. The directory must cache asynchronous reads for
-    /// subsequent synchronous reads. The executor must run independently of this future and
-    /// complete only after its task finishes. That task enumerates terms and queues downloads;
-    /// it does not wait for I/O or decode postings.
-    pub async fn warm_postings_automaton_with_term_infos<
-        A: Automaton + Send + 'static,
-        E: FnOnce(Box<dyn FnOnce() -> io::Result<()> + Send>) -> F,
-        F: std::future::Future<Output = io::Result<()>>,
-    >(
+    /// `max_doc` must be the segment's maximum document ID plus one, including deleted documents.
+    /// The directory must cache asynchronous reads for subsequent synchronous reads.
+    /// Term enumeration and postings decoding run on the executor. Use a thread-pool executor
+    /// to keep this CPU work off the calling thread.
+    pub async fn warm_postings_automaton_with_bitset<A: Automaton + Send + 'static>(
         &self,
         automaton: A,
-        executor: E,
-    ) -> io::Result<Vec<TermInfo>>
+        max_doc: u32,
+        executor: &Executor,
+    ) -> io::Result<BitSet>
     where
         A::State: Clone,
     {
@@ -514,31 +514,50 @@ impl InvertedIndexReader {
         drop(term_info_stream);
 
         let (posting_range_sender, posting_range_receiver) = futures_channel::mpsc::unbounded();
-        let (term_infos_sender, term_infos_receiver) = futures_channel::oneshot::channel();
         let termdict = self.termdict.clone();
         let cpu_bound_task = move || {
-            let mut stream = termdict.search(automaton).into_stream()?;
-            let matching_terms: Vec<TermInfo> =
-                std::iter::from_fn(|| stream.next().map(|(_, info)| info.clone())).collect();
-            send_coalesced_posting_ranges(
-                matching_terms
-                    .iter()
-                    .map(|info| info.postings_range.clone()),
-                posting_range_sender,
-            )?;
-            term_infos_sender
-                .send(matching_terms)
-                .map_err(|_| io::Error::other("failed to send automaton term infos"))?;
-            Ok(())
+            let mut stream = termdict.search(&automaton).into_stream()?;
+            let posting_ranges = std::iter::from_fn(move || {
+                stream.next().map(|(_, info)| info.postings_range.clone())
+            });
+            send_coalesced_posting_ranges(posting_ranges, posting_range_sender)?;
+            Ok(automaton)
         };
-        futures_util::future::try_join(
-            executor(Box::new(cpu_bound_task)),
+        let task_handle = executor.spawn_blocking(cpu_bound_task).map(|result| {
+            result.map_err(|_| io::Error::other("automaton warmup task panicked"))?
+        });
+        let (automaton, _) = futures_util::future::try_join(
+            task_handle,
             self.download_posting_ranges(posting_range_receiver),
         )
         .await?;
-        term_infos_receiver
+
+        let termdict = self.termdict.clone();
+        let postings_file_slice = self.postings_file_slice.clone();
+        let record_option = self.record_option;
+        let cpu_bound_task = move || {
+            let mut bitset = BitSet::with_max_value(max_doc);
+            let mut stream = termdict.search(automaton).into_stream()?;
+            while let Some((_, term_info)) = stream.next() {
+                let mut postings = BlockSegmentPostings::open(
+                    term_info.doc_freq,
+                    postings_file_slice.slice(term_info.postings_range.clone()),
+                    record_option,
+                    IndexRecordOption::Basic,
+                )?;
+                while !postings.docs().is_empty() {
+                    for &doc in postings.docs() {
+                        bitset.insert(doc);
+                    }
+                    postings.advance();
+                }
+            }
+            Ok(bitset)
+        };
+        executor
+            .spawn_blocking(cpu_bound_task)
             .await
-            .map_err(|_| io::Error::other("automaton term info task stopped unexpectedly"))
+            .map_err(|_| io::Error::other("automaton bitset task panicked"))?
     }
 
     /// Warmup the block postings for all terms.
@@ -566,30 +585,14 @@ impl InvertedIndexReader {
 
 #[cfg(all(test, feature = "quickwit"))]
 mod tests {
-    use std::io;
-
-    use futures::channel::oneshot;
     use tantivy_fst::Regex;
 
+    use crate::query::BitSetDocSet;
     use crate::schema::{Schema, STRING};
-    use crate::{DocSet, Index, IndexWriter, TERMINATED};
-
-    fn execute_on_thread(
-        task: Box<dyn FnOnce() -> io::Result<()> + Send>,
-    ) -> impl std::future::Future<Output = io::Result<()>> {
-        let (sender, receiver) = oneshot::channel();
-        std::thread::spawn(move || {
-            let _ = sender.send(task());
-        });
-        async move {
-            receiver
-                .await
-                .map_err(|_| io::Error::other("executor task panicked"))?
-        }
-    }
+    use crate::{DocSet, Executor, Index, IndexWriter, TERMINATED};
 
     #[test]
-    fn test_warm_postings_automaton_with_term_infos() -> crate::Result<()> {
+    fn test_warm_postings_automaton_with_bitset() -> crate::Result<()> {
         let mut schema_builder = Schema::builder();
         let field = schema_builder.add_text_field("field", STRING);
         let index = Index::create_in_ram(schema_builder.build());
@@ -606,46 +609,43 @@ mod tests {
         let searcher = index.reader()?.searcher();
         let segment_reader = searcher.segment_reader(0);
         let inverted_index = segment_reader.inverted_index(field)?;
+        let executor = Executor::multi_thread(1, "warmup-test-")?;
         for (pattern, expected) in [
             ("b.*", vec![0, 2]),
             ("z.*", vec![]),
             ("a.*", [vec![0, 1], (4..264).collect()].concat()),
             (".*", (0..264).collect()),
         ] {
-            let term_infos = futures::executor::block_on(
-                inverted_index.warm_postings_automaton_with_term_infos(
+            let bitset =
+                futures::executor::block_on(inverted_index.warm_postings_automaton_with_bitset(
                     Regex::new(pattern).unwrap(),
-                    execute_on_thread,
-                ),
-            )?;
+                    segment_reader.max_doc(),
+                    &executor,
+                ))?;
+            assert_eq!(bitset.len(), expected.len());
+            let mut docset = BitSetDocSet::from(bitset);
             let mut docs = Vec::new();
-            for term_info in term_infos {
-                let mut postings = inverted_index.read_postings_from_terminfo(
-                    &term_info,
-                    crate::schema::IndexRecordOption::Basic,
-                )?;
-                while postings.doc() != TERMINATED {
-                    docs.push(postings.doc());
-                    postings.advance();
-                }
+            while docset.doc() != TERMINATED {
+                docs.push(docset.doc());
+                docset.advance();
             }
-            docs.sort_unstable();
-            docs.dedup();
             assert_eq!(docs, expected);
         }
         Ok(())
     }
 
     #[test]
-    fn test_warm_postings_automaton_with_term_infos_empty_index() -> crate::Result<()> {
+    fn test_warm_postings_automaton_with_bitset_empty_index() -> crate::Result<()> {
         let inverted_index =
             super::InvertedIndexReader::empty(crate::schema::IndexRecordOption::Basic);
-        let term_infos =
-            futures::executor::block_on(inverted_index.warm_postings_automaton_with_term_infos(
+        let executor = Executor::single_thread();
+        let bitset =
+            futures::executor::block_on(inverted_index.warm_postings_automaton_with_bitset(
                 Regex::new(".*").unwrap(),
-                execute_on_thread,
+                0,
+                &executor,
             ))?;
-        assert!(term_infos.is_empty());
+        assert_eq!(bitset.len(), 0);
         Ok(())
     }
 }
