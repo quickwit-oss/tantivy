@@ -1097,7 +1097,7 @@ mod tests {
     }
 
     #[test]
-    fn histogram_counts_repeated_documents_in_separate_calls() -> crate::Result<()> {
+    fn histogram_counts_documents_in_separate_calls() -> crate::Result<()> {
         use crate::aggregation::agg_data::{
             build_aggregations_data_from_req, build_segment_agg_collectors, AggregationsSegmentCtx,
         };
@@ -1109,6 +1109,7 @@ mod tests {
         let value = schema.add_u64_field("value", FAST);
         let index = Index::create_in_ram(schema.build());
         let mut writer = index.writer_with_num_threads(1, 20_000_000)?;
+        writer.add_document(doc!(value => 12u64, value => 15u64))?;
         writer.add_document(doc!(value => 12u64, value => 15u64))?;
         writer.commit()?;
         let reader = index.reader()?;
@@ -1123,7 +1124,7 @@ mod tests {
         let mut collector = build_segment_agg_collectors(&mut ctx, agg_tree)?;
         collector.prepare_max_bucket(0, &ctx)?;
         collector.collect(0, &[0], &mut ctx)?;
-        collector.collect(0, &[0], &mut ctx)?;
+        collector.collect(0, &[1], &mut ctx)?;
         collector.flush(&mut ctx)?;
         let mut result = IntermediateAggregationResults::default();
         collector.add_intermediate_aggregation_result(&ctx, &mut result, 0)?;

@@ -148,12 +148,25 @@ impl ColumnBlockAccessor {
             return;
         }
 
-        for &doc in &self.missing_docids_cache {
-            let pos = self.docid_cache.partition_point(|&hit| hit < doc);
-            // TODO insert by back to avoid shifting the same elements
-            // self.missing_docids_cache.len() times
-            self.docid_cache.insert(pos, doc);
-            self.val_cache.insert(pos, missing);
+        // Merge backwards so each present value moves at most once, without overwriting
+        // unread values. Both document runs are already sorted.
+        let mut remaining_values = self.docid_cache.len();
+        let mut remaining_missing = self.missing_docids_cache.len();
+        let len = remaining_values + remaining_missing;
+        self.docid_cache.resize(len, 0);
+        self.val_cache.resize(len, missing);
+        while remaining_missing > 0 {
+            let doc = self.missing_docids_cache[remaining_missing - 1];
+            let target = remaining_values + remaining_missing - 1;
+            if remaining_values > 0 && self.docid_cache[remaining_values - 1] > doc {
+                remaining_values -= 1;
+                self.docid_cache[target] = self.docid_cache[remaining_values];
+                self.val_cache[target] = self.val_cache[remaining_values];
+            } else {
+                remaining_missing -= 1;
+                self.docid_cache[target] = doc;
+                self.val_cache[target] = missing;
+            }
         }
     }
 
@@ -590,6 +603,44 @@ mod tests {
             accessor.iter_docid_vals(&docs).collect::<Vec<_>>(),
             [(0, 99), (1, 10), (2, 99), (4, 40), (7, 70), (8, 99)]
         );
+    }
+
+    #[test]
+    fn test_multivalued_missing_merge() {
+        let docs = [0, 2, 5, 9];
+        let mut accessor = ColumnBlockAccessor::default();
+        // Cover missing documents before, between, and after present documents, including
+        // entirely missing/present batches. Preserve repeated values and their order.
+        for present_docs in 0..1 << docs.len() {
+            let mut entries = Vec::new();
+            let mut expected = Vec::new();
+            for (idx, &doc) in docs.iter().enumerate() {
+                if present_docs & (1 << idx) == 0 {
+                    expected.push((doc, 99));
+                } else {
+                    let values = [(doc, 20), (doc, 10), (doc, 20)];
+                    entries.extend(values);
+                    expected.extend(values);
+                }
+            }
+            let mut source = TestValueSource {
+                cardinality: Cardinality::Multivalued,
+                entries,
+            };
+            accessor.fetch_block_with_missing_ordered(&docs, &mut source, Some(99), true);
+            assert_eq!(
+                accessor.iter_docid_vals(&docs).collect::<Vec<_>>(),
+                expected
+            );
+        }
+
+        let mut source = TestValueSource {
+            cardinality: Cardinality::Multivalued,
+            entries: Vec::new(),
+        };
+        accessor.fetch_block_with_missing_ordered(&[], &mut source, Some(99), true);
+        assert!(accessor.values().is_empty());
+        assert!(accessor.docids().is_empty());
     }
 
     #[test]
