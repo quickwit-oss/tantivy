@@ -118,21 +118,25 @@ impl<TDocSet: DocSet> Intersection<TDocSet, TDocSet> {
     }
 }
 
-impl<TDocSet: DocSet, TOtherDocSet: DocSet> DocSet for Intersection<TDocSet, TOtherDocSet> {
-    #[inline]
-    fn advance(&mut self) -> DocId {
+impl<TDocSet: DocSet, TOtherDocSet: DocSet> Intersection<TDocSet, TOtherDocSet> {
+    /// Positions all docsets on the first document of the intersection that is `>= candidate`,
+    /// and returns it (or `TERMINATED`).
+    ///
+    /// Preconditions:
+    /// - `left` is in a valid state and `left.doc() <= candidate`.
+    /// - `right` and `others` are either in a valid state with `doc() < candidate`, or in the
+    ///   invalid state left by a `seek_danger` call with a target `< candidate`. In both cases,
+    ///   calling `seek_danger(candidate)` on them is legal.
+    #[inline(always)]
+    fn seek_from_candidate(&mut self, mut candidate: DocId) -> DocId {
         let (left, right) = (&mut self.left, &mut self.right);
 
         // Invariant:
         // - candidate is always <= to the next document in the intersection.
         // - candidate strictly increases at every occurence of the loop.
-        let mut candidate = left.doc() + 1;
-
+        //
         // Termination: candidate strictly increases.
         'outer: while candidate < TERMINATED {
-            // As we enter the loop, we should always have prev_intersection_doc < candidate <=
-            // next_intersection_doc.
-
             candidate = left.seek(candidate);
 
             // Left is positionned on `candidate`.
@@ -179,15 +183,28 @@ impl<TDocSet: DocSet, TOtherDocSet: DocSet> DocSet for Intersection<TDocSet, TOt
 
         TERMINATED
     }
+}
+
+impl<TDocSet: DocSet, TOtherDocSet: DocSet> DocSet for Intersection<TDocSet, TOtherDocSet> {
+    #[inline]
+    fn advance(&mut self) -> DocId {
+        // All docsets are aligned on `self.doc()`, so `self.doc() + 1` satisfies the
+        // preconditions of `seek_from_candidate`.
+        // No overflow: `self.doc() <= TERMINATED < u32::MAX`.
+        let candidate = self.left.doc() + 1;
+        self.seek_from_candidate(candidate)
+    }
 
     fn seek(&mut self, target: DocId) -> DocId {
-        self.left.seek(target);
-        let mut docsets: Vec<&mut dyn DocSet> = vec![&mut self.left, &mut self.right];
-        for docset in &mut self.others {
-            docsets.push(docset);
+        let doc = self.left.doc();
+        debug_assert!(target >= doc);
+        // `right` and `others` are aligned on `doc`. We need `target > doc` before calling
+        // `seek_danger(target)` on them.
+        // This also covers the terminated case, as `target <= TERMINATED`.
+        if target <= doc {
+            return doc;
         }
-        let doc = go_to_first_doc(&mut docsets[..]);
-        debug_assert!(docsets.iter().all(|docset| docset.doc() == doc));
+        let doc = self.seek_from_candidate(target);
         debug_assert!(doc >= target);
         doc
     }
@@ -510,6 +527,51 @@ mod tests {
                 intersection.advance();
             }
             assert_eq!(intersection.doc(), TERMINATED);
+        }
+    }
+
+    proptest! {
+        #[test]
+        fn prop_test_intersection_seek(
+            a in sorted_deduped_vec(200, 60),
+            b in sorted_deduped_vec(200, 60),
+            c in sorted_deduped_vec(200, 60),
+            // Each step is either a seek (to `doc + delta`) or an advance (`None`).
+            steps in prop::collection::vec(prop::option::of(0u32..30u32), 0..20),
+        ) {
+            let expected: Vec<u32> = a.iter()
+                .cloned()
+                .filter(|doc| b.contains(doc) && c.contains(doc))
+                .collect();
+            let mut intersection = Intersection::new(
+                vec![
+                    VecDocSet::from(a.clone()),
+                    VecDocSet::from(b.clone()),
+                    VecDocSet::from(c.clone()),
+                ],
+                200,
+            );
+            for step in steps {
+                let doc = intersection.doc();
+                if doc == TERMINATED {
+                    break;
+                }
+                let (returned_doc, expected_doc) = match step {
+                    Some(delta) => {
+                        let target = doc + delta;
+                        let expected_doc = expected.iter().cloned().find(|&expected_doc| expected_doc >= target)
+                            .unwrap_or(TERMINATED);
+                        (intersection.seek(target), expected_doc)
+                    }
+                    None => {
+                        let expected_doc = expected.iter().cloned().find(|&expected_doc| expected_doc > doc)
+                            .unwrap_or(TERMINATED);
+                        (intersection.advance(), expected_doc)
+                    }
+                };
+                prop_assert_eq!(returned_doc, expected_doc);
+                prop_assert_eq!(intersection.doc(), expected_doc);
+            }
         }
     }
 
