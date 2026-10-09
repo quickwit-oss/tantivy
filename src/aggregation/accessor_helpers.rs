@@ -91,7 +91,7 @@ pub(crate) fn get_value_source(
         return Ok(registered);
     }
     if let Some(source) =
-        open_physical_sources(reader, field_name, allowed_column_types, true)?.pop()
+        open_column_value_sources(reader, field_name, allowed_column_types, true)?.pop()
     {
         return Ok(source);
     }
@@ -134,7 +134,7 @@ pub(crate) fn get_all_value_sources(
         return Ok(vec![registered]);
     }
     let mut sources: Vec<Box<dyn ValueSource>> =
-        open_physical_sources(reader, field_name, allowed_column_types, false)?;
+        open_column_value_sources(reader, field_name, allowed_column_types, false)?;
     if sources.is_empty() {
         sources.push(Box::new((
             Column::build_empty_column(reader.num_docs()),
@@ -150,7 +150,7 @@ pub(crate) fn get_all_value_sources(
 /// columns use their monotonic `u64` mapping.
 ///
 /// If `first_only` is true, at most the first allowed column is returned.
-fn open_physical_sources(
+fn open_column_value_sources(
     reader: &SegmentReader,
     field_name: &str,
     allowed_column_types: Option<&[ColumnType]>,
@@ -160,27 +160,39 @@ fn open_physical_sources(
         reader.fast_fields().dynamic_column_handles(field_name)?;
     let mut sources: Vec<Box<dyn ValueSource>> = Vec::with_capacity(column_handles.len());
     for handle in column_handles {
-        let column_type = handle.column_type();
+        // We skip columns with a type that is not allowed.
         if let Some(allowed_column_types) = allowed_column_types {
-            if !allowed_column_types.contains(&column_type) {
+            if !allowed_column_types.contains(&handle.column_type()) {
                 continue;
             }
         }
-        if column_type == ColumnType::Str {
-            let DynamicColumn::Str(str_column) = handle.open()? else {
-                return Err(crate::TantivyError::InternalError(format!(
-                    "the text column of `{field_name}` could not be opened as a text column"
-                )));
-            };
-            sources.push(Box::new(str_column));
-        } else if let Some(column) = handle.open_u64_lenient()? {
-            sources.push(Box::new((column, column_type)));
-        } else {
-            continue;
-        }
-        if first_only {
-            break;
+        if let Some(column) = open_column_value_source(handle)? {
+            sources.push(column);
+            if first_only {
+                break;
+            }
         }
     }
     Ok(sources)
+}
+
+/// Opens a column as a value source.
+///
+/// Returns `None` if the column cannot be read as `u64`.
+fn open_column_value_source(
+    column_handle: DynamicColumnHandle,
+) -> crate::Result<Option<Box<dyn ValueSource>>> {
+    let column_type = column_handle.column_type();
+    if column_type == ColumnType::Str {
+        let DynamicColumn::Str(str_column) = column_handle.open()? else {
+            return Err(crate::TantivyError::InternalError(
+                "the text column could not be opened as a text column".to_string(),
+            ));
+        };
+        return Ok(Some(Box::new(str_column)));
+    }
+    let Some(column) = column_handle.open_u64_lenient()? else {
+        return Ok(None);
+    };
+    Ok(Some(Box::new((column, column_type))))
 }
