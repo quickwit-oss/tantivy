@@ -288,6 +288,29 @@ impl StoreReader {
         })
     }
 
+    /// For an uncompressed store, returns the whole data section and, for each doc, its byte range
+    /// within it. This makes random access a plain slice (no skip index seek, no block cache).
+    ///
+    /// Used to rewrite the temporary doc store in a new doc order.
+    pub(crate) fn uncompressed_doc_ranges(&self) -> crate::Result<(OwnedBytes, Vec<Range<u64>>)> {
+        if self.decompressor != Decompressor::None {
+            return Err(crate::TantivyError::InternalError(
+                "uncompressed_doc_ranges requires an uncompressed doc store".to_string(),
+            ));
+        }
+        let data = self.block_data()?;
+        let mut ranges = Vec::new();
+        for checkpoint in self.block_checkpoints() {
+            let block_start = checkpoint.byte_range.start;
+            let block = &data.as_slice()[checkpoint.byte_range.clone()];
+            for doc_pos in 0..(checkpoint.doc_range.end - checkpoint.doc_range.start) {
+                let range = block_read_index(block, doc_pos)?;
+                ranges.push((block_start + range.start) as u64..(block_start + range.end) as u64);
+            }
+        }
+        Ok((data, ranges))
+    }
+
     /// Iterator over all raw Documents in their order as they are stored in the doc store.
     /// Use this, if you want to extract all Documents from the doc store.
     /// The `alive_bitset` has to be forwarded from the `SegmentReader` or the results may be wrong.

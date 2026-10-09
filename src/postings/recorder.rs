@@ -7,6 +7,51 @@ use crate::DocId;
 
 const POSITION_END: u32 = 0;
 
+/// Below this length, a comparison sort is faster than a radix sort.
+const RADIX_SORT_THRESHOLD: usize = 1_024;
+
+/// Sorts `items` by the u32 key returned by `key`.
+///
+/// When remapping a segment, postings lists come out in random new-doc-id order and must be
+/// sorted. For long lists, an LSD radix sort on 11-bit digits beats `sort_unstable`. It skips the
+/// digits that are zero for every key, so a segment of up to 2^22 docs needs only two passes.
+pub(crate) fn sort_by_doc_id<T: Copy>(
+    items: &mut Vec<T>,
+    scratch: &mut Vec<T>,
+    key: impl Fn(&T) -> u32,
+) {
+    if items.len() < RADIX_SORT_THRESHOLD {
+        items.sort_unstable_by_key(key);
+        return;
+    }
+    const BITS: u32 = 11;
+    const BUCKETS: usize = 1 << BITS;
+    let max_key = items.iter().map(&key).max().unwrap_or(0);
+    let num_passes = (32 - max_key.leading_zeros()).div_ceil(BITS);
+    scratch.clear();
+    scratch.extend_from_slice(items);
+    let mut counts = [0usize; BUCKETS];
+    for pass in 0..num_passes {
+        let shift = pass * BITS;
+        counts.fill(0);
+        for item in items.iter() {
+            counts[((key(item) >> shift) as usize) & (BUCKETS - 1)] += 1;
+        }
+        let mut sum = 0;
+        for count in counts.iter_mut() {
+            let c = *count;
+            *count = sum;
+            sum += c;
+        }
+        for item in items.iter() {
+            let bucket = ((key(item) >> shift) as usize) & (BUCKETS - 1);
+            scratch[counts[bucket]] = *item;
+            counts[bucket] += 1;
+        }
+        std::mem::swap(items, scratch);
+    }
+}
+
 #[derive(Default)]
 pub(crate) struct BufferLender {
     pub buffer_u8: Vec<u8>,
@@ -14,6 +59,9 @@ pub(crate) struct BufferLender {
     pub doc_id_and_tf: Vec<(u32, u32)>,
     pub buffer_positions_flat: Vec<u32>,
     pub doc_id_and_offsets: Vec<(u32, u32, u32)>,
+    pub scratch_u32: Vec<u32>,
+    pub scratch_doc_id_and_tf: Vec<(u32, u32)>,
+    pub scratch_doc_id_and_offsets: Vec<(u32, u32, u32)>,
 }
 
 impl BufferLender {
@@ -122,15 +170,22 @@ impl Recorder for DocIdRecorder {
         serializer: &mut FieldSerializer<'_>,
         buffer_lender: &mut BufferLender,
     ) {
-        let (buffer, doc_ids) = buffer_lender.lend_all();
+        buffer_lender.buffer_u8.clear();
+        buffer_lender.buffer_u32.clear();
+        let BufferLender {
+            buffer_u8: buffer,
+            buffer_u32: doc_ids,
+            scratch_u32,
+            ..
+        } = buffer_lender;
         // TODO avoid reading twice.
         self.stack.read_to_end(arena, buffer);
         if let Some(doc_id_map) = doc_id_map {
             let iter = get_sum_reader(VInt32Reader::new(&buffer[..]));
             doc_ids.extend(iter.map(|old_doc_id| doc_id_map.get_new_doc_id(old_doc_id)));
-            doc_ids.sort_unstable();
+            sort_by_doc_id(doc_ids, scratch_u32, |&doc| doc);
 
-            for doc in doc_ids {
+            for doc in doc_ids.iter() {
                 serializer.write_doc(*doc, 0u32, &[][..]);
             }
         } else {
@@ -216,7 +271,11 @@ impl Recorder for TermFrequencyRecorder {
                 let term_freq = u32_it.next().unwrap_or(self.current_tf);
                 doc_id_and_tf.push((doc_id_map.get_new_doc_id(doc_id), term_freq));
             }
-            doc_id_and_tf.sort_unstable_by_key(|&(doc_id, _)| doc_id);
+            sort_by_doc_id(
+                doc_id_and_tf,
+                &mut buffer_lender.scratch_doc_id_and_tf,
+                |&(doc_id, _)| doc_id,
+            );
 
             for &(doc_id, tf) in doc_id_and_tf.iter() {
                 serializer.write_doc(doc_id, tf, &[][..]);
@@ -322,7 +381,11 @@ impl Recorder for TfAndPositionRecorder {
                 ));
             }
 
-            doc_id_and_offsets.sort_unstable_by_key(|&(doc_id, _, _)| doc_id);
+            sort_by_doc_id(
+                doc_id_and_offsets,
+                &mut buffer_lender.scratch_doc_id_and_offsets,
+                |&(doc_id, _, _)| doc_id,
+            );
             for &(doc_id, start_offset, end_offset) in doc_id_and_offsets.iter() {
                 let positions =
                     &buffer_positions_flat[(start_offset as usize)..(end_offset as usize)];
@@ -362,6 +425,32 @@ impl Recorder for TfAndPositionRecorder {
 
 #[cfg(test)]
 mod tests {
+    use proptest::prelude::*;
+
+    use super::sort_by_doc_id;
+
+    proptest! {
+        #[test]
+        fn test_sort_by_doc_id_matches_sort_unstable(
+            keys in proptest::collection::vec(any::<u32>(), 0..5_000),
+            shift in 0u32..24,
+        ) {
+            // Shifting covers both short (1-2 digit) and full 32-bit keys.
+            let items: Vec<(u32, u32)> = keys.iter().enumerate().map(|(i, k)| (k >> shift, i as u32)).collect();
+            let mut expected = items.clone();
+            expected.sort_by_key(|&(k, _)| k);
+            let mut actual = items;
+            sort_by_doc_id(&mut actual, &mut Vec::new(), |&(k, _)| k);
+            // Doc ids are unique in practice; here keys may repeat, so compare the keys and the
+            // multiset of items (the short-list path is not stable).
+            let actual_keys: Vec<u32> = actual.iter().map(|&(k, _)| k).collect();
+            let expected_keys: Vec<u32> = expected.iter().map(|&(k, _)| k).collect();
+            prop_assert_eq!(actual_keys, expected_keys);
+            actual.sort();
+            expected.sort();
+            prop_assert_eq!(actual, expected);
+        }
+    }
 
     use common::write_u32_vint;
     use stacker::MemoryArena;

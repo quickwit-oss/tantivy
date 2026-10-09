@@ -641,6 +641,163 @@ mod tests_indexsorting {
         Ok(())
     }
 
+    /// A segment finalized with a doc id mapping must be identical (fast fields, stored docs,
+    /// postings with positions) to a segment built by adding the docs directly in the mapped order.
+    #[test]
+    fn test_manual_doc_id_mapping_matches_insertion_in_mapped_order() -> crate::Result<()> {
+        use rand::prelude::*;
+
+        use crate::collector::TopDocs;
+        use crate::postings::Postings;
+        use crate::query::{PhraseQuery, TermQuery};
+        use crate::schema::{Value, FAST, STRING};
+        use crate::{DocId, DocSet, Term, TERMINATED};
+
+        let mut schema_builder = Schema::builder();
+        let text = schema_builder.add_text_field("text", TEXT | STORED);
+        let tag = schema_builder.add_text_field("tag", STRING | FAST | STORED);
+        let num = schema_builder.add_u64_field("num", FAST | STORED);
+        let multi = schema_builder.add_i64_field("multi", FAST);
+        let schema = schema_builder.build();
+
+        let mut rng = StdRng::seed_from_u64(42);
+        let words = ["alpha", "beta", "gamma", "delta", "epsilon"];
+        let num_docs = 3_000usize;
+        let docs: Vec<TantivyDocument> = (0..num_docs)
+            .map(|i| {
+                let mut doc = TantivyDocument::default();
+                // Some docs have no value at all, some have several: optional and multivalued.
+                if i % 7 != 0 {
+                    let n = rng.random_range(1..12);
+                    let s: Vec<&str> = (0..n).map(|_| words[rng.random_range(0..5)]).collect();
+                    doc.add_text(text, s.join(" "));
+                }
+                if i % 3 != 0 {
+                    doc.add_text(tag, words[rng.random_range(0..5)]);
+                }
+                if i % 5 != 0 {
+                    doc.add_u64(num, i as u64);
+                }
+                for _ in 0..rng.random_range(0..4) {
+                    doc.add_i64(multi, rng.random_range(-100..100));
+                }
+                doc
+            })
+            .collect();
+        let mut new_to_old: Vec<DocId> = (0..num_docs as DocId).collect();
+        new_to_old.shuffle(&mut rng);
+
+        // Remapped at finalize.
+        let mut writer = Index::builder()
+            .schema(schema.clone())
+            .settings(IndexSettings {
+                manual_doc_id_mapping: true,
+                ..Default::default()
+            })
+            .single_segment_index_writer(RamDirectory::default(), 15_000_000)?;
+        for doc in &docs {
+            writer.add_document(doc.clone())?;
+        }
+        let mapping = DocIdMapping::new_permutation(new_to_old.clone())?;
+        let remapped = writer.finalize_with_doc_id_mapping(&mapping)?;
+
+        // Reference: same docs, inserted in the mapped order.
+        let mut writer = Index::builder()
+            .schema(schema.clone())
+            .single_segment_index_writer(RamDirectory::default(), 15_000_000)?;
+        for &old in &new_to_old {
+            writer.add_document(docs[old as usize].clone())?;
+        }
+        let reference = writer.finalize()?;
+
+        let remapped_searcher = remapped.reader()?.searcher();
+        let reference_searcher = reference.reader()?.searcher();
+        let r = remapped_searcher.segment_reader(0);
+        let e = reference_searcher.segment_reader(0);
+        assert_eq!(r.max_doc(), e.max_doc());
+
+        // Fast fields.
+        let (r_num, e_num) = (r.fast_fields().u64("num")?, e.fast_fields().u64("num")?);
+        let (r_multi, e_multi) = (r.fast_fields().i64("multi")?, e.fast_fields().i64("multi")?);
+        let (r_tag, e_tag) = (
+            r.fast_fields().str("tag")?.unwrap(),
+            e.fast_fields().str("tag")?.unwrap(),
+        );
+        for doc in 0..num_docs as DocId {
+            assert_eq!(
+                r_num.values_for_doc(doc).collect::<Vec<_>>(),
+                e_num.values_for_doc(doc).collect::<Vec<_>>()
+            );
+            assert_eq!(
+                r_multi.values_for_doc(doc).collect::<Vec<_>>(),
+                e_multi.values_for_doc(doc).collect::<Vec<_>>()
+            );
+            assert_eq!(
+                r_tag.term_ords(doc).collect::<Vec<_>>(),
+                e_tag.term_ords(doc).collect::<Vec<_>>()
+            );
+        }
+
+        // Stored docs.
+        for doc in 0..num_docs as DocId {
+            let r_doc: TantivyDocument = remapped_searcher.doc(DocAddress::new(0, doc))?;
+            let e_doc: TantivyDocument = reference_searcher.doc(DocAddress::new(0, doc))?;
+            assert_eq!(r_doc.to_json(&schema), e_doc.to_json(&schema));
+            assert_eq!(
+                r_doc.get_first(num).and_then(|v| v.as_u64()),
+                e_doc.get_first(num).and_then(|v| v.as_u64())
+            );
+        }
+
+        // Postings with positions, and a phrase query.
+        let (r_inv, e_inv) = (r.inverted_index(text)?, e.inverted_index(text)?);
+        for word in words {
+            let term = Term::from_field_text(text, word);
+            let mut r_post = r_inv
+                .read_postings(&term, IndexRecordOption::WithFreqsAndPositions)?
+                .unwrap();
+            let mut e_post = e_inv
+                .read_postings(&term, IndexRecordOption::WithFreqsAndPositions)?
+                .unwrap();
+            let (mut r_pos, mut e_pos) = (Vec::new(), Vec::new());
+            while r_post.doc() != TERMINATED {
+                assert_eq!(r_post.doc(), e_post.doc());
+                assert_eq!(r_post.term_freq(), e_post.term_freq());
+                r_post.positions(&mut r_pos);
+                e_post.positions(&mut e_pos);
+                assert_eq!(r_pos, e_pos);
+                r_post.advance();
+                e_post.advance();
+            }
+            assert_eq!(e_post.doc(), TERMINATED);
+
+            let q = TermQuery::new(Term::from_field_text(tag, word), IndexRecordOption::Basic);
+            let top = TopDocs::with_limit(num_docs).order_by_score();
+            let mut r_hits: Vec<_> = remapped_searcher
+                .search(&q, &top)?
+                .into_iter()
+                .map(|(_, a)| a)
+                .collect();
+            let mut e_hits: Vec<_> = reference_searcher
+                .search(&q, &top)?
+                .into_iter()
+                .map(|(_, a)| a)
+                .collect();
+            r_hits.sort();
+            e_hits.sort();
+            assert_eq!(r_hits, e_hits);
+        }
+        let phrase = PhraseQuery::new(vec![
+            Term::from_field_text(text, "alpha"),
+            Term::from_field_text(text, "beta"),
+        ]);
+        assert_eq!(
+            remapped_searcher.search(&phrase, &crate::collector::Count)?,
+            reference_searcher.search(&phrase, &crate::collector::Count)?
+        );
+        Ok(())
+    }
+
     #[test]
     fn test_single_segment_index_writer_with_sort_by_field_untracks_tempstore() -> crate::Result<()>
     {

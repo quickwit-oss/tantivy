@@ -202,13 +202,17 @@ impl PluginWriter for StorePluginWriter {
                 // Read from temp store and write in new order
                 let store_read = StoreReader::open(
                     segment.open_read(SegmentComponent::TempStore)?,
-                    1, /* The docstore is configured to have one doc per block, and each doc is
-                        * accessed only once: we don't need caching. */
+                    1, // Not used: docs are read through `uncompressed_doc_ranges`.
                 )?;
+                // The temp store is uncompressed: resolve every doc's byte range once, then copy
+                // docs in the new order with plain slices (no skip index seek or block cache
+                // lookup per doc).
+                let (data, doc_ranges) = store_read.uncompressed_doc_ranges()?;
+                let data = data.as_slice();
                 for old_doc_id in doc_id_map.iter_old_doc_ids() {
-                    let doc_bytes = store_read.get_document_bytes(old_doc_id)?;
+                    let range = &doc_ranges[old_doc_id as usize];
                     store_writer
-                        .store_bytes(&doc_bytes)
+                        .store_bytes(&data[range.start as usize..range.end as usize])
                         .map_err(|e| crate::TantivyError::InternalError(e.to_string()))?;
                 }
 

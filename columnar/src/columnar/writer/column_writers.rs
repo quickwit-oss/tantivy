@@ -35,6 +35,53 @@ pub struct ColumnWriter {
     values: ExpUnrolledLinkedList,
 }
 
+/// Reorders a serialized operation buffer by new doc id.
+///
+/// The buffer is a sequence of runs `NewDoc(doc) Value* ...`, one per doc (each doc appears at
+/// most once, in increasing old doc order). Runs are moved as raw byte spans; only the `NewDoc`
+/// markers are rewritten, so values are never deserialized. Runs are ordered by placing them in a
+/// table indexed by new doc id, which is O(num_docs) instead of a comparison sort.
+fn remap_operations<V: SymbolValue>(buffer: &mut Vec<u8>, old_to_new_ids: &[RowId]) {
+    // (new_doc, start of the values of the run, end of the run)
+    let mut runs: Vec<(RowId, u32, u32)> = Vec::new();
+    let mut cursor: &[u8] = &buffer[..];
+    let total_len = buffer.len();
+    let mut current: Option<(RowId, u32)> = None;
+    loop {
+        let pos = (total_len - cursor.len()) as u32;
+        let Some(op) = ColumnOperation::<V>::deserialize(&mut cursor) else {
+            if let Some((new_doc, start)) = current {
+                runs.push((new_doc, start, pos));
+            }
+            break;
+        };
+        if let ColumnOperation::NewDoc(doc) = op {
+            if let Some((new_doc, start)) = current {
+                runs.push((new_doc, start, pos));
+            }
+            let values_start = (total_len - cursor.len()) as u32;
+            current = Some((old_to_new_ids[doc as usize], values_start));
+        } else {
+            debug_assert!(current.is_some(), "value before the first NewDoc");
+        }
+    }
+    // Place runs by new doc id. Doc ids are dense in [0, old_to_new_ids.len()).
+    let mut slot_of_new_doc: Vec<u32> = vec![u32::MAX; old_to_new_ids.len()];
+    for (run_idx, &(new_doc, _, _)) in runs.iter().enumerate() {
+        slot_of_new_doc[new_doc as usize] = run_idx as u32;
+    }
+    let mut output: Vec<u8> = Vec::with_capacity(buffer.len() + 8);
+    for &run_idx in slot_of_new_doc.iter() {
+        if run_idx == u32::MAX {
+            continue;
+        }
+        let (new_doc, start, end) = runs[run_idx as usize];
+        output.extend_from_slice(ColumnOperation::<V>::NewDoc(new_doc).serialize().as_ref());
+        output.extend_from_slice(&buffer[start as usize..end as usize]);
+    }
+    *buffer = output;
+}
+
 impl ColumnWriter {
     /// Returns an iterator over the Symbol that have been recorded
     /// for the given column.
@@ -47,24 +94,7 @@ impl ColumnWriter {
         buffer.clear();
         self.values.read_to_end(arena, buffer);
         if let Some(old_to_new_ids) = old_to_new_ids_opt {
-            // TODO avoid the extra deserialization / serialization.
-            let mut sorted_ops: Vec<(RowId, ColumnOperation<V>)> = Vec::new();
-            let mut new_doc = 0u32;
-            let mut cursor = &buffer[..];
-            for op in std::iter::from_fn(|| ColumnOperation::<V>::deserialize(&mut cursor)) {
-                if let ColumnOperation::NewDoc(doc) = &op {
-                    new_doc = old_to_new_ids[*doc as usize];
-                    sorted_ops.push((new_doc, ColumnOperation::NewDoc(new_doc)));
-                } else {
-                    sorted_ops.push((new_doc, op));
-                }
-            }
-            // stable sort is crucial here.
-            sorted_ops.sort_by_key(|(new_doc_id, _)| *new_doc_id);
-            buffer.clear();
-            for (_, op) in sorted_ops {
-                buffer.extend_from_slice(op.serialize().as_ref());
-            }
+            remap_operations::<V>(buffer, old_to_new_ids);
         }
         let mut cursor: &[u8] = &buffer[..];
         std::iter::from_fn(move || ColumnOperation::deserialize(&mut cursor))
