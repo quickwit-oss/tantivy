@@ -191,7 +191,16 @@ impl VInt {
 }
 
 impl BinarySerializable for VInt {
+    #[inline]
     fn serialize<W: Write + ?Sized>(&self, writer: &mut W) -> io::Result<()> {
+        // Values below 128 encode to a single byte (the value with the stop bit set). When
+        // serializing documents, VInts are mostly field counts and string/bytes length prefixes,
+        // which are almost always below 128. Writing a fixed one-byte array compiles to a single
+        // store; the general path copies a slice whose length is only known at runtime, which
+        // becomes a `memcpy` call.
+        if self.0 < 128 {
+            return writer.write_all(&[self.0 as u8 | STOP_BIT]);
+        }
         let mut buffer = [0u8; 10];
         let num_bytes = self.serialize_into(&mut buffer);
         writer.write_all(&buffer[0..num_bytes])
