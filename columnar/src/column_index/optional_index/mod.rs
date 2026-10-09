@@ -330,6 +330,10 @@ impl OptionalIndex {
         doc_ids_out: &mut Vec<DocId>,
         row_ids_out: &mut Vec<RowId>,
     ) {
+        // At most one output per queried doc id: reserving upfront avoids reallocations
+        // in the middle of the batch.
+        doc_ids_out.reserve(doc_ids.len());
+        row_ids_out.reserve(doc_ids.len());
         // TODO: change the API to require sorted input, and remove the fallback.
         if !doc_ids.is_sorted() {
             for &doc_id in doc_ids {
@@ -357,7 +361,7 @@ impl OptionalIndex {
                 self.block(block_meta).rank_if_exists_batch(
                     doc_ids[block_doc_start..block_doc_end]
                         .iter()
-                        .map(|doc_id| (doc_id - block_doc_id_start) as u16),
+                        .map(|doc_id| row_addr_from_row_id(*doc_id).in_block_row_id),
                     |in_block_doc_id, in_block_row_id| {
                         doc_ids_out.push(block_doc_id_start + in_block_doc_id as u32);
                         row_ids_out.push(row_id_start + in_block_row_id as u32);
