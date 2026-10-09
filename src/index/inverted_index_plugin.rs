@@ -201,10 +201,21 @@ impl InvertedIndexPluginWriter {
         doc_id: DocId,
         doc: &D,
     ) -> crate::Result<()> {
-        let vals_grouped_by_field = doc
+        // Values must be grouped by field. Documents usually list their fields in order: only
+        // sort (which allocates) when they do not.
+        let is_sorted = doc
             .iter_fields_and_values()
-            .sorted_by_key(|(field, _)| *field)
-            .chunk_by(|(field, _)| *field);
+            .map(|(field, _)| field)
+            .is_sorted();
+        let field_values = if is_sorted {
+            itertools::Either::Left(doc.iter_fields_and_values())
+        } else {
+            itertools::Either::Right(
+                doc.iter_fields_and_values()
+                    .sorted_by_key(|(field, _)| *field),
+            )
+        };
+        let vals_grouped_by_field = field_values.chunk_by(|(field, _)| *field);
 
         for (field, field_values) in &vals_grouped_by_field {
             let values = field_values.map(|el| el.1);
