@@ -4,8 +4,7 @@ use std::net::Ipv6Addr;
 
 use columnar::column_values::CompactSpaceU64Accessor;
 use columnar::{
-    ColumnType, Dictionary, MonotonicallyMappableToU128, MonotonicallyMappableToU64,
-    NumericalValue, StrColumn,
+    ColumnType, MonotonicallyMappableToU128, MonotonicallyMappableToU64, NumericalValue, StrColumn,
 };
 use common::{BitSet, TinySet};
 use rustc_hash::FxHashMap;
@@ -26,7 +25,7 @@ use crate::aggregation::intermediate_agg_result::{
     IntermediateKey, IntermediateTermBucketEntry, IntermediateTermBucketResult,
 };
 use crate::aggregation::segment_agg_result::{BucketIdProvider, SegmentAggregationCollector};
-use crate::aggregation::{format_date, BucketId, Key, ValueSource, ValueSourceDictionary};
+use crate::aggregation::{format_date, BucketId, Key, ValueSource};
 use crate::error::DataCorruption;
 use crate::TantivyError;
 
@@ -1370,12 +1369,12 @@ where
 
         let column_type = term_req.accessor.column_type();
         if column_type == ColumnType::Str {
-            // A text source without a dictionary has no value (e.g. the empty-column shim).
-            let fallback_dict = Dictionary::empty();
-            let term_dict: &dyn ValueSourceDictionary = term_req
-                .accessor
-                .term_dictionary()
-                .unwrap_or(&fallback_dict);
+            // `ValueSource::term_dictionary` guarantees a dictionary for every `Str` source.
+            let Some(term_dict) = term_req.accessor.term_dictionary() else {
+                return Err(crate::TantivyError::InternalError(
+                    "a `Str` value source must provide a term dictionary".to_string(),
+                ));
+            };
 
             // Collect into a map to dedup by key, then flush into `out`. Two cases need it: a real
             // term may equal the `missing` placeholder, and the min_doc_count==0 fill must skip
@@ -1430,7 +1429,7 @@ where
             // the dictionary, but not part of the search results.
             if term_req.req.min_doc_count == 0 {
                 // That feature only works on physical str column (with a term dictionary)
-                if let Some(str_column) = term_req.accessor.as_str_column() {
+                if let Some(str_column) = term_req.accessor.as_physical_str_column() {
                     fill_zero_doc_count_terms(str_column, term_req, &mut intermediate_entry_map)?;
                 }
             }

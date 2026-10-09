@@ -225,9 +225,10 @@ impl<S: TermOrdAccumulator + 'static> SegmentAggregationCollector
     ) -> crate::Result<()> {
         self.prepare_max_bucket(bucket_id, agg_data)?;
         let req_data = &self.req_data;
+        // `ValueSource::term_dictionary` guarantees a dictionary for every `Str` source.
         let Some(term_dictionary) = req_data.accessor.term_dictionary() else {
             return Err(crate::TantivyError::InternalError(
-                "a str cardinality collector requires a term dictionary".to_string(),
+                "a `Str` value source must provide a term dictionary".to_string(),
             ));
         };
         // Strings are dictionary encoded. Fetching the terms associated to strings

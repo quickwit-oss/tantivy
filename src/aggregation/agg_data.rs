@@ -988,21 +988,19 @@ fn build_terms_or_cardinality_nodes(
                         // When excluding, the behavior could be to include non-string values
                         continue;
                     }
-                    if let Some(str_col) = accessor.as_str_column() {
-                        allowed_term_ids = build_allowed_term_ids_for_str(
-                            str_col,
-                            &req.include,
-                            &req.exclude,
-                            missing.is_some(),
-                        )?;
-                    } else if accessor.term_dictionary().is_some() {
-                        // Filters are resolved by searching the sstable dictionary.
+                    // Filters are resolved by searching the sstable dictionary.
+                    let Some(str_col) = accessor.as_physical_str_column() else {
                         return Err(crate::TantivyError::InvalidArgument(format!(
                             "terms aggregation with `include` / `exclude` requires a physical \
                              text field, but `{field_name}` is a computed value source"
                         )));
-                    }
-                    // Otherwise, the source has no value: there is nothing to filter.
+                    };
+                    allowed_term_ids = build_allowed_term_ids_for_str(
+                        str_col,
+                        &req.include,
+                        &req.exclude,
+                        missing.is_some(),
+                    )?;
                 };
                 AggNodeData::Terms(TermsAggReqData {
                     accessor,

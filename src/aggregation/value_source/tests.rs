@@ -209,3 +209,78 @@ fn test_is_contiguous() {
     assert!(!is_contiguous(&[5, 7, 8]));
     assert!(!is_contiguous(&[0, 1, 3]));
 }
+
+/// A computed `Str` source without any value. It returns an empty dictionary, as required by
+/// `ValueSource::term_dictionary`.
+struct EmptyStrValueSource(columnar::Dictionary);
+
+impl std::fmt::Debug for EmptyStrValueSource {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("EmptyStrValueSource").finish()
+    }
+}
+
+impl ValueSource for EmptyStrValueSource {
+    fn column_type(&self) -> ColumnType {
+        ColumnType::Str
+    }
+
+    fn load_block(
+        &mut self,
+        _docs: &[DocId],
+        values: &mut Vec<u64>,
+        docids: &mut Vec<DocId>,
+        row_ids: &mut Vec<columnar::RowId>,
+    ) -> Cardinality {
+        values.clear();
+        docids.clear();
+        row_ids.clear();
+        Cardinality::Optional
+    }
+
+    fn term_dictionary(&self) -> Option<&dyn ValueSourceDictionary> {
+        Some(&self.0)
+    }
+}
+
+struct EmptyStrValueSourceProvider;
+
+impl ValueSourceProvider for EmptyStrValueSourceProvider {
+    fn for_segment(
+        &self,
+        _reader: &SegmentReader,
+        _allowed_column_types: Option<&[ColumnType]>,
+    ) -> crate::Result<Box<dyn ValueSource>> {
+        Ok(Box::new(EmptyStrValueSource(columnar::Dictionary::empty())))
+    }
+}
+
+#[test]
+fn test_empty_computed_str_source() {
+    let index = index_with_scores(&[1, 2, 3]);
+    let mut registry = ValueSourceRegistry::default();
+    registry.register("empty_str", Arc::new(EmptyStrValueSourceProvider));
+    let result = run_agg_with_registry(
+        &index,
+        serde_json::json!({
+            "card": { "cardinality": { "field": "empty_str" } },
+            "by_term": { "terms": { "field": "empty_str" } }
+        }),
+        registry,
+    );
+    assert_eq!(result["card"]["value"], 0.0);
+    assert_eq!(result["by_term"]["buckets"].as_array().unwrap().len(), 0);
+}
+
+#[test]
+fn test_cardinality_on_absent_field_with_str_missing() {
+    let index = index_with_scores(&[1, 2, 3]);
+    let result = run_agg_with_registry(
+        &index,
+        serde_json::json!({
+            "card": { "cardinality": { "field": "absent", "missing": "foo" } }
+        }),
+        ValueSourceRegistry::default(),
+    );
+    assert_eq!(result["card"]["value"], 1.0);
+}

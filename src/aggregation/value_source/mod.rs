@@ -63,14 +63,14 @@ pub trait ValueSource: std::fmt::Debug {
     /// For the paths that need the full sstable dictionary (regex search, streaming all of the
     /// terms) rather than resolving ords. `Some` implies that `term_dictionary()` is `Some` and
     /// that its ords are sorted with the terms.
-    fn as_str_column(&self) -> Option<&StrColumn> {
+    fn as_physical_str_column(&self) -> Option<&StrColumn> {
         None
     }
 
     /// Dictionary resolving the term ords returned by `load_block`, for `Str` sources.
     ///
-    /// Every `Str` source with values must return its dictionary. `None` is only acceptable for
-    /// a source without any value (e.g. the empty-column shim of an absent field).
+    /// Contract: every `Str` source must return `Some`, even if it has no values (it then returns
+    /// an empty dictionary). Non-`Str` sources return `None`.
     ///
     /// Contract: the ords returned by earlier `load_block` calls remain valid. The dictionary
     /// may grow as more blocks are loaded.
@@ -129,6 +129,8 @@ impl ValueSourceDictionary for Dictionary {
 }
 
 // Lenient columns have erased their logical type; the tuple retains it alongside the values.
+//
+// WARNING! This does not work as expected for ColumnType Str (because we lack the dictionary)
 impl<ColumnRef: Borrow<Column<u64>> + std::fmt::Debug> ValueSource for (ColumnRef, ColumnType) {
     #[inline]
     fn column_type(&self) -> ColumnType {
@@ -186,7 +188,7 @@ impl ValueSource for StrColumn {
         Some(self.ords())
     }
 
-    fn as_str_column(&self) -> Option<&StrColumn> {
+    fn as_physical_str_column(&self) -> Option<&StrColumn> {
         Some(self)
     }
 

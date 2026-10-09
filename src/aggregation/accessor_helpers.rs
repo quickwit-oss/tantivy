@@ -2,7 +2,7 @@
 
 use std::io;
 
-use columnar::{Column, ColumnType, DynamicColumn, DynamicColumnHandle};
+use columnar::{BytesColumn, Column, ColumnType, DynamicColumn, DynamicColumnHandle, StrColumn};
 
 use crate::aggregation::value_source::ValueSource;
 use crate::aggregation::{f64_to_fastfield_u64, Key, ValueSourceRegistry};
@@ -91,7 +91,7 @@ pub(crate) fn get_value_source(
         return Ok(registered);
     }
     if let Some(source) =
-        open_column_value_sources(reader, field_name, allowed_column_types, true)?.pop()
+        open_physical_column_value_sources(reader, field_name, allowed_column_types, true)?.pop()
     {
         return Ok(source);
     }
@@ -134,14 +134,23 @@ pub(crate) fn get_all_value_sources(
         return Ok(vec![registered]);
     }
     let mut sources: Vec<Box<dyn ValueSource>> =
-        open_column_value_sources(reader, field_name, allowed_column_types, false)?;
+        open_physical_column_value_sources(reader, field_name, allowed_column_types, false)?;
     if sources.is_empty() {
-        sources.push(Box::new((
-            Column::build_empty_column(reader.num_docs()),
-            fallback_type,
-        )));
+        sources.push(build_empty_value_source(reader.num_docs(), fallback_type));
     }
     Ok(sources)
+}
+
+/// Builds the value source of a field without any column, with the given type.
+///
+/// A `Str` shim is an empty `StrColumn`, so that it has an (empty) term dictionary, as required by
+/// `ValueSource::term_dictionary`.
+fn build_empty_value_source(num_docs: u32, column_type: ColumnType) -> Box<dyn ValueSource> {
+    if column_type == ColumnType::Str {
+        Box::new(StrColumn::wrap(BytesColumn::empty(num_docs)))
+    } else {
+        Box::new((Column::build_empty_column(num_docs), column_type))
+    }
 }
 
 /// Opens the fast-field columns of `field_name` whose type is allowed, in columnar order.
@@ -150,7 +159,7 @@ pub(crate) fn get_all_value_sources(
 /// columns use their monotonic `u64` mapping.
 ///
 /// If `first_only` is true, at most the first allowed column is returned.
-fn open_column_value_sources(
+fn open_physical_column_value_sources(
     reader: &SegmentReader,
     field_name: &str,
     allowed_column_types: Option<&[ColumnType]>,
@@ -166,7 +175,7 @@ fn open_column_value_sources(
                 continue;
             }
         }
-        if let Some(column) = open_column_value_source(handle)? {
+        if let Some(column) = open_physical_column_value_source(handle)? {
             sources.push(column);
             if first_only {
                 break;
@@ -179,7 +188,7 @@ fn open_column_value_sources(
 /// Opens a column as a value source.
 ///
 /// Returns `None` if the column cannot be read as `u64`.
-fn open_column_value_source(
+fn open_physical_column_value_source(
     column_handle: DynamicColumnHandle,
 ) -> crate::Result<Option<Box<dyn ValueSource>>> {
     let column_type = column_handle.column_type();
