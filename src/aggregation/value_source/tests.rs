@@ -33,8 +33,8 @@ impl ValueSourceProvider for ConstantProvider {
         &self,
         _reader: &SegmentReader,
         _allowed_column_types: Option<&[ColumnType]>,
-    ) -> crate::Result<Box<dyn ValueSource>> {
-        Ok(Box::new(Constant(self.0)))
+    ) -> crate::Result<Option<Box<dyn ValueSource>>> {
+        Ok(Some(Box::new(Constant(self.0))))
     }
 }
 fn index_with_scores(scores: &[u64]) -> crate::Index {
@@ -145,11 +145,11 @@ impl ValueSourceProvider for TypedConstantProvider {
         &self,
         _reader: &SegmentReader,
         _allowed_column_types: Option<&[ColumnType]>,
-    ) -> crate::Result<Box<dyn ValueSource>> {
-        Ok(Box::new(TypedConstant {
+    ) -> crate::Result<Option<Box<dyn ValueSource>>> {
+        Ok(Some(Box::new(TypedConstant {
             column_type: self.column_type,
             value: self.value,
-        }))
+        })))
     }
 }
 
@@ -250,8 +250,10 @@ impl ValueSourceProvider for EmptyStrValueSourceProvider {
         &self,
         _reader: &SegmentReader,
         _allowed_column_types: Option<&[ColumnType]>,
-    ) -> crate::Result<Box<dyn ValueSource>> {
-        Ok(Box::new(EmptyStrValueSource(columnar::Dictionary::empty())))
+    ) -> crate::Result<Option<Box<dyn ValueSource>>> {
+        Ok(Some(Box::new(EmptyStrValueSource(
+            columnar::Dictionary::empty(),
+        ))))
     }
 }
 
