@@ -7,7 +7,7 @@ use std::io;
 
 use crate::schema::Field;
 use crate::spatial::geometry::Geometry;
-use crate::spatial::geometry_set::{to_geometry_set, GeometrySet};
+use crate::spatial::geometry_set::{to_geometry_set, EdgeSet, GeometrySet};
 use crate::spatial::plane::Plane;
 use crate::spatial::serializer::SpatialSerializer;
 use crate::spatial::sphere::Sphere;
@@ -38,10 +38,14 @@ impl SpatialWriter {
         let set = to_geometry_set(&projected, doc_id);
         match data.sets.last_mut() {
             Some(last) if last.doc_id == doc_id => {
-                self.sets_mem_usage -= last.mem_usage();
-                last.members.reserve_exact(set.members.len());
+                let member_size = std::mem::size_of::<EdgeSet>();
+                // The incoming members keep their vertex and ring buffers. Only their outer
+                // buffer is discarded; account for the destination buffer's growth separately.
+                let added_buffers = set.mem_usage() - set.members.capacity() * member_size;
+                let previous_capacity = last.members.capacity();
                 last.members.extend(set.members);
-                self.sets_mem_usage += last.mem_usage();
+                self.sets_mem_usage +=
+                    added_buffers + (last.members.capacity() - previous_capacity) * member_size;
             }
             _ => {
                 self.sets_mem_usage += set.mem_usage();
@@ -113,5 +117,21 @@ mod tests {
             }
             assert_eq!(writer.mem_usage(), summed_mem_usage(&writer));
         }
+    }
+
+    #[test]
+    fn test_mem_usage_for_multiple_values_includes_spare_capacity() {
+        let mut writer = SpatialWriter::default();
+        let field = Field::from_field_id(0);
+        for doc in 0..2 {
+            for value in 0..257 {
+                writer.add_geometry(doc, field, Geometry::Point([value as f64 % 180.0, 1.0]));
+                assert_eq!(writer.mem_usage(), summed_mem_usage(&writer));
+            }
+        }
+        let sets = &writer.data_by_field[&field].sets;
+        assert_eq!(sets.len(), 2);
+        assert_eq!(sets[1].members.len(), 257);
+        assert!(sets[1].members.capacity() > sets[1].members.len());
     }
 }

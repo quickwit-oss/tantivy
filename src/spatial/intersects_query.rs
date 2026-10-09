@@ -9,7 +9,7 @@ use common::BitSet;
 
 use super::cell_index::GeometryId;
 use super::cell_index_reader::CellIndexReader;
-use super::contains_query::{beside, midpoint, CandidateInfo, Contact, QueryRegion};
+use super::contains_query::{midpoint, CandidateInfo, Contact, QueryRegion};
 use super::edge_cache::EdgeCache;
 use super::geometry_set::GeometrySet;
 use super::region_coverer::CovererOptions;
@@ -136,10 +136,9 @@ impl IntersectsQuery {
                 }
             }
         }
-        touch.along.iter().any(|&edge_idx| {
-            beside(entry.edge(edge_idx))
-                .iter()
-                .any(|point| self.region.contains(point) && candidate_contains(point))
+        touch.along.keys().any(|&edge_idx| {
+            self.region
+                .covers_shared_interior(candidate, edge_idx, &touch)
         })
     }
 }

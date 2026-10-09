@@ -858,6 +858,30 @@ mod tests {
     }
 
     #[test]
+    fn test_thin_polygons_sharing_edges_use_their_interior_sides() -> crate::Result<()> {
+        for height in [1e-6, 1e-8, 1e-12] {
+            let triangle = format!(
+                r#"{{"type": "Polygon", "coordinates": [[[0, 0], [10, 0], [5, {height}], [0, 0]]]}}"#
+            );
+            let below = format!(
+                r#"{{"type": "Polygon", "coordinates": [[[10, 0], [0, 0], [5, {}], [10, 0]]]}}"#,
+                -height
+            );
+            let (index, name, geometry) =
+                index_segments(&[&[("same", &triangle), ("below", &below)]])?;
+            for predicate in [SpatialPredicate::Intersects, SpatialPredicate::Contains] {
+                let query = SpatialQuery::with_predicate(
+                    geometry,
+                    vec![[0.0, 0.0], [10.0, 0.0], [5.0, height]],
+                    predicate,
+                );
+                assert_eq!(matching(&index, name, &query)?, ["same"], "height {height}");
+            }
+        }
+        Ok(())
+    }
+
+    #[test]
     fn test_contains_rejects_a_polygon_around_a_hole_of_the_query() -> crate::Result<()> {
         let holed = format!(
             r#"{{"type": "Polygon", "coordinates": [{}, {}]}}"#,
@@ -892,6 +916,101 @@ mod tests {
         assert!(matching(&index, name, &contains("hole"))?.is_empty());
         assert_eq!(matching(&index, name, &contains("beside"))?, ["holed"]);
         assert_eq!(matching(&index, name, &contains("copy"))?, ["holed"]);
+        Ok(())
+    }
+
+    #[test]
+    fn test_contains_joins_use_the_union_of_polygon_values() -> crate::Result<()> {
+        let square = |lo: f64, hi: f64| {
+            format!(
+                r#"{{"type": "Polygon", "coordinates": [[[{lo}, {lo}], [{hi}, {lo}], [{hi}, {hi}], [{lo}, {hi}], [{lo}, {lo}]]]}}"#
+            )
+        };
+        let inner =
+            r#"{"type": "Polygon", "coordinates": [[[2, 2], [8, 2], [8, 8], [2, 8], [2, 2]]]}"#;
+        for (outer, expected) in [
+            // The candidate crosses boundaries of both members but stays inside their union.
+            (
+                r#"[
+                {"type": "Polygon", "coordinates": [[[0, 0], [6, 0], [6, 10], [0, 10], [0, 0]]]},
+                {"type": "Polygon", "coordinates": [[[4, 0], [10, 0], [10, 10], [4, 10], [4, 0]]]}
+            ]"#,
+                true,
+            ),
+            // The oppositely directed shared edge is internal to the union.
+            (
+                r#"[
+                {"type": "Polygon", "coordinates": [[[0, 0], [5, 0], [5, 10], [0, 10], [0, 0]]]},
+                {"type": "Polygon", "coordinates": [[[5, 0], [10, 0], [10, 10], [5, 10], [5, 0]]]}
+            ]"#,
+                true,
+            ),
+            // A gap between the members must still reject containment.
+            (
+                r#"[
+                {"type": "Polygon", "coordinates": [[[0, 0], [3, 0], [3, 10], [0, 10], [0, 0]]]},
+                {"type": "Polygon", "coordinates": [[[7, 0], [10, 0], [10, 10], [7, 10], [7, 0]]]}
+            ]"#,
+                false,
+            ),
+            // No individual member has a hole, but the union encloses an uncovered gap.
+            (
+                r#"[
+                {"type": "Polygon", "coordinates": [[[0, 0], [10, 0], [10, 3], [0, 3], [0, 0]]]},
+                {"type": "Polygon", "coordinates": [[[0, 7], [10, 7], [10, 10], [0, 10], [0, 7]]]},
+                {"type": "Polygon", "coordinates": [[[0, 2], [3, 2], [3, 8], [0, 8], [0, 2]]]},
+                {"type": "Polygon", "coordinates": [[[7, 2], [10, 2], [10, 8], [7, 8], [7, 2]]]}
+            ]"#,
+                false,
+            ),
+        ] {
+            let (index, name, _) =
+                index_segments(&[&[("outer", outer)], &[("inner", inner), ("copy", outer)]])?;
+            let query = "+name:outer +geometry:$contains($query(name:inner))";
+            let wanted = if expected { vec!["outer"] } else { vec![] };
+            assert_eq!(parse(&index, name, query)?, wanted, "{outer}");
+            assert_eq!(
+                parse(
+                    &index,
+                    name,
+                    "+name:outer +geometry:$contains($query(name:copy))"
+                )?,
+                ["outer"],
+                "contains a copy: {outer}"
+            );
+
+            let mut writer: IndexWriter = index.writer_for_tests()?;
+            writer.merge(&index.searchable_segment_ids()?).wait()?;
+            assert_eq!(parse(&index, name, query)?, wanted, "merged {outer}");
+            assert_eq!(
+                parse(
+                    &index,
+                    name,
+                    "+name:outer +geometry:$contains($query(name:copy))"
+                )?,
+                ["outer"],
+                "merged contains a copy: {outer}"
+            );
+        }
+
+        let donut = r#"{"type": "Polygon", "coordinates": [
+            [[0, 0], [20, 0], [20, 20], [0, 20], [0, 0]],
+            [[8, 8], [8, 12], [12, 12], [12, 8], [8, 8]]]}"#;
+        for (filling, expected) in [(square(7.0, 13.0), true), (square(7.0, 10.0), false)] {
+            let outer = format!("[{donut}, {filling}]");
+            let inner = square(5.0, 15.0);
+            let (index, name, _) = index_segments(&[&[("outer", &outer), ("inner", &inner)]])?;
+            let wanted = if expected { vec!["outer"] } else { vec![] };
+            assert_eq!(
+                parse(
+                    &index,
+                    name,
+                    "+name:outer +geometry:$contains($query(name:inner))"
+                )?,
+                wanted,
+                "{outer}"
+            );
+        }
         Ok(())
     }
 

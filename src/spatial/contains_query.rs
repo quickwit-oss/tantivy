@@ -17,13 +17,15 @@ use super::cell_index_reader::CellIndexReader;
 use super::crossings::S2EdgeCrosser;
 use super::edge_cache::EdgeCache;
 use super::geometry_set::{EdgeSet, GeometrySet};
-use super::math::{cross, norm2, normalize, sub};
+use super::math::normalize;
+use super::polygon_union::{member_edges, split_edge, union_boundary, PolygonEdge};
 use super::region::Region;
 use super::region_coverer::{CovererOptions, RegionCoverer};
 use super::s2cell::S2Cell;
 use super::s2cell_id::S2CellId;
 use super::shape_index_region::{
-    any_shape_contains_point, contains_point, CellIndexRegion, EdgeProvider, SegmentIndex,
+    any_shape_contains_point, contains_point, index_contains_point, CellIndexRegion, EdgeProvider,
+    SegmentIndex,
 };
 use super::sphere::Sphere;
 
@@ -89,8 +91,9 @@ pub(crate) enum Contact {
 pub(crate) struct Touch {
     /// Candidate edges that share a vertex with a query edge, other than those in `along`.
     pub(crate) touching: HashSet<u32>,
-    /// Candidate edges that run along a query edge, in either direction.
-    pub(crate) along: HashSet<u32>,
+    /// Candidate edges that run along query edges. Values identify the shared query edges
+    /// as (member, edge, reversed direction).
+    pub(crate) along: HashMap<u32, HashSet<(u32, u32, bool)>>,
     /// Query edges, as (member, edge index), that share a vertex with a candidate edge, other
     /// than those in `query_along`.
     pub(crate) query_touching: HashSet<(u32, u32)>,
@@ -103,7 +106,7 @@ impl Touch {
     pub(crate) fn candidate_ring_meets(&self, ring: Range<usize>) -> bool {
         self.touching
             .iter()
-            .chain(&self.along)
+            .chain(self.along.keys())
             .any(|&edge_idx| ring.contains(&(edge_idx as usize)))
     }
 
@@ -133,19 +136,10 @@ pub(crate) fn midpoint((v0, v1): ([f64; 3], [f64; 3])) -> [f64; 3] {
     normalize(&[v0[0] + v1[0], v0[1] + v1[1], v0[2] + v1[2]])
 }
 
-/// Two points just to either side of the middle of an edge, to tell on which side of a shared
-/// edge each geometry's interior lies.
-pub(crate) fn beside((v0, v1): ([f64; 3], [f64; 3])) -> [[f64; 3]; 2] {
-    let middle = midpoint((v0, v1));
-    let normal = normalize(&cross(&v0, &v1));
-    let offset = 1e-6 * norm2(&sub(&v0, &v1)).sqrt();
-    [offset, -offset].map(|offset| {
-        normalize(&[
-            middle[0] + offset * normal[0],
-            middle[1] + offset * normal[1],
-            middle[2] + offset * normal[2],
-        ])
-    })
+/// Smashed polygon rings are CCW. The polygon lies to the left of an exterior edge, and to
+/// the right of a hole edge. This classification needs no offset from a shared boundary.
+pub(crate) fn interior_is_left(candidate: &EdgeSet, edge_idx: u32) -> bool {
+    (edge_idx as usize) < candidate.ring_offsets[1]
 }
 
 impl QueryRegion {
@@ -212,6 +206,40 @@ impl QueryRegion {
     /// Whether a member of the query geometry that has an interior contains the point.
     pub(crate) fn contains(&self, point: &[f64; 3]) -> bool {
         any_shape_contains_point(&self.query_index, &self.query_edges, point)
+    }
+
+    /// Whether the query covers the candidate's interior beside a shared edge. A member
+    /// sharing the edge contributes its interior side; a member containing its midpoint
+    /// without sharing it covers both sides.
+    pub(crate) fn covers_shared_interior(
+        &self,
+        candidate: &EdgeSet,
+        edge_idx: u32,
+        touch: &Touch,
+    ) -> bool {
+        let left = interior_is_left(candidate, edge_idx);
+        let i = edge_idx as usize;
+        let point = midpoint((candidate.vertices[i], candidate.vertices[i + 1]));
+        let shared_edges = &touch.along[&edge_idx];
+        self.members().iter().enumerate().any(|(member, edges)| {
+            if !edges.closed {
+                return false;
+            }
+            let mut shared = shared_edges
+                .iter()
+                .filter(|&&(m, _, _)| m == member as u32)
+                .peekable();
+            if shared.peek().is_some() {
+                shared.any(|&(_, qi, reversed)| (interior_is_left(edges, qi) ^ reversed) == left)
+            } else {
+                index_contains_point(
+                    &self.query_index,
+                    &self.query_edges,
+                    (0, member as u32),
+                    &point,
+                )
+            }
+        })
     }
 
     /// Collect every stored geometry in the covering, recording which covering cells it lies in.
@@ -293,8 +321,12 @@ impl QueryRegion {
                         0 => {
                             let query_edge = (query_edge.member, query_edge.edge_idx);
                             if (cv0, cv1) == (qv0, qv1) || (cv0, cv1) == (qv1, qv0) {
-                                touch.along.insert(candidate_edge_idx);
                                 touch.query_along.insert(query_edge);
+                                touch.along.entry(candidate_edge_idx).or_default().insert((
+                                    query_edge.0,
+                                    query_edge.1,
+                                    cv0 != qv0,
+                                ));
                             } else {
                                 touch.touching.insert(candidate_edge_idx);
                                 touch.query_touching.insert(query_edge);
@@ -311,8 +343,9 @@ impl QueryRegion {
             along,
             query_touching,
             query_along,
+            ..
         } = &mut touch;
-        touching.retain(|edge_idx| !along.contains(edge_idx));
+        touching.retain(|edge_idx| !along.contains_key(edge_idx));
         query_touching.retain(|edge| !query_along.contains(edge));
         Contact::Touch(touch)
     }
@@ -322,13 +355,20 @@ impl QueryRegion {
 /// query-local CellIndex, the covering, and the interior/boundary classification.
 pub struct ContainsQuery {
     region: QueryRegion,
+    /// Multiple members can cover each other's boundaries or jointly enclose a hole. Verify
+    /// candidates against their exposed union boundary rather than individual member boundaries.
+    union_boundary: Option<Vec<PolygonEdge>>,
 }
 
 impl ContainsQuery {
     /// Build the query from a smashed GeometrySet.
     pub fn new(set: GeometrySet, options: CovererOptions) -> Self {
+        let region = QueryRegion::new(set, options);
+        let union_boundary = (region.members().len() > 1)
+            .then(|| union_boundary(&region.query_index, &region.query_edges));
         Self {
-            region: QueryRegion::new(set, options),
+            region,
+            union_boundary,
         }
     }
 
@@ -408,6 +448,9 @@ impl ContainsQuery {
         if candidate.vertices.is_empty() {
             return false;
         }
+        if let Some(boundary) = &self.union_boundary {
+            return self.verify_union(geometry_id, candidate, boundary, cell_reader, edge_cache);
+        }
         let touch = match self.region.boundary_contact(info, candidate) {
             Contact::Cross => return false,
             Contact::Touch(touch) => touch,
@@ -439,12 +482,13 @@ impl ContainsQuery {
             |point: &[f64; 3]| contains_point(&mut segment, geometry_id, point);
 
         // Where the boundaries run together, the candidate's interior must lie on the query
-        // polygon's side.
-        for &edge_idx in &touch.along {
-            for point in beside(entry.edge(edge_idx)) {
-                if candidate_contains(&point) && !self.region.contains(&point) {
-                    return false;
-                }
+        // polygon's side, however narrow either polygon is.
+        for &edge_idx in touch.along.keys() {
+            if !self
+                .region
+                .covers_shared_interior(candidate, edge_idx, &touch)
+            {
+                return false;
             }
         }
 
@@ -465,6 +509,55 @@ impl ContainsQuery {
                     candidate_contains(&edge_set.vertices[hole[0]])
                 };
                 if hole_inside {
+                    return false;
+                }
+            }
+        }
+        true
+    }
+
+    /// Every piece of the candidate's boundary must be covered. For a polygon, no exposed
+    /// query boundary may lie inside it: that would leave an uncovered part of its interior.
+    fn verify_union(
+        &self,
+        geometry_id: GeometryId,
+        candidate: &EdgeSet,
+        boundary: &[PolygonEdge],
+        cell_reader: &CellIndexReader,
+        edge_cache: &mut EdgeCache<'_, Sphere>,
+    ) -> bool {
+        let edges: Vec<_> = member_edges(candidate).map(|(_, edge)| edge).collect();
+        if edges.is_empty() {
+            return candidate
+                .vertices
+                .iter()
+                .all(|point| self.region.contains(point));
+        }
+        for edge in &edges {
+            for piece in split_edge(*edge, boundary) {
+                let shared = piece.shared_sides.iter().any(|&side| side);
+                let covered = if shared {
+                    !candidate.closed || piece.shared_sides[usize::from(piece.edge.interior_left)]
+                } else {
+                    self.region.contains(&piece.edge.midpoint())
+                };
+                if !covered {
+                    return false;
+                }
+            }
+        }
+        if !candidate.closed {
+            return true;
+        }
+        let mut segment = SegmentIndex {
+            cell_reader,
+            edge_cache,
+        };
+        for edge in boundary {
+            for piece in split_edge(*edge, &edges) {
+                if !piece.shared_sides.iter().any(|&side| side)
+                    && contains_point(&mut segment, geometry_id, &piece.edge.midpoint())
+                {
                     return false;
                 }
             }
