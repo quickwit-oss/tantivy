@@ -11,7 +11,7 @@
 use std::fmt::Debug;
 use std::io;
 
-use columnar::{ColumnType, Dictionary};
+use columnar::ColumnType;
 use datasketches::hll::Coupon;
 use rustc_hash::{FxBuildHasher, FxHashMap, FxHashSet};
 
@@ -122,7 +122,7 @@ impl<S: TermOrdAccumulator> Debug for SegmentStrCardinalityCollector<S> {
 /// Returns a mapping from term_ord to the hash (coupon) of the associated term.
 fn build_coupon_cache<S: TermOrdAccumulator>(
     buckets: &[Option<S>],
-    dictionary: &Dictionary,
+    dictionary: &dyn ValueSourceDictionary,
     missing_value_opt: Option<&Key>,
 ) -> io::Result<CouponCache> {
     // Pass 1 computes the capacity hint, pass 2 inserts.
@@ -137,11 +137,11 @@ fn build_coupon_cache<S: TermOrdAccumulator>(
     let mut term_ords: Vec<u64> = term_ords_set.into_iter().collect();
     term_ords.sort_unstable();
 
-    term_ords.pop_if(|highest_term_ord| *highest_term_ord >= dictionary.num_terms() as u64);
+    term_ords.pop_if(|highest_term_ord| *highest_term_ord >= dictionary.num_terms());
 
     let mut coupons: Vec<Coupon> = Vec::with_capacity(term_ords.len());
     let all_term_ords_found: bool =
-        dictionary.sorted_ords_to_term_cb(&term_ords, |term_bytes| {
+        dictionary.sorted_ords_to_term_cb(&term_ords, &mut |term_bytes| {
             let coupon: Coupon = Coupon::from_value(term_bytes);
             coupons.push(coupon);
         })?;
@@ -225,9 +225,10 @@ impl<S: TermOrdAccumulator + 'static> SegmentAggregationCollector
     ) -> crate::Result<()> {
         self.prepare_max_bucket(bucket_id, agg_data)?;
         let req_data = &self.req_data;
-        let Some(str_dict_column) = &req_data.str_dict_column else {
+        // `ValueSource::term_dictionary` guarantees a dictionary for every `Str` source.
+        let Some(term_dictionary) = req_data.accessor.term_dictionary() else {
             return Err(crate::TantivyError::InternalError(
-                "a str cardinality collector requires a str dictionary column".to_string(),
+                "a `Str` value source must provide a term dictionary".to_string(),
             ));
         };
         // Strings are dictionary encoded. Fetching the terms associated to strings
@@ -239,7 +240,7 @@ impl<S: TermOrdAccumulator + 'static> SegmentAggregationCollector
         if self.coupon_cache.is_none() {
             self.coupon_cache = Some(build_coupon_cache(
                 &self.buckets,
-                str_dict_column.dictionary(),
+                term_dictionary,
                 req_data.req.missing.as_ref(),
             )?);
         }

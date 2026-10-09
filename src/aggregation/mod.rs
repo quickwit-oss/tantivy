@@ -147,7 +147,9 @@ use std::fmt::Display;
 use std::sync::Arc;
 
 pub(crate) use value_source::ColumnBlockAccessor;
-pub use value_source::{ValueSource, ValueSourceProvider, ValueSourceRegistry};
+pub use value_source::{
+    ValueSource, ValueSourceDictionary, ValueSourceProvider, ValueSourceRegistry,
+};
 
 #[cfg(test)]
 mod agg_tests;
