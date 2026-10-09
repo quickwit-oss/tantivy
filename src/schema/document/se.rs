@@ -143,8 +143,16 @@ where W: Write
             ReferenceValue::Array(elements) => {
                 self.write_type_code(type_codes::ARRAY_CODE)?;
 
-                // Somewhat unfortunate that we do this here however, writing the
-                // length at the end of the complicates things quite considerably.
+                // The length is written first: stream the elements when the iterator knows its
+                // exact length, otherwise collect them.
+                let (lower, upper) = elements.size_hint();
+                if upper == Some(lower) {
+                    let mut serializer = BinaryArraySerializer::begin(lower, self.writer)?;
+                    for value in elements {
+                        serializer.serialize_value(value.as_value())?;
+                    }
+                    return serializer.end();
+                }
                 let elements: Vec<V> = elements.collect();
 
                 let mut serializer = BinaryArraySerializer::begin(elements.len(), self.writer)?;
@@ -158,8 +166,16 @@ where W: Write
             ReferenceValue::Object(object) => {
                 self.write_type_code(type_codes::OBJECT_CODE)?;
 
-                // Somewhat unfortunate that we do this here however, writing the
-                // length at the end of the complicates things quite considerably.
+                // The length is written first: stream the entries when the iterator knows its
+                // exact length, otherwise collect them.
+                let (lower, upper) = object.size_hint();
+                if upper == Some(lower) {
+                    let mut serializer = BinaryObjectSerializer::begin(lower, self.writer)?;
+                    for (key, value) in object {
+                        serializer.serialize_entry(key, value.as_value())?;
+                    }
+                    return serializer.end();
+                }
                 let entries: Vec<(&str, V)> = object.collect();
 
                 let mut serializer = BinaryObjectSerializer::begin(entries.len(), self.writer)?;

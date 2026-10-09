@@ -212,6 +212,15 @@ pub trait Document: Send + Sync + 'static {
         doc
     }
 
+    /// Appends the doc store encoding of the stored fields to `output`, if this document type has
+    /// a specialized serializer. Returns `false` to use the generic serializer instead.
+    ///
+    /// Implementations must write exactly the bytes [`BinaryDocumentSerializer`] would.
+    #[doc(hidden)]
+    fn serialize_stored_fields(&self, _schema: &Schema, _output: &mut Vec<u8>) -> bool {
+        false
+    }
+
     /// Sort and groups the field_values by field.
     ///
     /// The result of this method is not cached and is

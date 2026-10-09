@@ -3,7 +3,7 @@ use std::io::{self, Read, Write};
 use std::net::Ipv6Addr;
 
 use columnar::MonotonicallyMappableToU128;
-use common::{read_u32_vint_no_advance, serialize_vint_u32, BinarySerializable, DateTime, VInt};
+use common::{serialize_vint_u32, BinarySerializable, DateTime, VInt};
 use serde_json::Map;
 pub use CompactDoc as TantivyDocument;
 
@@ -271,37 +271,56 @@ impl CompactDoc {
     }
     /// Adds a value and returns in address into the
     fn add_value<'a, V: Value<'a>>(&mut self, value: V) -> ValueAddr {
+        // Leaves (most values) need no scratch space.
+        if let ReferenceValue::Leaf(leaf) = value.as_value() {
+            return self.add_value_leaf(leaf);
+        }
+        thread_local! {
+            static SCRATCH: std::cell::RefCell<Vec<u8>> = const { std::cell::RefCell::new(Vec::new()) };
+        }
+        SCRATCH.with(|scratch| match scratch.try_borrow_mut() {
+            Ok(mut scratch) => {
+                scratch.clear();
+                self.add_value_with_scratch(value, &mut scratch)
+            }
+            // Re-entrant call (a `Value` impl adding to a document while being added).
+            Err(_) => self.add_value_with_scratch(value, &mut Vec::new()),
+        })
+    }
+
+    /// `scratch` is a stack of child addresses shared by all nesting levels: each array or
+    /// object appends its children's addresses after the current end, copies them into
+    /// `node_data`, then truncates back. One allocation per document instead of one per object.
+    fn add_value_with_scratch<'a, V: Value<'a>>(
+        &mut self,
+        value: V,
+        scratch: &mut Vec<u8>,
+    ) -> ValueAddr {
         let value = value.as_value();
         let type_id = ValueType::from(&value);
         match value {
             ReferenceValue::Leaf(leaf) => self.add_value_leaf(leaf),
             ReferenceValue::Array(elements) => {
-                // addresses of the elements in node_data
-                // Reusing a vec would be nicer, but it's not easy because of the recursion
-                // A global vec would work if every writer get it's discriminator
-                let mut addresses = Vec::new();
+                let start = scratch.len();
                 for elem in elements {
-                    let value_addr = self.add_value(elem);
-                    write_into(&mut addresses, value_addr);
+                    let value_addr = self.add_value_with_scratch(elem, scratch);
+                    value_addr.write_to_vec(scratch);
                 }
-                ValueAddr {
-                    type_id,
-                    val_addr: write_bytes_into(&mut self.node_data, &addresses),
-                }
+                let val_addr = write_bytes_into(&mut self.node_data, &scratch[start..]);
+                scratch.truncate(start);
+                ValueAddr { type_id, val_addr }
             }
             ReferenceValue::Object(entries) => {
-                // addresses of the elements in node_data
-                let mut addresses = Vec::new();
+                let start = scratch.len();
                 for (key, value) in entries {
                     let key_addr = self.add_value_leaf(ReferenceValueLeaf::Str(key));
-                    let value_addr = self.add_value(value);
-                    write_into(&mut addresses, key_addr);
-                    write_into(&mut addresses, value_addr);
+                    let value_addr = self.add_value_with_scratch(value, scratch);
+                    key_addr.write_to_vec(scratch);
+                    value_addr.write_to_vec(scratch);
                 }
-                ValueAddr {
-                    type_id,
-                    val_addr: write_bytes_into(&mut self.node_data, &addresses),
-                }
+                let val_addr = write_bytes_into(&mut self.node_data, &scratch[start..]);
+                scratch.truncate(start);
+                ValueAddr { type_id, val_addr }
             }
         }
     }
@@ -341,8 +360,8 @@ impl CompactDoc {
 
 /// BinarySerializable alternative to read references
 fn binary_deserialize_bytes(data: &[u8]) -> &[u8] {
-    let (len, bytes_read) = read_u32_vint_no_advance(data);
-    &data[bytes_read..bytes_read + len as usize]
+    let (len, rest) = read_vint_u32(data).expect("corrupted compact doc");
+    &rest[..len as usize]
 }
 
 /// Write bytes and return the position of the written data.
@@ -503,6 +522,50 @@ struct ValueAddr {
     /// This is the address to the value in the vec, except for bool and null, which are inlined
     val_addr: Addr,
 }
+impl ValueAddr {
+    /// Appends the `BinarySerializable` encoding (type byte + VInt address).
+    #[inline]
+    fn write_to_vec(self, output: &mut Vec<u8>) {
+        output.push(self.type_id as u8);
+        let mut buf = [0u8; 8];
+        output.extend_from_slice(serialize_vint_u32(self.val_addr, &mut buf));
+    }
+
+    /// Decodes a `ValueAddr` from the front of `data` and advances it (same encoding as
+    /// `BinarySerializable`, without going through `io::Read`).
+    #[inline]
+    fn read_from_slice(data: &mut &[u8]) -> Option<Self> {
+        let (&type_byte, rest) = data.split_first()?;
+        if type_byte > 13 {
+            return None;
+        }
+        // SAFETY: `ValueType` is `repr(u8)` with discriminants 0..=13.
+        let type_id = unsafe { std::mem::transmute::<u8, ValueType>(type_byte) };
+        let (val_addr, rest) = read_vint_u32(rest)?;
+        *data = rest;
+        Some(ValueAddr { type_id, val_addr })
+    }
+}
+
+/// Reads a VInt `u32` (tantivy's VInt: 7 bits per byte, the last byte has its high bit set).
+#[inline]
+fn read_vint_u32(data: &[u8]) -> Option<(u32, &[u8])> {
+    let first = *data.first()?;
+    if first >= 128 {
+        return Some(((first & 127) as u32, &data[1..]));
+    }
+    let mut result = first as u32;
+    let mut shift = 7;
+    for (idx, &byte) in data.iter().enumerate().skip(1).take(4) {
+        result |= ((byte & 127) as u32) << shift;
+        if byte >= 128 {
+            return Some((result, &data[idx + 1..]));
+        }
+        shift += 7;
+    }
+    None
+}
+
 impl BinarySerializable for ValueAddr {
     fn serialize<W: Write + ?Sized>(&self, writer: &mut W) -> io::Result<()> {
         self.type_id.serialize(writer)?;
@@ -628,16 +691,29 @@ impl<'a> CompactDocObjectIter<'a> {
     }
 }
 
+/// Number of `ValueAddr`s in a serialized address list: each one is a type byte (< 128)
+/// followed by a VInt whose last byte, and only that one, has its high bit set.
+#[inline]
+fn num_value_addrs(addresses: &[u8]) -> usize {
+    addresses.iter().filter(|&&byte| byte >= 128).count()
+}
+
 impl<'a> Iterator for CompactDocObjectIter<'a> {
     type Item = (&'a str, CompactDocValue<'a>);
+
+    #[inline]
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        let num_entries = num_value_addrs(self.node_addresses_slice) / 2;
+        (num_entries, Some(num_entries))
+    }
 
     fn next(&mut self) -> Option<Self::Item> {
         if self.node_addresses_slice.is_empty() {
             return None;
         }
-        let key_addr = ValueAddr::deserialize(&mut self.node_addresses_slice).ok()?;
+        let key_addr = ValueAddr::read_from_slice(&mut self.node_addresses_slice)?;
         let key = self.container.extract_str(key_addr.val_addr);
-        let value = ValueAddr::deserialize(&mut self.node_addresses_slice).ok()?;
+        let value = ValueAddr::read_from_slice(&mut self.node_addresses_slice)?;
         let value = CompactDocValue {
             container: self.container,
             value_addr: value,
@@ -667,11 +743,17 @@ impl<'a> CompactDocArrayIter<'a> {
 impl<'a> Iterator for CompactDocArrayIter<'a> {
     type Item = CompactDocValue<'a>;
 
+    #[inline]
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        let num_values = num_value_addrs(self.node_addresses_slice);
+        (num_values, Some(num_values))
+    }
+
     fn next(&mut self) -> Option<Self::Item> {
         if self.node_addresses_slice.is_empty() {
             return None;
         }
-        let value = ValueAddr::deserialize(&mut self.node_addresses_slice).ok()?;
+        let value = ValueAddr::read_from_slice(&mut self.node_addresses_slice)?;
         let value = CompactDocValue {
             container: self.container,
             value_addr: value,
@@ -680,9 +762,99 @@ impl<'a> Iterator for CompactDocArrayIter<'a> {
     }
 }
 
+impl CompactDoc {
+    /// Writes one value in the doc store encoding (`BinaryValueSerializer`), reading
+    /// `node_data` directly. Returns `false` for value types left to the generic serializer.
+    fn write_stored_value(&self, value_addr: ValueAddr, output: &mut Vec<u8>) -> bool {
+        use super::type_codes;
+        let addr = value_addr.val_addr as usize;
+        // Strings and bytes are stored in `node_data` as VInt(len) + bytes, which is also their
+        // doc store encoding after the type code.
+        let copy_len_prefixed = |code: u8, output: &mut Vec<u8>| {
+            let data = &self.node_data[addr..];
+            let (len, rest) = read_vint_u32(data).expect("corrupted compact doc");
+            let vint_len = data.len() - rest.len();
+            output.push(code);
+            output.extend_from_slice(&data[..vint_len + len as usize]);
+        };
+        let fixed_8 = |code: u8, transform: fn(u64) -> u64, output: &mut Vec<u8>| {
+            // `write_into` serialized these with `BinarySerializable` (8 bytes, little endian).
+            let bytes: [u8; 8] = self.node_data[addr..addr + 8].try_into().unwrap();
+            output.push(code);
+            output.extend_from_slice(&transform(u64::from_le_bytes(bytes)).to_le_bytes());
+        };
+        match value_addr.type_id {
+            ValueType::Null => output.push(type_codes::NULL_CODE),
+            ValueType::Str => copy_len_prefixed(type_codes::TEXT_CODE, output),
+            ValueType::Facet => copy_len_prefixed(type_codes::HIERARCHICAL_FACET_CODE, output),
+            ValueType::Bytes => copy_len_prefixed(type_codes::BYTES_CODE, output),
+            ValueType::U64 => fixed_8(type_codes::U64_CODE, |v| v, output),
+            ValueType::I64 => fixed_8(type_codes::I64_CODE, |v| v, output),
+            ValueType::F64 => fixed_8(
+                type_codes::F64_CODE,
+                |bits| common::f64_to_u64(f64::from_bits(bits)),
+                output,
+            ),
+            ValueType::Date => fixed_8(type_codes::DATE_CODE, |v| v, output),
+            ValueType::Bool => {
+                output.push(type_codes::BOOL_CODE);
+                output.push((value_addr.val_addr != 0) as u8);
+            }
+            ValueType::Array | ValueType::Object => {
+                let is_object = value_addr.type_id == ValueType::Object;
+                let mut addresses = self.extract_bytes(value_addr.val_addr);
+                // Objects are stored as [key, value, key, value, ...] in both encodings.
+                let num_values = num_value_addrs(addresses);
+                output.push(if is_object {
+                    type_codes::OBJECT_CODE
+                } else {
+                    type_codes::ARRAY_CODE
+                });
+                let mut buf = [0u8; 8];
+                output.extend_from_slice(serialize_vint_u32(num_values as u32, &mut buf));
+                while let Some(child) = ValueAddr::read_from_slice(&mut addresses) {
+                    if !self.write_stored_value(child, output) {
+                        return false;
+                    }
+                }
+            }
+            // Rare: keep the generic serializer as the single source of truth.
+            ValueType::IpAddr | ValueType::PreTokStr | ValueType::Custom => return false,
+        }
+        true
+    }
+}
+
 impl Document for CompactDoc {
     type Value<'a> = CompactDocValue<'a>;
     type FieldsValuesIter<'a> = FieldValueIterRef<'a>;
+
+    fn serialize_stored_fields(&self, schema: &Schema, output: &mut Vec<u8>) -> bool {
+        let start = output.len();
+        let num_stored = self
+            .field_values
+            .iter()
+            .filter(|field_value| {
+                schema
+                    .get_field_entry(Field::from_field_id(field_value.field as u32))
+                    .is_stored()
+            })
+            .count();
+        let mut buf = [0u8; 8];
+        output.extend_from_slice(serialize_vint_u32(num_stored as u32, &mut buf));
+        for field_value in &self.field_values {
+            let field = Field::from_field_id(field_value.field as u32);
+            if !schema.get_field_entry(field).is_stored() {
+                continue;
+            }
+            output.extend_from_slice(&(field_value.field as u32).to_le_bytes());
+            if !self.write_stored_value(field_value.value_addr, output) {
+                output.truncate(start);
+                return false;
+            }
+        }
+        true
+    }
 
     fn iter_fields_and_values(&self) -> Self::FieldsValuesIter<'_> {
         FieldValueIterRef {
@@ -735,6 +907,152 @@ impl DocParsingError {
     fn invalid_json(invalid_json: &str) -> Self {
         let sample = invalid_json.chars().take(20).collect();
         DocParsingError::InvalidJson(sample)
+    }
+}
+
+#[cfg(test)]
+mod fast_decode_tests {
+    use std::net::Ipv6Addr;
+
+    use common::{serialize_vint_u32, BinarySerializable, DateTime};
+    use proptest::prelude::*;
+
+    use super::{read_vint_u32, ValueAddr, ValueType};
+    use crate::schema::document::{BinaryDocumentSerializer, Document};
+    use crate::schema::{Facet, OwnedValue, Schema, FAST, STORED, TEXT};
+    use crate::tokenizer::{PreTokenizedString, Token};
+    use crate::TantivyDocument;
+
+    fn leaf_value() -> impl Strategy<Value = OwnedValue> {
+        prop_oneof![
+            Just(OwnedValue::Null),
+            ".{0,40}".prop_map(OwnedValue::Str),
+            "[a-z]{0,300}".prop_map(OwnedValue::Str),
+            any::<u64>().prop_map(OwnedValue::U64),
+            any::<i64>().prop_map(OwnedValue::I64),
+            any::<f64>().prop_map(OwnedValue::F64),
+            any::<bool>().prop_map(OwnedValue::Bool),
+            any::<i64>().prop_map(|ts| OwnedValue::Date(DateTime::from_timestamp_nanos(ts))),
+            proptest::collection::vec(any::<u8>(), 0..20).prop_map(OwnedValue::Bytes),
+            "[a-z]{1,5}".prop_map(|s| OwnedValue::Facet(Facet::from_path([s.as_str()]))),
+        ]
+    }
+
+    fn value() -> impl Strategy<Value = OwnedValue> {
+        leaf_value().prop_recursive(3, 40, 6, |inner| {
+            prop_oneof![
+                proptest::collection::vec(inner.clone(), 0..6).prop_map(OwnedValue::Array),
+                proptest::collection::vec(("[a-z.]{0,8}", inner), 0..6)
+                    .prop_map(OwnedValue::Object),
+            ]
+        })
+    }
+
+    fn generic_bytes(doc: &TantivyDocument, schema: &Schema) -> Vec<u8> {
+        let mut out = Vec::new();
+        BinaryDocumentSerializer::new(&mut out, schema)
+            .serialize_doc(doc)
+            .unwrap();
+        out
+    }
+
+    proptest! {
+        #[test]
+        fn test_fast_stored_serialization_matches_generic(
+            values in proptest::collection::vec((0u32..4, value()), 0..10),
+        ) {
+            // Fields 0 and 2 are stored, 1 and 3 are not.
+            let mut schema_builder = Schema::builder();
+            schema_builder.add_json_field("a", STORED);
+            schema_builder.add_json_field("b", TEXT);
+            schema_builder.add_json_field("c", STORED | FAST);
+            schema_builder.add_text_field("d", TEXT);
+            let schema = schema_builder.build();
+            let mut doc = TantivyDocument::default();
+            for (field_id, value) in &values {
+                doc.add_field_value(crate::schema::Field::from_field_id(*field_id), value);
+            }
+            let mut fast = Vec::new();
+            prop_assert!(doc.serialize_stored_fields(&schema, &mut fast));
+            prop_assert_eq!(fast, generic_bytes(&doc, &schema));
+        }
+    }
+
+    #[test]
+    fn test_fast_stored_serialization_falls_back_for_rare_types() {
+        let mut schema_builder = Schema::builder();
+        let ip = schema_builder.add_ip_addr_field("ip", STORED);
+        let text = schema_builder.add_text_field("text", STORED);
+        let schema = schema_builder.build();
+        let mut doc = TantivyDocument::default();
+        doc.add_text(text, "kept");
+        doc.add_ip_addr(ip, Ipv6Addr::LOCALHOST);
+        let mut out = vec![42u8];
+        assert!(!doc.serialize_stored_fields(&schema, &mut out));
+        assert_eq!(out, vec![42u8], "output is left untouched on fallback");
+
+        let mut doc = TantivyDocument::default();
+        doc.add_pre_tokenized_text(
+            text,
+            PreTokenizedString {
+                text: "pre tokenized".to_string(),
+                tokens: vec![Token::default()],
+            },
+        );
+        assert!(!doc.serialize_stored_fields(&schema, &mut Vec::new()));
+    }
+
+    proptest! {
+        #[test]
+        fn test_read_vint_u32_matches_serialize(val in any::<u32>(), tail in proptest::collection::vec(any::<u8>(), 0..4)) {
+            let mut buf = [0u8; 8];
+            let mut bytes = serialize_vint_u32(val, &mut buf).to_vec();
+            let encoded_len = bytes.len();
+            bytes.extend_from_slice(&tail);
+            let (decoded, rest) = read_vint_u32(&bytes).unwrap();
+            prop_assert_eq!(decoded, val);
+            prop_assert_eq!(rest, &bytes[encoded_len..]);
+        }
+
+        #[test]
+        fn test_compact_doc_round_trips_nested_values(
+            values in proptest::collection::vec(value(), 0..8),
+        ) {
+            let mut doc = TantivyDocument::default();
+            for (idx, value) in values.iter().enumerate() {
+                doc.add_field_value(crate::schema::Field::from_field_id(idx as u32 % 3), value);
+            }
+            let read_back: Vec<OwnedValue> = doc
+                .iter_fields_and_values()
+                .map(|(_, value)| OwnedValue::from(value))
+                .collect();
+            // NaN != NaN: compare debug strings.
+            prop_assert_eq!(format!("{read_back:?}"), format!("{values:?}"));
+        }
+
+        #[test]
+        fn test_value_addr_write_to_vec_matches_serialize(type_byte in 0u8..=13, val_addr in any::<u32>()) {
+            let type_id: ValueType = unsafe { std::mem::transmute::<u8, ValueType>(type_byte) };
+            let addr = ValueAddr { type_id, val_addr };
+            let mut expected = Vec::new();
+            addr.serialize(&mut expected).unwrap();
+            let mut actual = Vec::new();
+            addr.write_to_vec(&mut actual);
+            prop_assert_eq!(actual, expected);
+        }
+
+        #[test]
+        fn test_value_addr_read_from_slice_matches_deserialize(type_byte in 0u8..=13, val_addr in any::<u32>()) {
+            let type_id: ValueType = unsafe { std::mem::transmute::<u8, ValueType>(type_byte) };
+            let addr = ValueAddr { type_id, val_addr };
+            let mut bytes = Vec::new();
+            addr.serialize(&mut bytes).unwrap();
+            let mut slice = &bytes[..];
+            let decoded = ValueAddr::read_from_slice(&mut slice).unwrap();
+            prop_assert!(slice.is_empty());
+            prop_assert_eq!(decoded.type_id, type_id);
+            prop_assert_eq!(decoded.val_addr, val_addr);
+        }
     }
 }
 

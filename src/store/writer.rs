@@ -99,8 +99,10 @@ impl StoreWriter {
     pub fn store<D: Document>(&mut self, document: &D, schema: &Schema) -> io::Result<()> {
         self.doc_pos.push(self.current_block.len() as u32);
 
-        let mut serializer = BinaryDocumentSerializer::new(&mut self.current_block, schema);
-        serializer.serialize_doc(document)?;
+        if !document.serialize_stored_fields(schema, &mut self.current_block) {
+            let mut serializer = BinaryDocumentSerializer::new(&mut self.current_block, schema);
+            serializer.serialize_doc(document)?;
+        }
 
         self.num_docs_in_current_block += 1;
         self.check_flush_block()?;
