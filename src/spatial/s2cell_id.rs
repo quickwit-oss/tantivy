@@ -210,8 +210,8 @@ impl S2CellId {
     /// Creates a leaf cell from (face, i, j) coordinates.
     pub fn from_face_ij(face: i32, i: i32, j: i32) -> Self {
         debug_assert!(face < NUM_FACES);
-        debug_assert!(i >= 0 && i < MAX_SIZE);
-        debug_assert!(j >= 0 && j < MAX_SIZE);
+        debug_assert!((0..MAX_SIZE).contains(&i));
+        debug_assert!((0..MAX_SIZE).contains(&j));
 
         let mut n = (face as u64) << (POS_BITS as u32 - 1);
         let mut bits = (face & SWAP_MASK) as u64;
@@ -439,9 +439,9 @@ impl S2CellId {
 
         for k in (0..8).rev() {
             let nbits = if k == 7 {
-                MAX_CELL_LEVEL as usize - 7 * LOOKUP_BITS as usize
+                MAX_CELL_LEVEL as usize - 7 * LOOKUP_BITS
             } else {
-                LOOKUP_BITS as usize
+                LOOKUP_BITS
             };
             bits += ((self.0 >> (k * 2 * LOOKUP_BITS + 1)) & ((1 << (2 * nbits)) - 1)) << 2;
             bits = LOOKUP.ij[bits as usize] as u64;

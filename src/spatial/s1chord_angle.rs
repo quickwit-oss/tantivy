@@ -259,7 +259,7 @@ impl Eq for S1ChordAngle {}
 
 impl PartialOrd for S1ChordAngle {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        self.length2.partial_cmp(&other.length2)
+        Some(self.cmp(other))
     }
 }
 
