@@ -213,12 +213,24 @@ pub trait Document: Send + Sync + 'static {
     }
 
     /// Appends the doc store encoding of the stored fields to `output`, if this document type has
-    /// a specialized serializer. Returns `false` to use the generic serializer instead.
+    /// a specialized serializer. Returns `None` to use the generic serializer instead.
     ///
-    /// Implementations must write exactly the bytes [`BinaryDocumentSerializer`] would.
+    /// Implementations must write exactly the bytes [`BinaryDocumentSerializer`] would, plus the
+    /// document's stored-only values, if it has any.
     #[doc(hidden)]
-    fn serialize_stored_fields(&self, _schema: &Schema, _output: &mut Vec<u8>) -> bool {
-        false
+    fn serialize_stored_fields(
+        &self,
+        _schema: &Schema,
+        _output: &mut Vec<u8>,
+    ) -> Option<std::io::Result<()>> {
+        None
+    }
+
+    /// Checks the document against the schema before it is indexed. The default accepts
+    /// every document.
+    #[doc(hidden)]
+    fn validate_for_schema(&self, _schema: &Schema) -> crate::Result<()> {
+        Ok(())
     }
 
     /// Sort and groups the field_values by field.

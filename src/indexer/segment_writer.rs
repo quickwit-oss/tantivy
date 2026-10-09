@@ -178,6 +178,8 @@ impl SegmentWriter {
         add_operation: AddOperation<D>,
     ) -> crate::Result<()> {
         let AddOperation { document, opstamp } = add_operation;
+        // Before any writer sees the document: a rejected document must not be half indexed.
+        document.validate_for_schema(&self.schema)?;
         let doc_id = self.max_doc;
         self.doc_opstamps.push(opstamp);
 

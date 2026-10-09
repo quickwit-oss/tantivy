@@ -32,6 +32,16 @@ pub struct CompactDoc {
     pub node_data: Vec<u8>,
     /// The root (Field, Value) pairs
     field_values: Vec<FieldValueAddr>,
+    /// Values of stored-only fields, already in the doc store encoding, as `node_data` ranges.
+    /// See [`CompactDoc::add_stored_only_value`].
+    stored_only_values: Vec<StoredOnlyValue>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct StoredOnlyValue {
+    field: u32,
+    start: u32,
+    end: u32,
 }
 
 impl Default for CompactDoc {
@@ -47,7 +57,42 @@ impl CompactDoc {
         CompactDoc {
             node_data: Vec::with_capacity(bytes),
             field_values: Vec::with_capacity(4),
+            stored_only_values: Vec::new(),
         }
+    }
+
+    /// Adds a value for a field that is stored but neither indexed nor fast, serializing it
+    /// directly in the doc store encoding.
+    ///
+    /// The document store copies those bytes as they are, instead of building the value in the
+    /// document and serializing it again. Such values are written to the doc store only: they are
+    /// not returned by [`Document::iter_fields_and_values`], and indexing a document whose
+    /// stored-only field is indexed or fast fails.
+    pub fn add_stored_only_value<'a, V: Value<'a>>(
+        &mut self,
+        field: Field,
+        value: V,
+    ) -> io::Result<()> {
+        let start = self.node_data.len();
+        let mut serializer = super::se::BinaryValueSerializer::new(&mut self.node_data);
+        let result = match value.as_value() {
+            // Same conversion as `BinaryDocumentSerializer` for a top-level value.
+            ReferenceValue::Leaf(ReferenceValueLeaf::PreTokStr(pre_tokenized_text)) => serializer
+                .serialize_value(ReferenceValue::Leaf::<&'_ OwnedValue>(
+                    ReferenceValueLeaf::Str(&pre_tokenized_text.text),
+                )),
+            reference_value => serializer.serialize_value(reference_value),
+        };
+        if let Err(error) = result {
+            self.node_data.truncate(start);
+            return Err(error);
+        }
+        self.stored_only_values.push(StoredOnlyValue {
+            field: field.field_id(),
+            start: start as u32,
+            end: self.node_data.len() as u32,
+        });
+        Ok(())
     }
 
     /// Creates a new, empty document object
@@ -59,6 +104,7 @@ impl CompactDoc {
     pub fn shrink_to_fit(&mut self) {
         self.node_data.shrink_to_fit();
         self.field_values.shrink_to_fit();
+        self.stored_only_values.shrink_to_fit();
     }
 
     /// Returns the length of the document.
@@ -395,9 +441,19 @@ impl PartialEq for CompactDoc {
             }
             field_value_set
         };
+        let stored_only_bytes = |doc: &CompactDoc| -> HashMap<u32, HashSet<Vec<u8>>> {
+            let mut map: HashMap<u32, HashSet<Vec<u8>>> = HashMap::new();
+            for value in &doc.stored_only_values {
+                map.entry(value.field)
+                    .or_default()
+                    .insert(doc.node_data[value.start as usize..value.end as usize].to_vec());
+            }
+            map
+        };
         let self_field_values: HashMap<Field, HashSet<String>> = convert_to_comparable_map(self);
         let other_field_values: HashMap<Field, HashSet<String>> = convert_to_comparable_map(other);
         self_field_values.eq(&other_field_values)
+            && stored_only_bytes(self) == stored_only_bytes(other)
     }
 }
 
@@ -820,37 +876,97 @@ impl CompactDoc {
         }
         true
     }
+
+    /// `write_stored_value`, falling back to the generic serializer for the value types it leaves
+    /// to it. `is_top_level`: a pre-tokenized string field is stored as its text.
+    fn write_stored_value_or_generic(
+        &self,
+        value_addr: ValueAddr,
+        is_top_level: bool,
+        output: &mut Vec<u8>,
+    ) -> io::Result<()> {
+        let start = output.len();
+        if self.write_stored_value(value_addr, output) {
+            return Ok(());
+        }
+        output.truncate(start);
+        let value = self.get_compact_doc_value(value_addr);
+        let mut serializer = super::se::BinaryValueSerializer::new(output);
+        match value.as_value() {
+            ReferenceValue::Leaf(ReferenceValueLeaf::PreTokStr(pre_tokenized_text))
+                if is_top_level =>
+            {
+                serializer.serialize_value(ReferenceValue::Leaf::<&'_ OwnedValue>(
+                    ReferenceValueLeaf::Str(&pre_tokenized_text.text),
+                ))
+            }
+            reference_value => serializer.serialize_value(reference_value),
+        }
+    }
+
+    fn serialize_stored_fields_impl(
+        &self,
+        schema: &Schema,
+        output: &mut Vec<u8>,
+    ) -> io::Result<()> {
+        let is_stored = |field_id: u32| {
+            schema
+                .get_field_entry(Field::from_field_id(field_id))
+                .is_stored()
+        };
+        let num_stored = self
+            .field_values
+            .iter()
+            .filter(|field_value| is_stored(field_value.field as u32))
+            .count()
+            + self
+                .stored_only_values
+                .iter()
+                .filter(|value| is_stored(value.field))
+                .count();
+        let mut buf = [0u8; 8];
+        output.extend_from_slice(serialize_vint_u32(num_stored as u32, &mut buf));
+        for field_value in &self.field_values {
+            if !is_stored(field_value.field as u32) {
+                continue;
+            }
+            output.extend_from_slice(&(field_value.field as u32).to_le_bytes());
+            self.write_stored_value_or_generic(field_value.value_addr, true, output)?;
+        }
+        for value in &self.stored_only_values {
+            if !is_stored(value.field) {
+                continue;
+            }
+            output.extend_from_slice(&value.field.to_le_bytes());
+            output.extend_from_slice(&self.node_data[value.start as usize..value.end as usize]);
+        }
+        Ok(())
+    }
 }
 
 impl Document for CompactDoc {
     type Value<'a> = CompactDocValue<'a>;
     type FieldsValuesIter<'a> = FieldValueIterRef<'a>;
 
-    fn serialize_stored_fields(&self, schema: &Schema, output: &mut Vec<u8>) -> bool {
-        let start = output.len();
-        let num_stored = self
-            .field_values
-            .iter()
-            .filter(|field_value| {
-                schema
-                    .get_field_entry(Field::from_field_id(field_value.field as u32))
-                    .is_stored()
-            })
-            .count();
-        let mut buf = [0u8; 8];
-        output.extend_from_slice(serialize_vint_u32(num_stored as u32, &mut buf));
-        for field_value in &self.field_values {
-            let field = Field::from_field_id(field_value.field as u32);
-            if !schema.get_field_entry(field).is_stored() {
-                continue;
-            }
-            output.extend_from_slice(&(field_value.field as u32).to_le_bytes());
-            if !self.write_stored_value(field_value.value_addr, output) {
-                output.truncate(start);
-                return false;
+    fn serialize_stored_fields(
+        &self,
+        schema: &Schema,
+        output: &mut Vec<u8>,
+    ) -> Option<io::Result<()>> {
+        Some(self.serialize_stored_fields_impl(schema, output))
+    }
+
+    fn validate_for_schema(&self, schema: &Schema) -> crate::Result<()> {
+        for value in &self.stored_only_values {
+            let field_entry = schema.get_field_entry(Field::from_field_id(value.field));
+            if field_entry.is_indexed() || field_entry.is_fast() {
+                return Err(crate::TantivyError::SchemaError(format!(
+                    "field `{}` has a stored-only value but is indexed or fast",
+                    field_entry.name()
+                )));
             }
         }
-        true
+        Ok(())
     }
 
     fn iter_fields_and_values(&self) -> Self::FieldsValuesIter<'_> {
@@ -970,25 +1086,21 @@ mod fast_decode_tests {
                 doc.add_field_value(crate::schema::Field::from_field_id(*field_id), value);
             }
             let mut fast = Vec::new();
-            prop_assert!(doc.serialize_stored_fields(&schema, &mut fast));
+            doc.serialize_stored_fields(&schema, &mut fast).unwrap().unwrap();
             prop_assert_eq!(fast, generic_bytes(&doc, &schema));
         }
     }
 
     #[test]
-    fn test_fast_stored_serialization_falls_back_for_rare_types() {
+    fn test_fast_stored_serialization_rare_types_match_generic() {
         let mut schema_builder = Schema::builder();
         let ip = schema_builder.add_ip_addr_field("ip", STORED);
         let text = schema_builder.add_text_field("text", STORED);
+        let json = schema_builder.add_json_field("json", STORED);
         let schema = schema_builder.build();
         let mut doc = TantivyDocument::default();
         doc.add_text(text, "kept");
         doc.add_ip_addr(ip, Ipv6Addr::LOCALHOST);
-        let mut out = vec![42u8];
-        assert!(!doc.serialize_stored_fields(&schema, &mut out));
-        assert_eq!(out, vec![42u8], "output is left untouched on fallback");
-
-        let mut doc = TantivyDocument::default();
         doc.add_pre_tokenized_text(
             text,
             PreTokenizedString {
@@ -996,7 +1108,105 @@ mod fast_decode_tests {
                 tokens: vec![Token::default()],
             },
         );
-        assert!(!doc.serialize_stored_fields(&schema, &mut Vec::new()));
+        doc.add_field_value(
+            json,
+            &OwnedValue::Object(vec![(
+                "ip".to_string(),
+                OwnedValue::IpAddr(Ipv6Addr::UNSPECIFIED),
+            )]),
+        );
+        let mut fast = Vec::new();
+        doc.serialize_stored_fields(&schema, &mut fast)
+            .unwrap()
+            .unwrap();
+        assert_eq!(fast, generic_bytes(&doc, &schema));
+    }
+
+    proptest! {
+        /// A stored-only value is stored like the same value added normally, after the other
+        /// stored fields.
+        #[test]
+        fn test_stored_only_values_match_regular_values(
+            regular in proptest::collection::vec((0u32..2, value()), 0..5),
+            stored_only in proptest::collection::vec(value(), 0..4),
+        ) {
+            let mut schema_builder = Schema::builder();
+            schema_builder.add_json_field("a", STORED);
+            schema_builder.add_json_field("b", STORED);
+            let dynamic = schema_builder.add_json_field("dynamic", STORED);
+            let schema = schema_builder.build();
+            let mut doc = TantivyDocument::default();
+            let mut reference = TantivyDocument::default();
+            for (field_id, value) in &regular {
+                doc.add_field_value(crate::schema::Field::from_field_id(*field_id), value);
+                reference.add_field_value(crate::schema::Field::from_field_id(*field_id), value);
+            }
+            for value in &stored_only {
+                doc.add_stored_only_value(dynamic, value).unwrap();
+                reference.add_field_value(dynamic, value);
+            }
+            prop_assert_eq!(doc.iter_fields_and_values().count(), regular.len());
+            let mut fast = Vec::new();
+            doc.serialize_stored_fields(&schema, &mut fast).unwrap().unwrap();
+            prop_assert_eq!(fast, generic_bytes(&reference, &schema));
+        }
+    }
+
+    #[test]
+    fn test_stored_only_values_round_trip_and_validation() -> crate::Result<()> {
+        use crate::collector::Count;
+        use crate::query::AllQuery;
+        use crate::schema::{Value, STRING};
+        use crate::{DocAddress, Index};
+
+        let mut schema_builder = Schema::builder();
+        let id = schema_builder.add_text_field("id", STRING | STORED);
+        let dynamic = schema_builder.add_json_field("dynamic", STORED);
+        let indexed = schema_builder.add_json_field("indexed", STORED | TEXT);
+        let schema = schema_builder.build();
+        let index = Index::create_in_ram(schema.clone());
+        let mut writer = index.writer_for_tests()?;
+        let attributes = OwnedValue::Object(vec![
+            (
+                "service.name".to_string(),
+                OwnedValue::Str("cart".to_string()),
+            ),
+            ("count".to_string(), OwnedValue::I64(3)),
+        ]);
+        let mut doc = TantivyDocument::default();
+        doc.add_text(id, "a");
+        doc.add_stored_only_value(dynamic, &attributes)?;
+        writer.add_document(doc)?;
+        writer.commit()?;
+        let searcher = index.reader()?.searcher();
+        let stored: TantivyDocument = searcher.doc(DocAddress::new(0, 0))?;
+        assert_eq!(
+            stored.get_first(id).and_then(|value| value.as_str()),
+            Some("a")
+        );
+        assert_eq!(
+            stored.get_first(dynamic).map(OwnedValue::from),
+            Some(attributes.clone())
+        );
+
+        assert_eq!(searcher.search(&AllQuery, &Count)?, 1);
+
+        // Rejected before indexing if the field is indexed.
+        let mut single_segment_writer = Index::builder()
+            .schema(schema.clone())
+            .single_segment_index_writer(crate::directory::RamDirectory::default(), 15_000_000)?;
+        let mut bad = TantivyDocument::default();
+        bad.add_text(id, "b");
+        bad.add_stored_only_value(indexed, &attributes)?;
+        let error = single_segment_writer.add_document(bad).unwrap_err();
+        assert!(
+            matches!(error, crate::TantivyError::SchemaError(_)),
+            "{error:?}"
+        );
+        // The rejected document left nothing behind.
+        let index = single_segment_writer.finalize()?;
+        assert_eq!(index.reader()?.searcher().num_docs(), 0);
+        Ok(())
     }
 
     proptest! {
