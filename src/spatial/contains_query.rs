@@ -7,7 +7,7 @@
 //! This module does not port any single S2 class. It composes S2 primitives with the serialized
 //! segment index and query-local CellIndex.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use common::BitSet;
 
@@ -145,21 +145,38 @@ impl ContainsQuery {
         candidates
     }
 
-    /// Verify each candidate using the cascade.
+    /// Verify each candidate using the cascade. A geometry set is contained only when every one
+    /// of its members is: a member that is not a candidate lies outside the covering.
     fn verify_candidates(
         &self,
         candidates: HashMap<GeometryId, CandidateInfo>,
         edge_cache: &mut EdgeCache<'_, Sphere>,
     ) -> Vec<u32> {
-        let mut doc_ids = Vec::new();
+        // Keyed by the set's head: its document and the members not yet verified.
+        let mut unverified: HashMap<GeometryId, (u32, u32)> = HashMap::new();
+        let mut rejected: HashSet<GeometryId> = HashSet::new();
 
         for (geometry_id, info) in candidates {
-            if self.verify_one(geometry_id, &info, edge_cache) {
-                doc_ids.push(edge_cache.get(geometry_id).doc_id());
+            let entry = edge_cache.get(geometry_id);
+            let head = (geometry_id.0, entry.head());
+            if rejected.contains(&head) {
+                continue;
             }
+            if !self.verify_one(geometry_id, &info, edge_cache) {
+                rejected.insert(head);
+                continue;
+            }
+            unverified
+                .entry(head)
+                .or_insert((entry.doc_id(), entry.member_count()))
+                .1 -= 1;
         }
 
-        doc_ids
+        unverified
+            .into_iter()
+            .filter(|(head, (_, members))| *members == 0 && !rejected.contains(head))
+            .map(|(_, (doc_id, _))| doc_id)
+            .collect()
     }
 
     /// Verify a single candidate geometry. If the candidate has edges in boundary covering cells,

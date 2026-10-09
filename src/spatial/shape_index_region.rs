@@ -8,7 +8,7 @@
 //! From s2shape_index_region.h
 use std::collections::HashMap;
 
-use super::cell_index::{CellIndex, ClippedShape, GeometryId};
+use super::cell_index::{CellIndex, CellRelation, ClippedShape, GeometryId};
 use super::cell_index_reader::CellIndexReader;
 use super::cell_union::CellUnion;
 use super::crossings::S2EdgeCrosser;
@@ -213,20 +213,6 @@ fn clipped_shape_contains_point<E: EdgeProvider>(
         }
     }
     inside
-}
-
-/// Locates a target cell ID relative to the index.
-///
-/// Returns the relationship and, for Indexed, the position of the containing cell.
-enum CellRelation {
-    /// Target does not overlap any index cell.
-    Disjoint,
-    /// Target contains one or more index cells. The usize is the first overlapping cell's position
-    /// in `CellIndex.cells`.
-    Subdivided(usize),
-    /// Target is within (or equals) an index cell. The usize is that cell's position in
-    /// `CellIndex.cells`.
-    Indexed(usize),
 }
 
 /// Locates a target cell relative to the CellIndex.

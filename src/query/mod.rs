@@ -46,6 +46,7 @@ pub use self::disjunction_max_query::DisjunctionMaxQuery;
 pub use self::empty_query::{EmptyQuery, EmptyScorer, EmptyWeight};
 pub use self::exclude::{Exclude, ExclusionSet};
 pub use self::exist_query::ExistsQuery;
+pub(crate) use self::explanation::does_not_match;
 pub use self::explanation::Explanation;
 #[cfg(test)]
 pub(crate) use self::fuzzy_query::DfaWrapper;

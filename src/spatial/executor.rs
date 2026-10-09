@@ -21,9 +21,11 @@ use super::sphere::Sphere;
 use crate::core::Searcher;
 use crate::docset::{DocSet, TERMINATED};
 use crate::index::SegmentId;
-use crate::query::{BitSetDocSet, EnableScoring, Explanation, Query, Scorer, Weight};
+use crate::query::{
+    does_not_match, BitSetDocSet, EnableScoring, Explanation, Query, Scorer, Weight,
+};
 use crate::schema::Field;
-use crate::{DocId, Score, SegmentReader};
+use crate::{DocId, Score, SegmentReader, TantivyError};
 
 /// Spatial relationship for a join predicate.
 #[derive(Clone, Debug)]
@@ -389,7 +391,7 @@ fn evaluate(
                                             .is_empty()
                                     }
                                     SpatialRelation::Between(inner_r, outer_r) => {
-                                        let probe = ClosestEdgeQuery::any_between(
+                                        let probe = ClosestEdgeQuery::between(
                                             outer_geometry.clone(),
                                             S1ChordAngle::from_radians(*inner_r),
                                             S1ChordAngle::from_radians(*outer_r),
@@ -509,9 +511,12 @@ impl Clone for SpatialExecutor {
 
 impl Query for SpatialExecutor {
     fn weight(&self, enable_scoring: EnableScoring<'_>) -> crate::Result<Box<dyn Weight>> {
-        let searcher = enable_scoring
-            .searcher()
-            .expect("SpatialExecutor requires a Searcher");
+        let searcher = enable_scoring.searcher().ok_or_else(|| {
+            TantivyError::InvalidArgument(
+                "A spatial join or kNN query needs a searcher: it evaluates every segment at once"
+                    .to_string(),
+            )
+        })?;
         let segments = searcher.segment_readers();
 
         let output = evaluate(&self.root, searcher, segments)?;
@@ -541,8 +546,12 @@ impl Weight for ExecutorWeight {
         }
     }
 
-    fn explain(&self, _reader: &SegmentReader, _doc: DocId) -> crate::Result<Explanation> {
-        Ok(Explanation::new("SpatialExecutor", 1.0))
+    fn explain(&self, reader: &SegmentReader, doc: DocId) -> crate::Result<Explanation> {
+        let mut scorer = self.scorer(reader, 1.0)?;
+        if scorer.seek(doc) != doc {
+            return Err(does_not_match(doc));
+        }
+        Ok(Explanation::new("SpatialExecutor", scorer.score()))
     }
 }
 

@@ -408,6 +408,20 @@ pub(crate) fn write_directory<W: Write>(
     Ok(())
 }
 
+/// Where a target cell lies relative to the cells of an index. Mirrors the cases of S2's
+/// ShapeIndexIterator::Locate.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum CellRelation {
+    /// Target does not overlap any index cell.
+    Disjoint,
+    /// Target contains one or more index cells. The usize is the first overlapping cell's
+    /// position in the index.
+    Subdivided(usize),
+    /// Target is within (or equals) an index cell. The usize is that cell's position in the
+    /// index.
+    Indexed(usize),
+}
+
 /// Input geometry data for indexing, consisting of rings and metadata.
 #[derive(Clone)]
 pub struct GeometryData {

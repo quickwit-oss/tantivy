@@ -5,7 +5,9 @@
 //! for merge.
 
 use crate::error::DataCorruption;
-use crate::spatial::cell_index::{ClippedShape, IndexCell, DIRECTORY_ENTRY_LEN, FOOTER_LEN};
+use crate::spatial::cell_index::{
+    CellRelation, ClippedShape, IndexCell, DIRECTORY_ENTRY_LEN, FOOTER_LEN,
+};
 use crate::spatial::s2cell_id::S2CellId;
 
 /// Reads a serialized cell index from a byte slice.
@@ -89,8 +91,40 @@ impl<'a> CellIndexReader<'a> {
     /// Binary search the dictionary for the first cell whose range_max is at or past the target's
     /// range_min, then yield cells forward until past the target's range_max.
     pub fn scan_range(&'a self, target: S2CellId) -> CellIndexIter<'a> {
-        // Find the first dictionary entry whose range_max >= target.range_min().
-        let target_min = target.range_min();
+        CellIndexIter {
+            reader: self,
+            pos: self.first_ending_at_or_after(target.range_min()),
+            end_at: Some(target.range_max()),
+        }
+    }
+
+    /// Locates a target cell relative to the index cells from the dictionary alone, without
+    /// decoding any cell.
+    pub fn locate(&self, target: S2CellId) -> CellRelation {
+        let pos = self.first_ending_at_or_after(target.range_min());
+        if pos >= self.cell_count {
+            return CellRelation::Disjoint;
+        }
+        let (cell_id, _) = self.read_dir_entry(pos);
+        let cell_id = S2CellId(cell_id);
+        if cell_id.contains(target) {
+            CellRelation::Indexed(pos as usize)
+        } else if target.contains(cell_id) {
+            CellRelation::Subdivided(pos as usize)
+        } else {
+            CellRelation::Disjoint
+        }
+    }
+
+    /// Decodes the cell at the given position in cell order.
+    pub fn cell(&self, position: usize) -> IndexCell {
+        let (_, offset) = self.read_dir_entry(position as u32);
+        self.read_cell(offset as usize)
+    }
+
+    /// Binary search the dictionary for the position of the first cell whose range_max is at or
+    /// past the given cell id.
+    fn first_ending_at_or_after(&self, target_min: S2CellId) -> u32 {
         let mut lo = 0u32;
         let mut hi = self.cell_count;
         while lo < hi {
@@ -102,12 +136,7 @@ impl<'a> CellIndexReader<'a> {
                 hi = mid;
             }
         }
-
-        CellIndexIter {
-            reader: self,
-            pos: lo,
-            end_at: Some(target.range_max()),
-        }
+        lo
     }
 
     fn read_dir_entry(&self, index: u32) -> (u64, u64) {
@@ -210,6 +239,10 @@ mod tests {
         assert_eq!(reader.cell_count(), 0);
         assert!(reader.iter().next().is_none());
         assert!(reader.find(S2CellId::from_face(0)).is_none());
+        assert_eq!(
+            reader.locate(S2CellId::from_face(0)),
+            CellRelation::Disjoint
+        );
     }
 
     #[test]
@@ -221,6 +254,7 @@ mod tests {
         assert_eq!(reader.cell_count(), 2);
         let cells: Vec<IndexCell> = reader.iter().collect();
         assert_eq!(cells, vec![cell(1, 7), cell(4, 9)]);
+        assert_eq!(reader.cell(1), cell(4, 9));
 
         let footer_only = written(&CellIndex::new());
         assert_eq!(footer_only.len(), FOOTER_LEN);
@@ -240,5 +274,24 @@ mod tests {
         let mut longer = data.clone();
         longer.insert(0, 0);
         assert!(CellIndexReader::open(&longer).is_err());
+    }
+
+    #[test]
+    fn test_locate_finds_containing_and_contained_cells() -> crate::Result<()> {
+        let face_1 = S2CellId::from_face(1);
+        let child = face_1.child(2);
+        let data = written(&CellIndex {
+            cells: vec![IndexCell::new(child)],
+        });
+        let reader = CellIndexReader::open(&data)?;
+        assert_eq!(reader.locate(face_1), CellRelation::Subdivided(0));
+        assert_eq!(reader.locate(child), CellRelation::Indexed(0));
+        assert_eq!(reader.locate(child.child(3)), CellRelation::Indexed(0));
+        assert_eq!(reader.locate(face_1.child(1)), CellRelation::Disjoint);
+        assert_eq!(
+            reader.locate(S2CellId::from_face(0)),
+            CellRelation::Disjoint
+        );
+        Ok(())
     }
 }

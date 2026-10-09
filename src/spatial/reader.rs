@@ -57,9 +57,14 @@ impl SpatialReaders {
         }
     }
 
-    /// Return a break down of the space usage per field.
-    pub fn space_usage(&self, schema: &Schema) -> PerFieldSpaceUsage {
+    /// Return a break down of the cell index space usage per field.
+    pub fn cells_space_usage(&self, schema: &Schema) -> PerFieldSpaceUsage {
         self.cells.space_usage(schema)
+    }
+
+    /// Return a break down of the edge index space usage per field.
+    pub fn edges_space_usage(&self, schema: &Schema) -> PerFieldSpaceUsage {
+        self.edges.space_usage(schema)
     }
 }
 

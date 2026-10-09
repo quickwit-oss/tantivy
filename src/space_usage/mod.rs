@@ -70,7 +70,8 @@ pub struct SegmentSpaceUsage {
     positions: PerFieldSpaceUsage,
     fast_fields: PerFieldSpaceUsage,
     fieldnorms: PerFieldSpaceUsage,
-    spatial: PerFieldSpaceUsage,
+    spatial_cells: PerFieldSpaceUsage,
+    spatial_edges: PerFieldSpaceUsage,
 
     store: StoreSpaceUsage,
 
@@ -88,7 +89,8 @@ impl SegmentSpaceUsage {
         positions: PerFieldSpaceUsage,
         fast_fields: PerFieldSpaceUsage,
         fieldnorms: PerFieldSpaceUsage,
-        spatial: PerFieldSpaceUsage,
+        spatial_cells: PerFieldSpaceUsage,
+        spatial_edges: PerFieldSpaceUsage,
         store: StoreSpaceUsage,
         deletes: ByteCount,
     ) -> SegmentSpaceUsage {
@@ -97,7 +99,8 @@ impl SegmentSpaceUsage {
             + positions.total()
             + fast_fields.total()
             + fieldnorms.total()
-            + spatial.total()
+            + spatial_cells.total()
+            + spatial_edges.total()
             + store.total()
             + deletes;
         SegmentSpaceUsage {
@@ -107,7 +110,8 @@ impl SegmentSpaceUsage {
             positions,
             fast_fields,
             fieldnorms,
-            spatial,
+            spatial_cells,
+            spatial_edges,
             store,
             deletes,
             total,
@@ -126,8 +130,8 @@ impl SegmentSpaceUsage {
             Positions => PerField(self.positions().clone()),
             FastFields => PerField(self.fast_fields().clone()),
             FieldNorms => PerField(self.fieldnorms().clone()),
-            SpatialCells => PerField(self.spatial().clone()),
-            SpatialEdges => PerField(self.spatial().clone()),
+            SpatialCells => PerField(self.spatial_cells().clone()),
+            SpatialEdges => PerField(self.spatial_edges().clone()),
             Terms => PerField(self.termdict().clone()),
             SegmentComponent::Store => ComponentSpaceUsage::Store(self.store().clone()),
             Delete => Basic(self.deletes()),
@@ -164,9 +168,14 @@ impl SegmentSpaceUsage {
         &self.fieldnorms
     }
 
-    /// Space usage for field norms
-    pub fn spatial(&self) -> &PerFieldSpaceUsage {
-        &self.spatial
+    /// Space usage for spatial cell indexes
+    pub fn spatial_cells(&self) -> &PerFieldSpaceUsage {
+        &self.spatial_cells
+    }
+
+    /// Space usage for spatial edge indexes
+    pub fn spatial_edges(&self) -> &PerFieldSpaceUsage {
+        &self.spatial_edges
     }
 
     /// Space usage for stored documents
@@ -366,10 +375,10 @@ fn merge_column_space_usage(
 
 #[cfg(test)]
 mod test {
-    use crate::index::Index;
-    use crate::schema::{Schema, FAST, INDEXED, STORED, TEXT};
-    use crate::space_usage::PerFieldSpaceUsage;
-    use crate::{IndexWriter, Term};
+    use crate::index::{Index, SegmentComponent};
+    use crate::schema::{Schema, FAST, INDEXED, SPATIAL, STORED, TEXT};
+    use crate::space_usage::{ComponentSpaceUsage, PerFieldSpaceUsage};
+    use crate::{IndexWriter, TantivyDocument, Term};
 
     #[test]
     fn test_empty() {
@@ -434,6 +443,40 @@ mod test {
         // TODO: understand why the following fails
         //        assert_eq!(0, segment.store().total());
         assert_eq!(segment.deletes(), 0);
+        Ok(())
+    }
+
+    #[test]
+    fn test_spatial() -> crate::Result<()> {
+        let mut schema_builder = Schema::builder();
+        schema_builder.add_spatial_field("geometry", SPATIAL);
+        let schema = schema_builder.build();
+        let index = Index::create_in_ram(schema.clone());
+
+        {
+            let mut index_writer: IndexWriter = index.writer_for_tests()?;
+            let line = r#"{"geometry": {"type": "LineString", "coordinates": [[0, 0], [10, 0]]}}"#;
+            index_writer.add_document(TantivyDocument::parse_json(&schema, line)?)?;
+            index_writer.commit()?;
+        }
+
+        let reader = index.reader()?;
+        let searcher = reader.searcher();
+        let searcher_space_usage = searcher.space_usage()?;
+        let segment = &searcher_space_usage.segments()[0];
+
+        expect_single_field(segment.spatial_cells(), "geometry", 1, 512);
+        // The edge index holds at least the line's two vertices, three f64 each.
+        expect_single_field(segment.spatial_edges(), "geometry", 48, 512);
+        let ComponentSpaceUsage::PerField(edges) =
+            segment.component(SegmentComponent::SpatialEdges)
+        else {
+            panic!("the edge index is stored per field");
+        };
+        assert_eq!(edges.total(), segment.spatial_edges().total());
+        assert!(
+            segment.total() >= segment.spatial_cells().total() + segment.spatial_edges().total()
+        );
         Ok(())
     }
 
