@@ -69,7 +69,11 @@ fn short_compare(left: &[u8], right: &[u8]) -> bool {
 
 #[inline(always)]
 fn double_check_trick<const SIZE: usize>(left: &[u8], right: &[u8]) -> bool {
-    left[0..SIZE] == right[0..SIZE] && left[left.len() - SIZE..] == right[right.len() - SIZE..]
+    // Fixed-size array comparisons compile to plain loads and compares; comparing `[u8]`
+    // sub-slices can be lowered to a `memcmp` call (seen on aarch64).
+    let head = |slice: &[u8]| -> [u8; SIZE] { slice[..SIZE].try_into().unwrap() };
+    let tail = |slice: &[u8]| -> [u8; SIZE] { slice[slice.len() - SIZE..].try_into().unwrap() };
+    head(left) == head(right) && tail(left) == tail(right)
 }
 
 #[cfg(test)]
