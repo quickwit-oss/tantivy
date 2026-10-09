@@ -29,7 +29,7 @@ use super::s1chord_angle::S1ChordAngle;
 use super::s2cell::S2Cell;
 use super::s2cell_id::S2CellId;
 use super::s2edge_distances::{update_edge_pair_min_distance, update_min_distance};
-use super::shape_index_region::{contains_point, index_contains_point, SegmentIndex};
+use super::shape_index_region::{any_shape_contains_point, clipped_shape_contains_point};
 use super::sphere::Sphere;
 
 /// A result from the closest edge query: document ID and distance.
@@ -111,45 +111,42 @@ impl ClosestEdgeQuery {
     }
 
     /// Search one segment.
-    pub fn search_segment<'a>(
+    pub fn search_segment(
         &self,
-        cell_reader: &'a CellIndexReader<'a>,
-        edge_cache: &mut EdgeCache<'a, Sphere>,
+        cell_reader: &CellIndexReader,
+        edge_cache: &mut EdgeCache<'_, Sphere>,
     ) -> Vec<ClosestEdgeResult> {
         self.search_impl(cell_reader, edge_cache, None)
     }
 
     /// Search one segment, skipping shapes whose doc_id is not in the filter bitset.
-    pub fn search_segment_filtered<'a>(
+    pub fn search_segment_filtered(
         &self,
-        cell_reader: &'a CellIndexReader<'a>,
-        edge_cache: &mut EdgeCache<'a, Sphere>,
+        cell_reader: &CellIndexReader,
+        edge_cache: &mut EdgeCache<'_, Sphere>,
         terms_filter: &BitSet,
     ) -> Vec<ClosestEdgeResult> {
         self.search_impl(cell_reader, edge_cache, Some(terms_filter))
     }
 
-    fn search_impl<'a>(
+    fn search_impl(
         &self,
-        cell_reader: &'a CellIndexReader<'a>,
-        edge_cache: &mut EdgeCache<'a, Sphere>,
+        cell_reader: &CellIndexReader,
+        edge_cache: &mut EdgeCache<'_, Sphere>,
         terms_filter: Option<&BitSet>,
     ) -> Vec<ClosestEdgeResult> {
-        if cell_reader.cell_count() == 0 || self.max_results == 0 {
+        if cell_reader.cell_count() == 0
+            || self.max_results == 0
+            || self.max_distance <= S1ChordAngle::zero()
+            || self.min_distance >= self.max_distance
+        {
             return Vec::new();
         }
 
-        let mut best: HashMap<u32, S1ChordAngle> = HashMap::new();
-        let mut distance_limit = self.max_distance;
+        let mut best = Best::new(self.max_results, self.max_distance);
 
-        self.add_containing_polygons(
-            cell_reader,
-            edge_cache,
-            terms_filter,
-            &mut best,
-            &mut distance_limit,
-        );
-        if self.first_only && !best.is_empty() {
+        self.add_containing_polygons(cell_reader, edge_cache, terms_filter, &mut best);
+        if best.limit == S1ChordAngle::zero() || (self.first_only && !best.is_empty()) {
             return self.collect_results(&best);
         }
 
@@ -162,13 +159,13 @@ impl ClosestEdgeQuery {
             self.enqueue(
                 &S2Cell::from_face(face),
                 cell_reader,
-                distance_limit,
+                best.limit,
                 &mut queue,
             );
         }
 
         while let Some(entry) = queue.pop() {
-            if entry.distance >= distance_limit {
+            if entry.distance >= best.limit {
                 break;
             }
 
@@ -182,7 +179,6 @@ impl ClosestEdgeQuery {
                         terms_filter,
                         &mut tested_interiors,
                         &mut best,
-                        &mut distance_limit,
                     );
                     if self.first_only && !best.is_empty() {
                         return self.collect_results(&best);
@@ -192,7 +188,7 @@ impl ClosestEdgeQuery {
                     let cell = S2Cell::new(entry.cell_id);
                     if let Some(children) = cell.subdivide() {
                         for child in &children {
-                            self.enqueue(child, cell_reader, distance_limit, &mut queue);
+                            self.enqueue(child, cell_reader, best.limit, &mut queue);
                         }
                     }
                 }
@@ -228,13 +224,12 @@ impl ClosestEdgeQuery {
     /// Stored polygons that contain part of the query geometry are at distance zero. Testing
     /// one vertex of each query member suffices: a polygon that contains part of a member but
     /// not that vertex has an edge that crosses the member, which the edge distances find.
-    fn add_containing_polygons<'a>(
+    fn add_containing_polygons(
         &self,
-        cell_reader: &'a CellIndexReader<'a>,
-        edge_cache: &mut EdgeCache<'a, Sphere>,
+        cell_reader: &CellIndexReader,
+        edge_cache: &mut EdgeCache<'_, Sphere>,
         terms_filter: Option<&BitSet>,
-        best: &mut HashMap<u32, S1ChordAngle>,
-        distance_limit: &mut S1ChordAngle,
+        best: &mut Best,
     ) {
         for member in &self.query_edges.set.members {
             let Some(point) = member.vertices.first() else {
@@ -253,12 +248,16 @@ impl ClosestEdgeQuery {
                 if !entry.edge_set().closed {
                     continue;
                 }
-                let mut segment = SegmentIndex {
-                    cell_reader,
-                    edge_cache: &mut *edge_cache,
-                };
-                if contains_point(&mut segment, clipped.geometry_id, point) {
-                    self.update_best(entry.doc_id(), S1ChordAngle::zero(), best, distance_limit);
+                // Use the already decoded shape; looking it up again would decode every shape
+                // in the cell once per polygon, making overlapping polygons quadratic.
+                if clipped_shape_contains_point(index_cell.cell_id, clipped, point, |edge_idx| {
+                    entry.edge(edge_idx)
+                }) {
+                    best.update(entry.doc_id(), S1ChordAngle::zero());
+                    // K distinct zero-distance hits cannot be improved by any later geometry.
+                    if best.limit == S1ChordAngle::zero() {
+                        return;
+                    }
                 }
             }
         }
@@ -266,20 +265,7 @@ impl ClosestEdgeQuery {
 
     /// Whether a closed member of the query geometry contains the point.
     fn query_contains(&self, point: &[f64; 3]) -> bool {
-        self.query_edges
-            .set
-            .members
-            .iter()
-            .enumerate()
-            .any(|(member, edge_set)| {
-                edge_set.closed
-                    && index_contains_point(
-                        &self.query_index,
-                        &self.query_edges,
-                        (0, member as u32),
-                        point,
-                    )
-            })
+        any_shape_contains_point(&self.query_index, &self.query_edges, point)
     }
 
     /// Minimum distance from a stored cell to the query geometry, its interior included: a
@@ -343,8 +329,7 @@ impl ClosestEdgeQuery {
         edge_cache: &mut EdgeCache<'_, Sphere>,
         terms_filter: Option<&BitSet>,
         tested_interiors: &mut HashSet<GeometryId>,
-        best: &mut HashMap<u32, S1ChordAngle>,
-        distance_limit: &mut S1ChordAngle,
+        best: &mut Best,
     ) {
         let bound = CellBound::new(&S2Cell::new(index_cell.cell_id));
 
@@ -365,8 +350,8 @@ impl ClosestEdgeQuery {
                 continue;
             }
 
-            let mut min_dist = *distance_limit;
-            if let Some(&prev) = best.get(&doc_id) {
+            let mut min_dist = best.limit;
+            if let Some(prev) = best.get(doc_id) {
                 if prev < min_dist {
                     min_dist = prev;
                 }
@@ -386,36 +371,15 @@ impl ClosestEdgeQuery {
                 }
             }
 
-            if min_dist < *distance_limit {
-                self.update_best(doc_id, min_dist, best, distance_limit);
+            if min_dist < best.limit {
+                best.update(doc_id, min_dist);
             }
         }
     }
 
-    fn update_best(
-        &self,
-        doc_id: u32,
-        distance: S1ChordAngle,
-        best: &mut HashMap<u32, S1ChordAngle>,
-        distance_limit: &mut S1ChordAngle,
-    ) {
-        match best.get(&doc_id) {
-            Some(&prev) if distance >= prev => return,
-            _ => {}
-        }
-        best.insert(doc_id, distance);
-
-        if self.max_results < usize::MAX && best.len() >= self.max_results {
-            let mut distances: Vec<S1ChordAngle> = best.values().copied().collect();
-            distances.sort();
-            if distances.len() >= self.max_results {
-                *distance_limit = distances[self.max_results - 1];
-            }
-        }
-    }
-
-    fn collect_results(&self, best: &HashMap<u32, S1ChordAngle>) -> Vec<ClosestEdgeResult> {
+    fn collect_results(&self, best: &Best) -> Vec<ClosestEdgeResult> {
         let mut out: Vec<ClosestEdgeResult> = best
+            .distances
             .iter()
             .filter(|(_, &distance)| distance >= self.min_distance)
             .map(|(&doc_id, &distance)| ClosestEdgeResult { doc_id, distance })
@@ -428,8 +392,67 @@ impl ClosestEdgeQuery {
     }
 }
 
+/// The best distance found so far for each document, and the distance a geometry must be nearer
+/// than to count. When the results are bounded to K, only the K nearest documents are kept, and
+/// once there are K the limit is the farthest of them.
+struct Best {
+    distances: HashMap<u32, S1ChordAngle>,
+    /// The kept documents by distance, farthest on top, when the results are bounded. Entries for
+    /// a document whose distance has since improved are stale, and dropped when they surface.
+    nearest: BinaryHeap<(S1ChordAngle, u32)>,
+    max_results: usize,
+    limit: S1ChordAngle,
+}
+
+impl Best {
+    fn new(max_results: usize, max_distance: S1ChordAngle) -> Self {
+        Best {
+            distances: HashMap::new(),
+            nearest: BinaryHeap::new(),
+            max_results,
+            limit: max_distance,
+        }
+    }
+
+    fn get(&self, doc_id: u32) -> Option<S1ChordAngle> {
+        self.distances.get(&doc_id).copied()
+    }
+
+    fn is_empty(&self) -> bool {
+        self.distances.is_empty()
+    }
+
+    /// Records a document's distance, unless it already has one at least as near.
+    fn update(&mut self, doc_id: u32, distance: S1ChordAngle) {
+        if self.get(doc_id).is_some_and(|prev| distance >= prev) {
+            return;
+        }
+        self.distances.insert(doc_id, distance);
+        if self.max_results == usize::MAX {
+            return;
+        }
+        self.nearest.push((distance, doc_id));
+        // Drop stale entries, and the farthest document while there are more than K.
+        while let Some(&(top_distance, top_doc)) = self.nearest.peek() {
+            let current = self.get(top_doc) == Some(top_distance);
+            if current && self.distances.len() <= self.max_results {
+                break;
+            }
+            self.nearest.pop();
+            if current {
+                self.distances.remove(&top_doc);
+            }
+        }
+        if self.distances.len() == self.max_results {
+            if let Some(&(farthest, _)) = self.nearest.peek() {
+                self.limit = farthest;
+            }
+        }
+    }
+}
+
 /// The endpoints of an edge in a smashed vertex array. A point is an edge from itself to itself.
-fn edge(vertices: &[[f64; 3]], edge_idx: u16) -> (&[f64; 3], &[f64; 3]) {
+fn edge(vertices: &[[f64; 3]], edge_idx: u32) -> (&[f64; 3], &[f64; 3]) {
     let i = edge_idx as usize;
     (&vertices[i], vertices.get(i + 1).unwrap_or(&vertices[i]))
 }

@@ -29,13 +29,25 @@ pub struct SpatialWriter {
 }
 
 impl SpatialWriter {
-    /// Add a geometry for a document and field.
+    /// Add a geometry for a document and field. The values of a document's field make up one
+    /// geometry set, so that a query matches the document's geometry as a whole: contained only
+    /// if all of it is.
     pub fn add_geometry(&mut self, doc_id: DocId, field: Field, geometry: Geometry<Plane>) {
         let data = self.data_by_field.entry(field).or_default();
         let projected = geometry.project::<Sphere>();
         let set = to_geometry_set(&projected, doc_id);
-        self.sets_mem_usage += set.mem_usage();
-        data.sets.push(set);
+        match data.sets.last_mut() {
+            Some(last) if last.doc_id == doc_id => {
+                self.sets_mem_usage -= last.mem_usage();
+                last.members.reserve_exact(set.members.len());
+                last.members.extend(set.members);
+                self.sets_mem_usage += last.mem_usage();
+            }
+            _ => {
+                self.sets_mem_usage += set.mem_usage();
+                data.sets.push(set);
+            }
+        }
     }
 
     /// Memory usage estimate: the heap held by the sets, and the arrays that hold the sets
@@ -73,6 +85,19 @@ mod tests {
                     + data.sets.iter().map(GeometrySet::mem_usage).sum::<usize>()
             })
             .sum()
+    }
+
+    #[test]
+    fn test_values_of_a_document_make_one_set() {
+        let mut writer = SpatialWriter::default();
+        let field = Field::from_field_id(0);
+        writer.add_geometry(0, field, Geometry::Point([1.0, 1.0]));
+        writer.add_geometry(1, field, Geometry::Point([2.0, 2.0]));
+        writer.add_geometry(1, field, Geometry::MultiPoint(vec![[3.0, 3.0], [4.0, 4.0]]));
+        let sets = &writer.data_by_field[&field].sets;
+        let members: Vec<(u32, usize)> = sets.iter().map(|s| (s.doc_id, s.members.len())).collect();
+        assert_eq!(members, [(0, 1), (1, 3)]);
+        assert_eq!(writer.mem_usage(), summed_mem_usage(&writer));
     }
 
     #[test]

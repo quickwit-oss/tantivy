@@ -110,6 +110,16 @@ impl Query for SpatialQuery {
         &self,
         enable_scoring: super::EnableScoring<'_>,
     ) -> crate::Result<Box<dyn super::Weight>> {
+        let min_coordinates = match self.predicate {
+            SpatialPredicate::Contains | SpatialPredicate::Intersects => 3,
+            _ => 1,
+        };
+        if self.coordinates.len() < min_coordinates {
+            return Err(crate::TantivyError::InvalidArgument(format!(
+                "Spatial predicate {:?} needs at least {min_coordinates} coordinates",
+                self.predicate
+            )));
+        }
         let prepared: Box<dyn PreparedSpatialQuery> = match &self.predicate {
             SpatialPredicate::Contains | SpatialPredicate::Intersects => {
                 let mut ring: Vec<[f64; 2]> = self.coordinates.clone();
@@ -167,38 +177,38 @@ impl Query for SpatialQuery {
 
 /// Shared interface for prepared spatial queries.
 trait PreparedSpatialQuery: Send + Sync {
-    fn search_segment<'a>(
+    fn search_segment(
         &self,
-        cell_reader: &'a CellIndexReader<'a>,
-        edge_cache: &mut EdgeCache<'a, Sphere>,
+        cell_reader: &CellIndexReader,
+        edge_cache: &mut EdgeCache<'_, Sphere>,
     ) -> Vec<u32>;
 }
 
 impl PreparedSpatialQuery for ContainsQuery {
-    fn search_segment<'a>(
+    fn search_segment(
         &self,
-        cell_reader: &'a CellIndexReader<'a>,
-        edge_cache: &mut EdgeCache<'a, Sphere>,
+        cell_reader: &CellIndexReader,
+        edge_cache: &mut EdgeCache<'_, Sphere>,
     ) -> Vec<u32> {
         ContainsQuery::search_segment(self, cell_reader, edge_cache)
     }
 }
 
 impl PreparedSpatialQuery for IntersectsQuery {
-    fn search_segment<'a>(
+    fn search_segment(
         &self,
-        cell_reader: &'a CellIndexReader<'a>,
-        edge_cache: &mut EdgeCache<'a, Sphere>,
+        cell_reader: &CellIndexReader,
+        edge_cache: &mut EdgeCache<'_, Sphere>,
     ) -> Vec<u32> {
         IntersectsQuery::search_segment(self, cell_reader, edge_cache)
     }
 }
 
 impl PreparedSpatialQuery for ClosestEdgeQuery {
-    fn search_segment<'a>(
+    fn search_segment(
         &self,
-        cell_reader: &'a CellIndexReader<'a>,
-        edge_cache: &mut EdgeCache<'a, Sphere>,
+        cell_reader: &CellIndexReader,
+        edge_cache: &mut EdgeCache<'_, Sphere>,
     ) -> Vec<u32> {
         ClosestEdgeQuery::search_segment(self, cell_reader, edge_cache)
             .into_iter()
@@ -304,7 +314,7 @@ mod tests {
 
     use super::*;
     use crate::collector::{DocSetCollector, TopDocs};
-    use crate::query::{AllQuery, TermQuery};
+    use crate::query::{AllQuery, BoostQuery, TermQuery};
     use crate::schema::{IndexRecordOption, Schema, Value, SPATIAL, STORED, STRING};
     use crate::spatial::containment::{brute_force_contains, compute_origin_inside};
     use crate::spatial::executor::SpatialRelation;
@@ -421,6 +431,133 @@ mod tests {
     }
 
     #[test]
+    fn test_knn_skips_deleted_documents_before_ranking() -> crate::Result<()> {
+        let point = |lat: f64| format!(r#"{{"type": "Point", "coordinates": [0, {lat}]}}"#);
+        let (deleted, near, middle, far) = (point(1.0), point(2.0), point(3.0), point(4.0));
+        let (index, name, geometry) = index_segments(&[
+            &[("deleted", &deleted), ("far", &far)],
+            &[("near", &near), ("middle", &middle)],
+        ])?;
+        let mut writer: IndexWriter = index.writer_for_tests()?;
+        writer.set_merge_policy(Box::new(crate::indexer::NoMergePolicy));
+        writer.delete_term(Term::from_field_text(name, "deleted"));
+        writer.commit()?;
+
+        let searcher = index.reader()?.searcher();
+        assert_eq!(searcher.segment_readers().len(), 2);
+        assert_eq!(searcher.num_docs(), 3);
+        for k in 1..=4 {
+            let unfiltered =
+                SpatialQuery::with_predicate(geometry, vec![[0.0, 0.0]], SpatialPredicate::Knn(k));
+            let filtered = SpatialExecutor::new(PlanNode::Knn {
+                field: geometry,
+                geometry: geometry_set(r#"{"type": "Point", "coordinates": [0, 0]}"#),
+                k,
+                filter: Some(Box::new(PlanNode::Query(Box::new(AllQuery)))),
+            });
+            for query in [&unfiltered as &dyn Query, &filtered] {
+                let hits = searcher.search(query, &TopDocs::with_limit(10).order_by_score())?;
+                let names = hits
+                    .iter()
+                    .map(|&(_, address)| name_of(&searcher, name, address))
+                    .collect::<crate::Result<Vec<_>>>()?;
+                assert_eq!(names, ["near", "middle", "far"][..k.min(3)]);
+            }
+        }
+        // The deletion mask must intersect the caller's filter rather than replace it.
+        for only in ["deleted", "far"] {
+            let filtered = SpatialExecutor::new(PlanNode::Knn {
+                field: geometry,
+                geometry: geometry_set(r#"{"type": "Point", "coordinates": [0, 0]}"#),
+                k: 1,
+                filter: Some(Box::new(PlanNode::Query(name_query(name, only)))),
+            });
+            let expected = if only == "deleted" {
+                vec![]
+            } else {
+                vec!["far"]
+            };
+            assert_eq!(matching(&index, name, &filtered)?, expected);
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn test_knn_applies_boosts_and_explains_the_same_score() -> crate::Result<()> {
+        let a = r#"{"type": "Point", "coordinates": [0, 1]}"#;
+        let b = r#"{"type": "Point", "coordinates": [0, 2]}"#;
+        let (index, _, geometry) = index_segments(&[&[("a", a)], &[("b", b)]])?;
+        let searcher = index.reader()?.searcher();
+        let knn =
+            SpatialQuery::with_predicate(geometry, vec![[0.0, 0.0]], SpatialPredicate::Knn(2));
+        let plain = searcher.search(&knn, &TopDocs::with_limit(10).order_by_score())?;
+        assert_eq!(plain.len(), 2);
+        for boost in [0.0, 3.0, -1.0] {
+            let boosted = BoostQuery::new(Box::new(knn.clone()), boost);
+            let hits = searcher.search(&boosted, &TopDocs::with_limit(10).order_by_score())?;
+            assert_eq!(hits.len(), plain.len());
+            for (score, address) in hits {
+                let unboosted = plain.iter().find(|(_, doc)| *doc == address).unwrap().0;
+                assert_eq!(score, unboosted * boost);
+                assert_eq!(boosted.explain(&searcher, address)?.value(), score);
+            }
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn test_empty_distance_ranges_match_no_geometries() -> crate::Result<()> {
+        let point = r#"{"type": "Point", "coordinates": [5, 5]}"#;
+        let (index, name, geometry) = index_segments(&[&[("box", BOX), ("point", point)]])?;
+        for predicate in [
+            SpatialPredicate::Within(0.0),
+            SpatialPredicate::Within(-1.0),
+            SpatialPredicate::Between(0.0, 0.0),
+            SpatialPredicate::Between(-1.0, 0.0),
+            SpatialPredicate::Between(1.0, 1.0),
+            SpatialPredicate::Between(1.0, 0.5),
+        ] {
+            let query = SpatialQuery::with_predicate(geometry, vec![[5.0, 5.0]], predicate);
+            assert!(matching(&index, name, &query)?.is_empty(), "{query:?}");
+        }
+        let nonempty = SpatialQuery::with_predicate(
+            geometry,
+            vec![[5.0, 5.0]],
+            SpatialPredicate::Between(0.0, 1e-6),
+        );
+        assert_eq!(matching(&index, name, &nonempty)?, ["box", "point"]);
+        Ok(())
+    }
+
+    #[test]
+    fn test_overlapping_polygons_match_knn_and_within() -> crate::Result<()> {
+        let docs: Vec<(String, &str)> = (0..256).map(|i| (format!("box{i}"), BOX)).collect();
+        let docs: Vec<(&str, &str)> = docs
+            .iter()
+            .map(|(name, shape)| (name.as_str(), *shape))
+            .collect();
+        let (index, _, geometry) = index_segments(&[&docs])?;
+        let searcher = index.reader()?.searcher();
+        for k in [1, 10, docs.len(), docs.len() + 1] {
+            let knn =
+                SpatialQuery::with_predicate(geometry, vec![[5.0, 5.0]], SpatialPredicate::Knn(k));
+            let hits = searcher.search(&knn, &TopDocs::with_limit(docs.len()).order_by_score())?;
+            assert_eq!(hits.len(), k.min(docs.len()));
+            assert!(hits.iter().all(|(score, _)| *score == 0.0));
+        }
+        let within = SpatialQuery::with_predicate(
+            geometry,
+            vec![[5.0, 5.0]],
+            SpatialPredicate::Within(1e-6),
+        );
+        assert_eq!(
+            searcher.search(&within, &DocSetCollector)?.len(),
+            docs.len()
+        );
+        Ok(())
+    }
+
+    #[test]
     fn test_contains_needs_every_member_of_a_multi_polygon() -> crate::Result<()> {
         let split = r#"{"type": "MultiPolygon", "coordinates": [
             [[[1, 1], [2, 1], [2, 2], [1, 2], [1, 1]]],
@@ -445,6 +582,400 @@ mod tests {
             relation: SpatialRelation::Near(1e-6),
         });
         assert_eq!(matching(&index, name, &join)?, ["box"]);
+        Ok(())
+    }
+
+    fn parse(index: &Index, name: Field, query: &str) -> crate::Result<Vec<String>> {
+        let parser = crate::query::QueryParser::for_index(index, vec![name]);
+        matching(index, name, &*parser.parse_query(query)?)
+    }
+
+    #[test]
+    fn test_join_keeps_the_occur_of_the_join_and_its_siblings() -> crate::Result<()> {
+        let point = r#"{"type": "Point", "coordinates": [5, 5]}"#;
+        let far = r#"{"type": "Point", "coordinates": [50, 50]}"#;
+        let (index, name, _) = index_segments(&[&[("box", BOX), ("point", point), ("far", far)]])?;
+        let near_point = "geometry:$within(1km, $query(name:point))";
+        assert_eq!(parse(&index, name, near_point)?, ["box"]);
+        assert_eq!(
+            parse(&index, name, &format!("+name:box +{near_point}"))?,
+            ["box"]
+        );
+        assert!(parse(&index, name, &format!("-name:box {near_point}"))?.is_empty());
+        assert_eq!(
+            parse(&index, name, &format!("name:far OR {near_point}"))?,
+            ["box", "far"]
+        );
+        assert_eq!(
+            parse(&index, name, &format!("name:far -{near_point}"))?,
+            ["far"]
+        );
+        assert_eq!(
+            parse(&index, name, &format!("name:box name:far -{near_point}"))?,
+            ["far"]
+        );
+        let any_near = "geometry:$within(1km, $query(*))";
+        assert_eq!(
+            parse(&index, name, &format!("+(name:box name:point) +{any_near}"))?,
+            ["box", "point"]
+        );
+        // A join with a boost is not narrowed, and still matches.
+        assert_eq!(
+            parse(&index, name, &format!("+name:box +{near_point}^2"))?,
+            ["box"]
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn test_join_rejects_an_invalid_inner_query() -> crate::Result<()> {
+        let (index, name, _) = index_segments(&[&[("box", BOX)]])?;
+        let parser = crate::query::QueryParser::for_index(&index, vec![name]);
+        let query = "geometry:$within(1km, $query(name:point AND))";
+        assert!(parser.parse_query(query).is_err());
+        assert!(!parser.parse_query_lenient(query).1.is_empty());
+        assert!(parser
+            .parse_query("geometry:$within(1km, $query(nofield:x))")
+            .is_err());
+
+        let knn_join = query_grammar::UserInputAst::from(query_grammar::UserInputLeaf::Spatial {
+            field: Some("geometry".to_string()),
+            predicate: query_grammar::SpatialPredicateKind::Knn(3),
+            coordinates: vec![],
+            inner_query: Some("name:box".to_string()),
+        });
+        assert!(parser.build_query_from_user_input_ast(knn_join).is_err());
+        let no_coordinates =
+            query_grammar::UserInputAst::from(query_grammar::UserInputLeaf::Spatial {
+                field: Some("geometry".to_string()),
+                predicate: query_grammar::SpatialPredicateKind::Intersects,
+                coordinates: vec![],
+                inner_query: None,
+            });
+        assert!(parser
+            .build_query_from_user_input_ast(no_coordinates)
+            .is_err());
+        Ok(())
+    }
+
+    #[test]
+    fn test_a_query_with_too_few_coordinates_is_an_error() -> crate::Result<()> {
+        let (index, _, geometry) = index_segments(&[&[("box", BOX)]])?;
+        let searcher = index.reader()?.searcher();
+        for (coordinates, predicate) in [
+            (vec![], SpatialPredicate::Within(1.0)),
+            (vec![], SpatialPredicate::Knn(1)),
+            (vec![[0.0, 0.0], [1.0, 1.0]], SpatialPredicate::Contains),
+        ] {
+            let query = SpatialQuery::with_predicate(geometry, coordinates, predicate);
+            assert!(searcher.search(&query, &DocSetCollector).is_err());
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn test_joins_with_point_and_line_outer_geometries() -> crate::Result<()> {
+        let point = r#"{"type": "Point", "coordinates": [5, 5]}"#;
+        let line = r#"{"type": "LineString", "coordinates": [[-5, 5.001], [15, 5.001]]}"#;
+        let (index, name, _) =
+            index_segments(&[&[("box", BOX), ("point", point), ("line", line)]])?;
+        assert_eq!(
+            parse(&index, name, "geometry:$intersects($query(name:box))")?,
+            ["line", "point"]
+        );
+        assert_eq!(
+            parse(&index, name, "geometry:$intersects($query(name:line))")?,
+            ["box"]
+        );
+        assert_eq!(
+            parse(&index, name, "geometry:$intersects($query(name:point))")?,
+            ["box"]
+        );
+        assert!(parse(&index, name, "geometry:$contains($query(name:line))")?.is_empty());
+        assert_eq!(
+            parse(&index, name, "geometry:$contains($query(name:point))")?,
+            ["box"]
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn test_queries_use_every_member_of_a_multi_polygon() -> crate::Result<()> {
+        let multi = r#"{"type": "MultiPolygon", "coordinates": [
+            [[[0, 0], [1, 0], [1, 1], [0, 1], [0, 0]]],
+            [[[20, 20], [30, 20], [30, 30], [20, 30], [20, 20]]]]}"#;
+        let point = r#"{"type": "Point", "coordinates": [25, 25]}"#;
+        let square = r#"{"type": "Polygon", "coordinates": [
+            [[24, 24], [26, 24], [26, 26], [24, 26], [24, 24]]]}"#;
+        let (index, name, geometry) =
+            index_segments(&[&[("multi", multi), ("point", point), ("square", square)]])?;
+        let intersects = SpatialExecutor::new(PlanNode::Intersects {
+            field: geometry,
+            geometry: geometry_set(multi),
+            filter: Box::new(PlanNode::Query(Box::new(AllQuery))),
+        });
+        assert_eq!(
+            matching(&index, name, &intersects)?,
+            ["multi", "point", "square"]
+        );
+        for relation in [SpatialRelation::Intersects, SpatialRelation::Contains] {
+            for inner in ["point", "square"] {
+                let join = SpatialExecutor::new(PlanNode::Join {
+                    field: geometry,
+                    outer: Box::new(PlanNode::Query(name_query(name, "multi"))),
+                    inner: Box::new(PlanNode::Query(name_query(name, inner))),
+                    relation: relation.clone(),
+                });
+                assert_eq!(
+                    matching(&index, name, &join)?,
+                    ["multi"],
+                    "{relation:?} {inner}"
+                );
+            }
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn test_a_line_query_has_no_interior() -> crate::Result<()> {
+        let point =
+            |lon: f64, lat: f64| format!(r#"{{"type": "Point", "coordinates": [{lon}, {lat}]}}"#);
+        let (east, far_east) = (point(10.0, 0.0), point(20.0, 1.0));
+        let line = r#"{"type": "LineString", "coordinates": [[5, -5], [5, 5]]}"#;
+        let crossing = r#"{"type": "LineString", "coordinates": [[0, 0], [10, 0]]}"#;
+        let (index, name, geometry) = index_segments(&[&[
+            ("east", &east),
+            ("far_east", &far_east),
+            ("box", BOX),
+            ("crossing", crossing),
+            ("line", line),
+        ]])?;
+        let intersects = SpatialExecutor::new(PlanNode::Intersects {
+            field: geometry,
+            geometry: geometry_set(line),
+            filter: Box::new(PlanNode::Query(Box::new(AllQuery))),
+        });
+        // A line meets itself only along its edges, which do not cross.
+        assert_eq!(matching(&index, name, &intersects)?, ["box", "crossing"]);
+        for relation in [SpatialRelation::Intersects, SpatialRelation::Contains] {
+            let join = SpatialExecutor::new(PlanNode::Join {
+                field: geometry,
+                outer: Box::new(PlanNode::Query(name_query(name, "line"))),
+                inner: Box::new(PlanNode::Query(Box::new(AllQuery))),
+                relation: relation.clone(),
+            });
+            let expected: &[&str] = match relation {
+                SpatialRelation::Intersects => &["line"],
+                _ => &[],
+            };
+            assert_eq!(matching(&index, name, &join)?, expected, "{relation:?}");
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn test_join_ignores_deleted_inner_documents() -> crate::Result<()> {
+        let point = r#"{"type": "Point", "coordinates": [5, 5]}"#;
+        let (index, name, geometry) = index_segments(&[&[("box", BOX), ("point", point)]])?;
+        let join = SpatialExecutor::new(PlanNode::Join {
+            field: geometry,
+            outer: Box::new(PlanNode::Query(name_query(name, "box"))),
+            inner: Box::new(PlanNode::Query(Box::new(AllQuery))),
+            relation: SpatialRelation::Near(1e-6),
+        });
+        assert_eq!(matching(&index, name, &join)?, ["box"]);
+        let mut writer: IndexWriter = index.writer_for_tests()?;
+        writer.set_merge_policy(Box::new(crate::indexer::NoMergePolicy));
+        writer.delete_term(Term::from_field_text(name, "point"));
+        writer.commit()?;
+        assert!(matching(&index, name, &join)?.is_empty());
+        Ok(())
+    }
+
+    #[test]
+    fn test_join_does_not_match_a_document_to_itself() -> crate::Result<()> {
+        let point = |lon: f64| format!(r#"{{"type": "Point", "coordinates": [{lon}, 0]}}"#);
+        let (a, b, c) = (point(0.0), point(10.0), point(10.000001));
+        let (index, name, geometry) = index_segments(&[&[("a", &a), ("b", &b)], &[("c", &c)]])?;
+        let join = SpatialExecutor::new(PlanNode::Join {
+            field: geometry,
+            outer: Box::new(PlanNode::Query(Box::new(AllQuery))),
+            inner: Box::new(PlanNode::Query(Box::new(AllQuery))),
+            relation: SpatialRelation::Near(1e-6),
+        });
+        assert_eq!(matching(&index, name, &join)?, ["b", "c"]);
+        Ok(())
+    }
+
+    #[test]
+    fn test_contains_rejects_a_polygon_leaving_through_a_shared_vertex() -> crate::Result<()> {
+        let polygon = |ring: &str| format!(r#"{{"type": "Polygon", "coordinates": [{ring}]}}"#);
+        let diamond = polygon("[[5, 5], [10, 0], [15, 5], [10, 10], [5, 5]]");
+        let corner = polygon("[[5, 5], [10, 0], [10, 10], [5, 5]]");
+        let inside_corner = polygon("[[10, 0], [8, 5], [5, 5], [10, 0]]");
+        let outside_corner = polygon("[[10, 0], [15, 0], [15, 5], [10, 0]]");
+        let (index, name, geometry) = index_segments(&[&[
+            ("diamond", &diamond),
+            ("corner", &corner),
+            ("inside_corner", &inside_corner),
+            ("outside_corner", &outside_corner),
+            ("same", BOX),
+        ]])?;
+        let query = SpatialQuery::from_bounds(geometry, [[0.0, 0.0], [10.0, 10.0]]);
+        assert_eq!(
+            matching(&index, name, &query)?,
+            ["corner", "inside_corner", "same"]
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn test_polygons_sharing_boundary_intersect_only_where_interiors_overlap() -> crate::Result<()>
+    {
+        let polygon = |ring: &str| format!(r#"{{"type": "Polygon", "coordinates": [{ring}]}}"#);
+        let east = polygon("[[10, 0], [20, 0], [20, 10], [10, 10], [10, 0]]");
+        let corner_touch = polygon("[[10, 10], [20, 10], [20, 20], [10, 20], [10, 10]]");
+        let inner_touch = polygon("[[10, 0], [8, 5], [5, 5], [10, 0]]");
+        let surround = polygon("[[-5, -5], [15, -5], [15, 15], [-5, 15], [-5, -5]]");
+        let surround_touch = polygon("[[0, 0], [15, -5], [15, 15], [-5, 15], [0, 0]]");
+        let (index, name, geometry) = index_segments(&[&[
+            ("same", BOX),
+            ("east", &east),
+            ("corner_touch", &corner_touch),
+            ("inner_touch", &inner_touch),
+            ("surround", &surround),
+            ("surround_touch", &surround_touch),
+        ]])?;
+        let bounds = [[0.0, 0.0], [10.0, 10.0]];
+        let intersects = SpatialQuery::intersects_bounds(geometry, bounds);
+        assert_eq!(
+            matching(&index, name, &intersects)?,
+            ["inner_touch", "same", "surround", "surround_touch"]
+        );
+        let contains = SpatialQuery::from_bounds(geometry, bounds);
+        assert_eq!(matching(&index, name, &contains)?, ["inner_touch", "same"]);
+        Ok(())
+    }
+
+    #[test]
+    fn test_contains_rejects_a_polygon_around_a_hole_of_the_query() -> crate::Result<()> {
+        let holed = format!(
+            r#"{{"type": "Polygon", "coordinates": [{}, {}]}}"#,
+            "[[0, 0], [20, 0], [20, 20], [0, 20], [0, 0]]",
+            "[[8, 8], [8, 12], [12, 12], [12, 8], [8, 8]]"
+        );
+        let square = |lo: f64, hi: f64| {
+            format!(
+                r#"{{"type": "Polygon", "coordinates": [[[{lo}, {lo}], [{hi}, {lo}], [{hi}, {hi}], [{lo}, {hi}], [{lo}, {lo}]]]}}"#
+            )
+        };
+        let (around, beside, in_hole) = (square(5.0, 15.0), square(1.0, 3.0), square(9.0, 11.0));
+        let hole = square(8.0, 12.0);
+        let (index, name, geometry) = index_segments(&[&[
+            ("holed", &holed),
+            ("around", &around),
+            ("beside", &beside),
+            ("in_hole", &in_hole),
+            ("hole", &hole),
+            ("copy", &holed),
+        ]])?;
+        let contains = |inner: &str| {
+            SpatialExecutor::new(PlanNode::Join {
+                field: geometry,
+                outer: Box::new(PlanNode::Query(name_query(name, "holed"))),
+                inner: Box::new(PlanNode::Query(name_query(name, inner))),
+                relation: SpatialRelation::Contains,
+            })
+        };
+        assert!(matching(&index, name, &contains("around"))?.is_empty());
+        assert!(matching(&index, name, &contains("in_hole"))?.is_empty());
+        assert!(matching(&index, name, &contains("hole"))?.is_empty());
+        assert_eq!(matching(&index, name, &contains("beside"))?, ["holed"]);
+        assert_eq!(matching(&index, name, &contains("copy"))?, ["holed"]);
+        Ok(())
+    }
+
+    #[test]
+    fn test_queries_with_many_vertices_find_crossings() -> crate::Result<()> {
+        let polygon = |ring: &str| format!(r#"{{"type": "Polygon", "coordinates": [{ring}]}}"#);
+        let straddling = polygon("[[4.5, -0.5], [5.5, -0.5], [5.5, 0.5], [4.5, 0.5], [4.5, -0.5]]");
+        let inside = polygon("[[-1, -1], [1, -1], [1, 1], [-1, 1], [-1, -1]]");
+        let outside = polygon("[[5.5, -0.5], [6.5, -0.5], [6.5, 0.5], [5.5, 0.5], [5.5, -0.5]]");
+        let (index, name, geometry) = index_segments(&[&[
+            ("straddling", &straddling),
+            ("inside", &inside),
+            ("outside", &outside),
+        ]])?;
+        let circle: Vec<[f64; 2]> = (0..200)
+            .map(|i| {
+                let (sin, cos) = (std::f64::consts::TAU * i as f64 / 200.0).sin_cos();
+                [5.0 * cos, 5.0 * sin]
+            })
+            .collect();
+        let contains = SpatialQuery::new(geometry, circle.clone());
+        assert_eq!(matching(&index, name, &contains)?, ["inside"]);
+        let intersects =
+            SpatialQuery::with_predicate(geometry, circle, SpatialPredicate::Intersects);
+        assert_eq!(
+            matching(&index, name, &intersects)?,
+            ["inside", "straddling"]
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn test_contains_needs_every_value_of_a_document() -> crate::Result<()> {
+        let point = |lon: f64| format!(r#"{{"type": "Point", "coordinates": [{lon}, 5]}}"#);
+        let split = format!("[{}, {}]", point(5.0), point(50.0));
+        let both = format!("[{}, {}]", point(4.0), point(6.0));
+        let (index, name, geometry) = index_segments(&[&[("split", &split), ("both", &both)]])?;
+        let query = SpatialQuery::from_bounds(geometry, [[0.0, 0.0], [10.0, 10.0]]);
+        assert_eq!(matching(&index, name, &query)?, ["both"]);
+        let intersects = SpatialQuery::intersects_bounds(geometry, [[0.0, 0.0], [10.0, 10.0]]);
+        assert_eq!(matching(&index, name, &intersects)?, ["both", "split"]);
+        Ok(())
+    }
+
+    #[test]
+    fn test_geometry_collection_is_indexed_and_round_trips() -> crate::Result<()> {
+        let collection = r#"{"type": "GeometryCollection", "geometries": [
+            {"type": "Point", "coordinates": [50, 50]},
+            {"type": "LineString", "coordinates": [[1, 1], [2, 2]]}]}"#;
+        let (index, name, geometry) = index_segments(&[&[("collection", collection)]])?;
+        let query = SpatialQuery::intersects_bounds(geometry, [[0.0, 0.0], [10.0, 10.0]]);
+        assert_eq!(matching(&index, name, &query)?, ["collection"]);
+
+        let object: serde_json::Map<String, serde_json::Value> =
+            serde_json::from_str(collection).unwrap();
+        let parsed = Geometry::<Plane>::from_geojson(&object).unwrap();
+        assert_eq!(
+            Geometry::<Plane>::from_geojson(&parsed.to_geojson()).unwrap(),
+            parsed
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn test_index_a_polygon_with_more_vertices_than_a_u16() -> crate::Result<()> {
+        let ring = regular_ring(0.0, 0.0, 70_000, 5.0, false);
+        let big = format!(r#"{{"type": "Polygon", "coordinates": [{ring}]}}"#);
+        let point = |lon: f64| format!(r#"{{"type": "Point", "coordinates": [{lon}, 0]}}"#);
+        let (center, edge, out) = (point(0.0), point(4.99999), point(5.01));
+        let (index, name, geometry) = index_segments(&[&[
+            ("big", &big),
+            ("center", &center),
+            ("edge", &edge),
+            ("out", &out),
+        ]])?;
+        let at = |lon: f64| {
+            SpatialQuery::with_predicate(geometry, vec![[lon, 0.0]], SpatialPredicate::Within(1e-9))
+        };
+        assert_eq!(matching(&index, name, &at(0.0))?, ["big", "center"]);
+        // The vertices near (5, 0) have the highest edge ids.
+        assert_eq!(matching(&index, name, &at(4.999995))?, ["big"]);
+        assert!(matching(&index, name, &at(5.005))?.is_empty());
+        let near_edge = SpatialQuery::intersects_bounds(geometry, [[4.9, -0.1], [5.1, 0.1]]);
+        assert_eq!(matching(&index, name, &near_edge)?, ["big", "edge", "out"]);
         Ok(())
     }
 

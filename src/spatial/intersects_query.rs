@@ -3,243 +3,143 @@
 //! Shares infrastructure with contains_query. Differs in verification: any overlap between the
 //! query polygon and a candidate is sufficient.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use common::BitSet;
 
-use super::cell_index::{BuildOptions, CellIndex, GeometryId, IndexBuilder};
+use super::cell_index::GeometryId;
 use super::cell_index_reader::CellIndexReader;
-use super::contains_query::{BoundaryEdges, CandidateInfo, QueryEdgeProvider};
-use super::crossings::S2EdgeCrosser;
+use super::contains_query::{beside, midpoint, CandidateInfo, Contact, QueryRegion};
 use super::edge_cache::EdgeCache;
 use super::geometry_set::GeometrySet;
-use super::region::Region;
-use super::region_coverer::{CovererOptions, RegionCoverer};
-use super::s2cell::S2Cell;
-use super::s2cell_id::S2CellId;
-use super::shape_index_region::{
-    contains_point, index_contains_point, CellIndexRegion, SegmentIndex,
-};
+use super::region_coverer::CovererOptions;
+use super::shape_index_region::{contains_point, SegmentIndex};
 use super::sphere::Sphere;
 
 /// Prepared intersects query, built once from a query polygon and applied per-segment.
 pub struct IntersectsQuery {
-    query_index: CellIndex,
-    query_edges: QueryEdgeProvider,
-    covering: Vec<S2CellId>,
-    interior: Vec<bool>,
+    region: QueryRegion,
 }
 
 impl IntersectsQuery {
     /// Build the query from a smashed GeometrySet.
     pub fn new(set: GeometrySet, options: CovererOptions) -> Self {
-        let builder = IndexBuilder::new(BuildOptions::default());
-        let query_index = builder.build_from_sets(std::slice::from_ref(&set));
-        let query_edges = QueryEdgeProvider { set };
-
-        let region = CellIndexRegion::new(&query_index, &query_edges);
-        let coverer = RegionCoverer::new(options);
-        let covering = coverer.get_covering(&region);
-
-        let interior: Vec<bool> = covering
-            .cell_ids()
-            .iter()
-            .map(|&id| region.contains_cell(&S2Cell::new(id)))
-            .collect();
-
-        let covering = covering.into_cell_ids();
-
         Self {
-            query_index,
-            query_edges,
-            covering,
-            interior,
+            region: QueryRegion::new(set, options),
         }
     }
 
     /// Search one segment for geometries that intersect the query polygon.
-    pub fn search_segment<'a>(
+    pub fn search_segment(
         &self,
-        cell_reader: &'a CellIndexReader<'a>,
-        edge_cache: &mut EdgeCache<'a, Sphere>,
+        cell_reader: &CellIndexReader,
+        edge_cache: &mut EdgeCache<'_, Sphere>,
     ) -> Vec<u32> {
-        let candidates = self.collect_candidates(cell_reader, None, edge_cache);
+        let candidates = self
+            .region
+            .collect_candidates(cell_reader, None, edge_cache);
         self.verify_candidates(candidates, cell_reader, edge_cache)
     }
 
     /// Search one segment, skipping shapes whose doc_id is not in the filter bitset.
-    pub fn search_segment_filtered<'a>(
+    pub fn search_segment_filtered(
         &self,
-        cell_reader: &'a CellIndexReader<'a>,
-        edge_cache: &mut EdgeCache<'a, Sphere>,
+        cell_reader: &CellIndexReader,
+        edge_cache: &mut EdgeCache<'_, Sphere>,
         terms_filter: &BitSet,
     ) -> Vec<u32> {
-        let candidates = self.collect_candidates(cell_reader, Some(terms_filter), edge_cache);
+        let candidates =
+            self.region
+                .collect_candidates(cell_reader, Some(terms_filter), edge_cache);
         self.verify_candidates(candidates, cell_reader, edge_cache)
     }
 
-    fn collect_candidates(
-        &self,
-        reader: &CellIndexReader,
-        terms_filter: Option<&BitSet>,
-        edge_cache: &EdgeCache<'_, Sphere>,
-    ) -> HashMap<GeometryId, CandidateInfo> {
-        let mut candidates: HashMap<GeometryId, CandidateInfo> = HashMap::new();
-
-        for (i, &covering_cell_id) in self.covering.iter().enumerate() {
-            let is_interior = self.interior[i];
-
-            for index_cell in reader.scan_range(covering_cell_id) {
-                let cell_is_interior = is_interior && covering_cell_id.contains(index_cell.cell_id);
-
-                for clipped in &index_cell.shapes {
-                    if let Some(filter) = terms_filter {
-                        let doc_id = edge_cache.doc_id_for(clipped.geometry_id);
-                        if !filter.contains(doc_id) {
-                            continue;
-                        }
-                    }
-
-                    let info = candidates
-                        .entry(clipped.geometry_id)
-                        .or_insert_with(CandidateInfo::new);
-
-                    if cell_is_interior {
-                        info.has_interior = true;
-                    } else {
-                        info.has_boundary = true;
-                        if !clipped.edge_indices.is_empty() {
-                            info.boundary_edges.push(BoundaryEdges {
-                                covering_cell_id,
-                                edge_indices: clipped.edge_indices.clone(),
-                            });
-                        }
-                    }
-                }
-            }
-        }
-
-        candidates
-    }
-
-    fn verify_candidates<'a>(
+    fn verify_candidates(
         &self,
         candidates: HashMap<GeometryId, CandidateInfo>,
-        cell_reader: &'a CellIndexReader<'a>,
-        edge_cache: &mut EdgeCache<'a, Sphere>,
+        cell_reader: &CellIndexReader,
+        edge_cache: &mut EdgeCache<'_, Sphere>,
     ) -> Vec<u32> {
-        let mut doc_ids = Vec::new();
+        let mut doc_ids = HashSet::new();
 
         for (geometry_id, info) in candidates {
-            if self.verify_one(geometry_id, &info, cell_reader, edge_cache) {
-                doc_ids.push(edge_cache.get(geometry_id).doc_id());
-            }
-        }
-
-        doc_ids
-    }
-
-    fn verify_one<'a>(
-        &self,
-        geometry_id: GeometryId,
-        info: &CandidateInfo,
-        cell_reader: &'a CellIndexReader<'a>,
-        edge_cache: &mut EdgeCache<'a, Sphere>,
-    ) -> bool {
-        if info.has_interior {
-            let entry = edge_cache.get(geometry_id);
-            let vertices = entry.vertices();
-            if !vertices.is_empty()
-                && index_contains_point(&self.query_index, &self.query_edges, (0, 0), &vertices[0])
+            // A document intersects once, however many of its members do.
+            let doc_id = edge_cache.get(geometry_id).doc_id();
+            if !doc_ids.contains(&doc_id)
+                && self.verify_one(geometry_id, &info, cell_reader, edge_cache)
             {
-                return true;
+                doc_ids.insert(doc_id);
             }
         }
 
-        if info.has_boundary && self.has_crossing(geometry_id, info, edge_cache) {
-            return true;
-        }
-
-        let entry = edge_cache.get(geometry_id);
-        let edge_set = entry.edge_set();
-        let vertices = &edge_set.vertices;
-        let closed = edge_set.closed;
-
-        if vertices.is_empty() {
-            return false;
-        }
-
-        if index_contains_point(&self.query_index, &self.query_edges, (0, 0), &vertices[0]) {
-            return true;
-        }
-
-        if closed {
-            let mut seg = SegmentIndex {
-                cell_reader,
-                edge_cache,
-            };
-            if contains_point(
-                &mut seg,
-                geometry_id,
-                &self.query_edges.get_edge_set((0, 0)).vertices[0],
-            ) {
-                return true;
-            }
-        }
-
-        false
+        doc_ids.into_iter().collect()
     }
 
-    fn has_crossing(
+    /// The candidate intersects the query geometry if their edges cross, if part of the
+    /// candidate's boundary lies inside the query geometry, if part of the query geometry's
+    /// boundary lies inside the candidate, or if they share an edge with both interiors on the same
+    /// side of it.
+    fn verify_one(
         &self,
         geometry_id: GeometryId,
         info: &CandidateInfo,
+        cell_reader: &CellIndexReader,
         edge_cache: &mut EdgeCache<'_, Sphere>,
     ) -> bool {
         let entry = edge_cache.get(geometry_id);
-        let candidate_vertices = entry.vertices();
-        let n_candidate = candidate_vertices.len();
+        let candidate = entry.edge_set();
+        if candidate.vertices.is_empty() {
+            return false;
+        }
+        let touch = match self.region.boundary_contact(info, candidate) {
+            Contact::Cross => return true,
+            Contact::Touch(touch) => touch,
+        };
 
-        if n_candidate < 2 {
+        let touches_inside = touch
+            .touching
+            .iter()
+            .any(|&edge_idx| self.region.contains(&midpoint(entry.edge(edge_idx))));
+        if touches_inside {
+            return true;
+        }
+        let ring_inside = candidate.ring_offsets.windows(2).any(|ring| {
+            !touch.candidate_ring_meets(ring[0]..ring[1])
+                && self.region.contains(&candidate.vertices[ring[0]])
+        });
+        if ring_inside {
+            return true;
+        }
+        if !candidate.closed {
             return false;
         }
 
-        let query_vertices = &self.query_edges.get_edge_set((0, 0)).vertices;
+        let mut segment = SegmentIndex {
+            cell_reader,
+            edge_cache,
+        };
+        let mut candidate_contains =
+            |point: &[f64; 3]| contains_point(&mut segment, geometry_id, point);
 
-        for boundary in &info.boundary_edges {
-            let query_cell = self.query_index.find_cell(boundary.covering_cell_id);
-            let query_edge_indices: Vec<u16> = match query_cell {
-                Some(cell) => cell
-                    .shapes
-                    .iter()
-                    .flat_map(|s| s.edge_indices.iter().copied())
-                    .collect(),
-                None => continue,
-            };
-
-            if query_edge_indices.is_empty() {
-                continue;
-            }
-
-            for &candidate_edge_idx in &boundary.edge_indices {
-                let ci = candidate_edge_idx as usize;
-                let cv0 = &candidate_vertices[ci];
-                let cv1 = &candidate_vertices[ci + 1];
-
-                let mut crosser = S2EdgeCrosser::new(cv0, cv1);
-
-                for &query_edge_idx in &query_edge_indices {
-                    let qi = query_edge_idx as usize;
-                    let qv0 = &query_vertices[qi];
-                    let qv1 = &query_vertices[qi + 1];
-
-                    if crosser.crossing_sign_two(qv0, qv1) > 0 {
-                        return true;
-                    }
+        let query_touches_inside = touch.query_touching.iter().any(|&(member, edge_idx)| {
+            candidate_contains(&midpoint(self.region.query_edge(member, edge_idx)))
+        });
+        if query_touches_inside {
+            return true;
+        }
+        for (member, edge_set) in self.region.members().iter().enumerate() {
+            for ring in edge_set.ring_offsets.windows(2) {
+                if !touch.query_ring_meets(member as u32, ring[0]..ring[1])
+                    && candidate_contains(&edge_set.vertices[ring[0]])
+                {
+                    return true;
                 }
             }
         }
-
-        false
+        touch.along.iter().any(|&edge_idx| {
+            beside(entry.edge(edge_idx))
+                .iter()
+                .any(|point| self.region.contains(point) && candidate_contains(point))
+        })
     }
 }

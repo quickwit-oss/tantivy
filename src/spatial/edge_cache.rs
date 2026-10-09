@@ -72,7 +72,7 @@ impl GeometryEntry {
 
     /// The two endpoints of the given edge. For point geometries (single vertex), returns the
     /// vertex twice.
-    pub fn edge(&self, index: u16) -> ([f64; 3], [f64; 3]) {
+    pub fn edge(&self, index: u32) -> ([f64; 3], [f64; 3]) {
         let vertices = self.vertices();
         let i = index as usize;
         let v0 = vertices[i];

@@ -161,7 +161,7 @@ impl Geometry<Plane> {
                 }
                 Ok(Geometry::MultiPolygon(result))
             }
-            "GeometriesCollection" => {
+            "GeometryCollection" => {
                 let geometries = object
                     .get("geometries")
                     .ok_or(GeometryError::MissingField("geometries".to_string()))?;

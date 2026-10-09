@@ -5,7 +5,7 @@
 use std::io;
 use std::io::Write;
 
-use common::CountingWriter;
+use common::{write_u32_vint, CountingWriter};
 
 use super::containment::brute_force_contains;
 use super::crossings::S2EdgeCrosser;
@@ -88,7 +88,7 @@ pub struct ClippedShape {
     /// True if the geometry contains the center of the cell.
     pub contains_center: bool,
     /// Indicies of the edges stored per geometry id in the edge index.
-    pub edge_indices: Vec<u16>,
+    pub edge_indices: Vec<u32>,
 }
 
 /// Stores the index contents for a particular S2CellId.
@@ -146,7 +146,7 @@ impl ClippedShape {
     }
 
     /// Adds an edge index to this clipped shape.
-    pub fn add_edge(&mut self, edge_id: u16) {
+    pub fn add_edge(&mut self, edge_id: u32) {
         self.edge_indices.push(edge_id);
     }
 
@@ -170,7 +170,7 @@ struct FaceEdge {
     /// Geometry the edge belongs to.
     geometry_id: u32,
     /// Edge index in the original polygon.
-    edge_id: u16,
+    edge_id: u32,
     /// Maximum level for subdivision (based on edge length).
     max_level: i32,
     /// Determine if we are indexing a polygon.
@@ -356,39 +356,56 @@ impl CellIndex {
         None
     }
 
+    /// Returns the index cells whose ranges overlap the target cell's range: the cell containing
+    /// it, or the cells it contains.
+    pub fn cells_overlapping(&self, target: S2CellId) -> &[IndexCell] {
+        let start = self
+            .cells
+            .partition_point(|c| c.cell_id.range_max() < target.range_min());
+        let end = self
+            .cells
+            .partition_point(|c| c.cell_id.range_min() <= target.range_max());
+        &self.cells[start..end.max(start)]
+    }
+
     /// Writes the cell index to a CountingWriter with a dictionary at the end.
     /// Offsets are recorded relative to the start of this write, not the global
     /// stream position, because CompositeFile shares one CountingWriter across
     /// all fields but the reader sees a per-field slice starting at zero.
-    pub fn write<W: Write>(&self, write: &mut CountingWriter<W>) {
+    pub fn write<W: Write>(&self, write: &mut CountingWriter<W>) -> io::Result<()> {
         let base = write.written_bytes();
         let mut offsets: Vec<(u64, u64)> = Vec::with_capacity(self.cells.len());
 
         for cell in &self.cells {
-            let offset = write.written_bytes() - base;
-
-            write.write_all(&cell.cell_id.0.to_le_bytes()).unwrap();
-            write
-                .write_all(&(cell.shapes.len() as u16).to_le_bytes())
-                .unwrap();
-
-            for shape in &cell.shapes {
-                write.write_all(&shape.geometry_id.1.to_le_bytes()).unwrap();
-                write.write_all(&[shape.contains_center as u8]).unwrap();
-                write
-                    .write_all(&(shape.edge_indices.len() as u16).to_le_bytes())
-                    .unwrap();
-                for &edge_id in &shape.edge_indices {
-                    write.write_all(&edge_id.to_le_bytes()).unwrap();
-                }
-            }
-
-            offsets.push((cell.cell_id.0, offset));
+            offsets.push((cell.cell_id.0, write.written_bytes() - base));
+            write_cell(write, cell, |shape| shape.geometry_id.1)?;
         }
 
         let dir_offset = write.written_bytes() - base;
-        write_directory(write, &offsets, dir_offset).unwrap();
+        write_directory(write, &offsets, dir_offset)
     }
+}
+
+/// Writes one cell: its id, its shape count, then each shape's geometry id (as given by
+/// `geometry_id`), contains_center flag, edge count and edge ids. Counts and edge ids are
+/// variable length, so that neither a crowded cell nor a geometry with many vertices overflows
+/// them.
+pub(crate) fn write_cell<W: Write>(
+    write: &mut W,
+    cell: &IndexCell,
+    geometry_id: impl Fn(&ClippedShape) -> u32,
+) -> io::Result<()> {
+    write.write_all(&cell.cell_id.0.to_le_bytes())?;
+    write_u32_vint(cell.shapes.len() as u32, write)?;
+    for shape in &cell.shapes {
+        write.write_all(&geometry_id(shape).to_le_bytes())?;
+        write.write_all(&[shape.contains_center as u8])?;
+        write_u32_vint(shape.edge_indices.len() as u32, write)?;
+        for &edge_id in &shape.edge_indices {
+            write_u32_vint(edge_id, write)?;
+        }
+    }
+    Ok(())
 }
 
 /// Writes the directory of a cell index, one `(cell_id, offset)` entry per cell in cell order,
@@ -499,7 +516,7 @@ impl IndexBuilder {
         geometry_id = 0;
         for (_doc_id, geometries) in &self.documents {
             for geo in geometries {
-                let mut edge_id: u16 = 0;
+                let mut edge_id: u32 = 0;
 
                 for ring in &geo.rings {
                     let n = ring.len();
@@ -589,7 +606,7 @@ impl IndexBuilder {
                 let closed = member.closed;
                 let vertices = &member.vertices;
                 let offsets = &member.ring_offsets;
-                let mut edge_id: u16 = 0;
+                let mut edge_id: u32 = 0;
 
                 for ring_idx in 0..offsets.len() - 1 {
                     let ring_start = offsets[ring_idx];
@@ -659,7 +676,7 @@ impl IndexBuilder {
     fn add_face_edge(
         &self,
         geometry_id: u32,
-        edge_id: u16,
+        edge_id: u32,
         max_level: i32,
         has_interior: bool,
         v0: &[f64; 3],

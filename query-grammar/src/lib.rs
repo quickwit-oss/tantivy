@@ -74,6 +74,32 @@ mod tests {
     }
 
     #[test]
+    fn test_spatial_join_debug() {
+        for (query, expected) in [
+            (
+                "geo:$within(1rad, $query(name:point))",
+                "\"geo\":$within(1rad, $query(name:point))",
+            ),
+            (
+                "geo:$between(1rad, 2rad, $query(a))",
+                "\"geo\":$between(1rad, 2rad, $query(a))",
+            ),
+            (
+                "geo:$intersects($query(name:x))",
+                "\"geo\":$intersects($query(name:x))",
+            ),
+            (
+                "geo:$contains($query(name:x))",
+                "\"geo\":$contains($query(name:x))",
+            ),
+            ("geo:$knn(3, 1 2)", "\"geo\":$knn(3, 1 2)"),
+        ] {
+            let debug = format!("{:?}", parse_query(query).unwrap());
+            assert!(debug.contains(expected), "{query} gives {debug}");
+        }
+    }
+
+    #[test]
     fn test_spatial_too_few_coords() {
         assert!(parse_query(r#"geo:$intersects(1.0 2.0, 3.0 4.0)"#).is_err());
     }

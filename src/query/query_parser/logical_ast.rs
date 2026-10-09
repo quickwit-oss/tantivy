@@ -2,11 +2,11 @@ use std::fmt;
 use std::ops::Bound;
 use std::sync::Arc;
 
-use query_grammar::SpatialPredicateKind;
 use tantivy_fst::Regex;
 
-use crate::query::Occur;
+use crate::query::{Occur, SpatialPredicate};
 use crate::schema::{Field, Term};
+use crate::spatial::executor::SpatialRelation;
 use crate::Score;
 
 #[derive(Clone)]
@@ -31,12 +31,19 @@ pub enum LogicalLiteral {
     },
     Spatial {
         field: Field,
-        predicate: SpatialPredicateKind,
+        predicate: SpatialPredicate,
         coordinates: Vec<[f64; 2]>,
-        inner_query: Option<String>,
+    },
+    /// Matches the documents whose geometry relates to the geometry of a document `inner`
+    /// matches.
+    SpatialJoin {
+        field: Field,
+        relation: SpatialRelation,
+        inner: Box<LogicalAst>,
     },
 }
 
+#[derive(Clone)]
 pub enum LogicalAst {
     Clause(Vec<(Occur, LogicalAst)>),
     Leaf(Box<LogicalLiteral>),
@@ -170,18 +177,16 @@ impl fmt::Debug for LogicalLiteral {
                 ref field,
                 ref predicate,
                 ref coordinates,
-                ref inner_query,
-            } => {
-                if let Some(q) = inner_query {
-                    write!(formatter, "Spatial({field:?}, {predicate:?}, $query({q}))")
-                } else {
-                    write!(
-                        formatter,
-                        "Spatial({field:?}, {predicate:?}, {} coords)",
-                        coordinates.len()
-                    )
-                }
-            }
+            } => write!(
+                formatter,
+                "Spatial({field:?}, {predicate:?}, {} coords)",
+                coordinates.len()
+            ),
+            LogicalLiteral::SpatialJoin {
+                ref field,
+                ref relation,
+                ref inner,
+            } => write!(formatter, "SpatialJoin({field:?}, {relation:?}, {inner:?})"),
         }
     }
 }

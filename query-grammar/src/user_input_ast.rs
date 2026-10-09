@@ -157,49 +157,33 @@ impl Debug for UserInputLeaf {
                 field,
                 predicate,
                 coordinates,
-                inner_query: _,
+                inner_query,
             } => {
                 if let Some(field) = field {
                     write!(formatter, "\"{field}\":")?;
                 }
                 match predicate {
-                    SpatialPredicateKind::Intersects => {
-                        write!(formatter, "$intersects(")?;
-                        for (i, (lon, lat)) in coordinates.iter().enumerate() {
-                            if i > 0 {
-                                write!(formatter, ", ")?;
-                            }
-                            write!(formatter, "{} {}", lon.0, lat.0)?;
-                        }
-                        write!(formatter, ")")
-                    }
-                    SpatialPredicateKind::Contains => {
-                        write!(formatter, "$contains(")?;
-                        for (i, (lon, lat)) in coordinates.iter().enumerate() {
-                            if i > 0 {
-                                write!(formatter, ", ")?;
-                            }
-                            write!(formatter, "{} {}", lon.0, lat.0)?;
-                        }
-                        write!(formatter, ")")
-                    }
+                    SpatialPredicateKind::Intersects => write!(formatter, "$intersects(")?,
+                    SpatialPredicateKind::Contains => write!(formatter, "$contains(")?,
                     SpatialPredicateKind::Within(radius) => {
-                        let (lon, lat) = &coordinates[0];
-                        write!(formatter, "$within({}rad, {} {})", radius.0, lon.0, lat.0)
+                        write!(formatter, "$within({}rad, ", radius.0)?
                     }
                     SpatialPredicateKind::Between(inner, outer) => {
-                        let (lon, lat) = &coordinates[0];
-                        write!(
-                            formatter,
-                            "$between({}rad, {}rad, {} {})",
-                            inner.0, outer.0, lon.0, lat.0
-                        )
+                        write!(formatter, "$between({}rad, {}rad, ", inner.0, outer.0)?
                     }
-                    SpatialPredicateKind::Knn(k) => {
-                        let (lon, lat) = &coordinates[0];
-                        write!(formatter, "$knn({}, {} {})", k, lon.0, lat.0)
-                    }
+                    SpatialPredicateKind::Knn(k) => write!(formatter, "$knn({k}, ")?,
                 }
+                // A join has an inner query in place of coordinates.
+                if let Some(inner_query) = inner_query {
+                    write!(formatter, "$query({inner_query})")?;
+                }
+                for (i, (lon, lat)) in coordinates.iter().enumerate() {
+                    if i > 0 {
+                        write!(formatter, ", ")?;
+                    }
+                    write!(formatter, "{} {}", lon.0, lat.0)?;
+                }
+                write!(formatter, ")")
             }
         }
     }

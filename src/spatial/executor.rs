@@ -123,7 +123,12 @@ impl StageOutput {
     }
 }
 
-/// Evaluate a plan node recursively, producing per-segment results.
+/// Vertices each edge cache of a query may hold before it evicts geometries.
+const QUERY_EDGE_CACHE_VERTICES: usize = 100_000;
+
+/// Evaluate a plan node recursively, producing per-segment results. Every stage's documents are
+/// alive: a Query stage leaves out deleted documents, and every other stage draws its documents
+/// from stages below it, or applies the deletions itself.
 fn evaluate(
     node: &PlanNode,
     searcher: &Searcher,
@@ -131,18 +136,21 @@ fn evaluate(
 ) -> crate::Result<StageOutput> {
     match node {
         PlanNode::Query(query) => {
-            // Run the tantivy query to completion per segment, collect bitsets.
+            // Run the tantivy query to completion per segment, collect bitsets. Deleted documents
+            // must not become the inner or outer documents of a join, or eligible candidates.
             let scoring = EnableScoring::disabled_from_searcher(searcher);
             let weight = query.weight(scoring)?;
             let mut results = HashMap::new();
             for reader in segments {
-                let mut scorer = weight.scorer(reader, 1.0)?;
                 let mut bitset = BitSet::with_max_value(reader.max_doc());
-                let mut doc = scorer.doc();
-                while doc != TERMINATED {
-                    bitset.insert(doc);
-                    doc = scorer.advance();
-                }
+                let alive_bitset = reader.alive_bitset();
+                weight.for_each_no_score(reader, &mut |docs| {
+                    for &doc in docs {
+                        if alive_bitset.is_none_or(|alive| alive.is_alive(doc)) {
+                            bitset.insert(doc);
+                        }
+                    }
+                })?;
                 results.insert(reader.segment_id(), SegmentResult::Match(bitset));
             }
             Ok(StageOutput { results })
@@ -166,7 +174,7 @@ fn evaluate(
                 if let Some(spatial_reader) = spatial {
                     let cell_reader = CellIndexReader::open(spatial_reader.cells_bytes())?;
                     let er = EdgeReader::<Sphere>::open(spatial_reader.edges_bytes())?;
-                    let mut edge_cache = EdgeCache::new(vec![er], 100_000);
+                    let mut edge_cache = EdgeCache::new(vec![er], QUERY_EDGE_CACHE_VERTICES);
 
                     let filter_bitset =
                         filter_output.bitset_for(&reader.segment_id(), reader.max_doc());
@@ -204,7 +212,7 @@ fn evaluate(
                 if let Some(spatial_reader) = spatial {
                     let cell_reader = CellIndexReader::open(spatial_reader.cells_bytes())?;
                     let er = EdgeReader::<Sphere>::open(spatial_reader.edges_bytes())?;
-                    let mut edge_cache = EdgeCache::new(vec![er], 100_000);
+                    let mut edge_cache = EdgeCache::new(vec![er], QUERY_EDGE_CACHE_VERTICES);
 
                     let filter_bitset =
                         filter_output.bitset_for(&reader.segment_id(), reader.max_doc());
@@ -247,17 +255,22 @@ fn evaluate(
                 if let Some(spatial_reader) = spatial {
                     let cell_reader = CellIndexReader::open(spatial_reader.cells_bytes())?;
                     let er = EdgeReader::<Sphere>::open(spatial_reader.edges_bytes())?;
-                    let mut edge_cache = EdgeCache::new(vec![er], 100_000);
+                    let mut edge_cache = EdgeCache::new(vec![er], QUERY_EDGE_CACHE_VERTICES);
 
-                    let hits = match &filter_output {
-                        Some(fo) => {
-                            let filter_bitset =
-                                fo.bitset_for(&reader.segment_id(), reader.max_doc());
-                            query.search_segment_filtered(
-                                &cell_reader,
-                                &mut edge_cache,
-                                &filter_bitset,
-                            )
+                    // Deleted documents must be excluded during traversal, before they can
+                    // consume either a segment's K slots or the global K slots. A filter's
+                    // documents are alive already.
+                    let filter_bitset = match &filter_output {
+                        Some(fo) => Some(fo.bitset_for(&reader.segment_id(), reader.max_doc())),
+                        None => reader.alive_bitset().map(|alive| {
+                            let mut bitset = BitSet::with_max_value_and_full(reader.max_doc());
+                            bitset.intersect_update(alive.bitset());
+                            bitset
+                        }),
+                    };
+                    let hits = match &filter_bitset {
+                        Some(filter) => {
+                            query.search_segment_filtered(&cell_reader, &mut edge_cache, filter)
                         }
                         None => query.search_segment(&cell_reader, &mut edge_cache),
                     };
@@ -305,122 +318,146 @@ fn evaluate(
             // Phase 2: collect outer bitsets across all segments.
             let outer_output = evaluate(outer, searcher, segments)?;
 
-            // Phase 3: for each segment, walk its cell index for outer geometries,
-            // probe all segments for inner matches.
-            let mut results = HashMap::new();
-            for reader in segments.iter() {
-                let outer_bitset = outer_output.bitset_for(&reader.segment_id(), reader.max_doc());
-                let mut result_bitset = BitSet::with_max_value(reader.max_doc());
-                let mut visited = std::collections::HashSet::new();
+            let spatial_readers = segments
+                .iter()
+                .map(|reader| reader.spatial_fields().get_field(*field))
+                .collect::<crate::Result<Vec<_>>>()?;
 
-                let spatial = reader.spatial_fields().get_field(*field)?;
-                if spatial.is_none() {
-                    results.insert(reader.segment_id(), SegmentResult::Match(result_bitset));
+            // Phase 3: open each segment that holds inner documents once, for every probe.
+            let mut probes = Vec::new();
+            for (segment_ord, (reader, spatial_reader)) in
+                segments.iter().zip(&spatial_readers).enumerate()
+            {
+                let Some(spatial_reader) = spatial_reader else {
+                    continue;
+                };
+                let inner = inner_output.bitset_for(&reader.segment_id(), reader.max_doc());
+                if inner.len() == 0 {
                     continue;
                 }
-                let spatial_reader = spatial.unwrap();
-                let cell_reader = CellIndexReader::open(spatial_reader.cells_bytes())?;
                 let er = EdgeReader::<Sphere>::open(spatial_reader.edges_bytes())?;
-                let edge_cache = EdgeCache::new(vec![er], 100_000);
+                probes.push(ProbeSegment {
+                    segment_ord,
+                    cell_reader: CellIndexReader::open(spatial_reader.cells_bytes())?,
+                    edge_cache: EdgeCache::new(vec![er], QUERY_EDGE_CACHE_VERTICES),
+                    inner,
+                });
+            }
 
-                for cell in cell_reader.iter() {
-                    for clipped in &cell.shapes {
-                        let geometry_id = clipped.geometry_id;
-                        if !visited.insert(geometry_id) {
-                            continue;
-                        }
-                        let doc_id = edge_cache.doc_id_for(geometry_id);
-                        if !outer_bitset.contains(doc_id) {
-                            continue;
-                        }
+            // Phase 4: for each segment, walk its cell index for outer documents, and probe the
+            // segments for inner matches with each one's geometry.
+            let mut results = HashMap::new();
+            for (segment_ord, (reader, spatial_reader)) in
+                segments.iter().zip(&spatial_readers).enumerate()
+            {
+                let mut result_bitset = BitSet::with_max_value(reader.max_doc());
+                // With no inner documents anywhere, nothing matches.
+                if let Some(spatial_reader) = spatial_reader.as_ref().filter(|_| !probes.is_empty())
+                {
+                    let outer_bitset =
+                        outer_output.bitset_for(&reader.segment_id(), reader.max_doc());
+                    let cell_reader = CellIndexReader::open(spatial_reader.cells_bytes())?;
+                    let er = EdgeReader::<Sphere>::open(spatial_reader.edges_bytes())?;
+                    let edge_cache = EdgeCache::new(vec![er], QUERY_EDGE_CACHE_VERTICES);
+                    // Each outer document is probed once, with all of its geometry.
+                    let mut visited = BitSet::with_max_value(reader.max_doc());
 
-                        // Read the outer geometry.
-                        let outer_geometry = edge_cache.get(geometry_id).geometry_set().clone();
-
-                        // Probe all segments for inner matches.
-                        let mut found = false;
-                        for probe_reader in segments.iter() {
-                            let probe_spatial = probe_reader.spatial_fields().get_field(*field)?;
-                            if let Some(probe_spatial_reader) = probe_spatial {
-                                let probe_cell_reader =
-                                    CellIndexReader::open(probe_spatial_reader.cells_bytes())?;
-                                let probe_er =
-                                    EdgeReader::<Sphere>::open(probe_spatial_reader.edges_bytes())?;
-                                let mut probe_edge_cache = EdgeCache::new(vec![probe_er], 100_000);
-                                let inner_bitset = inner_output
-                                    .bitset_for(&probe_reader.segment_id(), probe_reader.max_doc());
-
-                                found = match relation {
-                                    SpatialRelation::Near(r) => {
-                                        let probe = ClosestEdgeQuery::any_within(
-                                            outer_geometry.clone(),
-                                            S1ChordAngle::from_radians(*r),
-                                        );
-                                        !probe
-                                            .search_segment_filtered(
-                                                &probe_cell_reader,
-                                                &mut probe_edge_cache,
-                                                &inner_bitset,
-                                            )
-                                            .is_empty()
-                                    }
-                                    SpatialRelation::Intersects => {
-                                        let probe = IntersectsQuery::new(
-                                            outer_geometry.clone(),
-                                            CovererOptions::default(),
-                                        );
-                                        !probe
-                                            .search_segment_filtered(
-                                                &probe_cell_reader,
-                                                &mut probe_edge_cache,
-                                                &inner_bitset,
-                                            )
-                                            .is_empty()
-                                    }
-                                    SpatialRelation::Contains => {
-                                        let probe = ContainsQuery::new(
-                                            outer_geometry.clone(),
-                                            CovererOptions::default(),
-                                        );
-                                        !probe
-                                            .search_segment_filtered(
-                                                &probe_cell_reader,
-                                                &mut probe_edge_cache,
-                                                &inner_bitset,
-                                            )
-                                            .is_empty()
-                                    }
-                                    SpatialRelation::Between(inner_r, outer_r) => {
-                                        let probe = ClosestEdgeQuery::between(
-                                            outer_geometry.clone(),
-                                            S1ChordAngle::from_radians(*inner_r),
-                                            S1ChordAngle::from_radians(*outer_r),
-                                        );
-                                        !probe
-                                            .search_segment_filtered(
-                                                &probe_cell_reader,
-                                                &mut probe_edge_cache,
-                                                &inner_bitset,
-                                            )
-                                            .is_empty()
-                                    }
-                                };
-                                if found {
-                                    break;
-                                }
+                    for cell in cell_reader.iter() {
+                        for clipped in &cell.shapes {
+                            let doc_id = edge_cache.doc_id_for(clipped.geometry_id);
+                            if visited.contains(doc_id) || !outer_bitset.contains(doc_id) {
+                                continue;
                             }
-                        }
+                            visited.insert(doc_id);
 
-                        if found {
-                            result_bitset.insert(doc_id);
+                            let outer_geometry =
+                                edge_cache.get(clipped.geometry_id).geometry_set().clone();
+                            let probe = JoinProbe::new(relation, outer_geometry);
+                            let found = probes.iter_mut().any(|segment| {
+                                // A document is not joined to itself.
+                                let is_self = segment.segment_ord == segment_ord
+                                    && segment.inner.contains(doc_id);
+                                if is_self {
+                                    segment.inner.remove(doc_id);
+                                }
+                                let found = probe.matches(segment);
+                                if is_self {
+                                    segment.inner.insert(doc_id);
+                                }
+                                found
+                            });
+                            if found {
+                                result_bitset.insert(doc_id);
+                            }
                         }
                     }
                 }
-
                 results.insert(reader.segment_id(), SegmentResult::Match(result_bitset));
             }
 
             Ok(StageOutput { results })
+        }
+    }
+}
+
+/// A segment a join probes for inner matches: its readers, and its inner documents.
+struct ProbeSegment<'a> {
+    segment_ord: usize,
+    cell_reader: CellIndexReader<'a>,
+    edge_cache: EdgeCache<'a, Sphere>,
+    inner: BitSet,
+}
+
+/// The query a join runs on the probed segments for one outer geometry, built once per outer
+/// document.
+enum JoinProbe {
+    Distance(ClosestEdgeQuery),
+    Intersects(IntersectsQuery),
+    Contains(ContainsQuery),
+}
+
+impl JoinProbe {
+    fn new(relation: &SpatialRelation, outer_geometry: GeometrySet) -> Self {
+        match relation {
+            SpatialRelation::Near(r) => JoinProbe::Distance(ClosestEdgeQuery::any_within(
+                outer_geometry,
+                S1ChordAngle::from_radians(*r),
+            )),
+            SpatialRelation::Between(inner_r, outer_r) => {
+                JoinProbe::Distance(ClosestEdgeQuery::between(
+                    outer_geometry,
+                    S1ChordAngle::from_radians(*inner_r),
+                    S1ChordAngle::from_radians(*outer_r),
+                ))
+            }
+            SpatialRelation::Intersects => JoinProbe::Intersects(IntersectsQuery::new(
+                outer_geometry,
+                CovererOptions::default(),
+            )),
+            SpatialRelation::Contains => JoinProbe::Contains(ContainsQuery::new(
+                outer_geometry,
+                CovererOptions::default(),
+            )),
+        }
+    }
+
+    /// Whether any inner document of the segment matches.
+    fn matches(&self, segment: &mut ProbeSegment<'_>) -> bool {
+        let (cell_reader, edge_cache, inner) = (
+            &segment.cell_reader,
+            &mut segment.edge_cache,
+            &segment.inner,
+        );
+        match self {
+            JoinProbe::Distance(query) => !query
+                .search_segment_filtered(cell_reader, edge_cache, inner)
+                .is_empty(),
+            JoinProbe::Intersects(query) => !query
+                .search_segment_filtered(cell_reader, edge_cache, inner)
+                .is_empty(),
+            JoinProbe::Contains(query) => !query
+                .search_segment_filtered(cell_reader, edge_cache, inner)
+                .is_empty(),
         }
     }
 }
@@ -540,7 +577,7 @@ impl Weight for ExecutorWeight {
                 Ok(Box::new(ReplayScorer::from_bitset(bitset.clone(), boost)))
             }
             Some(SegmentResult::Scored(results)) => {
-                Ok(Box::new(ReplayScorer::from_scored(results.clone())))
+                Ok(Box::new(ReplayScorer::from_scored(results.clone(), boost)))
             }
             None => Ok(Box::new(ReplayScorer::empty())),
         }
@@ -572,6 +609,7 @@ enum ReplayInner {
     Scored {
         results: Vec<(DocId, f32)>,
         index: usize,
+        boost: Score,
     },
     /// No results for this segment.
     Empty,
@@ -590,9 +628,13 @@ impl ReplayScorer {
         }
     }
 
-    fn from_scored(results: Vec<(DocId, f32)>) -> Self {
+    fn from_scored(results: Vec<(DocId, f32)>, boost: Score) -> Self {
         Self {
-            inner: ReplayInner::Scored { results, index: 0 },
+            inner: ReplayInner::Scored {
+                results,
+                index: 0,
+                boost,
+            },
         }
     }
 
@@ -607,9 +649,13 @@ impl Scorer for ReplayScorer {
     fn score(&mut self) -> Score {
         match &self.inner {
             ReplayInner::BitSet { score, .. } => *score,
-            ReplayInner::Scored { results, index, .. } => {
+            ReplayInner::Scored {
+                results,
+                index,
+                boost,
+            } => {
                 if *index < results.len() {
-                    -results[*index].1
+                    -results[*index].1 * *boost
                 } else {
                     0.0
                 }

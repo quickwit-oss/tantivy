@@ -19,7 +19,7 @@ use super::s2padded_cell::S2PaddedCell;
 use super::sphere::Sphere;
 
 struct CoarseEdge {
-    edge_index: u16,
+    edge_index: u32,
     max_level: i32,
     v0: [f64; 3],
     v1: [f64; 3],
@@ -27,6 +27,8 @@ struct CoarseEdge {
 
 struct CoarseGeometry {
     edges: Vec<CoarseEdge>,
+    /// Whether the geometry has an interior. Only then can it contain a cell's center.
+    closed: bool,
 }
 
 struct CoarseIndexCell {
@@ -55,9 +57,13 @@ impl CoarseIndexCell {
 
             let entry = edge_cache.get(shape.geometry_id);
 
-            let level_geometry = geometries
-                .entry(shape.geometry_id)
-                .or_insert_with(|| CoarseGeometry { edges: Vec::new() });
+            let level_geometry =
+                geometries
+                    .entry(shape.geometry_id)
+                    .or_insert_with(|| CoarseGeometry {
+                        edges: Vec::new(),
+                        closed: entry.edge_set().closed,
+                    });
 
             for &edge_index in &shape.edge_indices {
                 let (v0, v1) = entry.edge(edge_index);
@@ -115,7 +121,7 @@ impl Ord for HeapEntry {
 pub struct HeapInterleave<'a> {
     sources: Vec<CellIndexIter<'a>>,
     edge_cache: &'a EdgeCache<'a, Sphere>,
-    edge_counter: FxHashSet<(GeometryId, u16)>,
+    edge_counter: FxHashSet<(GeometryId, u32)>,
     alive_bitsets: &'a [Option<ReadOnlyBitSet>],
     heap: BinaryHeap<HeapEntry>,
     max_edges: usize,
@@ -309,10 +315,17 @@ impl<'a> Iterator for HeapInterleave<'a> {
     }
 }
 
-/// A geometry's edges across the cells of a sponge, as (edge index, v0, v1), with the
-/// contains_center flag and the center of the first cell it appears in: the anchor of the ray-cast
-/// to the sponge center.
-type EdgeUnion = (Vec<(u16, [f64; 3], [f64; 3])>, bool, [f64; 3]);
+/// A geometry's edges across the cells of a sponge, with the contains_center flag and the center
+/// of the first cell it appears in: the anchor of the ray-cast to the sponge center.
+struct EdgeUnion {
+    /// The edges as (edge index, v0, v1).
+    edges: Vec<(u32, [f64; 3], [f64; 3])>,
+    /// Whether the geometry has an interior. A geometry with no edges in any cell is there only
+    /// because it contains a cell's center, so it does.
+    closed: bool,
+    anchor_flag: bool,
+    anchor_center: [f64; 3],
+}
 
 fn flatten(sponge: HeapEntry) -> Option<IndexCell> {
     if sponge.cells.len() == 1 {
@@ -331,41 +344,53 @@ fn flatten(sponge: HeapEntry) -> Option<IndexCell> {
         for shape in &coarse_cell.cell.shapes {
             let union_entry = edge_unions
                 .entry(shape.geometry_id)
-                .or_insert_with(|| (Vec::new(), shape.contains_center, cell_center));
+                .or_insert_with(|| EdgeUnion {
+                    edges: Vec::new(),
+                    closed: true,
+                    anchor_flag: shape.contains_center,
+                    anchor_center: cell_center,
+                });
             if let Some(geo) = coarse_cell.geometries.get(&shape.geometry_id) {
+                union_entry.closed = geo.closed;
                 for &edge_idx in &shape.edge_indices {
                     if let Some(ce) = geo.edges.iter().find(|e| e.edge_index == edge_idx) {
-                        union_entry.0.push((edge_idx, ce.v0, ce.v1));
+                        union_entry.edges.push((edge_idx, ce.v0, ce.v1));
                     }
                 }
             }
         }
     }
 
-    for (edges, _, _) in edge_unions.values_mut() {
-        edges.sort_unstable_by_key(|(idx, _, _)| *idx);
-        edges.dedup_by_key(|(idx, _, _)| *idx);
+    for union in edge_unions.values_mut() {
+        union.edges.sort_unstable_by_key(|(idx, _, _)| *idx);
+        union.edges.dedup_by_key(|(idx, _, _)| *idx);
     }
 
     let mut result = IndexCell::new(sponge.cell_id);
 
-    for (geometry_id, (edges, anchor_flag, anchor_center)) in &edge_unions {
-        if edges.is_empty() {
-            result.add_shape(ClippedShape::new(*geometry_id, *anchor_flag));
+    for (geometry_id, union) in &edge_unions {
+        if union.edges.is_empty() {
+            result.add_shape(ClippedShape::new(*geometry_id, union.anchor_flag));
             continue;
         }
 
-        let mut crosser = super::crossings::S2EdgeCrosser::new(anchor_center, &sponge_center);
-        let mut crossings = 0u32;
-        for &(_, v0, v1) in edges {
-            if crosser.edge_or_vertex_crossing_two(&v0, &v1) {
-                crossings += 1;
+        // Only a geometry with an interior can contain the center. For a line, the parity of
+        // its crossings means nothing.
+        let mut contains = false;
+        if union.closed {
+            let mut crosser =
+                super::crossings::S2EdgeCrosser::new(&union.anchor_center, &sponge_center);
+            let mut crossings = 0u32;
+            for (_, v0, v1) in &union.edges {
+                if crosser.edge_or_vertex_crossing_two(v0, v1) {
+                    crossings += 1;
+                }
             }
+            contains = union.anchor_flag ^ (crossings % 2 != 0);
         }
-        let contains = anchor_flag ^ (crossings % 2 != 0);
 
         let mut shape = ClippedShape::new(*geometry_id, contains);
-        shape.edge_indices = edges.iter().map(|(idx, _, _)| *idx).collect();
+        shape.edge_indices = union.edges.iter().map(|(idx, _, _)| *idx).collect();
         result.add_shape(shape);
     }
 
@@ -375,7 +400,7 @@ fn flatten(sponge: HeapEntry) -> Option<IndexCell> {
 fn count_short_edges(
     cells: &[CoarseIndexCell],
     level: i32,
-    counter: &mut FxHashSet<(GeometryId, u16)>,
+    counter: &mut FxHashSet<(GeometryId, u32)>,
 ) -> u64 {
     let mut checked = 0u64;
     for cell in cells {
@@ -393,7 +418,7 @@ fn count_short_edges(
 
 struct MergeEdge {
     geometry_id: GeometryId,
-    edge_index: u16,
+    edge_index: u32,
     v0: [f64; 3],
     v1: [f64; 3],
     a_uv: [f64; 2],
@@ -562,9 +587,17 @@ fn subdivide_cell(coarse_cell: &CoarseIndexCell, crossing_checks: &mut u64) -> V
         })
         .collect();
 
+    // Only a geometry with an interior can contain a child's center. One with no edges in the
+    // cell is there only because it contains the cell's center, so it has one.
     let parent_contains: Vec<(GeometryId, bool)> = cell
         .shapes
         .iter()
+        .filter(|s| {
+            coarse_cell
+                .geometries
+                .get(&s.geometry_id)
+                .is_none_or(|geo| geo.closed)
+        })
         .map(|s| (s.geometry_id, s.contains_center))
         .collect();
 
@@ -599,7 +632,7 @@ fn subdivide_cell(coarse_cell: &CoarseIndexCell, crossing_checks: &mut u64) -> V
                 }
             }
         } else {
-            let mut edge_map: Vec<(GeometryId, Vec<u16>)> = Vec::new();
+            let mut edge_map: Vec<(GeometryId, Vec<u32>)> = Vec::new();
             for ce in &child_edges[i][j] {
                 let me = &merge_edges[ce.edge_index];
                 if let Some((_, edges)) =
@@ -616,18 +649,20 @@ fn subdivide_cell(coarse_cell: &CoarseIndexCell, crossing_checks: &mut u64) -> V
                 let parent_flag = parent_contains
                     .iter()
                     .find(|(gid, _)| gid == geometry_id)
-                    .map(|(_, c)| *c)
-                    .unwrap_or(false);
+                    .map(|(_, c)| *c);
 
-                let contains = compute_contains_center(
-                    &parent_center,
-                    &child_center,
-                    parent_flag,
-                    &merge_edges,
-                    &clipped,
-                    *geometry_id,
-                    crossing_checks,
-                );
+                // A geometry missing from parent_contains has no interior.
+                let contains = parent_flag.is_some_and(|parent_flag| {
+                    compute_contains_center(
+                        &parent_center,
+                        &child_center,
+                        parent_flag,
+                        &merge_edges,
+                        &clipped,
+                        *geometry_id,
+                        crossing_checks,
+                    )
+                });
 
                 let mut shape = ClippedShape::new(*geometry_id, contains);
                 shape.edge_indices = edge_indices.clone();

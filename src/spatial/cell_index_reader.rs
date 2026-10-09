@@ -4,6 +4,8 @@
 //! and the dictionary provides random access by cell_id. The iterator walks cells in sorted order
 //! for merge.
 
+use common::read_u32_vint_no_advance;
+
 use crate::error::DataCorruption;
 use crate::spatial::cell_index::{
     CellRelation, ClippedShape, IndexCell, DIRECTORY_ENTRY_LEN, FOOTER_LEN,
@@ -152,8 +154,13 @@ impl<'a> CellIndexReader<'a> {
         let cell_id = u64::from_le_bytes(self.data[pos..pos + 8].try_into().unwrap());
         pos += 8;
 
-        let shape_count = u16::from_le_bytes(self.data[pos..pos + 2].try_into().unwrap()) as usize;
-        pos += 2;
+        let read_vint = |pos: &mut usize| {
+            let (value, len) = read_u32_vint_no_advance(&self.data[*pos..]);
+            *pos += len;
+            value as usize
+        };
+
+        let shape_count = read_vint(&mut pos);
 
         let mut shapes = Vec::with_capacity(shape_count);
         for _ in 0..shape_count {
@@ -163,16 +170,10 @@ impl<'a> CellIndexReader<'a> {
             let contains_center = self.data[pos] != 0;
             pos += 1;
 
-            let edge_count =
-                u16::from_le_bytes(self.data[pos..pos + 2].try_into().unwrap()) as usize;
-            pos += 2;
-
-            let mut edge_indices = Vec::with_capacity(edge_count);
-            for _ in 0..edge_count {
-                let edge_id = u16::from_le_bytes(self.data[pos..pos + 2].try_into().unwrap());
-                pos += 2;
-                edge_indices.push(edge_id);
-            }
+            let edge_count = read_vint(&mut pos);
+            let edge_indices = (0..edge_count)
+                .map(|_| read_vint(&mut pos) as u32)
+                .collect();
 
             shapes.push(ClippedShape {
                 geometry_id: (0, geometry_id),
@@ -223,7 +224,7 @@ mod tests {
 
     fn written(cell_index: &CellIndex) -> Vec<u8> {
         let mut write = CountingWriter::wrap(Vec::new());
-        cell_index.write(&mut write);
+        cell_index.write(&mut write).unwrap();
         write.finish()
     }
 
@@ -259,6 +260,24 @@ mod tests {
         let footer_only = written(&CellIndex::new());
         assert_eq!(footer_only.len(), FOOTER_LEN);
         assert_eq!(CellIndexReader::open(&footer_only)?.cell_count(), 0);
+        Ok(())
+    }
+
+    #[test]
+    fn test_counts_and_edge_ids_beyond_a_u16_round_trip() -> crate::Result<()> {
+        let mut crowded = IndexCell::new(S2CellId::from_face(2));
+        for geometry_id in 0..70_000 {
+            crowded.add_shape(ClippedShape::new((0, geometry_id), geometry_id % 2 == 0));
+        }
+        let mut long = ClippedShape::new((0, 3), false);
+        long.edge_indices = (0..70_000).chain([u32::MAX]).collect();
+        crowded.add_shape(long);
+        let data = written(&CellIndex {
+            cells: vec![cell(1, 7), crowded.clone(), cell(4, 9)],
+        });
+        let reader = CellIndexReader::open(&data)?;
+        let cells: Vec<IndexCell> = reader.iter().collect();
+        assert_eq!(cells, vec![cell(1, 7), crowded, cell(4, 9)]);
         Ok(())
     }
 

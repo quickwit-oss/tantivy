@@ -29,8 +29,11 @@ use super::sphere::Sphere;
 /// ingest-side indexes backed by EdgeCache, this reads from disk. For query-local indexes, this
 /// indexes into an in-memory vertex array.
 pub trait EdgeProvider {
-    /// Returns the two endpoints of the given edge.
-    fn get_edge(&self, geometry_id: GeometryId, edge_idx: u16) -> ([f64; 3], [f64; 3]);
+    /// Returns the two endpoints of the given edge. A point is an edge from itself to itself.
+    fn get_edge(&self, geometry_id: GeometryId, edge_idx: u32) -> ([f64; 3], [f64; 3]);
+
+    /// Whether the geometry has an interior. Lines and points contain nothing.
+    fn is_closed(&self, geometry_id: GeometryId) -> bool;
 }
 
 /// Minimal clipped shape data for indexed containment. Owned to avoid lifetime mismatches between
@@ -41,7 +44,7 @@ pub struct ClippedInfo {
     /// Whether the geometry contains the cell center.
     pub contains_center: bool,
     /// Edge indices clipped to this cell.
-    pub edge_indices: Vec<u16>,
+    pub edge_indices: Vec<u32>,
 }
 
 /// Abstracts cell lookup and edge resolution for indexed point-in-polygon. Takes &mut self because
@@ -51,7 +54,7 @@ pub trait ContainmentIndex {
     /// for the given geometry, or None if the geometry is not present in that cell.
     fn find_clipped(&mut self, geometry_id: GeometryId, point: &[f64; 3]) -> Option<ClippedInfo>;
     /// Resolves an edge index to its two endpoint vertices.
-    fn resolve_edge(&mut self, geometry_id: GeometryId, edge_idx: u16) -> ([f64; 3], [f64; 3]);
+    fn resolve_edge(&mut self, geometry_id: GeometryId, edge_idx: u32) -> ([f64; 3], [f64; 3]);
 }
 
 /// Indexed point-in-polygon through either backend. Finds the cell containing the test point,
@@ -97,7 +100,7 @@ impl<E: EdgeProvider> ContainmentIndex for InMemoryIndex<'_, E> {
         })
     }
 
-    fn resolve_edge(&mut self, geometry_id: GeometryId, edge_idx: u16) -> ([f64; 3], [f64; 3]) {
+    fn resolve_edge(&mut self, geometry_id: GeometryId, edge_idx: u32) -> ([f64; 3], [f64; 3]) {
         self.edges.get_edge(geometry_id, edge_idx)
     }
 }
@@ -105,7 +108,7 @@ impl<E: EdgeProvider> ContainmentIndex for InMemoryIndex<'_, E> {
 /// Segment containment index wrapping a CellIndexReader and an EdgeCache.
 pub struct SegmentIndex<'a, 'b> {
     /// The serialized cell index reader.
-    pub cell_reader: &'a CellIndexReader<'a>,
+    pub cell_reader: &'b CellIndexReader<'b>,
     /// The edge cache for vertex resolution.
     pub edge_cache: &'b mut EdgeCache<'a, Sphere>,
 }
@@ -125,11 +128,8 @@ impl ContainmentIndex for SegmentIndex<'_, '_> {
         })
     }
 
-    fn resolve_edge(&mut self, geometry_id: GeometryId, edge_idx: u16) -> ([f64; 3], [f64; 3]) {
-        let entry = self.edge_cache.get(geometry_id);
-        let vertices = entry.vertices();
-        let i = edge_idx as usize;
-        (vertices[i], vertices[i + 1])
+    fn resolve_edge(&mut self, geometry_id: GeometryId, edge_idx: u32) -> ([f64; 3], [f64; 3]) {
+        self.edge_cache.get(geometry_id).edge(edge_idx)
     }
 }
 
@@ -173,7 +173,8 @@ pub fn any_edge_intersects<E: EdgeProvider>(
 
 /// Returns true if the given geometry in the index contains the point. Uses the cell index to
 /// narrow the edge set — locates the cell containing the point, starts from contains_center, and
-/// counts crossings of only the edges in that cell.
+/// counts crossings of only the edges in that cell. A geometry without an interior contains
+/// nothing.
 ///
 /// Port of S2ContainsPointQuery::ShapeContains.
 pub fn index_contains_point<E: EdgeProvider>(
@@ -182,6 +183,9 @@ pub fn index_contains_point<E: EdgeProvider>(
     geometry_id: GeometryId,
     point: &[f64; 3],
 ) -> bool {
+    if !edges.is_closed(geometry_id) {
+        return false;
+    }
     let cell_id = S2CellId::from_point(point);
     let index_cell = match index.find_cell(cell_id) {
         Some(cell) => cell,
@@ -191,24 +195,46 @@ pub fn index_contains_point<E: EdgeProvider>(
         Some(s) => s,
         None => return false,
     };
-    clipped_shape_contains_point(index_cell.cell_id, clipped, edges, point)
+    clipped_shape_contains_point(index_cell.cell_id, clipped, point, |edge_idx| {
+        edges.get_edge(geometry_id, edge_idx)
+    })
+}
+
+/// Returns true if any geometry in the index that has an interior contains the point. Only the
+/// geometries in the index cell containing the point can.
+///
+/// Port of S2ContainsPointQuery::Contains.
+pub fn any_shape_contains_point<E: EdgeProvider>(
+    index: &CellIndex,
+    edges: &E,
+    point: &[f64; 3],
+) -> bool {
+    let Some(index_cell) = index.find_cell(S2CellId::from_point(point)) else {
+        return false;
+    };
+    index_cell.shapes.iter().any(|clipped| {
+        edges.is_closed(clipped.geometry_id)
+            && clipped_shape_contains_point(index_cell.cell_id, clipped, point, |edge_idx| {
+                edges.get_edge(clipped.geometry_id, edge_idx)
+            })
+    })
 }
 
 /// Returns true if the given clipped shape contains the point. The cell_id identifies the index
 /// cell the clipped shape belongs to — its center is the reference point for the edge crossing
-/// test.
-fn clipped_shape_contains_point<E: EdgeProvider>(
+/// test. The shape must have an interior.
+pub(crate) fn clipped_shape_contains_point(
     cell_id: S2CellId,
     clipped: &ClippedShape,
-    edges: &E,
     point: &[f64; 3],
+    mut edge: impl FnMut(u32) -> ([f64; 3], [f64; 3]),
 ) -> bool {
     let mut inside = clipped.contains_center;
     if !clipped.edge_indices.is_empty() {
         let cell_center = cell_id.to_point();
         let mut crosser = S2EdgeCrosser::new(&cell_center, point);
         for &edge_idx in &clipped.edge_indices {
-            let (v0, v1) = edges.get_edge(clipped.geometry_id, edge_idx);
+            let (v0, v1) = edge(edge_idx);
             inside ^= crosser.edge_or_vertex_crossing_two(&v0, &v1);
         }
     }
@@ -316,6 +342,9 @@ where
                     if any_edge_intersects(clipped, target, edges) {
                         // Edge intersects target: shape intersects but doesn't contain
                         false
+                    } else if !edges.is_closed(clipped.geometry_id) {
+                        // A line or point with no edge in the target misses it.
+                        continue;
                     } else {
                         // No edges intersect: check if shape contains target's center by
                         // ray-casting from the index cell's center (where we know contains_center)
@@ -323,8 +352,8 @@ where
                         if !clipped_shape_contains_point(
                             index_cell_id,
                             clipped,
-                            edges,
                             &target_center,
+                            |edge_idx| edges.get_edge(clipped.geometry_id, edge_idx),
                         ) {
                             continue;
                         }
@@ -421,6 +450,6 @@ impl<'a, E: EdgeProvider> Region for CellIndexRegion<'a, E> {
     }
 
     fn contains_point(&self, p: &[f64; 3]) -> bool {
-        index_contains_point(self.index, self.edges, (0, 0), p)
+        any_shape_contains_point(self.index, self.edges, p)
     }
 }

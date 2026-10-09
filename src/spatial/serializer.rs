@@ -14,7 +14,7 @@ use crate::spatial::geometry_set::GeometrySet;
 use crate::spatial::sphere::Sphere;
 
 /// Default skip interval for the edge index skip list directory.
-const EDGE_SKIP_INTERVAL: u32 = 16;
+pub(crate) const EDGE_SKIP_INTERVAL: u32 = 16;
 
 /// Serializes spatial field data into cell index and edge index files.
 pub struct SpatialSerializer {
@@ -44,7 +44,7 @@ impl SpatialSerializer {
 
         // Write the cell index.
         let cells_out = self.cells_write.for_field(field);
-        cell_index.write(cells_out);
+        cell_index.write(cells_out)?;
         cells_out.flush()?;
 
         // Write the edge index.
@@ -53,10 +53,10 @@ impl SpatialSerializer {
             let mut edge_writer = EdgeWriter::<Sphere>::new(edges_out, EDGE_SKIP_INTERVAL);
 
             for set in sets {
-                edge_writer.insert(set);
+                edge_writer.insert(set)?;
             }
 
-            edge_writer.finish();
+            edge_writer.finish()?;
         }
         edges_out.flush()?;
 

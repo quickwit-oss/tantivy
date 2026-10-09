@@ -18,11 +18,12 @@ use crate::indexer::doc_id_mapping::{MappingType, SegmentDocIdMapping};
 use crate::indexer::SegmentSerializer;
 use crate::postings::{InvertedIndexSerializer, Postings, SegmentPostings};
 use crate::schema::{value_type_to_column_type, Field, FieldType, Schema};
-use crate::spatial::cell_index::write_directory;
+use crate::spatial::cell_index::{write_cell, write_directory};
 use crate::spatial::cell_index_reader::CellIndexReader;
 use crate::spatial::edge_cache::EdgeCache;
 use crate::spatial::edge_reader::EdgeReader;
 use crate::spatial::edge_writer::EdgeWriter;
+use crate::spatial::serializer::EDGE_SKIP_INTERVAL;
 use crate::spatial::sphere::Sphere;
 use crate::store::StoreWriter;
 use crate::termdict::{TermMerger, TermOrdinal};
@@ -32,6 +33,11 @@ use crate::{DocAddress, DocId, InvertedIndexReader};
 ///
 /// We do not allow segments with more than
 pub const MAX_DOC_LIMIT: u32 = 1 << 31;
+
+/// Vertices the edge cache of a spatial merge may hold before it evicts geometries, about 48MB of
+/// coordinates: enough for the geometries around the merge's position on the Hilbert curve,
+/// without holding a segment's worth of vertex data in memory.
+const MERGE_EDGE_CACHE_VERTICES: usize = 1 << 21;
 
 fn estimate_total_num_tokens_in_single_segment(
     reader: &SegmentReader,
@@ -603,7 +609,7 @@ impl IndexMerger {
                 continue;
             }
 
-            let edge_cache = EdgeCache::new(edge_readers, 100_000_000);
+            let edge_cache = EdgeCache::new(edge_readers, MERGE_EDGE_CACHE_VERTICES);
             let iters = cell_readers.iter().map(|cr| cr.iter()).collect();
             let mut interleave = crate::spatial::interleave::HeapInterleave::new(
                 iters,
@@ -621,7 +627,7 @@ impl IndexMerger {
             let merge_start = std::time::Instant::now();
 
             let edges_out = edges_composite.for_field(*field);
-            let mut edge_writer = EdgeWriter::<Sphere>::new(edges_out, 16);
+            let mut edge_writer = EdgeWriter::<Sphere>::new(edges_out, EDGE_SKIP_INTERVAL);
             let cells_out = cells_composite.for_field(*field);
             let cells_base = cells_out.written_bytes();
             let mut offsets: Vec<(u64, u64)> = Vec::new();
@@ -646,34 +652,19 @@ impl IndexMerger {
                     }
                     let old_doc_id = entry.doc_id();
                     let new_doc_id = doc_id_inverse[segment][old_doc_id as usize].unwrap();
-                    let mut set = entry.geometry_set().clone();
-                    set.doc_id = new_doc_id;
-                    edge_writer.insert(&set);
+                    edge_writer.insert_for_doc(entry.geometry_set(), new_doc_id)?;
                 }
 
-                let offset = cells_out.written_bytes() - cells_base;
-                cells_out.write_all(&cell.cell_id.0.to_le_bytes()).unwrap();
-                cells_out
-                    .write_all(&(cell.shapes.len() as u16).to_le_bytes())
-                    .unwrap();
-                for shape in &cell.shapes {
-                    let segment = shape.geometry_id.0 as usize;
-                    let position = shape.geometry_id.1 as usize;
-                    let new_id = old_to_new[segment][position];
+                offsets.push((cell.cell_id.0, cells_out.written_bytes() - cells_base));
+                write_cell(cells_out, &cell, |shape| {
+                    let new_id =
+                        old_to_new[shape.geometry_id.0 as usize][shape.geometry_id.1 as usize];
                     debug_assert_ne!(new_id, NOT_ASSIGNED);
-                    cells_out.write_all(&new_id.to_le_bytes()).unwrap();
-                    cells_out.write_all(&[shape.contains_center as u8]).unwrap();
-                    cells_out
-                        .write_all(&(shape.edge_indices.len() as u16).to_le_bytes())
-                        .unwrap();
-                    for &edge_id in &shape.edge_indices {
-                        cells_out.write_all(&edge_id.to_le_bytes()).unwrap();
-                    }
-                }
-                offsets.push((cell.cell_id.0, offset));
+                    new_id
+                })?;
             }
 
-            edge_writer.finish();
+            edge_writer.finish()?;
 
             let elapsed = merge_start.elapsed();
             debug!(
@@ -802,6 +793,52 @@ mod tests {
         let found = searcher.search(&krakow, &DocSetCollector)?;
         assert_eq!(found, searcher.search(&here, &DocSetCollector)?);
         assert_eq!(found, HashSet::from([DocAddress::new(0, 2)]));
+        Ok(())
+    }
+
+    #[test]
+    fn test_merge_never_puts_a_line_around_a_cell_center() -> crate::Result<()> {
+        use crate::spatial::cell_index_reader::CellIndexReader;
+        use crate::spatial::edge_reader::EdgeReader;
+        use crate::spatial::sphere::Sphere;
+
+        // A zigzag line among points from other segments, so that the merge subdivides the cells
+        // the line crosses.
+        let mut docs = vec![r#"{"text": "line", "geometry": {"type": "LineString",
+            "coordinates": [[0, 0], [1, 2], [2, 0], [3, 2], [4, 0], [5, 2], [6, 0]]}}"#
+            .to_string()];
+        for i in 0..48 {
+            let (lon, lat) = (i as f64 / 8.0, (i % 5) as f64 / 2.5);
+            docs.push(format!(
+                r#"{{"text": "point", "geometry": {{"type": "Point", "coordinates": [{lon}, {lat}]}}}}"#
+            ));
+        }
+        let docs: Vec<&str> = docs.iter().map(String::as_str).collect();
+        let (index, _, geometry) = merge_one_segment_per_doc(&docs)?;
+
+        let searcher = index.reader()?.searcher();
+        assert_eq!(searcher.segment_readers().len(), 1);
+        let spatial = searcher
+            .segment_reader(0)
+            .spatial_fields()
+            .get_field(geometry)?
+            .unwrap();
+        let cells = CellIndexReader::open(spatial.cells_bytes())?;
+        let edges = EdgeReader::<Sphere>::open(spatial.edges_bytes())?;
+        let mut line_cells = 0;
+        for cell in cells.iter() {
+            for shape in &cell.shapes {
+                let (_, set) = edges.read_geometry_set(shape.geometry_id.1);
+                if set.members[0].closed {
+                    continue;
+                }
+                // A line or point is in a cell only where its edges are.
+                assert!(!shape.contains_center, "{:?}", cell.cell_id);
+                assert!(!shape.edge_indices.is_empty(), "{:?}", cell.cell_id);
+                line_cells += usize::from(set.members[0].vertices.len() > 1);
+            }
+        }
+        assert!(line_cells > 1);
         Ok(())
     }
 

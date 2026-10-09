@@ -338,7 +338,7 @@ impl QueryParser {
     /// is not a valid query.
     pub fn parse_query(&self, query: &str) -> Result<Box<dyn Query>, QueryParserError> {
         let logical_ast = self.parse_query_to_logical_ast(query)?;
-        Ok(convert_to_query(&self.fuzzy, logical_ast, self))
+        Ok(convert_to_query(&self.fuzzy, logical_ast))
     }
 
     /// Parse a query leniently
@@ -351,7 +351,7 @@ impl QueryParser {
     /// In case it encountered such issues, they are reported as a Vec of errors.
     pub fn parse_query_lenient(&self, query: &str) -> (Box<dyn Query>, Vec<QueryParserError>) {
         let (logical_ast, errors) = self.parse_query_to_logical_ast_lenient(query);
-        (convert_to_query(&self.fuzzy, logical_ast, self), errors)
+        (convert_to_query(&self.fuzzy, logical_ast), errors)
     }
 
     /// Build a query from an already parsed user input AST
@@ -367,7 +367,7 @@ impl QueryParser {
         if !err.is_empty() {
             return Err(err.swap_remove(0));
         }
-        Ok(convert_to_query(&self.fuzzy, logical_ast, self))
+        Ok(convert_to_query(&self.fuzzy, logical_ast))
     }
 
     /// Build leniently a query from an already parsed user input AST.
@@ -378,7 +378,7 @@ impl QueryParser {
         user_input_ast: UserInputAst,
     ) -> (Box<dyn Query>, Vec<QueryParserError>) {
         let (logical_ast, errors) = self.compute_logical_ast_lenient(user_input_ast);
-        (convert_to_query(&self.fuzzy, logical_ast, self), errors)
+        (convert_to_query(&self.fuzzy, logical_ast), errors)
     }
 
     /// Parse the user query into an AST.
@@ -905,15 +905,66 @@ impl QueryParser {
                         )],
                     );
                 }
-                let coords: Vec<[f64; 2]> = coordinates
-                    .into_iter()
-                    .map(|(lon, lat)| [lon.0, lat.0])
-                    .collect();
+                if let Some(inner_query) = inner_query {
+                    let relation = match predicate {
+                        SpatialPredicateKind::Intersects => SpatialRelation::Intersects,
+                        SpatialPredicateKind::Contains => SpatialRelation::Contains,
+                        SpatialPredicateKind::Within(r) => SpatialRelation::Near(r.0),
+                        SpatialPredicateKind::Between(inner, outer) => {
+                            SpatialRelation::Between(inner.0, outer.0)
+                        }
+                        SpatialPredicateKind::Knn(_) => {
+                            return (
+                                None,
+                                vec![QueryParserError::UnsupportedQuery(
+                                    "A kNN predicate cannot join a $query.".to_string(),
+                                )],
+                            );
+                        }
+                    };
+                    // The inner query's errors are the query's errors. The lenient grammar
+                    // accepts some queries the strict one rejects, so check with both.
+                    let (inner, errors) = match query_grammar::parse_query(&inner_query) {
+                        Ok(user_input_ast) => self.compute_logical_ast_lenient(user_input_ast),
+                        Err(_) => {
+                            let (inner, mut errors) =
+                                self.parse_query_to_logical_ast_lenient(&inner_query);
+                            errors.insert(0, QueryParserError::SyntaxError(inner_query));
+                            (inner, errors)
+                        }
+                    };
+                    let logical_ast = LogicalAst::Leaf(Box::new(LogicalLiteral::SpatialJoin {
+                        field,
+                        relation,
+                        inner: Box::new(inner.simplify()),
+                    }));
+                    return (Some(logical_ast), errors);
+                }
+                let (predicate, min_coordinates) = match predicate {
+                    SpatialPredicateKind::Intersects => (SpatialPredicate::Intersects, 3),
+                    SpatialPredicateKind::Contains => (SpatialPredicate::Contains, 3),
+                    SpatialPredicateKind::Within(r) => (SpatialPredicate::Within(r.0), 1),
+                    SpatialPredicateKind::Between(inner, outer) => {
+                        (SpatialPredicate::Between(inner.0, outer.0), 1)
+                    }
+                    SpatialPredicateKind::Knn(k) => (SpatialPredicate::Knn(k), 1),
+                };
+                if coordinates.len() < min_coordinates {
+                    return (
+                        None,
+                        vec![QueryParserError::UnsupportedQuery(format!(
+                            "Spatial predicate {predicate:?} needs at least {min_coordinates} \
+                             coordinates."
+                        ))],
+                    );
+                }
                 let logical_ast = LogicalAst::Leaf(Box::new(LogicalLiteral::Spatial {
                     field,
                     predicate,
-                    coordinates: coords,
-                    inner_query,
+                    coordinates: coordinates
+                        .into_iter()
+                        .map(|(lon, lat)| [lon.0, lat.0])
+                        .collect(),
                 }));
                 (Some(logical_ast), Vec::new())
             }
@@ -969,7 +1020,6 @@ impl QueryParser {
 fn convert_literal_to_query(
     fuzzy: &FxHashMap<Field, Fuzzy>,
     logical_literal: LogicalLiteral,
-    query_parser: &QueryParser,
 ) -> Box<dyn Query> {
     match logical_literal {
         LogicalLiteral::Term(term) => {
@@ -1012,47 +1062,17 @@ fn convert_literal_to_query(
             field,
             predicate,
             coordinates,
-            inner_query,
-        } => {
-            if let Some(inner_text) = inner_query {
-                let relation = match predicate {
-                    SpatialPredicateKind::Intersects => SpatialRelation::Intersects,
-                    SpatialPredicateKind::Contains => SpatialRelation::Contains,
-                    SpatialPredicateKind::Within(r) => SpatialRelation::Near(r.0),
-                    SpatialPredicateKind::Between(inner, outer) => {
-                        SpatialRelation::Between(inner.0, outer.0)
-                    }
-                    SpatialPredicateKind::Knn(_) => {
-                        // kNN join not yet supported through query language.
-                        return Box::new(EmptyQuery);
-                    }
-                };
-                let inner_query = query_parser
-                    .parse_query(&inner_text)
-                    .unwrap_or(Box::new(EmptyQuery));
-                Box::new(SpatialExecutor::new(PlanNode::Join {
-                    field,
-                    outer: Box::new(PlanNode::Query(Box::new(AllQuery))),
-                    inner: Box::new(PlanNode::Query(inner_query)),
-                    relation,
-                }))
-            } else {
-                let spatial_predicate = match predicate {
-                    SpatialPredicateKind::Intersects => SpatialPredicate::Intersects,
-                    SpatialPredicateKind::Contains => SpatialPredicate::Contains,
-                    SpatialPredicateKind::Within(r) => SpatialPredicate::Within(r.0),
-                    SpatialPredicateKind::Between(inner, outer) => {
-                        SpatialPredicate::Between(inner.0, outer.0)
-                    }
-                    SpatialPredicateKind::Knn(k) => SpatialPredicate::Knn(k),
-                };
-                Box::new(SpatialQuery::with_predicate(
-                    field,
-                    coordinates,
-                    spatial_predicate,
-                ))
-            }
-        }
+        } => Box::new(SpatialQuery::with_predicate(field, coordinates, predicate)),
+        LogicalLiteral::SpatialJoin {
+            field,
+            relation,
+            inner,
+        } => Box::new(SpatialExecutor::new(PlanNode::Join {
+            field,
+            outer: Box::new(PlanNode::Query(Box::new(AllQuery))),
+            inner: Box::new(PlanNode::Query(convert_to_query(fuzzy, *inner))),
+            relation,
+        })),
     }
 }
 
@@ -1155,47 +1175,61 @@ fn generate_literals_for_json_object(
     Ok(logical_literals)
 }
 
-fn convert_to_query(
-    fuzzy: &FxHashMap<Field, Fuzzy>,
-    logical_ast: LogicalAst,
-    query_parser: &QueryParser,
-) -> Box<dyn Query> {
+/// A spatial join probes the geometry of every one of its outer documents, so it pays to narrow
+/// them down. Every document a clause matches satisfies its required siblings and none of its
+/// excluded ones, so restricting the outer documents of the clause's joins to those leaves the
+/// clause's matches and scores unchanged, whatever the occur of the join and of its siblings.
+fn restrict_join_outers(occur_subqueries: &mut [(Occur, Box<dyn Query>)]) {
+    let is_join = |query: &dyn Query| query.is::<SpatialExecutor>();
+    if !occur_subqueries
+        .iter()
+        .any(|(_, query)| is_join(query.as_ref()))
+    {
+        return;
+    }
+    let mut restriction: Vec<(Occur, Box<dyn Query>)> = occur_subqueries
+        .iter()
+        .filter(|(occur, query)| *occur != Occur::Should && !is_join(query.as_ref()))
+        .map(|(occur, query)| (*occur, query.box_clone()))
+        .collect();
+    if restriction.is_empty() {
+        return;
+    }
+    if !restriction.iter().any(|(occur, _)| *occur == Occur::Must) {
+        // A boolean query of exclusions alone matches nothing.
+        restriction.push((Occur::Must, Box::new(AllQuery)));
+    }
+    let outer: Box<dyn Query> = if restriction.len() == 1 {
+        restriction.pop().unwrap().1
+    } else {
+        Box::new(BooleanQuery::new(restriction))
+    };
+    for (_, query) in occur_subqueries.iter_mut() {
+        if let Some(join) = query.downcast_mut::<SpatialExecutor>() {
+            join.set_outer(outer.box_clone());
+        }
+    }
+}
+
+fn convert_to_query(fuzzy: &FxHashMap<Field, Fuzzy>, logical_ast: LogicalAst) -> Box<dyn Query> {
     match trim_ast(logical_ast) {
         Some(LogicalAst::Clause(trimmed_clause)) => {
             let mut occur_subqueries = trimmed_clause
                 .into_iter()
-                .map(|(occur, subquery)| (occur, convert_to_query(fuzzy, subquery, query_parser)))
+                .map(|(occur, subquery)| (occur, convert_to_query(fuzzy, subquery)))
                 .collect::<Vec<_>>();
             assert!(
                 !occur_subqueries.is_empty(),
                 "Should not be empty after trimming"
             );
-
-            // If the clause contains a spatial join, absorb the siblings as its outer.
-            let join_idx = occur_subqueries
-                .iter()
-                .position(|(_, q)| q.is::<SpatialExecutor>());
-            if let Some(idx) = join_idx {
-                let (_, join_query) = occur_subqueries.remove(idx);
-                let mut executor = *join_query.downcast::<SpatialExecutor>().unwrap();
-                let outer: Box<dyn Query> = if occur_subqueries.is_empty() {
-                    Box::new(AllQuery)
-                } else if occur_subqueries.len() == 1 {
-                    occur_subqueries.pop().unwrap().1
-                } else {
-                    Box::new(BooleanQuery::new(occur_subqueries))
-                };
-                executor.set_outer(outer);
-                Box::new(executor)
-            } else {
-                Box::new(BooleanQuery::new(occur_subqueries))
-            }
+            restrict_join_outers(&mut occur_subqueries);
+            Box::new(BooleanQuery::new(occur_subqueries))
         }
         Some(LogicalAst::Leaf(trimmed_logical_literal)) => {
-            convert_literal_to_query(fuzzy, *trimmed_logical_literal, query_parser)
+            convert_literal_to_query(fuzzy, *trimmed_logical_literal)
         }
         Some(LogicalAst::Boost(ast, boost)) => {
-            let query = convert_to_query(fuzzy, *ast, query_parser);
+            let query = convert_to_query(fuzzy, *ast);
             let boosted_query = BoostQuery::new(query, boost);
             Box::new(boosted_query)
         }
