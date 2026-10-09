@@ -191,7 +191,12 @@ impl VInt {
 }
 
 impl BinarySerializable for VInt {
+    #[inline]
     fn serialize<W: Write + ?Sized>(&self, writer: &mut W) -> io::Result<()> {
+        // Most VInts are lengths and counts below 128: one byte, no variable-size copy.
+        if self.0 < 128 {
+            return writer.write_all(&[self.0 as u8 | STOP_BIT]);
+        }
         let mut buffer = [0u8; 10];
         let num_bytes = self.serialize_into(&mut buffer);
         writer.write_all(&buffer[0..num_bytes])
