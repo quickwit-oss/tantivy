@@ -2,6 +2,7 @@
 //!
 //! Maps S2CellIds to the shapes that intersect each cell. Cells are subdivided until no cell
 //! contains more than a configurable number of edges.
+use std::io;
 use std::io::Write;
 
 use common::CountingWriter;
@@ -27,6 +28,12 @@ pub const CELL_PADDING: f64 = 2.0 * (FACE_CLIP_ERROR_UV_COORD + EDGE_CLIP_ERROR_
 /// Default maximum number of edges per cell (not counting "long" edges). Reasonable values range
 /// from 10 to about 50 or so.
 pub const DEFAULT_MAX_EDGES_PER_CELL: usize = 10;
+
+/// Bytes in one cell index directory entry: the cell id (u64) and the cell's offset (u64).
+pub(crate) const DIRECTORY_ENTRY_LEN: usize = 2 * std::mem::size_of::<u64>();
+
+/// Bytes in the cell index footer: the cell count (u32) and the directory offset (u64).
+pub(crate) const FOOTER_LEN: usize = std::mem::size_of::<u32>() + std::mem::size_of::<u64>();
 
 /// Average edge length metric derivative for quadratic projection.
 /// From s2metrics.cc: kAvgEdge for S2_QUADRATIC_PROJECTION
@@ -379,19 +386,26 @@ impl CellIndex {
             offsets.push((cell.cell_id.0, offset));
         }
 
-        // Dictionary: (cell_id, offset) pairs.
         let dir_offset = write.written_bytes() - base;
-        for &(cell_id, offset) in &offsets {
-            write.write_all(&cell_id.to_le_bytes()).unwrap();
-            write.write_all(&offset.to_le_bytes()).unwrap();
-        }
-
-        // Footer: cell count, directory offset.
-        write
-            .write_all(&(self.cells.len() as u32).to_le_bytes())
-            .unwrap();
-        write.write_all(&dir_offset.to_le_bytes()).unwrap();
+        write_directory(write, &offsets, dir_offset).unwrap();
     }
+}
+
+/// Writes the directory of a cell index, one `(cell_id, offset)` entry per cell in cell order,
+/// followed by the footer that locates it. `dir_offset` is where the directory starts, relative to
+/// the start of the cell index.
+pub(crate) fn write_directory<W: Write>(
+    write: &mut W,
+    offsets: &[(u64, u64)],
+    dir_offset: u64,
+) -> io::Result<()> {
+    for &(cell_id, offset) in offsets {
+        write.write_all(&cell_id.to_le_bytes())?;
+        write.write_all(&offset.to_le_bytes())?;
+    }
+    write.write_all(&(offsets.len() as u32).to_le_bytes())?;
+    write.write_all(&dir_offset.to_le_bytes())?;
+    Ok(())
 }
 
 /// Input geometry data for indexing, consisting of rings and metadata.

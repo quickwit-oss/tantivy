@@ -9,6 +9,7 @@ use common::file_slice::FileSlice;
 use common::OwnedBytes;
 
 use crate::directory::CompositeFile;
+use crate::error::DataCorruption;
 use crate::schema::{Field, Schema};
 use crate::space_usage::PerFieldSpaceUsage;
 
@@ -38,7 +39,8 @@ impl SpatialReaders {
         })
     }
 
-    /// Returns the per-field spatial reader.
+    /// Returns the per-field spatial reader, or None if the segment has no geometry for the
+    /// field. A field must have both a cell index and an edge index, or neither.
     pub fn get_field(&self, field: Field) -> crate::Result<Option<SpatialReader>> {
         let cells_file = self.cells.open_read(field);
         let edges_file = self.edges.open_read(field);
@@ -47,7 +49,11 @@ impl SpatialReaders {
                 let reader = SpatialReader::open(c, e)?;
                 Ok(Some(reader))
             }
-            _ => Ok(None),
+            (None, None) => Ok(None),
+            (Some(_), None) | (None, Some(_)) => Err(DataCorruption::comment_only(format!(
+                "Spatial field {field:?} has only one of a cell index and an edge index"
+            ))
+            .into()),
         }
     }
 
@@ -83,5 +89,55 @@ impl SpatialReader {
     /// Returns the edge index bytes.
     pub fn edges_bytes(&self) -> &[u8] {
         self.edges_data.as_ref()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::io::Write;
+    use std::path::Path;
+
+    use super::*;
+    use crate::directory::{CompositeWrite, Directory, RamDirectory};
+
+    /// A composite file with the given fields, each holding one byte.
+    fn composite(
+        directory: &RamDirectory,
+        name: &str,
+        fields: &[Field],
+    ) -> crate::Result<FileSlice> {
+        let path = Path::new(name);
+        let mut write = CompositeWrite::wrap(directory.open_write(path)?);
+        for &field in fields {
+            write.for_field(field).write_all(&[0])?;
+        }
+        write.close()?;
+        Ok(directory.open_read(path)?)
+    }
+
+    #[test]
+    fn test_get_field_rejects_a_field_missing_from_one_index() -> crate::Result<()> {
+        let directory = RamDirectory::create();
+        let (both, cells_only, edges_only, neither) = (
+            Field::from_field_id(0),
+            Field::from_field_id(1),
+            Field::from_field_id(2),
+            Field::from_field_id(3),
+        );
+        let readers = SpatialReaders::open(
+            composite(&directory, "cells", &[both, cells_only])?,
+            composite(&directory, "edges", &[both, edges_only])?,
+        )?;
+        assert!(readers.get_field(both)?.is_some());
+        assert!(readers.get_field(neither)?.is_none());
+        assert!(matches!(
+            readers.get_field(cells_only),
+            Err(crate::TantivyError::DataCorruption(_))
+        ));
+        assert!(matches!(
+            readers.get_field(edges_only),
+            Err(crate::TantivyError::DataCorruption(_))
+        ));
+        Ok(())
     }
 }

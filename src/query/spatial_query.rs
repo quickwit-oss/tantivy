@@ -217,8 +217,8 @@ impl Weight for SpatialWeight {
             }
         };
 
-        let cell_reader = CellIndexReader::open(spatial_reader.cells_bytes());
-        let edge_reader = EdgeReader::<Sphere>::open(spatial_reader.edges_bytes());
+        let cell_reader = CellIndexReader::open(spatial_reader.cells_bytes())?;
+        let edge_reader = EdgeReader::<Sphere>::open(spatial_reader.edges_bytes())?;
         let mut edge_cache = EdgeCache::new(vec![edge_reader], 100_000);
 
         let doc_ids = self.query.search_segment(&cell_reader, &mut edge_cache);

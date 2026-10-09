@@ -14,6 +14,14 @@ use std::marker::PhantomData;
 
 use super::geometry_set::{EdgeSet, GeometrySet};
 use super::surface::Surface;
+use crate::error::DataCorruption;
+
+/// Bytes in one skip list directory entry: the offset (u64) of a geometry entry.
+const DIRECTORY_ENTRY_LEN: usize = std::mem::size_of::<u64>();
+
+/// Bytes in the footer: the geometry count (u32), the skip interval (u32) and the directory
+/// offset (u64).
+const FOOTER_LEN: usize = 2 * std::mem::size_of::<u32>() + std::mem::size_of::<u64>();
 
 struct EntryHeader {
     data_len: u32,
@@ -35,27 +43,39 @@ pub struct EdgeReader<'a, S: Surface> {
 }
 
 impl<'a, S: Surface> EdgeReader<'a, S> {
-    /// Construct a reader from the raw bytes of an edge index segment.
-    pub fn open(data: &'a [u8]) -> Self {
-        if data.len() < 16 {
-            return EdgeReader {
-                data,
-                geometry_count: 0,
-                skip_interval: 1,
-                dir_offset: 0,
-                _surface: PhantomData,
-            };
+    /// Construct a reader from the raw bytes of an edge index segment. Fails when the footer does
+    /// not locate a skip list directory that ends where the footer begins.
+    pub fn open(data: &'a [u8]) -> crate::Result<Self> {
+        let corrupt =
+            || DataCorruption::comment_only(format!("Corrupt {}-byte edge index", data.len()));
+        let (body, footer) = data.split_last_chunk::<FOOTER_LEN>().ok_or_else(corrupt)?;
+        let geometry_count = u32::from_le_bytes(footer[0..4].try_into().unwrap());
+        let skip_interval = u32::from_le_bytes(footer[4..8].try_into().unwrap());
+        let dir_offset = u64::from_le_bytes(footer[8..16].try_into().unwrap());
+        if skip_interval == 0 {
+            return Err(corrupt().into());
         }
-        let n = data.len();
-        let dir_offset = u64::from_le_bytes(data[n - 8..n].try_into().unwrap());
-        let skip_interval = u32::from_le_bytes(data[n - 12..n - 8].try_into().unwrap());
-        let geometry_count = u32::from_le_bytes(data[n - 16..n - 12].try_into().unwrap());
+        let dir_len = geometry_count.div_ceil(skip_interval) as u64 * DIRECTORY_ENTRY_LEN as u64;
+        if dir_offset.checked_add(dir_len) != Some(body.len() as u64) {
+            return Err(corrupt().into());
+        }
 
-        EdgeReader {
+        Ok(EdgeReader {
             data,
             geometry_count,
             skip_interval,
             dir_offset,
+            _surface: PhantomData,
+        })
+    }
+
+    /// A reader over no geometries, for a segment that has no geometry for the field.
+    pub fn empty() -> Self {
+        EdgeReader {
+            data: &[],
+            geometry_count: 0,
+            skip_interval: 1,
+            dir_offset: 0,
             _surface: PhantomData,
         }
     }
@@ -70,9 +90,12 @@ impl<'a, S: Surface> EdgeReader<'a, S> {
         let mut skip_index = (position / self.skip_interval) as usize;
 
         loop {
-            let dir_entry = self.dir_offset as usize + skip_index * 8;
-            let mut current =
-                u64::from_le_bytes(self.data[dir_entry..dir_entry + 8].try_into().unwrap());
+            let dir_entry = self.dir_offset as usize + skip_index * DIRECTORY_ENTRY_LEN;
+            let mut current = u64::from_le_bytes(
+                self.data[dir_entry..dir_entry + DIRECTORY_ENTRY_LEN]
+                    .try_into()
+                    .unwrap(),
+            );
             let start_pos = skip_index as u32 * self.skip_interval;
             let mut doc_id: Option<u32> = None;
 
@@ -154,9 +177,12 @@ impl<'a, S: Surface> EdgeReader<'a, S> {
         let mut skip_index = (position / self.skip_interval) as usize;
 
         loop {
-            let dir_entry = self.dir_offset as usize + skip_index * 8;
-            let mut current =
-                u64::from_le_bytes(self.data[dir_entry..dir_entry + 8].try_into().unwrap());
+            let dir_entry = self.dir_offset as usize + skip_index * DIRECTORY_ENTRY_LEN;
+            let mut current = u64::from_le_bytes(
+                self.data[dir_entry..dir_entry + DIRECTORY_ENTRY_LEN]
+                    .try_into()
+                    .unwrap(),
+            );
             let start_pos = skip_index as u32 * self.skip_interval;
 
             let mut head_position: Option<u32> = None;
@@ -230,5 +256,71 @@ impl<'a, S: Surface> EdgeReader<'a, S> {
                 point
             })
             .collect()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::path::Path;
+
+    use common::{CountingWriter, TerminatingWrite};
+
+    use super::*;
+    use crate::directory::{Directory, RamDirectory};
+    use crate::spatial::edge_writer::EdgeWriter;
+    use crate::spatial::geometry::Geometry;
+    use crate::spatial::geometry_set::to_geometry_set;
+    use crate::spatial::plane::Plane;
+    use crate::spatial::sphere::Sphere;
+
+    fn written(sets: &[GeometrySet]) -> crate::Result<Vec<u8>> {
+        let directory = RamDirectory::create();
+        let path = Path::new("edges");
+        let mut write = CountingWriter::wrap(directory.open_write(path)?);
+        let mut edge_writer = EdgeWriter::<Sphere>::new(&mut write, 2);
+        for set in sets {
+            edge_writer.insert(set);
+        }
+        edge_writer.finish();
+        write.finish().terminate()?;
+        Ok(directory.open_read(path)?.read_bytes()?.to_vec())
+    }
+
+    fn point(doc_id: u32) -> GeometrySet {
+        let point = Geometry::<Plane>::Point([doc_id as f64, 0.0]).project::<Sphere>();
+        to_geometry_set(&point, doc_id)
+    }
+
+    #[test]
+    fn test_open_reads_a_written_index() -> crate::Result<()> {
+        let data = written(&[point(3), point(5), point(8)])?;
+        let reader = EdgeReader::<Sphere>::open(&data)?;
+        assert_eq!(reader.geometry_count(), 3);
+        assert_eq!(reader.doc_id_for(2), 8);
+        let footer_only = written(&[])?;
+        assert_eq!(footer_only.len(), FOOTER_LEN);
+        assert_eq!(
+            EdgeReader::<Sphere>::open(&footer_only)?.geometry_count(),
+            0
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn test_open_rejects_a_corrupt_index() -> crate::Result<()> {
+        let data = written(&[point(3), point(5), point(8)])?;
+        for len in 0..FOOTER_LEN {
+            assert!(
+                EdgeReader::<Sphere>::open(&data[..len]).is_err(),
+                "{len} bytes"
+            );
+        }
+        assert!(EdgeReader::<Sphere>::open(&data[1..]).is_err());
+        let mut no_skip_interval = data.clone();
+        let interval_at = data.len() - FOOTER_LEN + 4;
+        no_skip_interval[interval_at..interval_at + 4].copy_from_slice(&0u32.to_le_bytes());
+        assert!(EdgeReader::<Sphere>::open(&no_skip_interval).is_err());
+        assert_eq!(EdgeReader::<Sphere>::empty().geometry_count(), 0);
+        Ok(())
     }
 }

@@ -160,9 +160,9 @@ impl<'a> HeapInterleave<'a> {
         merge
     }
 
-    /// Log interleave metrics to stderr.
+    /// Log interleave metrics at debug level.
     pub fn report(&self) {
-        eprintln!(
+        debug!(
             "interleave: {} from source, {} absorbed, {} splits, {} emitted, {} edge checks, {} \
              crossing checks, {} max sponge",
             self.cells_from_source,
@@ -220,7 +220,7 @@ impl<'a> HeapInterleave<'a> {
                     cell_id: child_cell_id,
                     source: None,
                     cells: vec![CoarseIndexCell::new(child_cell, self.edge_cache)],
-                    geometry_ids: geometry_ids,
+                    geometry_ids,
                 }
             })
             .collect();
@@ -309,6 +309,11 @@ impl<'a> Iterator for HeapInterleave<'a> {
     }
 }
 
+/// A geometry's edges across the cells of a sponge, as (edge index, v0, v1), with the
+/// contains_center flag and the center of the first cell it appears in: the anchor of the ray-cast
+/// to the sponge center.
+type EdgeUnion = (Vec<(u16, [f64; 3], [f64; 3])>, bool, [f64; 3]);
+
 fn flatten(sponge: HeapEntry) -> Option<IndexCell> {
     if sponge.cells.len() == 1 {
         return Some(sponge.cells.into_iter().next().unwrap().cell);
@@ -318,8 +323,7 @@ fn flatten(sponge: HeapEntry) -> Option<IndexCell> {
     let sponge_center = sponge_pcell.get_center();
 
     // Build per-geometry union of edges with anchor info for the ray-cast.
-    let mut edge_unions: FxHashMap<GeometryId, (Vec<(u16, [f64; 3], [f64; 3])>, bool, [f64; 3])> =
-        FxHashMap::default();
+    let mut edge_unions: FxHashMap<GeometryId, EdgeUnion> = FxHashMap::default();
 
     for coarse_cell in &sponge.cells {
         let cell_center = S2PaddedCell::new(coarse_cell.cell.cell_id, CELL_PADDING).get_center();

@@ -162,8 +162,8 @@ fn evaluate(
             for reader in segments {
                 let spatial = reader.spatial_fields().get_field(*field)?;
                 if let Some(spatial_reader) = spatial {
-                    let cell_reader = CellIndexReader::open(spatial_reader.cells_bytes());
-                    let er = EdgeReader::<Sphere>::open(spatial_reader.edges_bytes());
+                    let cell_reader = CellIndexReader::open(spatial_reader.cells_bytes())?;
+                    let er = EdgeReader::<Sphere>::open(spatial_reader.edges_bytes())?;
                     let mut edge_cache = EdgeCache::new(vec![er], 100_000);
 
                     let filter_bitset =
@@ -200,8 +200,8 @@ fn evaluate(
             for reader in segments {
                 let spatial = reader.spatial_fields().get_field(*field)?;
                 if let Some(spatial_reader) = spatial {
-                    let cell_reader = CellIndexReader::open(spatial_reader.cells_bytes());
-                    let er = EdgeReader::<Sphere>::open(spatial_reader.edges_bytes());
+                    let cell_reader = CellIndexReader::open(spatial_reader.cells_bytes())?;
+                    let er = EdgeReader::<Sphere>::open(spatial_reader.edges_bytes())?;
                     let mut edge_cache = EdgeCache::new(vec![er], 100_000);
 
                     let filter_bitset =
@@ -243,8 +243,8 @@ fn evaluate(
             for reader in segments {
                 let spatial = reader.spatial_fields().get_field(*field)?;
                 if let Some(spatial_reader) = spatial {
-                    let cell_reader = CellIndexReader::open(spatial_reader.cells_bytes());
-                    let er = EdgeReader::<Sphere>::open(spatial_reader.edges_bytes());
+                    let cell_reader = CellIndexReader::open(spatial_reader.cells_bytes())?;
+                    let er = EdgeReader::<Sphere>::open(spatial_reader.edges_bytes())?;
                     let mut edge_cache = EdgeCache::new(vec![er], 100_000);
 
                     let hits = match &filter_output {
@@ -317,8 +317,8 @@ fn evaluate(
                     continue;
                 }
                 let spatial_reader = spatial.unwrap();
-                let cell_reader = CellIndexReader::open(spatial_reader.cells_bytes());
-                let er = EdgeReader::<Sphere>::open(spatial_reader.edges_bytes());
+                let cell_reader = CellIndexReader::open(spatial_reader.cells_bytes())?;
+                let er = EdgeReader::<Sphere>::open(spatial_reader.edges_bytes())?;
                 let edge_cache = EdgeCache::new(vec![er], 100_000);
 
                 for cell in cell_reader.iter() {
@@ -341,9 +341,9 @@ fn evaluate(
                             let probe_spatial = probe_reader.spatial_fields().get_field(*field)?;
                             if let Some(probe_spatial_reader) = probe_spatial {
                                 let probe_cell_reader =
-                                    CellIndexReader::open(probe_spatial_reader.cells_bytes());
+                                    CellIndexReader::open(probe_spatial_reader.cells_bytes())?;
                                 let probe_er =
-                                    EdgeReader::<Sphere>::open(probe_spatial_reader.edges_bytes());
+                                    EdgeReader::<Sphere>::open(probe_spatial_reader.edges_bytes())?;
                                 let mut probe_edge_cache = EdgeCache::new(vec![probe_er], 100_000);
                                 let inner_bitset = inner_output
                                     .bitset_for(&probe_reader.segment_id(), probe_reader.max_doc());
@@ -438,7 +438,7 @@ impl SpatialExecutor {
     /// Replace the outer PlanNode in the root Join with the given query.
     pub fn set_outer(&mut self, query: Box<dyn Query>) {
         if let PlanNode::Join { ref mut outer, .. } = self.root {
-            *outer = Box::new(PlanNode::Query(query));
+            **outer = PlanNode::Query(query);
         }
     }
 }

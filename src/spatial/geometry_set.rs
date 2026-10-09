@@ -41,13 +41,43 @@ pub struct GeometrySet {
     pub doc_id: u32,
 }
 
+impl GeometrySet {
+    /// Heap held by the set: its members and their vertex and ring offset arrays, spare capacity
+    /// included.
+    pub fn mem_usage(&self) -> usize {
+        heap_size(&self.members)
+            + self
+                .members
+                .iter()
+                .map(|member| heap_size(&member.vertices) + heap_size(&member.ring_offsets))
+                .sum::<usize>()
+    }
+}
+
+/// Heap held by a Vec's buffer, spare capacity included.
+fn heap_size<T>(vec: &Vec<T>) -> usize {
+    vec.capacity() * std::mem::size_of::<T>()
+}
+
 /// Smash a projected geometry into a GeometrySet in stored format. Reverses CW hole rings per
 /// RFC 7946, computes contains_hilbert_start, and flattens rings into a single vertex array per
-/// member. One Geometry in, one GeometrySet out.
+/// member. One Geometry in, one GeometrySet out. Every array is allocated at its exact length,
+/// since the writer holds the sets until the segment is flushed.
 pub fn to_geometry_set(geometry: &Geometry<Sphere>, doc_id: u32) -> GeometrySet {
-    let mut members = Vec::new();
+    let mut members = Vec::with_capacity(member_count(geometry));
     smash(&mut members, geometry);
     GeometrySet { members, doc_id }
+}
+
+/// Number of members a geometry smashes into.
+fn member_count(geometry: &Geometry<Sphere>) -> usize {
+    match geometry {
+        Geometry::Point(_) | Geometry::LineString(_) | Geometry::Polygon(_) => 1,
+        Geometry::MultiPoint(points) => points.len(),
+        Geometry::MultiLineString(lines) => lines.len(),
+        Geometry::MultiPolygon(polygons) => polygons.len(),
+        Geometry::GeometryCollection(collection) => collection.iter().map(member_count).sum(),
+    }
 }
 
 fn smash(members: &mut Vec<EdgeSet>, geometry: &Geometry<Sphere>) {
@@ -125,25 +155,77 @@ fn smash(members: &mut Vec<EdgeSet>, geometry: &Geometry<Sphere>) {
 ///
 /// Ring offsets always start with 0 and end with the total vertex count.
 fn smash_polygon(rings: &[Vec<[f64; 3]>]) -> (Vec<[f64; 3]>, bool, Vec<usize>) {
-    let mut flat = Vec::new();
+    let mut flat = Vec::with_capacity(rings.iter().map(Vec::len).sum());
     let mut hilbert_inside = false;
-    let mut offsets = vec![0usize];
+    let mut offsets = Vec::with_capacity(rings.len() + 1);
+    offsets.push(0);
 
     for (i, ring) in rings.iter().enumerate() {
-        let mut ring = ring.clone();
+        let start = flat.len();
         // GeoJSON RFC 7946: holes are CW. S2 wants all rings CCW.
         if i > 0 {
-            ring.reverse();
+            flat.extend(ring.iter().rev());
+        } else {
+            flat.extend_from_slice(ring);
         }
+        let ring = &flat[start..];
         // Rings must be closed: first == last.
         debug_assert!(ring.len() >= 4 && ring.first() == ring.last());
-        let origin_inside = compute_origin_inside(&ring);
-        if brute_force_contains(&HILBERT_START, &ring, origin_inside) {
+        let origin_inside = compute_origin_inside(ring);
+        if brute_force_contains(&HILBERT_START, ring, origin_inside) {
             hilbert_inside = !hilbert_inside;
         }
-        flat.extend_from_slice(&ring);
         offsets.push(flat.len());
     }
 
     (flat, hilbert_inside, offsets)
+}
+
+#[cfg(test)]
+mod tests {
+    use std::mem::size_of;
+
+    use super::*;
+    use crate::spatial::plane::Plane;
+
+    fn smashed(geometry: Geometry<Plane>) -> GeometrySet {
+        to_geometry_set(&geometry.project::<Sphere>(), 0)
+    }
+
+    #[test]
+    fn test_mem_usage_counts_exactly_sized_arrays() {
+        let point = smashed(Geometry::Point([19.94, 50.06]));
+        assert_eq!(
+            point.mem_usage(),
+            size_of::<EdgeSet>() + size_of::<[f64; 3]>() + 2 * size_of::<usize>()
+        );
+
+        let square = vec![[0.0, 0.0], [4.0, 0.0], [4.0, 4.0], [0.0, 4.0], [0.0, 0.0]];
+        let hole = vec![[1.0, 1.0], [1.0, 2.0], [2.0, 2.0], [2.0, 1.0], [1.0, 1.0]];
+        let polygons = smashed(Geometry::MultiPolygon(vec![
+            vec![square.clone(), hole],
+            vec![square],
+        ]));
+        assert_eq!(
+            polygons.mem_usage(),
+            2 * size_of::<EdgeSet>() + 15 * size_of::<[f64; 3]>() + 5 * size_of::<usize>()
+        );
+    }
+
+    #[test]
+    fn test_smash_polygon_reverses_holes() {
+        let square = vec![[0.0, 0.0], [4.0, 0.0], [4.0, 4.0], [0.0, 4.0], [0.0, 0.0]];
+        let hole = vec![[1.0, 1.0], [1.0, 2.0], [2.0, 2.0], [2.0, 1.0], [1.0, 1.0]];
+        let projected =
+            Geometry::<Plane>::Polygon(vec![square.clone(), hole.clone()]).project::<Sphere>();
+        let Geometry::Polygon(rings) = &projected else {
+            unreachable!()
+        };
+        let set = to_geometry_set(&projected, 0);
+        let member = &set.members[0];
+        assert_eq!(member.ring_offsets, [0, 5, 10]);
+        assert_eq!(member.vertices[..5], rings[0][..]);
+        let reversed: Vec<[f64; 3]> = rings[1].iter().rev().copied().collect();
+        assert_eq!(member.vertices[5..], reversed[..]);
+    }
 }

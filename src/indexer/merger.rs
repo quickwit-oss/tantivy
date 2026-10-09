@@ -18,6 +18,7 @@ use crate::indexer::doc_id_mapping::{MappingType, SegmentDocIdMapping};
 use crate::indexer::SegmentSerializer;
 use crate::postings::{InvertedIndexSerializer, Postings, SegmentPostings};
 use crate::schema::{value_type_to_column_type, Field, FieldType, Schema};
+use crate::spatial::cell_index::write_directory;
 use crate::spatial::cell_index_reader::CellIndexReader;
 use crate::spatial::edge_cache::EdgeCache;
 use crate::spatial::edge_reader::EdgeReader;
@@ -536,44 +537,70 @@ impl IndexMerger {
         };
         let (mut cells_composite, mut edges_composite) = spatial_serializer.into_composite_writes();
 
-        // Build inverted doc_id mapping: (segment_ord, old_doc_id) → new_doc_id.
-        let mut doc_id_inverse: Vec<Vec<Option<DocId>>> = Vec::new();
-        for reader in &self.readers {
-            doc_id_inverse.push(vec![None; reader.max_doc() as usize]);
-        }
-        for (new_doc_id, old_addr) in doc_id_mapping.iter_old_doc_addrs().enumerate() {
-            doc_id_inverse[old_addr.segment_ord as usize][old_addr.doc_id as usize] =
-                Some(new_doc_id as DocId);
-        }
-
+        // The spatial fields that have geometry in some segment, with every segment's reader.
+        // Collected first so they live long enough for the readers they produce.
+        let mut fields = Vec::new();
         for (field, field_entry) in self.schema.fields() {
             if !matches!(field_entry.field_type(), FieldType::Spatial(_)) {
                 continue;
             }
-
-            // Collect spatial readers so they live long enough for the readers they produce.
-            let mut spatial_readers = Vec::new();
-            for reader in &self.readers {
-                spatial_readers.push(reader.spatial_fields().get_field(field)?);
+            let spatial_readers = self
+                .readers
+                .iter()
+                .map(|reader| reader.spatial_fields().get_field(field))
+                .collect::<crate::Result<Vec<_>>>()?;
+            if spatial_readers.iter().any(Option::is_some) {
+                fields.push((field, spatial_readers));
             }
+        }
 
-            // Open source cell index readers and edge readers.
+        // Build inverted doc_id mapping: (segment_ord, old_doc_id) → new_doc_id. Only segments
+        // with geometry get a row, since only their doc ids are looked up.
+        let mut doc_id_inverse: Vec<Vec<Option<DocId>>> = Vec::new();
+        if !fields.is_empty() {
+            for (segment_ord, reader) in self.readers.iter().enumerate() {
+                let has_geometry = fields
+                    .iter()
+                    .any(|(_, spatial_readers)| spatial_readers[segment_ord].is_some());
+                doc_id_inverse.push(if has_geometry {
+                    vec![None; reader.max_doc() as usize]
+                } else {
+                    Vec::new()
+                });
+            }
+            for (new_doc_id, old_addr) in doc_id_mapping.iter_old_doc_addrs().enumerate() {
+                let row = &mut doc_id_inverse[old_addr.segment_ord as usize];
+                if let Some(slot) = row.get_mut(old_addr.doc_id as usize) {
+                    *slot = Some(new_doc_id as DocId);
+                }
+            }
+        }
+
+        for (field, spatial_readers) in &fields {
+            // Open source cell index readers and edge readers. A segment without geometry for
+            // the field gets empty readers, so that geometry ids keep their segment ordinals.
             let mut cell_readers: Vec<CellIndexReader> = Vec::new();
             let mut edge_readers: Vec<EdgeReader<'_, Sphere>> = Vec::new();
             let mut geometry_counts: Vec<u32> = Vec::new();
 
-            for sr in &spatial_readers {
+            for sr in spatial_readers {
                 if let Some(spatial_reader) = sr {
-                    let cr = CellIndexReader::open(spatial_reader.cells_bytes());
-                    let er = EdgeReader::<Sphere>::open(spatial_reader.edges_bytes());
+                    let cr = CellIndexReader::open(spatial_reader.cells_bytes())?;
+                    let er = EdgeReader::<Sphere>::open(spatial_reader.edges_bytes())?;
                     geometry_counts.push(er.geometry_count());
                     cell_readers.push(cr);
                     edge_readers.push(er);
                 } else {
                     geometry_counts.push(0);
-                    cell_readers.push(CellIndexReader::open(&[]));
-                    edge_readers.push(EdgeReader::<Sphere>::open(&[]));
+                    cell_readers.push(CellIndexReader::empty());
+                    edge_readers.push(EdgeReader::<Sphere>::empty());
                 }
+            }
+
+            // Like the segment writer, leave a field without geometry out of the composites.
+            let total_source_geometries: u32 = geometry_counts.iter().sum();
+            if total_source_geometries == 0 {
+                continue;
             }
 
             let edge_cache = EdgeCache::new(edge_readers, 100_000_000);
@@ -592,16 +619,15 @@ impl IndexMerger {
             let mut next_new_id: u32 = 0;
 
             let merge_start = std::time::Instant::now();
-            let total_source_geometries: u32 = geometry_counts.iter().sum();
 
-            let edges_out = edges_composite.for_field(field);
+            let edges_out = edges_composite.for_field(*field);
             let mut edge_writer = EdgeWriter::<Sphere>::new(edges_out, 16);
-            let cells_out = cells_composite.for_field(field);
+            let cells_out = cells_composite.for_field(*field);
             let cells_base = cells_out.written_bytes();
             let mut offsets: Vec<(u64, u64)> = Vec::new();
             let mut cell_count: u64 = 0;
 
-            while let Some(cell) = interleave.next() {
+            for cell in interleave.by_ref() {
                 cell_count += 1;
                 for shape in &cell.shapes {
                     let segment = shape.geometry_id.0 as usize;
@@ -621,7 +647,7 @@ impl IndexMerger {
                     let old_doc_id = entry.doc_id();
                     let new_doc_id = doc_id_inverse[segment][old_doc_id as usize].unwrap();
                     let mut set = entry.geometry_set().clone();
-                    set.doc_id = new_doc_id as u32;
+                    set.doc_id = new_doc_id;
                     edge_writer.insert(&set);
                 }
 
@@ -650,7 +676,7 @@ impl IndexMerger {
             edge_writer.finish();
 
             let elapsed = merge_start.elapsed();
-            eprintln!(
+            debug!(
                 "spatial merge (interleave only): {} source geometries, {} output geometries, {} \
                  cells, {:.2}s",
                 total_source_geometries,
@@ -662,14 +688,7 @@ impl IndexMerger {
 
             // Cell index dictionary and footer.
             let dir_offset = cells_out.written_bytes() - cells_base;
-            for &(cell_id, offset) in &offsets {
-                cells_out.write_all(&cell_id.to_le_bytes()).unwrap();
-                cells_out.write_all(&offset.to_le_bytes()).unwrap();
-            }
-            cells_out
-                .write_all(&(offsets.len() as u32).to_le_bytes())
-                .unwrap();
-            cells_out.write_all(&dir_offset.to_le_bytes()).unwrap();
+            write_directory(cells_out, &offsets, dir_offset)?;
             cells_out.flush()?;
             edges_out.flush()?;
         }
@@ -716,6 +735,8 @@ impl IndexMerger {
 #[cfg(test)]
 mod tests {
 
+    use std::collections::HashSet;
+
     use columnar::Column;
     use proptest::prop_oneof;
     use proptest::strategy::Strategy;
@@ -724,7 +745,7 @@ mod tests {
     use crate::collector::tests::{
         BytesFastFieldTestCollector, FastFieldTestCollector, TEST_COLLECTOR_WITH_SCORE,
     };
-    use crate::collector::{Count, FacetCollector};
+    use crate::collector::{Count, DocSetCollector, FacetCollector};
     use crate::index::{Index, SegmentId};
     use crate::indexer::NoMergePolicy;
     use crate::query::{AllQuery, BooleanQuery, EnableScoring, Scorer, TermQuery};
@@ -738,54 +759,65 @@ mod tests {
         IndexWriter, Searcher,
     };
 
-    fn spatial_index() -> crate::Result<(Index, schema::Field)> {
+    /// Commits each JSON document as its own segment, then merges the segments in commit order,
+    /// so that each document's id in the merged segment is its position in `docs`.
+    fn merge_one_segment_per_doc(
+        docs: &[&str],
+    ) -> crate::Result<(Index, schema::Field, schema::Field)> {
         let mut schema_builder = schema::Schema::builder();
-        schema_builder.add_text_field("text", TEXT);
+        let text = schema_builder.add_text_field("text", TEXT);
         let geometry = schema_builder.add_spatial_field("geometry", schema::SPATIAL);
-        Ok((Index::create_in_ram(schema_builder.build()), geometry))
-    }
-
-    fn add_json(writer: &mut IndexWriter, index: &Index, json: &str) -> crate::Result<()> {
-        writer.add_document(TantivyDocument::parse_json(&index.schema(), json)?)?;
-        writer.commit()?;
-        Ok(())
+        let index = Index::create_in_ram(schema_builder.build());
+        let mut writer: IndexWriter = index.writer_for_tests()?;
+        writer.set_merge_policy(Box::new(NoMergePolicy));
+        let mut segment_ids: Vec<SegmentId> = Vec::new();
+        for json in docs {
+            writer.add_document(TantivyDocument::parse_json(&index.schema(), json)?)?;
+            writer.commit()?;
+            let committed = index.searchable_segment_ids()?;
+            segment_ids.extend(committed.into_iter().find(|id| !segment_ids.contains(id)));
+        }
+        writer.merge(&segment_ids).wait()?;
+        Ok((index, text, geometry))
     }
 
     #[test]
     fn test_merge_spatial_segments_without_geometry() -> crate::Result<()> {
-        let (index, geometry) = spatial_index()?;
-        let mut writer: IndexWriter = index.writer_for_tests()?;
-        writer.set_merge_policy(Box::new(NoMergePolicy));
-        add_json(&mut writer, &index, r#"{"text": "no place"}"#)?;
-        add_json(&mut writer, &index, r#"{"text": "nowhere"}"#)?;
-        add_json(
-            &mut writer,
-            &index,
+        let (index, text, geometry) = merge_one_segment_per_doc(&[
+            r#"{"text": "no place"}"#,
+            r#"{"text": "nowhere"}"#,
             r#"{"text": "here", "geometry": {"type": "Point", "coordinates": [19.94, 50.06]}}"#,
-        )?;
-        let segment_ids = index.searchable_segment_ids()?;
-        assert_eq!(segment_ids.len(), 3);
-        writer.merge(&segment_ids).wait()?;
+        ])?;
 
         let searcher = index.reader()?.searcher();
         assert_eq!(searcher.segment_readers().len(), 1);
         assert_eq!(searcher.num_docs(), 3);
+        // The point moved from doc 0 of its own segment to doc 2 of the merged one.
         let krakow =
             crate::query::SpatialQuery::from_bounds(geometry, [[19.9, 50.0], [20.0, 50.1]]);
-        assert_eq!(searcher.search(&krakow, &Count)?, 1);
+        let here = TermQuery::new(
+            Term::from_field_text(text, "here"),
+            IndexRecordOption::Basic,
+        );
+        let found = searcher.search(&krakow, &DocSetCollector)?;
+        assert_eq!(found, searcher.search(&here, &DocSetCollector)?);
+        assert_eq!(found, HashSet::from([DocAddress::new(0, 2)]));
         Ok(())
     }
 
     #[test]
     fn test_merge_spatial_field_never_written() -> crate::Result<()> {
-        let (index, _) = spatial_index()?;
-        let mut writer: IndexWriter = index.writer_for_tests()?;
-        writer.set_merge_policy(Box::new(NoMergePolicy));
-        add_json(&mut writer, &index, r#"{"text": "no place"}"#)?;
-        add_json(&mut writer, &index, r#"{"text": "nowhere"}"#)?;
-        let segment_ids = index.searchable_segment_ids()?;
-        writer.merge(&segment_ids).wait()?;
-        assert_eq!(index.reader()?.searcher().num_docs(), 2);
+        let (index, _, geometry) =
+            merge_one_segment_per_doc(&[r#"{"text": "no place"}"#, r#"{"text": "nowhere"}"#])?;
+
+        let searcher = index.reader()?.searcher();
+        assert_eq!(searcher.num_docs(), 2);
+        // Like the segments merged into it, the merged segment has no entry for the field.
+        let spatial_fields = searcher.segment_reader(0).spatial_fields();
+        assert!(spatial_fields.get_field(geometry)?.is_none());
+        let anywhere =
+            crate::query::SpatialQuery::from_bounds(geometry, [[-10.0, -10.0], [10.0, 10.0]]);
+        assert_eq!(searcher.search(&anywhere, &Count)?, 0);
         Ok(())
     }
 

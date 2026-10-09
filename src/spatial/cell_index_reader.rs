@@ -4,7 +4,8 @@
 //! and the dictionary provides random access by cell_id. The iterator walks cells in sorted order
 //! for merge.
 
-use crate::spatial::cell_index::{ClippedShape, IndexCell};
+use crate::error::DataCorruption;
+use crate::spatial::cell_index::{ClippedShape, IndexCell, DIRECTORY_ENTRY_LEN, FOOTER_LEN};
 use crate::spatial::s2cell_id::S2CellId;
 
 /// Reads a serialized cell index from a byte slice.
@@ -15,24 +16,32 @@ pub struct CellIndexReader<'a> {
 }
 
 impl<'a> CellIndexReader<'a> {
-    /// Opens a cell index reader from the raw bytes of a serialized cell index. Bytes too short
-    /// to hold the footer read as an empty index: the merger opens a segment that has no
-    /// geometry for the field as empty bytes.
-    pub fn open(data: &'a [u8]) -> Self {
-        if data.len() < 12 {
-            return CellIndexReader {
-                data,
-                cell_count: 0,
-                dir_offset: 0,
-            };
+    /// Opens a cell index reader from the raw bytes of a serialized cell index. Fails when the
+    /// footer does not locate a directory that ends where the footer begins.
+    pub fn open(data: &'a [u8]) -> crate::Result<Self> {
+        let corrupt =
+            || DataCorruption::comment_only(format!("Corrupt {}-byte cell index", data.len()));
+        let (body, footer) = data.split_last_chunk::<FOOTER_LEN>().ok_or_else(corrupt)?;
+        let (cell_count, dir_offset) = footer.split_at(std::mem::size_of::<u32>());
+        let cell_count = u32::from_le_bytes(cell_count.try_into().unwrap());
+        let dir_offset = u64::from_le_bytes(dir_offset.try_into().unwrap());
+        let dir_len = cell_count as u64 * DIRECTORY_ENTRY_LEN as u64;
+        if dir_offset.checked_add(dir_len) != Some(body.len() as u64) {
+            return Err(corrupt().into());
         }
-        let n = data.len();
-        let dir_offset = u64::from_le_bytes(data[n - 8..n].try_into().unwrap());
-        let cell_count = u32::from_le_bytes(data[n - 12..n - 8].try_into().unwrap());
-        CellIndexReader {
+        Ok(CellIndexReader {
             data,
             cell_count,
             dir_offset,
+        })
+    }
+
+    /// A reader over no cells, for a segment that has no geometry for the field.
+    pub fn empty() -> Self {
+        CellIndexReader {
+            data: &[],
+            cell_count: 0,
+            dir_offset: 0,
         }
     }
 
@@ -102,7 +111,7 @@ impl<'a> CellIndexReader<'a> {
     }
 
     fn read_dir_entry(&self, index: u32) -> (u64, u64) {
-        let base = self.dir_offset as usize + index as usize * 16;
+        let base = self.dir_offset as usize + index as usize * DIRECTORY_ENTRY_LEN;
         let cell_id = u64::from_le_bytes(self.data[base..base + 8].try_into().unwrap());
         let offset = u64::from_le_bytes(self.data[base + 8..base + 16].try_into().unwrap());
         (cell_id, offset)
@@ -178,13 +187,58 @@ impl<'a> Iterator for CellIndexIter<'a> {
 
 #[cfg(test)]
 mod tests {
+    use common::CountingWriter;
+
     use super::*;
+    use crate::spatial::cell_index::CellIndex;
+
+    fn written(cell_index: &CellIndex) -> Vec<u8> {
+        let mut write = CountingWriter::wrap(Vec::new());
+        cell_index.write(&mut write);
+        write.finish()
+    }
+
+    fn cell(face: i32, geometry_id: u32) -> IndexCell {
+        let mut cell = IndexCell::new(S2CellId::from_face(face));
+        cell.add_shape(ClippedShape::new((0, geometry_id), true));
+        cell
+    }
 
     #[test]
-    fn test_open_without_a_cell_index_is_empty() {
-        let reader = CellIndexReader::open(&[]);
+    fn test_empty_reads_no_cells() {
+        let reader = CellIndexReader::empty();
         assert_eq!(reader.cell_count(), 0);
         assert!(reader.iter().next().is_none());
         assert!(reader.find(S2CellId::from_face(0)).is_none());
+    }
+
+    #[test]
+    fn test_open_reads_a_written_index() -> crate::Result<()> {
+        let data = written(&CellIndex {
+            cells: vec![cell(1, 7), cell(4, 9)],
+        });
+        let reader = CellIndexReader::open(&data)?;
+        assert_eq!(reader.cell_count(), 2);
+        let cells: Vec<IndexCell> = reader.iter().collect();
+        assert_eq!(cells, vec![cell(1, 7), cell(4, 9)]);
+
+        let footer_only = written(&CellIndex::new());
+        assert_eq!(footer_only.len(), FOOTER_LEN);
+        assert_eq!(CellIndexReader::open(&footer_only)?.cell_count(), 0);
+        Ok(())
+    }
+
+    #[test]
+    fn test_open_rejects_a_corrupt_index() {
+        let data = written(&CellIndex {
+            cells: vec![cell(1, 7)],
+        });
+        for len in 0..FOOTER_LEN {
+            assert!(CellIndexReader::open(&data[..len]).is_err(), "{len} bytes");
+        }
+        assert!(CellIndexReader::open(&data[1..]).is_err());
+        let mut longer = data.clone();
+        longer.insert(0, 0);
+        assert!(CellIndexReader::open(&longer).is_err());
     }
 }
