@@ -176,7 +176,7 @@ impl SparseBlock<'_> {
         // present, it is in `left..right`.
         let mut left = 0;
         let mut right = num_vals;
-        // Probes indices `0, 1, 3, 7, 15`...
+        // Probes indices `0, 2, 6, 14, 30`... (i.e. `2^(k+1) - 2`)
         let mut step: usize = 1;
         loop {
             let probe = left + step - 1;
@@ -204,36 +204,18 @@ impl SparseBlock<'_> {
     ///
     /// Returns `Ok(idx)` if found, `Err(idx)` with the insertion point otherwise.
     ///
-    /// The loop does not stop early on a match: it always runs about `log2(size)` iterations, and
-    /// the search direction is a conditional select rather than a branch. Branches on the
-    /// comparison result would be unpredictable, hence `std::hint::select_unpredictable`.
+    /// The bytes cannot be cast to `&[u16]`: the block has no alignment guarantee, and values are
+    /// little endian. They are viewed as `&[[u8; 2]]` instead, which is always valid, so that the
+    /// std binary search can be used.
     #[inline]
     fn binary_search(&self, target: u16) -> Result<usize, usize> {
-        // Invariant: if `target` is present, it is in `base..base + size`, and
-        // `base + size <= num_vals`.
-        let mut base = 0;
-        let mut size = self.num_vals() as usize;
-        if size == 0 {
-            return Err(base);
-        }
-        while size > 1 {
-            let half = size / 2;
-            let mid = base + half;
-            // SAFETY: `half < size`, so `mid < base + size <= num_vals`.
-            let mid_val = unsafe { self.value_at_idx_unchecked(mid) };
-            // the hint asks the compiler to emit a conditional move (`cmov`/`csel`)
-            // rather than a branch.
-            base = std::hint::select_unpredictable(mid_val > target, base, mid);
-            size -= half;
-        }
-        // SAFETY: `size == 1`, so `base < base + size <= num_vals`.
-        let base_val = unsafe { self.value_at_idx_unchecked(base) };
-        if base_val == target {
-            Ok(base)
-        } else {
-            // `base_val < target` means `target` belongs right after `base`.
-            Err(base + (base_val < target) as usize)
-        }
+        // If you are wondering, the alignment is guaranteed by Rust's reference:
+        // > An array of [T; N] has a size of size_of::<T>() * N and the same alignment of T.
+        let (vals, remainder): (&[[u8; 2]], &[u8]) = self.0.as_chunks::<2>();
+        // The block length is even, so the remainder is empty.
+        debug_assert!(remainder.is_empty());
+        // Values are distinct, so the returned index is unique.
+        vals.binary_search_by_key(&target, |val_bytes| u16::from_le_bytes(*val_bytes))
     }
 }
 
