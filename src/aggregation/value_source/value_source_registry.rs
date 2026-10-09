@@ -73,6 +73,7 @@ mod tests {
         let value_source_provider = registry.get("computed").unwrap();
         let mut value_source = value_source_provider
             .for_segment(searcher.segment_reader(0u32), None)
+            .unwrap()
             .unwrap();
         let mut values = Vec::new();
         let mut doc_ids = Vec::new();
