@@ -21,7 +21,12 @@ pub fn merge_bytes_or_str_column(
     let mut output = CountingWriter::wrap(output);
     // TODO !!! Remove useless terms.
     let term_ord_mapping = serialize_merged_dict(bytes_columns, merge_row_order, &mut output)?;
-    let dictionary_num_bytes: u32 = output.written_bytes() as u32;
+    let dictionary_num_bytes = u32::try_from(output.written_bytes()).map_err(|_| {
+        io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "merged dictionary size exceeds u32::MAX bytes",
+        )
+    })?;
     let output = output.finish();
     let remapped_term_ordinals_values = RemappedTermOrdinalsValues {
         bytes_columns,
