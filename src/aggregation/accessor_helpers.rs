@@ -69,7 +69,10 @@ fn resolve_registered_source(
     let Some(provider) = value_sources.get(field_name) else {
         return Ok(None);
     };
-    let source = provider.for_segment(reader, allowed_column_types_opt)?;
+    let source_opt = provider.for_segment(reader, allowed_column_types_opt)?;
+    let Some(source) = source_opt else {
+        return Ok(None);
+    };
     let column_type = source.column_type();
     if let Some(allowed_column_types) = allowed_column_types_opt {
         if !allowed_column_types.contains(&column_type) {

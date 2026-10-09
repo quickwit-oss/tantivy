@@ -17,13 +17,12 @@ pub trait ValueSourceProvider: Send + Sync + 'static {
     ///
     /// - A definition that can never produce one of these types (independently of the segment)
     ///   should return an error.
-    /// - A source whose type is not allowed for this specific segment is accepted, and treated by
-    ///   the aggregation as if the field had no value in this segment.
+    /// - If the ValueSource cannot produce a ValueSource within the allowed type, None is returned.
     fn for_segment(
         &self,
         reader: &SegmentReader,
         allowed_column_types: Option<&[ColumnType]>,
-    ) -> crate::Result<Box<dyn ValueSource>>;
+    ) -> crate::Result<Option<Box<dyn ValueSource>>>;
 }
 
 /// Named computed sources available to an aggregation request.
