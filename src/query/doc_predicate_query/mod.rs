@@ -7,6 +7,8 @@ mod jitexpr_predicate;
 
 pub use function_predicate::FunctionPredicate;
 #[cfg(feature = "jitexpr")]
+pub(crate) use jitexpr_predicate::{find_input_column_handle, var_type_for_column_type};
+#[cfg(feature = "jitexpr")]
 pub use jitexpr_predicate::{JitExprEvalState, JitExprPredicate};
 
 use crate::docset::{SeekDangerResult, TERMINATED};

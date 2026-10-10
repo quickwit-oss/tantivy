@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::io;
 
-use columnar::{ColumnIndex, ColumnType, DynamicColumn, StrColumn};
+use columnar::{ColumnIndex, ColumnType, DynamicColumn, DynamicColumnHandle, StrColumn};
 use common::VersatileBuffer;
 use jitexpr::ast::{
     infer_types_with_target, required_presence_for_true, InferredTypeSet, TypeError, UntypedExpr,
@@ -245,10 +245,24 @@ fn open_input_column(
     name: &str,
     accepted_types: InferredTypeSet,
 ) -> io::Result<Option<DynamicColumn>> {
+    let Some(handle) = find_input_column_handle(reader, name, accepted_types) else {
+        return Ok(None);
+    };
+    Ok(Some(handle.open()?))
+}
+
+/// Returns the handle of the first column of `name` with a type in `accepted_types`.
+///
+/// Returns `None` if `name` is not a fast field, or has no column of an accepted type.
+pub(crate) fn find_input_column_handle(
+    reader: &SegmentReader,
+    name: &str,
+    accepted_types: InferredTypeSet,
+) -> Option<DynamicColumnHandle> {
     let Ok(column_handles) = reader.fast_fields().dynamic_column_handles(name) else {
         // If the call to dynamic_column_handles fails (for instance because the column is not a
         // fast field) we choose to act as if the column was absent.
-        return Ok(None);
+        return None;
     };
     for handle in column_handles {
         // We return the first column that could be accepted
@@ -256,13 +270,13 @@ fn open_input_column(
             continue;
         };
         if accepted_types.contains(var_type) {
-            return Ok(Some(handle.open()?));
+            return Some(handle);
         }
     }
-    Ok(None)
+    None
 }
 
-fn var_type_for_column_type(column_type: ColumnType) -> Option<VarType> {
+pub(crate) fn var_type_for_column_type(column_type: ColumnType) -> Option<VarType> {
     match column_type {
         ColumnType::Bool => Some(VarType::Bool),
         ColumnType::I64 => Some(VarType::I64),

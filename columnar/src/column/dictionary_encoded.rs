@@ -100,6 +100,11 @@ impl StrColumn {
         self.0.dictionary.as_ref()
     }
 
+    /// Splits the column into its dictionary and its column of term ords.
+    pub fn into_parts(self) -> (Arc<Dictionary<VoidSSTable>>, Column<u64>) {
+        (self.0.dictionary, self.0.term_ord_column)
+    }
+
     /// Fills the buffer
     pub fn ord_to_str(&self, term_ord: u64, output: &mut String) -> io::Result<bool> {
         unsafe {
