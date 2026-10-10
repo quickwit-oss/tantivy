@@ -137,6 +137,7 @@ mod tokenized_string;
 mod tokenizer;
 mod tokenizer_manager;
 mod whitespace_tokenizer;
+mod shingle_filter;
 
 #[cfg(feature = "stemmer")]
 mod stemmer;
@@ -159,6 +160,7 @@ pub use self::tokenized_string::{PreTokenizedStream, PreTokenizedString};
 pub use self::tokenizer::{TextAnalyzer, TextAnalyzerBuilder};
 pub use self::tokenizer_manager::TokenizerManager;
 pub use self::whitespace_tokenizer::WhitespaceTokenizer;
+pub use self::shingle_filter::FixedShingleFilter;
 
 /// Name of the default tokenizer registered by [`TokenizerManager::default`].
 pub const DEFAULT_TOKENIZER_NAME: &str = "default";
