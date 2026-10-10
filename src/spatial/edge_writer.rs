@@ -14,10 +14,10 @@ use crate::directory::WritePtr;
 use crate::spatial::geometry_set::GeometrySet;
 use crate::spatial::surface::Surface;
 
-/// Streams geometry entries to disk. The Surface type parameter determines how many f64
-/// coordinates are written per vertex.
-pub struct EdgeWriter<'a, S: Surface> {
-    write: &'a mut CountingWriter<WritePtr>,
+/// Streams geometry entries to disk, or to any other output. The Surface type parameter
+/// determines how many f64 coordinates are written per vertex.
+pub struct EdgeWriter<'a, S: Surface, W: Write = WritePtr> {
+    write: &'a mut CountingWriter<W>,
     /// Every Nth geometry's offset, and the position of its set's head.
     directory: Vec<(u64, u32)>,
     geometry_count: u32,
@@ -26,9 +26,9 @@ pub struct EdgeWriter<'a, S: Surface> {
     _surface: PhantomData<S>,
 }
 
-impl<'a, S: Surface> EdgeWriter<'a, S> {
+impl<'a, S: Surface, W: Write> EdgeWriter<'a, S, W> {
     /// Creates a new writer backed by the given output.
-    pub fn new(write: &'a mut CountingWriter<WritePtr>, skip_interval: u32) -> Self {
+    pub fn new(write: &'a mut CountingWriter<W>, skip_interval: u32) -> Self {
         let base = write.written_bytes();
         EdgeWriter {
             write,
@@ -124,6 +124,6 @@ impl<'a, S: Surface> EdgeWriter<'a, S> {
         self.write.write_all(&self.geometry_count.to_le_bytes())?;
         self.write.write_all(&self.skip_interval.to_le_bytes())?;
         self.write.write_all(&dir_offset.to_le_bytes())?;
-        Ok(())
+        crate::spatial::write_format_marker(self.write, crate::spatial::EDGE_INDEX_MAGIC)
     }
 }

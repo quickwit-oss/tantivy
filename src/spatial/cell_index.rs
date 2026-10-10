@@ -7,8 +7,7 @@ use std::io::Write;
 
 use common::{write_u32_vint, CountingWriter};
 
-use super::containment::brute_force_contains;
-use super::crossings::S2EdgeCrosser;
+use super::crossings::{ilogb, S2EdgeCrosser};
 use super::geometry_set::GeometrySet;
 use super::math::normalize;
 use super::r1interval::R1Interval;
@@ -52,9 +51,9 @@ pub(crate) fn get_level_for_max_value(value: f64) -> i32 {
     }
 
     // This code is equivalent to computing a floating-point "level" value and rounding up. ilogb()
-    // returns the exponent corresponding to a fraction in the range [1,2).
-    let ratio = value / K_AVG_EDGE_DERIV;
-    let level = ratio.log2().floor() as i32;
+    // returns the exponent corresponding to a fraction in the range [1,2), exactly, where
+    // log2().floor() may round up just below a power of two.
+    let level = ilogb(value / K_AVG_EDGE_DERIV);
     // For dim=1, (level >> (dim - 1)) == (level >> 0) == level
     (-level).clamp(0, S2CellId::MAX_LEVEL)
 }
@@ -184,9 +183,8 @@ struct FaceEdge {
 }
 
 /// A clipped portion of an edge within a cell.
-#[derive(Clone, Debug)]
+#[derive(Clone, Copy, Debug)]
 struct ClippedEdge {
-    geometry_id: u32,
     /// Original unclipped edge.
     face_edge_index: usize,
     /// Bounding box of the clipped edge in (u,v) coordinates.
@@ -422,7 +420,7 @@ pub(crate) fn write_directory<W: Write>(
     }
     write.write_all(&(offsets.len() as u32).to_le_bytes())?;
     write.write_all(&dir_offset.to_le_bytes())?;
-    Ok(())
+    super::write_format_marker(write, super::CELL_INDEX_MAGIC)
 }
 
 /// Where a target cell lies relative to the cells of an index. Mirrors the cases of S2's
@@ -439,22 +437,8 @@ pub enum CellRelation {
     Indexed(usize),
 }
 
-/// Input geometry data for indexing, consisting of rings and metadata.
-#[derive(Clone)]
-pub struct GeometryData {
-    /// The rings that define the geometry. A simple polygon has one ring. A polygon with holes has
-    /// an outer ring followed by hole rings. A line string has one ring (open, not wrapped).
-    pub rings: Vec<Vec<[f64; 3]>>,
-    /// Whether the reference origin is inside each ring, parallel to `rings`.
-    pub origin_inside: Vec<bool>,
-    /// The geometry type.
-    pub dimension: u8,
-}
-
 /// Builder for constructing a CellIndex from a collection of geometries.
 pub struct IndexBuilder {
-    /// Geometries grouped by document. Each entry is (doc_id, geometries).
-    documents: Vec<(u32, Vec<GeometryData>)>,
     options: BuildOptions,
     /// Tracks which cells' centers are inside the polygon as we traverse in S2CellId order.
     tracker: InteriorTracker,
@@ -466,115 +450,10 @@ impl IndexBuilder {
     /// Creates a new IndexBuilder with the given options.
     pub fn new(options: BuildOptions) -> Self {
         Self {
-            documents: Vec::new(),
             options,
             tracker: InteriorTracker::new(),
             cells: Vec::new(),
         }
-    }
-
-    /// Adds a document's geometries to the builder.
-    pub fn add(&mut self, doc_id: u32, geometries: Vec<GeometryData>) {
-        self.documents.push((doc_id, geometries));
-    }
-
-    /// Consumes the builder and returns the constructed CellIndex.
-    pub fn build(mut self) -> CellIndex {
-        // Reject the degenerates.
-        if self.documents.is_empty() {
-            return CellIndex { cells: Vec::new() };
-        }
-
-        // Flatten geometries with sequential geometry_ids.
-        let mut geometry_id: u32 = 0;
-
-        // Brute force to determine if the focal point starts inside or outside of each polygon.
-        // Each ring toggles the geometry_id independently: outer ring toggles on, hole ring
-        // toggles back off if the origin falls inside the hole.
-        let tracker_origin = self.tracker.focus;
-        for (_doc_id, geometries) in &self.documents {
-            for geo in geometries {
-                if geo.dimension < 2 {
-                    geometry_id += 1;
-                    continue;
-                }
-                self.tracker.is_active = true;
-                for (ring, &ring_origin_inside) in geo.rings.iter().zip(geo.origin_inside.iter()) {
-                    let inside = brute_force_contains(&tracker_origin, ring, ring_origin_inside);
-                    if inside {
-                        self.tracker.toggle_shape(geometry_id);
-                    }
-                }
-                geometry_id += 1;
-            }
-        }
-
-        // Collection of edges per face.
-        let mut face_edges: [Vec<FaceEdge>; 6] = Default::default();
-
-        // Stuff our faces. Edge IDs are flat across all rings within a geometry.
-        geometry_id = 0;
-        for (_doc_id, geometries) in &self.documents {
-            for geo in geometries {
-                let mut edge_id: u32 = 0;
-
-                for ring in &geo.rings {
-                    let n = ring.len();
-
-                    let min_vertices = match geo.dimension {
-                        0 => 1,
-                        2 => 3,
-                        _ => 2,
-                    };
-                    if n < min_vertices {
-                        continue;
-                    }
-
-                    let edge_count = match geo.dimension {
-                        0 => 1,
-                        2 => n,
-                        _ => n - 1,
-                    };
-
-                    for i in 0..edge_count {
-                        let v0 = ring[i];
-                        let v1 = match geo.dimension {
-                            0 => ring[i],
-                            2 => ring[(i + 1) % n],
-                            _ => ring[i + 1],
-                        };
-                        let max_level = self.get_edge_max_level(&v0, &v1);
-                        self.add_face_edge(
-                            geometry_id,
-                            edge_id,
-                            max_level,
-                            geo.dimension == 2,
-                            &v0,
-                            &v1,
-                            &mut face_edges,
-                        );
-                        edge_id += 1;
-                    }
-
-                    // Skip the duplicated first-vertex position for polygon rings.
-                    // The stored format appends ring[0] after each ring so edge lookup
-                    // is always position and position + 1, never modulo.
-                    if geo.dimension == 2 {
-                        edge_id += 1;
-                    }
-                }
-
-                geometry_id += 1;
-            }
-        }
-
-        for face in 0..NUM_FACES {
-            self.update_face_edges(face, &face_edges[face as usize]);
-        }
-
-        self.cells.sort_by_key(|c| c.cell_id);
-
-        CellIndex { cells: self.cells }
     }
 
     /// Build a CellIndex from smashed GeometrySets. Geometry IDs are arrival order — the first
@@ -726,7 +605,8 @@ impl IndexBuilder {
     }
 
     fn update_face_edges(&mut self, face: i32, face_edges: &[FaceEdge]) {
-        if face_edges.is_empty() {
+        // A face with no edges still needs a cell if shapes contain it.
+        if face_edges.is_empty() && self.tracker.shape_ids().is_empty() {
             return;
         }
 
@@ -736,7 +616,6 @@ impl IndexBuilder {
         for (i, fe) in face_edges.iter().enumerate() {
             let edge_bound = R2Rect::from_point_pair(fe.a, fe.b);
             clipped.push(ClippedEdge {
-                geometry_id: fe.geometry_id,
                 face_edge_index: i,
                 bound: edge_bound,
             });
@@ -746,7 +625,12 @@ impl IndexBuilder {
         let face_id = S2CellId::from_face(face);
         let pcell = S2PaddedCell::new(face_id, CELL_PADDING);
 
-        let shrunk_id = pcell.shrink_to_fit(&bound);
+        // With no edges, there is nothing to shrink to.
+        let shrunk_id = if face_edges.is_empty() {
+            face_id
+        } else {
+            pcell.shrink_to_fit(&bound)
+        };
         if shrunk_id != face_id {
             self.skip_cell_range(face_id.range_min(), shrunk_id.range_min());
 
@@ -792,7 +676,10 @@ impl IndexBuilder {
             }
 
             for edge in edges.iter() {
-                self.clip_to_children(edge, &middle, face_edges, &mut child_edges);
+                let fe = &face_edges[edge.face_edge_index];
+                clip_to_children(&edge.bound, fe.a, fe.b, &middle, |i, j, bound| {
+                    child_edges[i][j].push(ClippedEdge { bound, ..*edge });
+                });
             }
 
             for pos in 0..4 {
@@ -845,180 +732,6 @@ impl IndexBuilder {
 
         // If short_count <= max_short_edges, stop subdividing (make a cell)
         false
-    }
-
-    fn clip_to_children(
-        &self,
-        edge: &ClippedEdge,
-        middle: &R2Rect,
-        face_edges: &[FaceEdge],
-        child_edges: &mut [[Vec<ClippedEdge>; 2]; 2],
-    ) {
-        // Get the middle boundaries (the padding region shared by all children)
-        let u_mid_lo = middle[0].lo();
-        let u_mid_hi = middle[0].hi();
-        let v_mid_lo = middle[1].lo();
-        let v_mid_hi = middle[1].hi();
-
-        let fe = &face_edges[edge.face_edge_index];
-
-        // Determine which children the edge goes to along the u-axis
-        if edge.bound[0].hi() <= u_mid_lo {
-            // Edge is entirely in left children (i=0)
-            self.clip_v_axis(edge, fe, v_mid_lo, v_mid_hi, &mut child_edges[0]);
-        } else if edge.bound[0].lo() >= u_mid_hi {
-            // Edge is entirely in right children (i=1)
-            self.clip_v_axis(edge, fe, v_mid_lo, v_mid_hi, &mut child_edges[1]);
-        } else if edge.bound[1].hi() <= v_mid_lo {
-            // Edge is entirely in lower children (j=0)
-            child_edges[0][0].push(self.clip_u_bound(edge, fe, u_mid_hi, true));
-            child_edges[1][0].push(self.clip_u_bound(edge, fe, u_mid_lo, false));
-        } else if edge.bound[1].lo() >= v_mid_hi {
-            // Edge is entirely in upper children (j=1)
-            child_edges[0][1].push(self.clip_u_bound(edge, fe, u_mid_hi, true));
-            child_edges[1][1].push(self.clip_u_bound(edge, fe, u_mid_lo, false));
-        } else {
-            // Edge spans all four children
-            let left = self.clip_u_bound(edge, fe, u_mid_hi, true);
-            self.clip_v_axis(&left, fe, v_mid_lo, v_mid_hi, &mut child_edges[0]);
-            let right = self.clip_u_bound(edge, fe, u_mid_lo, false);
-            self.clip_v_axis(&right, fe, v_mid_lo, v_mid_hi, &mut child_edges[1]);
-        }
-    }
-
-    fn clip_v_axis(
-        &self,
-        edge: &ClippedEdge,
-        fe: &FaceEdge,
-        v_mid_lo: f64,
-        v_mid_hi: f64,
-        child_edges: &mut [Vec<ClippedEdge>; 2],
-    ) {
-        if edge.bound[1].hi() <= v_mid_lo {
-            // Edge is entirely in lower child (j=0)
-            child_edges[0].push(edge.clone());
-        } else if edge.bound[1].lo() >= v_mid_hi {
-            // Edge is entirely in upper child (j=1)
-            child_edges[1].push(edge.clone());
-        } else {
-            // Edge spans both children
-            child_edges[0].push(self.clip_v_bound(edge, fe, v_mid_hi, true));
-            child_edges[1].push(self.clip_v_bound(edge, fe, v_mid_lo, false));
-        }
-    }
-
-    /// Clip the u-axis bound of an edge. If `clip_hi` is true, clip the high end to `u`; otherwise
-    /// clip the low end.
-    fn clip_u_bound(
-        &self,
-        edge: &ClippedEdge,
-        fe: &FaceEdge,
-        u: f64,
-        clip_hi: bool,
-    ) -> ClippedEdge {
-        // Check if clipping is actually needed
-        if clip_hi {
-            if edge.bound[0].hi() <= u {
-                return edge.clone();
-            }
-        } else if edge.bound[0].lo() >= u {
-            return edge.clone();
-        }
-
-        // Interpolate to find the v-coordinate where the edge crosses u
-        let v = interpolate_double(u, fe.a[0], fe.b[0], fe.a[1], fe.b[1]);
-        let v_clamped = edge.bound[1].clamp(v);
-
-        // Determine which end of the v-bound to update based on edge slope
-        let slopes_same_sign = (fe.a[0] > fe.b[0]) == (fe.a[1] > fe.b[1]);
-        let clip_v_hi = if clip_hi {
-            slopes_same_sign
-        } else {
-            !slopes_same_sign
-        };
-
-        let new_bound = if clip_hi {
-            R2Rect::new(
-                R1Interval::new(edge.bound[0].lo(), u),
-                if clip_v_hi {
-                    R1Interval::new(edge.bound[1].lo(), v_clamped)
-                } else {
-                    R1Interval::new(v_clamped, edge.bound[1].hi())
-                },
-            )
-        } else {
-            R2Rect::new(
-                R1Interval::new(u, edge.bound[0].hi()),
-                if clip_v_hi {
-                    R1Interval::new(edge.bound[1].lo(), v_clamped)
-                } else {
-                    R1Interval::new(v_clamped, edge.bound[1].hi())
-                },
-            )
-        };
-
-        ClippedEdge {
-            geometry_id: edge.geometry_id,
-            face_edge_index: edge.face_edge_index,
-            bound: new_bound,
-        }
-    }
-
-    /// Clip the v-axis bound of an edge. If `clip_hi` is true, clip the high end to `v`; otherwise
-    /// clip the low end.
-    fn clip_v_bound(
-        &self,
-        edge: &ClippedEdge,
-        fe: &FaceEdge,
-        v: f64,
-        clip_hi: bool,
-    ) -> ClippedEdge {
-        // Check if clipping is actually needed
-        if clip_hi {
-            if edge.bound[1].hi() <= v {
-                return edge.clone();
-            }
-        } else if edge.bound[1].lo() >= v {
-            return edge.clone();
-        }
-
-        // Interpolate to find the u-coordinate where the edge crosses v
-        let u = interpolate_double(v, fe.a[1], fe.b[1], fe.a[0], fe.b[0]);
-        let u_clamped = edge.bound[0].clamp(u);
-
-        // Determine which end of the u-bound to update based on edge slope
-        let slopes_same_sign = (fe.a[0] > fe.b[0]) == (fe.a[1] > fe.b[1]);
-        let clip_u_hi = if clip_hi {
-            slopes_same_sign
-        } else {
-            !slopes_same_sign
-        };
-
-        let new_bound = if clip_hi {
-            R2Rect::new(
-                if clip_u_hi {
-                    R1Interval::new(edge.bound[0].lo(), u_clamped)
-                } else {
-                    R1Interval::new(u_clamped, edge.bound[0].hi())
-                },
-                R1Interval::new(edge.bound[1].lo(), v),
-            )
-        } else {
-            R2Rect::new(
-                if clip_u_hi {
-                    R1Interval::new(edge.bound[0].lo(), u_clamped)
-                } else {
-                    R1Interval::new(u_clamped, edge.bound[0].hi())
-                },
-                R1Interval::new(v, edge.bound[1].hi()),
-            )
-        };
-
-        ClippedEdge {
-            geometry_id: edge.geometry_id,
-            face_edge_index: edge.face_edge_index,
-            bound: new_bound,
-        }
     }
 
     fn make_index_cell(
@@ -1092,11 +805,111 @@ impl IndexBuilder {
             self.tracker.draw_to(&pcell.get_exit_vertex());
             for edge in edges {
                 let fe = &face_edges[edge.face_edge_index];
-                self.tracker.test_edge(fe.geometry_id, &fe.v0, &fe.v1);
+                if fe.has_interior {
+                    self.tracker.test_edge(fe.geometry_id, &fe.v0, &fe.v1);
+                }
             }
             self.tracker.set_next_cellid(cell_id.next());
         }
     }
+}
+
+/// Distributes an edge among the children of a padded cell. The edge runs from `a` to `b` in
+/// (u,v) coordinates, `bound` bounds the part of it in the cell, and `middle` is the cell's middle,
+/// the region that belongs to all four children. Calls `add` with each child's (i, j) the edge
+/// lies in, and the bound of the part of the edge in it. Port of
+/// MutableS2ShapeIndex::ClipVAxis and the subdivision of UpdateEdges.
+pub(crate) fn clip_to_children(
+    bound: &R2Rect,
+    a: [f64; 2],
+    b: [f64; 2],
+    middle: &R2Rect,
+    mut add: impl FnMut(usize, usize, R2Rect),
+) {
+    let (u_mid_lo, u_mid_hi) = (middle[0].lo(), middle[0].hi());
+    let (v_mid_lo, v_mid_hi) = (middle[1].lo(), middle[1].hi());
+    let mut clip_v_axis = |i: usize, bound: R2Rect| {
+        if bound[1].hi() <= v_mid_lo {
+            // The edge is entirely in the lower child.
+            add(i, 0, bound);
+        } else if bound[1].lo() >= v_mid_hi {
+            // The edge is entirely in the upper child.
+            add(i, 1, bound);
+        } else {
+            // The edge spans both children.
+            add(i, 0, clip_v_bound(&bound, a, b, v_mid_hi, true));
+            add(i, 1, clip_v_bound(&bound, a, b, v_mid_lo, false));
+        }
+    };
+    if bound[0].hi() <= u_mid_lo {
+        // The edge is entirely in the left children.
+        clip_v_axis(0, *bound);
+    } else if bound[0].lo() >= u_mid_hi {
+        // The edge is entirely in the right children.
+        clip_v_axis(1, *bound);
+    } else {
+        // The edge spans the left and the right children.
+        clip_v_axis(0, clip_u_bound(bound, a, b, u_mid_hi, true));
+        clip_v_axis(1, clip_u_bound(bound, a, b, u_mid_lo, false));
+    }
+}
+
+/// Clips the u-axis of the bound of an edge from `a` to `b` to `u`: its high end if `clip_hi`,
+/// otherwise its low end. Shrinks the v-axis to match. Port of MutableS2ShapeIndex::ClipUBound.
+fn clip_u_bound(bound: &R2Rect, a: [f64; 2], b: [f64; 2], u: f64, clip_hi: bool) -> R2Rect {
+    // Check if clipping is actually needed.
+    if clip_hi {
+        if bound[0].hi() <= u {
+            return *bound;
+        }
+    } else if bound[0].lo() >= u {
+        return *bound;
+    }
+
+    // Interpolate to find the v-coordinate where the edge crosses u, and update the end of the
+    // v-bound the slope of the edge determines.
+    let v = bound[1].clamp(interpolate_double(u, a[0], b[0], a[1], b[1]));
+    let positive_slope = (a[0] > b[0]) == (a[1] > b[1]);
+    let u_bound = if clip_hi {
+        R1Interval::new(bound[0].lo(), u)
+    } else {
+        R1Interval::new(u, bound[0].hi())
+    };
+    let v_bound = if clip_hi == positive_slope {
+        R1Interval::new(bound[1].lo(), v)
+    } else {
+        R1Interval::new(v, bound[1].hi())
+    };
+    R2Rect::new(u_bound, v_bound)
+}
+
+/// Clips the v-axis of the bound of an edge from `a` to `b` to `v`: its high end if `clip_hi`,
+/// otherwise its low end. Shrinks the u-axis to match. Port of MutableS2ShapeIndex::ClipVBound.
+fn clip_v_bound(bound: &R2Rect, a: [f64; 2], b: [f64; 2], v: f64, clip_hi: bool) -> R2Rect {
+    // Check if clipping is actually needed.
+    if clip_hi {
+        if bound[1].hi() <= v {
+            return *bound;
+        }
+    } else if bound[1].lo() >= v {
+        return *bound;
+    }
+
+    // Interpolate to find the u-coordinate where the edge crosses v, and update the end of the
+    // u-bound the slope of the edge determines.
+    let u = bound[0].clamp(interpolate_double(v, a[1], b[1], a[0], b[0]));
+    let positive_slope = (a[0] > b[0]) == (a[1] > b[1]);
+    let u_bound = if clip_hi == positive_slope {
+        R1Interval::new(bound[0].lo(), u)
+    } else {
+        R1Interval::new(u, bound[0].hi())
+    };
+    let v_bound = if clip_hi {
+        R1Interval::new(bound[1].lo(), v)
+    } else {
+        R1Interval::new(v, bound[1].hi())
+    };
+    R2Rect::new(u_bound, v_bound)
 }
 
 /// Interpolates a value along a line segment. Given points (x0, y0) and (x1, y1), returns the

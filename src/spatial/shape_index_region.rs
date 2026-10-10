@@ -80,31 +80,6 @@ pub fn contains_point<T: ContainmentIndex>(
     inside
 }
 
-/// In-memory containment index wrapping a CellIndex and an EdgeProvider.
-pub struct InMemoryIndex<'a, E: EdgeProvider> {
-    /// The in-memory cell index.
-    pub index: &'a CellIndex,
-    /// The edge provider for vertex resolution.
-    pub edges: &'a E,
-}
-
-impl<E: EdgeProvider> ContainmentIndex for InMemoryIndex<'_, E> {
-    fn find_clipped(&mut self, geometry_id: GeometryId, point: &[f64; 3]) -> Option<ClippedInfo> {
-        let cell_id = S2CellId::from_point(point);
-        let index_cell = self.index.find_cell(cell_id)?;
-        let clipped = index_cell.find_shape(geometry_id)?;
-        Some(ClippedInfo {
-            cell_id: index_cell.cell_id,
-            contains_center: clipped.contains_center,
-            edge_indices: clipped.edge_indices.clone(),
-        })
-    }
-
-    fn resolve_edge(&mut self, geometry_id: GeometryId, edge_idx: u32) -> ([f64; 3], [f64; 3]) {
-        self.edges.get_edge(geometry_id, edge_idx)
-    }
-}
-
 /// Segment containment index wrapping a CellIndexReader and an EdgeCache.
 pub struct SegmentIndex<'a, 'b> {
     /// The serialized cell index reader.

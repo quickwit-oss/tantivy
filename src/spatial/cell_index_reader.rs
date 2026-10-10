@@ -23,6 +23,7 @@ impl<'a> CellIndexReader<'a> {
     /// Opens a cell index reader from the raw bytes of a serialized cell index. Fails when the
     /// footer does not locate a directory that ends where the footer begins.
     pub fn open(data: &'a [u8]) -> crate::Result<Self> {
+        let data = super::check_format_marker(data, super::CELL_INDEX_MAGIC, "cell index")?;
         let corrupt =
             || DataCorruption::comment_only(format!("Corrupt {}-byte cell index", data.len()));
         let (body, footer) = data.split_last_chunk::<FOOTER_LEN>().ok_or_else(corrupt)?;
@@ -162,7 +163,9 @@ impl<'a> CellIndexReader<'a> {
 
         let shape_count = read_vint(&mut pos);
 
-        let mut shapes = Vec::with_capacity(shape_count);
+        // A count read from a corrupt index must not size an allocation beyond what the bytes
+        // left could hold: a shape takes at least 6 bytes, an edge id at least 1.
+        let mut shapes = Vec::with_capacity(shape_count.min((self.data.len() - pos) / 6));
         for _ in 0..shape_count {
             let geometry_id = u32::from_le_bytes(self.data[pos..pos + 4].try_into().unwrap());
             pos += 4;
@@ -171,9 +174,10 @@ impl<'a> CellIndexReader<'a> {
             pos += 1;
 
             let edge_count = read_vint(&mut pos);
-            let edge_indices = (0..edge_count)
-                .map(|_| read_vint(&mut pos) as u32)
-                .collect();
+            let mut edge_indices = Vec::with_capacity(edge_count.min(self.data.len() - pos));
+            for _ in 0..edge_count {
+                edge_indices.push(read_vint(&mut pos) as u32);
+            }
 
             shapes.push(ClippedShape {
                 geometry_id: (0, geometry_id),
@@ -258,7 +262,10 @@ mod tests {
         assert_eq!(reader.cell(1), cell(4, 9));
 
         let footer_only = written(&CellIndex::new());
-        assert_eq!(footer_only.len(), FOOTER_LEN);
+        assert_eq!(
+            footer_only.len(),
+            FOOTER_LEN + crate::spatial::FORMAT_MARKER_LEN
+        );
         assert_eq!(CellIndexReader::open(&footer_only)?.cell_count(), 0);
         Ok(())
     }
@@ -286,13 +293,29 @@ mod tests {
         let data = written(&CellIndex {
             cells: vec![cell(1, 7)],
         });
-        for len in 0..FOOTER_LEN {
+        for len in 0..FOOTER_LEN + crate::spatial::FORMAT_MARKER_LEN {
             assert!(CellIndexReader::open(&data[..len]).is_err(), "{len} bytes");
         }
         assert!(CellIndexReader::open(&data[1..]).is_err());
         let mut longer = data.clone();
         longer.insert(0, 0);
         assert!(CellIndexReader::open(&longer).is_err());
+    }
+
+    #[test]
+    fn test_open_names_an_index_of_another_format() {
+        let data = written(&CellIndex {
+            cells: vec![cell(1, 7)],
+        });
+        // Without the marker, as older versions wrote it, and with another version.
+        let unmarked = &data[..data.len() - crate::spatial::FORMAT_MARKER_LEN];
+        let mut other_version = data.clone();
+        let version_at = data.len() - crate::spatial::FORMAT_MARKER_LEN;
+        other_version[version_at..version_at + 4].copy_from_slice(&99u32.to_le_bytes());
+        for data in [unmarked, &other_version[..]] {
+            let error = CellIndexReader::open(data).err().unwrap().to_string();
+            assert!(error.contains("re-index"), "{error}");
+        }
     }
 
     #[test]

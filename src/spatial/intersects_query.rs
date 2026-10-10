@@ -11,7 +11,8 @@ use super::cell_index::GeometryId;
 use super::cell_index_reader::CellIndexReader;
 use super::contains_query::{midpoint, CandidateInfo, Contact, QueryRegion};
 use super::edge_cache::EdgeCache;
-use super::geometry_set::GeometrySet;
+use super::geometry_set::{EdgeSet, GeometrySet};
+use super::polygon_union::{member_edges, split_edge, PolygonEdge};
 use super::region_coverer::CovererOptions;
 use super::shape_index_region::{contains_point, SegmentIndex};
 use super::sphere::Sphere;
@@ -95,6 +96,21 @@ impl IntersectsQuery {
             Contact::Cross => return true,
             Contact::Touch(touch) => touch,
         };
+        // Points and lines have no interior, so they intersect what they meet: at a shared
+        // vertex, along a shared edge, or where a point lies on an edge. Within a polygon's
+        // boundary is within the polygon, as its containment tests have it.
+        let members = self.region.members();
+        let open_contact = touch
+            .query_touching
+            .iter()
+            .chain(&touch.query_along)
+            .any(|&(member, _)| !candidate.closed || !members[member as usize].closed);
+        if open_contact || self.region.point_contact(info, candidate) {
+            return true;
+        }
+        if touch.irregular {
+            return self.verify_pieces(geometry_id, candidate, cell_reader, edge_cache);
+        }
 
         let touches_inside = touch
             .touching
@@ -139,6 +155,43 @@ impl IntersectsQuery {
         touch.along.keys().any(|&edge_idx| {
             self.region
                 .covers_shared_interior(candidate, edge_idx, &touch)
+        })
+    }
+
+    /// Where the boundaries meet other than at shared vertices and edges, split the edges of
+    /// each where the other's meet them. The candidate intersects the query geometry if a piece
+    /// of its boundary lies inside the query's, if one runs along the query's boundary with
+    /// both interiors on the same side, or if a piece of the query's boundary lies inside it.
+    fn verify_pieces(
+        &self,
+        geometry_id: GeometryId,
+        candidate: &EdgeSet,
+        cell_reader: &CellIndexReader,
+        edge_cache: &mut EdgeCache<'_, Sphere>,
+    ) -> bool {
+        let boundary = self.region.boundary();
+        let edges: Vec<PolygonEdge> = member_edges(candidate).map(|(_, edge)| edge).collect();
+        for edge in &edges {
+            for piece in split_edge(*edge, boundary) {
+                let inside = if piece.shared_sides.iter().any(|&side| side) {
+                    piece.shared_sides[usize::from(piece.edge.interior_left)]
+                } else {
+                    self.region.contains(&piece.edge.midpoint())
+                };
+                if inside {
+                    return true;
+                }
+            }
+        }
+        let mut segment = SegmentIndex {
+            cell_reader,
+            edge_cache,
+        };
+        boundary.iter().any(|edge| {
+            split_edge(*edge, &edges).iter().any(|piece| {
+                !piece.shared_sides.iter().any(|&side| side)
+                    && contains_point(&mut segment, geometry_id, &piece.edge.midpoint())
+            })
         })
     }
 }

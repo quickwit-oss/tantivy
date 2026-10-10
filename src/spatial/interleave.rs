@@ -8,13 +8,14 @@ use common::ReadOnlyBitSet;
 use rustc_hash::{FxHashMap, FxHashSet};
 
 use super::cell_index::{
-    get_edge_max_level, BuildOptions, ClippedShape, GeometryId, IndexCell, CELL_PADDING,
+    clip_to_children, get_edge_max_level, BuildOptions, ClippedShape, GeometryId, IndexCell,
+    CELL_PADDING,
 };
 use super::cell_index_reader::CellIndexIter;
 use super::edge_cache::EdgeCache;
 use super::r2rect::R2Rect;
 use super::s2cell_id::S2CellId;
-use super::s2coords::valid_face_xyz_to_uv;
+use super::s2edge_clipping::{clip_edge_bound, clip_to_padded_face};
 use super::s2padded_cell::S2PaddedCell;
 use super::sphere::Sphere;
 
@@ -455,105 +456,6 @@ fn compute_contains_center(
     from_flag ^ (crossings % 2 != 0)
 }
 
-fn clip_to_children(
-    ce: &MergeClippedEdge,
-    me: &MergeEdge,
-    middle: &R2Rect,
-    child_edges: &mut [[Vec<MergeClippedEdge>; 2]; 2],
-) {
-    let u_mid_lo = middle[0].lo();
-    let u_mid_hi = middle[0].hi();
-    let v_mid_lo = middle[1].lo();
-    let v_mid_hi = middle[1].hi();
-
-    if ce.bound[0].hi() <= u_mid_lo {
-        clip_v_axis(ce, me, v_mid_lo, v_mid_hi, &mut child_edges[0]);
-    } else if ce.bound[0].lo() >= u_mid_hi {
-        clip_v_axis(ce, me, v_mid_lo, v_mid_hi, &mut child_edges[1]);
-    } else if ce.bound[1].hi() <= v_mid_lo {
-        child_edges[0][0].push(clip_u_bound(ce, me, u_mid_hi, true));
-        child_edges[1][0].push(clip_u_bound(ce, me, u_mid_lo, false));
-    } else if ce.bound[1].lo() >= v_mid_hi {
-        child_edges[0][1].push(clip_u_bound(ce, me, u_mid_hi, true));
-        child_edges[1][1].push(clip_u_bound(ce, me, u_mid_lo, false));
-    } else {
-        let left = clip_u_bound(ce, me, u_mid_hi, true);
-        let right = clip_u_bound(ce, me, u_mid_lo, false);
-        child_edges[0][0].push(clip_v_bound(&left, me, v_mid_hi, true));
-        child_edges[0][1].push(clip_v_bound(&left, me, v_mid_lo, false));
-        child_edges[1][0].push(clip_v_bound(&right, me, v_mid_hi, true));
-        child_edges[1][1].push(clip_v_bound(&right, me, v_mid_lo, false));
-    }
-}
-
-fn clip_v_axis(
-    ce: &MergeClippedEdge,
-    me: &MergeEdge,
-    v_mid_lo: f64,
-    v_mid_hi: f64,
-    children: &mut [Vec<MergeClippedEdge>; 2],
-) {
-    if ce.bound[1].hi() <= v_mid_lo {
-        children[0].push(ce.clone());
-    } else if ce.bound[1].lo() >= v_mid_hi {
-        children[1].push(ce.clone());
-    } else {
-        children[0].push(clip_v_bound(ce, me, v_mid_hi, true));
-        children[1].push(clip_v_bound(ce, me, v_mid_lo, false));
-    }
-}
-
-fn clip_u_bound(
-    ce: &MergeClippedEdge,
-    me: &MergeEdge,
-    u_edge: f64,
-    upper: bool,
-) -> MergeClippedEdge {
-    let a = me.a_uv;
-    let b = me.b_uv;
-    let v_at_u = interpolate(u_edge, a[0], b[0], a[1], b[1]);
-    let u_bound = if upper {
-        super::r1interval::R1Interval::new(ce.bound[0].lo(), u_edge)
-    } else {
-        super::r1interval::R1Interval::new(u_edge, ce.bound[0].hi())
-    };
-    let v_lo = ce.bound[1].lo().min(v_at_u);
-    let v_hi = ce.bound[1].hi().max(v_at_u);
-    MergeClippedEdge {
-        edge_index: ce.edge_index,
-        bound: R2Rect::new(u_bound, super::r1interval::R1Interval::new(v_lo, v_hi)),
-    }
-}
-
-fn clip_v_bound(
-    ce: &MergeClippedEdge,
-    me: &MergeEdge,
-    v_edge: f64,
-    upper: bool,
-) -> MergeClippedEdge {
-    let a = me.a_uv;
-    let b = me.b_uv;
-    let u_at_v = interpolate(v_edge, a[1], b[1], a[0], b[0]);
-    let v_bound = if upper {
-        super::r1interval::R1Interval::new(ce.bound[1].lo(), v_edge)
-    } else {
-        super::r1interval::R1Interval::new(v_edge, ce.bound[1].hi())
-    };
-    let u_lo = ce.bound[0].lo().min(u_at_v);
-    let u_hi = ce.bound[0].hi().max(u_at_v);
-    MergeClippedEdge {
-        edge_index: ce.edge_index,
-        bound: R2Rect::new(super::r1interval::R1Interval::new(u_lo, u_hi), v_bound),
-    }
-}
-
-fn interpolate(x: f64, x0: f64, x1: f64, y0: f64, y1: f64) -> f64 {
-    if (x0 - x1).abs() < f64::EPSILON {
-        return (y0 + y1) * 0.5;
-    }
-    y0 + (y1 - y0) * (x - x0) / (x1 - x0)
-}
-
 fn subdivide_cell(coarse_cell: &CoarseIndexCell, crossing_checks: &mut u64) -> Vec<IndexCell> {
     let cell = &coarse_cell.cell;
     let face = cell.cell_id.face();
@@ -561,31 +463,35 @@ fn subdivide_cell(coarse_cell: &CoarseIndexCell, crossing_checks: &mut u64) -> V
     let parent_center = pcell.get_center();
 
     let mut merge_edges: Vec<MergeEdge> = Vec::new();
+    let mut clipped: Vec<MergeClippedEdge> = Vec::new();
 
+    // The cell holds the part of each edge on its face, clipped as the builder clips it. An edge
+    // that misses the padded cell crosses none of its children, nor any path inside it.
     for (&gid, geo) in &coarse_cell.geometries {
         for edge in &geo.edges {
-            let (a_u, a_v) = valid_face_xyz_to_uv(face, &edge.v0);
-            let (b_u, b_v) = valid_face_xyz_to_uv(face, &edge.v1);
-
+            let Some((a_uv, b_uv)) = clip_to_padded_face(&edge.v0, &edge.v1, face, CELL_PADDING)
+            else {
+                continue;
+            };
+            // The bound of the part of the edge in the padded cell, as tight as the builder's.
+            let mut bound = R2Rect::from_point_pair(a_uv, b_uv);
+            if !clip_edge_bound(a_uv, b_uv, &pcell.bound(), &mut bound) {
+                continue;
+            }
+            clipped.push(MergeClippedEdge {
+                edge_index: merge_edges.len(),
+                bound,
+            });
             merge_edges.push(MergeEdge {
                 geometry_id: gid,
                 edge_index: edge.edge_index,
                 v0: edge.v0,
                 v1: edge.v1,
-                a_uv: [a_u, a_v],
-                b_uv: [b_u, b_v],
+                a_uv,
+                b_uv,
             });
         }
     }
-
-    let clipped: Vec<MergeClippedEdge> = merge_edges
-        .iter()
-        .enumerate()
-        .map(|(i, e)| MergeClippedEdge {
-            edge_index: i,
-            bound: R2Rect::from_point_pair(e.a_uv, e.b_uv),
-        })
-        .collect();
 
     // Only a geometry with an interior can contain a child's center. One with no edges in the
     // cell is there only because it contains the cell's center, so it has one.
@@ -605,7 +511,12 @@ fn subdivide_cell(coarse_cell: &CoarseIndexCell, crossing_checks: &mut u64) -> V
     let mut child_edges: [[Vec<MergeClippedEdge>; 2]; 2] = Default::default();
     for ce in &clipped {
         let me = &merge_edges[ce.edge_index];
-        clip_to_children(ce, me, &middle, &mut child_edges);
+        clip_to_children(&ce.bound, me.a_uv, me.b_uv, &middle, |i, j, bound| {
+            child_edges[i][j].push(MergeClippedEdge {
+                edge_index: ce.edge_index,
+                bound,
+            });
+        });
     }
 
     let mut children = Vec::new();

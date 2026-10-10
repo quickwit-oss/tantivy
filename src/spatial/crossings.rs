@@ -335,8 +335,9 @@ pub fn ref_dir(a: &[f64; 3]) -> [f64; 3] {
     ortho(a)
 }
 
+/// The exponent of x, as C's ilogb gives it for a finite, nonzero x.
 #[inline]
-fn ilogb(x: f64) -> i32 {
+pub(crate) fn ilogb(x: f64) -> i32 {
     let bits = x.to_bits();
     let exp = ((bits >> 52) & 0x7FF) as i32;
     if exp == 0 {

@@ -189,9 +189,8 @@ impl FastFieldsWriter {
                             .record_str(doc_id, field_name, &token.text);
                     }
                 }
-                ReferenceValueLeaf::Geometry(_) => {
-                    panic!("Geometry fields should not be routed to fast field writer")
-                }
+                // Only a spatial field indexes geometry, and it has no fast field.
+                ReferenceValueLeaf::Geometry(_) => {}
             },
             ReferenceValue::Array(val) => {
                 // TODO: Check this is the correct behaviour we want.
@@ -323,9 +322,8 @@ fn record_json_value_to_columnar_writer<'a, V: Value<'a>>(
                     "Pre-tokenized string support in dynamic fields is not yet implemented"
                 )
             }
-            ReferenceValueLeaf::Geometry(_) => {
-                unimplemented!("Geometry support in dynamic fields is not yet implemented")
-            }
+            // Only a spatial field indexes geometry.
+            ReferenceValueLeaf::Geometry(_) => {}
         },
         ReferenceValue::Array(elements) => {
             for el in elements {

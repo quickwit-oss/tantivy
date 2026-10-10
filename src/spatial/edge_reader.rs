@@ -64,6 +64,7 @@ impl<'a, S: Surface> EdgeReader<'a, S> {
     /// Construct a reader from the raw bytes of an edge index segment. Fails when the footer does
     /// not locate a skip list directory that ends where the footer begins.
     pub fn open(data: &'a [u8]) -> crate::Result<Self> {
+        let data = super::check_format_marker(data, super::EDGE_INDEX_MAGIC, "edge index")?;
         let corrupt =
             || DataCorruption::comment_only(format!("Corrupt {}-byte edge index", data.len()));
         let (body, footer) = data.split_last_chunk::<FOOTER_LEN>().ok_or_else(corrupt)?;
@@ -285,7 +286,10 @@ mod tests {
         assert_eq!(reader.geometry_count(), 3);
         assert_eq!(reader.doc_id_for(2), 8);
         let footer_only = written(&[])?;
-        assert_eq!(footer_only.len(), FOOTER_LEN);
+        assert_eq!(
+            footer_only.len(),
+            FOOTER_LEN + crate::spatial::FORMAT_MARKER_LEN
+        );
         assert_eq!(
             EdgeReader::<Sphere>::open(&footer_only)?.geometry_count(),
             0
@@ -334,7 +338,7 @@ mod tests {
     #[test]
     fn test_open_rejects_a_corrupt_index() -> crate::Result<()> {
         let data = written(&[point(3), point(5), point(8)])?;
-        for len in 0..FOOTER_LEN {
+        for len in 0..FOOTER_LEN + crate::spatial::FORMAT_MARKER_LEN {
             assert!(
                 EdgeReader::<Sphere>::open(&data[..len]).is_err(),
                 "{len} bytes"
@@ -342,7 +346,7 @@ mod tests {
         }
         assert!(EdgeReader::<Sphere>::open(&data[1..]).is_err());
         let mut no_skip_interval = data.clone();
-        let interval_at = data.len() - FOOTER_LEN + 4;
+        let interval_at = data.len() - crate::spatial::FORMAT_MARKER_LEN - FOOTER_LEN + 4;
         no_skip_interval[interval_at..interval_at + 4].copy_from_slice(&0u32.to_le_bytes());
         assert!(EdgeReader::<Sphere>::open(&no_skip_interval).is_err());
         assert_eq!(EdgeReader::<Sphere>::empty().geometry_count(), 0);

@@ -384,7 +384,8 @@ impl ClosestEdgeQuery {
             .filter(|(_, &distance)| distance >= self.min_distance)
             .map(|(&doc_id, &distance)| ClosestEdgeResult { doc_id, distance })
             .collect();
-        out.sort_by_key(|result| result.distance);
+        // Ties go to the lower document, so that a query always returns the same documents.
+        out.sort_by_key(|result| (result.distance, result.doc_id));
         if self.max_results < out.len() {
             out.truncate(self.max_results);
         }

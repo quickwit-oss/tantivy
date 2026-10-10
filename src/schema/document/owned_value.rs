@@ -51,7 +51,7 @@ pub enum OwnedValue {
     Object(Vec<(String, Self)>),
     /// IpV6 Address. Internally there is no IpV4, it needs to be converted to `Ipv6Addr`.
     IpAddr(Ipv6Addr),
-    /// A GeoRust multi-polygon.
+    /// A GeoJSON geometry, indexed by a spatial field.
     Geometry(Geometry<Plane>),
 }
 

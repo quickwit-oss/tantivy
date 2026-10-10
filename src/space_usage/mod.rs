@@ -70,7 +70,10 @@ pub struct SegmentSpaceUsage {
     positions: PerFieldSpaceUsage,
     fast_fields: PerFieldSpaceUsage,
     fieldnorms: PerFieldSpaceUsage,
+    // Older versions reported the cell indexes alone, as `spatial`.
+    #[serde(alias = "spatial")]
     spatial_cells: PerFieldSpaceUsage,
+    #[serde(default = "PerFieldSpaceUsage::empty")]
     spatial_edges: PerFieldSpaceUsage,
 
     store: StoreSpaceUsage,
@@ -173,6 +176,12 @@ impl SegmentSpaceUsage {
         &self.spatial_cells
     }
 
+    /// Space usage for spatial cell indexes, as older versions reported it.
+    #[deprecated(note = "use `spatial_cells`, and `spatial_edges` for the edge indexes")]
+    pub fn spatial(&self) -> &PerFieldSpaceUsage {
+        &self.spatial_cells
+    }
+
     /// Space usage for spatial edge indexes
     pub fn spatial_edges(&self) -> &PerFieldSpaceUsage {
         &self.spatial_edges
@@ -237,6 +246,10 @@ pub struct PerFieldSpaceUsage {
 }
 
 impl PerFieldSpaceUsage {
+    fn empty() -> PerFieldSpaceUsage {
+        PerFieldSpaceUsage::new(Vec::new())
+    }
+
     pub(crate) fn new(fields: Vec<FieldUsage>) -> PerFieldSpaceUsage {
         let mut total = ByteCount::default();
         let mut field_usage_map: BTreeMap<String, FieldUsage> = BTreeMap::new();
@@ -477,6 +490,16 @@ mod test {
         assert!(
             segment.total() >= segment.spatial_cells().total() + segment.spatial_edges().total()
         );
+
+        // Older versions serialized the cell indexes as `spatial`, and no edge indexes.
+        let mut json = serde_json::to_value(segment).unwrap();
+        let object = json.as_object_mut().unwrap();
+        let cells = object.remove("spatial_cells").unwrap();
+        object.remove("spatial_edges");
+        object.insert("spatial".to_string(), cells);
+        let old: super::SegmentSpaceUsage = serde_json::from_value(json).unwrap();
+        assert_eq!(old.spatial_cells().total(), segment.spatial_cells().total());
+        assert_eq!(old.spatial_edges().total(), 0);
         Ok(())
     }
 

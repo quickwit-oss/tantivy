@@ -4,7 +4,6 @@
 //! algorithm. The output satisfies configurable constraints on cell count, levels, and level
 //! spacing.
 
-use std::cmp::Reverse;
 use std::collections::BinaryHeap;
 
 use super::cell_union::CellUnion;
@@ -152,11 +151,13 @@ struct QueueEntry {
     candidate_idx: usize,
 }
 
+/// Orders the max-heap of candidates, as S2's priority queue is: the highest priority first, and
+/// of equal priorities, the candidate queued first.
 impl Ord for QueueEntry {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
         self.priority
             .cmp(&other.priority)
-            .then_with(|| self.candidate_idx.cmp(&other.candidate_idx))
+            .then_with(|| other.candidate_idx.cmp(&self.candidate_idx))
     }
 }
 
@@ -227,7 +228,7 @@ impl RegionCoverer {
     fn get_covering_internal<R: Region>(&self, region: &R, result: &mut Vec<S2CellId>) {
         debug_assert!(self.options.min_level <= self.options.max_level);
 
-        let mut pq: BinaryHeap<Reverse<QueueEntry>> = BinaryHeap::new();
+        let mut pq: BinaryHeap<QueueEntry> = BinaryHeap::new();
         let mut candidates: Vec<Option<Candidate>> = Vec::new();
 
         // Get initial candidates from the region's cell union bound.
@@ -240,7 +241,7 @@ impl RegionCoverer {
             }
         }
 
-        while let Some(Reverse(entry)) = pq.pop() {
+        while let Some(entry) = pq.pop() {
             let Some(mut candidate) = candidates[entry.candidate_idx].take() else {
                 continue;
             };
@@ -302,7 +303,7 @@ impl RegionCoverer {
         region: &R,
         mut candidate: Candidate,
         result: &mut Vec<S2CellId>,
-        pq: &mut BinaryHeap<Reverse<QueueEntry>>,
+        pq: &mut BinaryHeap<QueueEntry>,
         candidates: &mut Vec<Option<Candidate>>,
     ) {
         // If terminal, add to result immediately.
@@ -344,7 +345,7 @@ impl RegionCoverer {
         &self,
         candidate: Candidate,
         num_terminals: usize,
-        pq: &mut BinaryHeap<Reverse<QueueEntry>>,
+        pq: &mut BinaryHeap<QueueEntry>,
         candidates: &mut Vec<Option<Candidate>>,
     ) {
         // We negate the priority so that smaller absolute priorities are returned first. The
@@ -353,10 +354,10 @@ impl RegionCoverer {
         let priority = self.compute_priority(&candidate, num_terminals);
         let candidate_idx = candidates.len();
         candidates.push(Some(candidate));
-        pq.push(Reverse(QueueEntry {
+        pq.push(QueueEntry {
             priority,
             candidate_idx,
-        }));
+        });
     }
 
     /// Creates a new candidate for the given cell, or None if it doesn't intersect.

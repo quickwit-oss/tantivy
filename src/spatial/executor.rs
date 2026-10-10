@@ -13,8 +13,10 @@ use super::closest_edge_query::ClosestEdgeQuery;
 use super::contains_query::ContainsQuery;
 use super::edge_cache::EdgeCache;
 use super::edge_reader::EdgeReader;
-use super::geometry_set::GeometrySet;
+use super::geometry::Geometry;
+use super::geometry_set::{to_geometry_set, GeometrySet};
 use super::intersects_query::IntersectsQuery;
+use super::plane::Plane;
 use super::region_coverer::CovererOptions;
 use super::s1chord_angle::S1ChordAngle;
 use super::sphere::Sphere;
@@ -22,7 +24,8 @@ use crate::core::Searcher;
 use crate::docset::{DocSet, TERMINATED};
 use crate::index::SegmentId;
 use crate::query::{
-    does_not_match, BitSetDocSet, EnableScoring, Explanation, Query, Scorer, Weight,
+    does_not_match, AllQuery, BitSetDocSet, BooleanQuery, EnableScoring, Explanation, Query,
+    Scorer, Weight,
 };
 use crate::schema::Field;
 use crate::{DocId, Score, SegmentReader, TantivyError};
@@ -36,7 +39,7 @@ pub enum SpatialRelation {
     Between(f64, f64),
     /// Geometries intersect.
     Intersects,
-    /// One geometry contains the other.
+    /// The outer geometry contains the inner one.
     Contains,
 }
 
@@ -102,7 +105,7 @@ pub struct StageOutput {
 pub enum SegmentResult {
     /// A bitset of matching doc_ids with a constant score (join, distance, text queries).
     Match(BitSet),
-    /// A scored list of (doc_id, distance) pairs sorted by doc_id (kNN).
+    /// A scored list of (doc_id, score) pairs sorted by doc_id (kNN).
     Scored(Vec<(DocId, f32)>),
 }
 
@@ -123,8 +126,8 @@ impl StageOutput {
     }
 }
 
-/// Vertices each edge cache of a query may hold before it evicts geometries.
-const QUERY_EDGE_CACHE_VERTICES: usize = 100_000;
+/// Bytes of geometry each edge cache of a query may hold before it evicts geometries.
+pub(crate) const QUERY_EDGE_CACHE_BYTES: usize = 8 << 20;
 
 /// Evaluate a plan node recursively, producing per-segment results. Every stage's documents are
 /// alive: a Query stage leaves out deleted documents, and every other stage draws its documents
@@ -174,7 +177,7 @@ fn evaluate(
                 if let Some(spatial_reader) = spatial {
                     let cell_reader = CellIndexReader::open(spatial_reader.cells_bytes())?;
                     let er = EdgeReader::<Sphere>::open(spatial_reader.edges_bytes())?;
-                    let mut edge_cache = EdgeCache::new(vec![er], QUERY_EDGE_CACHE_VERTICES);
+                    let mut edge_cache = EdgeCache::new(vec![er], QUERY_EDGE_CACHE_BYTES);
 
                     let filter_bitset =
                         filter_output.bitset_for(&reader.segment_id(), reader.max_doc());
@@ -212,7 +215,7 @@ fn evaluate(
                 if let Some(spatial_reader) = spatial {
                     let cell_reader = CellIndexReader::open(spatial_reader.cells_bytes())?;
                     let er = EdgeReader::<Sphere>::open(spatial_reader.edges_bytes())?;
-                    let mut edge_cache = EdgeCache::new(vec![er], QUERY_EDGE_CACHE_VERTICES);
+                    let mut edge_cache = EdgeCache::new(vec![er], QUERY_EDGE_CACHE_BYTES);
 
                     let filter_bitset =
                         filter_output.bitset_for(&reader.segment_id(), reader.max_doc());
@@ -249,49 +252,28 @@ fn evaluate(
             // Run branch-and-bound per segment, collecting up to K results with
             // distances. Each result is tagged with its segment ID for redistribution
             // after the cross-segment merge.
-            let mut all_results: Vec<(SegmentId, u32, f64)> = Vec::new();
-            for reader in segments {
-                let spatial = reader.spatial_fields().get_field(*field)?;
-                if let Some(spatial_reader) = spatial {
-                    let cell_reader = CellIndexReader::open(spatial_reader.cells_bytes())?;
-                    let er = EdgeReader::<Sphere>::open(spatial_reader.edges_bytes())?;
-                    let mut edge_cache = EdgeCache::new(vec![er], QUERY_EDGE_CACHE_VERTICES);
-
-                    // Deleted documents must be excluded during traversal, before they can
-                    // consume either a segment's K slots or the global K slots. A filter's
-                    // documents are alive already.
-                    let filter_bitset = match &filter_output {
-                        Some(fo) => Some(fo.bitset_for(&reader.segment_id(), reader.max_doc())),
-                        None => reader.alive_bitset().map(|alive| {
-                            let mut bitset = BitSet::with_max_value_and_full(reader.max_doc());
-                            bitset.intersect_update(alive.bitset());
-                            bitset
-                        }),
-                    };
-                    let hits = match &filter_bitset {
-                        Some(filter) => {
-                            query.search_segment_filtered(&cell_reader, &mut edge_cache, filter)
-                        }
-                        None => query.search_segment(&cell_reader, &mut edge_cache),
-                    };
-
-                    for hit in hits {
-                        all_results.push((reader.segment_id(), hit.doc_id, hit.distance.length2()));
-                    }
+            let mut all_results: Vec<(SegmentId, u32, f64, usize)> = Vec::new();
+            for (segment_ord, reader) in segments.iter().enumerate() {
+                let filter_bitset = filter_output
+                    .as_ref()
+                    .map(|fo| fo.bitset_for(&reader.segment_id(), reader.max_doc()));
+                for (doc_id, distance) in knn_segment_hits(&query, *field, reader, filter_bitset)? {
+                    all_results.push((reader.segment_id(), doc_id, distance, segment_ord));
                 }
             }
 
-            // Merge across segments: sort by distance, keep global top K.
-            all_results.sort_by(|a, b| a.2.partial_cmp(&b.2).unwrap_or(std::cmp::Ordering::Equal));
+            // Merge across segments: sort by distance, keep global top K. Ties go to the lower
+            // document address, so that a query always returns the same documents.
+            all_results.sort_by(|a, b| a.2.total_cmp(&b.2).then((a.3, a.1).cmp(&(b.3, b.1))));
             all_results.truncate(*k);
 
             // Redistribute to per-segment scored results.
             let mut results: HashMap<SegmentId, Vec<(DocId, f32)>> = HashMap::new();
-            for (seg_id, doc_id, distance) in all_results {
-                results
-                    .entry(seg_id)
-                    .or_default()
-                    .push((doc_id, distance as f32));
+            let distances: Vec<f64> = all_results.iter().map(|hit| hit.2).collect();
+            for ((seg_id, doc_id, _, _), score) in
+                all_results.iter().zip(rank_scores(&distances, *k))
+            {
+                results.entry(*seg_id).or_default().push((*doc_id, score));
             }
 
             // Sort each segment's results by doc_id for DocSet ordering.
@@ -323,7 +305,9 @@ fn evaluate(
                 .map(|reader| reader.spatial_fields().get_field(*field))
                 .collect::<crate::Result<Vec<_>>>()?;
 
-            // Phase 3: open each segment that holds inner documents once, for every probe.
+            // Phase 3: open each segment that holds inner documents once, for every probe. The
+            // probes' caches live for the whole join, so they share the query's budget.
+            let probe_cache_bytes = (QUERY_EDGE_CACHE_BYTES / segments.len().max(1)).max(1 << 20);
             let mut probes = Vec::new();
             for (segment_ord, (reader, spatial_reader)) in
                 segments.iter().zip(&spatial_readers).enumerate()
@@ -339,7 +323,7 @@ fn evaluate(
                 probes.push(ProbeSegment {
                     segment_ord,
                     cell_reader: CellIndexReader::open(spatial_reader.cells_bytes())?,
-                    edge_cache: EdgeCache::new(vec![er], QUERY_EDGE_CACHE_VERTICES),
+                    edge_cache: EdgeCache::new(vec![er], probe_cache_bytes),
                     inner,
                 });
             }
@@ -358,7 +342,7 @@ fn evaluate(
                         outer_output.bitset_for(&reader.segment_id(), reader.max_doc());
                     let cell_reader = CellIndexReader::open(spatial_reader.cells_bytes())?;
                     let er = EdgeReader::<Sphere>::open(spatial_reader.edges_bytes())?;
-                    let edge_cache = EdgeCache::new(vec![er], QUERY_EDGE_CACHE_VERTICES);
+                    let edge_cache = EdgeCache::new(vec![er], QUERY_EDGE_CACHE_BYTES);
                     // Each outer document is probed once, with all of its geometry.
                     let mut visited = BitSet::with_max_value(reader.max_doc());
 
@@ -398,6 +382,57 @@ fn evaluate(
             Ok(StageOutput { results })
         }
     }
+}
+
+/// The nearest documents of one segment and their distances, as squared chord lengths, at most
+/// the query's K of them. Only documents in the filter are considered, and deleted documents
+/// never are: they must not take the K slots before ranking. A filter's documents are alive
+/// already.
+fn knn_segment_hits(
+    query: &ClosestEdgeQuery,
+    field: Field,
+    reader: &SegmentReader,
+    filter: Option<BitSet>,
+) -> crate::Result<Vec<(DocId, f64)>> {
+    let Some(spatial_reader) = reader.spatial_fields().get_field(field)? else {
+        return Ok(Vec::new());
+    };
+    let cell_reader = CellIndexReader::open(spatial_reader.cells_bytes())?;
+    let er = EdgeReader::<Sphere>::open(spatial_reader.edges_bytes())?;
+    let mut edge_cache = EdgeCache::new(vec![er], QUERY_EDGE_CACHE_BYTES);
+    let filter = filter.or_else(|| {
+        reader.alive_bitset().map(|alive| {
+            let mut bitset = BitSet::with_max_value_and_full(reader.max_doc());
+            bitset.intersect_update(alive.bitset());
+            bitset
+        })
+    });
+    let hits = match &filter {
+        Some(filter) => query.search_segment_filtered(&cell_reader, &mut edge_cache, filter),
+        None => query.search_segment(&cell_reader, &mut edge_cache),
+    };
+    Ok(hits
+        .into_iter()
+        .map(|hit| (hit.doc_id, hit.distance.length2()))
+        .collect())
+}
+
+/// The scores of kNN hits, given their distances in ascending order. A hit scores by its rank:
+/// 1 for the nearest, down to 1/K for the Kth, with hits at the same distance sharing a rank. The
+/// scores are positive, so that a kNN clause lifts the nearest documents of a boolean query, and
+/// they order the hits exactly, however close their distances.
+fn rank_scores(distances: &[f64], k: usize) -> Vec<f32> {
+    let mut rank = 0;
+    distances
+        .iter()
+        .enumerate()
+        .map(|(i, distance)| {
+            if i > 0 && distances[i - 1] != *distance {
+                rank = i;
+            }
+            (k - rank) as f32 / k as f32
+        })
+        .collect()
 }
 
 /// A segment a join probes for inner matches: its readers, and its inner documents.
@@ -474,9 +509,46 @@ impl SpatialExecutor {
         Self { root }
     }
 
-    /// Replace the outer PlanNode in the root Join with the given query.
+    /// Create the plan for the K nearest documents to a lon/lat point.
+    pub fn knn(field: Field, point: [f64; 2], k: usize) -> Self {
+        let point = Geometry::<Plane>::Point(point).project::<Sphere>();
+        Self::new(PlanNode::Knn {
+            field,
+            geometry: to_geometry_set(&point, 0),
+            k,
+            filter: None,
+        })
+    }
+
+    /// Narrow the documents the root of the plan considers to those the query also matches: the
+    /// outer documents of a join, or the candidates of a kNN query, which then finds the nearest
+    /// of those. Restrictions add up. Outer documents or a filter given as another plan node than
+    /// a query are left as they are.
+    pub fn restrict(&mut self, query: Box<dyn Query>) {
+        fn intersect(node: &mut PlanNode, query: Box<dyn Query>) {
+            if let PlanNode::Query(slot) = node {
+                let current = std::mem::replace(slot, Box::new(AllQuery));
+                *slot = if current.is::<AllQuery>() {
+                    query
+                } else {
+                    Box::new(BooleanQuery::intersection(vec![current, query]))
+                };
+            }
+        }
+        match &mut self.root {
+            PlanNode::Join { outer, .. } => intersect(outer, query),
+            PlanNode::Knn { filter, .. } => match filter {
+                Some(filter) => intersect(filter, query),
+                None => *filter = Some(Box::new(PlanNode::Query(query))),
+            },
+            _ => {}
+        }
+    }
+
+    /// Replace the outer documents of the root join with those the query matches.
+    #[deprecated(note = "use `restrict`, which also narrows a kNN query")]
     pub fn set_outer(&mut self, query: Box<dyn Query>) {
-        if let PlanNode::Join { ref mut outer, .. } = self.root {
+        if let PlanNode::Join { outer, .. } = &mut self.root {
             **outer = PlanNode::Query(query);
         }
     }
@@ -548,12 +620,31 @@ impl Clone for SpatialExecutor {
 
 impl Query for SpatialExecutor {
     fn weight(&self, enable_scoring: EnableScoring<'_>) -> crate::Result<Box<dyn Weight>> {
-        let searcher = enable_scoring.searcher().ok_or_else(|| {
-            TantivyError::InvalidArgument(
-                "A spatial join or kNN query needs a searcher: it evaluates every segment at once"
-                    .to_string(),
-            )
-        })?;
+        let Some(searcher) = enable_scoring.searcher() else {
+            // Without a searcher, as when deleting by query or in a filter aggregation, the
+            // segments are not known up front. A kNN query then finds the K nearest of each
+            // segment. A join needs the inner documents of every segment.
+            if let PlanNode::Knn {
+                field,
+                geometry,
+                k,
+                filter,
+            } = &self.root
+            {
+                let filter = match filter.as_deref() {
+                    None => None,
+                    Some(PlanNode::Query(query)) => Some(query.weight(enable_scoring)?),
+                    Some(_) => return Err(needs_a_searcher()),
+                };
+                return Ok(Box::new(SegmentKnnWeight {
+                    field: *field,
+                    query: ClosestEdgeQuery::knn(geometry.clone(), *k),
+                    k: *k,
+                    filter,
+                }));
+            }
+            return Err(needs_a_searcher());
+        };
         let segments = searcher.segment_readers();
 
         let output = evaluate(&self.root, searcher, segments)?;
@@ -561,6 +652,61 @@ impl Query for SpatialExecutor {
         Ok(Box::new(ExecutorWeight {
             results: output.results,
         }))
+    }
+}
+
+fn needs_a_searcher() -> TantivyError {
+    TantivyError::InvalidArgument(
+        "A spatial join needs a searcher: it evaluates every segment at once".to_string(),
+    )
+}
+
+/// A kNN query without a searcher: each segment keeps the K nearest of its own documents.
+struct SegmentKnnWeight {
+    field: Field,
+    query: ClosestEdgeQuery,
+    k: usize,
+    /// Only documents this weight matches are candidates.
+    filter: Option<Box<dyn Weight>>,
+}
+
+impl Weight for SegmentKnnWeight {
+    fn scorer(&self, reader: &SegmentReader, boost: Score) -> crate::Result<Box<dyn Scorer>> {
+        let filter = match &self.filter {
+            Some(weight) => {
+                let mut bitset = BitSet::with_max_value(reader.max_doc());
+                let alive_bitset = reader.alive_bitset();
+                weight.for_each_no_score(reader, &mut |docs| {
+                    for &doc in docs {
+                        if alive_bitset.is_none_or(|alive| alive.is_alive(doc)) {
+                            bitset.insert(doc);
+                        }
+                    }
+                })?;
+                Some(bitset)
+            }
+            None => None,
+        };
+        let mut hits = knn_segment_hits(&self.query, self.field, reader, filter)?;
+        hits.sort_by(|a, b| a.1.total_cmp(&b.1).then(a.0.cmp(&b.0)));
+        hits.truncate(self.k);
+        let distances: Vec<f64> = hits.iter().map(|hit| hit.1).collect();
+        let mut scored: Vec<(DocId, f32)> = hits
+            .iter()
+            .zip(rank_scores(&distances, self.k))
+            .map(|((doc_id, _), score)| (*doc_id, score))
+            .collect();
+        scored.sort_by_key(|&(doc_id, _)| doc_id);
+        Ok(Box::new(ReplayScorer::from_scored(scored, boost)))
+    }
+
+    fn explain(&self, reader: &SegmentReader, doc: DocId) -> crate::Result<Explanation> {
+        let mut scorer = self.scorer(reader, 1.0)?;
+        // Seeking backward is not allowed: a scorer may start past the document.
+        if scorer.doc() > doc || scorer.seek(doc) != doc {
+            return Err(does_not_match(doc));
+        }
+        Ok(Explanation::new("SpatialExecutor", scorer.score()))
     }
 }
 
@@ -585,7 +731,8 @@ impl Weight for ExecutorWeight {
 
     fn explain(&self, reader: &SegmentReader, doc: DocId) -> crate::Result<Explanation> {
         let mut scorer = self.scorer(reader, 1.0)?;
-        if scorer.seek(doc) != doc {
+        // Seeking backward is not allowed: a scorer may start past the document.
+        if scorer.doc() > doc || scorer.seek(doc) != doc {
             return Err(does_not_match(doc));
         }
         Ok(Explanation::new("SpatialExecutor", scorer.score()))
@@ -605,7 +752,7 @@ enum ReplayInner {
         doc_id: DocId,
         score: Score,
     },
-    /// Iterate a sorted vec of (doc_id, distance).
+    /// Iterate a sorted vec of (doc_id, score).
     Scored {
         results: Vec<(DocId, f32)>,
         index: usize,
@@ -655,7 +802,7 @@ impl Scorer for ReplayScorer {
                 boost,
             } => {
                 if *index < results.len() {
-                    -results[*index].1 * *boost
+                    results[*index].1 * *boost
                 } else {
                     0.0
                 }
@@ -682,6 +829,23 @@ impl DocSet for ReplayScorer {
                 } else {
                     TERMINATED
                 }
+            }
+            ReplayInner::Empty => TERMINATED,
+        }
+    }
+
+    fn seek(&mut self, target: DocId) -> DocId {
+        match &mut self.inner {
+            ReplayInner::BitSet { docs, doc_id, .. } => {
+                if *doc_id < target {
+                    *doc_id = docs.seek(target);
+                }
+                *doc_id
+            }
+            ReplayInner::Scored { results, index, .. } => {
+                let start = (*index).min(results.len());
+                *index = start + results[start..].partition_point(|&(doc_id, _)| doc_id < target);
+                self.doc()
             }
             ReplayInner::Empty => TERMINATED,
         }

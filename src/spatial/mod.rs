@@ -56,3 +56,58 @@ pub mod writer;
 pub mod xor;
 
 pub use geometry::Geometry;
+pub use geometry_set::RingOrientation;
+
+/// Version of the spatial cell and edge index formats. It follows each file's footer, with a
+/// magic number that names the file, so that an index written in another format fails to open
+/// with an error that says so, rather than as corrupt.
+pub(crate) const FORMAT_VERSION: u32 = 1;
+/// Magic number of a cell index.
+pub(crate) const CELL_INDEX_MAGIC: u32 = u32::from_le_bytes(*b"S2CI");
+/// Magic number of an edge index.
+pub(crate) const EDGE_INDEX_MAGIC: u32 = u32::from_le_bytes(*b"S2EI");
+/// Bytes of the format version and magic number at the end of a file.
+pub(crate) const FORMAT_MARKER_LEN: usize = 2 * std::mem::size_of::<u32>();
+
+/// Write the format version and magic number that end a file.
+pub(crate) fn write_format_marker<W: std::io::Write + ?Sized>(
+    write: &mut W,
+    magic: u32,
+) -> std::io::Result<()> {
+    write.write_all(&FORMAT_VERSION.to_le_bytes())?;
+    write.write_all(&magic.to_le_bytes())
+}
+
+/// The file without its format marker, or an error naming what is wrong with the marker.
+pub(crate) fn check_format_marker<'a>(
+    data: &'a [u8],
+    magic: u32,
+    file: &str,
+) -> crate::Result<&'a [u8]> {
+    let wrong = |reason: String| {
+        crate::error::DataCorruption::comment_only(format!(
+            "The {}-byte spatial {file} {reason}; re-index the spatial field",
+            data.len()
+        ))
+    };
+    let Some((body, marker)) = data.split_last_chunk::<FORMAT_MARKER_LEN>() else {
+        return Err(wrong("is too short to hold a format marker".to_string()).into());
+    };
+    let version = u32::from_le_bytes(marker[..4].try_into().unwrap());
+    let found_magic = u32::from_le_bytes(marker[4..].try_into().unwrap());
+    if found_magic != magic {
+        return Err(wrong(
+            "has no format marker: an older version of tantivy wrote it, or it is corrupt"
+                .to_string(),
+        )
+        .into());
+    }
+    if version != FORMAT_VERSION {
+        return Err(wrong(format!(
+            "has format version {version}, and this version of tantivy reads version \
+             {FORMAT_VERSION}"
+        ))
+        .into());
+    }
+    Ok(body)
+}

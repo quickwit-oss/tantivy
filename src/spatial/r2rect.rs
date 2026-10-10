@@ -178,13 +178,16 @@ impl R2Rect {
     }
 
     /// Return the smallest rectangle containing the intersection of this rectangle and the given
-    /// rectangle.
+    /// rectangle. An empty intersection is the canonical empty rectangle, which is_empty() relies
+    /// on.
     #[inline]
     pub fn intersection(&self, other: &R2Rect) -> Self {
-        Self {
-            x: self.x.intersection(&other.x),
-            y: self.y.intersection(&other.y),
+        let x = self.x.intersection(&other.x);
+        let y = self.y.intersection(&other.y);
+        if x.is_empty() || y.is_empty() {
+            return Self::empty();
         }
+        Self { x, y }
     }
 
     /// Expand the rectangle to include the given point.  The rectangle is expanded by the minimum
@@ -227,5 +230,24 @@ impl Default for R2Rect {
     /// The default constructor creates an empty R2Rect.
     fn default() -> Self {
         Self::empty()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_intersection_that_misses_on_one_axis_is_empty() {
+        let a = R2Rect::from_point_pair([0.0, 0.0], [2.0, 2.0]);
+        let below = R2Rect::from_point_pair([1.0, -3.0], [3.0, -1.0]);
+        assert!(a.intersection(&below).is_empty());
+        let left = R2Rect::from_point_pair([-3.0, 1.0], [-1.0, 3.0]);
+        assert!(a.intersection(&left).is_empty());
+        let overlap = R2Rect::from_point_pair([1.0, 1.0], [3.0, 3.0]);
+        assert_eq!(
+            a.intersection(&overlap),
+            R2Rect::from_point_pair([1.0, 1.0], [2.0, 2.0])
+        );
     }
 }

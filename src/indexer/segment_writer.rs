@@ -164,10 +164,15 @@ impl SegmentWriter {
             let field_entry = self.schema.get_field_entry(field);
 
             // Spatial fields have their own write path and do not participate in postings.
-            if let FieldType::Spatial(_) = field_entry.field_type() {
+            if let FieldType::Spatial(options) = field_entry.field_type() {
                 for value in values {
                     if let Some(geometry) = value.as_geometry() {
-                        self.spatial_writer.add_geometry(doc_id, field, *geometry);
+                        self.spatial_writer.add_geometry(
+                            doc_id,
+                            field,
+                            *geometry,
+                            options.ring_orientation(),
+                        );
                     }
                 }
                 continue;

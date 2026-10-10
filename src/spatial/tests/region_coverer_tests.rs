@@ -113,3 +113,26 @@ fn test_is_canonical_rejects_too_deep_cells() {
 
     assert!(!coverer.is_canonical(&bad_covering));
 }
+
+#[test]
+fn test_coverings_refine_the_largest_cells_first() {
+    // Refining the finest cells first, rather than the coarsest as S2 does, leaves coverings
+    // more than twice as loose.
+    let coverer = RegionCoverer::new(CovererOptions::default());
+    let mut ratios = Vec::new();
+    for i in 0..200 {
+        let lat = (i as f64 * 37.0) % 160.0 - 80.0;
+        let lng = (i as f64 * 53.0) % 360.0 - 180.0;
+        let radius = 1e-4 * 1000f64.powf((i % 10) as f64 / 9.0);
+        let cap = S2Cap::from_center_angle(get_latlng_point(lat, lng), radius);
+        let covering = coverer.get_covering(&cap);
+        let area: f64 = covering
+            .cell_ids()
+            .iter()
+            .map(|id| S2Cell::average_area(id.level()))
+            .sum();
+        ratios.push(area / cap.get_area());
+    }
+    let mean = ratios.iter().sum::<f64>() / ratios.len() as f64;
+    assert!(mean < 3.0, "mean covering to cap area ratio {mean}");
+}

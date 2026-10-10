@@ -34,10 +34,10 @@ use crate::{DocAddress, DocId, InvertedIndexReader};
 /// We do not allow segments with more than
 pub const MAX_DOC_LIMIT: u32 = 1 << 31;
 
-/// Vertices the edge cache of a spatial merge may hold before it evicts geometries, about 48MB of
-/// coordinates: enough for the geometries around the merge's position on the Hilbert curve,
-/// without holding a segment's worth of vertex data in memory.
-const MERGE_EDGE_CACHE_VERTICES: usize = 1 << 21;
+/// Bytes of geometry the edge cache of a spatial merge may hold before it evicts geometries:
+/// enough for the geometries around the merge's position on the Hilbert curve, without holding a
+/// segment's worth of vertex data in memory.
+const MERGE_EDGE_CACHE_BYTES: usize = 64 << 20;
 
 fn estimate_total_num_tokens_in_single_segment(
     reader: &SegmentReader,
@@ -609,7 +609,7 @@ impl IndexMerger {
                 continue;
             }
 
-            let edge_cache = EdgeCache::new(edge_readers, MERGE_EDGE_CACHE_VERTICES);
+            let edge_cache = EdgeCache::new(edge_readers, MERGE_EDGE_CACHE_BYTES);
             let iters = cell_readers.iter().map(|cr| cr.iter()).collect();
             let mut interleave = crate::spatial::interleave::HeapInterleave::new(
                 iters,
@@ -839,6 +839,54 @@ mod tests {
             }
         }
         assert!(line_cells > 1);
+        Ok(())
+    }
+
+    #[test]
+    fn test_merge_never_puts_an_absorbed_line_around_a_cell_center() -> crate::Result<()> {
+        use crate::spatial::cell_index_reader::CellIndexReader;
+        use crate::spatial::edge_reader::EdgeReader;
+        use crate::spatial::sphere::Sphere;
+
+        // Short lines inside the spread of a few points: the points' coarse cell absorbs the
+        // lines' fine cells when merged, and the cells are flattened into one.
+        let mut docs = Vec::new();
+        for i in 0..24 {
+            let angle = i as f64 * 0.7;
+            let (lon, lat) = ((i % 5) as f64 - 2.0, (i % 7) as f64 * 0.6 - 1.8);
+            docs.push(format!(
+                r#"{{"text": "line", "geometry": {{"type": "LineString",
+                    "coordinates": [[{lon}, {lat}], [{}, {}]]}}}}"#,
+                lon + angle.cos(),
+                lat + angle.sin()
+            ));
+        }
+        for (lon, lat) in [(-4.0, -4.0), (5.0, -4.5), (4.5, 5.0), (-4.5, 4.0)] {
+            docs.push(format!(
+                r#"{{"text": "point", "geometry": {{"type": "Point", "coordinates": [{lon}, {lat}]}}}}"#
+            ));
+        }
+        let docs: Vec<&str> = docs.iter().map(String::as_str).collect();
+        let (index, _, geometry) = merge_one_segment_per_doc(&docs)?;
+
+        let searcher = index.reader()?.searcher();
+        let spatial = searcher
+            .segment_reader(0)
+            .spatial_fields()
+            .get_field(geometry)?
+            .unwrap();
+        let cells = CellIndexReader::open(spatial.cells_bytes())?;
+        let edges = EdgeReader::<Sphere>::open(spatial.edges_bytes())?;
+        for cell in cells.iter() {
+            for shape in &cell.shapes {
+                let (_, set) = edges.read_geometry_set(shape.geometry_id.1);
+                assert!(
+                    set.members[0].closed || !shape.contains_center,
+                    "{:?}",
+                    cell.cell_id
+                );
+            }
+        }
         Ok(())
     }
 

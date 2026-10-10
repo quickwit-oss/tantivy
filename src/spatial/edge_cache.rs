@@ -5,7 +5,9 @@
 //! source segment and a shared eviction budget.
 //!
 //! The cache uses interior mutability so callers take &EdgeCache. Returns Rc<GeometrySet> so the
-//! data survives eviction. The vertex budget is advisory.
+//! data survives eviction. The budget, in bytes of heap the cached sets hold, is advisory: it
+//! grows to four times the largest set the cache holds, so that a few sets larger than the
+//! budget are not decoded again for every cell they share with each other and other geometries.
 
 use std::cell::RefCell;
 use std::collections::HashMap;
@@ -27,8 +29,8 @@ struct CacheInner<'a, S: Surface> {
     readers: Vec<EdgeReader<'a, S>>,
     index: HashMap<(usize, u32), (usize, u32)>,
     sets: LruCache<(usize, u32), CachedSet>,
-    cached_vertices: usize,
-    max_vertices: usize,
+    cached_bytes: usize,
+    max_bytes: usize,
 }
 
 /// A geometry set entry returned from the cache. Holds an Rc to the set and knows its member
@@ -97,17 +99,17 @@ pub struct EdgeCache<'a, S: Surface> {
 }
 
 impl<'a, S: Surface> EdgeCache<'a, S> {
-    /// Create a cache over the given readers. The max_vertices budget is shared across all
+    /// Create a cache over the given readers. The max_bytes budget is shared across all
     /// segments. Eviction removes the least recently used set regardless of which segment it came
     /// from.
-    pub fn new(readers: Vec<EdgeReader<'a, S>>, max_vertices: usize) -> Self {
+    pub fn new(readers: Vec<EdgeReader<'a, S>>, max_bytes: usize) -> Self {
         EdgeCache {
             inner: RefCell::new(CacheInner {
                 readers,
                 index: HashMap::new(),
                 sets: LruCache::unbounded(),
-                cached_vertices: 0,
-                max_vertices,
+                cached_bytes: 0,
+                max_bytes,
             }),
         }
     }
@@ -138,8 +140,11 @@ impl<'a, S: Surface> EdgeCache<'a, S> {
             let head_key = (segment, head_position);
 
             let member_count = set.members.len() as u32;
-            let vertex_count: usize = set.members.iter().map(|m| m.vertices.len()).sum();
-            inner.cached_vertices += vertex_count;
+            let bytes = set.mem_usage();
+            inner.cached_bytes += bytes;
+            // Leave room for the geometries around a large set, or the set and they would evict
+            // each other in turn, and the set would be decoded once per cell.
+            inner.max_bytes = inner.max_bytes.max(4 * bytes);
 
             for i in 0..member_count {
                 inner.index.insert((segment, head_position + i), head_key);
@@ -153,15 +158,9 @@ impl<'a, S: Surface> EdgeCache<'a, S> {
                 },
             );
 
-            while inner.cached_vertices > inner.max_vertices && inner.sets.len() > 1 {
+            while inner.cached_bytes > inner.max_bytes && inner.sets.len() > 1 {
                 if let Some((evicted_key, evicted_set)) = inner.sets.pop_lru() {
-                    let evicted_verts: usize = evicted_set
-                        .set
-                        .members
-                        .iter()
-                        .map(|m| m.vertices.len())
-                        .sum();
-                    inner.cached_vertices -= evicted_verts;
+                    inner.cached_bytes -= evicted_set.set.mem_usage();
                     for i in 0..evicted_set.set.members.len() as u32 {
                         inner.index.remove(&(evicted_key.0, evicted_key.1 + i));
                     }
@@ -179,5 +178,45 @@ impl<'a, S: Surface> EdgeCache<'a, S> {
             head,
             member_idx,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use common::CountingWriter;
+
+    use super::*;
+    use crate::spatial::edge_writer::EdgeWriter;
+    use crate::spatial::geometry::Geometry;
+    use crate::spatial::geometry_set::to_geometry_set;
+    use crate::spatial::plane::Plane;
+    use crate::spatial::sphere::Sphere;
+
+    #[test]
+    fn test_a_set_larger_than_the_budget_stays_cached_among_others() -> crate::Result<()> {
+        let line = |doc_id: u32, len: usize| {
+            let points = (0..len)
+                .map(|i| [i as f64 / 1000.0, doc_id as f64])
+                .collect();
+            to_geometry_set(
+                &Geometry::<Plane>::LineString(points).project::<Sphere>(),
+                doc_id,
+            )
+        };
+        let mut write = CountingWriter::wrap(Vec::new());
+        let mut edge_writer = EdgeWriter::<Sphere, _>::new(&mut write, 16);
+        for set in [line(0, 1000), line(1, 10), line(2, 10), line(3, 10)] {
+            edge_writer.insert(&set)?;
+        }
+        edge_writer.finish()?;
+        let data = write.finish();
+        let cache = EdgeCache::new(vec![EdgeReader::<Sphere>::open(&data)?], 100);
+
+        let large = cache.get((0, 0)).set;
+        for small in 1..4 {
+            cache.get((0, small));
+            assert!(Rc::ptr_eq(&large, &cache.get((0, 0)).set), "decoded again");
+        }
+        Ok(())
     }
 }

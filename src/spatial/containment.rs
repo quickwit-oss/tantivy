@@ -1,5 +1,7 @@
 //! Loop containment and intersection predicates.
-use super::crossings::{ordered_ccw, ref_dir, S2EdgeCrosser};
+use super::crossings::{ordered_ccw, ref_dir, robust_cross, sign, S2EdgeCrosser};
+use super::exact::expensive_sign;
+use super::math::{cross, dot, norm2};
 use super::sphere::ORIGIN;
 
 /// A version of contains that does not use the shape index.
@@ -33,15 +35,106 @@ pub fn compute_origin_inside(vertices: &[[f64; 3]]) -> bool {
         return false;
     }
 
-    // Check if vertex(1) is inside the angle formed by edges 0->1 and 1->2
-    // This is true by CCW convention for non-degenerate loops
-    let v1_inside = angle_contains_vertex(&vertices[0], &vertices[1], &vertices[2]);
+    // Check if vertex(1) is inside the angle formed by edges 0->1 and 1->2. This is true by CCW
+    // convention for non-degenerate loops. A repeated vertex makes the angle degenerate, and S2
+    // takes it to contain nothing.
+    let v1_inside = vertices[0] != vertices[1]
+        && vertices[2] != vertices[1]
+        && angle_contains_vertex(&vertices[0], &vertices[1], &vertices[2]);
 
     // Compute containment of v1 assuming origin_inside is false
     let contains_v1 = brute_force_contains(&vertices[1], vertices, false);
 
     // If the results disagree, Origin must be inside
     v1_inside != contains_v1
+}
+
+/// Removes the degeneracies of a ring: repeated vertices, and spikes, where an edge doubles back
+/// along the one before it. Returns the loop without a closing vertex, or an empty loop when
+/// nothing but degeneracies remain, and the spikes it removed, as (base, tip) edges. Port of
+/// PruneDegeneracies from s2loop_measures.cc, which drops the spikes.
+pub fn prune_degeneracies(ring: &[[f64; 3]]) -> (Vec<[f64; 3]>, Vec<[[f64; 3]; 2]>) {
+    let mut vertices: Vec<[f64; 3]> = Vec::with_capacity(ring.len());
+    let mut spikes = Vec::new();
+    for v in ring {
+        if vertices.last() == Some(v) {
+            continue;
+        }
+        if vertices.len() >= 2 && vertices[vertices.len() - 2] == *v {
+            // Remove the "B" of a spike "ABA".
+            let tip = vertices.pop().unwrap();
+            spikes.push([*v, tip]);
+        } else {
+            vertices.push(*v);
+        }
+    }
+    if vertices.len() < 3 {
+        return (Vec::new(), spikes);
+    }
+    if vertices[0] == vertices[vertices.len() - 1] {
+        vertices.pop();
+    }
+    // Remove the spikes across the start of the loop: it begins with "BA" and ends with "A".
+    let n = vertices.len();
+    let mut k = 0;
+    while 2 * k + 3 <= n && vertices[k + 1] == vertices[n - 1 - k] {
+        spikes.push([vertices[k + 1], vertices[k]]);
+        k += 1;
+    }
+    if n - 2 * k < 3 {
+        return (Vec::new(), spikes);
+    }
+    vertices.truncate(n - k);
+    vertices.drain(..k);
+    (vertices, spikes)
+}
+
+/// Whether every vertex of a loop lies exactly on one great circle, so that the loop bounds no
+/// area however many distinct vertices it has. Exact, as S2's predicates are.
+pub fn on_one_great_circle(vertices: &[[f64; 3]]) -> bool {
+    let (a, b) = (&vertices[0], &vertices[1]);
+    vertices[2..]
+        .iter()
+        .all(|v| v == a || v == b || expensive_sign(a, b, v, false) == 0)
+}
+
+/// The geodesic curvature of a loop without degeneracies or a closing vertex: the sum of its
+/// turn angles, which is 2π minus its area. It is positive when the loop turns left around a
+/// region smaller than a hemisphere. Port of S2::GetCurvature.
+pub fn curvature(vertices: &[[f64; 3]]) -> f64 {
+    // Kahan summation, as S2's, so that the error stays within curvature_max_error.
+    let n = vertices.len();
+    let (mut sum, mut compensation) = (0.0f64, 0.0f64);
+    for i in 0..n {
+        let angle = turn_angle(
+            &vertices[(i + n - 1) % n],
+            &vertices[i],
+            &vertices[(i + 1) % n],
+        ) + compensation;
+        let old_sum = sum;
+        sum += angle;
+        compensation = (old_sum - sum) + angle;
+    }
+    sum + compensation
+}
+
+/// The maximum error in the curvature of a loop of `n` vertices. Port of
+/// S2::GetCurvatureMaxError.
+pub fn curvature_max_error(n: usize) -> f64 {
+    11.25 * f64::EPSILON * n as f64
+}
+
+/// The exterior angle at vertex B of the path ABC: positive for a left turn, negative for a right
+/// one. Port of S2::TurnAngle.
+fn turn_angle(a: &[f64; 3], b: &[f64; 3], c: &[f64; 3]) -> f64 {
+    let x = robust_cross(a, b);
+    let y = robust_cross(b, c);
+    let angle = norm2(&cross(&x, &y)).sqrt().atan2(dot(&x, &y));
+    if sign(a, b, c) > 0 {
+        angle
+    } else {
+        -angle
+    }
 }
 
 fn angle_contains_vertex(a: &[f64; 3], b: &[f64; 3], c: &[f64; 3]) -> bool {

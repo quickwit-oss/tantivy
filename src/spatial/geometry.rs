@@ -161,7 +161,8 @@ impl Geometry<Plane> {
                 }
                 Ok(Geometry::MultiPolygon(result))
             }
-            "GeometryCollection" => {
+            // Older versions read only the misspelling "GeometriesCollection".
+            "GeometryCollection" | "GeometriesCollection" => {
                 let geometries = object
                     .get("geometries")
                     .ok_or(GeometryError::MissingField("geometries".to_string()))?;
@@ -265,13 +266,15 @@ fn get_coordinates(object: &Map<String, Value>) -> Result<&Value, GeometryError>
     Ok(coordinates)
 }
 
+/// Parse a position. RFC 7946 allows elements after lon and lat, such as an altitude. They are
+/// not indexed, so they are dropped.
 fn to_point(value: &Value) -> Result<[f64; 2], GeometryError> {
     let lonlat = value.as_array().ok_or(GeometryError::InvalidStructure(
-        "expected 2 element array pair of lon/lat".to_string(),
+        "expected an array of lon, lat and optional altitude".to_string(),
     ))?;
-    if lonlat.len() != 2 {
+    if lonlat.len() < 2 {
         return Err(GeometryError::InvalidStructure(
-            "expected 2 element array pair of lon/lat".to_string(),
+            "expected an array of lon, lat and optional altitude".to_string(),
         ));
     }
     let lon = lonlat[0].as_f64().ok_or(GeometryError::InvalidCoordinate(
@@ -521,4 +524,43 @@ fn deserialize_polygon<R: Read>(reader: &mut R) -> io::Result<Vec<Vec<[f64; 2]>>
         polygon.push(ring);
     }
     Ok(polygon)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn parse(json: Value) -> Result<Geometry<Plane>, GeometryError> {
+        Geometry::from_geojson(json.as_object().unwrap())
+    }
+
+    #[test]
+    fn test_positions_with_altitude() {
+        let point = parse(json!({"type": "Point", "coordinates": [1.0, 2.0, 30.0]})).unwrap();
+        assert_eq!(point, Geometry::Point([1.0, 2.0]));
+        let ring = json!([
+            [0.0, 0.0, 5.0],
+            [1.0, 0.0, 5.0],
+            [1.0, 1.0, 5.0],
+            [0.0, 0.0, 5.0]
+        ]);
+        let polygon = parse(json!({"type": "Polygon", "coordinates": [ring]})).unwrap();
+        assert_eq!(
+            polygon,
+            Geometry::Polygon(vec![vec![[0.0, 0.0], [1.0, 0.0], [1.0, 1.0], [0.0, 0.0]]])
+        );
+        assert!(parse(json!({"type": "Point", "coordinates": [1.0]})).is_err());
+    }
+
+    #[test]
+    fn test_collections_parse_by_either_name() {
+        let point = json!({"type": "Point", "coordinates": [1.0, 2.0]});
+        for name in ["GeometryCollection", "GeometriesCollection"] {
+            let collection = parse(json!({"type": name, "geometries": [point]})).unwrap();
+            assert_eq!(
+                collection,
+                Geometry::GeometryCollection(vec![Geometry::Point([1.0, 2.0])])
+            );
+        }
+    }
 }

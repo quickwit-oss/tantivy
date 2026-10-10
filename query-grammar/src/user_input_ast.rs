@@ -10,7 +10,11 @@ use crate::Occur;
 #[serde(rename_all = "snake_case")]
 pub enum SpatialPredicateKind {
     Intersects,
+    /// The field's geometry contains the query's: `$contains`.
     Contains,
+    /// The field's geometry lies inside the query polygon: `$within` with a polygon and no
+    /// distance.
+    CoveredBy,
     Within(ordered_float::OrderedFloat<f64>),
     Between(
         ordered_float::OrderedFloat<f64>,
@@ -165,6 +169,7 @@ impl Debug for UserInputLeaf {
                 match predicate {
                     SpatialPredicateKind::Intersects => write!(formatter, "$intersects(")?,
                     SpatialPredicateKind::Contains => write!(formatter, "$contains(")?,
+                    SpatialPredicateKind::CoveredBy => write!(formatter, "$within(")?,
                     SpatialPredicateKind::Within(radius) => {
                         write!(formatter, "$within({}rad, ", radius.0)?
                     }
