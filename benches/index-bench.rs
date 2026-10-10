@@ -200,6 +200,43 @@ pub fn wiki_index_benchmark(c: &mut Criterion) {
     });
 }
 
+/// Documents with many fields, added in schema order like documents built by a doc mapper.
+/// Covers the per-document work that does not depend on the field values.
+pub fn many_fields_index_benchmark(c: &mut Criterion) {
+    const NUM_FIELDS: usize = 24;
+    const NUM_DOCS: usize = 20_000;
+    let mut schema_builder = tantivy::schema::SchemaBuilder::new();
+    let fields: Vec<_> = (0..NUM_FIELDS)
+        .map(|i| schema_builder.add_text_field(&format!("field_{i}"), STRING))
+        .collect();
+    let schema = schema_builder.build();
+    let docs: Vec<TantivyDocument> = (0..NUM_DOCS)
+        .map(|doc_id| {
+            let mut doc = TantivyDocument::default();
+            for (i, field) in fields.iter().enumerate() {
+                doc.add_text(*field, format!("v{}", (doc_id * 31 + i * 7) % 512));
+            }
+            doc
+        })
+        .collect();
+    let mut group = c.benchmark_group("index-many-fields");
+    group.throughput(Throughput::Elements(NUM_DOCS as u64));
+    group.bench_function("24-string-fields-no-commit", |b| {
+        b.iter_batched(
+            || docs.clone(),
+            |docs| {
+                let index = get_index(schema.clone());
+                let index_writer: IndexWriter =
+                    index.writer_with_num_threads(1, 100_000_000).unwrap();
+                for doc in docs {
+                    index_writer.add_document(doc).unwrap();
+                }
+            },
+            BatchSize::SmallInput,
+        )
+    });
+}
+
 criterion_group! {
     name = benches;
     config = Criterion::default();
@@ -215,4 +252,9 @@ criterion_group! {
     config = Criterion::default();
     targets = wiki_index_benchmark
 }
-criterion_main!(benches, gh_benches, wiki_benches);
+criterion_group! {
+    name = many_fields_benches;
+    config = Criterion::default();
+    targets = many_fields_index_benchmark
+}
+criterion_main!(benches, gh_benches, wiki_benches, many_fields_benches);
