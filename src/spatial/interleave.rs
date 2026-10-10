@@ -387,7 +387,7 @@ fn flatten(sponge: HeapEntry) -> Option<IndexCell> {
                     crossings += 1;
                 }
             }
-            contains = union.anchor_flag ^ (crossings % 2 != 0);
+            contains = union.anchor_flag ^ !crossings.is_multiple_of(2);
         }
 
         let mut shape = ClippedShape::new(*geometry_id, contains);
@@ -453,7 +453,7 @@ fn compute_contains_center(
             }
         }
     }
-    from_flag ^ (crossings % 2 != 0)
+    from_flag ^ !crossings.is_multiple_of(2)
 }
 
 fn subdivide_cell(coarse_cell: &CoarseIndexCell, crossing_checks: &mut u64) -> Vec<IndexCell> {

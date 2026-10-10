@@ -215,6 +215,22 @@ impl MultiValueIndex {
         }
     }
 
+    /// Returns true if the document has at least one value.
+    #[inline]
+    pub fn has_value(&self, doc_id: DocId) -> bool {
+        !self.range(doc_id).is_empty()
+    }
+
+    /// Returns the first document with values at or after `target`.
+    pub fn next_non_null_doc(&self, target: DocId) -> Option<DocId> {
+        match self {
+            MultiValueIndex::MultiValueIndexV1(idx) => {
+                (target..idx.num_docs()).find(|&doc| !idx.range(doc).is_empty())
+            }
+            MultiValueIndex::MultiValueIndexV2(idx) => idx.optional_index.next_non_null_doc(target),
+        }
+    }
+
     /// Returns an iterator over document ids that have at least one value.
     pub fn iter_non_null_docs(&self) -> Box<dyn Iterator<Item = DocId> + '_> {
         match self {
@@ -322,9 +338,7 @@ impl MultiValueIndexV2 {
         }
         ranks.truncate(write_doc_pos);
 
-        for rank in ranks.iter_mut() {
-            *rank = self.optional_index.select(*rank);
-        }
+        self.optional_index.select_batch(&mut ranks[..]);
     }
 }
 
@@ -375,7 +389,7 @@ mod tests {
         columnar_writer.record_numerical(5, "full", u64::MAX);
 
         let mut wrt: Vec<u8> = Vec::new();
-        columnar_writer.serialize(7, &mut wrt).unwrap();
+        columnar_writer.serialize(7, None, &mut wrt).unwrap();
 
         let reader = ColumnarReader::open(wrt).unwrap();
         // Open the column as u64

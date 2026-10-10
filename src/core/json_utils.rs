@@ -229,6 +229,9 @@ pub(crate) fn index_json_value<'a, V: Value<'a>>(
             }
             // Only a spatial field indexes geometry.
             ReferenceValueLeaf::Geometry(_) => {}
+            ReferenceValueLeaf::Custom(_) => {
+                unimplemented!("the JSON field does not support custom field types")
+            }
         },
         ReferenceValue::Array(elements) => {
             for val in elements {

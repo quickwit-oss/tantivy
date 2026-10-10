@@ -20,7 +20,7 @@ type UnionType = SimpleUnion<Box<dyn Postings + 'static>>;
 /// See RegexPhraseWeight::get_union_from_term_infos for some design decisions.
 pub struct RegexPhraseWeight {
     field: Field,
-    phrase_terms: Vec<(usize, String)>,
+    phrase_terms: Vec<(usize, Arc<Regex>)>,
     similarity_weight_opt: Option<Bm25Weight>,
     slop: u32,
     max_expansions: u32,
@@ -31,7 +31,7 @@ impl RegexPhraseWeight {
     /// If `similarity_weight_opt` is None, then scoring is disabled
     pub fn new(
         field: Field,
-        phrase_terms: Vec<(usize, String)>,
+        phrase_terms: Vec<(usize, Arc<Regex>)>,
         similarity_weight_opt: Option<Bm25Weight>,
         max_expansions: u32,
         slop: u32,
@@ -67,12 +67,9 @@ impl RegexPhraseWeight {
         let mut posting_lists = Vec::new();
         let inverted_index = reader.inverted_index(self.field)?;
         let mut num_terms = 0;
-        for &(offset, ref term) in &self.phrase_terms {
-            let regex = Regex::new(term)
-                .map_err(|e| crate::TantivyError::InvalidArgument(format!("Invalid regex: {e}")))?;
-
+        for &(offset, ref regex) in &self.phrase_terms {
             let automaton: AutomatonWeight<Regex> =
-                AutomatonWeight::new(self.field, Arc::new(regex));
+                AutomatonWeight::new(self.field, Arc::clone(regex));
             let term_infos = automaton.get_match_term_infos(reader)?;
             // If term_infos is empty, the phrase can not match any documents.
             if term_infos.is_empty() {
@@ -349,6 +346,71 @@ mod tests {
             }
             prop_assert_eq!(phrase_scorer.advance(), TERMINATED);
         }
+    }
+
+    #[test]
+    pub fn test_phrase_regex_invalid_pattern_fails_at_weight() -> crate::Result<()> {
+        let index = create_index(&["a b"])?;
+        let text_field = index.schema().get_field("text").unwrap();
+        let searcher = index.reader()?.searcher();
+        let phrase_query = RegexPhraseQuery::new(text_field, vec!["a".into(), "(".into()]);
+        let enable_scoring = EnableScoring::enabled_from_searcher(&searcher);
+        assert!(matches!(
+            phrase_query.regex_phrase_weight(enable_scoring),
+            Err(crate::TantivyError::InvalidArgument(_))
+        ));
+        Ok(())
+    }
+
+    #[test]
+    pub fn test_phrase_regexes_are_compiled_once_and_shared() -> crate::Result<()> {
+        let index = create_index(&["a b"])?;
+        let text_field = index.schema().get_field("text").unwrap();
+        let searcher = index.reader()?.searcher();
+        let phrase_query = RegexPhraseQuery::new(text_field, vec!["a.*".into(), "b".into()]);
+        let first = phrase_query.regexes()?.as_ptr();
+        assert_eq!(phrase_query.regexes()?.as_ptr(), first);
+
+        let enable_scoring = EnableScoring::enabled_from_searcher(&searcher);
+        let _weight = phrase_query.regex_phrase_weight(enable_scoring)?;
+        let clone = phrase_query.clone();
+        let _clone_weight = clone.regex_phrase_weight(enable_scoring)?;
+        // The query, its clone and both weights hold the same automata.
+        for regex in phrase_query.regexes()? {
+            assert_eq!(std::sync::Arc::strong_count(regex), 4);
+        }
+        Ok(())
+    }
+
+    #[test]
+    pub fn test_phrase_from_regexes_uses_the_given_automata() -> crate::Result<()> {
+        use std::sync::Arc;
+
+        use tantivy_fst::Regex;
+
+        use crate::collector::Count;
+
+        let index = create_index(&["a b", "aa b", "b a", "a c"])?;
+        let text_field = index.schema().get_field("text").unwrap();
+        let searcher = index.reader()?.searcher();
+        let regex_a = Arc::new(Regex::new("a.*").unwrap());
+        let regex_b = Arc::new(Regex::new("b").unwrap());
+        let from_regexes = RegexPhraseQuery::from_regexes(
+            text_field,
+            vec![
+                (1, "b".into(), regex_b.clone()),
+                (0, "a.*".into(), regex_a.clone()),
+            ],
+            0,
+        );
+        let regexes = from_regexes.regexes()?;
+        assert!(Arc::ptr_eq(&regexes[0], &regex_a));
+        assert!(Arc::ptr_eq(&regexes[1], &regex_b));
+
+        let from_patterns = RegexPhraseQuery::new(text_field, vec!["a.*".into(), "b".into()]);
+        assert_eq!(searcher.search(&from_regexes, &Count)?, 2);
+        assert_eq!(searcher.search(&from_patterns, &Count)?, 2);
+        Ok(())
     }
 
     #[test]

@@ -15,8 +15,9 @@ use rustc_hash::FxHashMap;
 use serde::{Deserialize, Serialize};
 
 use crate::aggregation::agg_result::CompositeKey;
+pub(crate) use crate::aggregation::bucket::composite::accessors::CompositeAggReqData;
 pub use crate::aggregation::bucket::composite::accessors::{
-    CompositeAccessor, CompositeAggReqData, CompositeSourceAccessors, PrecomputedDateInterval,
+    CompositeAccessor, CompositeSourceAccessors, PrecomputedDateInterval,
 };
 pub use crate::aggregation::bucket::composite::collector::SegmentCompositeCollector;
 use crate::aggregation::bucket::composite::numeric_types::num_cmp::{
@@ -511,14 +512,14 @@ mod tests {
 
     fn datetime_from_iso_str(date_str: &str) -> common::DateTime {
         let dt = OffsetDateTime::parse(date_str, &Rfc3339)
-            .expect(&format!("Failed to parse date: {}", date_str));
+            .unwrap_or_else(|_| panic!("Failed to parse date: {}", date_str));
         let timestamp_secs = dt.unix_timestamp_nanos();
         common::DateTime::from_timestamp_nanos(timestamp_secs as i64)
     }
 
     fn ms_timestamp_from_iso_str(date_str: &str) -> i64 {
         let dt = OffsetDateTime::parse(date_str, &Rfc3339)
-            .expect(&format!("Failed to parse date: {}", date_str));
+            .unwrap_or_else(|_| panic!("Failed to parse date: {}", date_str));
         (dt.unix_timestamp_nanos() / 1_000_000) as i64
     }
 
@@ -533,7 +534,7 @@ mod tests {
         let expected_buckets_vec = expected_buckets.as_array().unwrap();
 
         for page_size in 1..=expected_buckets_vec.len() {
-            let page_count = (expected_buckets_vec.len() + page_size - 1) / page_size;
+            let page_count = expected_buckets_vec.len().div_ceil(page_size);
             let mut after_key = None;
             for page_idx in 0..page_count {
                 let mut agg_req_json = json!({
@@ -548,7 +549,7 @@ mod tests {
                     agg_req_json["my_composite"]["composite"]["after"] = after_key.take().unwrap();
                 }
                 let agg_req: Aggregations = serde_json::from_value(agg_req_json).unwrap();
-                let res = exec_request(agg_req.clone(), &index).unwrap();
+                let res = exec_request(agg_req.clone(), index).unwrap();
                 let expected_page_buckets = &expected_buckets_vec[page_idx * page_size
                     ..std::cmp::min((page_idx + 1) * page_size, expected_buckets_vec.len())];
                 assert_eq!(
@@ -559,34 +560,30 @@ mod tests {
                     page_size,
                     agg_req,
                 );
-                if page_idx + 1 < page_count {
-                    assert!(
-                        res["my_composite"].get("after_key").is_some(),
-                        "expected after_key on all but last page"
-                    );
-                    after_key = Some(res["my_composite"]["after_key"].clone());
-                } else if let Some(_) = res["my_composite"].get("after_key") {
-                    // currently we sometime have an after_key on the last page,
-                    // check that the next "page" is empty
-                    let agg_req_json = json!({
-                        "my_composite": {
-                            "composite": {
-                                "sources": composite_agg_sources,
-                                "size": page_size,
-                                "after": res["my_composite"]["after_key"].clone(),
-                            }
-                        }
-                    });
-                    let agg_req: Aggregations = serde_json::from_value(agg_req_json).unwrap();
-                    let res = exec_request(agg_req.clone(), &index).unwrap();
-                    assert_eq!(
-                        res["my_composite"]["buckets"],
-                        json!([]),
-                        "expected no buckets when using after_key from last page, query: {:?}",
-                        agg_req
-                    );
-                }
+                assert!(
+                    res["my_composite"].get("after_key").is_some(),
+                    "expected after_key on every non-empty page"
+                );
+                after_key = Some(res["my_composite"]["after_key"].clone());
             }
+            // Using the after_key from the last page must yield an empty page.
+            let agg_req_json = json!({
+                "my_composite": {
+                    "composite": {
+                        "sources": composite_agg_sources,
+                        "size": page_size,
+                        "after": after_key,
+                    }
+                }
+            });
+            let agg_req: Aggregations = serde_json::from_value(agg_req_json).unwrap();
+            let res = exec_request(agg_req.clone(), index).unwrap();
+            assert_eq!(
+                res["my_composite"]["buckets"],
+                json!([]),
+                "expected no buckets when using after_key from last page, query: {:?}",
+                agg_req
+            );
         }
     }
 
@@ -711,8 +708,28 @@ mod tests {
                 {"key": {"myterm": "terme"}, "doc_count": 1}
             ])
         );
-        assert!(res["my_composite"].get("after_key").is_none());
 
+        // paginating past last page should be empty
+        let agg_req_json = json!({
+            "my_composite": {
+                "composite": {
+                    "sources": [
+                        {"myterm": {"terms": {"field": "string_id"}}}
+                    ],
+                    "size": 3,
+                    "after":  &res["my_composite"]["after_key"]
+                }
+            }
+        });
+        let agg_req: Aggregations = serde_json::from_value(agg_req_json).unwrap();
+        let res = exec_request(agg_req.clone(), &index).unwrap();
+        assert!(res["my_composite"].get("after_key").is_none());
+        assert_eq!(
+            res["my_composite"]["buckets"],
+            json!([]),
+            "expected no buckets when using after_key from last page, query: {:?}",
+            agg_req
+        );
         Ok(())
     }
 
@@ -820,7 +837,10 @@ mod tests {
                 {"key": {"myterm": "apple"}, "doc_count": 1}
             ])
         );
-        assert!(res["fruity_aggreg"].get("after_key").is_none());
+        assert_eq!(
+            res["fruity_aggreg"]["after_key"],
+            json!({"myterm": "str:apple"})
+        );
 
         Ok(())
     }
@@ -1792,7 +1812,14 @@ mod tests {
                 {"key": {"month": ms_timestamp_from_iso_str("2021-02-01T00:00:00Z"), "category": "books"}, "doc_count": 1},
             ]),
         );
-        assert!(res["my_composite"].get("after_key").is_none());
+        let feb_2021_ns = ms_timestamp_from_iso_str("2021-02-01T00:00:00Z") * 1_000_000;
+        assert_eq!(
+            res["my_composite"]["after_key"],
+            json!({
+                "month": format!("dt:{}", feb_2021_ns),
+                "category": "str:books"
+            })
+        );
 
         Ok(())
     }

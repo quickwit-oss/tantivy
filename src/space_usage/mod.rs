@@ -9,6 +9,7 @@
 
 use std::collections::btree_map::Entry;
 use std::collections::BTreeMap;
+use std::sync::LazyLock;
 
 use columnar::ColumnSpaceUsage;
 use common::ByteCount;
@@ -16,7 +17,28 @@ use serde::{Deserialize, Serialize};
 
 use crate::index::SegmentComponent;
 
+/// Component keys used by the built-in plugins when reporting [`SegmentSpaceUsage`].
+///
+/// These are shared between the plugins that produce the entries and the
+/// [`SegmentSpaceUsage`] accessors that look them up.
+pub(crate) const TERMDICT: &str = "termdict";
+pub(crate) const POSTINGS: &str = "postings";
+pub(crate) const POSITIONS: &str = "positions";
+pub(crate) const FAST_FIELDS: &str = "fast_fields";
+pub(crate) const FIELDNORMS: &str = "fieldnorms";
+pub(crate) const STORE: &str = "store";
+pub(crate) const DELETES: &str = "deletes";
+/// Keyed by the extension of the spatial plugin's file, as `component` looks custom ones up.
+pub(crate) const SPATIAL_CELLS: &str = "cells";
+pub(crate) const SPATIAL_EDGES: &str = "edges";
+
+static EMPTY_PER_FIELD: LazyLock<PerFieldSpaceUsage> =
+    LazyLock::new(|| PerFieldSpaceUsage::new(Vec::new()));
+static EMPTY_STORE: LazyLock<StoreSpaceUsage> =
+    LazyLock::new(|| StoreSpaceUsage::new(ByteCount::default(), ByteCount::default()));
+
 /// Enum containing any of the possible space usage results for segment components.
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum ComponentSpaceUsage {
     /// Data is stored per field in a uniform way
     PerField(PerFieldSpaceUsage),
@@ -24,6 +46,17 @@ pub enum ComponentSpaceUsage {
     Store(StoreSpaceUsage),
     /// Some sort of raw byte count
     Basic(ByteCount),
+}
+
+impl ComponentSpaceUsage {
+    /// Total bytes used by this component.
+    pub fn total(&self) -> ByteCount {
+        match self {
+            ComponentSpaceUsage::PerField(usage) => usage.total(),
+            ComponentSpaceUsage::Store(usage) => usage.total(),
+            ComponentSpaceUsage::Basic(bytes) => *bytes,
+        }
+    }
 }
 
 /// Represents combined space usage of an entire searcher and its component segments.
@@ -61,62 +94,31 @@ impl SearcherSpaceUsage {
 }
 
 /// Represents combined space usage for all of the large components comprising a segment.
+///
+/// The per-component usage is assembled from each registered [`SegmentPlugin`] (plus the
+/// non-plugin `deletes` entry) and keyed by component name. The named accessors below are
+/// thin lookups into that map.
+///
+/// [`SegmentPlugin`]: crate::plugin::SegmentPlugin
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct SegmentSpaceUsage {
     num_docs: u32,
-
-    termdict: PerFieldSpaceUsage,
-    postings: PerFieldSpaceUsage,
-    positions: PerFieldSpaceUsage,
-    fast_fields: PerFieldSpaceUsage,
-    fieldnorms: PerFieldSpaceUsage,
-    // Older versions reported the cell indexes alone, as `spatial`.
-    #[serde(alias = "spatial")]
-    spatial_cells: PerFieldSpaceUsage,
-    #[serde(default = "PerFieldSpaceUsage::empty")]
-    spatial_edges: PerFieldSpaceUsage,
-
-    store: StoreSpaceUsage,
-
-    deletes: ByteCount,
-
+    components: BTreeMap<String, ComponentSpaceUsage>,
     total: ByteCount,
 }
 
 impl SegmentSpaceUsage {
-    #[expect(clippy::too_many_arguments)]
-    pub(crate) fn new(
+    pub(crate) fn from_components(
         num_docs: u32,
-        termdict: PerFieldSpaceUsage,
-        postings: PerFieldSpaceUsage,
-        positions: PerFieldSpaceUsage,
-        fast_fields: PerFieldSpaceUsage,
-        fieldnorms: PerFieldSpaceUsage,
-        spatial_cells: PerFieldSpaceUsage,
-        spatial_edges: PerFieldSpaceUsage,
-        store: StoreSpaceUsage,
-        deletes: ByteCount,
+        components: BTreeMap<String, ComponentSpaceUsage>,
     ) -> SegmentSpaceUsage {
-        let total = termdict.total()
-            + postings.total()
-            + positions.total()
-            + fast_fields.total()
-            + fieldnorms.total()
-            + spatial_cells.total()
-            + spatial_edges.total()
-            + store.total()
-            + deletes;
+        let total = components
+            .values()
+            .map(ComponentSpaceUsage::total)
+            .fold(ByteCount::default(), |acc, bytes| acc + bytes);
         SegmentSpaceUsage {
             num_docs,
-            termdict,
-            postings,
-            positions,
-            fast_fields,
-            fieldnorms,
-            spatial_cells,
-            spatial_edges,
-            store,
-            deletes,
+            components,
             total,
         }
     }
@@ -126,19 +128,21 @@ impl SegmentSpaceUsage {
     /// Clones the underlying data.
     /// Use the components directly if this is somehow in performance critical code.
     pub fn component(&self, component: SegmentComponent) -> ComponentSpaceUsage {
-        use self::ComponentSpaceUsage::*;
         use crate::index::SegmentComponent::*;
-        match component {
-            Postings => PerField(self.postings().clone()),
-            Positions => PerField(self.positions().clone()),
-            FastFields => PerField(self.fast_fields().clone()),
-            FieldNorms => PerField(self.fieldnorms().clone()),
-            SpatialCells => PerField(self.spatial_cells().clone()),
-            SpatialEdges => PerField(self.spatial_edges().clone()),
-            Terms => PerField(self.termdict().clone()),
-            SegmentComponent::Store => ComponentSpaceUsage::Store(self.store().clone()),
-            Delete => Basic(self.deletes()),
-        }
+        let key: &str = match &component {
+            Postings => POSTINGS,
+            Positions => POSITIONS,
+            FastFields => FAST_FIELDS,
+            FieldNorms => FIELDNORMS,
+            Terms => TERMDICT,
+            Store | TempStore => STORE,
+            Delete => DELETES,
+            Custom(ext) => ext.as_str(),
+        };
+        self.components
+            .get(key)
+            .cloned()
+            .unwrap_or_else(|| ComponentSpaceUsage::Basic(ByteCount::default()))
     }
 
     /// Num docs in segment
@@ -148,53 +152,66 @@ impl SegmentSpaceUsage {
 
     /// Space usage for term dictionary
     pub fn termdict(&self) -> &PerFieldSpaceUsage {
-        &self.termdict
+        self.per_field(TERMDICT)
     }
 
     /// Space usage for postings list
     pub fn postings(&self) -> &PerFieldSpaceUsage {
-        &self.postings
+        self.per_field(POSTINGS)
     }
 
     /// Space usage for positions
     pub fn positions(&self) -> &PerFieldSpaceUsage {
-        &self.positions
+        self.per_field(POSITIONS)
     }
 
     /// Space usage for fast fields
     pub fn fast_fields(&self) -> &PerFieldSpaceUsage {
-        &self.fast_fields
+        self.per_field(FAST_FIELDS)
     }
 
     /// Space usage for field norms
     pub fn fieldnorms(&self) -> &PerFieldSpaceUsage {
-        &self.fieldnorms
+        self.per_field(FIELDNORMS)
+    }
+
+    fn per_field(&self, key: &str) -> &PerFieldSpaceUsage {
+        match self.components.get(key) {
+            Some(ComponentSpaceUsage::PerField(usage)) => usage,
+            _ => &EMPTY_PER_FIELD,
+        }
     }
 
     /// Space usage for spatial cell indexes
     pub fn spatial_cells(&self) -> &PerFieldSpaceUsage {
-        &self.spatial_cells
+        self.per_field(SPATIAL_CELLS)
     }
 
     /// Space usage for spatial cell indexes, as older versions reported it.
     #[deprecated(note = "use `spatial_cells`, and `spatial_edges` for the edge indexes")]
     pub fn spatial(&self) -> &PerFieldSpaceUsage {
-        &self.spatial_cells
+        self.spatial_cells()
     }
 
     /// Space usage for spatial edge indexes
     pub fn spatial_edges(&self) -> &PerFieldSpaceUsage {
-        &self.spatial_edges
+        self.per_field(SPATIAL_EDGES)
     }
 
     /// Space usage for stored documents
     pub fn store(&self) -> &StoreSpaceUsage {
-        &self.store
+        match self.components.get(STORE) {
+            Some(ComponentSpaceUsage::Store(usage)) => usage,
+            _ => &EMPTY_STORE,
+        }
     }
 
     /// Space usage for document deletions
     pub fn deletes(&self) -> ByteCount {
-        self.deletes
+        match self.components.get(DELETES) {
+            Some(ComponentSpaceUsage::Basic(bytes)) => *bytes,
+            _ => ByteCount::default(),
+        }
     }
 
     /// Total space usage in bytes for this segment.
@@ -246,10 +263,6 @@ pub struct PerFieldSpaceUsage {
 }
 
 impl PerFieldSpaceUsage {
-    fn empty() -> PerFieldSpaceUsage {
-        PerFieldSpaceUsage::new(Vec::new())
-    }
-
     pub(crate) fn new(fields: Vec<FieldUsage>) -> PerFieldSpaceUsage {
         let mut total = ByteCount::default();
         let mut field_usage_map: BTreeMap<String, FieldUsage> = BTreeMap::new();
@@ -388,7 +401,7 @@ fn merge_column_space_usage(
 
 #[cfg(test)]
 mod test {
-    use crate::index::{Index, SegmentComponent};
+    use crate::index::Index;
     use crate::schema::{Schema, FAST, INDEXED, SPATIAL, STORED, TEXT};
     use crate::space_usage::{ComponentSpaceUsage, PerFieldSpaceUsage};
     use crate::{IndexWriter, TantivyDocument, Term};
@@ -482,7 +495,7 @@ mod test {
         // The edge index holds at least the line's two vertices, three f64 each.
         expect_single_field(segment.spatial_edges(), "geometry", 48, 512);
         let ComponentSpaceUsage::PerField(edges) =
-            segment.component(SegmentComponent::SpatialEdges)
+            segment.component(crate::spatial::plugin::edges_component())
         else {
             panic!("the edge index is stored per field");
         };
@@ -491,15 +504,6 @@ mod test {
             segment.total() >= segment.spatial_cells().total() + segment.spatial_edges().total()
         );
 
-        // Older versions serialized the cell indexes as `spatial`, and no edge indexes.
-        let mut json = serde_json::to_value(segment).unwrap();
-        let object = json.as_object_mut().unwrap();
-        let cells = object.remove("spatial_cells").unwrap();
-        object.remove("spatial_edges");
-        object.insert("spatial".to_string(), cells);
-        let old: super::SegmentSpaceUsage = serde_json::from_value(json).unwrap();
-        assert_eq!(old.spatial_cells().total(), segment.spatial_cells().total());
-        assert_eq!(old.spatial_edges().total(), 0);
         Ok(())
     }
 

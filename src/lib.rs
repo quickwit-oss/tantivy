@@ -169,8 +169,10 @@ mod macros;
 mod future_result;
 
 // Re-exports
-pub use common::{ByteCount, DateTime};
-pub use {columnar, query_grammar, time};
+pub use columnar;
+pub use common::{BitSet, ByteCount, DateTime};
+pub use query_grammar;
+pub use time;
 
 pub use crate::error::TantivyError;
 pub use crate::future_result::FutureResult;
@@ -197,6 +199,7 @@ pub mod positions;
 pub mod postings;
 pub mod spatial;
 
+pub mod plugin;
 /// Module containing the different query implementations.
 pub mod query;
 pub mod schema;
@@ -218,17 +221,20 @@ use std::fmt;
 
 pub use census::{Inventory, TrackedObject};
 pub use common::{f64_to_u64, i64_to_u64, u64_to_f64, u64_to_i64, HasLen};
+#[cfg(feature = "jitexpr")]
+pub use jitexpr;
 use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
 
-pub use self::docset::{DocSet, COLLECT_BLOCK_BUFFER_LEN, TERMINATED};
+pub use self::docset::{DocSet, SeekDangerResult, COLLECT_BLOCK_BUFFER_LEN, TERMINATED};
 pub use crate::core::{json_utils, Executor, Searcher, SearcherGeneration};
 pub use crate::directory::Directory;
 pub use crate::index::{
-    Index, IndexBuilder, IndexMeta, IndexSettings, InvertedIndexReader, Order, Segment,
-    SegmentMeta, SegmentReader,
+    Index, IndexBuilder, IndexMeta, IndexSettings, IndexSortByField, InvertedIndexReader, Order,
+    Segment, SegmentMeta, SegmentReader,
 };
 pub use crate::indexer::{IndexWriter, SingleSegmentIndexWriter};
+pub use crate::plugin::{PluginMergeContext, PluginWriter, PluginWriterContext, SegmentPlugin};
 pub use crate::schema::{Document, TantivyDocument, Term};
 
 /// Index format version.

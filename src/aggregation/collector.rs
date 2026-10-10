@@ -1,11 +1,11 @@
 use super::agg_req::Aggregations;
 use super::agg_result::AggregationResults;
-use super::cached_sub_aggs::LowCardCachedSubAggs;
+use super::buffered_sub_aggs::LowCardBufferedSubAggs;
 use super::intermediate_agg_result::IntermediateAggregationResults;
 use super::AggContextParams;
 // group buffering strategy is chosen explicitly by callers; no need to hash-group on the fly.
 use crate::aggregation::agg_data::{
-    build_aggregations_data_from_req, build_segment_agg_collectors_root, AggregationsSegmentCtx,
+    build_aggregations_data_from_req, build_segment_agg_collectors, AggregationsSegmentCtx,
 };
 use crate::collector::{Collector, SegmentCollector};
 use crate::index::SegmentReader;
@@ -136,7 +136,7 @@ fn merge_fruits(
 /// `AggregationSegmentCollector` does the aggregation collection on a segment.
 pub struct AggregationSegmentCollector {
     aggs_with_accessor: AggregationsSegmentCtx,
-    agg_collector: LowCardCachedSubAggs,
+    agg_collector: LowCardBufferedSubAggs,
     error: Option<TantivyError>,
 }
 
@@ -149,10 +149,10 @@ impl AggregationSegmentCollector {
         segment_ordinal: SegmentOrdinal,
         context: &AggContextParams,
     ) -> crate::Result<Self> {
-        let mut agg_data =
-            build_aggregations_data_from_req(agg, reader, segment_ordinal, context.clone())?;
+        let agg_tree = build_aggregations_data_from_req(agg, reader, segment_ordinal, context)?;
+        let mut agg_data = AggregationsSegmentCtx::new(context.clone());
         let mut result =
-            LowCardCachedSubAggs::new(build_segment_agg_collectors_root(&mut agg_data)?);
+            LowCardBufferedSubAggs::new(build_segment_agg_collectors(&mut agg_data, agg_tree)?);
         result
             .get_sub_agg_collector()
             .prepare_max_bucket(0, &agg_data)?; // prepare for bucket zero

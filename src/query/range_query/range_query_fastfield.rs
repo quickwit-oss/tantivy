@@ -133,7 +133,8 @@ impl Weight for FastFieldRangeWeight {
                 | Type::Bytes
                 | Type::Json
                 | Type::IpAddr
-                | Type::Spatial => Err(crate::TantivyError::InvalidArgument(format!(
+                | Type::Spatial
+                | Type::Custom => Err(crate::TantivyError::InvalidArgument(format!(
                     "unsupported value bytes type in json term value_bytes {:?}",
                     term_value.typ()
                 ))),
@@ -394,7 +395,8 @@ fn transform_from_f64_bounds<T: IntType + MonotonicallyMappableToU64>(
             if lower_bound.fract() == 0.0 {
                 TransformBound::Existing(T::from_f64(lower_bound).to_u64())
             } else {
-                TransformBound::NewBound(Bound::Included(T::from_f64(lower_bound.trunc()).to_u64()))
+                // No integer equals a fractional bound: both > and >= start at its ceiling.
+                TransformBound::NewBound(Bound::Included(T::from_f64(lower_bound.ceil()).to_u64()))
             }
         },
         |&upper_bound| {
@@ -408,7 +410,8 @@ fn transform_from_f64_bounds<T: IntType + MonotonicallyMappableToU64>(
             if upper_bound.fract() == 0.0 {
                 TransformBound::Existing(T::from_f64(upper_bound).to_u64())
             } else {
-                TransformBound::NewBound(Bound::Included(T::from_f64(upper_bound.trunc()).to_u64()))
+                // No integer equals a fractional bound: both < and <= end at its floor.
+                TransformBound::NewBound(Bound::Included(T::from_f64(upper_bound.floor()).to_u64()))
             }
         },
     )
@@ -457,7 +460,7 @@ pub(crate) fn maps_to_u64_fastfield(typ: Type) -> bool {
     match typ {
         Type::U64 | Type::I64 | Type::F64 | Type::Bool | Type::Date => true,
         Type::IpAddr => false,
-        Type::Str | Type::Facet | Type::Bytes | Type::Json | Type::Spatial => false,
+        Type::Str | Type::Facet | Type::Bytes | Type::Json | Type::Spatial | Type::Custom => false,
     }
 }
 
@@ -696,6 +699,38 @@ mod tests {
             )),
             0
         );
+    }
+
+    #[test]
+    fn test_json_fractional_range_bounds() -> crate::Result<()> {
+        let mut schema_builder = Schema::builder();
+        let json_field = schema_builder.add_json_field("json", TEXT | FAST);
+        let index = Index::create_in_ram(schema_builder.build());
+        let mut writer = index.writer_for_tests()?;
+        for value in -4..=4 {
+            writer.add_document(doc!(json_field => serde_json::json!({"value": value})))?;
+        }
+        writer.commit()?;
+
+        let reader = index.reader()?;
+        let searcher = reader.searcher();
+        for (lower, upper, expected_count) in [(1.5, 3.5, 2), (-3.5, -1.5, 2), (-1.5, 1.5, 3)] {
+            // No integer equals a fractional bound, so inclusion and exclusion agree.
+            for lower_bound in [Bound::Included(lower), Bound::Excluded(lower)] {
+                for upper_bound in [Bound::Included(upper), Bound::Excluded(upper)] {
+                    let query = RangeQuery::new(
+                        lower_bound.map(|value| get_json_term(json_field, "value", value)),
+                        upper_bound.map(|value| get_json_term(json_field, "value", value)),
+                    );
+                    assert_eq!(
+                        searcher.search(&query, &Count)?,
+                        expected_count,
+                        "range {lower_bound:?} to {upper_bound:?}"
+                    );
+                }
+            }
+        }
+        Ok(())
     }
 
     fn get_json_term<T: FastValue>(field: Field, path: &str, value: T) -> Term {
@@ -1367,21 +1402,21 @@ mod tests {
                 "{} AND {}:{}",
                 gen_query_inclusive("id", ids[0]..=ids[1]),
                 field_path("id_name"),
-                &id_filter
+                id_filter
             );
             assert_eq!(get_num_hits(query_from_text(&query)), expected_num_hits);
             let query = format!(
                 "{} AND {}:{}",
                 gen_query_inclusive("id_f64", ids[0]..=ids[1]),
                 field_path("id_name"),
-                &id_filter
+                id_filter
             );
             assert_eq!(get_num_hits(query_from_text(&query)), expected_num_hits);
             let query = format!(
                 "{} AND {}:{}",
                 gen_query_inclusive("id_i64", ids[0]..=ids[1]),
                 field_path("id_name"),
-                &id_filter
+                id_filter
             );
             assert_eq!(get_num_hits(query_from_text(&query)), expected_num_hits);
 
@@ -1391,21 +1426,21 @@ mod tests {
                 "{} AND {}:{}",
                 gen_query_inclusive("ids", ids[0]..=ids[1]),
                 field_path("id_name"),
-                &id_filter
+                id_filter
             );
             assert_eq!(get_num_hits(query_from_text(&query)), expected_num_hits);
             let query = format!(
                 "{} AND {}:{}",
                 gen_query_inclusive("ids_f64", ids[0]..=ids[1]),
                 field_path("id_name"),
-                &id_filter
+                id_filter
             );
             assert_eq!(get_num_hits(query_from_text(&query)), expected_num_hits);
             let query = format!(
                 "{} AND {}:{}",
                 gen_query_inclusive("ids_i64", ids[0]..=ids[1]),
                 field_path("id_name"),
-                &id_filter
+                id_filter
             );
             assert_eq!(get_num_hits(query_from_text(&query)), expected_num_hits);
         };
@@ -1654,7 +1689,7 @@ pub(crate) mod ip_range_tests {
             let query = format!(
                 "{} AND id:{}",
                 gen_query_inclusive("ip", &ip_range),
-                &id_filter
+                id_filter
             );
             assert_eq!(get_num_hits(query_from_text(&query)), expected_num_hits);
 
@@ -1663,7 +1698,7 @@ pub(crate) mod ip_range_tests {
             let query = format!(
                 "{} AND id:{}",
                 gen_query_inclusive("ips", &ip_range),
-                &id_filter
+                id_filter
             );
             assert_eq!(get_num_hits(query_from_text(&query)), expected_num_hits);
         };

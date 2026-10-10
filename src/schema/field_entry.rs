@@ -3,6 +3,7 @@ use serde::{Deserialize, Serialize};
 use super::ip_options::IpAddrOptions;
 use super::spatial_options::SpatialOptions;
 use crate::schema::bytes_options::BytesOptions;
+use crate::schema::custom_options::CustomOptions;
 use crate::schema::{
     is_valid_field_name, DateOptions, FacetOptions, FieldType, JsonObjectOptions, NumericOptions,
     TextOptions,
@@ -39,6 +40,11 @@ impl FieldEntry {
     /// Creates a new u64 field entry.
     pub fn new_u64(field_name: String, int_options: NumericOptions) -> FieldEntry {
         Self::new(field_name, FieldType::U64(int_options))
+    }
+
+    /// Creates a generated tie-breaker field entry.
+    pub fn new_tie_breaker(field_name: String) -> FieldEntry {
+        Self::new(field_name, FieldType::TieBreaker)
     }
 
     /// Creates a new i64 field entry.
@@ -84,6 +90,11 @@ impl FieldEntry {
     /// Creates a field entry for a spatial field
     pub fn new_spatial(field_name: String, spatial_options: SpatialOptions) -> FieldEntry {
         Self::new(field_name, FieldType::Spatial(spatial_options))
+    }
+
+    /// Creates a field entry for a plugin-defined custom field.
+    pub fn new_custom(field_name: String, custom_options: CustomOptions) -> FieldEntry {
+        Self::new(field_name, FieldType::Custom(custom_options))
     }
 
     /// Returns the name of the field
@@ -136,6 +147,7 @@ impl FieldEntry {
             FieldType::JsonObject(ref options) => options.is_stored(),
             FieldType::IpAddr(ref options) => options.is_stored(),
             FieldType::Spatial(ref options) => options.is_stored(),
+            FieldType::TieBreaker | FieldType::Custom(_) => false,
         }
     }
 }

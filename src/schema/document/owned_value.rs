@@ -51,6 +51,8 @@ pub enum OwnedValue {
     Object(Vec<(String, Self)>),
     /// IpV6 Address. Internally there is no IpV4, it needs to be converted to `Ipv6Addr`.
     IpAddr(Ipv6Addr),
+    /// Opaque payload of a plugin-defined custom field.
+    Custom(Vec<u8>),
     /// A GeoJSON geometry, indexed by a spatial field.
     Geometry(Geometry<Plane>),
 }
@@ -83,7 +85,8 @@ impl OwnedValue {
             OwnedValue::Array(_) => 10,
             OwnedValue::Object(_) => 11,
             OwnedValue::IpAddr(_) => 12,
-            OwnedValue::Geometry(_) => 13,
+            OwnedValue::Custom(_) => 13,
+            OwnedValue::Geometry(_) => 14,
         }
     }
 }
@@ -105,6 +108,7 @@ impl<'a> Value<'a> for &'a OwnedValue {
             OwnedValue::Facet(val) => ReferenceValueLeaf::Facet(val.encoded_str()).into(),
             OwnedValue::Bytes(val) => ReferenceValueLeaf::Bytes(val).into(),
             OwnedValue::IpAddr(val) => ReferenceValueLeaf::IpAddr(*val).into(),
+            OwnedValue::Custom(val) => ReferenceValueLeaf::Custom(val).into(),
             OwnedValue::Array(array) => ReferenceValue::Array(array.iter()),
             OwnedValue::Object(object) => ReferenceValue::Object(ObjectMapIter(object.iter())),
             OwnedValue::Geometry(geometry) => {
@@ -238,6 +242,10 @@ impl serde::Serialize for OwnedValue {
                 }
             }
             OwnedValue::Array(ref array) => array.serialize(serializer),
+            // Custom payloads are opaque; render them as base64 for display/debug. They never
+            // round-trip through serde (they are populated programmatically), so this is lossy
+            // by design.
+            OwnedValue::Custom(ref bytes) => serializer.serialize_str(&BASE64.encode(bytes)),
             OwnedValue::Geometry(ref geometry) => geometry.to_geojson().serialize(serializer),
         }
     }
@@ -326,6 +334,7 @@ impl<'a, V: Value<'a>> From<ReferenceValue<'a, V>> for OwnedValue {
                 ReferenceValueLeaf::IpAddr(val) => OwnedValue::IpAddr(val),
                 ReferenceValueLeaf::Bool(val) => OwnedValue::Bool(val),
                 ReferenceValueLeaf::PreTokStr(val) => OwnedValue::PreTokStr(*val.clone()),
+                ReferenceValueLeaf::Custom(val) => OwnedValue::Custom(val.to_vec()),
                 ReferenceValueLeaf::Geometry(val) => OwnedValue::Geometry(*val.clone()),
             },
             ReferenceValue::Array(val) => {

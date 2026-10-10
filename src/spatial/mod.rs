@@ -31,6 +31,7 @@ pub mod intersects_query;
 pub mod latlng_rect;
 pub mod math;
 pub mod plane;
+pub mod plugin;
 mod polygon_union;
 pub mod r1interval;
 pub mod r2rect;

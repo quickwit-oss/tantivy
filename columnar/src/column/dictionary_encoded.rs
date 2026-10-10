@@ -4,8 +4,8 @@ use std::{fmt, io};
 
 use sstable::{Dictionary, VoidSSTable};
 
-use crate::RowId;
 use crate::column::Column;
+use crate::{ColumnIndex, RowId};
 
 /// Dictionary encoded column.
 ///
@@ -59,6 +59,10 @@ impl BytesColumn {
         &self.term_ord_column
     }
 
+    pub(crate) fn into_column_index(self) -> ColumnIndex {
+        self.term_ord_column.index
+    }
+
     pub fn num_terms(&self) -> usize {
         self.dictionary.num_terms()
     }
@@ -84,6 +88,10 @@ impl From<StrColumn> for BytesColumn {
 }
 
 impl StrColumn {
+    pub(crate) fn into_column_index(self) -> ColumnIndex {
+        self.0.into_column_index()
+    }
+
     pub fn wrap(bytes_column: BytesColumn) -> StrColumn {
         StrColumn(bytes_column)
     }

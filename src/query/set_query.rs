@@ -60,8 +60,9 @@ impl TermSetQuery {
             ));
         }
 
-        Ok(BooleanWeight::new(
+        Ok(BooleanWeight::with_minimum_number_should_match(
             sub_queries,
+            1,
             false,
             Box::new(|| DoNothingCombiner),
         ))

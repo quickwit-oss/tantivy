@@ -52,7 +52,7 @@ impl<'a, S: Surface, W: Write> EdgeWriter<'a, S, W> {
         for (member_idx, member) in set.members.iter().enumerate() {
             let pos = self.write.written_bytes() - self.base;
 
-            if self.geometry_count % self.skip_interval == 0 {
+            if self.geometry_count.is_multiple_of(self.skip_interval) {
                 self.directory.push((pos, head_position));
             }
             self.geometry_count += 1;

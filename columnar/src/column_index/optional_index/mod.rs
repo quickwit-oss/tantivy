@@ -280,6 +280,99 @@ impl OptionalIndex {
         self.num_non_null_docs
     }
 
+    /// Returns the first populated document at or after `target`.
+    pub fn next_non_null_doc(&self, target: DocId) -> Option<DocId> {
+        if target >= self.num_docs {
+            return None;
+        }
+        let first_block = row_addr_from_row_id(target).block_id;
+        for block_id in first_block..self.block_metas.len() as u16 {
+            let block_start = block_id as u32 * ELEMENTS_PER_BLOCK;
+            let in_block_start = if block_id == first_block {
+                (target - block_start) as u16
+            } else {
+                0
+            };
+            let block_meta = self.block_metas[block_id as usize];
+            match self.block(block_meta) {
+                Block::Sparse(block) => {
+                    let rank = block.rank(in_block_start);
+                    let block_end_rank = self
+                        .block_metas
+                        .get(block_id as usize + 1)
+                        .map(|meta| meta.non_null_rows_before_block)
+                        .unwrap_or(self.num_non_null_docs);
+                    if block_meta.non_null_rows_before_block + (rank as u32) < block_end_rank {
+                        return Some(block_start + block.select(rank) as u32);
+                    }
+                }
+                Block::Dense(block) => {
+                    let block_num_docs = (self.num_docs - block_start).min(ELEMENTS_PER_BLOCK);
+                    for in_block_doc in in_block_start as u32..block_num_docs {
+                        if block.contains(in_block_doc as u16) {
+                            return Some(block_start + in_block_doc);
+                        }
+                    }
+                }
+            }
+        }
+        None
+    }
+
+    /// Appends the queried doc ids that exist in this index and their corresponding ranks.
+    ///
+    /// Sorted input is processed one encoded block at a time. Unsorted input is supported too,
+    /// but falls back to independent lookups in order to preserve its input order.
+    #[inline]
+    pub fn rank_if_exists_batch(
+        &self,
+        doc_ids: &[DocId],
+        doc_ids_out: &mut Vec<DocId>,
+        row_ids_out: &mut Vec<RowId>,
+    ) {
+        // At most one output per queried doc id: reserving upfront avoids reallocations
+        // in the middle of the batch.
+        doc_ids_out.reserve(doc_ids.len());
+        row_ids_out.reserve(doc_ids.len());
+        // TODO: change the API to require sorted input, and remove the fallback.
+        if !doc_ids.is_sorted() {
+            for &doc_id in doc_ids {
+                if let Some(row_id) = self.rank_if_exists(doc_id) {
+                    doc_ids_out.push(doc_id);
+                    row_ids_out.push(row_id);
+                }
+            }
+            return;
+        }
+
+        let mut block_doc_start = 0usize;
+        while block_doc_start < doc_ids.len() {
+            let block_id = row_addr_from_row_id(doc_ids[block_doc_start]).block_id;
+            let mut block_doc_end = block_doc_start + 1;
+            while block_doc_end < doc_ids.len()
+                && row_addr_from_row_id(doc_ids[block_doc_end]).block_id == block_id
+            {
+                block_doc_end += 1;
+            }
+
+            if let Some(&block_meta) = self.block_metas.get(block_id as usize) {
+                let block_doc_id_start = block_id as u32 * ELEMENTS_PER_BLOCK;
+                let row_id_start = block_meta.non_null_rows_before_block;
+                self.block(block_meta).rank_if_exists_batch(
+                    doc_ids[block_doc_start..block_doc_end]
+                        .iter()
+                        .map(|doc_id| row_addr_from_row_id(*doc_id).in_block_row_id),
+                    |in_block_doc_id, in_block_row_id| {
+                        doc_ids_out.push(block_doc_id_start + in_block_doc_id as u32);
+                        row_ids_out.push(row_id_start + in_block_row_id as u32);
+                    },
+                );
+            }
+
+            block_doc_start = block_doc_end;
+        }
+    }
+
     pub fn iter_non_null_docs(&self) -> impl Iterator<Item = RowId> + '_ {
         // TODO optimize. We could iterate over the blocks directly.
         // We use the dense value ids and retrieve the doc ids via select.
@@ -333,6 +426,28 @@ impl OptionalIndex {
 enum Block<'a> {
     Dense(DenseBlock<'a>),
     Sparse(SparseBlock<'a>),
+}
+
+impl Block<'_> {
+    #[inline]
+    fn rank_if_exists_batch(
+        self,
+        doc_ids: impl Iterator<Item = u16>,
+        mut collect: impl FnMut(u16, u16),
+    ) {
+        match self {
+            Block::Dense(dense_block) => {
+                for doc_id in doc_ids {
+                    if let Some(row_id) = dense_block.rank_if_exists(doc_id) {
+                        collect(doc_id, row_id);
+                    }
+                }
+            }
+            Block::Sparse(sparse_block) => {
+                sparse_block.rank_if_exists_batch(doc_ids, collect);
+            }
+        }
+    }
 }
 
 fn serialize_optional_index_block(block_els: &[u16], out: &mut impl io::Write) -> io::Result<()> {
@@ -445,9 +560,7 @@ fn deserialize_optional_index_block_metadatas(
     let mut block_metas = Vec::with_capacity(num_blocks + 1);
     let mut start_byte_offset = 0;
     let mut non_null_rows_before_block = 0;
-    for block_meta_bytes in data.chunks_exact(SERIALIZED_BLOCK_META_NUM_BYTES) {
-        let block_meta_bytes: [u8; SERIALIZED_BLOCK_META_NUM_BYTES] =
-            block_meta_bytes.try_into().unwrap();
+    for &block_meta_bytes in data.as_chunks::<SERIALIZED_BLOCK_META_NUM_BYTES>().0 {
         let SerializedBlockMeta {
             block_id,
             num_non_null_rows,

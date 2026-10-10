@@ -1,5 +1,4 @@
 use std::net::Ipv6Addr;
-use std::sync::Arc;
 use std::{fmt, io};
 
 use common::file_slice::FileSlice;
@@ -51,6 +50,20 @@ impl DynamicColumn {
             DynamicColumn::DateTime(c) => &c.index,
             DynamicColumn::Bytes(c) => &c.ords().index,
             DynamicColumn::Str(c) => &c.ords().index,
+        }
+    }
+
+    /// Consumes the dynamic column and returns its underlying column index.
+    pub fn into_column_index(self) -> ColumnIndex {
+        match self {
+            DynamicColumn::Bool(c) => c.index,
+            DynamicColumn::I64(c) => c.index,
+            DynamicColumn::U64(c) => c.index,
+            DynamicColumn::F64(c) => c.index,
+            DynamicColumn::IpAddr(c) => c.index,
+            DynamicColumn::DateTime(c) => c.index,
+            DynamicColumn::Bytes(c) => c.into_column_index(),
+            DynamicColumn::Str(c) => c.into_column_index(),
         }
     }
 
@@ -110,11 +123,11 @@ impl DynamicColumn {
         match self {
             DynamicColumn::I64(column) => Some(DynamicColumn::F64(Column {
                 index: column.index,
-                values: Arc::new(monotonic_map_column(column.values, MapI64ToF64)),
+                values: monotonic_map_column(column.values, MapI64ToF64),
             })),
             DynamicColumn::U64(column) => Some(DynamicColumn::F64(Column {
                 index: column.index,
-                values: Arc::new(monotonic_map_column(column.values, MapU64ToF64)),
+                values: monotonic_map_column(column.values, MapU64ToF64),
             })),
             DynamicColumn::F64(_) => Some(self),
             _ => None,
@@ -128,7 +141,7 @@ impl DynamicColumn {
                 }
                 Some(DynamicColumn::I64(Column {
                     index: column.index,
-                    values: Arc::new(monotonic_map_column(column.values, MapU64ToI64)),
+                    values: monotonic_map_column(column.values, MapU64ToI64),
                 }))
             }
             DynamicColumn::I64(_) => Some(self),
@@ -143,7 +156,7 @@ impl DynamicColumn {
                 }
                 Some(DynamicColumn::U64(Column {
                     index: column.index,
-                    values: Arc::new(monotonic_map_column(column.values, MapI64ToU64)),
+                    values: monotonic_map_column(column.values, MapI64ToU64),
                 }))
             }
             DynamicColumn::U64(_) => Some(self),

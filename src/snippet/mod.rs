@@ -115,6 +115,7 @@ impl FragmentCandidate {
 #[derive(Debug)]
 pub struct Snippet {
     fragment: String,
+    fragment_range: Range<usize>,
     highlighted: Vec<Range<usize>>,
     snippet_prefix: String,
     snippet_postfix: String,
@@ -122,9 +123,10 @@ pub struct Snippet {
 
 impl Snippet {
     /// Create a new `Snippet`.
-    fn new(fragment: &str, highlighted: Vec<Range<usize>>) -> Self {
+    fn new(fragment: &str, fragment_range: Range<usize>, highlighted: Vec<Range<usize>>) -> Self {
         Self {
             fragment: fragment.to_string(),
+            fragment_range,
             highlighted,
             snippet_prefix: DEFAULT_SNIPPET_PREFIX.to_string(),
             snippet_postfix: DEFAULT_SNIPPET_POSTFIX.to_string(),
@@ -135,6 +137,7 @@ impl Snippet {
     pub fn empty() -> Snippet {
         Snippet {
             fragment: String::new(),
+            fragment_range: 0..0,
             highlighted: Vec::new(),
             snippet_prefix: String::new(),
             snippet_postfix: String::new(),
@@ -167,6 +170,15 @@ impl Snippet {
     /// Returns the fragment of text used in the  snippet.
     pub fn fragment(&self) -> &str {
         &self.fragment
+    }
+
+    /// Returns the byte range of the fragment within the text the snippet was
+    /// generated from.
+    ///
+    /// For [`SnippetGenerator::snippet_from_doc`], that text is the field's
+    /// values joined by a single space and trimmed.
+    pub fn fragment_range(&self) -> Range<usize> {
+        self.fragment_range.clone()
     }
 
     /// Returns a list of highlighted positions from the `Snippet`.
@@ -250,7 +262,11 @@ fn select_best_fragment_combination(fragments: &[FragmentCandidate], text: &str)
             .iter()
             .map(|item| item.start - fragment.start_offset..item.end - fragment.start_offset)
             .collect();
-        Snippet::new(fragment_text, highlighted)
+        Snippet::new(
+            fragment_text,
+            fragment.start_offset..fragment.stop_offset,
+            highlighted,
+        )
     } else {
         // When there are no fragments to chose from,
         // for now create an empty snippet.
@@ -596,6 +612,7 @@ Survey in 2016, 2017, and 2018."#;
 
         let snippet = select_best_fragment_combination(&fragments[..], text);
         assert_eq!(snippet.fragment, "c d");
+        assert_eq!(snippet.fragment_range(), 4..7);
         assert_eq!(snippet.to_html(), "<b>c</b> d");
     }
 
@@ -619,7 +636,28 @@ Survey in 2016, 2017, and 2018."#;
 
         let snippet = select_best_fragment_combination(&fragments[..], text);
         assert_eq!(snippet.fragment, "e f");
+        assert_eq!(snippet.fragment_range(), 8..11);
         assert_eq!(snippet.to_html(), "e <b>f</b>");
+    }
+
+    #[test]
+    fn test_snippet_fragment_range_with_repeated_text() {
+        // "a b" also occurs earlier, straddling a fragment boundary, so a
+        // text search for the fragment would locate the wrong occurrence.
+        let text = "x a b y a b";
+
+        let mut terms = BTreeMap::new();
+        terms.insert(String::from("a"), 1.0);
+        terms.insert(String::from("b"), 1.0);
+
+        let fragments =
+            search_fragments(&mut From::from(SimpleTokenizer::default()), text, &terms, 3);
+
+        let snippet = select_best_fragment_combination(&fragments[..], text);
+        assert_eq!(snippet.fragment, "a b");
+        assert_eq!(snippet.fragment_range(), 8..11);
+        assert_eq!(&text[snippet.fragment_range()], snippet.fragment());
+        assert_ne!(text.find(snippet.fragment()), Some(8));
     }
 
     #[test]
@@ -675,6 +713,7 @@ Survey in 2016, 2017, and 2018."#;
 
         let snippet = select_best_fragment_combination(&fragments[..], text);
         assert_eq!(snippet.fragment, "");
+        assert_eq!(snippet.fragment_range(), 0..0);
         assert_eq!(snippet.to_html(), "");
         assert!(snippet.is_empty());
     }

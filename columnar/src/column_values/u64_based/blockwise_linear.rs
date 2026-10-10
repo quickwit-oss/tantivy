@@ -241,6 +241,28 @@ mod tests {
     use super::*;
     use crate::column_values::u64_based::tests::create_and_validate;
 
+    // A block boundary where a high run ends and a low run begins: y0 ≈ 2^32, y511 ≈ 0.
+    // This large jump used to cause an overflow which made us render all value on 64b
+    // when 32 was enough.
+    fn large_descending_jump_vals() -> Vec<u64> {
+        let high_start: u64 = 4_294_967_039; // ≈ 2^32 - 257
+        (0u64..256)
+            .map(|i| high_start + i)
+            .chain(0u64..256)
+            .collect()
+    }
+
+    #[test]
+    fn test_blockwise_linear_large_descending_jump_uses_at_most_32bit() {
+        let vals = large_descending_jump_vals();
+        let (_, actual_rate) =
+            create_and_validate::<BlockwiseLinearCodec>(&vals, "large descending jump").unwrap();
+        assert!(
+            actual_rate <= 0.6,
+            "compression rate {actual_rate:.3} is too high (bug: 64-bit residuals)"
+        );
+    }
+
     #[test]
     fn test_with_codec_data_sets_simple() {
         create_and_validate::<BlockwiseLinearCodec>(

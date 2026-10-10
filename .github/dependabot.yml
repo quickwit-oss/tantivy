@@ -6,6 +6,8 @@ updates:
     interval: daily
     time: "20:00"
   open-pull-requests-limit: 10
+  cooldown:
+    default-days: 2
 
 - package-ecosystem: "github-actions"
   directory: "/"
@@ -13,3 +15,5 @@ updates:
     interval: daily
     time: "20:00"
   open-pull-requests-limit: 10
+  cooldown:
+    default-days: 2

@@ -1,5 +1,7 @@
 use std::borrow::{Borrow, BorrowMut};
 
+use common::TinySet;
+
 use crate::fastfield::AliveBitSet;
 use crate::DocId;
 
@@ -13,6 +15,12 @@ pub const TERMINATED: DocId = i32::MAX as u32;
 /// Passed results to `collect_block` will not exceed this size and will be
 /// exactly this size as long as we can fill the buffer.
 pub const COLLECT_BLOCK_BUFFER_LEN: usize = 64;
+
+/// Number of `TinySet` (64-bit) buckets in a block used by [`DocSet::fill_bitset_block`].
+pub const BLOCK_NUM_TINYBITSETS: usize = 16;
+
+/// Number of doc IDs covered by one block: `BLOCK_NUM_TINYBITSETS * 64 = 1024`.
+pub const BLOCK_WINDOW: u32 = BLOCK_NUM_TINYBITSETS as u32 * 64;
 
 /// Represents an iterable set of sorted doc ids.
 pub trait DocSet: Send {
@@ -160,6 +168,31 @@ pub trait DocSet: Send {
         self.size_hint() as u64
     }
 
+    /// Fills a bitmask representing which documents in `[min_doc, min_doc + BLOCK_WINDOW)` are
+    /// present in this docset.
+    ///
+    /// The window is divided into `BLOCK_NUM_TINYBITSETS` buckets of 64 docs each.
+    /// Returns the next doc `>= min_doc + BLOCK_WINDOW`, or `TERMINATED` if exhausted.
+    fn fill_bitset_block(
+        &mut self,
+        min_doc: DocId,
+        mask: &mut [TinySet; BLOCK_NUM_TINYBITSETS],
+    ) -> DocId {
+        self.seek(min_doc);
+        let horizon = min_doc + BLOCK_WINDOW;
+        loop {
+            let doc = self.doc();
+            if doc >= horizon {
+                return doc;
+            }
+            let delta = doc - min_doc;
+            mask[(delta / 64) as usize].insert_mut(delta % 64);
+            if self.advance() == TERMINATED {
+                return TERMINATED;
+            }
+        }
+    }
+
     /// Returns the number documents matching.
     /// Calling this method consumes the `DocSet`.
     fn count(&mut self, alive_bitset: &AliveBitSet) -> u32 {
@@ -190,6 +223,7 @@ pub trait DocSet: Send {
     }
 }
 
+/// The result of [`DocSet::seek_danger`].
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum SeekDangerResult {
     /// The target was found in the DocSet.
@@ -198,6 +232,10 @@ pub enum SeekDangerResult {
     /// We return a range in which the value could be.
     /// The given target can be any DocId, that is <= than the first document
     /// in the docset after the target.
+    ///
+    /// When the target is less than [`TERMINATED`], that doc id is required to be strictly greater
+    /// than the target used in the `seek_danger` call. For a target equal to [`TERMINATED`],
+    /// `SeekLowerBound(TERMINATED)` is returned.
     SeekLowerBound(DocId),
 }
 
@@ -212,6 +250,18 @@ impl DocSet for &mut dyn DocSet {
 
     fn seek_danger(&mut self, target: DocId) -> SeekDangerResult {
         (**self).seek_danger(target)
+    }
+
+    fn fill_buffer(&mut self, buffer: &mut [DocId; COLLECT_BLOCK_BUFFER_LEN]) -> usize {
+        (**self).fill_buffer(buffer)
+    }
+
+    fn fill_bitset_block(
+        &mut self,
+        min_doc: DocId,
+        mask: &mut [TinySet; BLOCK_NUM_TINYBITSETS],
+    ) -> DocId {
+        (**self).fill_bitset_block(min_doc, mask)
     }
 
     fn doc(&self) -> u32 {
@@ -254,6 +304,15 @@ impl<TDocSet: DocSet + ?Sized> DocSet for Box<TDocSet> {
     fn fill_buffer(&mut self, buffer: &mut [DocId; COLLECT_BLOCK_BUFFER_LEN]) -> usize {
         let unboxed: &mut TDocSet = self.borrow_mut();
         unboxed.fill_buffer(buffer)
+    }
+
+    fn fill_bitset_block(
+        &mut self,
+        min_doc: DocId,
+        mask: &mut [TinySet; BLOCK_NUM_TINYBITSETS],
+    ) -> DocId {
+        let unboxed: &mut TDocSet = self.borrow_mut();
+        unboxed.fill_bitset_block(min_doc, mask)
     }
 
     fn doc(&self) -> DocId {

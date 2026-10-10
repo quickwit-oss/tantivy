@@ -1,0 +1,3 @@
+disallowed-methods = [
+    { path = "std::path::Path::exists", reason = "Path::exists hides filesystem errors", replacement = "std::path::Path::try_exists" },
+]

@@ -130,16 +130,15 @@ impl PercentilesAggregationReq {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Debug)]
 pub(crate) struct SegmentPercentilesCollector {
     pub(crate) buckets: Vec<PercentilesCollector>,
-    pub(crate) accessor_idx: usize,
-    /// The type of the field.
-    pub field_type: ColumnType,
+    /// The name of the aggregation.
+    pub(crate) name: String,
     /// The missing value normalized to the internal u64 representation of the field type.
     pub missing_u64: Option<u64>,
     /// The column accessor to access the fast field values.
-    pub accessor: Column<u64>,
+    pub(crate) accessor: Box<dyn ValueSource>,
 }
 
 #[derive(Clone, Serialize, Deserialize)]
@@ -176,6 +175,15 @@ fn format_percentile(percentile: f64) -> String {
 }
 
 impl PercentilesCollector {
+    /// Returns the value at the given percentile (0–100). Returns `None` when the sketch is empty.
+    pub(crate) fn get_percentile(&self, percentile: f64) -> crate::Result<Option<f64>> {
+        self.sketch.quantile(percentile / 100.0).map_err(|err| {
+            TantivyError::AggregationError(crate::aggregation::AggregationError::InvalidRequest(
+                format!("percentile {percentile} out of range: {err}"),
+            ))
+        })
+    }
+
     /// Convert result into final result. This will query the quantils from the underlying quantil
     /// collector.
     pub fn into_final_result(self, req: &PercentilesAggregationReq) -> PercentilesMetricResult {
@@ -240,18 +248,12 @@ impl PercentilesCollector {
 }
 
 impl SegmentPercentilesCollector {
-    pub fn from_req_and_validate(
-        field_type: ColumnType,
-        missing_u64: Option<u64>,
-        accessor: Column<u64>,
-        accessor_idx: usize,
-    ) -> Self {
+    pub(crate) fn from_req_and_validate(req_data: MetricAggReqData) -> Self {
         Self {
             buckets: Vec::with_capacity(64),
-            field_type,
-            missing_u64,
-            accessor,
-            accessor_idx,
+            name: req_data.name,
+            missing_u64: req_data.missing_u64,
+            accessor: req_data.accessor,
         }
     }
 }
@@ -264,7 +266,7 @@ impl SegmentAggregationCollector for SegmentPercentilesCollector {
         results: &mut IntermediateAggregationResults,
         parent_bucket_id: BucketId,
     ) -> crate::Result<()> {
-        let name = agg_data.get_metric_req_data(self.accessor_idx).name.clone();
+        let name = self.name.clone();
         self.prepare_max_bucket(parent_bucket_id, agg_data)?;
         // Swap collector with an empty one to avoid cloning
         let percentiles_collector = std::mem::take(&mut self.buckets[parent_bucket_id as usize]);
@@ -290,12 +292,13 @@ impl SegmentAggregationCollector for SegmentPercentilesCollector {
         let percentiles = &mut self.buckets[parent_bucket_id as usize];
         agg_data.column_block_accessor.fetch_block_with_missing(
             docs,
-            &self.accessor,
+            &mut *self.accessor,
             self.missing_u64,
         );
 
+        let field_type = self.accessor.column_type();
         for val in agg_data.column_block_accessor.iter_vals() {
-            let val1 = f64_from_fastfield_u64(val, self.field_type);
+            let val1 = f64_from_fastfield_u64(val, field_type);
             percentiles.collect(val1);
         }
 
@@ -311,6 +314,26 @@ impl SegmentAggregationCollector for SegmentPercentilesCollector {
             self.buckets.push(PercentilesCollector::new());
         }
         Ok(())
+    }
+
+    fn compute_metric_value(
+        &self,
+        bucket_id: BucketId,
+        sub_agg_name: &str,
+        sub_agg_property: &str,
+        _agg_data: &AggregationsSegmentCtx,
+    ) -> Option<f64> {
+        if self.name != sub_agg_name {
+            return None;
+        }
+        let percentile: f64 = sub_agg_property.parse().ok()?;
+        if !(0.0..=100.0).contains(&percentile) {
+            return None;
+        }
+        let bucket = self.buckets.get(bucket_id as usize)?;
+        // DDSketch.quantile is a pure read; calling it here for the cutoff sort does
+        // not affect the intermediate state used for the final result.
+        bucket.sketch.quantile(percentile / 100.0).ok().flatten()
     }
 }
 

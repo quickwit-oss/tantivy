@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 
-use common::ByteCount;
+use common::{BitSet, ByteCount};
 
 use super::collector::DEFAULT_MEMORY_LIMIT;
 use super::{AggregationError, DEFAULT_BUCKET_LIMIT};
@@ -10,6 +10,14 @@ use super::{AggregationError, DEFAULT_BUCKET_LIMIT};
 /// An estimate for memory consumption. Non recursive
 pub trait MemoryConsumption {
     fn memory_consumption(&self) -> usize;
+}
+
+impl MemoryConsumption for BitSet {
+    /// Heap bytes of the bitset. It allocates one `u64` word per 64 values up to `max_value`,
+    /// regardless of how many values are set.
+    fn memory_consumption(&self) -> usize {
+        self.max_value().div_ceil(64) as usize * std::mem::size_of::<u64>()
+    }
 }
 
 impl<K, V, S> MemoryConsumption for HashMap<K, V, S> {

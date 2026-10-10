@@ -24,17 +24,17 @@ use crate::{DocAddress, DocId, SegmentOrdinal};
 /// Contains all information required by the TopHitsSegmentCollector to perform the
 /// top_hits aggregation on a segment.
 #[derive(Default)]
-pub struct TopHitsAggReqData {
+pub(crate) struct TopHitsAggReqData {
     /// The accessors to access the fast field values.
-    pub accessors: Vec<(Column<u64>, ColumnType)>,
+    pub(crate) accessors: Vec<(Column<u64>, ColumnType)>,
     /// The accessors to access the fast field values for retrieving document fields.
-    pub value_accessors: HashMap<String, Vec<DynamicColumn>>,
+    pub(crate) value_accessors: HashMap<String, Vec<DynamicColumn>>,
     /// The ordinal of the segment this request data is for.
-    pub segment_ordinal: SegmentOrdinal,
+    pub(crate) segment_ordinal: SegmentOrdinal,
     /// The name of the aggregation.
-    pub name: String,
+    pub(crate) name: String,
     /// The top_hits aggregation request.
-    pub req: TopHitsAggregationReq,
+    pub(crate) req: TopHitsAggregationReq,
 }
 
 impl TopHitsAggReqData {
@@ -516,34 +516,35 @@ impl TopHitsTopNComputer {
     }
 }
 
-#[derive(Clone, Debug)]
 pub(crate) struct TopHitsSegmentCollector {
-    segment_ordinal: SegmentOrdinal,
-    accessor_idx: usize,
+    req_data: TopHitsAggReqData,
     buckets: Vec<TopNComputer<Vec<DocValueAndOrder>, DocAddress, ReverseComparator>>,
     num_hits: usize,
 }
 
+impl std::fmt::Debug for TopHitsSegmentCollector {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("TopHitsSegmentCollector")
+            .field("name", &self.req_data.name)
+            .field("segment_ordinal", &self.req_data.segment_ordinal)
+            .field("num_buckets", &self.buckets.len())
+            .field("num_hits", &self.num_hits)
+            .finish()
+    }
+}
+
 impl TopHitsSegmentCollector {
-    pub fn from_req(
-        req: &TopHitsAggregationReq,
-        accessor_idx: usize,
-        segment_ordinal: SegmentOrdinal,
-    ) -> Self {
-        let num_hits = req.size + req.from.unwrap_or(0);
+    pub(crate) fn from_req(req_data: TopHitsAggReqData) -> Self {
+        let num_hits = req_data.req.size + req_data.req.from.unwrap_or(0);
         Self {
             num_hits,
-            segment_ordinal,
-            accessor_idx,
+            req_data,
             buckets: vec![TopNComputer::new_with_comparator(num_hits, ReverseComparator); 1],
         }
     }
-    fn get_top_hits_computer(
-        &mut self,
-        parent_bucket_id: BucketId,
-        value_accessors: &HashMap<String, Vec<DynamicColumn>>,
-        req: &TopHitsAggregationReq,
-    ) -> TopHitsTopNComputer {
+    fn get_top_hits_computer(&mut self, parent_bucket_id: BucketId) -> TopHitsTopNComputer {
+        let req = &self.req_data.req;
+        let value_accessors = &self.req_data.value_accessors;
         if parent_bucket_id as usize >= self.buckets.len() {
             return TopHitsTopNComputer::new(req);
         }
@@ -572,21 +573,14 @@ impl TopHitsSegmentCollector {
 impl SegmentAggregationCollector for TopHitsSegmentCollector {
     fn add_intermediate_aggregation_result(
         &mut self,
-        agg_data: &AggregationsSegmentCtx,
+        _agg_data: &AggregationsSegmentCtx,
         results: &mut crate::aggregation::intermediate_agg_result::IntermediateAggregationResults,
         parent_bucket_id: BucketId,
     ) -> crate::Result<()> {
-        let req_data = agg_data.get_top_hits_req_data(self.accessor_idx);
-
-        let value_accessors = &req_data.value_accessors;
-
-        let intermediate_result = IntermediateMetricResult::TopHits(self.get_top_hits_computer(
-            parent_bucket_id,
-            value_accessors,
-            &req_data.req,
-        ));
+        let intermediate_result =
+            IntermediateMetricResult::TopHits(self.get_top_hits_computer(parent_bucket_id));
         results.push(
-            req_data.name.to_string(),
+            self.req_data.name.to_string(),
             IntermediateAggregationResult::Metric(intermediate_result),
         )
     }
@@ -596,10 +590,10 @@ impl SegmentAggregationCollector for TopHitsSegmentCollector {
         &mut self,
         parent_bucket_id: BucketId,
         docs: &[crate::DocId],
-        agg_data: &mut AggregationsSegmentCtx,
+        _agg_data: &mut AggregationsSegmentCtx,
     ) -> crate::Result<()> {
         let top_n = &mut self.buckets[parent_bucket_id as usize];
-        let req_data = agg_data.get_top_hits_req_data(self.accessor_idx);
+        let req_data = &self.req_data;
         let req = &req_data.req;
         let accessors = &req_data.accessors;
         for &doc_id in docs {
@@ -625,7 +619,7 @@ impl SegmentAggregationCollector for TopHitsSegmentCollector {
             top_n.push(
                 sorts,
                 DocAddress {
-                    segment_ord: self.segment_ordinal,
+                    segment_ord: req_data.segment_ordinal,
                     doc_id,
                 },
             );
@@ -643,6 +637,17 @@ impl SegmentAggregationCollector for TopHitsSegmentCollector {
             TopNComputer::new_with_comparator(self.num_hits, ReverseComparator),
         );
         Ok(())
+    }
+
+    fn compute_metric_value(
+        &self,
+        _bucket_id: BucketId,
+        _sub_agg_name: &str,
+        _sub_agg_property: &str,
+        _agg_data: &AggregationsSegmentCtx,
+    ) -> Option<f64> {
+        // top_hits is not a numeric metric and cannot be used as an order target.
+        None
     }
 }
 

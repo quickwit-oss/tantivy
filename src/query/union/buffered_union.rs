@@ -1,6 +1,6 @@
 use common::TinySet;
 
-use crate::docset::{DocSet, SeekDangerResult, TERMINATED};
+use crate::docset::{DocSet, COLLECT_BLOCK_BUFFER_LEN, TERMINATED};
 use crate::query::score_combiner::{DoNothingCombiner, ScoreCombiner};
 use crate::query::size_hint::estimate_union;
 use crate::query::Scorer;
@@ -10,23 +10,6 @@ use crate::{DocId, Score};
 // of upcoming document IDs (the "horizon").
 const HORIZON_NUM_TINYBITSETS: usize = HORIZON as usize / 64;
 const HORIZON: u32 = 64u32 * 64u32;
-
-// `drain_filter` is not stable yet.
-// This function is similar except that it does is not unstable, and
-// it does not keep the original vector ordering.
-//
-// Elements are dropped and not yielded.
-fn unordered_drain_filter<T, P>(v: &mut Vec<T>, mut predicate: P)
-where P: FnMut(&mut T) -> bool {
-    let mut i = 0;
-    while i < v.len() {
-        if predicate(&mut v[i]) {
-            v.swap_remove(i);
-        } else {
-            i += 1;
-        }
-    }
-}
 
 /// Creates a `DocSet` that iterate through the union of two or more `DocSet`s.
 pub struct BufferedUnionScorer<TScorer, TScoreCombiner = DoNothingCombiner> {
@@ -55,29 +38,32 @@ pub struct BufferedUnionScorer<TScorer, TScoreCombiner = DoNothingCombiner> {
     num_docs: u32,
 }
 
+// Keep this helper out-of-line. When LLVM inlines it into
+// `BufferedUnionScorer::advance`, the full traversal path used by combined
+// collectors such as `(TopDocs, Count)` becomes sensitive to unrelated codegen
+// changes and regresses on large unions.
+#[inline(never)]
 fn refill<TScorer: Scorer, TScoreCombiner: ScoreCombiner>(
     scorers: &mut Vec<TScorer>,
     bitsets: &mut [TinySet; HORIZON_NUM_TINYBITSETS],
     score_combiner: &mut [TScoreCombiner; HORIZON as usize],
     min_doc: DocId,
 ) {
-    unordered_drain_filter(scorers, |scorer| {
-        let horizon = min_doc + HORIZON;
+    let horizon = min_doc + HORIZON;
+    for scorer in scorers.iter_mut() {
         loop {
             let doc = scorer.doc();
             if doc >= horizon {
-                return false;
+                break;
             }
             // add this document
             let delta = doc - min_doc;
             bitsets[(delta / 64) as usize].insert_mut(delta % 64u32);
             score_combiner[delta as usize].update(scorer);
-            if scorer.advance() == TERMINATED {
-                // remove the docset, it has been entirely consumed.
-                return true;
-            }
+            scorer.advance();
         }
-    });
+    }
+    scorers.retain(|scorer| scorer.doc() != TERMINATED);
 }
 
 impl<TScorer: Scorer, TScoreCombiner: ScoreCombiner> BufferedUnionScorer<TScorer, TScoreCombiner> {
@@ -109,6 +95,7 @@ impl<TScorer: Scorer, TScoreCombiner: ScoreCombiner> BufferedUnionScorer<TScorer
         union
     }
 
+    #[inline(never)]
     fn refill(&mut self) -> bool {
         if let Some(min_doc) = self.docsets.iter().map(DocSet::doc).min() {
             // Reset the sliding window to start at the smallest doc
@@ -144,12 +131,6 @@ impl<TScorer: Scorer, TScoreCombiner: ScoreCombiner> BufferedUnionScorer<TScorer
         }
         false
     }
-
-    fn is_in_horizon(&self, target: DocId) -> bool {
-        // wrapping_sub, because target may be < window_start_doc
-        let gap = target.wrapping_sub(self.window_start_doc);
-        gap < HORIZON
-    }
 }
 
 impl<TScorer, TScoreCombiner> DocSet for BufferedUnionScorer<TScorer, TScoreCombiner>
@@ -157,19 +138,58 @@ where
     TScorer: Scorer,
     TScoreCombiner: ScoreCombiner,
 {
-    #[inline]
     fn advance(&mut self) -> DocId {
-        if self.advance_buffered() {
-            return self.doc;
+        // A loop rather than two sequential advance_buffered calls
+        // produces a single inlined copy
+        loop {
+            if self.advance_buffered() {
+                return self.doc;
+            }
+            if !self.refill() {
+                self.doc = TERMINATED;
+                return TERMINATED;
+            }
         }
-        if !self.refill() {
-            self.doc = TERMINATED;
-            return TERMINATED;
+    }
+
+    fn fill_buffer(&mut self, buffer: &mut [DocId; COLLECT_BLOCK_BUFFER_LEN]) -> usize {
+        if self.doc == TERMINATED {
+            return 0;
         }
-        if !self.advance_buffered() {
-            return TERMINATED;
+        // The current doc (self.doc) has already been popped from the bitsets,
+        // so the loop below won't yield it. Emit it here first.
+        buffer[0] = self.doc;
+        let mut count = 1;
+
+        loop {
+            // Drain docs directly from the pre-computed bitsets.
+            while self.bucket_idx < HORIZON_NUM_TINYBITSETS {
+                // Move bitset to a local variable to avoid read/store on self.bitsets while
+                // iterating through the bits.
+                let mut tinyset: TinySet = self.bitsets[self.bucket_idx];
+
+                while let Some(val) = tinyset.pop_lowest() {
+                    let delta = val + (self.bucket_idx as u32) * 64;
+                    self.doc = self.window_start_doc + delta;
+
+                    if count >= COLLECT_BLOCK_BUFFER_LEN {
+                        // Buffer full; put remaining bits back.
+                        self.bitsets[self.bucket_idx] = tinyset;
+                        return COLLECT_BLOCK_BUFFER_LEN;
+                    }
+                    buffer[count] = self.doc;
+                    count += 1;
+                }
+                self.bitsets[self.bucket_idx] = TinySet::empty();
+                self.bucket_idx += 1;
+            }
+
+            // Current window exhausted, refill.
+            if !self.refill() {
+                self.doc = TERMINATED;
+                return count;
+            }
         }
-        self.doc
     }
 
     fn seek(&mut self, target: DocId) -> DocId {
@@ -208,12 +228,12 @@ where
 
             // The target is outside of the buffered horizon.
             // advance all docsets to a doc >= to the target.
-            unordered_drain_filter(&mut self.docsets, |docset| {
+            for docset in &mut self.docsets {
                 if docset.doc() < target {
                     docset.seek(target);
                 }
-                docset.doc() == TERMINATED
-            });
+            }
+            self.docsets.retain(|docset| docset.doc() != TERMINATED);
 
             // at this point all of the docsets
             // are positioned on a doc >= to the target.
@@ -225,49 +245,8 @@ where
         }
     }
 
-    fn seek_danger(&mut self, target: DocId) -> SeekDangerResult {
-        if target >= TERMINATED {
-            return SeekDangerResult::SeekLowerBound(TERMINATED);
-        }
-        if self.is_in_horizon(target) {
-            // Our value is within the buffered horizon and the docset may already have been
-            // processed and removed, so we need to use seek, which uses the regular advance.
-            let seek_doc = self.seek(target);
-            if seek_doc == target {
-                return SeekDangerResult::Found;
-            } else {
-                return SeekDangerResult::SeekLowerBound(seek_doc);
-            };
-        }
-
-        // The docsets are not in the buffered range, so we can use seek_into_the_danger_zone
-        // of the underlying docsets
-        let mut is_hit = false;
-        let mut min_new_target = TERMINATED;
-
-        for docset in self.docsets.iter_mut() {
-            match docset.seek_danger(target) {
-                SeekDangerResult::Found => {
-                    is_hit = true;
-                    break;
-                }
-                SeekDangerResult::SeekLowerBound(new_target) => {
-                    min_new_target = min_new_target.min(new_target);
-                }
-            }
-        }
-
-        // The API requires the DocSet to be in a valid state when `seek_into_the_danger_zone`
-        // returns Found.
-        if is_hit {
-            // The doc is found. Let's make sure we position the union on the target
-            // to bring it back to a valid state.
-            self.seek(target);
-            SeekDangerResult::Found
-        } else {
-            SeekDangerResult::SeekLowerBound(min_new_target)
-        }
-    }
+    // Use the default seek_danger: forwarding to children can leave them invalid
+    // when another child matches, making an ordinary seek/refill unsafe (#3086).
 
     #[inline]
     fn doc(&self) -> DocId {

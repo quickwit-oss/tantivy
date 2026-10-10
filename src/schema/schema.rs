@@ -57,6 +57,21 @@ impl SchemaBuilder {
         self.add_field(field_entry)
     }
 
+    /// Adds a generated tie-breaker fast field.
+    ///
+    /// The field is exposed as an `i64` fast field with values in the `i32` range. Values are
+    /// consecutive within a segment, starting at a random offset. Ranges of different segments
+    /// may overlap, so values are almost always distinct but not guaranteed to be unique.
+    ///
+    /// Values supplied by documents for this field are ignored.
+    ///
+    /// # Panics
+    ///
+    /// Panics when field already exists.
+    pub fn add_tie_breaker_field(&mut self, field_name_str: &str) -> Field {
+        self.add_field(FieldEntry::new_tie_breaker(field_name_str.to_string()))
+    }
+
     /// Adds a new i64 field.
     /// Returns the associated field handle
     ///
@@ -201,6 +216,25 @@ impl SchemaBuilder {
         field_options: T,
     ) -> Field {
         let field_entry = FieldEntry::new_spatial(field_name.to_string(), field_options.into());
+        self.add_field(field_entry)
+    }
+
+    /// Adds a plugin-defined custom field to the schema.
+    ///
+    /// `type_name` identifies the custom type a plugin will consume (e.g. `"vec"`); `params`
+    /// carries opaque, type-specific configuration. Custom fields are ignored by the built-in
+    /// components — populate them with [`add_custom`](crate::TantivyDocument::add_custom) and
+    /// consume them from a [`SegmentPlugin`](crate::SegmentPlugin).
+    pub fn add_custom_field<T: Into<String>>(
+        &mut self,
+        field_name: &str,
+        type_name: T,
+        params: serde_json::Value,
+    ) -> Field {
+        let field_entry = FieldEntry::new_custom(
+            field_name.to_string(),
+            CustomOptions::new(type_name, params),
+        );
         self.add_field(field_entry)
     }
 

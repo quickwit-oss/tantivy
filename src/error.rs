@@ -110,6 +110,26 @@ pub enum TantivyError {
     #[error("Deserialize error: {0}")]
     /// An error occurred while attempting to deserialize a document.
     DeserializeError(DeserializeError),
+    /// A segment plugin required by the index is not registered.
+    #[error(
+        "Missing required segment plugin(s) for extension(s): {0}. Re-register via \
+         Index::register_plugin before writing, merging, or garbage collecting."
+    )]
+    MissingPlugin(String),
+    /// Multiple registered segment plugins claim ownership of the same extension(s).
+    #[error(
+        "Conflicting segment plugins claim the same extension(s): {0}. Each extension must be \
+         owned by exactly one registered plugin."
+    )]
+    ConflictingPlugins(String),
+    /// A segment plugin was registered on a non-empty index whose existing segments do not
+    /// contain its extension(s).
+    #[error(
+        "Segment plugin(s) for extension(s) {0} were registered on a non-empty index whose \
+         existing segments do not contain them. The plugin set is fixed once an index has \
+         segments; create a new index to change it."
+    )]
+    UnexpectedPlugin(String),
 }
 
 impl From<io::Error> for TantivyError {

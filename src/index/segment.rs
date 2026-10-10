@@ -82,9 +82,9 @@ impl Segment {
     }
 
     /// Open one of the component file for *regular* write.
-    pub fn open_write(&mut self, component: SegmentComponent) -> Result<WritePtr, OpenWriteError> {
+    pub fn open_write(&self, component: SegmentComponent) -> Result<WritePtr, OpenWriteError> {
         let path = self.relative_path(component);
-        let write = self.index.directory_mut().open_write(&path)?;
+        let write = self.index.directory().open_write(&path)?;
         Ok(write)
     }
 }

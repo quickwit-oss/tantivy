@@ -77,6 +77,17 @@ impl SpatialWriter {
                 .sum::<usize>()
     }
 
+    /// Renumber the documents, as a segment sorted by a field is, and order each field's sets
+    /// by their new ids.
+    pub(crate) fn remap_doc_ids(&mut self, new_doc_id: impl Fn(DocId) -> DocId) {
+        for data in self.data_by_field.values_mut() {
+            for set in &mut data.sets {
+                set.doc_id = new_doc_id(set.doc_id);
+            }
+            data.sets.sort_by_key(|set| set.doc_id);
+        }
+    }
+
     /// Serialize all fields.
     pub fn serialize(&mut self, mut serializer: SpatialSerializer) -> io::Result<()> {
         for (field, data) in &self.data_by_field {

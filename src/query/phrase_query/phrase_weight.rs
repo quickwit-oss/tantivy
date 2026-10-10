@@ -1,4 +1,5 @@
 use super::PhraseScorer;
+use crate::docset::SeekDangerResult;
 use crate::fieldnorm::FieldNormReader;
 use crate::index::SegmentReader;
 use crate::postings::SegmentPostings;
@@ -6,7 +7,7 @@ use crate::query::bm25::Bm25Weight;
 use crate::query::explanation::does_not_match;
 use crate::query::{EmptyScorer, Explanation, Scorer, Weight};
 use crate::schema::{IndexRecordOption, Term};
-use crate::{DocId, DocSet, Score};
+use crate::{DocId, DocSet, Score, TERMINATED};
 
 pub struct PhraseWeight {
     phrase_terms: Vec<(usize, Term)>,
@@ -44,6 +45,23 @@ impl PhraseWeight {
         reader: &SegmentReader,
         boost: Score,
     ) -> crate::Result<Option<PhraseScorer<SegmentPostings>>> {
+        let Some((seek_result, mut scorer)) = self.phrase_scorer_danger(reader, 0, boost)? else {
+            return Ok(None);
+        };
+        if let SeekDangerResult::SeekLowerBound(target) = seek_result {
+            if target < TERMINATED {
+                scorer.seek(target);
+            }
+        }
+        Ok(Some(scorer))
+    }
+
+    fn phrase_scorer_danger(
+        &self,
+        reader: &SegmentReader,
+        target: DocId,
+        boost: Score,
+    ) -> crate::Result<Option<(SeekDangerResult, PhraseScorer<SegmentPostings>)>> {
         let similarity_weight_opt = self
             .similarity_weight_opt
             .as_ref()
@@ -51,20 +69,21 @@ impl PhraseWeight {
         let fieldnorm_reader = self.fieldnorm_reader(reader)?;
         let mut term_postings_list = Vec::new();
         for &(offset, ref term) in &self.phrase_terms {
-            if let Some(postings) = reader
+            let Some(postings) = reader
                 .inverted_index(term.field())?
                 .read_postings(term, IndexRecordOption::WithFreqsAndPositions)?
-            {
-                term_postings_list.push((offset, postings));
-            } else {
+            else {
                 return Ok(None);
-            }
+            };
+            term_postings_list.push((offset, postings));
         }
-        Ok(Some(PhraseScorer::new(
+        Ok(Some(PhraseScorer::new_danger(
             term_postings_list,
             similarity_weight_opt,
             fieldnorm_reader,
             self.slop,
+            0,
+            target,
         )))
     }
 
@@ -80,6 +99,21 @@ impl Weight for PhraseWeight {
         } else {
             Ok(Box::new(EmptyScorer))
         }
+    }
+
+    fn scorer_danger(
+        &self,
+        reader: &SegmentReader,
+        target: DocId,
+        boost: Score,
+    ) -> crate::Result<(SeekDangerResult, Box<dyn Scorer>)> {
+        let Some((seek_result, scorer)) = self.phrase_scorer_danger(reader, target, boost)? else {
+            return Ok((
+                SeekDangerResult::SeekLowerBound(TERMINATED),
+                Box::new(EmptyScorer),
+            ));
+        };
+        Ok((seek_result, Box::new(scorer)))
     }
 
     fn explain(&self, reader: &SegmentReader, doc: DocId) -> crate::Result<Explanation> {
@@ -105,8 +139,8 @@ impl Weight for PhraseWeight {
 #[cfg(test)]
 mod tests {
     use super::super::tests::create_index;
-    use crate::docset::TERMINATED;
-    use crate::query::{EnableScoring, PhraseQuery};
+    use crate::docset::{SeekDangerResult, TERMINATED};
+    use crate::query::{EnableScoring, PhraseQuery, Weight};
     use crate::{DocSet, Term};
 
     #[test]
@@ -130,6 +164,43 @@ mod tests {
         assert_eq!(phrase_scorer.doc(), 2);
         assert_eq!(phrase_scorer.phrase_count(), 1);
         assert_eq!(phrase_scorer.advance(), TERMINATED);
+        Ok(())
+    }
+
+    #[test]
+    fn test_phrase_weight_scorer_danger() -> crate::Result<()> {
+        let index = create_index(&["a b", "a c b", "a b", "a c"])?;
+        let schema = index.schema();
+        let text_field = schema.get_field("text").unwrap();
+        let searcher = index.reader()?.searcher();
+        let phrase_query = PhraseQuery::new(vec![
+            Term::from_field_text(text_field, "a"),
+            Term::from_field_text(text_field, "b"),
+        ]);
+        let phrase_weight =
+            phrase_query.phrase_weight(EnableScoring::disabled_from_searcher(&searcher))?;
+        let reader = searcher.segment_reader(0);
+
+        let (seek_result, mut scorer) = phrase_weight.scorer_danger(reader, 1, 1.0)?;
+        assert_eq!(seek_result, SeekDangerResult::SeekLowerBound(2));
+        assert_eq!(scorer.seek_danger(2), SeekDangerResult::Found);
+        assert_eq!(scorer.doc(), 2);
+
+        let (seek_result, scorer) = phrase_weight.scorer_danger(reader, 2, 1.0)?;
+        assert_eq!(seek_result, SeekDangerResult::Found);
+        assert_eq!(scorer.doc(), 2);
+
+        let (seek_result, _) = phrase_weight.scorer_danger(reader, 3, 1.0)?;
+        assert_eq!(seek_result, SeekDangerResult::SeekLowerBound(TERMINATED));
+
+        let scoring_phrase_weight =
+            phrase_query.phrase_weight(EnableScoring::enabled_from_searcher(&searcher))?;
+        let (seek_result, mut danger_scorer) =
+            scoring_phrase_weight.scorer_danger(reader, 2, 2.0)?;
+        assert_eq!(seek_result, SeekDangerResult::Found);
+        let mut regular_scorer = scoring_phrase_weight.scorer(reader, 2.0)?;
+        assert_eq!(regular_scorer.seek(2), 2);
+        assert_eq!(danger_scorer.score(), regular_scorer.score());
         Ok(())
     }
 }

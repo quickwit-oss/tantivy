@@ -10,9 +10,7 @@ use columnar::{
 use rustc_hash::FxHashMap;
 use smallvec::SmallVec;
 
-use crate::aggregation::agg_data::{
-    build_segment_agg_collectors, AggRefNode, AggregationsSegmentCtx,
-};
+use crate::aggregation::agg_data::AggregationsSegmentCtx;
 use crate::aggregation::bucket::composite::accessors::{
     CompositeAccessor, CompositeAggReqData, PrecomputedDateInterval,
 };
@@ -21,7 +19,7 @@ use crate::aggregation::bucket::composite::map::{DynArrayHeapMap, MAX_DYN_ARRAY_
 use crate::aggregation::bucket::{
     CalendarInterval, CompositeAggregationSource, MissingOrder, Order,
 };
-use crate::aggregation::cached_sub_aggs::{CachedSubAggs, HighCardSubAggCache};
+use crate::aggregation::buffered_sub_aggs::{BufferedSubAggs, HighCardSubAggBuffer};
 use crate::aggregation::intermediate_agg_result::{
     CompositeIntermediateKey, IntermediateAggregationResult, IntermediateAggregationResults,
     IntermediateBucketResult, IntermediateCompositeBucketEntry, IntermediateCompositeBucketResult,
@@ -118,8 +116,8 @@ impl InternalValueRepr {
 pub struct SegmentCompositeCollector {
     /// One DynArrayHeapMap per parent bucket.
     parent_buckets: Vec<DynArrayHeapMap<InternalValueRepr, CompositeBucketCollector>>,
-    accessor_idx: usize,
-    sub_agg: Option<CachedSubAggs<HighCardSubAggCache>>,
+    req_data: CompositeAggReqData,
+    sub_agg: Option<BufferedSubAggs<HighCardSubAggBuffer>>,
     bucket_id_provider: BucketIdProvider,
     /// Number of sources, needed when creating new DynArrayHeapMaps.
     num_sources: usize,
@@ -132,10 +130,7 @@ impl SegmentAggregationCollector for SegmentCompositeCollector {
         results: &mut IntermediateAggregationResults,
         parent_bucket_id: BucketId,
     ) -> crate::Result<()> {
-        let name = agg_data
-            .get_composite_req_data(self.accessor_idx)
-            .name
-            .clone();
+        let name = self.req_data.name.clone();
 
         let buckets = self.add_intermediate_bucket_result(agg_data, parent_bucket_id)?;
         results.push(
@@ -152,13 +147,12 @@ impl SegmentAggregationCollector for SegmentCompositeCollector {
         docs: &[crate::DocId],
         agg_data: &mut AggregationsSegmentCtx,
     ) -> crate::Result<()> {
-        let mem_pre = self.get_memory_consumption();
-        let composite_agg_data = agg_data.take_composite_req_data(self.accessor_idx);
+        let mem_pre = self.get_memory_consumption(parent_bucket_id);
 
         for doc in docs {
             let mut visitor = CompositeKeyVisitor {
                 doc_id: *doc,
-                composite_agg_data: &composite_agg_data,
+                composite_agg_data: &self.req_data,
                 buckets: &mut self.parent_buckets[parent_bucket_id as usize],
                 sub_agg: &mut self.sub_agg,
                 bucket_id_provider: &mut self.bucket_id_provider,
@@ -166,13 +160,12 @@ impl SegmentAggregationCollector for SegmentCompositeCollector {
             };
             visitor.visit(0, true)?;
         }
-        agg_data.put_back_composite_req_data(self.accessor_idx, composite_agg_data);
 
         if let Some(sub_agg) = &mut self.sub_agg {
             sub_agg.check_flush_local(agg_data)?;
         }
 
-        let mem_delta = self.get_memory_consumption() - mem_pre;
+        let mem_delta = self.get_memory_consumption(parent_bucket_id) - mem_pre;
         if mem_delta > 0 {
             agg_data.context.limits.add_memory_consumed(mem_delta)?;
         }
@@ -199,36 +192,36 @@ impl SegmentAggregationCollector for SegmentCompositeCollector {
         }
         Ok(())
     }
+
+    fn compute_metric_value(
+        &self,
+        _bucket_id: BucketId,
+        _sub_agg_name: &str,
+        _sub_agg_property: &str,
+        _agg_data: &AggregationsSegmentCtx,
+    ) -> Option<f64> {
+        // Composite is a multi-bucket agg with no single value to extract.
+        None
+    }
 }
 
 impl SegmentCompositeCollector {
-    fn get_memory_consumption(&self) -> u64 {
-        self.parent_buckets
-            .iter()
-            .map(|m| m.memory_consumption())
-            .sum()
+    fn get_memory_consumption(&self, parent_bucket_id: BucketId) -> u64 {
+        self.parent_buckets[parent_bucket_id as usize].memory_consumption()
     }
 
     pub(crate) fn from_req_and_validate(
-        req_data: &mut AggregationsSegmentCtx,
-        node: &AggRefNode,
+        composite_req_data: CompositeAggReqData,
+        sub_agg: Option<Box<dyn SegmentAggregationCollector>>,
     ) -> crate::Result<Self> {
-        validate_req(req_data, node.idx_in_req_data)?;
+        validate_req(&composite_req_data)?;
+        let sub_agg = sub_agg.map(BufferedSubAggs::new);
 
-        let has_sub_aggregations = !node.children.is_empty();
-        let sub_agg = if has_sub_aggregations {
-            let sub_agg_collector = build_segment_agg_collectors(req_data, &node.children)?;
-            Some(CachedSubAggs::new(sub_agg_collector))
-        } else {
-            None
-        };
-
-        let composite_req_data = req_data.get_composite_req_data(node.idx_in_req_data);
         let num_sources = composite_req_data.req.sources.len();
 
         Ok(SegmentCompositeCollector {
             parent_buckets: vec![DynArrayHeapMap::try_new(num_sources)?],
-            accessor_idx: node.idx_in_req_data,
+            req_data: composite_req_data,
             sub_agg,
             bucket_id_provider: BucketIdProvider::default(),
             num_sources,
@@ -250,7 +243,7 @@ impl SegmentCompositeCollector {
         let mut dict: FxHashMap<Vec<CompositeIntermediateKey>, IntermediateCompositeBucketEntry> =
             Default::default();
         dict.reserve(heap_map.size());
-        let composite_data = agg_data.get_composite_req_data(self.accessor_idx);
+        let composite_data = &self.req_data;
         for (key_internal_repr, agg) in heap_map.into_iter() {
             let key = resolve_key(&key_internal_repr, composite_data)?;
             let mut sub_aggregation_res = IntermediateAggregationResults::default();
@@ -267,7 +260,7 @@ impl SegmentCompositeCollector {
             dict.insert(
                 key,
                 IntermediateCompositeBucketEntry {
-                    doc_count: agg.count,
+                    doc_count: agg.count as u64,
                     sub_aggregation: sub_aggregation_res,
                 },
             );
@@ -290,8 +283,7 @@ impl SegmentCompositeCollector {
     }
 }
 
-fn validate_req(req_data: &mut AggregationsSegmentCtx, accessor_idx: usize) -> crate::Result<()> {
-    let composite_data = req_data.get_composite_req_data(accessor_idx);
+fn validate_req(composite_data: &CompositeAggReqData) -> crate::Result<()> {
     let req = &composite_data.req;
     if req.sources.is_empty() {
         return Err(TantivyError::InvalidArgument(
@@ -332,7 +324,7 @@ fn collect_bucket_with_limit(
     limit_num_buckets: usize,
     buckets: &mut DynArrayHeapMap<InternalValueRepr, CompositeBucketCollector>,
     key: &[InternalValueRepr],
-    sub_agg: &mut Option<CachedSubAggs<HighCardSubAggCache>>,
+    sub_agg: &mut Option<BufferedSubAggs<HighCardSubAggBuffer>>,
     bucket_id_provider: &mut BucketIdProvider,
 ) {
     let mut record_in_bucket = |bucket: &mut CompositeBucketCollector| {
@@ -488,7 +480,7 @@ struct CompositeKeyVisitor<'a> {
     doc_id: crate::DocId,
     composite_agg_data: &'a CompositeAggReqData,
     buckets: &'a mut DynArrayHeapMap<InternalValueRepr, CompositeBucketCollector>,
-    sub_agg: &'a mut Option<CachedSubAggs<HighCardSubAggCache>>,
+    sub_agg: &'a mut Option<BufferedSubAggs<HighCardSubAggBuffer>>,
     bucket_id_provider: &'a mut BucketIdProvider,
     sub_level_values: SmallVec<[InternalValueRepr; MAX_DYN_ARRAY_SIZE]>,
 }

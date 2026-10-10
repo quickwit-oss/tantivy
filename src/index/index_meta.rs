@@ -1,6 +1,8 @@
 use std::collections::HashSet;
 use std::fmt;
 use std::path::PathBuf;
+use std::sync::atomic::AtomicBool;
+use std::sync::Arc;
 
 use serde::{Deserialize, Serialize};
 
@@ -35,6 +37,7 @@ impl SegmentMetaInventory {
         let inner = InnerSegmentMeta {
             segment_id,
             max_doc,
+            include_temp_doc_store: Arc::new(AtomicBool::new(true)),
             deletes: None,
         };
         SegmentMeta::from(self.inventory.track(inner))
@@ -82,6 +85,15 @@ impl SegmentMeta {
         self.tracked.segment_id
     }
 
+    /// Removes the Component::TempStore from the alive list and
+    /// therefore marks the temp docstore file to be deleted by
+    /// the garbage collection.
+    pub fn untrack_temp_docstore(&self) {
+        self.tracked
+            .include_temp_doc_store
+            .store(false, std::sync::atomic::Ordering::Relaxed);
+    }
+
     /// Returns the number of deleted documents.
     pub fn num_deleted_docs(&self) -> u32 {
         self.tracked
@@ -91,17 +103,10 @@ impl SegmentMeta {
             .unwrap_or(0u32)
     }
 
-    /// Returns the list of files that
-    /// are required for the segment meta.
-    /// Note: Some of the returned files may not exist depending on the state of the segment.
-    ///
-    /// This is useful as the way tantivy removes files
-    /// is by removing all files that have been created by tantivy
-    /// and are not used by any segment anymore.
-    pub fn list_files(&self) -> HashSet<PathBuf> {
-        SegmentComponent::iterator()
-            .map(|component| self.relative_path(*component))
-            .collect::<HashSet<PathBuf>>()
+    pub(crate) fn include_temp_store(&self) -> bool {
+        self.tracked
+            .include_temp_doc_store
+            .load(std::sync::atomic::Ordering::Relaxed)
     }
 
     /// Returns the relative path of a component of our segment.
@@ -115,11 +120,11 @@ impl SegmentMeta {
             SegmentComponent::Positions => ".pos".to_string(),
             SegmentComponent::Terms => ".term".to_string(),
             SegmentComponent::Store => ".store".to_string(),
+            SegmentComponent::TempStore => ".store.temp".to_string(),
             SegmentComponent::FastFields => ".fast".to_string(),
             SegmentComponent::FieldNorms => ".fieldnorm".to_string(),
             SegmentComponent::Delete => format!(".{}.del", self.delete_opstamp().unwrap_or(0)),
-            SegmentComponent::SpatialCells => ".cells".to_string(),
-            SegmentComponent::SpatialEdges => ".edges".to_string(),
+            SegmentComponent::Custom(ext) => format!(".{ext}"),
         });
         PathBuf::from(path)
     }
@@ -161,6 +166,7 @@ impl SegmentMeta {
             segment_id: inner_meta.segment_id,
             max_doc,
             deletes: None,
+            include_temp_doc_store: Arc::new(AtomicBool::new(true)),
         });
         SegmentMeta { tracked }
     }
@@ -179,6 +185,7 @@ impl SegmentMeta {
         let tracked = self.tracked.map(move |inner_meta| InnerSegmentMeta {
             segment_id: inner_meta.segment_id,
             max_doc: inner_meta.max_doc,
+            include_temp_doc_store: Arc::new(AtomicBool::new(true)),
             deletes: Some(delete_meta),
         });
         SegmentMeta { tracked }
@@ -190,6 +197,14 @@ struct InnerSegmentMeta {
     segment_id: SegmentId,
     max_doc: u32,
     pub deletes: Option<DeleteMeta>,
+    /// If you want to avoid the SegmentComponent::TempStore file to be covered by
+    /// garbage collection and deleted, set this to true. This is used during merge.
+    #[serde(skip)]
+    #[serde(default = "default_temp_store")]
+    pub(crate) include_temp_doc_store: Arc<AtomicBool>,
+}
+fn default_temp_store() -> Arc<AtomicBool> {
+    Arc::new(AtomicBool::new(false))
 }
 
 impl InnerSegmentMeta {
@@ -214,6 +229,15 @@ fn is_true(val: &bool) -> bool {
 /// index, like presort documents.
 #[derive(Clone, Debug, Serialize, Deserialize, Eq, PartialEq)]
 pub struct IndexSettings {
+    /// Sorts the documents by information
+    /// provided in `IndexSortByField`
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub sort_by_field: Option<IndexSortByField>,
+    /// If true, enables caller-provided doc id mappings at segment finalization time.
+    /// Always skip serializing this field since it's only used at segment finalization time.
+    #[doc(hidden)]
+    #[serde(skip)]
+    pub manual_doc_id_mapping: bool,
     /// The `Compressor` used to compress the doc store.
     #[serde(default)]
     pub docstore_compression: Compressor,
@@ -236,6 +260,8 @@ fn default_docstore_blocksize() -> usize {
 impl Default for IndexSettings {
     fn default() -> Self {
         Self {
+            sort_by_field: None,
+            manual_doc_id_mapping: false,
             docstore_compression: Compressor::default(),
             docstore_blocksize: default_docstore_blocksize(),
             docstore_compress_dedicated_thread: true,
@@ -243,6 +269,18 @@ impl Default for IndexSettings {
     }
 }
 
+/// Settings to presort the documents in an index
+///
+/// Presorting documents can greatly improve performance
+/// in some scenarios, by applying top n
+/// optimizations.
+#[derive(Clone, Debug, Serialize, Deserialize, Eq, PartialEq)]
+pub struct IndexSortByField {
+    /// The field to sort the documents by
+    pub field: String,
+    /// The order to sort the documents by
+    pub order: Order,
+}
 /// The order to sort by
 #[derive(Clone, Copy, Debug, Serialize, Deserialize, Eq, PartialEq)]
 pub enum Order {
@@ -275,6 +313,16 @@ pub struct IndexMeta {
     /// `IndexSettings` to configure index options.
     #[serde(default)]
     pub index_settings: IndexSettings,
+    /// Custom (non-built-in) plugin extensions this index was created with.
+    ///
+    /// Fixed at index creation. This is the single source of truth for which
+    /// custom plugins the index requires: garbage collection keeps their files,
+    /// and the writer/merger fails closed if an owning plugin is not registered.
+    /// An index created before this field existed deserializes to empty, i.e.
+    /// built-in plugins only.
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub persisted_custom_extensions: Vec<String>,
     /// List of `SegmentMeta` information associated with each finalized segment of the index.
     pub segments: Vec<SegmentMeta>,
     /// Index `Schema`
@@ -295,6 +343,8 @@ struct UntrackedIndexMeta {
     pub segments: Vec<InnerSegmentMeta>,
     #[serde(default)]
     pub index_settings: IndexSettings,
+    #[serde(default)]
+    pub persisted_custom_extensions: Vec<String>,
     pub schema: Schema,
     pub opstamp: Opstamp,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -305,6 +355,7 @@ impl UntrackedIndexMeta {
     pub fn track(self, inventory: &SegmentMetaInventory) -> IndexMeta {
         IndexMeta {
             index_settings: self.index_settings,
+            persisted_custom_extensions: self.persisted_custom_extensions,
             segments: self
                 .segments
                 .into_iter()
@@ -326,11 +377,25 @@ impl IndexMeta {
     pub fn with_schema(schema: Schema) -> IndexMeta {
         IndexMeta {
             index_settings: IndexSettings::default(),
+            persisted_custom_extensions: Vec::new(),
             segments: vec![],
             schema,
             opstamp: 0u64,
             payload: None,
         }
+    }
+
+    /// Returns candidate relative paths for the segments in this metadata.
+    ///
+    /// Includes built-in component files, files for [`Self::persisted_custom_extensions`],
+    /// delete bitsets, and any still-tracked temporary docstores. Custom plugin files are
+    /// listed from the persisted extensions, without requiring plugin registration.
+    ///
+    /// This method does not access the directory: some candidates may not exist. It excludes
+    /// index-level files such as `meta.json` and `.managed.json`, and files belonging to
+    /// segments absent from [`Self::segments`].
+    pub fn list_segment_files(&self) -> HashSet<PathBuf> {
+        super::list_segment_files(&self.segments, &self.persisted_custom_extensions)
     }
 
     pub(crate) fn deserialize(
@@ -355,14 +420,132 @@ impl fmt::Debug for IndexMeta {
 
 #[cfg(test)]
 mod tests {
+    use std::collections::HashSet;
+    use std::path::PathBuf;
 
-    use super::IndexMeta;
+    use super::{IndexMeta, SegmentMetaInventory};
     use crate::index::index_meta::UntrackedIndexMeta;
+    use crate::index::SegmentId;
     use crate::schema::{Schema, TEXT};
     use crate::store::Compressor;
     #[cfg(feature = "zstd-compression")]
     use crate::store::ZstdCompressor;
-    use crate::IndexSettings;
+    use crate::{IndexSettings, IndexSortByField, Order};
+
+    fn expected_builtin_files(segment_id: SegmentId, delete_opstamp: u64) -> HashSet<PathBuf> {
+        let segment_uuid = segment_id.uuid_string();
+        let mut files = HashSet::with_capacity(9);
+        for extension in [
+            "idx",
+            "pos",
+            "term",
+            "store",
+            "fast",
+            "fieldnorm",
+            "cells",
+            "edges",
+        ] {
+            files.insert(PathBuf::from(format!("{segment_uuid}.{extension}")));
+        }
+        files.insert(PathBuf::from(format!(
+            "{segment_uuid}.{delete_opstamp}.del"
+        )));
+        files
+    }
+
+    #[test]
+    fn test_list_segment_files_empty_metadata() {
+        let mut metadata = IndexMeta::with_schema(Schema::builder().build());
+        metadata
+            .persisted_custom_extensions
+            .push("custom".to_string());
+        assert!(metadata.list_segment_files().is_empty());
+    }
+
+    #[test]
+    fn test_list_segment_files_builtin_candidates_and_segment_scope() {
+        let inventory = SegmentMetaInventory::default();
+        let segment_id = SegmentId::generate_random();
+        let segment_meta = inventory.new_segment_meta(segment_id, 10);
+        segment_meta.untrack_temp_docstore();
+        // Keep another segment tracked, but absent from the metadata being listed.
+        // The binding must stay alive: dropping it would untrack the segment and
+        // invalidate the `inventory.all()` assertion below.
+        let other_segment_meta = inventory.new_segment_meta(SegmentId::generate_random(), 10);
+        let mut metadata = IndexMeta::with_schema(Schema::builder().build());
+        metadata.segments.push(segment_meta);
+
+        // No component files have been created. Listing still returns the candidates,
+        // but neither index-level files nor files from other tracked segments.
+        assert_eq!(
+            metadata.list_segment_files(),
+            expected_builtin_files(segment_id, 0)
+        );
+        assert_eq!(inventory.all().len(), 2);
+        drop(other_segment_meta);
+    }
+
+    #[test]
+    fn test_list_segment_files_tracks_temporary_docstore() {
+        let inventory = SegmentMetaInventory::default();
+        let segment_id = SegmentId::generate_random();
+        let segment_meta = inventory.new_segment_meta(segment_id, 10);
+        let mut metadata = IndexMeta::with_schema(Schema::builder().build());
+        metadata.segments.push(segment_meta.clone());
+        let mut expected = expected_builtin_files(segment_id, 0);
+        expected.insert(PathBuf::from(format!(
+            "{}.store.temp",
+            segment_id.uuid_string()
+        )));
+        assert_eq!(metadata.list_segment_files(), expected);
+
+        segment_meta.untrack_temp_docstore();
+        assert_eq!(
+            metadata.list_segment_files(),
+            expected_builtin_files(segment_id, 0)
+        );
+    }
+
+    #[test]
+    fn test_list_segment_files_uses_current_delete_opstamp() {
+        let inventory = SegmentMetaInventory::default();
+        let segment_id = SegmentId::generate_random();
+        let old_segment_meta = inventory
+            .new_segment_meta(segment_id, 10)
+            .with_delete_meta(1, 7);
+        let segment_meta = old_segment_meta.clone().with_delete_meta(2, 42);
+        segment_meta.untrack_temp_docstore();
+        let mut metadata = IndexMeta::with_schema(Schema::builder().build());
+        metadata.segments.push(segment_meta);
+
+        assert_eq!(
+            metadata.list_segment_files(),
+            expected_builtin_files(segment_id, 42)
+        );
+    }
+
+    #[test]
+    fn test_list_segment_files_custom_extensions() {
+        let inventory = SegmentMetaInventory::default();
+        let segment_ids = [SegmentId::generate_random(), SegmentId::generate_random()];
+        let mut metadata = IndexMeta::with_schema(Schema::builder().build());
+        metadata.persisted_custom_extensions =
+            vec!["custom".to_string(), "custom.data".to_string()];
+        let mut expected = HashSet::default();
+        for segment_id in segment_ids {
+            let segment_meta = inventory.new_segment_meta(segment_id, 10);
+            segment_meta.untrack_temp_docstore();
+            metadata.segments.push(segment_meta);
+            expected.extend(expected_builtin_files(segment_id, 0));
+            for extension in &metadata.persisted_custom_extensions {
+                expected.insert(PathBuf::from(format!(
+                    "{}.{extension}",
+                    segment_id.uuid_string()
+                )));
+            }
+        }
+        assert_eq!(metadata.list_segment_files(), expected);
+    }
 
     #[test]
     fn test_serialize_metas() {
@@ -374,8 +557,13 @@ mod tests {
         let index_metas = IndexMeta {
             index_settings: IndexSettings {
                 docstore_compression: Compressor::None,
+                sort_by_field: Some(IndexSortByField {
+                    field: "text".to_string(),
+                    order: Order::Asc,
+                }),
                 ..Default::default()
             },
+            persisted_custom_extensions: Vec::new(),
             segments: Vec::new(),
             schema,
             opstamp: 0u64,
@@ -384,7 +572,7 @@ mod tests {
         let json = serde_json::ser::to_string(&index_metas).expect("serialization failed");
         assert_eq!(
             json,
-            r#"{"index_settings":{"docstore_compression":"none","docstore_blocksize":16384},"segments":[],"schema":[{"name":"text","type":"text","options":{"indexing":{"record":"position","fieldnorms":true,"tokenizer":"default"},"stored":false,"fast":false}}],"opstamp":0}"#
+            r#"{"index_settings":{"sort_by_field":{"field":"text","order":"Asc"},"docstore_compression":"none","docstore_blocksize":16384},"segments":[],"schema":[{"name":"text","type":"text","options":{"indexing":{"record":"position","fieldnorms":true,"tokenizer":"default"},"stored":false,"fast":false}}],"opstamp":0}"#
         );
 
         let deser_meta: UntrackedIndexMeta = serde_json::from_str(&json).unwrap();
@@ -403,12 +591,18 @@ mod tests {
         };
         let index_metas = IndexMeta {
             index_settings: IndexSettings {
+                sort_by_field: Some(IndexSortByField {
+                    field: "text".to_string(),
+                    order: Order::Asc,
+                }),
+                manual_doc_id_mapping: false,
                 docstore_compression: crate::store::Compressor::Zstd(ZstdCompressor {
                     compression_level: Some(4),
                 }),
                 docstore_blocksize: 1_000_000,
                 docstore_compress_dedicated_thread: true,
             },
+            persisted_custom_extensions: Vec::new(),
             segments: Vec::new(),
             schema,
             opstamp: 0u64,
@@ -417,7 +611,7 @@ mod tests {
         let json = serde_json::ser::to_string(&index_metas).expect("serialization failed");
         assert_eq!(
             json,
-            r#"{"index_settings":{"docstore_compression":"zstd(compression_level=4)","docstore_blocksize":1000000},"segments":[],"schema":[{"name":"text","type":"text","options":{"indexing":{"record":"position","fieldnorms":true,"tokenizer":"default"},"stored":false,"fast":false}}],"opstamp":0}"#
+            r#"{"index_settings":{"sort_by_field":{"field":"text","order":"Asc"},"docstore_compression":"zstd(compression_level=4)","docstore_blocksize":1000000},"segments":[],"schema":[{"name":"text","type":"text","options":{"indexing":{"record":"position","fieldnorms":true,"tokenizer":"default"},"stored":false,"fast":false}}],"opstamp":0}"#
         );
 
         let deser_meta: UntrackedIndexMeta = serde_json::from_str(&json).unwrap();
@@ -429,35 +623,35 @@ mod tests {
     #[test]
     #[cfg(all(feature = "lz4-compression", feature = "zstd-compression"))]
     fn test_serialize_metas_invalid_comp() {
-        let json = r#"{"index_settings":{"docstore_compression":"zsstd","docstore_blocksize":1000000},"segments":[],"schema":[{"name":"text","type":"text","options":{"indexing":{"record":"position","fieldnorms":true,"tokenizer":"default"},"stored":false,"fast":false}}],"opstamp":0}"#;
+        let json = r#"{"index_settings":{"sort_by_field":{"field":"text","order":"Asc"},"docstore_compression":"zsstd","docstore_blocksize":1000000},"segments":[],"schema":[{"name":"text","type":"text","options":{"indexing":{"record":"position","fieldnorms":true,"tokenizer":"default"},"stored":false,"fast":false}}],"opstamp":0}"#;
 
         let err = serde_json::from_str::<UntrackedIndexMeta>(json).unwrap_err();
         assert_eq!(
             err.to_string(),
             "unknown variant `zsstd`, expected one of `none`, `lz4`, `zstd`, \
-             `zstd(compression_level=5)` at line 1 column 49"
+             `zstd(compression_level=5)` at line 1 column 96"
                 .to_string()
         );
 
-        let json = r#"{"index_settings":{"docstore_compression":"zstd(bla=10)","docstore_blocksize":1000000},"segments":[],"schema":[{"name":"text","type":"text","options":{"indexing":{"record":"position","fieldnorms":true,"tokenizer":"default"},"stored":false,"fast":false}}],"opstamp":0}"#;
+        let json = r#"{"index_settings":{"sort_by_field":{"field":"text","order":"Asc"},"docstore_compression":"zstd(bla=10)","docstore_blocksize":1000000},"segments":[],"schema":[{"name":"text","type":"text","options":{"indexing":{"record":"position","fieldnorms":true,"tokenizer":"default"},"stored":false,"fast":false}}],"opstamp":0}"#;
 
         let err = serde_json::from_str::<UntrackedIndexMeta>(json).unwrap_err();
         assert_eq!(
             err.to_string(),
-            "unknown zstd option \"bla\" at line 1 column 56".to_string()
+            "unknown zstd option \"bla\" at line 1 column 103".to_string()
         );
     }
 
     #[test]
     #[cfg(not(feature = "zstd-compression"))]
     fn test_serialize_metas_unsupported_comp() {
-        let json = r#"{"index_settings":{"docstore_compression":"zstd","docstore_blocksize":1000000},"segments":[],"schema":[{"name":"text","type":"text","options":{"indexing":{"record":"position","fieldnorms":true,"tokenizer":"default"},"stored":false,"fast":false}}],"opstamp":0}"#;
+        let json = r#"{"index_settings":{"sort_by_field":{"field":"text","order":"Asc"},"docstore_compression":"zstd","docstore_blocksize":1000000},"segments":[],"schema":[{"name":"text","type":"text","options":{"indexing":{"record":"position","fieldnorms":true,"tokenizer":"default"},"stored":false,"fast":false}}],"opstamp":0}"#;
 
         let err = serde_json::from_str::<UntrackedIndexMeta>(json).unwrap_err();
         assert_eq!(
             err.to_string(),
             "unsupported variant `zstd`, please enable Tantivy's `zstd-compression` feature at \
-             line 1 column 48"
+             line 1 column 95"
                 .to_string()
         );
     }
@@ -471,6 +665,8 @@ mod tests {
         assert_eq!(
             index_settings,
             IndexSettings {
+                sort_by_field: None,
+                manual_doc_id_mapping: false,
                 docstore_compression: Compressor::default(),
                 docstore_compress_dedicated_thread: true,
                 docstore_blocksize: 16_384
@@ -488,6 +684,19 @@ mod tests {
             let index_settings_deser: IndexSettings =
                 serde_json::from_value(index_settings_json).unwrap();
             assert_eq!(index_settings_deser, index_settings);
+        }
+        {
+            // manual_doc_id_mapping should not be persisted.
+            index_settings.manual_doc_id_mapping = true;
+            let index_settings_json = serde_json::to_value(&index_settings).unwrap();
+            assert_eq!(
+                index_settings_json,
+                serde_json::json!({
+                    "docstore_compression": "lz4",
+                    "docstore_blocksize": 16384
+                })
+            );
+            index_settings.manual_doc_id_mapping = false;
         }
         {
             index_settings.docstore_compress_dedicated_thread = false;

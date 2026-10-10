@@ -8,8 +8,15 @@ use zstd::bulk::Decompressor;
 pub struct BlockReader {
     buffer: Vec<u8>,
     reader: OwnedBytes,
-    next_readers: std::vec::IntoIter<OwnedBytes>,
+    next_readers: std::vec::IntoIter<(OwnedBytes, u64)>,
     offset: usize,
+    /// First term ordinal of the slice we just moved to, taken once by the caller.
+    ///
+    /// When an automaton prunes blocks, the slices handed to us are not contiguous, so a
+    /// caller counting terms cannot know the ordinal it is at. Each slice therefore carries
+    /// the ordinal of its first term; consecutive blocks merged into one slice stay
+    /// contiguous, so counting within a slice remains correct.
+    pending_first_ordinal: Option<u64>,
 }
 
 impl BlockReader {
@@ -19,18 +26,32 @@ impl BlockReader {
             reader,
             next_readers: Vec::new().into_iter(),
             offset: 0,
+            pending_first_ordinal: None,
         }
     }
 
-    pub fn from_multiple_blocks(readers: Vec<OwnedBytes>) -> BlockReader {
+    /// Build a reader over non-contiguous slices, each labelled with the term ordinal of its
+    /// first term. See [`BlockReader::take_first_ordinal`].
+    pub fn from_multiple_blocks(readers: Vec<(OwnedBytes, u64)>) -> BlockReader {
         let mut next_readers = readers.into_iter();
-        let reader = next_readers.next().unwrap_or_else(OwnedBytes::empty);
+        let (reader, first_ordinal) = next_readers
+            .next()
+            .unwrap_or_else(|| (OwnedBytes::empty(), 0));
         BlockReader {
             buffer: Vec::new(),
             reader,
             next_readers,
             offset: 0,
+            pending_first_ordinal: Some(first_ordinal),
         }
+    }
+
+    /// The first term ordinal of the slice most recently moved to, if it has not been taken yet.
+    ///
+    /// Returns `Some` exactly once per slice, on the first term read from it, so a caller can
+    /// reset its ordinal counter instead of incrementing across the gap left by pruned blocks.
+    pub fn take_first_ordinal(&mut self) -> Option<u64> {
+        self.pending_first_ordinal.take()
     }
 
     pub fn deserialize_u64(&mut self) -> u64 {
@@ -53,8 +74,9 @@ impl BlockReader {
                 0 => {
                     // we are out of data for this block. Check if we have another block after
                     match self.next_readers.next() {
-                        Some(new_reader) => {
+                        Some((new_reader, first_ordinal)) => {
                             self.reader = new_reader;
+                            self.pending_first_ordinal = Some(first_ordinal);
                             continue;
                         }
                         _ => {

@@ -25,6 +25,8 @@ use columnar::MonotonicallyMappableToU64;
 pub use self::alive_bitset::{intersect_alive_bitsets, write_alive_bitset, AliveBitSet};
 pub use self::error::{FastFieldNotAvailableError, Result};
 pub use self::facet_reader::FacetReader;
+pub mod plugin;
+pub use self::plugin::{FastFieldsPlugin, FastFieldsPluginWriter};
 pub use self::readers::FastFieldReaders;
 pub use self::writer::FastFieldsWriter;
 use crate::schema::Type;
@@ -91,11 +93,13 @@ mod tests {
     use crate::index::SegmentId;
     use crate::merge_policy::NoMergePolicy;
     use crate::schema::{
-        DateOptions, Facet, FacetOptions, Field, JsonObjectOptions, Schema, SchemaBuilder,
-        TantivyDocument, TextOptions, FAST, INDEXED, STORED, STRING, TEXT,
+        DateOptions, Facet, FacetOptions, Field, FieldType, JsonObjectOptions, Schema,
+        SchemaBuilder, TantivyDocument, TextOptions, FAST, INDEXED, STORED, STRING, TEXT,
     };
     use crate::time::OffsetDateTime;
-    use crate::tokenizer::{LowerCaser, RawTokenizer, TextAnalyzer, TokenizerManager};
+    use crate::tokenizer::{
+        LowerCaser, RawTokenizer, TextAnalyzer, TokenizerManager, RAW_TOKENIZER_NAME,
+    };
     use crate::{Index, IndexWriter, SegmentReader};
 
     pub static SCHEMA: Lazy<Schema> = Lazy::new(|| {
@@ -127,7 +131,7 @@ mod tests {
             fast_field_writers
                 .add_document(&doc!(*FIELD=>2u64))
                 .unwrap();
-            fast_field_writers.serialize(&mut write).unwrap();
+            fast_field_writers.serialize(&mut write, None).unwrap();
             write.terminate().unwrap();
         }
         let file = directory.open_read(path).unwrap();
@@ -142,6 +146,37 @@ mod tests {
         assert_eq!(column.get_val(1), 14u64);
         assert_eq!(column.get_val(2), 2u64);
         Ok(())
+    }
+
+    #[test]
+    fn test_generated_tie_breaker_fast_field() {
+        let mut schema_builder = Schema::builder();
+        let tie = schema_builder.add_tie_breaker_field("tie");
+        let schema = schema_builder.build();
+        let entry = schema.get_field_entry(tie);
+        assert!(matches!(entry.field_type(), FieldType::TieBreaker));
+        assert!(entry.is_fast());
+        assert!(!entry.is_indexed());
+        assert!(!entry.is_stored());
+        let schema_json = serde_json::to_string(&schema).unwrap();
+        assert!(schema_json.contains(r#""type":"tie_breaker""#));
+        assert_eq!(
+            serde_json::from_str::<Schema>(&schema_json).unwrap(),
+            schema
+        );
+
+        let mut writer = FastFieldsWriter::from_schema(&schema).unwrap();
+        for _ in 0..1_025 {
+            writer.add_document(&TantivyDocument::default()).unwrap();
+        }
+        let mut bytes = Vec::new();
+        writer.serialize(&mut bytes, None).unwrap();
+
+        let readers = FastFieldReaders::open(bytes.into(), schema).unwrap();
+        let values = readers.i64("tie").unwrap().first_or_default_col(0);
+        for doc in 1..1_025 {
+            assert_eq!(values.get_val(doc), values.get_val(doc - 1) + 1);
+        }
     }
 
     #[test]
@@ -178,7 +213,7 @@ mod tests {
             fast_field_writers
                 .add_document(&doc!(*FIELD=>215u64))
                 .unwrap();
-            fast_field_writers.serialize(&mut write).unwrap();
+            fast_field_writers.serialize(&mut write, None).unwrap();
             write.terminate().unwrap();
         }
         let file = directory.open_read(path).unwrap();
@@ -211,7 +246,7 @@ mod tests {
                     .add_document(&doc!(*FIELD=>100_000u64))
                     .unwrap();
             }
-            fast_field_writers.serialize(&mut write).unwrap();
+            fast_field_writers.serialize(&mut write, None).unwrap();
             write.terminate().unwrap();
         }
         let file = directory.open_read(path).unwrap();
@@ -243,7 +278,7 @@ mod tests {
                     .add_document(&doc!(*FIELD=>5_000_000_000_000_000_000u64 + doc_id))
                     .unwrap();
             }
-            fast_field_writers.serialize(&mut write).unwrap();
+            fast_field_writers.serialize(&mut write, None).unwrap();
             write.terminate().unwrap();
         }
         let file = directory.open_read(path).unwrap();
@@ -276,7 +311,7 @@ mod tests {
                 doc.add_i64(i64_field, i);
                 fast_field_writers.add_document(&doc).unwrap();
             }
-            fast_field_writers.serialize(&mut write).unwrap();
+            fast_field_writers.serialize(&mut write, None).unwrap();
             write.terminate().unwrap();
         }
         let file = directory.open_read(path).unwrap();
@@ -315,7 +350,7 @@ mod tests {
             let mut fast_field_writers = FastFieldsWriter::from_schema(&schema).unwrap();
             let doc = TantivyDocument::default();
             fast_field_writers.add_document(&doc).unwrap();
-            fast_field_writers.serialize(&mut write).unwrap();
+            fast_field_writers.serialize(&mut write, None).unwrap();
             write.terminate().unwrap();
         }
 
@@ -348,7 +383,7 @@ mod tests {
             let mut fast_field_writers = FastFieldsWriter::from_schema(&schema).unwrap();
             let doc = TantivyDocument::default();
             fast_field_writers.add_document(&doc).unwrap();
-            fast_field_writers.serialize(&mut write).unwrap();
+            fast_field_writers.serialize(&mut write, None).unwrap();
             write.terminate().unwrap();
         }
 
@@ -385,7 +420,7 @@ mod tests {
             for &x in &permutation {
                 fast_field_writers.add_document(&doc!(*FIELD=>x)).unwrap();
             }
-            fast_field_writers.serialize(&mut write).unwrap();
+            fast_field_writers.serialize(&mut write, None).unwrap();
             write.terminate().unwrap();
         }
         let file = directory.open_read(path).unwrap();
@@ -775,7 +810,7 @@ mod tests {
             fast_field_writers
                 .add_document(&doc!(field=>false))
                 .unwrap();
-            fast_field_writers.serialize(&mut write).unwrap();
+            fast_field_writers.serialize(&mut write, None).unwrap();
             write.terminate().unwrap();
         }
         let file = directory.open_read(path).unwrap();
@@ -807,7 +842,7 @@ mod tests {
                     .add_document(&doc!(field=>false))
                     .unwrap();
             }
-            fast_field_writers.serialize(&mut write).unwrap();
+            fast_field_writers.serialize(&mut write, None).unwrap();
             write.terminate().unwrap();
         }
         let file = directory.open_read(path).unwrap();
@@ -832,7 +867,7 @@ mod tests {
             let mut fast_field_writers = FastFieldsWriter::from_schema(&schema).unwrap();
             let doc = TantivyDocument::default();
             fast_field_writers.add_document(&doc).unwrap();
-            fast_field_writers.serialize(&mut write).unwrap();
+            fast_field_writers.serialize(&mut write, None).unwrap();
             write.terminate().unwrap();
         }
         let file = directory.open_read(path).unwrap();
@@ -860,7 +895,7 @@ mod tests {
             for doc in docs {
                 fast_field_writers.add_document(doc).unwrap();
             }
-            fast_field_writers.serialize(&mut write).unwrap();
+            fast_field_writers.serialize(&mut write, None).unwrap();
             write.terminate().unwrap();
         }
         Ok(directory)
@@ -1092,7 +1127,7 @@ mod tests {
     #[test]
     fn test_fast_field_in_json_field_expand_dots_disabled() {
         let mut schema_builder = Schema::builder();
-        let json_option = JsonObjectOptions::default().set_fast(None);
+        let json_option = JsonObjectOptions::default().set_fast(RAW_TOKENIZER_NAME);
         let json = schema_builder.add_json_field("json", json_option);
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema);
@@ -1118,7 +1153,7 @@ mod tests {
     #[test]
     fn test_fast_field_in_json_field_with_tokenizer() {
         let mut schema_builder = Schema::builder();
-        let json_option = JsonObjectOptions::default().set_fast(Some("default"));
+        let json_option = JsonObjectOptions::default().set_fast("default");
         let json = schema_builder.add_json_field("json", json_option);
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema);
@@ -1144,7 +1179,7 @@ mod tests {
     fn test_fast_field_in_json_field_expand_dots_enabled() {
         let mut schema_builder = Schema::builder();
         let json_option = JsonObjectOptions::default()
-            .set_fast(None)
+            .set_fast(RAW_TOKENIZER_NAME)
             .set_expand_dots_enabled();
         let json = schema_builder.add_json_field("json", json_option);
         let schema = schema_builder.build();
@@ -1212,7 +1247,7 @@ mod tests {
     #[test]
     fn test_fast_field_tokenizer() {
         let mut schema_builder = Schema::builder();
-        let opt = TextOptions::default().set_fast(Some("custom_lowercase"));
+        let opt = TextOptions::default().set_fast("custom_lowercase");
         let text_field = schema_builder.add_text_field("text", opt);
         let schema = schema_builder.build();
         let ff_tokenizer_manager = TokenizerManager::default();
@@ -1248,7 +1283,7 @@ mod tests {
                     .set_index_option(crate::schema::IndexRecordOption::WithFreqs)
                     .set_tokenizer("raw"),
             )
-            .set_fast(Some("default"))
+            .set_fast("default")
             .set_stored();
 
         let log_field = schema_builder.add_text_field("log_level", text_fieldtype);
@@ -1281,7 +1316,7 @@ mod tests {
     fn test_shadowing_fast_field_with_expand_dots() {
         let mut schema_builder = Schema::builder();
         let json_option = JsonObjectOptions::default()
-            .set_fast(None)
+            .set_fast(RAW_TOKENIZER_NAME)
             .set_expand_dots_enabled();
         let json_field = schema_builder.add_json_field("jsonfield", json_option.clone());
         let shadowing_json_field = schema_builder.add_json_field("jsonfield.attr", json_option);

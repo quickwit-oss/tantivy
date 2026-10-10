@@ -1,7 +1,7 @@
 //! Spatial segment readers.
 //!
 //! Provides per-field access to cell index and edge index data stored in a segment's
-//! SpatialCells and SpatialEdges composite files.
+//! cell index and edge index composite files.
 use std::io;
 use std::sync::Arc;
 

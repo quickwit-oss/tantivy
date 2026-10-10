@@ -12,7 +12,7 @@ use crate::schema::document::{
     DeserializeError, Document, DocumentDeserialize, DocumentDeserializer,
 };
 use crate::schema::field_type::ValueParsingError;
-use crate::schema::{Facet, Field, NamedFieldDocument, OwnedValue, Schema};
+use crate::schema::{Facet, Field, FieldType, NamedFieldDocument, OwnedValue, Schema};
 use crate::spatial::geometry::Geometry;
 use crate::spatial::plane::Plane;
 use crate::tokenizer::PreTokenizedString;
@@ -120,6 +120,14 @@ impl CompactDoc {
         self.add_leaf_field_value(field, value);
     }
 
+    /// Add a plugin-defined custom field value.
+    ///
+    /// The bytes are an opaque payload owned by the plugin that consumes this field's custom
+    /// type; tantivy never inspects, indexes, or stores them.
+    pub fn add_custom(&mut self, field: Field, value: &[u8]) {
+        self.add_leaf_field_value(field, ReferenceValueLeaf::Custom(value));
+    }
+
     /// Add a dynamic object field
     pub fn add_object(&mut self, field: Field, object: BTreeMap<String, OwnedValue>) {
         self.add_field_value(field, &OwnedValue::from(object));
@@ -213,6 +221,9 @@ impl CompactDoc {
             if let Ok(field) = schema.get_field(&field_name) {
                 let field_entry = schema.get_field_entry(field);
                 let field_type = field_entry.field_type();
+                if matches!(field_type, FieldType::TieBreaker) {
+                    continue;
+                }
                 match json_value {
                     serde_json::Value::Array(json_items) => {
                         for json_item in json_items {
@@ -247,6 +258,7 @@ impl CompactDoc {
                 write_bytes_into(&mut self.node_data, bytes.as_bytes())
             }
             ReferenceValueLeaf::Bytes(bytes) => write_bytes_into(&mut self.node_data, bytes),
+            ReferenceValueLeaf::Custom(bytes) => write_bytes_into(&mut self.node_data, bytes),
             ReferenceValueLeaf::U64(num) => write_into(&mut self.node_data, num),
             ReferenceValueLeaf::I64(num) => write_into(&mut self.node_data, num),
             ReferenceValueLeaf::F64(num) => write_into(&mut self.node_data, num),
@@ -435,6 +447,10 @@ impl<'a> CompactDocValue<'a> {
                 let data = self.container.extract_bytes(addr);
                 Ok(ReferenceValueLeaf::Bytes(data).into())
             }
+            ValueType::Custom => {
+                let data = self.container.extract_bytes(addr);
+                Ok(ReferenceValueLeaf::Custom(data).into())
+            }
             ValueType::U64 => self
                 .container
                 .read_from::<u64>(addr)
@@ -551,8 +567,10 @@ pub enum ValueType {
     Object = 11,
     /// Pre-tokenized str type,
     Array = 12,
-    /// HUSH
-    Geometry = 13,
+    /// Opaque payload of a plugin-defined custom field.
+    Custom = 13,
+    /// A GeoJSON geometry, for a spatial field.
+    Geometry = 14,
 }
 
 impl BinarySerializable for ValueType {
@@ -563,7 +581,7 @@ impl BinarySerializable for ValueType {
 
     fn deserialize<R: Read>(reader: &mut R) -> io::Result<Self> {
         let num = u8::deserialize(reader)?;
-        let type_id = if (0..=12).contains(&num) {
+        let type_id = if (0..=13).contains(&num) {
             unsafe { std::mem::transmute::<u8, ValueType>(num) }
         } else {
             return Err(io::Error::new(
@@ -598,6 +616,7 @@ impl<'a> From<&ReferenceValueLeaf<'a>> for ValueType {
             ReferenceValueLeaf::PreTokStr(_) => ValueType::PreTokStr,
             ReferenceValueLeaf::Facet(_) => ValueType::Facet,
             ReferenceValueLeaf::Bytes(_) => ValueType::Bytes,
+            ReferenceValueLeaf::Custom(_) => ValueType::Custom,
             ReferenceValueLeaf::Geometry(_) => ValueType::Geometry,
         }
     }
@@ -683,6 +702,10 @@ impl Document for CompactDoc {
             container: self,
         }
     }
+
+    fn into_tantivy_document(self) -> TantivyDocument {
+        self
+    }
 }
 
 /// A helper wrapper for creating an iterator over the field values
@@ -742,6 +765,19 @@ mod tests {
         let schema = schema_builder.build();
         let _val = doc.get_first(text_field).unwrap();
         let _json = doc.to_named_doc(&schema);
+    }
+
+    #[test]
+    fn test_parse_json_ignores_tie_breaker_values() {
+        let mut schema_builder = Schema::builder();
+        let title = schema_builder.add_text_field("title", TEXT);
+        let tie = schema_builder.add_tie_breaker_field("tie");
+        let schema = schema_builder.build();
+        let doc =
+            TantivyDocument::parse_json(&schema, r#"{"title": "hello", "tie": [1, "two", null]}"#)
+                .unwrap();
+        assert!(doc.get_first(title).is_some());
+        assert!(doc.get_first(tie).is_none());
     }
 
     #[test]

@@ -24,7 +24,6 @@ extern crate more_asserts;
 use std::fmt::Display;
 use std::io;
 
-mod block_accessor;
 mod column;
 pub mod column_index;
 pub mod column_values;
@@ -35,7 +34,6 @@ mod iterable;
 pub(crate) mod utils;
 mod value;
 
-pub use block_accessor::ColumnBlockAccessor;
 pub use column::{BytesColumn, Column, StrColumn};
 pub use column_index::ColumnIndex;
 pub use column_values::{
@@ -43,7 +41,8 @@ pub use column_values::{
 };
 pub use columnar::{
     CURRENT_VERSION, ColumnType, ColumnarReader, ColumnarWriter, HasAssociatedColumnType,
-    MergeRowOrder, ShuffleMergeOrder, StackMergeOrder, Version, merge_columnar,
+    MergeRowOrder, ShuffleMergeOrder, StackMergeOrder, Version, compute_merged_term_ord_mapping,
+    merge_columnar,
 };
 use sstable::VoidSSTable;
 pub use value::{NumericalType, NumericalValue};

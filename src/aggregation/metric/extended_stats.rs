@@ -317,25 +317,23 @@ impl IntermediateExtendedStats {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Debug)]
 pub(crate) struct SegmentExtendedStatsCollector {
     name: String,
     missing: Option<u64>,
-    field_type: ColumnType,
-    accessor: columnar::Column<u64>,
+    accessor: Box<dyn ValueSource>,
     buckets: Vec<IntermediateExtendedStats>,
     sigma: Option<f64>,
 }
 
 impl SegmentExtendedStatsCollector {
-    pub fn from_req(req: &MetricAggReqData, sigma: Option<f64>) -> Self {
+    pub(crate) fn from_req(req: MetricAggReqData, sigma: Option<f64>) -> Self {
         let missing = req
             .missing
-            .and_then(|val| f64_to_fastfield_u64(val, &req.field_type));
+            .and_then(|val| f64_to_fastfield_u64(val, &req.accessor.column_type()));
         Self {
-            name: req.name.clone(),
-            field_type: req.field_type,
-            accessor: req.accessor.clone(),
+            name: req.name,
+            accessor: req.accessor,
             missing,
             buckets: vec![IntermediateExtendedStats::with_sigma(sigma); 16],
             sigma,
@@ -373,11 +371,14 @@ impl SegmentAggregationCollector for SegmentExtendedStatsCollector {
     ) -> crate::Result<()> {
         let mut extended_stats = self.buckets[parent_bucket_id as usize].clone();
 
-        agg_data
-            .column_block_accessor
-            .fetch_block_with_missing(docs, &self.accessor, self.missing);
+        agg_data.column_block_accessor.fetch_block_with_missing(
+            docs,
+            &mut *self.accessor,
+            self.missing,
+        );
+        let field_type = self.accessor.column_type();
         for val in agg_data.column_block_accessor.iter_vals() {
-            let val1 = f64_from_fastfield_u64(val, self.field_type);
+            let val1 = f64_from_fastfield_u64(val, field_type);
             extended_stats.collect(val1);
         }
 
@@ -398,6 +399,26 @@ impl SegmentAggregationCollector for SegmentExtendedStatsCollector {
             });
         }
         Ok(())
+    }
+
+    fn compute_metric_value(
+        &self,
+        bucket_id: BucketId,
+        sub_agg_name: &str,
+        sub_agg_property: &str,
+        _agg_data: &AggregationsSegmentCtx,
+    ) -> Option<f64> {
+        if self.name != sub_agg_name {
+            return None;
+        }
+        let extended = self.buckets.get(bucket_id as usize)?;
+        // Finalize is a pure read of accumulators — calling it here for the cutoff sort
+        // doesn't disturb the eventual intermediate result.
+        extended
+            .finalize()
+            .get_value(sub_agg_property)
+            .ok()
+            .flatten()
     }
 }
 

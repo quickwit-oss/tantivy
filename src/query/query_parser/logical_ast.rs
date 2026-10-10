@@ -41,6 +41,9 @@ pub enum LogicalLiteral {
         relation: SpatialRelation,
         inner: Box<LogicalAst>,
     },
+    Exists {
+        field: String,
+    },
 }
 
 #[derive(Clone)]
@@ -187,6 +190,7 @@ impl fmt::Debug for LogicalLiteral {
                 ref relation,
                 ref inner,
             } => write!(formatter, "SpatialJoin({field:?}, {relation:?}, {inner:?})"),
+            LogicalLiteral::Exists { ref field } => write!(formatter, "Exists({field})"),
         }
     }
 }

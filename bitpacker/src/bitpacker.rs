@@ -75,6 +75,7 @@ impl BitUnpacker {
     /// The bitunpacker works by doing an unaligned read of 8 bytes.
     /// For this reason, values of `num_bits` between
     /// [57..63] are forbidden.
+    #[inline]
     pub fn new(num_bits: u8) -> BitUnpacker {
         assert!(num_bits <= 7 * 8 || num_bits == 64);
         let mask: u64 = if num_bits == 64 {
@@ -101,7 +102,7 @@ impl BitUnpacker {
                 return 0;
             }
             let bit_shift = addr_in_bits & 7;
-            return self.get_slow_path(addr, bit_shift as u32, data);
+            return Self::get_slow_path(self.mask, addr, bit_shift as u32, data);
         }
         let bit_shift = addr_in_bits & 7;
         let bytes: [u8; 8] = (&data[addr..addr + 8]).try_into().unwrap();
@@ -110,8 +111,107 @@ impl BitUnpacker {
         val_shifted & self.mask
     }
 
+    /// Decodes consecutive values into `output`.
+    ///
+    /// Panics if the requested bits are outside `data`.
+    #[inline(always)]
+    pub fn get_range(&self, start_idx: u32, data: &[u8], output: &mut [u64]) {
+        if output.is_empty() {
+            return;
+        }
+        if self.num_bits == 0 {
+            output.fill(0);
+            return;
+        }
+        let start_idx = start_idx as usize;
+        let end_bit = (start_idx + output.len()) * self.num_bits;
+        debug_assert!(
+            end_bit.div_ceil(8) <= data.len(),
+            "Requested range is out of bounds"
+        );
+
+        // Fall back for ranges overlapping the end, where an eight-byte load would be partial.
+        let last_bit_addr = (start_idx + output.len() - 1) * self.num_bits;
+        // The optimization happening below requires reading full 8 bytes word.
+        // We check that data is long enough to allow for the last read, and if not, fall back for
+        // the following safe implementation
+        if (last_bit_addr >> 3) + 8 > data.len() {
+            for (offset, out) in output.iter_mut().enumerate() {
+                *out = self.get((start_idx + offset) as u32, data);
+            }
+            return;
+        }
+
+        let output_len = output.len();
+        /// # Safety
+        /// Eight bytes starting at `bit_addr >> 3` must fit in `data`.
+        #[inline(always)]
+        unsafe fn load(data: &[u8], bit_addr: usize) -> u64 {
+            // SAFETY: the caller guarantees that this load fits in `data`.
+            let packed = unsafe {
+                data.as_ptr()
+                    .add(bit_addr >> 3)
+                    .cast::<u64>()
+                    .read_unaligned()
+            };
+            u64::from_le(packed) >> (bit_addr & 7)
+        }
+        let mut bit_addr = start_idx * self.num_bits;
+        // Tantivy's `COLLECT_BLOCK_BUFFER_LEN` is 64, so optimize its common full-block case by
+        // decoding eight 1-8 bit values per load. Keep this literal in sync with that constant.
+        if output_len == 64 && self.num_bits <= 8 {
+            const VALUES_PER_CHUNK: usize = 8;
+            let (chunks, remainder) = output.as_chunks_mut::<VALUES_PER_CHUNK>();
+            debug_assert!(remainder.is_empty());
+            for chunk in chunks {
+                // SAFETY: the range-end check above guarantees that this load fits in `data`.
+                let packed: u64 = unsafe { load(data, bit_addr) };
+                for (i, out) in chunk.iter_mut().enumerate() {
+                    *out = (packed >> (i * self.num_bits)) & self.mask;
+                }
+                bit_addr += VALUES_PER_CHUNK * self.num_bits;
+            }
+            return;
+        }
+        const VALUES_PER_CHUNK: usize = 4;
+        let (chunks, remainder) = output.as_chunks_mut::<VALUES_PER_CHUNK>();
+        for chunk in chunks {
+            // Four values plus at most seven leading bits fit in one load.
+            // At 16 bits, values are byte-aligned, so there are no leading bits.
+            if self.num_bits <= 14 || self.num_bits == 16 {
+                // SAFETY: the range-end check above guarantees that this load fits in `data`.
+                let packed = unsafe { load(data, bit_addr) };
+                for (i, out) in chunk.iter_mut().enumerate() {
+                    *out = (packed >> (i * self.num_bits)) & self.mask;
+                }
+            } else if self.num_bits <= 28 || self.num_bits == 32 {
+                // Two values plus at most seven leading bits fit in one load.
+                // At 32 bits, values are byte-aligned, so there are no leading bits.
+                for (pair_idx, pair) in chunk.as_chunks_mut::<2>().0.iter_mut().enumerate() {
+                    // SAFETY: the range-end check above guarantees that this load fits in `data`.
+                    let packed = unsafe { load(data, bit_addr + pair_idx * 2 * self.num_bits) };
+                    pair[0] = packed & self.mask;
+                    pair[1] = (packed >> self.num_bits) & self.mask;
+                }
+            } else {
+                for (i, out) in chunk.iter_mut().enumerate() {
+                    // SAFETY: the range-end check above guarantees that this load fits in `data`.
+                    *out = unsafe { load(data, bit_addr + i * self.num_bits) } & self.mask;
+                }
+            }
+            bit_addr += VALUES_PER_CHUNK * self.num_bits;
+        }
+        for out in remainder {
+            // SAFETY: the range-end check above guarantees that this load fits in `data`.
+            *out = unsafe { load(data, bit_addr) } & self.mask;
+            bit_addr += self.num_bits;
+        }
+    }
+
+    // Pass the mask by value so specialized callers don't need to materialize a
+    // temporary BitUnpacker on the stack just to pass &self to this non-inlined helper.
     #[inline(never)]
-    fn get_slow_path(&self, addr: usize, bit_shift: u32, data: &[u8]) -> u64 {
+    fn get_slow_path(mask: u64, addr: usize, bit_shift: u32, data: &[u8]) -> u64 {
         let mut bytes: [u8; 8] = [0u8; 8];
         let available_bytes = data.len() - addr;
         // This function is meant to only be called if we did not have 8 bytes to load.
@@ -119,7 +219,7 @@ impl BitUnpacker {
         bytes[..available_bytes].copy_from_slice(&data[addr..]);
         let val_unshifted_unmasked: u64 = u64::from_le_bytes(bytes);
         let val_shifted = val_unshifted_unmasked >> bit_shift;
-        val_shifted & self.mask
+        val_shifted & mask
     }
 
     // Decodes the range of bitpacked `u32` values with idx
@@ -315,6 +415,33 @@ mod test {
             assert!(val <= max_val);
             assert_eq!(bitunpacker.get(i as u32, &buffer), val);
         }
+        for start in 0..=vals.len() {
+            let remaining = vals.len() - start;
+            for len in [0, remaining.min(1), remaining / 2, remaining] {
+                let mut output = vec![u64::MAX; len];
+                bitunpacker.get_range(start as u32, &buffer, &mut output);
+                assert_eq!(output, vals[start..start + len]);
+            }
+        }
+    }
+
+    #[test]
+    fn test_get_range_all_bit_widths() {
+        for num_bits in (0..=56).chain(std::iter::once(64)) {
+            let mask = u64::MAX.checked_shr(64 - num_bits as u32).unwrap_or(0);
+            for len in [0, 1, 2, 7, 8, 9, 31, 32, 33, 63, 64, 65, 255, 256, 257] {
+                let vals: Vec<u64> = (0..len)
+                    .map(|i| (i as u64).wrapping_mul(0x9e3779b97f4a7c15) & mask)
+                    .collect();
+                test_bitpacker_aux(num_bits, &vals);
+            }
+        }
+    }
+
+    #[test]
+    #[should_panic(expected = "Requested range is out of bounds")]
+    fn test_get_range_out_of_bounds() {
+        BitUnpacker::new(3).get_range(2, &[0], &mut [0]);
     }
 
     proptest::proptest! {

@@ -6,6 +6,7 @@ use serde::{Deserialize, Serialize};
 use super::flags::{CoerceFlag, FastFlag};
 use crate::schema::flags::{SchemaFlagList, StoredFlag};
 use crate::schema::IndexRecordOption;
+use crate::tokenizer::{DEFAULT_TOKENIZER_NAME, RAW_TOKENIZER_NAME};
 
 /// Define how a text field should be handled by tantivy.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, Default)]
@@ -16,52 +17,80 @@ pub struct TextOptions {
     #[serde(default)]
     stored: bool,
     #[serde(default)]
-    pub(crate) fast: FastFieldTextOptions,
+    #[serde(with = "fast_field_text_options_serde")]
+    pub(crate) fast: Option<FastFieldTextOptions>,
     #[serde(default)]
     #[serde(skip_serializing_if = "is_false")]
     /// coerce values into string if they are not of type string
     coerce: bool,
 }
 
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-#[serde(untagged)]
-/// Enum to control how the fast field setting of a text field.
-pub(crate) enum FastFieldTextOptions {
-    /// Flag to enable/disable
-    IsEnabled(bool),
-    /// Enable with tokenizer. The tokenizer must be available on the fast field tokenizer manager.
-    /// `Index::fast_field_tokenizer`.
-    EnabledWithTokenizer { with_tokenizer: TokenizerName },
+/// Options controlling how a text fast field is tokenized.
+#[derive(Clone, Debug, PartialEq)]
+pub(crate) struct FastFieldTextOptions {
+    pub tokenizer: String,
 }
 
 impl Default for FastFieldTextOptions {
     fn default() -> Self {
-        FastFieldTextOptions::IsEnabled(false)
+        FastFieldTextOptions {
+            tokenizer: RAW_TOKENIZER_NAME.to_string(),
+        }
     }
 }
 
-impl BitOr<FastFieldTextOptions> for FastFieldTextOptions {
-    type Output = FastFieldTextOptions;
+pub(super) fn merge_fast_field_options(
+    left: Option<FastFieldTextOptions>,
+    right: Option<FastFieldTextOptions>,
+) -> Option<FastFieldTextOptions> {
+    // A configured tokenizer takes precedence over the implicit raw tokenizer.
+    match (left, right) {
+        (Some(left), Some(right)) if left.tokenizer == RAW_TOKENIZER_NAME => Some(right),
+        (Some(left), _) => Some(left),
+        (None, right) => right,
+    }
+}
 
-    fn bitor(self, other: FastFieldTextOptions) -> FastFieldTextOptions {
-        match (self, other) {
-            (
-                FastFieldTextOptions::EnabledWithTokenizer {
-                    with_tokenizer: tokenizer,
-                },
-                _,
-            )
-            | (
-                _,
-                FastFieldTextOptions::EnabledWithTokenizer {
-                    with_tokenizer: tokenizer,
-                },
-            ) => FastFieldTextOptions::EnabledWithTokenizer {
-                with_tokenizer: tokenizer,
+pub(super) mod fast_field_text_options_serde {
+    use serde::{Deserialize, Deserializer, Serialize, Serializer};
+
+    use super::{FastFieldTextOptions, RAW_TOKENIZER_NAME};
+
+    #[derive(Serialize, Deserialize)]
+    #[serde(untagged)]
+    enum WireFormat {
+        IsEnabled(bool),
+        EnabledWithTokenizer { with_tokenizer: String },
+    }
+
+    pub fn serialize<S>(
+        fast_field_options: &Option<FastFieldTextOptions>,
+        serializer: S,
+    ) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        let wire_format = match fast_field_options {
+            None => WireFormat::IsEnabled(false),
+            Some(fast_field_options) if fast_field_options.tokenizer == RAW_TOKENIZER_NAME => {
+                WireFormat::IsEnabled(true)
+            }
+            Some(fast_field_options) => WireFormat::EnabledWithTokenizer {
+                with_tokenizer: fast_field_options.tokenizer.clone(),
             },
-            (FastFieldTextOptions::IsEnabled(true), _)
-            | (_, FastFieldTextOptions::IsEnabled(true)) => FastFieldTextOptions::IsEnabled(true),
-            (_, FastFieldTextOptions::IsEnabled(false)) => FastFieldTextOptions::IsEnabled(false),
+        };
+        wire_format.serialize(serializer)
+    }
+
+    pub fn deserialize<'de, D>(deserializer: D) -> Result<Option<FastFieldTextOptions>, D::Error>
+    where D: Deserializer<'de> {
+        let wire_format = WireFormat::deserialize(deserializer)?;
+        match wire_format {
+            WireFormat::IsEnabled(false) => Ok(None),
+            WireFormat::IsEnabled(true) => Ok(Some(FastFieldTextOptions::default())),
+            WireFormat::EnabledWithTokenizer { with_tokenizer } => Ok(Some(FastFieldTextOptions {
+                tokenizer: with_tokenizer,
+            })),
         }
     }
 }
@@ -86,22 +115,16 @@ impl TextOptions {
     /// Returns true if and only if the value is a fast field.
     #[inline]
     pub fn is_fast(&self) -> bool {
-        matches!(self.fast, FastFieldTextOptions::IsEnabled(true))
-            || matches!(
-                &self.fast,
-                FastFieldTextOptions::EnabledWithTokenizer { with_tokenizer: _ }
-            )
+        self.fast.is_some()
     }
 
-    /// Returns true if and only if the value is a fast field.
+    /// Returns the tokenizer used for the fast field, if the text field
+    /// is a fast field and a tokenizer was configured for it.
     #[inline]
     pub fn get_fast_field_tokenizer_name(&self) -> Option<&str> {
-        match &self.fast {
-            FastFieldTextOptions::IsEnabled(true) | FastFieldTextOptions::IsEnabled(false) => None,
-            FastFieldTextOptions::EnabledWithTokenizer {
-                with_tokenizer: tokenizer,
-            } => Some(tokenizer.name()),
-        }
+        self.fast
+            .as_ref()
+            .map(|fast_field_options| fast_field_options.tokenizer.as_str())
     }
 
     /// Returns true if values should be coerced to strings (numbers, null).
@@ -116,8 +139,9 @@ impl TextOptions {
     /// Access time are similar to a random lookup in an array.
     /// Text fast fields will have the term ids stored in the fast field.
     ///
-    /// The effective cardinality depends on the tokenizer. Without a tokenizer, the text will be
-    /// stored as is, which equals to the "raw" tokenizer. The tokenizer can be used to apply
+    /// If you do not want the field to be tokenized, use tokenizer_name: "raw".
+    ///
+    /// The effective cardinality depends on the tokenizer. The tokenizer can be used to apply
     /// normalization like lower case.
     /// The passed tokenizer_name must be available on the fast field tokenizer manager.
     /// `Index::fast_field_tokenizer`.
@@ -126,15 +150,9 @@ impl TextOptions {
     /// [`TermDictionary::ord_to_term()`](crate::termdict::TermDictionary::ord_to_term)
     /// from the dictionary.
     #[must_use]
-    pub fn set_fast(mut self, tokenizer_name: Option<&str>) -> TextOptions {
-        if let Some(tokenizer) = tokenizer_name {
-            let tokenizer = TokenizerName::from_name(tokenizer);
-            self.fast = FastFieldTextOptions::EnabledWithTokenizer {
-                with_tokenizer: tokenizer,
-            }
-        } else {
-            self.fast = FastFieldTextOptions::IsEnabled(true);
-        }
+    pub fn set_fast(mut self, tokenizer_name: impl ToString) -> TextOptions {
+        let tokenizer = tokenizer_name.to_string();
+        self.fast = Some(FastFieldTextOptions { tokenizer });
         self
     }
 
@@ -160,31 +178,6 @@ impl TextOptions {
     }
 }
 
-#[derive(Clone, PartialEq, Debug, Eq, Serialize, Deserialize)]
-pub(crate) struct TokenizerName(Cow<'static, str>);
-
-const DEFAULT_TOKENIZER_NAME: &str = "default";
-
-const NO_TOKENIZER_NAME: &str = "raw";
-
-impl Default for TokenizerName {
-    fn default() -> Self {
-        TokenizerName::from_static(DEFAULT_TOKENIZER_NAME)
-    }
-}
-
-impl TokenizerName {
-    pub const fn from_static(name: &'static str) -> Self {
-        TokenizerName(Cow::Borrowed(name))
-    }
-    pub(crate) fn from_name(name: &str) -> Self {
-        TokenizerName(Cow::Owned(name.to_string()))
-    }
-    pub(crate) fn name(&self) -> &str {
-        &self.0
-    }
-}
-
 /// Configuration defining indexing for a text field.
 ///
 /// It defines
@@ -200,8 +193,12 @@ pub struct TextFieldIndexing {
     record: IndexRecordOption,
     #[serde(default = "default_fieldnorms")]
     fieldnorms: bool,
-    #[serde(default)]
-    tokenizer: TokenizerName,
+    #[serde(default = "default_tokenizer")]
+    tokenizer: Cow<'static, str>,
+}
+
+fn default_tokenizer() -> Cow<'static, str> {
+    Cow::Borrowed(DEFAULT_TOKENIZER_NAME)
 }
 
 pub(crate) fn default_fieldnorms() -> bool {
@@ -211,7 +208,7 @@ pub(crate) fn default_fieldnorms() -> bool {
 impl Default for TextFieldIndexing {
     fn default() -> TextFieldIndexing {
         TextFieldIndexing {
-            tokenizer: TokenizerName::default(),
+            tokenizer: default_tokenizer(),
             record: IndexRecordOption::default(),
             fieldnorms: default_fieldnorms(),
         }
@@ -222,13 +219,13 @@ impl TextFieldIndexing {
     /// Sets the tokenizer to be used for a given field.
     #[must_use]
     pub fn set_tokenizer(mut self, tokenizer_name: &str) -> TextFieldIndexing {
-        self.tokenizer = TokenizerName::from_name(tokenizer_name);
+        self.tokenizer = Cow::Owned(tokenizer_name.to_string());
         self
     }
 
-    /// Returns the tokenizer that will be used for this field.
+    /// Returns the name of the tokenizer that will be used for this field.
     pub fn tokenizer(&self) -> &str {
-        self.tokenizer.name()
+        self.tokenizer.as_ref()
     }
 
     /// Sets fieldnorms
@@ -263,25 +260,25 @@ impl TextFieldIndexing {
 /// The field will be untokenized and indexed.
 pub const STRING: TextOptions = TextOptions {
     indexing: Some(TextFieldIndexing {
-        tokenizer: TokenizerName::from_static(NO_TOKENIZER_NAME),
+        tokenizer: Cow::Borrowed(RAW_TOKENIZER_NAME),
         fieldnorms: true,
         record: IndexRecordOption::Basic,
     }),
     stored: false,
-    fast: FastFieldTextOptions::IsEnabled(false),
+    fast: None,
     coerce: false,
 };
 
 /// The field will be tokenized and indexed.
 pub const TEXT: TextOptions = TextOptions {
     indexing: Some(TextFieldIndexing {
-        tokenizer: TokenizerName::from_static(DEFAULT_TOKENIZER_NAME),
+        tokenizer: Cow::Borrowed(DEFAULT_TOKENIZER_NAME),
         fieldnorms: true,
         record: IndexRecordOption::WithFreqsAndPositions,
     }),
     stored: false,
     coerce: false,
-    fast: FastFieldTextOptions::IsEnabled(false),
+    fast: None,
 };
 
 impl<T: Into<TextOptions>> BitOr<T> for TextOptions {
@@ -292,7 +289,7 @@ impl<T: Into<TextOptions>> BitOr<T> for TextOptions {
         TextOptions {
             indexing: self.indexing.or(other.indexing),
             stored: self.stored | other.stored,
-            fast: self.fast | other.fast,
+            fast: merge_fast_field_options(self.fast, other.fast),
             coerce: self.coerce | other.coerce,
         }
     }
@@ -309,7 +306,7 @@ impl From<StoredFlag> for TextOptions {
         TextOptions {
             indexing: None,
             stored: true,
-            fast: FastFieldTextOptions::default(),
+            fast: None,
             coerce: false,
         }
     }
@@ -320,7 +317,7 @@ impl From<CoerceFlag> for TextOptions {
         TextOptions {
             indexing: None,
             stored: false,
-            fast: FastFieldTextOptions::default(),
+            fast: None,
             coerce: true,
         }
     }
@@ -331,7 +328,7 @@ impl From<FastFlag> for TextOptions {
         TextOptions {
             indexing: None,
             stored: false,
-            fast: FastFieldTextOptions::IsEnabled(true),
+            fast: Some(FastFieldTextOptions::default()),
             coerce: false,
         }
     }
@@ -350,7 +347,7 @@ where
 
 #[cfg(test)]
 mod tests {
-    use crate::schema::text_options::{FastFieldTextOptions, TokenizerName};
+    use crate::schema::text_options::FastFieldTextOptions;
     use crate::schema::*;
 
     #[test]
@@ -375,6 +372,28 @@ mod tests {
     }
 
     #[test]
+    fn test_fast_field_options_composition_raw_tokenizer_gets_overridden() {
+        let raw_options: TextOptions = FAST.into();
+        let tokenized_options = TextOptions::default().set_fast("default");
+        assert_eq!(
+            (raw_options.clone() | tokenized_options.clone())
+                .fast
+                .unwrap()
+                .tokenizer
+                .as_str(),
+            "default"
+        );
+        assert_eq!(
+            (tokenized_options | raw_options)
+                .fast
+                .unwrap()
+                .tokenizer
+                .as_str(),
+            "default"
+        );
+    }
+
+    #[test]
     fn serde_default_test() {
         let json = r#"
         {
@@ -392,6 +411,7 @@ mod tests {
         assert_eq!(options.indexing.unwrap().record, IndexRecordOption::Basic);
         let options3: TextOptions = serde_json::from_str("{}").unwrap();
         assert_eq!(options3.indexing, None);
+        assert_eq!(options3.fast, None);
     }
 
     #[test]
@@ -402,35 +422,51 @@ mod tests {
         let options: TextOptions = serde_json::from_str(json).unwrap();
         assert_eq!(
             options.fast,
-            FastFieldTextOptions::EnabledWithTokenizer {
-                with_tokenizer: TokenizerName::from_static("default")
-            }
+            Some(FastFieldTextOptions {
+                tokenizer: "default".to_string()
+            })
         );
-        let options: TextOptions =
-            serde_json::from_str(&serde_json::to_string(&options).unwrap()).unwrap();
+        let serialized = serde_json::to_value(&options).unwrap();
+        assert_eq!(
+            serialized["fast"],
+            serde_json::json!({ "with_tokenizer": "default" })
+        );
+        let options: TextOptions = serde_json::from_value(serialized).unwrap();
         assert_eq!(
             options.fast,
-            FastFieldTextOptions::EnabledWithTokenizer {
-                with_tokenizer: TokenizerName::from_static("default")
-            }
+            Some(FastFieldTextOptions {
+                tokenizer: "default".to_string()
+            })
         );
 
         let json = r#" {
             "fast": true
         } "#;
         let options: TextOptions = serde_json::from_str(json).unwrap();
-        assert_eq!(options.fast, FastFieldTextOptions::IsEnabled(true));
-        let options: TextOptions =
-            serde_json::from_str(&serde_json::to_string(&options).unwrap()).unwrap();
-        assert_eq!(options.fast, FastFieldTextOptions::IsEnabled(true));
+        assert_eq!(
+            options.fast,
+            Some(FastFieldTextOptions {
+                tokenizer: "raw".to_string()
+            })
+        );
+        let serialized = serde_json::to_value(&options).unwrap();
+        assert_eq!(serialized["fast"], serde_json::json!(true));
+        let options: TextOptions = serde_json::from_value(serialized).unwrap();
+        assert_eq!(
+            options.fast,
+            Some(FastFieldTextOptions {
+                tokenizer: "raw".to_string()
+            })
+        );
 
         let json = r#" {
             "fast": false
         } "#;
         let options: TextOptions = serde_json::from_str(json).unwrap();
-        assert_eq!(options.fast, FastFieldTextOptions::IsEnabled(false));
-        let options: TextOptions =
-            serde_json::from_str(&serde_json::to_string(&options).unwrap()).unwrap();
-        assert_eq!(options.fast, FastFieldTextOptions::IsEnabled(false));
+        assert_eq!(options.fast, None);
+        let serialized = serde_json::to_value(&options).unwrap();
+        assert_eq!(serialized["fast"], serde_json::json!(false));
+        let options: TextOptions = serde_json::from_value(serialized).unwrap();
+        assert_eq!(options.fast, None);
     }
 }

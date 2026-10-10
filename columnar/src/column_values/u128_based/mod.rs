@@ -108,7 +108,7 @@ pub fn open_u128_mapped<T: MonotonicallyMappableToU128 + Debug>(
     let reader = CompactSpaceDecompressor::open(bytes)?;
     let inverted: StrictlyMonotonicMappingInverter<StrictlyMonotonicMappingToInternal<T>> =
         StrictlyMonotonicMappingToInternal::<T>::new().into();
-    Ok(Arc::new(monotonic_map_column(reader, inverted)))
+    Ok(monotonic_map_column(reader, inverted))
 }
 
 /// Returns the u64 representation of the u128 data.

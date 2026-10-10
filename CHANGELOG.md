@@ -1,4 +1,29 @@
-Tantivy 0.26 (Unreleased)
+Tantivy 0.27.0
+================================
+
+## Breaking change
+- `.set_fast(..)` now takes a &str. The same behavior as `.set_fast(None)` can be obtained with .set_fast(tantivy::tokenizer::RAW_TOKENIZER_NAME).
+- Added the `FieldType::TieBreaker` variant; exhaustive matches on `FieldType` need a new arm.
+
+## Features/Improvements
+- Add generated tie-breaker fast fields via `SchemaBuilder::add_tie_breaker_field`. Values are consecutive within a segment, start at a random offset, and are preserved across merges.
+
+
+Tantivy 0.26.2
+================================
+
+## Bugfixes
+- Fix term aggregation document-count overflow when merging buckets across segments by widening intermediate counts from `u32` to `u64` (@PSeitz)
+- Fix missing local buffer flushes in nested aggregations that caused incorrect metric results for low-cardinality terms buckets [#2992](https://github.com/quickwit-oss/tantivy/issues/2992)(@PSeitz)
+- Disable the buffered union `seek_danger` override to avoid consuming unaligned scorers [#3086](https://github.com/quickwit-oss/tantivy/issues/3086)(@PSeitz)
+
+Tantivy 0.26.1
+================================
+
+## Performance
+- Fix quadratic runtime in nested term and composite aggregations: memory accounting scanned all parent buckets on every collect instead of just the current parent (@PSeitz @fulmicoton)
+
+Tantivy 0.26
 ================================
 
 ## Bugfixes
@@ -11,6 +36,7 @@ Tantivy 0.26 (Unreleased)
 - Fix integer overflow in segment sorting and merge policy truncation [#2846](https://github.com/quickwit-oss/tantivy/pull/2846)(@anaslimem)
 - Fix merging of intermediate aggregation results [#2719](https://github.com/quickwit-oss/tantivy/pull/2719)(@PSeitz)
 - Fix deduplicate doc counts in term aggregation for multi-valued fields [#2854](https://github.com/quickwit-oss/tantivy/pull/2854)(@nuri-yoo)
+- Honor phrase prefix (`"..."*`) and slop (`"..."~N`) on JSON fields; previously both were silently dropped, degrading the query to an exact phrase [#2966](https://github.com/quickwit-oss/tantivy/pull/2966)(@DavIvek)
 
 ## Features/Improvements
 - **Aggregation**
@@ -45,6 +71,7 @@ Tantivy 0.26 (Unreleased)
 - Add `seek_danger` on `DocSet` for more efficient intersections [#2538](https://github.com/quickwit-oss/tantivy/pull/2538) [#2810](https://github.com/quickwit-oss/tantivy/pull/2810)(@PSeitz @stuhood @fulmicoton)
 - Skip column traversal in `RangeDocSet` when query range does not overlap with column bounds [#2783](https://github.com/quickwit-oss/tantivy/pull/2783)(@ChangRui-Ryan)
 - Speed up exclude queries by supporting multiple excluded `DocSet`s without intermediate union [#2825](https://github.com/quickwit-oss/tantivy/pull/2825)(@PSeitz)
+- Improve union performance for non-score unions with `fill_buffer` and optimized `TinySet` [#2863](https://github.com/quickwit-oss/tantivy/pull/2863)(@PSeitz)
 
 Tantivy 0.25
 ================================

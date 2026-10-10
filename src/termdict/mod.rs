@@ -38,6 +38,7 @@ use std::io;
 
 use common::file_slice::FileSlice;
 use common::BinarySerializable;
+pub use common::{KeyTracking, WithoutKeys};
 use tantivy_fst::Automaton;
 
 use self::termdict::{
