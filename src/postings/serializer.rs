@@ -8,8 +8,11 @@ use crate::directory::{CompositeWrite, WritePtr};
 use crate::fieldnorm::FieldNormReader;
 use crate::index::Segment;
 use crate::positions::PositionSerializer;
-use crate::postings::compression::{BlockEncoder, VIntEncoder, COMPRESSION_BLOCK_SIZE};
-use crate::postings::skip::SkipSerializer;
+use crate::postings::compression::{
+    bitset_base_doc, dense_block_size, num_bitset_longs, BlockEncoder, VIntEncoder,
+    COMPRESSION_BLOCK_SIZE,
+};
+use crate::postings::skip::{SkipSerializer, MAX_DENSE_LONGS};
 use crate::query::Bm25Weight;
 use crate::schema::{Field, FieldEntry, IndexRecordOption, Schema};
 use crate::termdict::TermDictionaryBuilder;
@@ -376,7 +379,56 @@ impl PostingsSerializer {
     }
 
     fn write_block(&mut self) {
-        {
+        // Pick between FOR-delta encoding and dense bitset encoding.
+        //
+        // Lucene (`Lucene104PostingsWriter`) slightly biases this choice
+        // towards bitsets because its `advance()`/`intoBitSet()` paths
+        // consume them much faster. Tantivy has no such vectorized consumer
+        // yet, so dense blocks are only emitted when strictly smaller than
+        // the FOR encoding (ties stay FOR, which decodes faster
+        // doc-at-a-time).
+        //
+        // The estimate runs over the values FOR actually stores: with
+        // strict-delta encoding, deltas are stored minus one (the very first
+        // doc of the index is stored as-is).
+        let last_doc = self.block.last_doc();
+        let base = bitset_base_doc(self.last_doc_id_encoded);
+        let doc_range = last_doc.wrapping_sub(base).wrapping_add(1);
+        let mut or_stored = 0u32;
+        let mut prev = self.last_doc_id_encoded;
+        for (idx, &doc) in self.block.doc_ids().iter().enumerate() {
+            let stored = if idx == 0 && prev == 0 {
+                doc
+            } else {
+                doc.wrapping_sub(prev).wrapping_sub(1)
+            };
+            or_stored |= stored;
+            prev = doc;
+        }
+        let bits_per_value = if or_stored == 0 {
+            0
+        } else {
+            32 - or_stored.leading_zeros() as usize
+        };
+        let for_bytes = bits_per_value * COMPRESSION_BLOCK_SIZE / 8;
+        let bitset_longs = num_bitset_longs(doc_range);
+        // All-consecutive blocks stay FOR: FOR encodes them in fewer bytes
+        // here and decodes faster doc-at-a-time.
+        let use_dense = doc_range != COMPRESSION_BLOCK_SIZE as u32
+            && (1..=u32::from(MAX_DENSE_LONGS)).contains(&bitset_longs)
+            && dense_block_size(bitset_longs as u8) < for_bytes;
+        if use_dense {
+            let num_longs = bitset_longs as usize;
+            let bitset_bytes = self.block_encoder.compress_bitset_sorted(
+                self.block.doc_ids(),
+                self.last_doc_id_encoded,
+                num_longs,
+            );
+            self.last_doc_id_encoded = last_doc;
+            self.skip_write
+                .write_doc_dense(self.last_doc_id_encoded, num_longs as u8);
+            self.postings_write.extend(bitset_bytes);
+        } else {
             // encode the doc ids
             let (num_bits, block_encoded): (u8, &[u8]) = self
                 .block_encoder
