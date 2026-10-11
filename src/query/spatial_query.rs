@@ -21,9 +21,12 @@ use crate::spatial::geometry_set::{
 };
 use crate::spatial::intersects_query::IntersectsQuery;
 use crate::spatial::plane::Plane;
+use crate::spatial::rect_query::{RectQuery, RectRelation};
 use crate::spatial::region_coverer::CovererOptions;
 use crate::spatial::s1chord_angle::S1ChordAngle;
 use crate::spatial::sphere::Sphere;
+use crate::spatial::surface::Surface;
+use crate::spatial::within_query::WithinQuery;
 use crate::{DocId, DocSet, Score, TERMINATED};
 
 /// The spatial predicate to apply.
@@ -51,10 +54,13 @@ pub enum SpatialPredicate {
 pub struct SpatialQuery {
     field: Field,
     predicate: SpatialPredicate,
-    /// Polygon vertices (lon/lat) for Contains and Intersects, or a single point for distance.
+    /// Polygon vertices (lon/lat) for Contains and Intersects, a single point for distance, or
+    /// the south-west and north-east corners of a rectangle.
     coordinates: Vec<[f64; 2]>,
     /// How the polygon's ring picks the region it bounds, if not as the field's rings do.
     orientation: Option<RingOrientation>,
+    /// Whether the coordinates are the corners of a rectangle of longitude and latitude.
+    rectangle: bool,
 }
 
 impl SpatialQuery {
@@ -65,6 +71,7 @@ impl SpatialQuery {
             coordinates: polygon,
             predicate: SpatialPredicate::CoveredBy,
             orientation: None,
+            rectangle: false,
         }
     }
 
@@ -79,10 +86,42 @@ impl SpatialQuery {
             coordinates,
             predicate,
             orientation: None,
+            rectangle: false,
         }
     }
 
-    /// Create a spatial query from a bounding box. The box is converted to a 4-vertex polygon.
+    /// Create a query for the geometries within a rectangle of longitude and latitude, its
+    /// boundary included. The bounds are the rectangle's west and south, then its east and
+    /// north, as a GeoJSON bounding box has them: its sides are the meridians and the parallels
+    /// through them. A west greater than the east is a rectangle across the antimeridian, and a
+    /// west of -180 with an east of 180 is every longitude.
+    pub fn covered_by_rect(field: Field, bounds: [[f64; 2]; 2]) -> Self {
+        SpatialQuery {
+            field,
+            coordinates: bounds.to_vec(),
+            predicate: SpatialPredicate::CoveredBy,
+            orientation: None,
+            rectangle: true,
+        }
+    }
+
+    /// Create a query for the geometries that have a point in common with a rectangle of
+    /// longitude and latitude. See [`SpatialQuery::covered_by_rect`] for its bounds.
+    pub fn intersects_rect(field: Field, bounds: [[f64; 2]; 2]) -> Self {
+        SpatialQuery {
+            field,
+            coordinates: bounds.to_vec(),
+            predicate: SpatialPredicate::Intersects,
+            orientation: None,
+            rectangle: true,
+        }
+    }
+
+    /// Create a spatial query from a bounding box. The box is converted to a 4-vertex polygon,
+    /// whose edges are geodesics: its north and south edges bow toward the nearer pole, away
+    /// from the parallels through its corners, by more the wider the box is, and an edge between
+    /// corners more than 180 degrees apart runs the short way around. For the rectangle between
+    /// those parallels, of any width, see [`SpatialQuery::covered_by_rect`].
     pub fn from_bounds(field: Field, bounds: [[f64; 2]; 2]) -> Self {
         let [lo, hi] = bounds;
         let polygon = vec![
@@ -96,10 +135,13 @@ impl SpatialQuery {
             coordinates: polygon,
             predicate: SpatialPredicate::CoveredBy,
             orientation: None,
+            rectangle: false,
         }
     }
 
-    /// Create an intersects query from a bounding box.
+    /// Create an intersects query from a bounding box, converted to a 4-vertex polygon as
+    /// [`SpatialQuery::from_bounds`] has it. For the rectangle between the parallels through its
+    /// corners, see [`SpatialQuery::intersects_rect`].
     pub fn intersects_bounds(field: Field, bounds: [[f64; 2]; 2]) -> Self {
         let [lo, hi] = bounds;
         let polygon = vec![
@@ -113,6 +155,7 @@ impl SpatialQuery {
             coordinates: polygon,
             predicate: SpatialPredicate::Intersects,
             orientation: None,
+            rectangle: false,
         }
     }
 
@@ -126,11 +169,52 @@ impl SpatialQuery {
     }
 }
 
+impl SpatialQuery {
+    /// The weight of a rectangle query, once its corners are checked.
+    fn rectangle_weight(&self) -> crate::Result<Box<dyn super::Weight>> {
+        let invalid = |reason: &str| {
+            crate::TantivyError::InvalidArgument(format!(
+                "Invalid rectangle {:?}: {reason}",
+                self.coordinates
+            ))
+        };
+        let &[[west, south], [east, north]] = self.coordinates.as_slice() else {
+            return Err(invalid("a rectangle has two corners"));
+        };
+        if ![west, east]
+            .iter()
+            .all(|lon| (-180.0..=180.0).contains(lon))
+            || ![south, north]
+                .iter()
+                .all(|lat| (-90.0..=90.0).contains(lat))
+        {
+            return Err(invalid(
+                "longitude must be within [-180, 180] and latitude within [-90, 90]",
+            ));
+        }
+        if south > north {
+            return Err(invalid("its south is above its north"));
+        }
+        let relation = match self.predicate {
+            SpatialPredicate::CoveredBy => RectRelation::CoveredBy,
+            SpatialPredicate::Intersects => RectRelation::Intersects,
+            _ => return Err(invalid("a rectangle covers or intersects")),
+        };
+        Ok(Box::new(SpatialWeight {
+            field: self.field,
+            query: Box::new(RectQuery::new([west, south], [east, north], relation)),
+        }))
+    }
+}
+
 impl Query for SpatialQuery {
     fn weight(
         &self,
         enable_scoring: super::EnableScoring<'_>,
     ) -> crate::Result<Box<dyn super::Weight>> {
+        if self.rectangle {
+            return self.rectangle_weight();
+        }
         let min_coordinates = match self.predicate {
             SpatialPredicate::CoveredBy
             | SpatialPredicate::Contains
@@ -203,11 +287,9 @@ impl Query for SpatialQuery {
                 }
             }
             SpatialPredicate::Within(radius_radians) => {
-                let query_geometry = Geometry::<Plane>::Point(self.coordinates[0]);
-                let projected = query_geometry.project::<Sphere>();
-                let set = to_geometry_set(&projected, 0);
+                let [lon, lat] = self.coordinates[0];
                 let radius = S1ChordAngle::from_radians(*radius_radians);
-                Box::new(ClosestEdgeQuery::within(set, radius))
+                Box::new(WithinQuery::new(Sphere::project(lon, lat), radius))
             }
             SpatialPredicate::Between(inner_radians, outer_radians) => {
                 let query_geometry = Geometry::<Plane>::Point(self.coordinates[0]);
@@ -233,53 +315,67 @@ impl Query for SpatialQuery {
 
 /// Shared interface for prepared spatial queries.
 trait PreparedSpatialQuery: Send + Sync {
+    /// Add the documents of one segment that match to `docs`.
     fn search_segment(
         &self,
         cell_reader: &CellIndexReader,
         edge_cache: &mut EdgeCache<'_, Sphere>,
-    ) -> Vec<u32>;
+        docs: &mut BitSet,
+    );
 }
 
-impl PreparedSpatialQuery for ContainsQuery {
-    fn search_segment(
-        &self,
-        cell_reader: &CellIndexReader,
-        edge_cache: &mut EdgeCache<'_, Sphere>,
-    ) -> Vec<u32> {
-        ContainsQuery::search_segment(self, cell_reader, edge_cache)
-    }
+/// Prepared queries that list the documents of a segment that match.
+macro_rules! prepared_from_doc_ids {
+    ($($query:ty),*) => {$(
+        impl PreparedSpatialQuery for $query {
+            fn search_segment(
+                &self,
+                cell_reader: &CellIndexReader,
+                edge_cache: &mut EdgeCache<'_, Sphere>,
+                docs: &mut BitSet,
+            ) {
+                for doc_id in <$query>::search_segment(self, cell_reader, edge_cache) {
+                    docs.insert(doc_id);
+                }
+            }
+        }
+    )*};
 }
 
-impl PreparedSpatialQuery for ContainingQuery {
-    fn search_segment(
-        &self,
-        cell_reader: &CellIndexReader,
-        edge_cache: &mut EdgeCache<'_, Sphere>,
-    ) -> Vec<u32> {
-        ContainingQuery::search_segment(self, cell_reader, edge_cache)
-    }
-}
-
-impl PreparedSpatialQuery for IntersectsQuery {
-    fn search_segment(
-        &self,
-        cell_reader: &CellIndexReader,
-        edge_cache: &mut EdgeCache<'_, Sphere>,
-    ) -> Vec<u32> {
-        IntersectsQuery::search_segment(self, cell_reader, edge_cache)
-    }
-}
+prepared_from_doc_ids!(ContainsQuery, ContainingQuery, IntersectsQuery);
 
 impl PreparedSpatialQuery for ClosestEdgeQuery {
     fn search_segment(
         &self,
         cell_reader: &CellIndexReader,
         edge_cache: &mut EdgeCache<'_, Sphere>,
-    ) -> Vec<u32> {
-        ClosestEdgeQuery::search_segment(self, cell_reader, edge_cache)
-            .into_iter()
-            .map(|r| r.doc_id)
-            .collect()
+        docs: &mut BitSet,
+    ) {
+        for result in ClosestEdgeQuery::search_segment(self, cell_reader, edge_cache) {
+            docs.insert(result.doc_id);
+        }
+    }
+}
+
+impl PreparedSpatialQuery for WithinQuery {
+    fn search_segment(
+        &self,
+        cell_reader: &CellIndexReader,
+        edge_cache: &mut EdgeCache<'_, Sphere>,
+        docs: &mut BitSet,
+    ) {
+        WithinQuery::search_segment(self, cell_reader, edge_cache, docs)
+    }
+}
+
+impl PreparedSpatialQuery for RectQuery {
+    fn search_segment(
+        &self,
+        cell_reader: &CellIndexReader,
+        edge_cache: &mut EdgeCache<'_, Sphere>,
+        docs: &mut BitSet,
+    ) {
+        RectQuery::search_segment(self, cell_reader, edge_cache, docs)
     }
 }
 
@@ -306,12 +402,9 @@ impl Weight for SpatialWeight {
         let edge_reader = EdgeReader::<Sphere>::open(spatial_reader.edges_bytes())?;
         let mut edge_cache = EdgeCache::new(vec![edge_reader], QUERY_EDGE_CACHE_BYTES);
 
-        let doc_ids = self.query.search_segment(&cell_reader, &mut edge_cache);
-
         let mut include = BitSet::with_max_value(reader.max_doc());
-        for doc_id in doc_ids {
-            include.insert(doc_id);
-        }
+        self.query
+            .search_segment(&cell_reader, &mut edge_cache, &mut include);
 
         Ok(Box::new(SpatialScorer::new(boost, include)))
     }
@@ -2031,6 +2124,475 @@ mod tests {
         let (lenient, errors) = parser.parse_query_lenient(nested);
         assert!(errors.is_empty());
         assert_eq!(matching(&index, name, &*lenient)?, ["cafe3"]);
+        Ok(())
+    }
+
+    fn point(lon: f64, lat: f64) -> String {
+        format!(r#"{{"type": "Point", "coordinates": [{lon}, {lat}]}}"#)
+    }
+
+    fn line(positions: &[[f64; 2]]) -> String {
+        format!(r#"{{"type": "LineString", "coordinates": {positions:?}}}"#)
+    }
+
+    #[test]
+    fn test_a_rectangle_follows_its_parallels() -> crate::Result<()> {
+        // At their middle, the geodesics through the corners run 7 degrees north of the
+        // parallels: the polygon through the corners holds what lies between the geodesics.
+        let (south, north) = (point(15.0, 62.0), point(15.0, 69.0));
+        let (index, name, geometry) = index_segments(&[&[("south", &south), ("north", &north)]])?;
+        let bounds = [[-30.0, 60.0], [60.0, 65.0]];
+        let covered = SpatialQuery::covered_by_rect(geometry, bounds);
+        assert_eq!(matching(&index, name, &covered)?, ["south"]);
+        let intersects = SpatialQuery::intersects_rect(geometry, bounds);
+        assert_eq!(matching(&index, name, &intersects)?, ["south"]);
+        let polygon = SpatialQuery::from_bounds(geometry, bounds);
+        assert_eq!(matching(&index, name, &polygon)?, ["north"]);
+        Ok(())
+    }
+
+    #[test]
+    fn test_a_rectangle_is_as_wide_as_its_bounds() -> crate::Result<()> {
+        let docs = [
+            ("greenwich", point(0.0, 0.0)),
+            ("east", point(100.0, 0.0)),
+            ("date_line", point(180.0, 0.0)),
+            ("west", point(-175.0, 0.0)),
+        ];
+        let docs: Vec<(&str, &str)> = docs.iter().map(|(n, g)| (*n, g.as_str())).collect();
+        let (index, name, geometry) = index_segments(&[&docs[..2], &docs[2..]])?;
+        let within = |west: f64, east: f64| {
+            let query = SpatialQuery::covered_by_rect(geometry, [[west, -1.0], [east, 1.0]]);
+            matching(&index, name, &query)
+        };
+        assert_eq!(within(-170.0, 170.0)?, ["east", "greenwich"]);
+        assert_eq!(within(170.0, -170.0)?, ["date_line", "west"]);
+        assert_eq!(
+            within(-180.0, 180.0)?,
+            ["date_line", "east", "greenwich", "west"]
+        );
+        assert_eq!(within(0.0, 180.0)?, ["date_line", "east", "greenwich"]);
+        assert_eq!(within(100.0, 100.0)?, ["east"]);
+        // The antimeridian alone, however it is written.
+        for (west, east) in [(180.0, -180.0), (180.0, 180.0), (-180.0, -180.0)] {
+            assert_eq!(within(west, east)?, ["date_line"], "{west} to {east}");
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn test_a_rectangle_includes_its_boundary() -> crate::Result<()> {
+        let docs = [
+            ("corner", point(10.0, 10.0)),
+            ("origin", point(0.0, 0.0)),
+            ("north", point(5.0, 10.0)),
+            ("east", point(10.0, 5.0)),
+            ("west", point(0.0, 5.0)),
+            ("beyond", point(10.000001, 5.0)),
+            ("above", point(5.0, 10.000001)),
+        ];
+        let docs: Vec<(&str, &str)> = docs.iter().map(|(n, g)| (*n, g.as_str())).collect();
+        let (index, name, geometry) = index_segments(&[&docs])?;
+        let query = SpatialQuery::covered_by_rect(geometry, [[0.0, 0.0], [10.0, 10.0]]);
+        assert_eq!(
+            matching(&index, name, &query)?,
+            ["corner", "east", "north", "origin", "west"]
+        );
+        // A rectangle with no area is the point or the line it is.
+        let at = SpatialQuery::intersects_rect(geometry, [[10.0, 5.0], [10.0, 5.0]]);
+        assert_eq!(matching(&index, name, &at)?, ["east"]);
+        let along = SpatialQuery::covered_by_rect(geometry, [[0.0, 10.0], [10.0, 10.0]]);
+        assert_eq!(matching(&index, name, &along)?, ["corner", "north"]);
+        Ok(())
+    }
+
+    #[test]
+    fn test_a_rectangle_covers_lines_and_polygons_by_their_edges() -> crate::Result<()> {
+        let polygon = |ring: &str| format!(r#"{{"type": "Polygon", "coordinates": [{ring}]}}"#);
+        let docs = [
+            ("inside", line(&[[1.0, 1.0], [9.0, 9.0]])),
+            // Rises above the north of the rectangle between its ends, which are within it.
+            ("bowed", line(&[[2.0, 9.99], [8.0, 9.99]])),
+            ("leaving", line(&[[5.0, 5.0], [15.0, 5.0]])),
+            // Neither has an end in the rectangle: one crosses its meridians, one its parallels.
+            ("through", line(&[[-2.0, 9.9], [12.0, 9.9]])),
+            ("diagonal", line(&[[2.0, 12.0], [8.0, -2.0]])),
+            ("over", line(&[[2.0, 10.001], [8.0, 10.001]])),
+            ("outside", line(&[[11.0, 1.0], [12.0, 2.0]])),
+            ("small", polygon(&regular_ring(5.0, 5.0, 6, 2.0, false))),
+            // Its north edge is the geodesic between the rectangle's north corners.
+            ("same", BOX.to_string()),
+            ("around", polygon(&regular_ring(5.0, 5.0, 4, 20.0, false))),
+            ("far", polygon(&regular_ring(50.0, 5.0, 6, 2.0, false))),
+        ];
+        let docs: Vec<(&str, &str)> = docs.iter().map(|(n, g)| (*n, g.as_str())).collect();
+        let (index, name, geometry) = index_segments(&[&docs[..5], &docs[5..]])?;
+        let bounds = [[0.0, 0.0], [10.0, 10.0]];
+        let covered = SpatialQuery::covered_by_rect(geometry, bounds);
+        assert_eq!(matching(&index, name, &covered)?, ["inside", "small"]);
+        let intersects = SpatialQuery::intersects_rect(geometry, bounds);
+        assert_eq!(
+            matching(&index, name, &intersects)?,
+            ["around", "bowed", "diagonal", "inside", "leaving", "same", "small", "through"]
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn test_a_rectangle_wider_than_a_hemisphere_leaves_out_what_an_edge_may_cross(
+    ) -> crate::Result<()> {
+        // Both run the short way between their ends: one across the antimeridian.
+        let across = line(&[[160.0, 0.0], [-160.0, 0.0]]);
+        let along = line(&[[-60.0, 0.0], [60.0, 0.0]]);
+        let (index, name, geometry) = index_segments(&[&[("across", &across), ("along", &along)]])?;
+        let bounds = [[-170.0, -1.0], [170.0, 1.0]];
+        let covered = SpatialQuery::covered_by_rect(geometry, bounds);
+        assert_eq!(matching(&index, name, &covered)?, ["along"]);
+        let intersects = SpatialQuery::intersects_rect(geometry, bounds);
+        assert_eq!(matching(&index, name, &intersects)?, ["across", "along"]);
+        Ok(())
+    }
+
+    #[test]
+    fn test_a_rectangle_to_a_pole_holds_the_pole() -> crate::Result<()> {
+        let docs = [
+            ("pole", point(0.0, 90.0)),
+            ("near", point(45.0, 85.0)),
+            // Runs over the pole.
+            ("over", line(&[[0.0, 85.0], [180.0, 85.0]])),
+            ("far", point(45.0, 70.0)),
+        ];
+        let docs: Vec<(&str, &str)> = docs.iter().map(|(n, g)| (*n, g.as_str())).collect();
+        let (index, name, geometry) = index_segments(&[&docs])?;
+        let cap = SpatialQuery::covered_by_rect(geometry, [[-180.0, 80.0], [180.0, 90.0]]);
+        assert_eq!(matching(&index, name, &cap)?, ["near", "over", "pole"]);
+        let wedge = [[0.0, 80.0], [90.0, 90.0]];
+        let covered = SpatialQuery::covered_by_rect(geometry, wedge);
+        assert_eq!(matching(&index, name, &covered)?, ["near", "pole"]);
+        let intersects = SpatialQuery::intersects_rect(geometry, wedge);
+        assert_eq!(
+            matching(&index, name, &intersects)?,
+            ["near", "over", "pole"]
+        );
+        let world = SpatialQuery::covered_by_rect(geometry, [[-180.0, -90.0], [180.0, 90.0]]);
+        assert_eq!(
+            matching(&index, name, &world)?,
+            ["far", "near", "over", "pole"]
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn test_a_rectangle_does_not_cover_a_polygon_around_what_it_leaves_out() -> crate::Result<()> {
+        // The polygon's edges lie between 80 and 83 degrees north, around the pole.
+        let cap = r#"{"type": "Polygon", "coordinates":
+            [[[0, 80], [90, 80], [180, 80], [-90, 80], [0, 80]]]}"#;
+        let (index, name, geometry) = index_segments(&[&[("cap", cap)]])?;
+        let band = [[-180.0, 70.0], [180.0, 85.0]];
+        let covered = SpatialQuery::covered_by_rect(geometry, band);
+        assert!(matching(&index, name, &covered)?.is_empty());
+        let intersects = SpatialQuery::intersects_rect(geometry, band);
+        assert_eq!(matching(&index, name, &intersects)?, ["cap"]);
+        let to_pole = SpatialQuery::covered_by_rect(geometry, [[-180.0, 70.0], [180.0, 90.0]]);
+        assert_eq!(matching(&index, name, &to_pole)?, ["cap"]);
+        // Within the polygon, the rectangle meets none of its edges.
+        let at_pole = SpatialQuery::intersects_rect(geometry, [[-180.0, 88.0], [180.0, 90.0]]);
+        assert_eq!(matching(&index, name, &at_pole)?, ["cap"]);
+        let south = SpatialQuery::intersects_rect(geometry, [[-180.0, 0.0], [180.0, 70.0]]);
+        assert!(matching(&index, name, &south)?.is_empty());
+        Ok(())
+    }
+
+    #[test]
+    fn test_a_rectangle_needs_every_value_of_a_document() -> crate::Result<()> {
+        let split = format!("[{}, {}]", point(5.0, 5.0), point(50.0, 5.0));
+        let both = format!("[{}, {}]", point(4.0, 5.0), point(6.0, 5.0));
+        let ring = |lon: f64| regular_ring(lon, 5.0, 5, 1.0, false);
+        let multi = |lon: f64| {
+            format!(
+                r#"{{"type": "MultiPolygon", "coordinates": [[{}], [{}]]}}"#,
+                ring(3.0),
+                ring(lon)
+            )
+        };
+        let (apart, together) = (multi(30.0), multi(7.0));
+        let (index, name, geometry) = index_segments(&[
+            &[("split", &split), ("both", &both)],
+            &[("apart", &apart), ("together", &together)],
+        ])?;
+        let bounds = [[0.0, 0.0], [10.0, 10.0]];
+        let covered = SpatialQuery::covered_by_rect(geometry, bounds);
+        assert_eq!(matching(&index, name, &covered)?, ["both", "together"]);
+        let intersects = SpatialQuery::intersects_rect(geometry, bounds);
+        assert_eq!(
+            matching(&index, name, &intersects)?,
+            ["apart", "both", "split", "together"]
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn test_rectangle_bounds_are_checked() -> crate::Result<()> {
+        let (index, _, geometry) = index_segments(&[&[("box", BOX)]])?;
+        let searcher = index.reader()?.searcher();
+        for bounds in [
+            [[0.0, 10.0], [10.0, 0.0]],
+            [[-190.0, 0.0], [10.0, 10.0]],
+            [[0.0, 0.0], [10.0, 91.0]],
+            [[0.0, f64::NAN], [10.0, 10.0]],
+        ] {
+            for query in [
+                SpatialQuery::covered_by_rect(geometry, bounds),
+                SpatialQuery::intersects_rect(geometry, bounds),
+            ] {
+                let result = searcher.search(&query, &DocSetCollector);
+                assert!(
+                    matches!(result, Err(crate::TantivyError::InvalidArgument(_))),
+                    "{bounds:?}"
+                );
+            }
+        }
+        Ok(())
+    }
+
+    /// The longitude and latitude of a unit vector, in degrees.
+    fn lon_lat(p: &[f64; 3]) -> [f64; 2] {
+        [
+            p[1].atan2(p[0]).to_degrees(),
+            p[2].atan2(p[0].hypot(p[1])).to_degrees(),
+        ]
+    }
+
+    /// Whether a rectangle given as the queries take it holds the longitude and latitude.
+    fn rect_holds([[west, south], [east, north]]: [[f64; 2]; 2], [lon, lat]: [f64; 2]) -> bool {
+        let between = if west <= east {
+            west <= lon && lon <= east
+        } else {
+            lon >= west || lon <= east
+        };
+        between && south <= lat && lat <= north
+    }
+
+    /// Points along the edges of a set's members, close enough together that the edges between
+    /// them leave a rectangle only by a hair.
+    fn sampled(set: &GeometrySet) -> Vec<Vec<[f64; 2]>> {
+        let samples = 512;
+        set.members
+            .iter()
+            .map(|member| {
+                member_edges(member)
+                    .iter()
+                    .flat_map(|(a, b)| {
+                        (0..=samples).map(move |i| {
+                            let t = i as f64 / samples as f64;
+                            let mix = |k: usize| a[k] * (1.0 - t) + b[k] * t;
+                            let p = [mix(0), mix(1), mix(2)];
+                            let norm = (p[0] * p[0] + p[1] * p[1] + p[2] * p[2]).sqrt();
+                            lon_lat(&[p[0] / norm, p[1] / norm, p[2] / norm])
+                        })
+                    })
+                    .collect()
+            })
+            .collect()
+    }
+
+    #[test]
+    fn test_rectangles_agree_with_the_longitude_and_latitude_of_sampled_edges() -> crate::Result<()>
+    {
+        let mut rng = StdRng::seed_from_u64(7);
+        let mut docs: Vec<(String, String)> = Vec::new();
+        for i in 0..240 {
+            let (lon, lat): (f64, f64) = (
+                rng.random_range(-180.0..180.0),
+                rng.random_range(-80.0..80.0),
+            );
+            let geojson = match i % 4 {
+                0 => point(lon, lat),
+                1 => {
+                    let mut at = [lon, lat];
+                    let positions: Vec<[f64; 2]> = (0..rng.random_range(2..5))
+                        .map(|_| {
+                            let next = at;
+                            let lon: f64 = at[0] + rng.random_range(-50.0..50.0);
+                            let lat: f64 = at[1] + rng.random_range(-20.0..20.0);
+                            at = [
+                                (lon + 180.0).rem_euclid(360.0) - 180.0,
+                                lat.clamp(-89.0, 89.0),
+                            ];
+                            next
+                        })
+                        .collect();
+                    line(&positions)
+                }
+                2 => format!(
+                    r#"{{"type": "Polygon", "coordinates": [{}]}}"#,
+                    regular_ring(
+                        lon.clamp(-160.0, 160.0),
+                        lat.clamp(-60.0, 60.0),
+                        rng.random_range(3..8),
+                        rng.random_range(0.5..15.0),
+                        false
+                    )
+                ),
+                _ => format!(
+                    "[{}, {}]",
+                    point(lon, lat),
+                    point(
+                        (lon + rng.random_range(0.0..40.0)).min(180.0),
+                        (lat + rng.random_range(-10.0..10.0)).clamp(-89.0, 89.0)
+                    )
+                ),
+            };
+            docs.push((format!("{i:03}"), geojson));
+        }
+        // Every value of a document, each a set of members sampled along its edges.
+        let values: Vec<Vec<GeometrySet>> = docs
+            .iter()
+            .map(|(_, geojson)| match geojson.strip_prefix('[') {
+                Some(list) => list
+                    .trim_end_matches(']')
+                    .split("}, {")
+                    .map(|value| {
+                        let value = value.trim_start_matches('{').trim_end_matches('}');
+                        geometry_set(&format!("{{{value}}}"))
+                    })
+                    .collect(),
+                None => vec![geometry_set(geojson)],
+            })
+            .collect();
+        let named: Vec<(&str, &str)> = docs.iter().map(|(n, g)| (n.as_str(), g.as_str())).collect();
+        let (index, name, geometry) =
+            index_segments(&[&named[..90], &named[90..170], &named[170..]])?;
+
+        for round in 0..150 {
+            let (a, b): (f64, f64) = (rng.random_range(-90.0..90.0), rng.random_range(-90.0..90.0));
+            let (mut west, mut east): (f64, f64) = (
+                rng.random_range(-180.0..180.0),
+                rng.random_range(-180.0..180.0),
+            );
+            match round % 5 {
+                // Every longitude, and rectangles a few degrees wide where geometries are.
+                0 => (west, east) = (-180.0, 180.0),
+                1 => east = (west + rng.random_range(1.0..60.0)).min(180.0),
+                _ => {}
+            }
+            let bounds = [[west, a.min(b)], [east, a.max(b)]];
+            let mut covered = Vec::new();
+            let mut intersecting = Vec::new();
+            for ((doc_name, _), sets) in docs.iter().zip(&values) {
+                let members: Vec<(Vec<[f64; 2]>, &EdgeSet)> = sets
+                    .iter()
+                    .flat_map(|set| sampled(set).into_iter().zip(&set.members))
+                    .collect();
+                // A polygon here is smaller than a hemisphere and away from the poles: the
+                // rectangle covers it when it covers its edges, and meets it when it meets its
+                // edges or lies within it.
+                let within = |points: &Vec<[f64; 2]>| points.iter().all(|p| rect_holds(bounds, *p));
+                let meets = |(points, member): &(Vec<[f64; 2]>, &EdgeSet)| {
+                    let middle = <Sphere as crate::spatial::surface::Surface>::project(
+                        if west <= east {
+                            (west + east) / 2.0
+                        } else {
+                            west + (east + 360.0 - west) / 2.0
+                        },
+                        (bounds[0][1] + bounds[1][1]) / 2.0,
+                    );
+                    points.iter().any(|p| rect_holds(bounds, *p))
+                        || member_contains(member, &middle)
+                };
+                if members.iter().all(|(points, _)| within(points)) {
+                    covered.push(doc_name.clone());
+                }
+                if members.iter().any(meets) {
+                    intersecting.push(doc_name.clone());
+                }
+            }
+            let query = SpatialQuery::covered_by_rect(geometry, bounds);
+            assert_eq!(
+                matching(&index, name, &query)?,
+                covered,
+                "covered by {bounds:?}"
+            );
+            let query = SpatialQuery::intersects_rect(geometry, bounds);
+            assert_eq!(
+                matching(&index, name, &query)?,
+                intersecting,
+                "intersects {bounds:?}"
+            );
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn test_within_decides_as_the_distances_between_do() -> crate::Result<()> {
+        let mut rng = StdRng::seed_from_u64(11);
+        let mut docs: Vec<(String, String)> = Vec::new();
+        for i in 0..300 {
+            let (lon, lat): (f64, f64) = (
+                rng.random_range(-180.0..180.0),
+                rng.random_range(-85.0..85.0),
+            );
+            let geojson = match i % 5 {
+                0 | 1 => point(lon, lat),
+                2 => line(&[
+                    [lon, lat],
+                    [
+                        (lon + rng.random_range(-30.0..30.0)).clamp(-180.0, 180.0),
+                        (lat + rng.random_range(-20.0..20.0)).clamp(-89.0, 89.0),
+                    ],
+                ]),
+                3 => format!(
+                    r#"{{"type": "Polygon", "coordinates": [{}]}}"#,
+                    regular_ring(
+                        lon.clamp(-150.0, 150.0),
+                        lat.clamp(-55.0, 55.0),
+                        rng.random_range(3..8),
+                        rng.random_range(0.5..25.0),
+                        false
+                    )
+                ),
+                _ => format!(
+                    "[{}, {}]",
+                    point(lon, lat),
+                    point(-lon, (lat + rng.random_range(-5.0..5.0)).clamp(-89.0, 89.0))
+                ),
+            };
+            docs.push((format!("{i:03}"), geojson));
+        }
+        let named: Vec<(&str, &str)> = docs.iter().map(|(n, g)| (n.as_str(), g.as_str())).collect();
+        let (index, name, geometry) =
+            index_segments(&[&named[..120], &named[120..200], &named[200..]])?;
+        let mut found = 0;
+        for round in 0..200 {
+            let center: [f64; 2] = [
+                rng.random_range(-180.0..180.0),
+                rng.random_range(-90.0..90.0),
+            ];
+            // From meters to more than half the way around.
+            let radius: f64 = 10f64.powf(rng.random_range(-6.0..0.6));
+            let radius = if round % 20 == 0 {
+                f64::INFINITY
+            } else {
+                radius
+            };
+            let within = SpatialPredicate::Within(radius);
+            let within = SpatialQuery::with_predicate(geometry, vec![center], within);
+            let between = SpatialPredicate::Between(0.0, radius);
+            let between = SpatialQuery::with_predicate(geometry, vec![center], between);
+            let expected = matching(&index, name, &between)?;
+            found += expected.len();
+            assert_eq!(
+                matching(&index, name, &within)?,
+                expected,
+                "within {radius} of {center:?}"
+            );
+        }
+        assert!(found > 5_000, "{found}");
+        for radius in [0.0, -1.0] {
+            let within = SpatialPredicate::Within(radius);
+            let at = SpatialQuery::with_predicate(geometry, vec![[0.0, 0.0]], within);
+            assert!(matching(&index, name, &at)?.is_empty());
+        }
         Ok(())
     }
 }

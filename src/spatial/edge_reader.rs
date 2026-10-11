@@ -49,6 +49,18 @@ impl EntryHeader {
     }
 }
 
+/// A member of a geometry set, read from its entry and its set's head without decoding the set.
+pub struct MemberSummary {
+    /// The document of the member's set.
+    pub doc_id: u32,
+    /// The position of the head of the member's set.
+    pub head: u32,
+    /// Whether the member is the only one of its set.
+    pub sole: bool,
+    /// The member's vertex, when it is a point.
+    pub point: Option<[f64; 3]>,
+}
+
 /// Reads geometry entries from a serialized edge index segment. Pure deserialization with no
 /// mutable state. The Surface type parameter determines how many f64 coordinates are read per
 /// vertex.
@@ -108,6 +120,44 @@ impl<'a, S: Surface> EdgeReader<'a, S> {
     pub fn doc_id_for(&self, position: u32) -> u32 {
         let (_, head_offset) = self.find_head(position);
         self.read_doc_id(head_offset)
+    }
+
+    /// What a query needs of the member at a position to decide it without decoding its set:
+    /// its document, the head of its set, whether it is the set's only member, and its vertex
+    /// when it is a point.
+    pub fn summary(&self, position: u32) -> MemberSummary {
+        debug_assert!(position < self.geometry_count);
+        let skip_index = position / self.skip_interval;
+        let (mut offset, block_head) = self.read_dir_entry(skip_index);
+        let mut head = None;
+        let mut header = self.read_header(offset);
+        for pos in skip_index * self.skip_interval..position {
+            if header.is_head {
+                head = Some((pos, offset));
+            }
+            offset += header.entry_len();
+            header = self.read_header(offset);
+        }
+        let (head, head_offset) = if header.is_head {
+            (position, offset)
+        } else {
+            head.unwrap_or_else(|| (block_head, self.offset_of(block_head)))
+        };
+        let next = position + 1;
+        let sole = header.is_head
+            && (next == self.geometry_count
+                || self.read_header(offset + header.entry_len()).is_head);
+        let vertex_len = S::DIMENSIONS * 8;
+        let point = (!header.has_holes && header.data_len as usize == vertex_len).then(|| {
+            let start = (offset + header.header_len()) as usize;
+            Self::decode_vertex(&self.data[start..start + vertex_len])
+        });
+        MemberSummary {
+            doc_id: self.read_doc_id(head_offset),
+            head,
+            sole,
+            point,
+        }
     }
 
     /// Read the full geometry set containing the given position. Returns (head_position, set). No
@@ -234,16 +284,17 @@ impl<'a, S: Surface> EdgeReader<'a, S> {
     }
 
     fn decode_vertices(&self, data: &[u8]) -> Vec<[f64; 3]> {
-        let vertex_size = S::DIMENSIONS * 8;
-        data.chunks_exact(vertex_size)
-            .map(|chunk| {
-                let mut point = [0.0f64; 3];
-                for i in 0..S::DIMENSIONS {
-                    point[i] = f64::from_le_bytes(chunk[i * 8..(i + 1) * 8].try_into().unwrap());
-                }
-                point
-            })
+        data.chunks_exact(S::DIMENSIONS * 8)
+            .map(Self::decode_vertex)
             .collect()
+    }
+
+    fn decode_vertex(chunk: &[u8]) -> [f64; 3] {
+        let mut point = [0.0f64; 3];
+        for i in 0..S::DIMENSIONS {
+            point[i] = f64::from_le_bytes(chunk[i * 8..(i + 1) * 8].try_into().unwrap());
+        }
+        point
     }
 }
 
@@ -332,6 +383,32 @@ mod tests {
             }
         }
         assert_eq!(reader.geometry_count(), position);
+        Ok(())
+    }
+
+    #[test]
+    fn test_summarize_every_position() -> crate::Result<()> {
+        let line = to_geometry_set(
+            &Geometry::<Plane>::LineString(vec![[0.0, 0.0], [1.0, 1.0]]).project::<Sphere>(),
+            4,
+        );
+        // With a skip interval of 2, the long set spans several skip blocks.
+        let sets = [points(3, 1), points(5, 9), line, points(8, 2), points(9, 1)];
+        let data = written(&sets)?;
+        let reader = EdgeReader::<Sphere>::open(&data)?;
+        let mut position = 0;
+        for set in &sets {
+            let head = position;
+            for member in &set.members {
+                let summary = reader.summary(position);
+                assert_eq!(summary.doc_id, set.doc_id, "position {position}");
+                assert_eq!(summary.head, head, "position {position}");
+                assert_eq!(summary.sole, set.members.len() == 1, "position {position}");
+                let point = (member.vertices.len() == 1).then(|| member.vertices[0]);
+                assert_eq!(summary.point, point, "position {position}");
+                position += 1;
+            }
+        }
         Ok(())
     }
 

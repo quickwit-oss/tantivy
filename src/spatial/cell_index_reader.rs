@@ -101,6 +101,42 @@ impl<'a> CellIndexReader<'a> {
         }
     }
 
+    /// Calls `visit` with the id of each index cell `scan_range` would yield for the target and
+    /// the position of each geometry in it, without decoding the cells' edge indices.
+    pub fn visit_range(&self, target: S2CellId, mut visit: impl FnMut(S2CellId, u32)) {
+        let end = target.range_max();
+        let mut pos = self.first_ending_at_or_after(target.range_min());
+        while pos < self.cell_count {
+            let (cell_id, offset) = self.read_dir_entry(pos);
+            let cell_id = S2CellId(cell_id);
+            if cell_id.range_min() > end {
+                break;
+            }
+            self.visit_cell(offset as usize, |position| visit(cell_id, position));
+            pos += 1;
+        }
+    }
+
+    /// Calls `visit` with the position of each geometry in the cell at the given offset.
+    fn visit_cell(&self, offset: usize, mut visit: impl FnMut(u32)) {
+        let mut pos = offset + std::mem::size_of::<u64>();
+        let read_vint = |pos: &mut usize| {
+            let (value, len) = read_u32_vint_no_advance(&self.data[*pos..]);
+            *pos += len;
+            value
+        };
+        for _ in 0..read_vint(&mut pos) {
+            visit(u32::from_le_bytes(
+                self.data[pos..pos + 4].try_into().unwrap(),
+            ));
+            // The geometry position and the flag for the cell's center precede the edge indices.
+            pos += 5;
+            for _ in 0..read_vint(&mut pos) {
+                read_vint(&mut pos);
+            }
+        }
+    }
+
     /// Locates a target cell relative to the index cells from the dictionary alone, without
     /// decoding any cell.
     pub fn locate(&self, target: S2CellId) -> CellRelation {
@@ -248,6 +284,46 @@ mod tests {
             reader.locate(S2CellId::from_face(0)),
             CellRelation::Disjoint
         );
+    }
+
+    #[test]
+    fn test_visit_range_finds_what_scan_range_does() -> crate::Result<()> {
+        let mut cells = Vec::new();
+        for (child, face_cell) in S2CellId::from_face(1).children().into_iter().enumerate() {
+            let mut cell = IndexCell::new(face_cell);
+            for shape in 0..child as u32 + 1 {
+                let mut clipped = ClippedShape::new((0, 10 * child as u32 + shape), shape == 0);
+                clipped.edge_indices = (0..shape * 200).collect();
+                cell.add_shape(clipped);
+            }
+            cells.push(cell);
+        }
+        cells.push(cell(4, 99));
+        let data = written(&CellIndex { cells });
+        let reader = CellIndexReader::open(&data)?;
+        let face = S2CellId::from_face(1);
+        for target in [
+            face,
+            face.children()[2],
+            S2CellId::from_face(4),
+            S2CellId::from_face(5),
+        ] {
+            let scanned: Vec<(S2CellId, u32)> = reader
+                .scan_range(target)
+                .flat_map(|cell| {
+                    let id = cell.cell_id;
+                    cell.shapes
+                        .into_iter()
+                        .map(move |shape| (id, shape.geometry_id.1))
+                })
+                .collect();
+            let mut visited = Vec::new();
+            reader.visit_range(target, |cell_id, position| {
+                visited.push((cell_id, position))
+            });
+            assert_eq!(visited, scanned);
+        }
+        Ok(())
     }
 
     #[test]

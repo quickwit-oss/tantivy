@@ -10,6 +10,8 @@
 
 use std::f64::consts::{FRAC_PI_2, PI};
 
+use super::crossings::{robust_cross, S2EdgeCrosser};
+use super::math::{cross, dot, normalize};
 use super::r1interval::R1Interval;
 use super::region::Region;
 use super::s1chord_angle::S1ChordAngle;
@@ -302,6 +304,76 @@ impl S2LatLngRect {
     pub fn approx_equals(&self, other: &S2LatLngRect, max_error: f64) -> bool {
         self.lat.approx_equals(&other.lat, max_error)
             && self.lng.approx_equals(&other.lng, max_error)
+    }
+
+    /// Returns true if the boundary of this rectangle intersects the given geodesic edge
+    /// (v0, v1).
+    pub fn boundary_intersects(&self, v0: &[f64; 3], v1: &[f64; 3]) -> bool {
+        if self.is_empty() {
+            return false;
+        }
+        if !self.lng.is_full()
+            && (Self::intersects_lng_edge(v0, v1, &self.lat, self.lng.lo())
+                || Self::intersects_lng_edge(v0, v1, &self.lat, self.lng.hi()))
+        {
+            return true;
+        }
+        (self.lat.lo() != -FRAC_PI_2 && Self::intersects_lat_edge(v0, v1, self.lat.lo(), &self.lng))
+            || (self.lat.hi() != FRAC_PI_2
+                && Self::intersects_lat_edge(v0, v1, self.lat.hi(), &self.lng))
+    }
+
+    /// Returns true if the edge AB intersects the given edge of constant longitude.  The nice
+    /// thing about edges of constant longitude is that they are straight lines on the sphere
+    /// (geodesics).
+    pub fn intersects_lng_edge(a: &[f64; 3], b: &[f64; 3], lat: &R1Interval, lng: f64) -> bool {
+        let point = |lat: f64| [lat.cos() * lng.cos(), lat.cos() * lng.sin(), lat.sin()];
+        S2EdgeCrosser::new(a, b).crossing_sign_two(&point(lat.lo()), &point(lat.hi())) > 0
+    }
+
+    /// Returns true if the edge AB intersects the given edge of constant latitude.
+    /// Unfortunately, lines of constant latitude are curves on the sphere.  They can intersect a
+    /// straight edge in 0, 1, or 2 points.
+    pub fn intersects_lat_edge(a: &[f64; 3], b: &[f64; 3], lat: f64, lng: &S1Interval) -> bool {
+        // First, compute the normal to the plane AB that points vaguely north.
+        let mut z = normalize(&robust_cross(a, b));
+        if z[2] < 0.0 {
+            z = [-z[0], -z[1], -z[2]];
+        }
+
+        // Extend this to an orthonormal frame (x,y,z) where x is the direction where the great
+        // circle through AB achieves its maximium latitude.
+        let y = normalize(&robust_cross(&z, &[0.0, 0.0, 1.0]));
+        let x = cross(&y, &z);
+
+        // Compute the angle "theta" from the x-axis (in the x-y plane defined above) where the
+        // great circle intersects the given line of latitude.
+        let sin_lat = lat.sin();
+        if sin_lat.abs() >= x[2] {
+            return false; // The great circle does not reach the given latitude.
+        }
+        let cos_theta = sin_lat / x[2];
+        let sin_theta = (1.0 - cos_theta * cos_theta).sqrt();
+        let theta = sin_theta.atan2(cos_theta);
+
+        // The candidate intersection points are located +/- theta in the x-y plane.  For an
+        // intersection to be valid, we need to check that the intersection point is contained in
+        // the interior of the edge AB and also that it is contained within the given longitude
+        // interval "lng".
+
+        // Compute the range of theta values spanned by the edge AB.
+        let ab_theta =
+            S1Interval::from_point_pair(dot(a, &y).atan2(dot(a, &x)), dot(b, &y).atan2(dot(b, &x)));
+
+        let within = |sin_theta: f64| {
+            let isect = [
+                x[0] * cos_theta + y[0] * sin_theta,
+                x[1] * cos_theta + y[1] * sin_theta,
+            ];
+            lng.contains_point(isect[1].atan2(isect[0]))
+        };
+        (ab_theta.contains_point(theta) && within(sin_theta))
+            || (ab_theta.contains_point(-theta) && within(-sin_theta))
     }
 
     /// Returns a bounding spherical cap for this rectangle.  We consider two possible bounding

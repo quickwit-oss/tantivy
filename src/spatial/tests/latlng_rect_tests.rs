@@ -128,3 +128,95 @@ fn test_region_trait_full_rect() {
         assert!(full.contains_cell(&cell));
     }
 }
+
+/// A rectangle from "lat:lng" of its low and high corners, in degrees, as S2's tests write it.
+fn rect(lo: (f64, f64), hi: (f64, f64)) -> S2LatLngRect {
+    S2LatLngRect::new(
+        R1Interval::new(lo.0.to_radians(), hi.0.to_radians()),
+        S1Interval::new(lo.1.to_radians(), hi.1.to_radians()),
+    )
+}
+
+fn point((lat, lng): (f64, f64)) -> [f64; 3] {
+    let (lat, lng) = (lat.to_radians(), lng.to_radians());
+    [lat.cos() * lng.cos(), lat.cos() * lng.sin(), lat.sin()]
+}
+
+fn crosses(rect: &S2LatLngRect, a: (f64, f64), b: (f64, f64)) -> bool {
+    rect.boundary_intersects(&point(a), &point(b))
+}
+
+#[test]
+fn test_boundary_intersects_empty_and_full_rectangles() {
+    let (a, b) = (point((10.0, 20.0)), point((30.0, 40.0)));
+    assert!(!S2LatLngRect::empty().boundary_intersects(&a, &b));
+    assert!(!S2LatLngRect::full().boundary_intersects(&a, &b));
+}
+
+#[test]
+fn test_boundary_intersects_spherical_lune() {
+    // This rectangle only has two non-degenerate sides.
+    let rect = rect((-90.0, 100.0), (90.0, 120.0));
+    assert!(!crosses(&rect, (60.0, 60.0), (90.0, 60.0)));
+    assert!(!crosses(&rect, (-60.0, 110.0), (60.0, 110.0)));
+    assert!(crosses(&rect, (-60.0, 95.0), (60.0, 110.0)));
+    assert!(crosses(&rect, (60.0, 115.0), (80.0, 125.0)));
+}
+
+#[test]
+fn test_boundary_intersects_hemispheres() {
+    // These rectangles have only one non-degenerate side.
+    let north = S2LatLngRect::new(R1Interval::new(0.0, FRAC_PI_2), S1Interval::full());
+    assert!(!crosses(&north, (60.0, -180.0), (90.0, -180.0)));
+    assert!(!crosses(&north, (60.0, -170.0), (60.0, 170.0)));
+    assert!(crosses(&north, (-10.0, -180.0), (10.0, -180.0)));
+    let south = S2LatLngRect::new(R1Interval::new(-FRAC_PI_2, 0.0), S1Interval::full());
+    assert!(!crosses(&south, (-90.0, -180.0), (-60.0, -180.0)));
+    assert!(!crosses(&south, (-60.0, -170.0), (-60.0, 170.0)));
+    assert!(crosses(&south, (-10.0, -180.0), (10.0, -180.0)));
+}
+
+#[test]
+fn test_boundary_intersects_rect_crossing_anti_meridian() {
+    let rect = rect((20.0, 170.0), (40.0, -170.0));
+    assert!(rect.contains_point(&point((30.0, 180.0))));
+
+    // Check that crossings of all four sides are detected.
+    assert!(crosses(&rect, (25.0, 160.0), (25.0, 180.0)));
+    assert!(crosses(&rect, (25.0, -160.0), (25.0, -180.0)));
+    assert!(crosses(&rect, (15.0, 175.0), (30.0, 175.0)));
+    assert!(crosses(&rect, (45.0, 175.0), (30.0, 175.0)));
+
+    // Check that the edges on the opposite side of the sphere but at the same latitude do not
+    // intersect the rectangle boundary.
+    assert!(!crosses(&rect, (25.0, -20.0), (25.0, 0.0)));
+    assert!(!crosses(&rect, (25.0, 20.0), (25.0, 0.0)));
+    assert!(!crosses(&rect, (15.0, -5.0), (30.0, -5.0)));
+    assert!(!crosses(&rect, (45.0, -5.0), (30.0, -5.0)));
+}
+
+#[test]
+fn test_an_edge_meets_a_parallel_twice_where_it_rises_above_it() {
+    let lng = S1Interval::new(0.0, 10f64.to_radians());
+    let (a, b) = (point((9.99, 2.0)), point((9.99, 8.0)));
+    assert!(S2LatLngRect::intersects_lat_edge(
+        &a,
+        &b,
+        10f64.to_radians(),
+        &lng
+    ));
+    assert!(!S2LatLngRect::intersects_lat_edge(
+        &a,
+        &b,
+        10.1f64.to_radians(),
+        &lng
+    ));
+    // Where the edge meets the parallel, east of the longitudes asked about.
+    let west = S1Interval::new(0.0, 1f64.to_radians());
+    assert!(!S2LatLngRect::intersects_lat_edge(
+        &a,
+        &b,
+        10f64.to_radians(),
+        &west
+    ));
+}

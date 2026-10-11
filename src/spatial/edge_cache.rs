@@ -16,7 +16,7 @@ use std::rc::Rc;
 use lru::LruCache;
 
 use super::cell_index::GeometryId;
-use super::edge_reader::EdgeReader;
+use super::edge_reader::{EdgeReader, MemberSummary};
 use super::geometry_set::{EdgeSet, GeometrySet};
 use super::surface::Surface;
 
@@ -122,6 +122,12 @@ impl<'a, S: Surface> EdgeCache<'a, S> {
     /// Resolve a geometry to its doc_id without decoding vertices or touching the cache.
     pub fn doc_id_for(&self, id: GeometryId) -> u32 {
         self.inner.borrow().readers[id.0 as usize].doc_id_for(id.1)
+    }
+
+    /// Summarize a geometry from its entry and its set's head, without decoding its set or
+    /// touching the cache.
+    pub fn summary(&self, id: GeometryId) -> MemberSummary {
+        self.inner.borrow().readers[id.0 as usize].summary(id.1)
     }
 
     /// Retrieve the geometry entry for the given geometry id. The returned entry holds an Rc to

@@ -12,6 +12,7 @@
 //! https://proj.org/en/stable/operations/projections/s2.html
 //! https://s2geometry.io/resources/earthcube.html
 
+mod area_query;
 pub mod cell_index;
 pub mod cell_index_reader;
 pub mod cell_union;
@@ -36,6 +37,7 @@ mod polygon_union;
 pub mod r1interval;
 pub mod r2rect;
 pub mod reader;
+pub mod rect_query;
 pub mod region;
 pub mod region_coverer;
 pub mod s1chord_angle;
@@ -53,6 +55,7 @@ pub mod shape_index_region;
 pub mod spatial_index_manager;
 pub mod sphere;
 pub mod surface;
+pub mod within_query;
 pub mod writer;
 pub mod xor;
 
