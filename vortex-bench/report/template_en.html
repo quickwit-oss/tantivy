@@ -1,0 +1,562 @@
+<title>Vortex Columnar Study</title>
+<meta name="description" content="A detailed study of using Vortex as the columnar storage behind tantivy aggregations: abstractions, sizes, performance, and a point-access reader for selective queries.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@75..100,500..800&family=Source+Sans+3:ital,wght@0,400;0,600;0,700;1,400&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+/* Layout: one reading column (~68ch) for prose, tables and charts break out to a wider measure. */
+:root {
+  --paper: #f6f7f9;
+  --surface: #ffffff;
+  --ink: #17202c;
+  --ink-soft: #4a5566;
+  --rule: #d9dee6;
+  --accent: #1f5fbf;          /* vortex */
+  --opaque: #8a6fb0;          /* opaque registered source */
+  --columnar: #5d6b7e;        /* tantivy columnar */
+  --good: #1d7a4f;
+  --good-bg: #dcf1e5;
+  --bad: #b23a2a;
+  --bad-bg: #f8e1dc;
+  --warn: #9a6a00;
+  --warn-bg: #f6ecd2;
+  --neutral-bg: #eceff3;
+  --code-bg: #eef1f5;
+  --display: "Archivo", "Helvetica Neue", Arial, sans-serif;
+  --body: "Source Sans 3", "Segoe UI", system-ui, sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --paper: #12161c; --surface: #1a2029; --ink: #e4e8ee; --ink-soft: #a3adbb; --rule: #2e3744;
+    --accent: #6ea4ff; --opaque: #b59ae0; --columnar: #9aa7b8;
+    --good: #5fd39a; --good-bg: #173a2a; --bad: #ff8a78; --bad-bg: #432019;
+    --warn: #e8bd55; --warn-bg: #3b3018; --neutral-bg: #232b36; --code-bg: #212833;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --paper: #12161c; --surface: #1a2029; --ink: #e4e8ee; --ink-soft: #a3adbb; --rule: #2e3744;
+  --accent: #6ea4ff; --opaque: #b59ae0; --columnar: #9aa7b8;
+  --good: #5fd39a; --good-bg: #173a2a; --bad: #ff8a78; --bad-bg: #432019;
+  --warn: #e8bd55; --warn-bg: #3b3018; --neutral-bg: #232b36; --code-bg: #212833;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { background: var(--paper); color: var(--ink); font-family: var(--body); font-size: 17px; line-height: 1.55; }
+.page { max-width: 1120px; margin: 0 auto; padding-inline: 20px; padding-block: 40px 80px; }
+.prose { max-width: 68ch; }
+h1, h2, h3 { font-family: var(--display); font-stretch: 87%; text-wrap: balance; line-height: 1.15; margin: 0; }
+h1 { font-size: clamp(2rem, 5vw, 3.1rem); font-weight: 800; letter-spacing: -0.01em; }
+h2 { font-size: 1.65rem; font-weight: 750; margin-top: 3.2rem; padding-top: 1.1rem; border-top: 2px solid var(--ink); }
+h3 { font-size: 1.15rem; font-weight: 700; margin-top: 2rem; }
+p { margin: 0.7em 0; }
+a { color: var(--accent); }
+code, .mono { font-family: var(--mono); font-size: 0.86em; }
+code { background: var(--code-bg); padding: 0.05em 0.35em; border-radius: 3px; }
+.eyebrow { font-family: var(--mono); font-size: 0.75rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-soft); }
+.meta { display: flex; flex-wrap: wrap; gap: 6px 22px; margin-top: 14px; color: var(--ink-soft); font-size: 0.92rem; }
+.meta span b { color: var(--ink); font-weight: 600; }
+nav.toc { display: flex; flex-wrap: wrap; gap: 4px 16px; margin-top: 22px; font-size: 0.92rem; }
+nav.toc a { text-decoration: none; border-bottom: 1px solid var(--rule); }
+nav.toc a:hover, nav.toc a:focus-visible { border-bottom-color: var(--accent); }
+a:focus-visible, button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.verdict { margin-top: 30px; display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 14px; }
+.verdict > div { background: var(--surface); border: 1px solid var(--rule); padding: 14px 16px; min-width: 0; }
+.verdict .big { font-family: var(--display); font-stretch: 80%; font-weight: 800; font-size: 2.1rem; line-height: 1; font-variant-numeric: tabular-nums; }
+.verdict .lbl { font-size: 0.88rem; color: var(--ink-soft); margin-top: 6px; }
+ul.findings { padding-left: 1.2em; }
+ul.findings li { margin: 0.45em 0; }
+
+.legend { display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: 0.88rem; color: var(--ink-soft); margin: 10px 0; }
+.swatch { display: inline-block; width: 11px; height: 11px; border-radius: 2px; margin-right: 6px; vertical-align: -1px; }
+.sw-columnar { background: var(--columnar); } .sw-opaque { background: var(--opaque); } .sw-vortex { background: var(--accent); }
+
+.scroll { overflow-x: auto; margin: 12px 0; border: 1px solid var(--rule); background: var(--surface); }
+table { border-collapse: collapse; width: 100%; font-size: 0.9rem; font-variant-numeric: tabular-nums; }
+th, td { padding: 6px 10px; text-align: right; border-bottom: 1px solid var(--rule); white-space: nowrap; }
+th { font-family: var(--body); font-weight: 600; color: var(--ink-soft); background: var(--surface); position: sticky; top: 0; font-size: 0.82rem; }
+th.sortable { cursor: pointer; }
+th.sortable:hover { color: var(--ink); }
+td.l, th.l { text-align: left; }
+td.req { font-family: var(--mono); font-size: 0.8rem; white-space: normal; min-width: 18ch; }
+tr.unstable td.req::after { content: " ↯"; color: var(--warn); }
+.r { display: inline-block; min-width: 4.6em; padding: 1px 6px; border-radius: 3px; text-align: right; font-family: var(--mono); font-size: 0.8rem; }
+.r-good { background: var(--good-bg); color: var(--good); }
+.r-bad { background: var(--bad-bg); color: var(--bad); }
+.r-neutral { background: var(--neutral-bg); color: var(--ink); }
+.pill { display: inline-block; padding: 0 7px; border-radius: 10px; font-size: 0.75rem; font-family: var(--mono); }
+.pill-ok { background: var(--good-bg); color: var(--good); }
+.pill-approx { background: var(--warn-bg); color: var(--warn); }
+.pill-err { background: var(--neutral-bg); color: var(--ink-soft); }
+.pill-bad { background: var(--bad-bg); color: var(--bad); }
+
+.controls { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; margin: 14px 0 6px; font-size: 0.9rem; }
+.seg { display: inline-flex; border: 1px solid var(--rule); background: var(--surface); }
+.seg button { font: inherit; font-size: 0.88rem; background: none; color: var(--ink); border: 0; padding: 5px 11px; cursor: pointer; border-right: 1px solid var(--rule); }
+.seg button:last-child { border-right: 0; }
+.seg button[aria-pressed="true"] { background: var(--ink); color: var(--paper); }
+select, input[type="search"] { font: inherit; font-size: 0.9rem; padding: 4px 8px; border: 1px solid var(--rule); background: var(--surface); color: var(--ink); }
+
+figure { margin: 18px 0; }
+figcaption { font-size: 0.86rem; color: var(--ink-soft); margin-top: 6px; max-width: 80ch; }
+.chart { background: var(--surface); border: 1px solid var(--rule); overflow-x: auto; }
+.chart svg { display: block; }
+svg text { fill: var(--ink-soft); font-family: var(--body); font-size: 12px; }
+svg .t-ink { fill: var(--ink); }
+svg .grid { stroke: var(--rule); stroke-width: 1; }
+svg .one { stroke: var(--ink); stroke-width: 1.2; stroke-dasharray: 3 3; }
+
+.diagram { background: var(--surface); border: 1px solid var(--rule); padding: 16px; overflow-x: auto; }
+.diagram pre { margin: 0; font-family: var(--mono); font-size: 0.8rem; line-height: 1.45; color: var(--ink); }
+.callout { border-left: 3px solid var(--warn); background: var(--warn-bg); padding: 10px 14px; margin: 14px 0; max-width: 80ch; }
+.two { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px; }
+.two > * { min-width: 0; }
+.small { font-size: 0.86rem; color: var(--ink-soft); }
+details { margin: 10px 0; }
+summary { cursor: pointer; font-weight: 600; }
+@media (max-width: 520px) { body { font-size: 16px; } .page { padding-inline: 16px; } th, td { padding: 5px 7px; } }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+
+.toc-grid { columns: 2 260px; column-gap: 32px; margin-top: 18px; font-size: 0.93rem; }
+.toc-grid a { display: block; text-decoration: none; padding: 2px 0; break-inside: avoid; }
+.toc-grid a:hover { text-decoration: underline; }
+.toc-grid .sub { padding-left: 1.2em; color: var(--ink-soft); }
+dl.terms { display: grid; grid-template-columns: minmax(150px, 24ch) 1fr; gap: 8px 20px; margin: 14px 0; max-width: 92ch; }
+dl.terms dt { font-family: var(--mono); font-size: 0.85rem; font-weight: 600; }
+dl.terms dd { margin: 0; }
+@media (max-width: 620px) { dl.terms { grid-template-columns: 1fr; } dl.terms dd { margin-bottom: 8px; } }
+.kicker { font-family: var(--display); font-stretch: 87%; font-weight: 700; font-size: 1.05rem; margin-top: 1.6rem; }
+blockquote.note { margin: 14px 0; padding: 10px 14px; border-left: 3px solid var(--accent); background: var(--surface); max-width: 80ch; }
+table.compact td, table.compact th { white-space: normal; }
+
+pre.code, pre.out { font-family: var(--mono); font-size: 0.8rem; line-height: 1.5; margin: 10px 0; padding: 12px 14px; overflow-x: auto; max-width: 100%; }
+pre.code { background: var(--code-bg); border: 1px solid var(--rule); color: var(--ink); }
+pre.out { background: var(--surface); border: 1px dashed var(--rule); color: var(--ink-soft); }
+pre.out::before { content: "output"; display: block; font-family: var(--body); font-size: 0.7rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-soft); margin-bottom: 4px; }
+</style>
+<div class="page">
+<header>
+  <div class="eyebrow">tantivy · columnar · experiment report</div>
+  <h1>Vortex Columnar Study</h1>
+  <p class="prose" style="font-size:1.12rem;color:var(--ink-soft);margin-top:12px">What happens when the fast fields that feed tantivy aggregations are stored in Vortex instead of the tantivy columnar? This report explains both systems from first principles, compares on-disk sizes column by column, measures query time on the full <code>agg_bench</code> suite, and describes a point-access reader that fixes Vortex on selective queries.</p>
+  <div class="meta" id="meta"></div>
+  <nav class="toc-grid" aria-label="Contents" id="toc"></nav>
+</header>
+
+<!--__BODY__-->
+</div>
+
+<script id="report-data" type="application/json">/*__DATA__*/{}</script>
+<script>
+"use strict";
+const DATA = JSON.parse(document.getElementById("report-data").textContent);
+const INPUTS = ["full", "dense", "sparse", "multivalue", "100_segments", "1000_segments"];
+const INPUT_LABEL = { full: "full", dense: "dense", sparse: "sparse", multivalue: "multivalue", "100_segments": "100 segments", "1000_segments": "1000 segments" };
+const GROUP_ORDER = ["metrics", "terms", "multi_terms_vs_nested", "multi_terms_vs_nested_with_1%_term_query", "range_and_histogram", "filter_agg", "segments"];
+const FILTERED_GROUP = "multi_terms_vs_nested_with_1%_term_query";
+const INDEX_LABEL = { "agg_bench_vortex/Full": "full", "agg_bench_vortex/OptionalDense": "dense", "agg_bench_vortex/OptionalSparse": "sparse", "agg_bench_vortex/Multivalued": "multivalue", "agg_bench_vortex/Full_100_segments": "100 segments", "agg_bench_vortex/Full_1000_segments": "1000 segments" };
+const DATASETS = [
+  ["v3", (DATA.labels && DATA.labels.phase3) || "v3 · point access", () => DATA.phase3],
+  ["v2", "v2 · chunk decode + LRU", () => DATA.phase1],
+  ["v3a", "v3a · no promotion (partial run)", () => DATA.v3a],
+  ["bounds", "v2 + bounds() patch", () => DATA.phase2],
+  ["v1", "v1 · single cached chunk", () => DATA.v1],
+];
+
+function fmtMs(ms) {
+  if (ms == null) return "–";
+  if (ms >= 1000) return (ms / 1000).toFixed(2) + " s";
+  if (ms >= 100) return ms.toFixed(0) + " ms";
+  if (ms >= 10) return ms.toFixed(1) + " ms";
+  return ms.toFixed(2) + " ms";
+}
+function fmtUs(ns) { return ns == null ? "–" : (ns >= 100e3 ? (ns / 1e3).toFixed(0) : (ns / 1e3).toFixed(1)) + " µs"; }
+function fmtRatio(r) { return r == null ? "–" : "×" + (r >= 10 ? r.toFixed(1) : r.toFixed(2)); }
+function ratioClass(r) { if (r == null) return "r-neutral"; if (r < 0.95) return "r-good"; if (r > 1.05) return "r-bad"; return "r-neutral"; }
+function ratioSpan(r) { return `<span class="r ${ratioClass(r)}">${fmtRatio(r)}</span>`; }
+function fmtBytes(b) {
+  if (b == null) return "–";
+  if (b >= 1e6) return (b / 1e6).toFixed(2) + " MB";
+  if (b >= 1e3) return (b / 1e3).toFixed(1) + " kB";
+  return b + " B";
+}
+function esc(s) { return String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c])); }
+function hashCode(str) { let h = 0; for (let i = 0; i < str.length; i++) { h = (h * 31 + str.charCodeAt(i)) | 0; } return Math.abs(h); }
+function setHtml(id, html) { const target = document.getElementById(id); if (target) target.innerHTML = html; }
+
+function renderToc() {
+  const toc = document.getElementById("toc");
+  if (!toc) return;
+  const items = [];
+  document.querySelectorAll("section[id] > h2, section[id] h3[id]").forEach(h => {
+    const id = h.tagName === "H2" ? h.parentElement.id : h.id;
+    items.push(`<a href="#${id}" class="${h.tagName === "H3" ? "sub" : ""}">${h.textContent}</a>`);
+  });
+  toc.innerHTML = items.join("");
+}
+
+function renderMeta() {
+  const m = DATA.meta || {};
+  setHtml("meta", Object.entries(m).map(([k, v]) => `<span>${esc(k)} <b>${esc(v)}</b></span>`).join(""));
+}
+
+/* ---------------- verification pills ---------------- */
+function verifyPill(entry, variant) {
+  const v = entry.verify && entry.verify[variant];
+  if (!v) return "";
+  if (v.status === "same") return `<span class="pill pill-ok" title="identical to columnar">=</span>`;
+  if (v.status === "different_same_as_opaque") return `<span class="pill pill-approx" title="differs from columnar, identical to opaque (HLL order / tie-break)">≈</span>`;
+  if (v.status === "different") return `<span class="pill pill-bad" title="different result">≠</span>`;
+  if (v.status === "error") return `<span class="pill pill-err" title="${esc(v.error || "")}">n/a</span>`;
+  return "";
+}
+
+/* ---------------- summary matrices ---------------- */
+function summaryMatrixHtml(dataset, ratioName) {
+  const summary = dataset.summary;
+  const inputs = INPUTS.filter(i => summary[i + "|*"]);
+  const groups = GROUP_ORDER.filter(g => inputs.some(i => summary[i + "|" + g]));
+  let html = `<table><thead><tr><th class="l">group</th>${inputs.map(i => `<th>${INPUT_LABEL[i]}</th>`).join("")}</tr></thead><tbody>`;
+  for (const g of groups.concat(["*"])) {
+    html += `<tr><td class="l mono">${g === "*" ? "<b>all</b>" : esc(g)}</td>`;
+    for (const i of inputs) {
+      const cell = summary[i + "|" + g];
+      const s = cell && cell[ratioName];
+      html += `<td>${s ? ratioSpan(s.geomean) + `<span class="small"> (${s.count})</span>` : ""}</td>`;
+    }
+    html += "</tr>";
+  }
+  return html + "</tbody></table>";
+}
+function renderMatrix(id, datasetKey, ratioName) {
+  const ds = DATA[datasetKey];
+  if (ds) setHtml(id, summaryMatrixHtml(ds, ratioName));
+}
+
+/* Evolution of the geometric means across implementations. */
+function renderEvolution(id) {
+  const rows = [
+    ["v1 · single cached chunk", DATA.v1],
+    ["v2 · chunk decode + LRU", DATA.phase1],
+    ["v3a · point access, no promotion (partial run)", DATA.v3a],
+    [(DATA.labels && DATA.labels.phase3) || "v3 · point access", DATA.phase3],
+    ["v2 + bounds() patch", DATA.phase2],
+  ].filter(r => r[1]);
+  const inputs = INPUTS.filter(i => DATA.phase1.summary[i + "|*"]);
+  let html = `<table><thead><tr><th class="l">implementation</th><th class="l">requests</th>${inputs.map(i => `<th>${INPUT_LABEL[i]}</th>`).join("")}</tr></thead><tbody>`;
+  for (const [scope, group] of [["all requests", "*"], ["1 % filter", FILTERED_GROUP]]) {
+    for (const [label, ds] of rows) {
+      html += `<tr><td class="l">${label}</td><td class="l small">${scope}</td>${inputs.map(i => { const c = ds.summary[i + "|" + group]; const s = c && c["vortex/opaque"]; return `<td>${s ? ratioSpan(s.geomean) : ""}</td>`; }).join("")}</tr>`;
+    }
+  }
+  setHtml(id, html + "</tbody></table>");
+}
+
+/* ---------------- strip chart ---------------- */
+function renderStrip(id, dataset, ratioNames, colors) {
+  const target = document.getElementById(id);
+  if (!target || !dataset) return;
+  const reqs = dataset.requests;
+  const inputs = INPUTS.filter(i => reqs.some(r => r.input === i && r.ratios[ratioNames[0]] != null));
+  const W = 1040, rowH = 46, top = 30, left = 120, right = 24;
+  const H = top + rowH * inputs.length + 30;
+  const lo = Math.log(0.25), hi = Math.log(32);
+  const x = r => left + (Math.log(Math.min(Math.max(r, 0.25), 32)) - lo) / (hi - lo) * (W - left - right);
+  const ticks = [0.25, 0.5, 1, 2, 4, 8, 16, 32];
+  let s = `<svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" role="img" aria-label="Distribution of time ratios per input">`;
+  for (const t of ticks) {
+    s += `<line class="${t === 1 ? "one" : "grid"}" x1="${x(t)}" x2="${x(t)}" y1="${top - 8}" y2="${H - 24}"/>`;
+    s += `<text x="${x(t)}" y="${H - 8}" text-anchor="middle">×${t}</text>`;
+  }
+  s += `<text x="${x(0.25)}" y="14" text-anchor="start">faster than columnar</text><text x="${x(32)}" y="14" text-anchor="end">slower</text>`;
+  inputs.forEach((inp, row) => {
+    const cy = top + row * rowH + rowH / 2;
+    s += `<text class="t-ink" x="${left - 12}" y="${cy + 4}" text-anchor="end">${INPUT_LABEL[inp]}</text>`;
+    ratioNames.forEach((rn, k) => {
+      const off = ratioNames.length === 1 ? 0 : (k === 0 ? -8 : 8);
+      for (const r of reqs.filter(r => r.input === inp && r.ratios[rn] != null)) {
+        const jitter = ((hashCode(r.group + r.request) % 7) - 3) * 1.1;
+        s += `<circle cx="${x(r.ratios[rn]).toFixed(1)}" cy="${(cy + off + jitter).toFixed(1)}" r="3.4" style="fill:${colors[k]};fill-opacity:0.55"><title>${esc(r.group + "/" + r.request)} ${rn} ${fmtRatio(r.ratios[rn])}</title></circle>`;
+      }
+    });
+  });
+  target.innerHTML = s + "</svg>";
+}
+
+/* ---------------- detailed per-request table ---------------- */
+const state = { dataset: "v3", input: "full", group: "all", query: "", sortKey: "order", sortDir: 1 };
+try { const saved = JSON.parse(localStorage.getItem("vortex-study-state") || "null"); if (saved) Object.assign(state, saved, { query: "" }); } catch (e) { /* storage unavailable */ }
+function saveState() { try { localStorage.setItem("vortex-study-state", JSON.stringify({ dataset: state.dataset, input: state.input, group: state.group })); } catch (e) { /* storage unavailable */ } }
+function currentDataset() { const d = DATASETS.find(d => d[0] === state.dataset && d[2]()); return d ? d[2]() : DATA.phase1; }
+
+function renderDetailControls() {
+  const dsSeg = document.getElementById("dataset-seg");
+  if (!dsSeg) return;
+  const available = DATASETS.filter(d => d[2]());
+  if (!available.some(d => d[0] === state.dataset)) state.dataset = available[0][0];
+  dsSeg.innerHTML = available.map(([key, label]) => `<button type="button" data-ds="${key}" aria-pressed="${state.dataset === key}">${label}</button>`).join("");
+  dsSeg.onclick = e => { const b = e.target.closest("button"); if (!b) return; state.dataset = b.dataset.ds; saveState(); renderDetailControls(); renderDetail(); };
+  const reqs = currentDataset().requests;
+  const inputs = INPUTS.filter(i => reqs.some(r => r.input === i));
+  if (!inputs.includes(state.input)) state.input = inputs[0];
+  const seg = document.getElementById("input-seg");
+  seg.innerHTML = inputs.map(i => `<button type="button" data-input="${i}" aria-pressed="${state.input === i}">${INPUT_LABEL[i]}</button>`).join("");
+  seg.onclick = e => { const b = e.target.closest("button"); if (!b) return; state.input = b.dataset.input; state.group = "all"; saveState(); renderDetailControls(); renderDetail(); };
+  const sel = document.getElementById("group-select");
+  const groups = GROUP_ORDER.filter(g => reqs.some(r => r.input === state.input && r.group === g));
+  sel.innerHTML = `<option value="all">all groups</option>` + groups.map(g => `<option value="${esc(g)}"${state.group === g ? " selected" : ""}>${esc(g)}</option>`).join("");
+  sel.onchange = () => { state.group = sel.value; saveState(); renderDetail(); };
+  const q = document.getElementById("req-search");
+  q.oninput = () => { state.query = q.value.trim().toLowerCase(); renderDetail(); };
+}
+function renderDetail() {
+  const target = document.getElementById("detail-table");
+  if (!target) return;
+  const reqs = currentDataset().requests.map((r, k) => Object.assign({ order: k }, r))
+    .filter(r => r.input === state.input && (state.group === "all" || r.group === state.group) && (!state.query || (r.group + "/" + r.request).toLowerCase().includes(state.query)));
+  const key = state.sortKey;
+  const val = r => key === "order" ? r.order : key === "columnar" ? (r.times_ms.columnar ?? Infinity) : (r.ratios[key] ?? Infinity);
+  reqs.sort((a, b) => (val(a) - val(b)) * state.sortDir);
+  const head = [["order", "request", "l"], ["columnar", "columnar"], [null, "opaque"], ["opaque/columnar", "opaque / col."], [null, "vortex"], ["vortex/columnar", "vortex / col."], ["vortex/opaque", "vortex / opaque"], [null, "spread"], [null, "result"]];
+  let html = `<table><thead><tr>${head.map(([k, label, cls]) => `<th class="${cls || ""} ${k ? "sortable" : ""}" ${k ? `data-key="${k}"` : ""}>${label}${state.sortKey === k ? (state.sortDir > 0 ? " ▲" : " ▼") : ""}</th>`).join("")}</tr></thead><tbody>`;
+  let lastGroup = null;
+  for (const r of reqs) {
+    if (state.sortKey === "order" && state.group === "all" && r.group !== lastGroup) {
+      html += `<tr><td class="l mono" colspan="9" style="background:var(--neutral-bg);font-weight:600">${esc(r.group)}</td></tr>`;
+      lastGroup = r.group;
+    }
+    const unstable = r.spread != null && r.spread > 0.1;
+    const pill = r.verify.vortex ? verifyPill(r, "vortex") : verifyPill(r, "opaque");
+    html += `<tr class="${unstable ? "unstable" : ""}"><td class="l req">${esc(r.request)}</td>
+      <td>${fmtMs(r.times_ms.columnar)}</td>
+      <td>${fmtMs(r.times_ms.opaque)}</td><td>${ratioSpan(r.ratios["opaque/columnar"])}</td>
+      <td>${fmtMs(r.times_ms.vortex)}</td><td>${ratioSpan(r.ratios["vortex/columnar"])}</td><td>${ratioSpan(r.ratios["vortex/opaque"])}</td>
+      <td class="small">${r.spread != null ? (r.spread * 100).toFixed(0) + " %" : "–"}</td><td>${pill}</td></tr>`;
+  }
+  target.innerHTML = html + "</tbody></table>";
+  target.querySelectorAll("th.sortable").forEach(th => th.onclick = () => {
+    const k = th.dataset.key;
+    if (state.sortKey === k) state.sortDir = -state.sortDir; else { state.sortKey = k; state.sortDir = k === "order" ? 1 : -1; }
+    renderDetail();
+  });
+  const count = document.getElementById("detail-count");
+  if (count) count.textContent = `${reqs.length} requests`;
+}
+
+/* ---------------- sizes ---------------- */
+function sumColumns(idx, key, filter) {
+  return Object.values(idx.columns).filter(filter || (() => true)).reduce((a, c) => a + (c[key] || 0), 0);
+}
+function renderSizeTotals(id) {
+  let html = `<table><thead><tr><th class="l">index</th><th>segments</th><th>tantivy columns<br><span class="small">values + index</span></th><th>vortex columns<br><span class="small">.vortex component</span></th><th>vortex / tantivy</th><th>tantivy dictionaries<br><span class="small">(shared by both)</span></th><th>.fast file</th><th>.vortex file</th></tr></thead><tbody>`;
+  for (const idx of DATA.sizes) {
+    const col = sumColumns(idx, "columnar_column"), vtx = sumColumns(idx, "vortex_file"), dict = sumColumns(idx, "columnar_dictionary");
+    html += `<tr><td class="l">${INDEX_LABEL[idx.index]}</td><td>${idx.num_segments}</td><td>${fmtBytes(col)}</td><td>${fmtBytes(vtx)}</td><td>${ratioSpan(vtx / col)}</td><td>${fmtBytes(dict)}</td><td>${fmtBytes(idx.files.fast)}</td><td>${fmtBytes(idx.files.vortex)}</td></tr>`;
+  }
+  setHtml(id, html + "</tbody></table>");
+}
+function renderSizeBars(id) {
+  const target = document.getElementById(id);
+  if (!target) return;
+  const W = 1040, rowH = 34, left = 120, right = 90, top = 16;
+  const rows = DATA.sizes.map(idx => ({ label: INDEX_LABEL[idx.index], col: sumColumns(idx, "columnar_column"), vtx: sumColumns(idx, "vortex_file") }));
+  const max = Math.max(...rows.map(r => Math.max(r.col, r.vtx)));
+  const H = top + rows.length * rowH * 2 + 20;
+  const sx = v => (v / max) * (W - left - right);
+  let s = `<svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" role="img" aria-label="Column sizes per index">`;
+  rows.forEach((r, k) => {
+    const y = top + k * rowH * 2;
+    s += `<text class="t-ink" x="${left - 12}" y="${y + rowH - 4}" text-anchor="end">${esc(r.label)}</text>`;
+    s += `<rect x="${left}" y="${y + 4}" width="${sx(r.col).toFixed(1)}" height="${rowH - 12}" style="fill:var(--columnar)"/>`;
+    s += `<text x="${left + sx(r.col) + 6}" y="${y + rowH - 12}">${fmtBytes(r.col)}</text>`;
+    s += `<rect x="${left}" y="${y + rowH - 4}" width="${sx(r.vtx).toFixed(1)}" height="${rowH - 12}" style="fill:var(--accent)"/>`;
+    s += `<text x="${left + sx(r.vtx) + 6}" y="${y + 2 * rowH - 20}">${fmtBytes(r.vtx)}</text>`;
+  });
+  target.innerHTML = s + "</svg>";
+}
+/* Approaches compared, for the single segment indexes. */
+function renderApproaches(id) {
+  const single = DATA.sizes.filter(idx => idx.num_segments === 1);
+  const rows = [
+    ["A", "tantivy columnar (values + index + sstable dictionaries)", idx => sumColumns(idx, "columnar_column") + sumColumns(idx, "columnar_dictionary")],
+    ["B", "Vortex files, text as tantivy ords + tantivy dictionaries (what the benchmark reads)", idx => sumColumns(idx, "vortex_file") + sumColumns(idx, "columnar_dictionary")],
+    ["C", "Vortex files, text stored as native strings (no sstable)", idx => sumColumns(idx, "vortex_file", c => c.stored_type !== "Str") + sumColumns(idx, "detailed_vortex_native_str_file", c => c.stored_type === "Str")],
+    ["D", "Vortex arrays compressed in memory (no file format) + tantivy dictionaries", idx => sumColumns(idx, "detailed_vortex_compressed") + sumColumns(idx, "columnar_dictionary")],
+    ["E", "B, with dates stored as plain i64 instead of the timestamp extension type", idx => sumColumns(idx, "vortex_file", c => c.stored_type !== "DateTime") + sumColumns(idx, "detailed_vortex_plain_i64_file", c => c.stored_type === "DateTime") + sumColumns(idx, "columnar_dictionary")],
+  ];
+  let html = `<table class="compact"><thead><tr><th class="l"></th><th class="l">approach</th>${single.map(idx => `<th>${INDEX_LABEL[idx.index]}</th>`).join("")}</tr></thead><tbody>`;
+  for (const [key, label, f] of rows) {
+    html += `<tr><td class="l"><b>${key}</b></td><td class="l" style="min-width:30ch">${label}</td>${single.map(idx => { const a = rows[0][2](idx); const v = f(idx); return `<td>${fmtBytes(v)}<br>${key === "A" ? "" : ratioSpan(v / a)}</td>`; }).join("")}</tr>`;
+  }
+  setHtml(id, html + "</tbody></table>");
+}
+function renderSizeColumns(indexKey, id) {
+  const idx = DATA.sizes.find(i => i.index === indexKey);
+  if (!idx) return;
+  const codecs = DATA.tantivy_codecs ? DATA.tantivy_codecs.find(t => t.index === indexKey) : null;
+  let html = `<table><thead><tr><th class="l">column</th><th class="l">type · cardinality</th><th class="l">tantivy codec</th><th>tantivy column</th><th>tantivy dict.</th><th>vortex file</th><th>vortex / tantivy</th><th>vortex in memory</th><th>vortex native strings</th><th>vortex dates as i64</th><th class="l">vortex encoding tree (per chunk)</th></tr></thead><tbody>`;
+  for (const [name, c] of Object.entries(idx.columns)) {
+    const enc = Object.entries(c.encodings || {}).sort((a, b) => b[1] - a[1]).map(([e, n]) => `${esc(e)} ×${n}`).join("<br>");
+    const codec = codecs && codecs.columns[name] ? `${esc(codecs.columns[name].index)} · ${esc(codecs.columns[name].codec)}` : "";
+    html += `<tr><td class="l mono">${esc(name)}</td><td class="l small">${c.stored_type} · ${c.cardinality}</td><td class="l small">${codec}</td><td>${fmtBytes(c.columnar_column)}</td><td>${c.columnar_dictionary ? fmtBytes(c.columnar_dictionary) : "–"}</td><td>${fmtBytes(c.vortex_file)}</td><td>${c.columnar_column ? ratioSpan(c.vortex_file / c.columnar_column) : "–"}</td><td>${fmtBytes(c.detailed_vortex_compressed)}</td><td>${c.detailed_vortex_native_str_file ? fmtBytes(c.detailed_vortex_native_str_file) : "–"}</td><td>${c.detailed_vortex_plain_i64_file ? fmtBytes(c.detailed_vortex_plain_i64_file) : "–"}</td><td class="l mono" style="font-size:0.72rem;white-space:normal;min-width:34ch">${enc}</td></tr>`;
+  }
+  setHtml(id, html + "</tbody></table>");
+}
+function renderSegmentOverhead(id) {
+  const multi = DATA.sizes.slice().sort((a, b) => a.num_segments - b.num_segments).filter(idx => idx.index.indexOf("Full") >= 0);
+  let html = `<table><thead><tr><th class="l">index</th><th>segments</th><th>docs / segment</th><th>tantivy columns</th><th>vortex, 1 file per column</th><th>ratio</th><th>vortex bytes per file<br><span class="small">(12 columns)</span></th><th>vortex, 1 struct file per segment</th><th>ratio</th></tr></thead><tbody>`;
+  for (const idx of multi) {
+    const col = sumColumns(idx, "columnar_column"), vtx = sumColumns(idx, "vortex_file");
+    const st = (DATA.struct || []).find(s => s.index === idx.index);
+    let structTotal = null;
+    if (st) structTotal = st.single_struct_file_bytes / st.per_column_files_bytes * vtx;
+    html += `<tr><td class="l">${INDEX_LABEL[idx.index]}</td><td>${idx.num_segments}</td><td>${(idx.num_docs / idx.num_segments).toLocaleString("en-US")}</td><td>${fmtBytes(col)}</td><td>${fmtBytes(vtx)}</td><td>${ratioSpan(vtx / col)}</td><td>${fmtBytes(vtx / idx.num_segments / 12)}</td><td>${structTotal ? fmtBytes(structTotal) : "–"}</td><td>${structTotal ? ratioSpan(structTotal / col) : "–"}</td></tr>`;
+  }
+  setHtml(id, html + "</tbody></table>");
+}
+
+/* ---------------- decode micro-benchmarks ---------------- */
+function renderDecodeScan(id) {
+  const ds = DATA.point_decode || DATA.decode;
+  if (!ds) return;
+  const names = Object.keys(ds[0].columns);
+  let html = `<table><thead><tr><th class="l">column</th>${ds.map(d => `<th>${INDEX_LABEL[d.index]}</th>`).join("")}</tr></thead><tbody>`;
+  for (const n of names) {
+    html += `<tr><td class="l mono">${esc(n)}</td>${ds.map(d => { const a = d.columns[n].all; return `<td title="columnar ${(a.columnar_ns / 1e6).toFixed(3)} ms, vortex ${(a.vortex_ns / 1e6).toFixed(3)} ms">${ratioSpan(a.vortex_ns / a.columnar_ns)}</td>`; }).join("")}</tr>`;
+  }
+  setHtml(id, html + "</tbody></table>");
+}
+function renderDecodeNs(id) {
+  const ds = DATA.point_decode || DATA.decode;
+  if (!ds) return;
+  const d = ds[0];
+  let html = `<table><thead><tr><th class="l">column (full)</th><th>tantivy ns/value</th><th>vortex chunk decode ns/value</th><th>vortex point access ns/value<br><span class="small">(accessor only)</span></th></tr></thead><tbody>`;
+  for (const [n, c] of Object.entries(d.columns)) {
+    html += `<tr><td class="l mono">${esc(n)}</td><td>${(c.all.columnar_ns / c.all.num_values).toFixed(2)}</td><td>${(c.all.vortex_ns / c.all.num_values).toFixed(2)}</td><td>${c.point_access_ns_per_value != null ? c.point_access_ns_per_value.toFixed(2) : "–"}</td></tr>`;
+  }
+  setHtml(id, html + "</tbody></table>");
+}
+function renderDecodeFiltered(id) {
+  if (!DATA.point_decode || !DATA.decode) return;
+  let html = `<table><thead><tr><th class="l">input</th><th class="l">column</th><th>tantivy</th><th>vortex chunk decode</th><th>vortex take()</th><th>vortex point access</th><th>point / tantivy</th><th>point / chunk decode</th><th>chunks covered</th></tr></thead><tbody>`;
+  DATA.point_decode.forEach((idx, k) => {
+    const before = DATA.decode[k], take = DATA.take4 ? DATA.take4[k] : null;
+    for (const [name, c] of Object.entries(idx.columns)) {
+      const tantivy = c.filtered.columnar_ns, decode = before.columns[name].filtered.vortex_ns, point = c.filtered.vortex_ns;
+      const tk = take ? take.columns[name].filtered.vortex_ns : null;
+      html += `<tr><td class="l">${INDEX_LABEL[idx.index]}</td><td class="l mono">${esc(name)}</td><td>${fmtUs(tantivy)}</td><td>${fmtUs(decode)}</td><td>${fmtUs(tk)}</td><td>${fmtUs(point)}</td><td>${ratioSpan(point / tantivy)}</td><td>${ratioSpan(point / decode)}</td><td class="small">${c.point_accessible_chunks} / ${c.num_chunks}</td></tr>`;
+    }
+  });
+  setHtml(id, html + "</tbody></table>");
+}
+
+/* ---------------- phase tables ---------------- */
+function changedRowsHtml(after, before, filter, ratioKeys) {
+  const beforeMap = new Map(before.requests.map(r => [r.input + "|" + r.group + "/" + r.request, r]));
+  let html = `<table><thead><tr><th class="l">input</th><th class="l">request</th><th>columnar</th>${ratioKeys.map(k => `<th>${k} before</th><th>after</th>`).join("")}</tr></thead><tbody>`;
+  const rows = [];
+  for (const r of after.requests) {
+    const b = beforeMap.get(r.input + "|" + r.group + "/" + r.request);
+    if (!b || !filter(r, b)) continue;
+    rows.push([r, b]);
+  }
+  for (const [r, b] of rows) {
+    html += `<tr><td class="l">${INPUT_LABEL[r.input]}</td><td class="l req">${esc(r.group + "/" + r.request)}</td><td>${fmtMs(r.times_ms.columnar)}</td>${ratioKeys.map(k => `<td>${ratioSpan(b.ratios[k])}</td><td>${ratioSpan(r.ratios[k])}</td>`).join("")}</tr>`;
+  }
+  return [html + "</tbody></table>", rows.length];
+}
+function renderPhase2Table(id, countId) {
+  if (!DATA.phase2) return;
+  const [html, n] = changedRowsHtml(DATA.phase2, DATA.phase1, (r, b) => r.ratios["opaque/columnar"] != null && b.ratios["opaque/columnar"] != null && r.ratios["opaque/columnar"] / b.ratios["opaque/columnar"] < 0.95, ["opaque/columnar", "vortex/columnar"]);
+  setHtml(id, html);
+  const c = document.getElementById(countId); if (c) c.textContent = String(n);
+}
+function renderPhase3Table(id) {
+  if (!DATA.phase3) return;
+  const [html] = changedRowsHtml(DATA.phase3, DATA.phase1, (r) => r.group === FILTERED_GROUP && r.ratios["vortex/opaque"] != null, ["vortex/opaque", "vortex/columnar"]);
+  setHtml(id, html);
+}
+function renderPhase3Regressions(id) {
+  if (!DATA.phase3) return;
+  const [html, n] = changedRowsHtml(DATA.phase3, DATA.phase1, (r, b) => r.group !== FILTERED_GROUP && r.ratios["vortex/opaque"] != null && b.ratios["vortex/opaque"] != null && Math.abs(Math.log(r.ratios["vortex/opaque"] / b.ratios["vortex/opaque"])) > Math.log(1.08), ["vortex/opaque"]);
+  setHtml(id, n ? html : `<p class="small">No request outside the filtered group moved by more than 8 %.</p>`);
+}
+
+function renderAB(id) {
+  if (!DATA.ab) return;
+  const cols = [["v2", "v2 (decode only)"], ["v3b", "v3 (run cost 16, default)"], ["c64", "run cost 64"], ["c128", "run cost 128"]];
+  let html = `<table><thead><tr><th class="l">input</th><th class="l">request</th>${cols.map(c => `<th>${c[1]}</th>`).join("")}</tr></thead><tbody>`;
+  for (const r of DATA.ab) {
+    const short = r.group === FILTERED_GROUP ? "1 % filter / " : r.group + " / ";
+    html += `<tr><td class="l">${INPUT_LABEL[r.input]}</td><td class="l req">${esc(short + r.request)}</td>${cols.map(c => `<td>${ratioSpan(r[c[0]])}</td>`).join("")}</tr>`;
+  }
+  const gm = key => Math.exp(DATA.ab.reduce((a, r) => a + Math.log(r[key]), 0) / DATA.ab.length);
+  html += `<tr><td class="l" colspan="2"><b>geometric mean</b></td>${cols.map(c => `<td>${ratioSpan(gm(c[0]))}</td>`).join("")}</tr>`;
+  setHtml(id, html + "</tbody></table>");
+}
+
+/* ---------------- verification & stability ---------------- */
+function renderVerify(id, datasetKey) {
+  const ds = DATA[datasetKey];
+  if (!ds) return;
+  const counts = {}, errors = {};
+  for (const r of ds.requests) {
+    for (const v of ["opaque", "vortex"]) {
+      const s = r.verify[v];
+      if (!s) continue;
+      counts[v + "|" + s.status] = (counts[v + "|" + s.status] || 0) + 1;
+      if (s.status === "error" && v === "vortex") {
+        const msg = (s.error || "").replace(/^An invalid argument was passed: '/, "").replace(/'$/, "").replace(/`(?!missing`)[^`]+`/g, "`…`");
+        errors[msg] = (errors[msg] || 0) + 1;
+      }
+    }
+  }
+  const c = k => counts[k] || 0;
+  let html = `<table><thead><tr><th class="l">variant</th><th>identical to columnar</th><th>equivalent (≈)</th><th>different</th><th>rejected</th></tr></thead><tbody>`;
+  for (const v of ["opaque", "vortex"]) {
+    html += `<tr><td class="l">${v}</td><td>${c(v + "|same")}</td><td>${c(v + "|different_same_as_opaque") + (v === "opaque" ? c("opaque|different") : 0)}</td><td>${v === "vortex" ? c("vortex|different") : 0}</td><td>${c(v + "|error")}</td></tr>`;
+  }
+  html += `</tbody></table><table style="margin-top:12px"><thead><tr><th class="l">rejection reason (same for opaque and vortex)</th><th>request × input</th></tr></thead><tbody>${Object.entries(errors).sort((a, b) => b[1] - a[1]).map(([m, n]) => `<tr><td class="l mono" style="white-space:normal">${esc(m)}</td><td>${n}</td></tr>`).join("")}</tbody></table>`;
+  setHtml(id, html);
+}
+function renderStability(id) {
+  const reqs = DATA.phase1.requests.filter(r => r.spread != null).sort((a, b) => b.spread - a.spread).slice(0, 12);
+  let html = `<table><thead><tr><th class="l">input</th><th class="l">request</th><th>vortex / columnar per run</th><th>spread</th></tr></thead><tbody>`;
+  for (const r of reqs) {
+    html += `<tr><td class="l">${INPUT_LABEL[r.input]}</td><td class="l req">${esc(r.group + "/" + r.request)}</td><td class="mono small">${(r.ratio_runs["vortex/columnar"] || []).map(fmtRatio).join("  ")}</td><td>${(r.spread * 100).toFixed(1)} %</td></tr>`;
+  }
+  setHtml(id, html + "</tbody></table>");
+}
+
+renderMeta();
+renderToc();
+renderEvolution("evolution");
+renderMatrix("matrix-v3-vc", "phase3", "vortex/columnar");
+renderMatrix("matrix-v3-vo", "phase3", "vortex/opaque");
+renderMatrix("matrix-oc", "phase1", "opaque/columnar");
+renderMatrix("matrix-v2-vo", "phase1", "vortex/opaque");
+renderMatrix("matrix-bounds-oc", "phase2", "opaque/columnar");
+renderStrip("strip-v3", DATA.phase3 || DATA.phase1, ["opaque/columnar", "vortex/columnar"], ["var(--opaque)", "var(--accent)"]);
+renderDetailControls();
+renderDetail();
+renderSizeTotals("size-totals");
+renderSizeBars("size-bars");
+renderApproaches("size-approaches");
+renderSizeColumns("agg_bench_vortex/Full", "size-full");
+renderSizeColumns("agg_bench_vortex/OptionalDense", "size-dense");
+renderSizeColumns("agg_bench_vortex/OptionalSparse", "size-sparse");
+renderSizeColumns("agg_bench_vortex/Multivalued", "size-multi");
+renderSegmentOverhead("size-segments");
+renderDecodeScan("decode-scan");
+renderDecodeNs("decode-ns");
+renderDecodeFiltered("decode-filtered");
+renderPhase2Table("phase2-table", "phase2-count");
+renderPhase3Table("phase3-table");
+renderPhase3Regressions("phase3-regressions");
+renderVerify("verify-v2", "phase1");
+renderVerify("verify-bounds", "phase2");
+renderStability("stability-table");
+renderAB("ab-table");
+</script>

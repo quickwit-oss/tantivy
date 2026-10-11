@@ -1,0 +1,1178 @@
+full
+metrics/average_u64
+columnar    Memory: 4.7 KB (+4.12%)    Avg: 2.4247ms (+11.36%)    Median: 2.4237ms (+11.44%)    [2.4127ms .. 2.4459ms]    
+opaque      Memory: 4.9 KB             Avg: 2.4209ms (+11.28%)    Median: 2.4198ms (+11.42%)    [2.4127ms .. 2.4428ms]    
+vortex      Memory: 4.9 MB             Avg: 2.6344ms (+11.30%)    Median: 2.6318ms (+11.36%)    [2.6203ms .. 2.6709ms]    
+metrics/average_f64
+columnar    Memory: 4.8 KB             Avg: 2.6874ms (+8.86%)    Median: 2.6873ms (+9.00%)    [2.6680ms .. 2.7313ms]    
+opaque      Memory: 5.2 KB (+9.38%)    Avg: 2.6947ms (+8.74%)    Median: 2.6918ms (+8.51%)    [2.6716ms .. 2.7583ms]    
+vortex      Memory: 5.0 MB             Avg: 3.0737ms (+7.00%)    Median: 3.0696ms (+6.58%)    [3.0593ms .. 3.1171ms]    
+metrics/average_f64_u64
+columnar    Memory: 5.4 KB             Avg: 4.7947ms (+11.52%)    Median: 4.7681ms (+11.60%)    [4.6800ms .. 4.9308ms]    
+opaque      Memory: 5.6 KB (+7.61%)    Avg: 4.8556ms (+11.09%)    Median: 4.8254ms (+11.23%)    [4.7477ms .. 5.0818ms]    
+vortex      Memory: 9.2 MB             Avg: 4.1784ms (+7.41%)     Median: 4.1461ms (+6.74%)     [4.0946ms .. 4.3405ms]    
+metrics/stats_f64
+columnar    Memory: 4.8 KB             Avg: 2.7158ms (+10.70%)    Median: 2.6880ms (+9.54%)    [2.6505ms .. 3.4396ms]    
+opaque      Memory: 5.1 KB (+3.83%)    Avg: 2.6991ms (+9.61%)     Median: 2.6922ms (+9.18%)    [2.6720ms .. 2.7591ms]    
+vortex      Memory: 5.0 MB             Avg: 3.1062ms (+8.88%)     Median: 3.0729ms (+7.35%)    [3.0362ms .. 3.4829ms]    
+metrics/extendedstats_f64
+columnar    Memory: 5.5 KB (+8.20%)    Avg: 2.7920ms (+4.49%)    Median: 2.7900ms (+4.65%)    [2.7524ms .. 2.8433ms]    
+opaque      Memory: 5.7 KB             Avg: 2.8124ms (+5.16%)    Median: 2.7908ms (+3.97%)    [2.7641ms .. 2.9394ms]    
+vortex      Memory: 5.0 MB             Avg: 3.1877ms (+4.77%)    Median: 3.1542ms (+3.75%)    [3.1300ms .. 3.3295ms]    
+metrics/percentiles_f64
+columnar    Memory: 19.2 KB (-1.07%)    Avg: 6.4791ms (+0.22%)    Median: 6.4795ms (+0.18%)    [6.4555ms .. 6.5356ms]    
+opaque      Memory: 19.2 KB (-1.07%)    Avg: 6.4851ms (+0.52%)    Median: 6.4801ms (+0.14%)    [6.4552ms .. 6.5400ms]    
+vortex      Memory: 5.0 MB              Avg: 6.9834ms (+0.67%)    Median: 6.9770ms (+0.43%)    [6.9438ms .. 7.0392ms]    
+metrics/cardinality_agg_low_card
+columnar    Memory: 5.0 KB (+4.08%)     Avg: 0.5893ms (+0.98%)     Median: 0.5892ms (+0.96%)     [0.5822ms .. 0.6046ms]    
+opaque      Memory: 4.6 KB (-25.20%)    Avg: 0.5929ms (-70.76%)    Median: 0.5931ms (-70.74%)    [0.5824ms .. 0.6181ms]    
+vortex      Memory: 3.2 MB (-0.04%)     Avg: 0.8221ms (-61.36%)    Median: 0.8217ms (-61.37%)    [0.8119ms .. 0.8382ms]    
+metrics/cardinality_agg
+columnar    Memory: 5.9 MB              Avg: 6.7955ms (-0.23%)     Median: 6.7947ms (-0.26%)     [6.5933ms .. 7.0317ms]    
+opaque      Memory: 5.9 MB (-28.26%)    Avg: 6.7945ms (-31.02%)    Median: 6.7963ms (-30.80%)    [6.6274ms .. 6.9391ms]    
+vortex      Memory: 8.5 MB (-21.49%)    Avg: 6.9118ms (-30.93%)    Median: 6.9117ms (-30.82%)    [6.7520ms .. 7.0682ms]    
+metrics/cardinality_agg_high_card
+columnar    Memory: 45.9 MB              Avg: 63.2943ms (+1.68%)     Median: 63.2558ms (+1.61%)     [62.4864ms .. 64.5565ms]    
+opaque      Memory: 45.9 MB (-29.00%)    Avg: 63.3870ms (-13.58%)    Median: 63.1671ms (-13.87%)    [62.4367ms .. 66.8679ms]    
+vortex      Memory: 48.5 MB (-27.88%)    Avg: 63.3852ms (-13.48%)    Median: 63.3087ms (-13.60%)    [62.5162ms .. 65.2872ms]    
+metrics/terms_status_with_cardinality_agg
+columnar    Memory: 55.6 KB              Avg: 2.9601ms (+0.30%)     Median: 2.9579ms (+0.06%)     [2.9424ms .. 2.9939ms]    
+opaque      Memory: 55.7 KB (-37.00%)    Avg: 2.9819ms (-50.40%)    Median: 2.9762ms (-50.57%)    [2.9616ms .. 3.0176ms]    
+vortex      Memory: 6.0 MB (-0.64%)      Avg: 3.2262ms (-48.07%)    Median: 3.2235ms (-48.04%)    [3.2020ms .. 3.2609ms]    
+metrics/terms_100_buckets_with_cardinality_agg
+columnar    Memory: 10.2 MB              Avg: 37.7285ms (+1.60%)     Median: 37.4092ms (+0.98%)     [37.1350ms .. 39.2185ms]    
+opaque      Memory: 10.2 MB (-38.72%)    Avg: 37.9628ms (-11.51%)    Median: 37.7613ms (-11.73%)    [37.2242ms .. 39.4397ms]    
+vortex      Memory: 15.4 MB (-29.49%)    Avg: 39.3869ms (-11.13%)    Median: 39.0715ms (-11.42%)    [38.7023ms .. 41.5206ms]    
+metrics/terms_many_with_single_term_order_by_card
+columnar    Memory: 34.5 MB              Avg: 59.5795ms (-1.66%)     Median: 57.7322ms (-3.05%)     [55.9326ms .. 81.9250ms]     
+opaque      Memory: 34.5 MB (-33.48%)    Avg: 59.9827ms (-41.83%)    Median: 58.8213ms (-40.50%)    [57.8674ms .. 74.9425ms]     
+vortex      Memory: 42.3 MB (-29.09%)    Avg: 70.4079ms (-36.72%)    Median: 68.1567ms (-36.27%)    [66.3384ms .. 114.8657ms]    
+metrics/terms_many_with_single_term_2_order_by_card
+columnar    Memory: 26.0 MB              Avg: 32.6602ms (-1.82%)     Median: 32.4527ms (-1.63%)     [30.7007ms .. 36.1096ms]    
+opaque      Memory: 26.0 MB (-35.57%)    Avg: 32.5784ms (-55.55%)    Median: 32.4745ms (-55.72%)    [30.7696ms .. 40.2874ms]    
+vortex      Memory: 31.3 MB (-31.50%)    Avg: 34.3739ms (-55.65%)    Median: 33.7790ms (-55.76%)    [32.2331ms .. 47.7032ms]    
+terms/terms_7
+columnar    Memory: 5.6 KB             Avg: 0.6717ms (-0.86%)     Median: 0.6698ms (-1.19%)     [0.6661ms .. 0.6808ms]    
+opaque      Memory: 5.6 KB (-5.88%)    Avg: 0.6754ms (-63.13%)    Median: 0.6747ms (-63.15%)    [0.6703ms .. 0.6826ms]    
+vortex      Memory: 3.2 MB (+0.00%)    Avg: 0.8031ms (-59.85%)    Median: 0.8010ms (-59.94%)    [0.7911ms .. 0.8409ms]    
+terms/terms_zipf_1000
+columnar    Memory: 35.0 KB              Avg: 0.7326ms (+0.65%)     Median: 0.7314ms (+0.26%)     [0.7292ms .. 0.7443ms]    
+opaque      Memory: 35.0 KB (-36.30%)    Avg: 0.7381ms (-43.56%)    Median: 0.7367ms (-43.51%)    [0.7352ms .. 0.7462ms]    
+vortex      Memory: 3.2 MB (-0.97%)      Avg: 0.8651ms (-38.83%)    Median: 0.8643ms (-38.63%)    [0.8604ms .. 0.8756ms]    
+terms/terms_zipf_90
+columnar    Memory: 23.4 KB             Avg: 0.6853ms (+0.66%)     Median: 0.6835ms (+0.51%)     [0.6782ms .. 0.7001ms]    
+opaque      Memory: 23.4 KB (-0.03%)    Avg: 0.6888ms (-61.58%)    Median: 0.6865ms (-61.69%)    [0.6836ms .. 0.7049ms]    
+vortex      Memory: 3.2 MB (+0.02%)     Avg: 0.8151ms (-57.91%)    Median: 0.8149ms (-57.89%)    [0.8024ms .. 0.8380ms]    
+terms/terms_zipf_90_with_sum_sub_agg
+columnar    Memory: 203.2 KB             Avg: 4.1892ms (+2.73%)     Median: 4.1793ms (+2.55%)     [4.1535ms .. 4.3134ms]    
+opaque      Memory: 203.2 KB (-0.66%)    Avg: 4.2024ms (-55.46%)    Median: 4.1965ms (-55.50%)    [4.1796ms .. 4.3307ms]    
+vortex      Memory: 7.6 MB (-0.04%)      Avg: 4.5130ms (-57.19%)    Median: 4.4955ms (-57.26%)    [4.4605ms .. 4.7426ms]    
+terms/terms_150_000
+columnar    Memory: 2.7 MB              Avg: 3.2352ms (-1.37%)     Median: 3.2282ms (-1.12%)     [3.1885ms .. 3.3677ms]    
+opaque      Memory: 2.7 MB (-60.26%)    Avg: 3.2492ms (-29.24%)    Median: 3.2352ms (-29.39%)    [3.1879ms .. 3.5549ms]    
+vortex      Memory: 5.3 MB (-43.66%)    Avg: 3.3824ms (-28.79%)    Median: 3.3808ms (-28.77%)    [3.3426ms .. 3.4260ms]    
+terms/terms_many_top_1000
+columnar    Memory: 4.2 MB              Avg: 5.0749ms (+0.52%)     Median: 5.0410ms (+0.06%)     [4.9773ms .. 5.3450ms]    
+opaque      Memory: 4.2 MB (-38.21%)    Avg: 5.1239ms (-19.61%)    Median: 5.1100ms (-19.53%)    [4.9919ms .. 5.3750ms]    
+vortex      Memory: 6.8 MB (-27.69%)    Avg: 5.2132ms (-20.43%)    Median: 5.1783ms (-20.83%)    [5.1334ms .. 5.5021ms]    
+terms/terms_many_order_by_term
+columnar    Memory: 2.7 MB              Avg: 2.8552ms (-2.63%)     Median: 2.8585ms (-2.49%)     [2.8142ms .. 2.9443ms]    
+opaque      Memory: 2.7 MB (-60.26%)    Avg: 2.8827ms (-33.82%)    Median: 2.8662ms (-33.75%)    [2.8213ms .. 3.2154ms]    
+vortex      Memory: 5.3 MB (-43.66%)    Avg: 3.0041ms (-33.48%)    Median: 2.9997ms (-33.38%)    [2.9775ms .. 3.0466ms]    
+terms/terms_all_unique
+columnar    Memory: 18.1 MB              Avg: 4.6158ms (+0.04%)     Median: 4.6006ms (+0.29%)     [4.5602ms .. 4.7250ms]    
+opaque      Memory: 18.1 MB (-66.19%)    Avg: 4.6499ms (-65.68%)    Median: 4.6161ms (-65.72%)    [4.5534ms .. 5.0866ms]    
+vortex      Memory: 20.7 MB (-63.15%)    Avg: 4.7675ms (-65.33%)    Median: 4.7562ms (-65.25%)    [4.6943ms .. 4.9307ms]    
+terms/terms_all_unique_order_by_key
+columnar    Memory: 18.1 MB              Avg: 4.3646ms (+1.07%)     Median: 4.3470ms (+1.06%)     [4.2891ms .. 4.7985ms]    
+opaque      Memory: 18.1 MB (-66.19%)    Avg: 4.3617ms (-68.14%)    Median: 4.3537ms (-68.17%)    [4.3143ms .. 4.4913ms]    
+vortex      Memory: 20.7 MB (-63.15%)    Avg: 4.4761ms (-67.86%)    Median: 4.4755ms (-67.81%)    [4.4250ms .. 4.5496ms]    
+terms/terms_all_unique_with_avg_sub_agg
+columnar    Memory: 62.0 MB              Avg: 15.2588ms (+3.87%)     Median: 15.2668ms (+5.20%)     [14.0911ms .. 17.4396ms]    
+opaque      Memory: 62.0 MB (-34.99%)    Avg: 18.0787ms (-38.62%)    Median: 18.0420ms (-38.50%)    [16.9711ms .. 19.3242ms]    
+vortex      Memory: 69.0 MB (-32.57%)    Avg: 21.0797ms (-35.00%)    Median: 20.9249ms (-35.31%)    [20.5164ms .. 22.2535ms]    
+terms/terms_many_with_avg_sub_agg
+columnar    Memory: 13.5 MB              Avg: 12.3032ms (+0.55%)     Median: 12.2188ms (+1.11%)     [11.7255ms .. 13.7314ms]    
+opaque      Memory: 13.5 MB (-22.15%)    Avg: 16.3474ms (-13.94%)    Median: 15.7109ms (-15.33%)    [15.0289ms .. 30.3541ms]    
+vortex      Memory: 20.4 MB (-15.80%)    Avg: 18.4063ms (-13.35%)    Median: 18.1542ms (-14.61%)    [17.5234ms .. 20.5962ms]    
+terms/terms_status_with_avg_sub_agg
+columnar    Memory: 55.2 KB              Avg: 4.9902ms (+3.29%)     Median: 4.9862ms (+3.56%)     [4.9196ms .. 5.1449ms]    
+opaque      Memory: 55.3 KB (-18.30%)    Avg: 5.0032ms (-22.42%)    Median: 5.0010ms (-22.34%)    [4.8994ms .. 5.1797ms]    
+vortex      Memory: 7.7 MB (-0.16%)      Avg: 5.7909ms (-20.03%)    Median: 5.7771ms (-20.02%)    [5.7177ms .. 6.0170ms]    
+terms/terms_zipf_1000_with_avg_sub_agg
+columnar    Memory: 299.6 KB             Avg: 7.7538ms (-0.06%)     Median: 7.6619ms (+0.23%)     [7.5839ms .. 8.2151ms]      
+opaque      Memory: 299.6 KB (+5.28%)    Avg: 9.6594ms (-7.60%)     Median: 9.5633ms (-8.49%)     [9.4177ms .. 10.5614ms]     
+vortex      Memory: 7.8 MB (-0.14%)      Avg: 11.7146ms (-5.01%)    Median: 11.5865ms (-5.93%)    [11.4625ms .. 12.4915ms]    
+terms/terms_many_json_mixed_type_with_avg_sub_agg
+columnar    Memory: 20.9 MB     Avg: 19.8827ms (-0.55%)    Median: 19.8005ms (-0.59%)    [19.3265ms .. 21.8853ms]    
+opaque      Memory: 20.9 MB     Avg: 23.6329ms (+0.20%)    Median: 23.3169ms (-0.54%)    [22.7591ms .. 27.4403ms]    
+vortex      Memory: 29.6 MB     Avg: 26.6590ms (+0.07%)    Median: 26.4470ms (-0.82%)    [25.7958ms .. 28.7454ms]    
+terms/terms_many_with_top_hits
+columnar    Memory: 51.7 MB     Avg: 88.2462ms (+3.88%)    Median: 86.2694ms (+4.19%)    [84.8822ms .. 108.5734ms]    
+terms/terms_status_with_histogram
+columnar    Memory: 123.8 KB           Avg: 1.4446ms (-0.44%)     Median: 1.4392ms (-0.45%)     [1.4332ms .. 1.5461ms]    
+opaque      Memory: 123.8 KB           Avg: 4.3800ms (-26.63%)    Median: 4.3738ms (-26.60%)    [4.3599ms .. 4.4608ms]    
+vortex      Memory: 7.8 MB (-0.16%)    Avg: 5.1904ms (-23.65%)    Median: 5.1770ms (-23.80%)    [5.1464ms .. 5.4753ms]    
+terms/terms_zipf_1000_with_histogram
+columnar    Memory: 1.1 MB             Avg: 18.3812ms (-0.23%)    Median: 18.3553ms (-0.02%)    [18.1306ms .. 19.0094ms]    
+opaque      Memory: 1.1 MB (+0.14%)    Avg: 18.6953ms (-2.58%)    Median: 18.6646ms (-2.76%)    [18.4652ms .. 19.1246ms]    
+vortex      Memory: 8.5 MB (-0.28%)    Avg: 19.3278ms (-2.64%)    Median: 19.2619ms (-2.84%)    [19.1474ms .. 20.3762ms]    
+terms/terms_status_with_date_histogram
+columnar    Memory: 122.9 KB           Avg: 1.4506ms (-0.10%)     Median: 1.4390ms (-1.63%)     [1.4190ms .. 1.5386ms]    
+opaque      Memory: 122.9 KB           Avg: 4.1193ms (-28.44%)    Median: 4.1080ms (-28.51%)    [4.0857ms .. 4.3573ms]    
+vortex      Memory: 8.1 MB (-0.15%)    Avg: 4.9916ms (-24.22%)    Median: 4.9828ms (-24.31%)    [4.9563ms .. 5.1307ms]    
+terms/terms_status_with_date_histogram_26_bits
+columnar    Memory: 206.8 KB           Avg: 1.3650ms (-1.32%)     Median: 1.3611ms (-1.65%)     [1.3144ms .. 1.4441ms]    
+opaque      Memory: 206.8 KB           Avg: 3.7141ms (-30.71%)    Median: 3.7045ms (-30.62%)    [3.6779ms .. 3.8795ms]    
+vortex      Memory: 8.2 MB (-0.15%)    Avg: 4.6132ms (-25.83%)    Median: 4.5959ms (-25.96%)    [4.5601ms .. 4.7944ms]    
+terms/terms_status_with_date_histogram_single_bucket
+columnar    Memory: 19.9 KB              Avg: 0.6281ms (-2.74%)     Median: 0.6261ms (-1.35%)     [0.6205ms .. 0.6631ms]    
+opaque      Memory: 55.7 KB (-18.18%)    Avg: 4.3687ms (-26.55%)    Median: 4.3616ms (-26.55%)    [4.3222ms .. 4.4653ms]    
+vortex      Memory: 8.1 MB (-0.15%)      Avg: 4.6393ms (-24.82%)    Median: 4.6237ms (-25.04%)    [4.5999ms .. 4.7563ms]    
+terms/terms_status_with_date_histogram_4_buckets
+columnar    Memory: 22.2 KB              Avg: 1.0454ms (+0.63%)     Median: 1.0435ms (+0.48%)     [1.0391ms .. 1.0618ms]    
+opaque      Memory: 56.7 KB (-17.92%)    Avg: 4.3909ms (-26.11%)    Median: 4.3884ms (-26.15%)    [4.3106ms .. 4.4575ms]    
+vortex      Memory: 8.1 MB (-0.15%)      Avg: 4.8181ms (-23.61%)    Median: 4.7838ms (-24.05%)    [4.7559ms .. 5.4438ms]    
+terms/terms_status_with_date_histogram_8_buckets
+columnar    Memory: 24.5 KB              Avg: 1.1460ms (+0.77%)     Median: 1.1376ms (+0.29%)     [1.1280ms .. 1.1939ms]    
+opaque      Memory: 58.1 KB (-17.58%)    Avg: 4.2314ms (-26.67%)    Median: 4.2178ms (-26.80%)    [4.1721ms .. 4.3910ms]    
+vortex      Memory: 8.1 MB (-0.15%)      Avg: 5.1078ms (-22.85%)    Median: 5.0689ms (-23.25%)    [5.0359ms .. 5.2833ms]    
+terms/terms_status_with_date_histogram_hard_bounds
+columnar    Memory: 122.1 KB           Avg: 1.5833ms (+0.05%)     Median: 1.5849ms (+0.32%)     [1.5371ms .. 1.6381ms]    
+opaque      Memory: 122.1 KB           Avg: 4.1176ms (-28.86%)    Median: 4.1145ms (-28.78%)    [4.0957ms .. 4.1593ms]    
+vortex      Memory: 8.1 MB (-0.15%)    Avg: 4.9942ms (-24.97%)    Median: 4.9910ms (-24.60%)    [4.9577ms .. 5.0705ms]    
+terms/terms_status_with_date_histogram_and_sibling_terms
+columnar    Memory: 123.2 KB            Avg: 2.1061ms (+0.05%)     Median: 2.1001ms (-0.01%)     [2.0804ms .. 2.3234ms]    
+opaque      Memory: 123.2 KB            Avg: 4.7409ms (-33.48%)    Median: 4.7228ms (-33.50%)    [4.7033ms .. 5.1265ms]    
+vortex      Memory: 10.8 MB (-0.12%)    Avg: 5.7631ms (-29.11%)    Median: 5.7527ms (-29.15%)    [5.7357ms .. 5.9988ms]    
+multi_terms_vs_nested/nested_terms_status_and_zipf_1000
+columnar    Memory: 244.6 KB             Avg: 3.8008ms (-0.29%)     Median: 3.7981ms (-0.45%)     [3.7790ms .. 3.8834ms]    
+opaque      Memory: 244.7 KB (-4.82%)    Avg: 3.8162ms (-30.12%)    Median: 3.8149ms (-30.06%)    [3.7978ms .. 3.8648ms]    
+vortex      Memory: 6.2 MB (-0.20%)      Avg: 4.0684ms (-28.62%)    Median: 4.0637ms (-28.68%)    [4.0458ms .. 4.1271ms]    
+multi_terms_vs_nested/multi_terms_status_and_zipf_1000
+columnar    Memory: 183.8 KB     Avg: 1.2386ms (-0.94%)    Median: 1.2333ms (-0.67%)    [1.2300ms .. 1.2870ms]    
+multi_terms_vs_nested/nested_terms_status_and_zipf_1000_with_missing
+columnar    Memory: 244.7 KB     Avg: 3.8246ms (+0.52%)    Median: 3.8074ms (-0.08%)    [3.7908ms .. 4.0104ms]    
+multi_terms_vs_nested/multi_terms_status_and_zipf_1000_with_missing
+columnar    Memory: 183.9 KB     Avg: 1.2344ms (+0.04%)    Median: 1.2334ms (-0.07%)    [1.2305ms .. 1.2409ms]    
+multi_terms_vs_nested/nested_terms_zipf_1000_and_status
+columnar    Memory: 433.9 KB (-0.06%)    Avg: 11.1841ms (-0.76%)    Median: 11.1449ms (-0.91%)    [11.0656ms .. 11.8876ms]    
+opaque      Memory: 434.0 KB (+0.35%)    Avg: 11.3995ms (-8.13%)    Median: 11.3776ms (-8.39%)    [11.2557ms .. 11.6254ms]    
+vortex      Memory: 6.2 MB (-0.39%)      Avg: 13.2868ms (-5.34%)    Median: 13.2601ms (-5.58%)    [13.1539ms .. 13.8580ms]    
+multi_terms_vs_nested/multi_terms_zipf_1000_and_status
+columnar    Memory: 184.3 KB     Avg: 1.2662ms (+0.48%)    Median: 1.2644ms (+0.31%)    [1.2621ms .. 1.2746ms]    
+multi_terms_vs_nested/nested_terms_many_and_zipf_1000
+columnar    Memory: 38.2 MB             Avg: 47.5605ms (-2.70%)     Median: 47.3692ms (-1.55%)     [47.0170ms .. 50.4326ms]    
+opaque      Memory: 38.2 MB (-9.11%)    Avg: 47.8928ms (-13.11%)    Median: 47.8316ms (-10.98%)    [46.2698ms .. 49.0715ms]    
+vortex      Memory: 43.4 MB (-8.10%)    Avg: 51.1050ms (-12.50%)    Median: 50.7473ms (-11.14%)    [50.2928ms .. 58.6044ms]    
+multi_terms_vs_nested/multi_terms_many_and_zipf_1000
+columnar    Memory: 31.9 MB (-0.00%)    Avg: 14.7264ms (+0.13%)    Median: 14.7334ms (+0.36%)    [14.3619ms .. 15.0399ms]    
+multi_terms_vs_nested/nested_terms_many_and_zipf_1000_and_status
+columnar    Memory: 146.9 MB             Avg: 119.8545ms (+0.83%)    Median: 119.1087ms (+1.01%)    [114.9644ms .. 127.4576ms]    
+opaque      Memory: 146.9 MB (-2.54%)    Avg: 120.7893ms (-5.31%)    Median: 118.9967ms (-5.80%)    [116.1319ms .. 136.9567ms]    
+vortex      Memory: 154.7 MB (-2.41%)    Avg: 127.9334ms (-5.37%)    Median: 127.4503ms (-4.84%)    [123.3818ms .. 144.4164ms]    
+multi_terms_vs_nested/multi_terms_many_and_zipf_1000_and_status
+columnar    Memory: 53.5 MB (-0.00%)    Avg: 20.6939ms (+0.53%)    Median: 20.6747ms (+0.97%)    [20.2137ms .. 21.4006ms]    
+multi_terms_vs_nested/nested_terms_status_and_zipf_1000_avg_sub_agg
+columnar    Memory: 1.6 MB              Avg: 11.8337ms (-0.30%)     Median: 11.8097ms (-0.23%)     [11.7422ms .. 12.1663ms]    
+opaque      Memory: 1.6 MB (-1.02%)     Avg: 13.6530ms (-11.74%)    Median: 13.6519ms (-11.57%)    [13.5259ms .. 13.8624ms]    
+vortex      Memory: 11.1 MB (-0.15%)    Avg: 15.5549ms (-10.14%)    Median: 15.5278ms (-9.98%)     [15.4736ms .. 15.8628ms]    
+multi_terms_vs_nested/multi_terms_status_and_zipf_1000_avg_sub_agg
+columnar    Memory: 617.9 KB     Avg: 8.2443ms (-1.49%)    Median: 8.2294ms (-0.73%)    [8.1757ms .. 8.3750ms]    
+multi_terms_vs_nested_with_1%_term_query/nested_terms_status_and_zipf_1000
+columnar    Memory: 111.1 KB             Avg: 0.1485ms (+1.21%)    Median: 0.1482ms (+1.45%)     [0.1471ms .. 0.1553ms]    
+opaque      Memory: 111.2 KB (-9.54%)    Avg: 0.1492ms (-9.81%)    Median: 0.1483ms (-10.04%)    [0.1472ms .. 0.1631ms]    
+vortex      Memory: 6.0 MB (-0.19%)      Avg: 0.3231ms (-2.76%)    Median: 0.3219ms (-2.18%)     [0.3187ms .. 0.3479ms]    
+multi_terms_vs_nested_with_1%_term_query/multi_terms_status_and_zipf_1000
+columnar    Memory: 86.7 KB (-0.29%)    Avg: 0.0757ms (+0.50%)    Median: 0.0756ms (+0.68%)    [0.0745ms .. 0.0816ms]    
+multi_terms_vs_nested_with_1%_term_query/nested_terms_status_and_zipf_1000_with_missing
+columnar    Memory: 111.1 KB     Avg: 0.1511ms (+2.53%)    Median: 0.1492ms (+1.74%)    [0.1484ms .. 0.1627ms]    
+multi_terms_vs_nested_with_1%_term_query/multi_terms_status_and_zipf_1000_with_missing
+columnar    Memory: 87.0 KB     Avg: 0.0771ms (+2.59%)    Median: 0.0772ms (+2.55%)    [0.0759ms .. 0.0807ms]    
+multi_terms_vs_nested_with_1%_term_query/nested_terms_zipf_1000_and_status
+columnar    Memory: 342.7 KB             Avg: 0.2653ms (+0.97%)    Median: 0.2649ms (+0.77%)    [0.2625ms .. 0.2776ms]    
+opaque      Memory: 342.8 KB (+0.22%)    Avg: 0.2695ms (-2.54%)    Median: 0.2682ms (-3.02%)    [0.2649ms .. 0.2956ms]    
+vortex      Memory: 6.0 MB (-0.14%)      Avg: 0.4688ms (+1.09%)    Median: 0.4657ms (+0.32%)    [0.4621ms .. 0.5010ms]    
+multi_terms_vs_nested_with_1%_term_query/multi_terms_zipf_1000_and_status
+columnar    Memory: 87.4 KB (-0.25%)    Avg: 0.0763ms (+2.49%)    Median: 0.0763ms (+2.98%)    [0.0753ms .. 0.0775ms]    
+multi_terms_vs_nested_with_1%_term_query/nested_terms_many_and_zipf_1000
+columnar    Memory: 2.7 MB              Avg: 0.7922ms (-1.61%)     Median: 0.7920ms (-1.21%)     [0.7837ms .. 0.8072ms]    
+opaque      Memory: 2.7 MB (+44.39%)    Avg: 0.8055ms (-16.63%)    Median: 0.7982ms (-16.80%)    [0.7911ms .. 1.0220ms]    
+vortex      Memory: 8.2 MB (+13.11%)    Avg: 1.0191ms (-13.45%)    Median: 1.0193ms (-12.88%)    [1.0090ms .. 1.0312ms]    
+multi_terms_vs_nested_with_1%_term_query/multi_terms_many_and_zipf_1000
+columnar    Memory: 444.7 KB     Avg: 0.5233ms (+0.13%)    Median: 0.5232ms (+0.09%)    [0.5202ms .. 0.5288ms]    
+multi_terms_vs_nested_with_1%_term_query/nested_terms_many_and_zipf_1000_and_status
+columnar    Memory: 4.1 MB              Avg: 1.2554ms (+0.30%)     Median: 1.2552ms (+0.32%)     [1.2417ms .. 1.2967ms]    
+opaque      Memory: 4.1 MB (+22.21%)    Avg: 1.2713ms (-10.47%)    Median: 1.2646ms (-11.09%)    [1.2527ms .. 1.3555ms]    
+vortex      Memory: 12.2 MB (+8.41%)    Avg: 1.6257ms (-8.04%)     Median: 1.6233ms (-8.07%)     [1.6114ms .. 1.6646ms]    
+multi_terms_vs_nested_with_1%_term_query/multi_terms_many_and_zipf_1000_and_status
+columnar    Memory: 445.4 KB     Avg: 0.5562ms (+0.09%)    Median: 0.5557ms (+0.52%)    [0.5529ms .. 0.5683ms]    
+multi_terms_vs_nested_with_1%_term_query/nested_terms_status_and_zipf_1000_avg_sub_agg
+columnar    Memory: 1.1 MB              Avg: 0.2921ms (+0.39%)    Median: 0.2905ms (-0.05%)    [0.2882ms .. 0.3142ms]    
+opaque      Memory: 1.1 MB (-0.92%)     Avg: 0.3162ms (-5.44%)    Median: 0.3151ms (-5.57%)    [0.3116ms .. 0.3350ms]    
+vortex      Memory: 10.6 MB (-0.09%)    Avg: 1.1921ms (-0.46%)    Median: 1.1919ms (-0.13%)    [1.1828ms .. 1.2057ms]    
+multi_terms_vs_nested_with_1%_term_query/multi_terms_status_and_zipf_1000_avg_sub_agg
+columnar    Memory: 224.0 KB (-0.11%)    Avg: 0.1338ms (-0.17%)    Median: 0.1336ms (-0.13%)    [0.1329ms .. 0.1351ms]    
+range_and_histogram/range_agg
+columnar    Memory: 8.8 KB (+1.23%)    Avg: 2.7549ms (+0.40%)    Median: 2.7565ms (+0.83%)    [2.7319ms .. 2.8174ms]    
+opaque      Memory: 9.0 KB (+1.21%)    Avg: 2.7337ms (-0.27%)    Median: 2.7315ms (-0.29%)    [2.7199ms .. 2.7688ms]    
+vortex      Memory: 5.0 MB             Avg: 3.2182ms (-0.61%)    Median: 3.2136ms (-0.37%)    [3.2015ms .. 3.2578ms]    
+range_and_histogram/range_agg_with_avg_sub_agg
+columnar    Memory: 62.0 KB     Avg: 6.6083ms (+1.82%)    Median: 6.5692ms (+1.03%)    [6.3763ms .. 7.2848ms]    
+opaque      Memory: 62.0 KB     Avg: 6.6048ms (+1.52%)    Median: 6.5615ms (+0.94%)    [6.3306ms .. 7.1422ms]    
+vortex      Memory: 9.4 MB      Avg: 7.7866ms (+1.61%)    Median: 7.6853ms (+0.26%)    [7.6422ms .. 8.1124ms]    
+range_and_histogram/range_agg_with_term_agg_status
+columnar    Memory: 63.2 KB     Avg: 6.0361ms (+0.60%)    Median: 6.0133ms (+0.35%)    [5.9371ms .. 6.3396ms]     
+opaque      Memory: 63.3 KB     Avg: 6.0454ms (-0.22%)    Median: 5.9928ms (-1.11%)    [5.8889ms .. 6.8238ms]     
+vortex      Memory: 7.7 MB      Avg: 6.6575ms (+1.82%)    Median: 6.5130ms (-0.37%)    [6.4507ms .. 10.2737ms]    
+range_and_histogram/range_agg_with_term_agg_many
+columnar    Memory: 6.9 MB      Avg: 9.1582ms (+0.06%)    Median: 9.1433ms (+0.16%)    [9.0566ms .. 9.3822ms]     
+opaque      Memory: 6.9 MB      Avg: 9.1388ms (-1.30%)    Median: 9.1229ms (-0.82%)    [9.0594ms .. 9.3642ms]     
+vortex      Memory: 13.9 MB     Avg: 9.7276ms (-0.68%)    Median: 9.7108ms (-0.39%)    [9.6100ms .. 10.1071ms]    
+range_and_histogram/avg_and_range_with_avg_sub_agg
+columnar    Memory: 57.0 KB     Avg: 8.9911ms (+2.42%)    Median: 8.9466ms (+2.19%)    [8.7598ms .. 9.8590ms]     
+opaque      Memory: 57.1 KB     Avg: 8.9768ms (+1.81%)    Median: 8.9429ms (+1.35%)    [8.4857ms .. 9.6586ms]     
+vortex      Memory: 13.6 MB     Avg: 9.7160ms (+2.03%)    Median: 9.6570ms (+1.41%)    [9.1811ms .. 10.6771ms]    
+range_and_histogram/histogram
+columnar    Memory: 8.1 KB (+1.22%)    Avg: 2.3222ms (-0.21%)    Median: 2.3216ms (-0.26%)    [2.2950ms .. 2.3571ms]    
+opaque      Memory: 8.2 KB             Avg: 2.3270ms (-0.28%)    Median: 2.3254ms (-0.41%)    [2.3042ms .. 2.3608ms]    
+vortex      Memory: 5.0 MB             Avg: 2.6646ms (+0.36%)    Median: 2.6582ms (-0.08%)    [2.6370ms .. 2.8091ms]    
+range_and_histogram/histogram_hard_bounds
+columnar    Memory: 6.2 KB (+0.05%)    Avg: 1.0610ms (+0.14%)    Median: 1.0502ms (-0.14%)    [1.0350ms .. 1.1108ms]    
+opaque      Memory: 6.4 KB (+2.50%)    Avg: 1.0566ms (+0.20%)    Median: 1.0416ms (-0.27%)    [1.0288ms .. 1.1817ms]    
+vortex      Memory: 5.0 MB             Avg: 1.5846ms (+1.58%)    Median: 1.5692ms (+0.56%)    [1.5401ms .. 1.6935ms]    
+range_and_histogram/histogram_with_avg_sub_agg
+columnar    Memory: 84.3 KB     Avg: 7.4399ms (+0.85%)    Median: 7.4476ms (+1.48%)    [7.2424ms .. 7.5730ms]    
+opaque      Memory: 84.3 KB     Avg: 7.5632ms (+1.42%)    Median: 7.5780ms (+1.67%)    [7.2985ms .. 7.7093ms]    
+vortex      Memory: 9.4 MB      Avg: 8.7378ms (+1.85%)    Median: 8.7320ms (+1.85%)    [8.6013ms .. 8.9392ms]    
+range_and_histogram/histogram_with_term_agg_status
+columnar    Memory: 275.0 KB     Avg: 8.2371ms (+1.05%)    Median: 8.2241ms (+0.88%)    [8.0803ms .. 8.3349ms]    
+opaque      Memory: 275.0 KB     Avg: 8.2388ms (+0.87%)    Median: 8.2267ms (+0.83%)    [8.1323ms .. 8.3388ms]    
+vortex      Memory: 7.8 MB       Avg: 8.8417ms (+0.57%)    Median: 8.8388ms (+1.23%)    [8.6142ms .. 9.0084ms]    
+range_and_histogram/composite_term_few
+columnar    Memory: 20.5 KB     Avg: 13.4186ms (-0.18%)    Median: 13.4112ms (-0.28%)    [12.9146ms .. 13.6465ms]    
+range_and_histogram/composite_term_many_page_1000
+columnar    Memory: 373.3 KB     Avg: 15.0098ms (+0.20%)    Median: 14.9999ms (+0.13%)    [14.8156ms .. 15.3138ms]    
+range_and_histogram/composite_term_many_page_1000_with_avg_sub_agg
+columnar    Memory: 2.3 MB     Avg: 15.0642ms (-0.78%)    Median: 15.0326ms (-1.05%)    [14.9725ms .. 15.3131ms]    
+range_and_histogram/composite_histogram
+columnar    Memory: 299.0 KB     Avg: 23.9198ms (+2.77%)    Median: 24.0709ms (+3.78%)    [22.7740ms .. 24.6704ms]    
+range_and_histogram/composite_histogram_calendar
+columnar    Memory: 6.5 KB     Avg: 44.3468ms (+1.17%)    Median: 44.2261ms (+0.91%)    [43.5873ms .. 45.8805ms]    
+filter_agg/filter_agg_all_query_count_agg
+columnar    Memory: 159.2 KB (+0.30%)    Avg: 4.0933ms (-10.85%)    Median: 4.0339ms (-12.04%)    [3.9232ms .. 4.4503ms]    
+opaque      Memory: 159.0 KB (-0.20%)    Avg: 4.0677ms (-11.43%)    Median: 4.0346ms (-12.01%)    [3.9244ms .. 4.4175ms]    
+vortex      Memory: 5.0 MB (-0.01%)      Avg: 4.8854ms (-3.18%)     Median: 4.8515ms (-3.61%)     [4.7249ms .. 5.4685ms]    
+filter_agg/filter_agg_term_query_count_agg
+columnar    Memory: 158.6 KB             Avg: 6.3916ms (-6.66%)    Median: 6.2826ms (-8.02%)    [6.0414ms .. 7.5536ms]    
+opaque      Memory: 158.7 KB (-0.10%)    Avg: 6.3347ms (-7.16%)    Median: 6.2785ms (-7.92%)    [6.0316ms .. 7.2182ms]    
+vortex      Memory: 5.0 MB               Avg: 7.1786ms (-1.19%)    Median: 7.1522ms (-1.89%)    [6.9516ms .. 7.4998ms]    
+filter_agg/filter_agg_all_query_with_sub_aggs
+columnar    Memory: 160.5 KB             Avg: 9.0833ms (+2.91%)    Median: 9.0485ms (+2.47%)    [8.8220ms .. 9.8203ms]     
+opaque      Memory: 160.7 KB (+0.09%)    Avg: 9.0700ms (+2.61%)    Median: 9.0609ms (+2.44%)    [8.6692ms .. 9.4274ms]     
+vortex      Memory: 12.2 MB              Avg: 9.8386ms (-1.56%)    Median: 9.7942ms (-1.82%)    [9.4973ms .. 10.5409ms]    
+filter_agg/filter_agg_term_query_with_sub_aggs
+columnar    Memory: 160.5 KB             Avg: 11.4532ms (+2.62%)    Median: 11.3798ms (+1.69%)    [10.9251ms .. 12.0659ms]    
+opaque      Memory: 160.6 KB (-0.09%)    Avg: 11.4625ms (+3.00%)    Median: 11.3847ms (+1.97%)    [10.8418ms .. 11.9622ms]    
+vortex      Memory: 12.2 MB              Avg: 12.3133ms (+0.31%)    Median: 12.1798ms (-0.04%)    [11.7966ms .. 13.0842ms]    
+dense
+metrics/average_u64
+columnar    Memory: 5.5 KB             Avg: 4.5212ms (+1.74%)    Median: 4.5234ms (+1.85%)    [4.4451ms .. 4.5702ms]    
+opaque      Memory: 6.0 KB (+3.61%)    Avg: 4.5062ms (+1.71%)    Median: 4.5026ms (+1.34%)    [4.4245ms .. 4.5894ms]    
+vortex      Memory: 5.5 MB             Avg: 3.7475ms (-0.59%)    Median: 3.7481ms (-0.44%)    [3.6710ms .. 3.8482ms]    
+metrics/average_f64
+columnar    Memory: 5.8 KB (-3.50%)    Avg: 4.5062ms (+1.36%)    Median: 4.5007ms (+0.98%)    [4.4389ms .. 4.6497ms]    
+opaque      Memory: 5.8 KB (+3.72%)    Avg: 4.5215ms (+2.61%)    Median: 4.5206ms (+2.71%)    [4.4373ms .. 4.7343ms]    
+vortex      Memory: 5.6 MB             Avg: 4.2641ms (+1.32%)    Median: 4.2667ms (+1.20%)    [4.1941ms .. 4.3456ms]    
+metrics/average_f64_u64
+columnar    Memory: 5.9 KB (-3.41%)    Avg: 9.1361ms (+1.27%)    Median: 9.1605ms (+1.25%)    [8.9051ms .. 9.3134ms]    
+opaque      Memory: 6.2 KB (+3.49%)    Avg: 9.1408ms (+1.60%)    Median: 9.1710ms (+1.66%)    [8.6841ms .. 9.3162ms]    
+vortex      Memory: 10.4 MB            Avg: 8.0669ms (+1.50%)    Median: 8.0816ms (+1.32%)    [7.7423ms .. 8.2816ms]    
+metrics/stats_f64
+columnar    Memory: 6.0 KB     Avg: 4.5220ms (+1.36%)    Median: 4.5115ms (+1.22%)    [4.4571ms .. 4.6738ms]    
+opaque      Memory: 5.6 KB     Avg: 4.5265ms (+2.83%)    Median: 4.5200ms (+2.97%)    [4.4040ms .. 4.6600ms]    
+vortex      Memory: 5.6 MB     Avg: 4.3723ms (+3.35%)    Median: 4.3130ms (+1.94%)    [4.2171ms .. 5.4125ms]    
+metrics/extendedstats_f64
+columnar    Memory: 6.5 KB (-11.36%)    Avg: 4.5673ms (-0.11%)    Median: 4.5642ms (+0.40%)    [4.5061ms .. 4.6337ms]    
+opaque      Memory: 7.2 KB (+2.99%)     Avg: 4.5825ms (-0.10%)    Median: 4.5854ms (+0.19%)    [4.5220ms .. 4.6604ms]    
+vortex      Memory: 5.6 MB              Avg: 4.3814ms (+0.02%)    Median: 4.3758ms (+0.78%)    [4.3260ms .. 4.5007ms]    
+metrics/percentiles_f64
+columnar    Memory: 20.8 KB (+2.04%)    Avg: 8.3794ms (+0.42%)    Median: 8.3634ms (+0.19%)    [8.2705ms .. 8.5329ms]    
+opaque      Memory: 20.4 KB             Avg: 8.4212ms (+0.43%)    Median: 8.4008ms (+0.10%)    [8.3433ms .. 8.7351ms]    
+vortex      Memory: 5.6 MB              Avg: 8.2945ms (+0.47%)    Median: 8.2747ms (+0.19%)    [8.1748ms .. 8.6117ms]    
+metrics/cardinality_agg_low_card
+columnar    Memory: 6.3 KB (+10.88%)    Avg: 2.7120ms (-0.24%)     Median: 2.7035ms (-0.22%)     [2.6822ms .. 2.9160ms]    
+opaque      Memory: 5.7 KB (-22.10%)    Avg: 2.7231ms (-35.75%)    Median: 2.7162ms (-35.91%)    [2.6926ms .. 2.8051ms]    
+vortex      Memory: 3.9 MB (-0.03%)     Avg: 1.9928ms (-42.60%)    Median: 1.9910ms (-42.42%)    [1.9729ms .. 2.0359ms]    
+metrics/cardinality_agg
+columnar    Memory: 5.9 MB              Avg: 8.8882ms (-0.73%)     Median: 8.8565ms (-0.71%)     [8.6664ms .. 9.3626ms]    
+opaque      Memory: 5.9 MB (-28.25%)    Avg: 8.8767ms (-26.36%)    Median: 8.8644ms (-25.98%)    [8.6878ms .. 9.3510ms]    
+vortex      Memory: 9.2 MB (-20.19%)    Avg: 8.1410ms (-27.47%)    Median: 8.1436ms (-27.41%)    [7.9303ms .. 8.3141ms]    
+metrics/cardinality_agg_high_card
+columnar    Memory: 45.9 MB              Avg: 65.1412ms (+0.44%)     Median: 64.9723ms (+0.23%)     [64.3446ms .. 68.8617ms]    
+opaque      Memory: 45.9 MB (-29.00%)    Avg: 64.9892ms (-13.93%)    Median: 65.0314ms (-13.89%)    [64.3076ms .. 65.8997ms]    
+vortex      Memory: 49.2 MB (-27.59%)    Avg: 64.3122ms (-14.16%)    Median: 64.2680ms (-13.99%)    [63.3492ms .. 68.2705ms]    
+metrics/terms_status_with_cardinality_agg
+columnar    Memory: 82.1 KB              Avg: 6.8939ms (-1.33%)     Median: 6.8984ms (-0.56%)     [6.8226ms .. 6.9326ms]    
+opaque      Memory: 82.1 KB (-28.47%)    Avg: 6.8924ms (-31.84%)    Median: 6.8925ms (-31.20%)    [6.8265ms .. 7.0146ms]    
+vortex      Memory: 7.4 MB (-0.53%)      Avg: 5.3931ms (-36.34%)    Median: 5.3957ms (-35.82%)    [5.3260ms .. 5.4259ms]    
+metrics/terms_100_buckets_with_cardinality_agg
+columnar    Memory: 10.2 MB              Avg: 46.2605ms (-0.04%)     Median: 46.2774ms (-0.06%)     [45.5464ms .. 47.6484ms]    
+opaque      Memory: 10.2 MB (-38.74%)    Avg: 46.5175ms (-11.85%)    Median: 46.4792ms (-11.84%)    [45.9293ms .. 47.1813ms]    
+vortex      Memory: 16.8 MB (-27.73%)    Avg: 40.6600ms (-12.45%)    Median: 40.6476ms (-12.39%)    [40.2927ms .. 41.1630ms]    
+metrics/terms_many_with_single_term_order_by_card
+columnar    Memory: 34.5 MB              Avg: 80.3987ms (-1.46%)     Median: 79.4488ms (-2.43%)     [78.2472ms .. 91.2498ms]     
+opaque      Memory: 34.5 MB (-33.48%)    Avg: 82.6243ms (-33.43%)    Median: 80.1272ms (-35.11%)    [78.9993ms .. 107.5364ms]    
+vortex      Memory: 44.4 MB (-28.10%)    Avg: 71.7866ms (-38.44%)    Median: 70.6882ms (-38.74%)    [69.4804ms .. 91.1557ms]     
+metrics/terms_many_with_single_term_2_order_by_card
+columnar    Memory: 26.3 MB              Avg: 41.5023ms (-0.98%)     Median: 41.2854ms (-0.83%)     [40.1739ms .. 46.6173ms]    
+opaque      Memory: 26.3 MB (-35.54%)    Avg: 41.0275ms (-50.09%)    Median: 41.0058ms (-50.30%)    [39.9548ms .. 41.9874ms]    
+vortex      Memory: 32.9 MB (-30.59%)    Avg: 37.1275ms (-53.07%)    Median: 37.6646ms (-52.14%)    [35.3581ms .. 38.6208ms]    
+terms/terms_7
+columnar    Memory: 6.1 KB             Avg: 2.8011ms (-0.16%)     Median: 2.8027ms (+0.01%)     [2.7795ms .. 2.8225ms]    
+opaque      Memory: 6.2 KB (-6.10%)    Avg: 2.8192ms (-29.89%)    Median: 2.8151ms (-29.96%)    [2.8032ms .. 2.9042ms]    
+vortex      Memory: 3.9 MB (+0.00%)    Avg: 2.0777ms (-37.39%)    Median: 2.0766ms (-37.48%)    [2.0549ms .. 2.1563ms]    
+terms/terms_zipf_1000
+columnar    Memory: 36.2 KB              Avg: 2.8087ms (-0.01%)     Median: 2.8034ms (+0.15%)     [2.7901ms .. 2.8660ms]    
+opaque      Memory: 36.2 KB (-35.52%)    Avg: 2.8094ms (-20.23%)    Median: 2.8068ms (-20.31%)    [2.7904ms .. 2.8662ms]    
+vortex      Memory: 3.9 MB (-0.80%)      Avg: 2.0933ms (-21.94%)    Median: 2.0790ms (-22.43%)    [2.0680ms .. 2.4000ms]    
+terms/terms_zipf_90
+columnar    Memory: 24.6 KB             Avg: 2.8370ms (-0.10%)     Median: 2.8369ms (-0.12%)     [2.8118ms .. 2.9043ms]    
+opaque      Memory: 24.6 KB (-0.03%)    Avg: 2.8476ms (-28.90%)    Median: 2.8404ms (-29.06%)    [2.8292ms .. 2.9262ms]    
+vortex      Memory: 3.9 MB (+0.02%)     Avg: 2.0931ms (-34.32%)    Median: 2.0859ms (-34.53%)    [2.0738ms .. 2.3066ms]    
+terms/terms_zipf_90_with_sum_sub_agg
+columnar    Memory: 211.1 KB             Avg: 8.2830ms (-0.94%)     Median: 8.2779ms (-0.41%)     [8.1887ms .. 8.5285ms]    
+opaque      Memory: 211.2 KB (+2.51%)    Avg: 8.2792ms (-45.87%)    Median: 8.2730ms (-45.47%)    [8.0995ms .. 8.3997ms]    
+vortex      Memory: 8.9 MB (+0.01%)      Avg: 6.5891ms (-48.38%)    Median: 6.6082ms (-48.02%)    [6.4173ms .. 6.7668ms]    
+terms/terms_150_000
+columnar    Memory: 2.7 MB              Avg: 5.4499ms (-3.81%)     Median: 5.4291ms (-3.32%)     [5.3726ms .. 5.8045ms]    
+opaque      Memory: 2.7 MB (-60.25%)    Avg: 5.4476ms (-19.73%)    Median: 5.4453ms (-19.19%)    [5.3851ms .. 5.5431ms]    
+vortex      Memory: 6.0 MB (-40.65%)    Avg: 4.6356ms (-23.21%)    Median: 4.6301ms (-22.58%)    [4.5868ms .. 4.7605ms]    
+terms/terms_many_top_1000
+columnar    Memory: 4.2 MB              Avg: 7.2363ms (-2.40%)     Median: 7.1863ms (-3.34%)     [7.1111ms .. 7.5605ms]    
+opaque      Memory: 4.2 MB (-38.21%)    Avg: 7.2262ms (-15.20%)    Median: 7.2077ms (-15.45%)    [7.1130ms .. 7.3986ms]    
+vortex      Memory: 7.5 MB (-25.78%)    Avg: 6.4458ms (-17.24%)    Median: 6.4103ms (-17.64%)    [6.2826ms .. 6.7278ms]    
+terms/terms_many_order_by_term
+columnar    Memory: 2.7 MB              Avg: 5.0238ms (-1.52%)     Median: 5.0054ms (-1.56%)     [4.9469ms .. 5.2376ms]    
+opaque      Memory: 2.7 MB (-60.25%)    Avg: 5.0516ms (-21.30%)    Median: 5.0523ms (-21.12%)    [5.0028ms .. 5.0967ms]    
+vortex      Memory: 6.0 MB (-40.65%)    Avg: 4.2458ms (-24.99%)    Median: 4.2433ms (-24.95%)    [4.1915ms .. 4.3161ms]    
+terms/terms_all_unique
+columnar    Memory: 18.1 MB              Avg: 6.8209ms (+1.00%)     Median: 6.7677ms (+0.51%)     [6.6369ms .. 7.4653ms]    
+opaque      Memory: 18.1 MB (-66.19%)    Avg: 6.7849ms (-57.45%)    Median: 6.7801ms (-56.98%)    [6.6746ms .. 6.9614ms]    
+vortex      Memory: 21.4 MB (-62.38%)    Avg: 5.9975ms (-60.63%)    Median: 5.9864ms (-60.49%)    [5.8923ms .. 6.1293ms]    
+terms/terms_all_unique_order_by_key
+columnar    Memory: 18.1 MB              Avg: 6.5231ms (-0.10%)     Median: 6.5221ms (+0.25%)     [6.4246ms .. 6.6791ms]    
+opaque      Memory: 18.1 MB (-66.19%)    Avg: 6.5307ms (-59.54%)    Median: 6.5274ms (-58.99%)    [6.4550ms .. 6.6211ms]    
+vortex      Memory: 21.4 MB (-62.38%)    Avg: 5.7387ms (-62.84%)    Median: 5.7378ms (-62.35%)    [5.6355ms .. 5.8279ms]    
+terms/terms_all_unique_with_avg_sub_agg
+columnar    Memory: 63.4 MB              Avg: 19.6092ms (+2.61%)     Median: 19.4259ms (+1.90%)     [19.1130ms .. 21.4284ms]    
+opaque      Memory: 63.4 MB (-34.52%)    Avg: 26.5998ms (-29.48%)    Median: 26.4326ms (-29.77%)    [26.2119ms .. 27.8487ms]    
+vortex      Memory: 71.6 MB (-31.72%)    Avg: 22.9818ms (-33.00%)    Median: 22.8986ms (-33.03%)    [22.5138ms .. 25.0815ms]    
+terms/terms_many_with_avg_sub_agg
+columnar    Memory: 13.8 MB              Avg: 16.3847ms (-1.48%)     Median: 16.2046ms (-2.90%)     [15.7818ms .. 18.7207ms]    
+opaque      Memory: 13.8 MB (-21.74%)    Avg: 23.3684ms (-14.65%)    Median: 23.3553ms (-14.42%)    [22.8765ms .. 24.2789ms]    
+vortex      Memory: 22.0 MB (-14.82%)    Avg: 19.8312ms (-16.36%)    Median: 19.7175ms (-16.20%)    [19.2401ms .. 21.3437ms]    
+terms/terms_status_with_avg_sub_agg
+columnar    Memory: 81.7 KB              Avg: 8.9701ms (+0.47%)     Median: 8.9453ms (+0.03%)     [8.7788ms .. 9.6284ms]    
+opaque      Memory: 81.7 KB (-13.16%)    Avg: 8.9708ms (-15.00%)    Median: 8.9451ms (-15.40%)    [8.7186ms .. 9.9347ms]    
+vortex      Memory: 9.0 MB (-0.14%)      Avg: 8.0000ms (-15.51%)    Median: 7.9380ms (-16.22%)    [7.7336ms .. 9.0409ms]    
+terms/terms_zipf_1000_with_avg_sub_agg
+columnar    Memory: 300.0 KB             Avg: 11.8520ms (-0.78%)    Median: 11.8414ms (-0.89%)    [11.7894ms .. 11.9859ms]    
+opaque      Memory: 300.0 KB (+3.63%)    Avg: 16.1468ms (-4.84%)    Median: 16.1458ms (-4.83%)    [16.0832ms .. 16.2572ms]    
+vortex      Memory: 9.0 MB (-0.12%)      Avg: 13.0804ms (-6.74%)    Median: 13.0790ms (-6.79%)    [12.9317ms .. 13.4831ms]    
+terms/terms_many_json_mixed_type_with_avg_sub_agg
+columnar    Memory: 20.9 MB     Avg: 21.6406ms (-1.57%)    Median: 21.5502ms (-1.04%)    [21.2380ms .. 22.9637ms]    
+opaque      Memory: 20.9 MB     Avg: 28.9067ms (+0.30%)    Median: 28.7702ms (+0.57%)    [28.4526ms .. 29.7325ms]    
+vortex      Memory: 30.8 MB     Avg: 26.9539ms (-0.37%)    Median: 26.7715ms (-0.77%)    [26.5567ms .. 30.3315ms]    
+terms/terms_many_with_top_hits
+columnar    Memory: 52.1 MB     Avg: 93.9179ms (-9.12%)    Median: 93.0392ms (-1.90%)    [90.5621ms .. 111.8521ms]    
+terms/terms_status_with_histogram
+columnar    Memory: 123.8 KB           Avg: 8.3173ms (-0.02%)     Median: 8.3175ms (-0.00%)     [8.2694ms .. 8.3925ms]    
+opaque      Memory: 123.8 KB           Avg: 8.3320ms (-16.25%)    Median: 8.3335ms (-16.24%)    [8.2851ms .. 8.4468ms]    
+vortex      Memory: 9.0 MB (-0.14%)    Avg: 7.3013ms (-18.11%)    Median: 7.2940ms (-18.15%)    [7.2118ms .. 7.4552ms]    
+terms/terms_zipf_1000_with_histogram
+columnar    Memory: 1.1 MB             Avg: 29.9207ms (+0.44%)    Median: 29.8656ms (+0.62%)    [29.2744ms .. 32.5260ms]    
+opaque      Memory: 1.1 MB (-0.19%)    Avg: 29.6166ms (+0.25%)    Median: 29.5932ms (-0.07%)    [29.1262ms .. 30.2783ms]    
+vortex      Memory: 9.8 MB (-0.24%)    Avg: 21.7784ms (-3.51%)    Median: 21.7563ms (-3.35%)    [21.5225ms .. 22.1665ms]    
+terms/terms_status_with_date_histogram
+columnar    Memory: 122.9 KB             Avg: 8.0716ms (+0.24%)     Median: 8.0537ms (-0.03%)     [7.9891ms .. 8.5602ms]    
+opaque      Memory: 122.9 KB (-7.28%)    Avg: 8.0637ms (-17.33%)    Median: 8.0659ms (-17.31%)    [7.9789ms .. 8.1797ms]    
+vortex      Memory: 9.3 MB (-0.13%)      Avg: 7.2118ms (-17.92%)    Median: 7.1897ms (-18.19%)    [7.1093ms .. 7.4979ms]    
+terms/terms_status_with_date_histogram_26_bits
+columnar    Memory: 206.8 KB           Avg: 7.6409ms (-0.12%)     Median: 7.6344ms (-0.21%)     [7.5729ms .. 7.7470ms]    
+opaque      Memory: 206.8 KB           Avg: 7.6695ms (-17.77%)    Median: 7.6673ms (-17.85%)    [7.6033ms .. 7.7506ms]    
+vortex      Memory: 9.4 MB (-0.13%)    Avg: 6.7260ms (-19.25%)    Median: 6.7285ms (-19.19%)    [6.6553ms .. 6.7847ms]    
+terms/terms_status_with_date_histogram_single_bucket
+columnar    Memory: 82.1 KB              Avg: 8.1277ms (-0.09%)     Median: 8.2025ms (-1.05%)     [7.7272ms .. 8.3971ms]    
+opaque      Memory: 82.2 KB (-13.10%)    Avg: 8.1682ms (-17.19%)    Median: 8.2255ms (-17.45%)    [7.7815ms .. 8.3371ms]    
+vortex      Memory: 9.3 MB (-0.13%)      Avg: 6.7618ms (-18.97%)    Median: 6.7655ms (-18.94%)    [6.6568ms .. 6.8770ms]    
+terms/terms_status_with_date_histogram_4_buckets
+columnar    Memory: 83.1 KB              Avg: 8.1719ms (-0.25%)     Median: 8.2085ms (-1.03%)     [7.7787ms .. 8.3497ms]    
+opaque      Memory: 83.2 KB (-12.96%)    Avg: 8.1739ms (-17.39%)    Median: 8.2194ms (-17.80%)    [7.7406ms .. 8.3387ms]    
+vortex      Memory: 9.3 MB (-0.13%)      Avg: 6.9085ms (-18.17%)    Median: 6.8994ms (-18.44%)    [6.8034ms .. 7.2861ms]    
+terms/terms_status_with_date_histogram_8_buckets
+columnar    Memory: 84.4 KB              Avg: 8.1051ms (+1.11%)     Median: 8.0853ms (+0.89%)     [7.9928ms .. 9.0118ms]    
+opaque      Memory: 84.5 KB (-12.78%)    Avg: 8.0977ms (-16.38%)    Median: 8.0881ms (-16.57%)    [7.9893ms .. 8.3037ms]    
+vortex      Memory: 9.3 MB (-0.13%)      Avg: 7.2896ms (-16.92%)    Median: 7.3220ms (-16.53%)    [7.1154ms .. 7.6666ms]    
+terms/terms_status_with_date_histogram_hard_bounds
+columnar    Memory: 122.1 KB             Avg: 8.1980ms (+0.37%)     Median: 8.1620ms (-0.13%)     [8.0739ms .. 8.5111ms]    
+opaque      Memory: 122.1 KB (-7.29%)    Avg: 8.1886ms (-16.47%)    Median: 8.1504ms (-16.95%)    [8.0718ms .. 8.5431ms]    
+vortex      Memory: 9.3 MB (-0.13%)      Avg: 7.3299ms (-16.92%)    Median: 7.2622ms (-17.56%)    [7.1612ms .. 7.9062ms]    
+terms/terms_status_with_date_histogram_and_sibling_terms
+columnar    Memory: 123.2 KB             Avg: 10.9250ms (-0.80%)     Median: 10.9226ms (-0.51%)     [10.7935ms .. 11.1252ms]    
+opaque      Memory: 123.2 KB (-8.50%)    Avg: 10.9344ms (-18.57%)    Median: 10.9345ms (-18.23%)    [10.8223ms .. 11.1563ms]    
+vortex      Memory: 12.7 MB (-0.10%)     Avg: 9.2541ms (-20.26%)     Median: 9.2411ms (-20.08%)     [9.1904ms .. 9.4422ms]      
+multi_terms_vs_nested/nested_terms_status_and_zipf_1000
+columnar    Memory: 271.1 KB             Avg: 7.7911ms (+0.27%)     Median: 7.7877ms (+0.18%)     [7.7428ms .. 7.9134ms]    
+opaque      Memory: 271.1 KB (-4.37%)    Avg: 7.8010ms (-17.90%)    Median: 7.7911ms (-17.95%)    [7.7627ms .. 7.9610ms]    
+vortex      Memory: 7.6 MB (-0.16%)      Avg: 6.2254ms (-20.52%)    Median: 6.2225ms (-20.61%)    [6.1225ms .. 6.3025ms]    
+multi_terms_vs_nested/multi_terms_status_and_zipf_1000
+columnar    Memory: 185.9 KB     Avg: 5.9145ms (-0.32%)    Median: 5.8816ms (-0.75%)    [5.8288ms .. 6.2215ms]    
+multi_terms_vs_nested/nested_terms_status_and_zipf_1000_with_missing
+columnar    Memory: 271.8 KB     Avg: 7.8779ms (+0.25%)    Median: 7.8340ms (+0.10%)    [7.7548ms .. 8.1820ms]    
+multi_terms_vs_nested/multi_terms_status_and_zipf_1000_with_missing
+columnar    Memory: 186.3 KB     Avg: 5.8788ms (-1.87%)    Median: 5.8798ms (-1.06%)    [5.8407ms .. 5.9141ms]    
+multi_terms_vs_nested/nested_terms_zipf_1000_and_status
+columnar    Memory: 434.3 KB             Avg: 20.4527ms (+0.68%)    Median: 20.4099ms (+0.60%)    [20.2869ms .. 21.4621ms]    
+opaque      Memory: 434.4 KB (-0.47%)    Avg: 20.8041ms (-2.45%)    Median: 20.7788ms (-2.63%)    [20.5993ms .. 21.2511ms]    
+vortex      Memory: 7.6 MB (-0.31%)      Avg: 15.1523ms (-5.21%)    Median: 15.1183ms (-5.53%)    [15.0648ms .. 15.8267ms]    
+multi_terms_vs_nested/multi_terms_zipf_1000_and_status
+columnar    Memory: 186.4 KB     Avg: 5.8969ms (-0.56%)    Median: 5.8989ms (-0.53%)    [5.8328ms .. 5.9809ms]    
+multi_terms_vs_nested/nested_terms_many_and_zipf_1000
+columnar    Memory: 38.2 MB             Avg: 62.3408ms (-4.51%)     Median: 62.0448ms (-1.29%)    [61.0085ms .. 66.4415ms]    
+opaque      Memory: 38.2 MB (-9.11%)    Avg: 63.1072ms (-11.13%)    Median: 62.2794ms (-9.49%)    [59.9973ms .. 75.0666ms]    
+vortex      Memory: 44.8 MB (-7.87%)    Avg: 57.4635ms (-12.44%)    Median: 57.0272ms (-9.63%)    [56.2314ms .. 61.5705ms]    
+multi_terms_vs_nested/multi_terms_many_and_zipf_1000
+columnar    Memory: 31.9 MB     Avg: 19.6831ms (+1.21%)    Median: 19.4706ms (+0.40%)    [19.3177ms .. 20.8134ms]    
+multi_terms_vs_nested/nested_terms_many_and_zipf_1000_and_status
+columnar    Memory: 146.9 MB             Avg: 145.0050ms (-2.46%)    Median: 141.8152ms (-1.51%)    [138.3810ms .. 169.1693ms]    
+opaque      Memory: 146.9 MB (-2.54%)    Avg: 144.3743ms (-6.75%)    Median: 142.6660ms (-5.67%)    [139.8393ms .. 154.5520ms]    
+vortex      Memory: 156.8 MB (-2.38%)    Avg: 132.1239ms (-8.72%)    Median: 131.7268ms (-7.71%)    [128.8072ms .. 138.5577ms]    
+multi_terms_vs_nested/multi_terms_many_and_zipf_1000_and_status
+columnar    Memory: 53.5 MB     Avg: 27.8675ms (+0.19%)    Median: 27.7242ms (-0.22%)    [27.3717ms .. 29.0096ms]    
+multi_terms_vs_nested/nested_terms_status_and_zipf_1000_avg_sub_agg
+columnar    Memory: 1.6 MB              Avg: 18.2060ms (-2.92%)    Median: 18.1411ms (-3.03%)     [17.9617ms .. 18.7630ms]    
+opaque      Memory: 1.6 MB (+0.60%)     Avg: 22.3550ms (-8.42%)    Median: 22.3046ms (-8.48%)     [22.1643ms .. 22.9337ms]    
+vortex      Memory: 13.1 MB (+0.07%)    Avg: 18.3773ms (-9.34%)    Median: 18.3113ms (-10.18%)    [18.1708ms .. 19.6383ms]    
+multi_terms_vs_nested/multi_terms_status_and_zipf_1000_avg_sub_agg
+columnar    Memory: 624.9 KB     Avg: 14.8676ms (-2.61%)    Median: 14.8501ms (-2.73%)    [14.7925ms .. 15.1111ms]    
+multi_terms_vs_nested_with_1%_term_query/nested_terms_status_and_zipf_1000
+columnar    Memory: 136.5 KB             Avg: 0.1871ms (+0.60%)    Median: 0.1865ms (+0.35%)    [0.1851ms .. 0.1926ms]    
+opaque      Memory: 136.6 KB (-7.69%)    Avg: 0.1878ms (-8.58%)    Median: 0.1872ms (-8.84%)    [0.1853ms .. 0.2013ms]    
+vortex      Memory: 7.3 MB (-1.03%)      Avg: 0.9399ms (-0.33%)    Median: 0.9373ms (-0.41%)    [0.9296ms .. 0.9803ms]    
+multi_terms_vs_nested_with_1%_term_query/multi_terms_status_and_zipf_1000
+columnar    Memory: 88.3 KB     Avg: 0.1166ms (-0.54%)    Median: 0.1167ms (-0.50%)    [0.1149ms .. 0.1177ms]    
+multi_terms_vs_nested_with_1%_term_query/nested_terms_status_and_zipf_1000_with_missing
+columnar    Memory: 136.6 KB (-0.05%)    Avg: 0.1880ms (+0.79%)    Median: 0.1868ms (+0.13%)    [0.1861ms .. 0.1996ms]    
+multi_terms_vs_nested_with_1%_term_query/multi_terms_status_and_zipf_1000_with_missing
+columnar    Memory: 88.6 KB     Avg: 0.1183ms (-0.36%)    Median: 0.1180ms (-0.08%)    [0.1172ms .. 0.1203ms]    
+multi_terms_vs_nested_with_1%_term_query/nested_terms_zipf_1000_and_status
+columnar    Memory: 342.7 KB             Avg: 0.3847ms (-0.21%)    Median: 0.3832ms (-0.67%)    [0.3788ms .. 0.4074ms]    
+opaque      Memory: 343.1 KB (-0.08%)    Avg: 0.3938ms (-1.80%)    Median: 0.3929ms (-1.85%)    [0.3863ms .. 0.4146ms]    
+vortex      Memory: 7.4 MB (-0.13%)      Avg: 1.0790ms (-0.14%)    Median: 1.0759ms (-0.01%)    [1.0649ms .. 1.1440ms]    
+multi_terms_vs_nested_with_1%_term_query/multi_terms_zipf_1000_and_status
+columnar    Memory: 88.8 KB     Avg: 0.1180ms (+0.40%)    Median: 0.1173ms (-0.15%)    [0.1166ms .. 0.1299ms]    
+multi_terms_vs_nested_with_1%_term_query/nested_terms_many_and_zipf_1000
+columnar    Memory: 2.7 MB              Avg: 0.8809ms (-0.26%)     Median: 0.8771ms (-0.61%)     [0.8669ms .. 0.9116ms]    
+opaque      Memory: 2.7 MB (+44.44%)    Avg: 0.8823ms (-17.48%)    Median: 0.8812ms (-17.48%)    [0.8680ms .. 0.9039ms]    
+vortex      Memory: 9.6 MB (+10.99%)    Avg: 1.6342ms (-9.20%)     Median: 1.6297ms (-8.97%)     [1.6040ms .. 1.7292ms]    
+multi_terms_vs_nested_with_1%_term_query/multi_terms_many_and_zipf_1000
+columnar    Memory: 446.3 KB     Avg: 0.5605ms (+0.35%)    Median: 0.5556ms (-0.01%)    [0.5532ms .. 0.6176ms]    
+multi_terms_vs_nested_with_1%_term_query/nested_terms_many_and_zipf_1000_and_status
+columnar    Memory: 4.1 MB              Avg: 1.4283ms (+0.63%)     Median: 1.4277ms (+0.54%)     [1.4050ms .. 1.4803ms]    
+opaque      Memory: 4.1 MB (+22.09%)    Avg: 1.4365ms (-10.83%)    Median: 1.4327ms (-10.84%)    [1.4116ms .. 1.4891ms]    
+vortex      Memory: 14.3 MB (+7.08%)    Avg: 2.5747ms (-5.84%)     Median: 2.5697ms (-5.86%)     [2.5422ms .. 2.6325ms]    
+multi_terms_vs_nested_with_1%_term_query/multi_terms_many_and_zipf_1000_and_status
+columnar    Memory: 447.4 KB     Avg: 0.6153ms (-0.72%)    Median: 0.6142ms (-0.25%)    [0.6117ms .. 0.6297ms]    
+multi_terms_vs_nested_with_1%_term_query/nested_terms_status_and_zipf_1000_avg_sub_agg
+columnar    Memory: 1.1 MB              Avg: 0.3610ms (-0.33%)    Median: 0.3605ms (-0.51%)    [0.3575ms .. 0.3677ms]    
+opaque      Memory: 1.1 MB (-0.95%)     Avg: 0.4100ms (-5.28%)    Median: 0.4101ms (-4.90%)    [0.4068ms .. 0.4159ms]    
+vortex      Memory: 12.6 MB (-0.08%)    Avg: 2.0750ms (-0.80%)    Median: 2.0731ms (-0.65%)    [2.0644ms .. 2.1091ms]    
+multi_terms_vs_nested_with_1%_term_query/multi_terms_status_and_zipf_1000_avg_sub_agg
+columnar    Memory: 224.2 KB     Avg: 0.2049ms (-3.00%)    Median: 0.2047ms (-3.05%)    [0.2040ms .. 0.2073ms]    
+range_and_histogram/range_agg
+columnar    Memory: 9.0 KB (-1.60%)    Avg: 4.6767ms (-0.42%)    Median: 4.6661ms (-0.61%)    [4.6353ms .. 4.8991ms]    
+opaque      Memory: 9.4 KB (+4.89%)    Avg: 4.6952ms (-1.74%)    Median: 4.6837ms (-1.79%)    [4.6604ms .. 4.8312ms]    
+vortex      Memory: 5.6 MB             Avg: 4.4580ms (-0.66%)    Median: 4.4533ms (-0.83%)    [4.4257ms .. 4.5098ms]    
+range_and_histogram/range_agg_with_avg_sub_agg
+columnar    Memory: 71.5 KB     Avg: 10.3890ms (+0.53%)    Median: 10.3259ms (+0.06%)    [10.1511ms .. 10.9750ms]    
+opaque      Memory: 71.6 KB     Avg: 10.3275ms (-0.20%)    Median: 10.2924ms (-0.44%)    [10.0599ms .. 10.6195ms]    
+vortex      Memory: 10.5 MB     Avg: 10.0233ms (+1.34%)    Median: 9.9061ms (+0.32%)     [9.7580ms .. 10.8438ms]     
+range_and_histogram/range_agg_with_term_agg_status
+columnar    Memory: 72.8 KB     Avg: 9.7739ms (+0.62%)    Median: 9.7490ms (+0.26%)    [9.6015ms .. 10.0173ms]    
+opaque      Memory: 72.9 KB     Avg: 9.9572ms (+1.26%)    Median: 9.7622ms (-0.84%)    [9.6388ms .. 15.0934ms]    
+vortex      Memory: 9.0 MB      Avg: 8.8300ms (+0.22%)    Median: 8.7402ms (-0.78%)    [8.6217ms .. 10.1333ms]    
+range_and_histogram/range_agg_with_term_agg_many
+columnar    Memory: 6.9 MB      Avg: 12.9443ms (+0.43%)    Median: 12.9193ms (+0.13%)    [12.8198ms .. 13.2378ms]    
+opaque      Memory: 6.9 MB      Avg: 12.9969ms (+0.06%)    Median: 12.9741ms (-0.12%)    [12.7550ms .. 13.3849ms]    
+vortex      Memory: 15.2 MB     Avg: 11.9369ms (+0.22%)    Median: 11.9203ms (+0.07%)    [11.7409ms .. 12.2711ms]    
+range_and_histogram/avg_and_range_with_avg_sub_agg
+columnar    Memory: 66.7 KB     Avg: 14.9058ms (+0.39%)    Median: 14.9292ms (+0.55%)    [14.5345ms .. 15.1046ms]    
+opaque      Memory: 66.8 KB     Avg: 15.0521ms (-0.22%)    Median: 15.0539ms (-0.17%)    [14.8593ms .. 15.3066ms]    
+vortex      Memory: 15.4 MB     Avg: 13.3053ms (+0.40%)    Median: 13.3377ms (+0.60%)    [12.9208ms .. 13.6764ms]    
+range_and_histogram/histogram
+columnar    Memory: 8.7 KB (+4.90%)    Avg: 4.1294ms (-2.04%)    Median: 4.1128ms (-0.31%)    [4.0892ms .. 4.3449ms]    
+opaque      Memory: 8.3 KB (-3.20%)    Avg: 4.1739ms (-2.09%)    Median: 4.1582ms (-1.00%)    [4.1254ms .. 4.3276ms]    
+vortex      Memory: 5.6 MB             Avg: 3.9605ms (-2.21%)    Median: 3.9476ms (-0.62%)    [3.9262ms .. 4.1223ms]    
+range_and_histogram/histogram_hard_bounds
+columnar    Memory: 6.3 KB (-2.97%)    Avg: 3.0159ms (-0.10%)    Median: 3.0123ms (-0.18%)    [2.9826ms .. 3.0979ms]    
+opaque      Memory: 6.5 KB (-2.90%)    Avg: 3.0340ms (-1.81%)    Median: 3.0295ms (-1.83%)    [2.9805ms .. 3.1545ms]    
+vortex      Memory: 5.6 MB             Avg: 2.7782ms (-0.06%)    Median: 2.7780ms (-0.05%)    [2.7453ms .. 2.8155ms]    
+range_and_histogram/histogram_with_avg_sub_agg
+columnar    Memory: 85.6 KB     Avg: 11.1542ms (+0.15%)    Median: 11.1434ms (-0.09%)    [10.9268ms .. 11.3855ms]    
+opaque      Memory: 85.7 KB     Avg: 11.3605ms (+0.52%)    Median: 11.3606ms (+0.36%)    [11.1294ms .. 11.5437ms]    
+vortex      Memory: 10.5 MB     Avg: 10.8667ms (+0.82%)    Median: 10.8369ms (+0.41%)    [10.5776ms .. 11.3192ms]    
+range_and_histogram/histogram_with_term_agg_status
+columnar    Memory: 283.4 KB     Avg: 12.1817ms (-0.10%)    Median: 12.1906ms (-0.03%)    [11.9139ms .. 12.2702ms]    
+opaque      Memory: 283.5 KB     Avg: 12.2297ms (-0.60%)    Median: 12.2269ms (-0.61%)    [12.1830ms .. 12.2837ms]    
+vortex      Memory: 9.0 MB       Avg: 10.9065ms (-0.54%)    Median: 10.9244ms (-0.48%)    [10.6511ms .. 11.0790ms]    
+range_and_histogram/composite_term_few
+columnar    Memory: 20.9 KB     Avg: 20.7913ms (-0.82%)    Median: 20.9009ms (-0.17%)    [19.9104ms .. 21.1021ms]    
+range_and_histogram/composite_term_many_page_1000
+columnar    Memory: 373.3 KB     Avg: 17.6201ms (-1.19%)    Median: 17.5938ms (+0.61%)    [17.3875ms .. 18.2270ms]    
+range_and_histogram/composite_term_many_page_1000_with_avg_sub_agg
+columnar    Memory: 2.3 MB     Avg: 17.8851ms (+0.07%)    Median: 17.8884ms (+0.16%)    [17.6179ms .. 18.2161ms]    
+range_and_histogram/composite_histogram
+columnar    Memory: 299.0 KB     Avg: 42.7311ms (-2.36%)    Median: 42.5343ms (-2.64%)    [41.1603ms .. 44.7548ms]    
+range_and_histogram/composite_histogram_calendar
+columnar    Memory: 6.7 KB (+2.59%)    Avg: 57.2635ms (-0.09%)    Median: 57.0209ms (-0.54%)    [56.0569ms .. 63.9866ms]    
+filter_agg/filter_agg_all_query_count_agg
+columnar    Memory: 191.9 KB (+0.17%)    Avg: 6.3287ms (-6.77%)    Median: 6.1802ms (-8.79%)    [6.0206ms .. 7.2416ms]    
+opaque      Memory: 191.8 KB             Avg: 6.3196ms (-6.82%)    Median: 6.1609ms (-9.36%)    [5.9739ms .. 8.3226ms]    
+vortex      Memory: 5.6 MB               Avg: 6.1039ms (-5.77%)    Median: 6.0551ms (-6.61%)    [5.8170ms .. 6.7475ms]    
+filter_agg/filter_agg_term_query_count_agg
+columnar    Memory: 184.6 KB     Avg: 8.2967ms (-4.65%)    Median: 8.0418ms (-7.44%)    [7.8961ms .. 10.2642ms]    
+opaque      Memory: 184.5 KB     Avg: 8.2094ms (-5.57%)    Median: 8.1147ms (-6.56%)    [7.7658ms .. 10.0471ms]    
+vortex      Memory: 5.6 MB       Avg: 7.9808ms (-4.89%)    Median: 7.9780ms (-4.72%)    [7.6966ms .. 8.3107ms]     
+filter_agg/filter_agg_all_query_with_sub_aggs
+columnar    Memory: 194.0 KB (-0.08%)    Avg: 15.3358ms (+0.34%)    Median: 15.4386ms (+1.08%)    [14.8720ms .. 15.6790ms]    
+opaque      Memory: 194.3 KB (+0.08%)    Avg: 15.2356ms (-0.46%)    Median: 15.2596ms (-0.25%)    [14.9142ms .. 15.3756ms]    
+vortex      Memory: 14.0 MB              Avg: 13.4959ms (-3.47%)    Median: 13.5244ms (-2.75%)    [13.0657ms .. 13.6819ms]    
+filter_agg/filter_agg_term_query_with_sub_aggs
+columnar    Memory: 186.7 KB (-0.16%)    Avg: 17.2440ms (+0.22%)    Median: 17.2518ms (+0.47%)    [16.8282ms .. 18.0473ms]    
+opaque      Memory: 187.1 KB (+0.16%)    Avg: 17.2613ms (-0.07%)    Median: 17.2826ms (+0.41%)    [16.8709ms .. 17.6479ms]    
+vortex      Memory: 14.0 MB              Avg: 15.4927ms (-2.83%)    Median: 15.5310ms (-2.24%)    [14.9409ms .. 15.7323ms]    
+sparse
+metrics/average_u64
+columnar    Memory: 4.8 KB             Avg: 1.4418ms (+0.79%)    Median: 1.4418ms (+0.69%)    [1.4149ms .. 1.4804ms]    
+opaque      Memory: 5.0 KB (-3.82%)    Avg: 1.4212ms (-2.67%)    Median: 1.4236ms (-2.48%)    [1.3859ms .. 1.4391ms]    
+vortex      Memory: 5.4 MB             Avg: 1.1812ms (-3.34%)    Median: 1.1741ms (-4.62%)    [1.1667ms .. 1.2331ms]    
+metrics/average_f64
+columnar    Memory: 5.0 KB (-3.80%)    Avg: 1.4505ms (-0.34%)    Median: 1.4450ms (-0.68%)    [1.4164ms .. 1.5026ms]    
+opaque      Memory: 5.0 KB             Avg: 1.4513ms (-0.54%)    Median: 1.4408ms (-1.30%)    [1.4100ms .. 1.5791ms]    
+vortex      Memory: 5.3 MB             Avg: 1.1921ms (-2.01%)    Median: 1.1727ms (-3.86%)    [1.1550ms .. 1.2497ms]    
+metrics/average_f64_u64
+columnar    Memory: 5.4 KB (-3.74%)     Avg: 3.2973ms (+1.27%)    Median: 3.2657ms (-0.02%)    [3.0547ms .. 4.1877ms]    
+opaque      Memory: 5.9 KB (+11.94%)    Avg: 3.2366ms (-1.88%)    Median: 3.2323ms (-1.98%)    [3.1236ms .. 3.3372ms]    
+vortex      Memory: 10.2 MB             Avg: 2.3653ms (-0.47%)    Median: 2.3618ms (-0.31%)    [2.3082ms .. 2.5548ms]    
+metrics/stats_f64
+columnar    Memory: 5.2 KB (+8.21%)     Avg: 1.4424ms (-0.72%)    Median: 1.4383ms (-0.50%)    [1.3964ms .. 1.5037ms]    
+opaque      Memory: 4.8 KB (-11.03%)    Avg: 1.4506ms (-0.50%)    Median: 1.4477ms (-0.60%)    [1.4098ms .. 1.5004ms]    
+vortex      Memory: 5.3 MB              Avg: 1.1890ms (-3.32%)    Median: 1.1796ms (-3.56%)    [1.1625ms .. 1.2598ms]    
+metrics/extendedstats_f64
+columnar    Memory: 6.0 KB (+3.62%)    Avg: 1.4797ms (-1.50%)    Median: 1.4806ms (-1.51%)    [1.4578ms .. 1.5200ms]    
+opaque      Memory: 5.4 KB             Avg: 1.4788ms (-1.42%)    Median: 1.4774ms (-1.29%)    [1.4496ms .. 1.5433ms]    
+vortex      Memory: 5.3 MB (-0.01%)    Avg: 1.2300ms (-0.83%)    Median: 1.2205ms (-2.40%)    [1.2054ms .. 1.2634ms]    
+metrics/percentiles_f64
+columnar    Memory: 19.4 KB            Avg: 1.6424ms (-0.64%)    Median: 1.6369ms (-0.62%)    [1.6132ms .. 1.6885ms]    
+opaque      Memory: 19.9 KB            Avg: 1.6324ms (-3.41%)    Median: 1.6356ms (-2.96%)    [1.5771ms .. 1.6552ms]    
+vortex      Memory: 5.4 MB (+0.00%)    Avg: 1.4489ms (-1.10%)    Median: 1.4390ms (-1.84%)    [1.4179ms .. 1.5035ms]    
+metrics/cardinality_agg_low_card
+columnar    Memory: 5.0 KB (+8.86%)    Avg: 1.4313ms (+0.33%)    Median: 1.4286ms (+0.45%)     [1.3756ms .. 1.5348ms]    
+opaque      Memory: 5.0 KB (-7.18%)    Avg: 1.4210ms (-9.91%)    Median: 1.4139ms (-10.22%)    [1.3724ms .. 1.5808ms]    
+vortex      Memory: 4.1 MB (-0.01%)    Avg: 1.1569ms (-5.00%)    Median: 1.1671ms (-3.12%)     [1.1144ms .. 1.1847ms]    
+metrics/cardinality_agg
+columnar    Memory: 1.5 MB              Avg: 3.1156ms (-0.25%)     Median: 3.1141ms (-0.19%)     [3.0603ms .. 3.1739ms]    
+opaque      Memory: 1.5 MB (-27.66%)    Avg: 3.1144ms (-11.76%)    Median: 3.1137ms (-11.54%)    [3.0715ms .. 3.1606ms]    
+vortex      Memory: 4.9 MB (-10.74%)    Avg: 2.8443ms (-12.89%)    Median: 2.8432ms (-12.95%)    [2.8030ms .. 2.8913ms]    
+metrics/cardinality_agg_high_card
+columnar    Memory: 1.6 MB              Avg: 4.5539ms (-0.29%)    Median: 4.5517ms (-0.32%)    [4.4733ms .. 4.7000ms]    
+opaque      Memory: 1.6 MB (-26.84%)    Avg: 4.5526ms (-8.77%)    Median: 4.5452ms (-8.79%)    [4.4844ms .. 4.8198ms]    
+vortex      Memory: 4.9 MB (-10.61%)    Avg: 4.2736ms (-9.01%)    Median: 4.2715ms (-9.09%)    [4.2109ms .. 4.3906ms]    
+metrics/terms_status_with_cardinality_agg
+columnar    Memory: 80.5 KB              Avg: 1.7279ms (-0.83%)     Median: 1.7249ms (-0.85%)     [1.6870ms .. 1.7690ms]    
+opaque      Memory: 80.5 KB (-28.84%)    Avg: 1.7256ms (-12.21%)    Median: 1.7250ms (-11.89%)    [1.6735ms .. 1.7893ms]    
+vortex      Memory: 7.8 MB (-0.49%)      Avg: 1.8843ms (-9.46%)     Median: 1.8846ms (-8.81%)     [1.8345ms .. 2.0263ms]    
+metrics/terms_100_buckets_with_cardinality_agg
+columnar    Memory: 2.4 MB             Avg: 5.9141ms (-3.54%)    Median: 5.9217ms (-1.42%)    [5.7815ms .. 5.9861ms]    
+opaque      Memory: 2.4 MB (+0.79%)    Avg: 5.9185ms (-7.15%)    Median: 5.9257ms (-6.08%)    [5.7188ms .. 6.1405ms]    
+vortex      Memory: 9.0 MB (+0.20%)    Avg: 5.4553ms (-7.48%)    Median: 5.4631ms (-7.02%)    [5.2987ms .. 5.6630ms]    
+metrics/terms_many_with_single_term_order_by_card
+columnar    Memory: 9.2 MB               Avg: 6.1893ms (-1.08%)     Median: 6.1720ms (-1.42%)     [6.0305ms .. 6.5950ms]    
+opaque      Memory: 9.2 MB (-27.53%)     Avg: 6.2166ms (-16.91%)    Median: 6.2107ms (-17.07%)    [6.0645ms .. 6.8007ms]    
+vortex      Memory: 19.9 MB (-13.84%)    Avg: 6.5060ms (-16.56%)    Median: 6.4909ms (-16.81%)    [6.4118ms .. 6.9139ms]    
+metrics/terms_many_with_single_term_2_order_by_card
+columnar    Memory: 6.8 MB               Avg: 4.6610ms (-0.43%)     Median: 4.6592ms (-0.17%)     [4.6003ms .. 4.7465ms]    
+opaque      Memory: 6.8 MB (-28.10%)     Avg: 4.6845ms (-21.24%)    Median: 4.6781ms (-21.02%)    [4.6260ms .. 4.8515ms]    
+vortex      Memory: 13.4 MB (-17.87%)    Avg: 4.3321ms (-27.18%)    Median: 4.3151ms (-27.21%)    [4.2600ms .. 4.5529ms]    
+terms/terms_7
+columnar    Memory: 6.0 KB (+6.72%)    Avg: 1.4374ms (-1.56%)    Median: 1.4323ms (-1.85%)    [1.4076ms .. 1.4890ms]    
+opaque      Memory: 5.8 KB (-8.64%)    Avg: 1.4250ms (-5.91%)    Median: 1.4225ms (-5.88%)    [1.3911ms .. 1.4775ms]    
+vortex      Memory: 4.1 MB (+0.00%)    Avg: 1.1599ms (-3.68%)    Median: 1.1695ms (-3.50%)    [1.1196ms .. 1.1974ms]    
+terms/terms_zipf_1000
+columnar    Memory: 35.2 KB              Avg: 1.4603ms (-1.01%)    Median: 1.4579ms (-0.93%)    [1.4200ms .. 1.5383ms]    
+opaque      Memory: 35.3 KB (-36.13%)    Avg: 1.4639ms (-4.76%)    Median: 1.4584ms (-5.06%)    [1.4275ms .. 1.5720ms]    
+vortex      Memory: 4.1 MB (-0.75%)      Avg: 1.1722ms (-4.18%)    Median: 1.1841ms (-2.93%)    [1.1390ms .. 1.2234ms]    
+terms/terms_zipf_90
+columnar    Memory: 23.6 KB             Avg: 1.4383ms (-0.27%)    Median: 1.4332ms (-0.54%)    [1.4086ms .. 1.4763ms]    
+opaque      Memory: 23.7 KB (-0.03%)    Avg: 1.4372ms (-6.20%)    Median: 1.4374ms (-6.42%)    [1.4011ms .. 1.4993ms]    
+vortex      Memory: 4.1 MB (+0.02%)     Avg: 1.1638ms (-4.28%)    Median: 1.1753ms (-2.71%)    [1.1284ms .. 1.2587ms]    
+terms/terms_zipf_90_with_sum_sub_agg
+columnar    Memory: 207.1 KB             Avg: 2.2491ms (-0.60%)     Median: 2.2520ms (-0.66%)     [2.1554ms .. 2.3155ms]    
+opaque      Memory: 207.1 KB (+1.27%)    Avg: 2.2565ms (-12.33%)    Median: 2.2603ms (-12.00%)    [2.1887ms .. 2.3050ms]    
+vortex      Memory: 9.1 MB (-0.01%)      Avg: 2.0323ms (-11.89%)    Median: 2.0247ms (-12.04%)    [2.0078ms .. 2.0865ms]    
+terms/terms_150_000
+columnar    Memory: 780.2 KB              Avg: 1.8964ms (-0.06%)     Median: 1.8927ms (-0.16%)     [1.8661ms .. 1.9749ms]    
+opaque      Memory: 780.2 KB (-56.57%)    Avg: 1.8824ms (-18.26%)    Median: 1.8839ms (-18.34%)    [1.8251ms .. 1.9492ms]    
+vortex      Memory: 4.3 MB (-19.16%)      Avg: 1.6250ms (-19.35%)    Median: 1.6327ms (-18.74%)    [1.5913ms .. 1.6793ms]    
+terms/terms_many_top_1000
+columnar    Memory: 2.6 MB             Avg: 3.4058ms (-0.64%)     Median: 3.4091ms (-0.35%)     [3.3678ms .. 3.4444ms]    
+opaque      Memory: 2.6 MB (+0.08%)    Avg: 3.3860ms (-10.45%)    Median: 3.3843ms (-10.42%)    [3.3310ms .. 3.5383ms]    
+vortex      Memory: 5.9 MB (+0.03%)    Avg: 3.1328ms (-10.88%)    Median: 3.1252ms (-11.20%)    [3.0915ms .. 3.3587ms]    
+terms/terms_many_order_by_term
+columnar    Memory: 780.2 KB              Avg: 1.6173ms (-0.29%)     Median: 1.6178ms (-0.35%)     [1.5808ms .. 1.6550ms]    
+opaque      Memory: 780.2 KB (-56.57%)    Avg: 1.6117ms (-19.94%)    Median: 1.6098ms (-20.16%)    [1.5822ms .. 1.6545ms]    
+vortex      Memory: 4.3 MB (-19.16%)      Avg: 1.3563ms (-22.28%)    Median: 1.3665ms (-21.39%)    [1.3173ms .. 1.3849ms]    
+terms/terms_all_unique
+columnar    Memory: 911.8 KB              Avg: 1.5553ms (-1.34%)     Median: 1.5532ms (-0.90%)     [1.5221ms .. 1.6169ms]    
+opaque      Memory: 911.8 KB (-52.44%)    Avg: 1.5505ms (-32.52%)    Median: 1.5504ms (-31.96%)    [1.5323ms .. 1.5859ms]    
+vortex      Memory: 4.3 MB (-18.22%)      Avg: 1.2991ms (-35.97%)    Median: 1.3017ms (-35.62%)    [1.2588ms .. 1.3300ms]    
+terms/terms_all_unique_order_by_key
+columnar    Memory: 911.8 KB              Avg: 1.5896ms (+2.19%)     Median: 1.5706ms (+1.29%)     [1.5179ms .. 1.9207ms]    
+opaque      Memory: 911.8 KB (-52.44%)    Avg: 1.5677ms (-20.12%)    Median: 1.5566ms (-20.71%)    [1.5153ms .. 1.6371ms]    
+vortex      Memory: 4.3 MB (-18.22%)      Avg: 1.2901ms (-23.11%)    Median: 1.2903ms (-22.52%)    [1.2466ms .. 1.3788ms]    
+terms/terms_all_unique_with_avg_sub_agg
+columnar    Memory: 3.7 MB              Avg: 2.3833ms (+0.44%)     Median: 2.3819ms (+0.82%)     [2.3084ms .. 2.4427ms]    
+opaque      Memory: 3.7 MB (-19.80%)    Avg: 2.7385ms (-21.82%)    Median: 2.7330ms (-21.93%)    [2.6880ms .. 2.8776ms]    
+vortex      Memory: 12.1 MB (-5.53%)    Avg: 2.5808ms (-23.46%)    Median: 2.5775ms (-23.56%)    [2.5355ms .. 2.7611ms]    
+terms/terms_many_with_avg_sub_agg
+columnar    Memory: 3.5 MB              Avg: 2.7236ms (+0.42%)     Median: 2.7128ms (-0.07%)     [2.6706ms .. 2.9094ms]    
+opaque      Memory: 3.5 MB (-20.99%)    Avg: 3.0480ms (-13.00%)    Median: 3.0491ms (-12.62%)    [3.0087ms .. 3.1412ms]    
+vortex      Memory: 12.0 MB (-5.98%)    Avg: 2.9527ms (-12.35%)    Median: 2.9553ms (-12.47%)    [2.8971ms .. 3.0116ms]    
+terms/terms_status_with_avg_sub_agg
+columnar    Memory: 80.1 KB              Avg: 1.8267ms (+0.14%)    Median: 1.8235ms (+0.15%)    [1.7658ms .. 1.9594ms]    
+opaque      Memory: 80.1 KB (-13.36%)    Avg: 1.8212ms (-7.98%)    Median: 1.8253ms (-7.92%)    [1.7618ms .. 1.8645ms]    
+vortex      Memory: 9.1 MB (-0.14%)      Avg: 2.0212ms (-5.63%)    Median: 2.0251ms (-5.77%)    [1.9708ms .. 2.1231ms]    
+terms/terms_zipf_1000_with_avg_sub_agg
+columnar    Memory: 297.1 KB             Avg: 2.3634ms (+0.14%)    Median: 2.3581ms (-0.28%)    [2.2955ms .. 2.5634ms]    
+opaque      Memory: 297.2 KB (+5.58%)    Avg: 2.5985ms (-4.31%)    Median: 2.5906ms (-4.55%)    [2.5433ms .. 2.8428ms]    
+vortex      Memory: 9.1 MB (-0.12%)      Avg: 2.3193ms (-4.19%)    Median: 2.3128ms (-3.62%)    [2.2866ms .. 2.3957ms]    
+terms/terms_many_json_mixed_type_with_avg_sub_agg
+columnar    Memory: 3.9 MB      Avg: 3.8605ms (-0.30%)    Median: 3.8627ms (-0.35%)    [3.8102ms .. 3.8983ms]    
+opaque      Memory: 3.9 MB      Avg: 4.2230ms (-0.93%)    Median: 4.2259ms (-0.48%)    [4.1601ms .. 4.2859ms]    
+vortex      Memory: 13.6 MB     Avg: 5.0065ms (-0.12%)    Median: 4.9926ms (-0.46%)    [4.9360ms .. 5.2620ms]    
+terms/terms_many_with_top_hits
+columnar    Memory: 11.2 MB     Avg: 4.4374ms (+0.22%)    Median: 4.4407ms (+0.40%)    [4.3742ms .. 4.5351ms]    
+terms/terms_status_with_histogram
+columnar    Memory: 90.6 KB              Avg: 1.8295ms (+0.17%)    Median: 1.8294ms (+0.50%)    [1.7667ms .. 2.0155ms]    
+opaque      Memory: 90.7 KB (-11.99%)    Avg: 1.8038ms (-9.24%)    Median: 1.7969ms (-9.12%)    [1.7581ms .. 1.8708ms]    
+vortex      Memory: 9.1 MB (-0.14%)      Avg: 2.0098ms (-5.17%)    Median: 2.0076ms (-4.88%)    [1.9447ms .. 2.1078ms]    
+terms/terms_zipf_1000_with_histogram
+columnar    Memory: 536.4 KB             Avg: 3.5956ms (+0.68%)    Median: 3.5916ms (+1.13%)    [3.5208ms .. 3.6952ms]    
+opaque      Memory: 536.5 KB (+0.41%)    Avg: 3.6379ms (-2.66%)    Median: 3.6259ms (-1.83%)    [3.5724ms .. 3.7927ms]    
+vortex      Memory: 9.4 MB (-0.26%)      Avg: 3.1034ms (-4.04%)    Median: 3.0904ms (-4.11%)    [3.0707ms .. 3.2235ms]    
+terms/terms_status_with_date_histogram
+columnar    Memory: 122.8 KB             Avg: 1.8547ms (-0.79%)    Median: 1.8533ms (-0.43%)    [1.8272ms .. 1.8891ms]    
+opaque      Memory: 122.8 KB (-1.89%)    Avg: 1.8463ms (-8.99%)    Median: 1.8408ms (-9.52%)    [1.8141ms .. 1.8848ms]    
+vortex      Memory: 9.6 MB (-0.14%)      Avg: 2.8349ms (-4.09%)    Median: 2.8299ms (-3.72%)    [2.7851ms .. 2.9862ms]    
+terms/terms_status_with_date_histogram_26_bits
+columnar    Memory: 194.5 KB           Avg: 1.8472ms (+1.11%)    Median: 1.8483ms (+1.08%)    [1.7887ms .. 1.9948ms]    
+opaque      Memory: 194.5 KB           Avg: 1.8253ms (-8.38%)    Median: 1.8296ms (-8.30%)    [1.7588ms .. 1.8792ms]    
+vortex      Memory: 9.7 MB (-0.13%)    Avg: 2.8235ms (-4.56%)    Median: 2.8115ms (-4.76%)    [2.7974ms .. 2.9310ms]    
+terms/terms_status_with_date_histogram_single_bucket
+columnar    Memory: 80.5 KB              Avg: 1.7986ms (+0.57%)    Median: 1.7971ms (+0.42%)    [1.7294ms .. 1.8617ms]    
+opaque      Memory: 80.6 KB (-13.29%)    Avg: 1.7770ms (-9.03%)    Median: 1.7742ms (-9.01%)    [1.7407ms .. 1.8826ms]    
+vortex      Memory: 9.6 MB (-0.13%)      Avg: 2.7581ms (-4.14%)    Median: 2.7675ms (-3.54%)    [2.7067ms .. 2.8688ms]    
+terms/terms_status_with_date_histogram_4_buckets
+columnar    Memory: 81.4 KB              Avg: 1.8043ms (-0.39%)    Median: 1.8071ms (+0.26%)    [1.7667ms .. 1.8465ms]    
+opaque      Memory: 81.5 KB (-13.16%)    Avg: 1.8036ms (-8.83%)    Median: 1.8056ms (-8.16%)    [1.7436ms .. 1.8891ms]    
+vortex      Memory: 9.6 MB (-0.13%)      Avg: 2.7580ms (-5.65%)    Median: 2.7451ms (-5.55%)    [2.7112ms .. 2.8835ms]    
+terms/terms_status_with_date_histogram_8_buckets
+columnar    Memory: 82.6 KB              Avg: 1.8093ms (+0.07%)    Median: 1.8130ms (+0.16%)    [1.7366ms .. 1.8538ms]    
+opaque      Memory: 82.7 KB (-13.00%)    Avg: 1.8014ms (-8.85%)    Median: 1.7998ms (-9.00%)    [1.7625ms .. 1.8498ms]    
+vortex      Memory: 9.6 MB (-0.13%)      Avg: 2.8102ms (-3.81%)    Median: 2.8086ms (-4.21%)    [2.7850ms .. 2.8569ms]    
+terms/terms_status_with_date_histogram_hard_bounds
+columnar    Memory: 121.9 KB             Avg: 1.8493ms (+0.43%)    Median: 1.8475ms (+0.26%)    [1.7817ms .. 1.8981ms]    
+opaque      Memory: 121.9 KB (-1.97%)    Avg: 1.8559ms (-8.38%)    Median: 1.8470ms (-8.81%)    [1.8051ms .. 2.0949ms]    
+vortex      Memory: 9.6 MB (-0.14%)      Avg: 2.8498ms (-3.25%)    Median: 2.8448ms (-3.14%)    [2.7858ms .. 3.0019ms]    
+terms/terms_status_with_date_histogram_and_sibling_terms
+columnar    Memory: 123.1 KB             Avg: 3.5544ms (-0.15%)    Median: 3.5465ms (-0.56%)    [3.4732ms .. 3.6692ms]    
+opaque      Memory: 123.1 KB (-3.28%)    Avg: 3.7177ms (-6.11%)    Median: 3.7197ms (-6.25%)    [3.6391ms .. 3.8069ms]    
+vortex      Memory: 13.3 MB (-0.10%)     Avg: 3.9543ms (-3.27%)    Median: 3.9322ms (-3.39%)    [3.8818ms .. 4.2764ms]    
+multi_terms_vs_nested/nested_terms_status_and_zipf_1000
+columnar    Memory: 178.8 KB             Avg: 1.8977ms (-0.48%)    Median: 1.9011ms (+0.48%)    [1.8516ms .. 1.9370ms]    
+opaque      Memory: 178.9 KB (-6.46%)    Avg: 1.8868ms (-8.87%)    Median: 1.8899ms (-8.82%)    [1.8282ms .. 1.9326ms]    
+vortex      Memory: 7.9 MB (-0.16%)      Avg: 1.9945ms (-7.12%)    Median: 1.9856ms (-6.82%)    [1.9726ms .. 2.0509ms]    
+multi_terms_vs_nested/multi_terms_status_and_zipf_1000
+columnar    Memory: 119.5 KB     Avg: 2.5869ms (-0.09%)    Median: 2.5827ms (+0.22%)    [2.5066ms .. 2.6305ms]    
+multi_terms_vs_nested/nested_terms_status_and_zipf_1000_with_missing
+columnar    Memory: 207.5 KB     Avg: 6.9594ms (+0.48%)    Median: 7.0071ms (+1.27%)    [6.6581ms .. 7.0625ms]    
+multi_terms_vs_nested/multi_terms_status_and_zipf_1000_with_missing
+columnar    Memory: 120.3 KB     Avg: 7.0115ms (-1.39%)    Median: 7.0007ms (-1.39%)    [6.6828ms .. 7.4513ms]    
+multi_terms_vs_nested/nested_terms_zipf_1000_and_status
+columnar    Memory: 379.1 KB             Avg: 3.0079ms (+1.18%)    Median: 3.0059ms (+1.02%)    [2.9667ms .. 3.0982ms]    
+opaque      Memory: 379.2 KB (+0.58%)    Avg: 3.0574ms (-1.35%)    Median: 3.0389ms (-1.66%)    [2.9990ms .. 3.3159ms]    
+vortex      Memory: 7.9 MB (-0.31%)      Avg: 2.6105ms (-4.10%)    Median: 2.5994ms (-4.44%)    [2.5746ms .. 2.7865ms]    
+multi_terms_vs_nested/multi_terms_zipf_1000_and_status
+columnar    Memory: 119.9 KB     Avg: 2.6039ms (+0.01%)    Median: 2.6058ms (-0.01%)    [2.5650ms .. 2.6380ms]    
+multi_terms_vs_nested/nested_terms_many_and_zipf_1000
+columnar    Memory: 6.8 MB              Avg: 4.4292ms (+0.73%)    Median: 4.4212ms (+0.38%)    [4.3545ms .. 4.6483ms]    
+opaque      Memory: 6.8 MB (-12.11%)    Avg: 4.4365ms (-8.25%)    Median: 4.4185ms (-8.82%)    [4.3372ms .. 4.7638ms]    
+vortex      Memory: 13.7 MB (-5.28%)    Avg: 4.2327ms (-9.29%)    Median: 4.2003ms (-9.80%)    [4.1590ms .. 4.4291ms]    
+multi_terms_vs_nested/multi_terms_many_and_zipf_1000
+columnar    Memory: 1.9 MB     Avg: 3.6819ms (+1.70%)    Median: 3.6661ms (+1.44%)    [3.5704ms .. 4.1886ms]    
+multi_terms_vs_nested/nested_terms_many_and_zipf_1000_and_status
+columnar    Memory: 13.2 MB             Avg: 7.1277ms (-0.64%)    Median: 7.1410ms (+0.00%)    [6.9864ms .. 7.2259ms]    
+opaque      Memory: 13.2 MB (-6.59%)    Avg: 7.1279ms (-6.27%)    Median: 7.1385ms (-5.77%)    [6.9585ms .. 7.1921ms]    
+vortex      Memory: 23.6 MB (-3.14%)    Avg: 7.2677ms (-6.26%)    Median: 7.2625ms (-5.66%)    [7.1875ms .. 7.3567ms]    
+multi_terms_vs_nested/multi_terms_many_and_zipf_1000_and_status
+columnar    Memory: 1.9 MB     Avg: 4.0001ms (-1.49%)    Median: 4.0037ms (-0.99%)    [3.9356ms .. 4.0489ms]    
+multi_terms_vs_nested/nested_terms_status_and_zipf_1000_avg_sub_agg
+columnar    Memory: 1.2 MB              Avg: 2.9547ms (-0.25%)    Median: 2.9507ms (-0.37%)    [2.8858ms .. 3.0616ms]    
+opaque      Memory: 1.2 MB (-1.10%)     Avg: 3.2146ms (-4.79%)    Median: 3.2109ms (-4.89%)    [3.1246ms .. 3.3339ms]    
+vortex      Memory: 13.0 MB (-0.10%)    Avg: 3.2882ms (-3.30%)    Median: 3.2737ms (-3.51%)    [3.2236ms .. 3.5852ms]    
+multi_terms_vs_nested/multi_terms_status_and_zipf_1000_avg_sub_agg
+columnar    Memory: 354.8 KB     Avg: 3.4595ms (+0.03%)    Median: 3.4572ms (-0.03%)    [3.3872ms .. 3.6273ms]    
+multi_terms_vs_nested_with_1%_term_query/nested_terms_status_and_zipf_1000
+columnar    Memory: 180.0 KB             Avg: 0.6766ms (+0.05%)     Median: 0.6722ms (-0.15%)     [0.6496ms .. 0.7226ms]    
+opaque      Memory: 180.1 KB (-6.54%)    Avg: 0.6702ms (-12.37%)    Median: 0.6669ms (-12.65%)    [0.6404ms .. 0.7192ms]    
+vortex      Memory: 7.9 MB (-0.16%)      Avg: 1.5925ms (-6.16%)     Median: 1.5877ms (-6.51%)     [1.5797ms .. 1.7256ms]    
+multi_terms_vs_nested_with_1%_term_query/multi_terms_status_and_zipf_1000
+columnar    Memory: 121.2 KB     Avg: 0.3973ms (-2.28%)    Median: 0.3979ms (-1.31%)    [0.3895ms .. 0.4044ms]    
+multi_terms_vs_nested_with_1%_term_query/nested_terms_status_and_zipf_1000_with_missing
+columnar    Memory: 180.2 KB (+0.08%)    Avg: 0.6736ms (-0.69%)    Median: 0.6677ms (-0.78%)    [0.6537ms .. 0.6948ms]    
+multi_terms_vs_nested_with_1%_term_query/multi_terms_status_and_zipf_1000_with_missing
+columnar    Memory: 121.5 KB     Avg: 0.4002ms (-2.30%)    Median: 0.3989ms (-2.63%)    [0.3897ms .. 0.4338ms]    
+multi_terms_vs_nested_with_1%_term_query/nested_terms_zipf_1000_and_status
+columnar    Memory: 380.7 KB             Avg: 1.7381ms (-2.72%)    Median: 1.7376ms (-2.00%)    [1.6724ms .. 1.7727ms]    
+opaque      Memory: 380.7 KB (+0.67%)    Avg: 1.7482ms (-3.32%)    Median: 1.7459ms (-2.80%)    [1.7225ms .. 1.8717ms]    
+vortex      Memory: 7.9 MB (-0.30%)      Avg: 2.1739ms (-3.58%)    Median: 2.1662ms (-4.10%)    [2.1481ms .. 2.2602ms]    
+multi_terms_vs_nested_with_1%_term_query/multi_terms_zipf_1000_and_status
+columnar    Memory: 121.6 KB     Avg: 0.3982ms (-0.94%)    Median: 0.3985ms (-0.70%)    [0.3913ms .. 0.4019ms]    
+multi_terms_vs_nested_with_1%_term_query/nested_terms_many_and_zipf_1000
+columnar    Memory: 6.8 MB              Avg: 3.1694ms (+0.68%)     Median: 3.1633ms (+1.09%)     [3.1105ms .. 3.3073ms]    
+opaque      Memory: 6.8 MB (-12.10%)    Avg: 3.1467ms (-11.20%)    Median: 3.1395ms (-11.11%)    [3.1045ms .. 3.3101ms]    
+vortex      Memory: 13.7 MB (-5.27%)    Avg: 3.7719ms (-9.09%)     Median: 3.7688ms (-8.73%)     [3.7162ms .. 3.8996ms]    
+multi_terms_vs_nested_with_1%_term_query/multi_terms_many_and_zipf_1000
+columnar    Memory: 1.9 MB     Avg: 1.2156ms (+0.65%)    Median: 1.2168ms (+0.78%)    [1.1955ms .. 1.2303ms]    
+multi_terms_vs_nested_with_1%_term_query/nested_terms_many_and_zipf_1000_and_status
+columnar    Memory: 13.2 MB             Avg: 5.8681ms (-0.25%)    Median: 5.8614ms (-0.30%)    [5.7375ms .. 6.0055ms]    
+opaque      Memory: 13.2 MB (-6.59%)    Avg: 5.8691ms (-6.21%)    Median: 5.8690ms (-6.03%)    [5.7353ms .. 5.9742ms]    
+vortex      Memory: 23.6 MB (-3.14%)    Avg: 6.7835ms (-5.09%)    Median: 6.7750ms (-5.13%)    [6.6709ms .. 7.0180ms]    
+multi_terms_vs_nested_with_1%_term_query/multi_terms_many_and_zipf_1000_and_status
+columnar    Memory: 1.9 MB     Avg: 1.3669ms (+0.32%)    Median: 1.3679ms (+0.43%)    [1.3416ms .. 1.3821ms]    
+multi_terms_vs_nested_with_1%_term_query/nested_terms_status_and_zipf_1000_avg_sub_agg
+columnar    Memory: 1.2 MB              Avg: 1.7289ms (-0.46%)    Median: 1.7345ms (-0.46%)    [1.6604ms .. 1.7838ms]    
+opaque      Memory: 1.2 MB (-1.10%)     Avg: 1.9861ms (-4.75%)    Median: 1.9838ms (-4.86%)    [1.9291ms .. 2.1181ms]    
+vortex      Memory: 13.1 MB (-0.10%)    Avg: 2.8722ms (-3.26%)    Median: 2.8569ms (-3.44%)    [2.8383ms .. 3.1022ms]    
+multi_terms_vs_nested_with_1%_term_query/multi_terms_status_and_zipf_1000_avg_sub_agg
+columnar    Memory: 356.2 KB     Avg: 1.2069ms (-0.58%)    Median: 1.2071ms (-0.53%)    [1.1998ms .. 1.2170ms]    
+range_and_histogram/range_agg
+columnar    Memory: 8.9 KB (+1.30%)    Avg: 1.5082ms (-0.26%)    Median: 1.5027ms (-0.38%)    [1.4685ms .. 1.5665ms]    
+opaque      Memory: 8.8 KB (-2.57%)    Avg: 1.5040ms (-4.22%)    Median: 1.4997ms (-4.82%)    [1.4735ms .. 1.5911ms]    
+vortex      Memory: 5.3 MB             Avg: 1.2766ms (-0.91%)    Median: 1.2692ms (-0.66%)    [1.2590ms .. 1.3346ms]    
+range_and_histogram/range_agg_with_avg_sub_agg
+columnar    Memory: 94.4 KB     Avg: 1.8450ms (-5.14%)    Median: 1.8437ms (-5.06%)    [1.7730ms .. 1.9173ms]    
+opaque      Memory: 94.4 KB     Avg: 1.8675ms (-2.64%)    Median: 1.8664ms (-2.15%)    [1.8087ms .. 1.8951ms]    
+vortex      Memory: 10.2 MB     Avg: 2.2671ms (-1.88%)    Median: 2.2719ms (-0.66%)    [2.2283ms .. 2.3067ms]    
+range_and_histogram/range_agg_with_term_agg_status
+columnar    Memory: 95.6 KB     Avg: 1.8423ms (-2.44%)    Median: 1.8439ms (-2.55%)    [1.7753ms .. 1.9761ms]    
+opaque      Memory: 95.7 KB     Avg: 1.8571ms (-0.25%)    Median: 1.8572ms (-0.45%)    [1.8077ms .. 1.8977ms]    
+vortex      Memory: 9.1 MB      Avg: 2.1946ms (-0.43%)    Median: 2.1845ms (-0.84%)    [2.1651ms .. 2.2644ms]    
+range_and_histogram/range_agg_with_term_agg_many
+columnar    Memory: 1.9 MB      Avg: 2.8887ms (-0.81%)    Median: 2.8794ms (-1.21%)    [2.8205ms .. 2.9790ms]    
+opaque      Memory: 1.9 MB      Avg: 2.8838ms (+0.60%)    Median: 2.8793ms (+0.29%)    [2.8054ms .. 2.9988ms]    
+vortex      Memory: 10.2 MB     Avg: 3.2563ms (+0.62%)    Median: 3.2342ms (-0.03%)    [3.1966ms .. 3.5015ms]    
+range_and_histogram/avg_and_range_with_avg_sub_agg
+columnar    Memory: 89.6 KB             Avg: 3.2891ms (-0.59%)    Median: 3.2849ms (-0.56%)    [3.2103ms .. 3.4049ms]    
+opaque      Memory: 89.7 KB             Avg: 3.6423ms (-1.35%)    Median: 3.6325ms (-1.49%)    [3.5542ms .. 4.0233ms]    
+vortex      Memory: 15.0 MB (-0.00%)    Avg: 3.4267ms (-0.77%)    Median: 3.4236ms (-0.86%)    [3.3699ms .. 3.5226ms]    
+range_and_histogram/histogram
+columnar    Memory: 6.5 KB (-2.35%)    Avg: 1.5164ms (+0.14%)    Median: 1.5136ms (+0.15%)    [1.4724ms .. 1.5699ms]    
+opaque      Memory: 6.7 KB (+1.51%)    Avg: 1.5190ms (-1.18%)    Median: 1.5191ms (-1.15%)    [1.4882ms .. 1.5541ms]    
+vortex      Memory: 5.3 MB (-0.00%)    Avg: 1.2666ms (-2.25%)    Median: 1.2581ms (-3.35%)    [1.2456ms .. 1.3330ms]    
+range_and_histogram/histogram_hard_bounds
+columnar    Memory: 4.9 KB (-7.27%)     Avg: 1.4579ms (-0.36%)    Median: 1.4586ms (-0.29%)    [1.4328ms .. 1.4857ms]    
+opaque      Memory: 5.5 KB (+11.89%)    Avg: 1.4539ms (-3.51%)    Median: 1.4547ms (-2.65%)    [1.4274ms .. 1.4715ms]    
+vortex      Memory: 5.3 MB (-0.00%)     Avg: 1.1909ms (-2.82%)    Median: 1.1878ms (-3.83%)    [1.1774ms .. 1.2111ms]    
+range_and_histogram/histogram_with_avg_sub_agg
+columnar    Memory: 106.9 KB     Avg: 1.9526ms (+0.36%)    Median: 1.9491ms (+0.25%)    [1.8857ms .. 2.1204ms]    
+opaque      Memory: 107.0 KB     Avg: 1.9425ms (-0.50%)    Median: 1.9331ms (-0.93%)    [1.8752ms .. 2.0832ms]    
+vortex      Memory: 10.2 MB      Avg: 2.2726ms (+0.63%)    Median: 2.2674ms (+0.12%)    [2.2010ms .. 2.5366ms]    
+range_and_histogram/histogram_with_term_agg_status
+columnar    Memory: 190.5 KB     Avg: 2.3504ms (-0.80%)    Median: 2.3560ms (-0.56%)    [2.2767ms .. 2.4231ms]    
+opaque      Memory: 190.6 KB     Avg: 2.3578ms (-2.13%)    Median: 2.3606ms (-1.84%)    [2.2698ms .. 2.4405ms]    
+vortex      Memory: 9.1 MB       Avg: 2.2655ms (-2.92%)    Median: 2.2586ms (-3.12%)    [2.2336ms .. 2.3137ms]    
+range_and_histogram/composite_term_few
+columnar    Memory: 21.0 KB     Avg: 11.3792ms (+0.24%)    Median: 11.3771ms (+0.01%)    [11.1394ms .. 11.5422ms]    
+range_and_histogram/composite_term_many_page_1000
+columnar    Memory: 373.4 KB     Avg: 19.9093ms (+0.81%)    Median: 19.8148ms (+0.20%)    [19.4888ms .. 21.6300ms]    
+range_and_histogram/composite_term_many_page_1000_with_avg_sub_agg
+columnar    Memory: 2.3 MB     Avg: 20.0125ms (+0.11%)    Median: 20.0101ms (+0.50%)    [19.7214ms .. 20.3177ms]    
+range_and_histogram/composite_histogram
+columnar    Memory: 153.1 KB     Avg: 11.9616ms (+1.96%)    Median: 11.8889ms (+1.42%)    [11.6142ms .. 13.4593ms]    
+range_and_histogram/composite_histogram_calendar
+columnar    Memory: 6.1 KB (-2.73%)    Avg: 12.2257ms (-0.65%)    Median: 12.2425ms (+0.00%)    [11.9996ms .. 12.3341ms]    
+filter_agg/filter_agg_all_query_count_agg
+columnar    Memory: 166.2 KB (+0.19%)    Avg: 2.5257ms (-21.72%)    Median: 2.4848ms (-23.06%)    [2.4494ms .. 2.8318ms]    
+opaque      Memory: 166.1 KB (-0.19%)    Avg: 2.5395ms (-21.79%)    Median: 2.5153ms (-22.46%)    [2.4549ms .. 2.7356ms]    
+vortex      Memory: 5.5 MB               Avg: 3.4642ms (-12.52%)    Median: 3.4662ms (-12.78%)    [3.4058ms .. 3.5410ms]    
+filter_agg/filter_agg_term_query_count_agg
+columnar    Memory: 166.0 KB (+0.10%)    Avg: 4.9534ms (-11.50%)    Median: 4.9096ms (-12.38%)    [4.8032ms .. 5.5545ms]    
+opaque      Memory: 166.1 KB (+0.10%)    Avg: 4.9290ms (-12.18%)    Median: 4.9068ms (-12.51%)    [4.8006ms .. 5.1345ms]    
+vortex      Memory: 5.5 MB               Avg: 5.8847ms (-7.11%)     Median: 5.8575ms (-7.57%)     [5.7527ms .. 6.1617ms]    
+filter_agg/filter_agg_all_query_with_sub_aggs
+columnar    Memory: 168.6 KB (-0.09%)    Avg: 4.8962ms (+0.30%)    Median: 4.8954ms (+0.33%)    [4.8188ms .. 4.9671ms]    
+opaque      Memory: 168.7 KB (+0.09%)    Avg: 4.9437ms (+1.90%)    Median: 4.9312ms (+1.17%)    [4.8585ms .. 5.0897ms]    
+vortex      Memory: 14.0 MB              Avg: 5.6111ms (-6.13%)    Median: 5.5926ms (-6.50%)    [5.4924ms .. 5.8012ms]    
+filter_agg/filter_agg_term_query_with_sub_aggs
+columnar    Memory: 168.3 KB (+0.09%)    Avg: 7.2306ms (+2.12%)    Median: 7.2414ms (+2.20%)    [7.0322ms .. 7.3557ms]    
+opaque      Memory: 168.3 KB             Avg: 7.2887ms (+2.14%)    Median: 7.2988ms (+1.30%)    [7.1061ms .. 7.4372ms]    
+vortex      Memory: 14.0 MB              Avg: 7.9478ms (-3.15%)    Median: 7.9436ms (-3.51%)    [7.7366ms .. 8.1511ms]    
+multivalue
+metrics/average_u64
+columnar    Memory: 6.3 KB (+7.08%)    Avg: 7.5754ms (-0.13%)    Median: 7.5719ms (-0.02%)    [7.5323ms .. 7.6502ms]    
+opaque      Memory: 5.9 KB (-6.57%)    Avg: 7.5538ms (-4.05%)    Median: 7.5464ms (-4.06%)    [7.4521ms .. 7.8592ms]    
+vortex      Memory: 9.5 MB             Avg: 4.7798ms (-0.13%)    Median: 4.7821ms (-0.12%)    [4.7045ms .. 4.8525ms]    
+metrics/average_f64
+columnar    Memory: 5.7 KB (+3.82%)    Avg: 7.6068ms (+0.96%)    Median: 7.5690ms (+0.40%)    [7.4090ms .. 8.6037ms]    
+opaque      Memory: 5.3 KB (-3.77%)    Avg: 7.5942ms (+0.82%)    Median: 7.5862ms (+0.88%)    [7.4729ms .. 8.2560ms]    
+vortex      Memory: 9.6 MB (+0.00%)    Avg: 5.3286ms (+0.28%)    Median: 5.3183ms (+0.08%)    [5.1333ms .. 5.5854ms]    
+metrics/average_f64_u64
+columnar    Memory: 6.1 KB (-3.28%)    Avg: 15.2075ms (-1.00%)    Median: 15.2288ms (-0.15%)    [14.8304ms .. 15.5156ms]    
+opaque      Memory: 6.6 KB (+3.24%)    Avg: 15.2081ms (-0.66%)    Median: 15.1967ms (-0.42%)    [14.9389ms .. 15.4571ms]    
+vortex      Memory: 18.0 MB            Avg: 10.2007ms (-0.58%)    Median: 10.2089ms (+0.06%)    [9.7628ms .. 10.4866ms]     
+metrics/stats_f64
+columnar    Memory: 5.5 KB (+3.94%)    Avg: 7.5628ms (+0.32%)    Median: 7.5545ms (+0.21%)    [7.3902ms .. 8.0696ms]    
+opaque      Memory: 5.3 KB             Avg: 7.5860ms (+0.28%)    Median: 7.5545ms (-0.34%)    [7.4096ms .. 8.2550ms]    
+vortex      Memory: 9.6 MB             Avg: 5.3070ms (+0.43%)    Median: 5.3087ms (+0.30%)    [5.1923ms .. 5.3752ms]    
+metrics/extendedstats_f64
+columnar    Memory: 6.4 KB (-6.08%)    Avg: 7.5570ms (-0.26%)    Median: 7.5568ms (-0.20%)    [7.4772ms .. 7.6441ms]    
+opaque      Memory: 7.1 KB (+6.23%)    Avg: 7.6446ms (+0.40%)    Median: 7.6439ms (+0.37%)    [7.5109ms .. 7.8306ms]    
+vortex      Memory: 9.6 MB             Avg: 5.4695ms (+0.70%)    Median: 5.4657ms (+0.43%)    [5.3357ms .. 5.5610ms]    
+metrics/percentiles_f64
+columnar    Memory: 20.5 KB (-1.00%)    Avg: 11.3112ms (+0.16%)    Median: 11.3049ms (+0.11%)    [11.2701ms .. 11.4506ms]    
+opaque      Memory: 20.8 KB             Avg: 11.3870ms (+0.10%)    Median: 11.4106ms (+0.25%)    [11.2141ms .. 11.5209ms]    
+vortex      Memory: 9.6 MB              Avg: 9.3048ms (-0.03%)     Median: 9.3164ms (+0.07%)     [9.0556ms .. 9.4534ms]      
+metrics/cardinality_agg_low_card
+columnar    Memory: 5.8 KB (-6.61%)     Avg: 5.5939ms (-0.18%)     Median: 5.5849ms (-0.04%)     [5.5734ms .. 5.7864ms]    
+opaque      Memory: 6.7 KB (-13.09%)    Avg: 5.6549ms (-23.60%)    Median: 5.6540ms (-23.63%)    [5.5979ms .. 5.7104ms]    
+vortex      Memory: 9.7 MB (-0.01%)     Avg: 3.0537ms (-33.15%)    Median: 3.0530ms (-33.24%)    [3.0399ms .. 3.0729ms]    
+metrics/cardinality_agg
+columnar    Memory: 5.9 MB               Avg: 11.7347ms (-1.00%)     Median: 11.7217ms (-1.14%)     [11.5477ms .. 11.9034ms]    
+opaque      Memory: 5.9 MB (-28.25%)     Avg: 11.8352ms (-21.37%)    Median: 11.8618ms (-21.25%)    [11.5709ms .. 12.0111ms]    
+vortex      Memory: 14.3 MB (-14.08%)    Avg: 9.1854ms (-25.95%)     Median: 9.2061ms (-25.88%)     [8.8277ms .. 9.3775ms]      
+metrics/cardinality_agg_high_card
+columnar    Memory: 45.9 MB              Avg: 68.1983ms (+0.50%)     Median: 67.8920ms (+0.03%)     [66.8485ms .. 72.7706ms]    
+opaque      Memory: 45.9 MB (-29.00%)    Avg: 67.9528ms (-13.89%)    Median: 67.7438ms (-13.98%)    [67.1502ms .. 70.1592ms]    
+vortex      Memory: 54.2 MB (-25.69%)    Avg: 65.3221ms (-14.24%)    Median: 65.2049ms (-14.37%)    [64.3472ms .. 68.1853ms]    
+metrics/terms_status_with_cardinality_agg
+columnar    Memory: 72.6 KB              Avg: 12.7303ms (-0.02%)     Median: 12.6934ms (-0.17%)     [12.6610ms .. 13.0774ms]    
+opaque      Memory: 72.7 KB (-31.09%)    Avg: 12.9361ms (-18.96%)    Median: 12.8865ms (-19.35%)    [12.6855ms .. 14.4057ms]    
+vortex      Memory: 18.4 MB (-0.21%)     Avg: 7.7044ms (-27.74%)     Median: 7.6493ms (-28.22%)     [7.5565ms .. 9.2011ms]      
+metrics/terms_100_buckets_with_cardinality_agg
+columnar    Memory: 10.2 MB              Avg: 51.3759ms (+0.86%)     Median: 51.1080ms (+0.43%)     [50.4804ms .. 54.3623ms]    
+opaque      Memory: 10.2 MB (-38.71%)    Avg: 52.2456ms (-11.58%)    Median: 52.0566ms (-11.23%)    [51.5804ms .. 54.5265ms]    
+vortex      Memory: 26.9 MB (-19.35%)    Avg: 44.0695ms (-12.42%)    Median: 43.7666ms (-12.65%)    [43.2153ms .. 46.0966ms]    
+metrics/terms_many_with_single_term_order_by_card
+columnar    Memory: 34.6 MB              Avg: 89.5984ms (-1.95%)     Median: 88.7467ms (-1.42%)     [86.7755ms .. 105.6723ms]    
+opaque      Memory: 34.6 MB (-33.43%)    Avg: 90.1626ms (-35.19%)    Median: 89.1088ms (-34.81%)    [87.5614ms .. 95.9549ms]     
+vortex      Memory: 59.8 MB (-22.25%)    Avg: 81.1822ms (-36.34%)    Median: 80.5889ms (-35.18%)    [78.7194ms .. 87.8892ms]     
+metrics/terms_many_with_single_term_2_order_by_card
+columnar    Memory: 26.2 MB              Avg: 47.6889ms (+2.07%)     Median: 47.4863ms (+2.14%)     [45.5085ms .. 51.0128ms]    
+opaque      Memory: 26.2 MB (-35.43%)    Avg: 48.6738ms (-47.16%)    Median: 47.9725ms (-47.38%)    [46.4931ms .. 55.6938ms]    
+vortex      Memory: 42.9 MB (-25.11%)    Avg: 41.1711ms (-50.11%)    Median: 40.0063ms (-50.99%)    [39.0242ms .. 48.1071ms]    
+terms/terms_7
+columnar    Memory: 6.3 KB (-16.08%)    Avg: 5.7210ms (-0.49%)     Median: 5.7163ms (-0.08%)     [5.7062ms .. 5.7689ms]    
+opaque      Memory: 7.1 KB (+12.60%)    Avg: 5.7840ms (-21.15%)    Median: 5.7832ms (-21.35%)    [5.7151ms .. 5.8708ms]    
+vortex      Memory: 9.7 MB (+0.00%)     Avg: 3.1744ms (-27.53%)    Median: 3.1641ms (-27.56%)    [3.1452ms .. 3.3938ms]    
+terms/terms_zipf_1000
+columnar    Memory: 36.3 KB              Avg: 5.7523ms (-0.08%)     Median: 5.7446ms (+0.02%)     [5.7290ms .. 5.8284ms]    
+opaque      Memory: 36.3 KB (-35.43%)    Avg: 5.8107ms (-13.91%)    Median: 5.8172ms (-13.73%)    [5.7651ms .. 5.8580ms]    
+vortex      Memory: 9.8 MB (-0.32%)      Avg: 3.1412ms (-16.86%)    Median: 3.1314ms (-17.12%)    [3.1135ms .. 3.3867ms]    
+terms/terms_zipf_90
+columnar    Memory: 24.7 KB             Avg: 5.7573ms (-0.17%)     Median: 5.7368ms (-0.30%)     [5.7161ms .. 6.0234ms]    
+opaque      Memory: 24.8 KB (-0.03%)    Avg: 5.7982ms (-20.34%)    Median: 5.8008ms (-20.21%)    [5.7448ms .. 5.8547ms]    
+vortex      Memory: 9.7 MB (+0.01%)     Avg: 3.1746ms (-25.71%)    Median: 3.1729ms (-25.76%)    [3.1516ms .. 3.2167ms]    
+terms/terms_zipf_90_with_sum_sub_agg
+columnar    Memory: 212.6 KB             Avg: 14.4738ms (-0.95%)     Median: 14.3866ms (-1.31%)     [14.2446ms .. 16.3326ms]    
+opaque      Memory: 212.7 KB (+2.83%)    Avg: 14.5123ms (-30.08%)    Median: 14.5008ms (-30.02%)    [14.2812ms .. 15.0944ms]    
+vortex      Memory: 18.2 MB (+0.01%)     Avg: 8.9955ms (-38.86%)     Median: 8.9524ms (-39.01%)     [8.7907ms .. 9.4851ms]      
+terms/terms_150_000
+columnar    Memory: 2.7 MB               Avg: 8.3778ms (-3.31%)     Median: 8.3573ms (-2.97%)     [8.2725ms .. 8.6870ms]    
+opaque      Memory: 2.7 MB (-60.24%)     Avg: 8.4556ms (-14.18%)    Median: 8.4061ms (-14.54%)    [8.2635ms .. 8.9127ms]    
+vortex      Memory: 11.1 MB (-27.20%)    Avg: 5.8757ms (-19.66%)    Median: 5.8378ms (-20.08%)    [5.7403ms .. 6.2950ms]    
+terms/terms_many_top_1000
+columnar    Memory: 4.2 MB               Avg: 10.2321ms (-3.05%)     Median: 10.1693ms (-4.54%)     [10.0462ms .. 11.1856ms]    
+opaque      Memory: 4.2 MB (-38.21%)     Avg: 10.2916ms (-11.45%)    Median: 10.2332ms (-11.97%)    [10.0761ms .. 11.1046ms]    
+vortex      Memory: 12.6 MB (-17.25%)    Avg: 7.6948ms (-15.43%)     Median: 7.6314ms (-16.01%)     [7.5300ms .. 8.0138ms]      
+terms/terms_many_order_by_term
+columnar    Memory: 2.7 MB               Avg: 8.0179ms (-2.81%)     Median: 7.9754ms (-2.67%)     [7.8900ms .. 8.9982ms]    
+opaque      Memory: 2.7 MB (-60.24%)     Avg: 8.0411ms (-16.31%)    Median: 8.0203ms (-16.31%)    [7.9349ms .. 8.3006ms]    
+vortex      Memory: 11.1 MB (-27.20%)    Avg: 5.4666ms (-22.42%)    Median: 5.4466ms (-22.48%)    [5.3658ms .. 5.7871ms]    
+terms/terms_all_unique
+columnar    Memory: 18.1 MB              Avg: 9.8121ms (+2.00%)     Median: 9.7966ms (+2.31%)     [9.7066ms .. 10.0078ms]    
+opaque      Memory: 18.1 MB (-66.19%)    Avg: 9.8476ms (-48.71%)    Median: 9.8341ms (-47.83%)    [9.6852ms .. 10.1093ms]    
+vortex      Memory: 26.4 MB (-57.49%)    Avg: 7.3955ms (-56.49%)    Median: 7.3391ms (-55.58%)    [7.2552ms .. 7.9809ms]     
+terms/terms_all_unique_order_by_key
+columnar    Memory: 18.1 MB              Avg: 9.5588ms (+1.59%)     Median: 9.5631ms (+2.05%)     [9.4333ms .. 9.7224ms]    
+opaque      Memory: 18.1 MB (-66.19%)    Avg: 9.5904ms (-50.82%)    Median: 9.5899ms (-49.67%)    [9.5093ms .. 9.7711ms]    
+vortex      Memory: 26.4 MB (-57.49%)    Avg: 7.0896ms (-58.71%)    Median: 7.0814ms (-57.58%)    [7.0117ms .. 7.2474ms]    
+terms/terms_all_unique_with_avg_sub_agg
+columnar    Memory: 62.1 MB              Avg: 24.8630ms (-2.77%)     Median: 24.8255ms (-2.97%)     [24.5963ms .. 25.4597ms]    
+opaque      Memory: 62.1 MB (-34.98%)    Avg: 30.3062ms (-30.41%)    Median: 30.2131ms (-29.73%)    [29.9773ms .. 31.9698ms]    
+vortex      Memory: 78.4 MB (-30.31%)    Avg: 24.6486ms (-34.79%)    Median: 24.5326ms (-34.53%)    [24.4033ms .. 25.5778ms]    
+terms/terms_many_with_avg_sub_agg
+columnar    Memory: 13.5 MB              Avg: 22.6077ms (+6.83%)     Median: 22.3317ms (+5.94%)    [22.0677ms .. 27.4680ms]    
+opaque      Memory: 13.5 MB (-22.14%)    Avg: 27.8011ms (-5.70%)     Median: 27.7251ms (-5.61%)    [27.4742ms .. 28.7896ms]    
+vortex      Memory: 29.9 MB (-11.10%)    Avg: 22.0877ms (-10.19%)    Median: 22.0377ms (-9.70%)    [21.7795ms .. 23.1677ms]    
+terms/terms_status_with_avg_sub_agg
+columnar    Memory: 72.2 KB              Avg: 14.8617ms (-0.27%)     Median: 14.8581ms (-0.33%)     [14.7073ms .. 15.0420ms]    
+opaque      Memory: 72.3 KB (-14.70%)    Avg: 14.9484ms (-10.03%)    Median: 14.9724ms (-9.96%)     [14.7586ms .. 15.3387ms]    
+vortex      Memory: 18.3 MB (-0.07%)     Avg: 10.1419ms (-13.90%)    Median: 10.1405ms (-13.91%)    [10.0132ms .. 10.2836ms]    
+terms/terms_zipf_1000_with_avg_sub_agg
+columnar    Memory: 301.2 KB             Avg: 17.7246ms (-0.22%)    Median: 17.6258ms (-0.56%)    [17.4392ms .. 19.5548ms]    
+opaque      Memory: 301.3 KB (+5.82%)    Avg: 21.0958ms (-4.11%)    Median: 21.0417ms (-4.32%)    [20.7489ms .. 22.1114ms]    
+vortex      Memory: 18.4 MB (-0.06%)     Avg: 15.3815ms (-6.14%)    Median: 15.3293ms (-6.43%)    [15.2343ms .. 16.0603ms]    
+terms/terms_many_json_mixed_type_with_avg_sub_agg
+columnar    Memory: 20.9 MB     Avg: 25.6694ms (+2.21%)    Median: 25.5741ms (+2.65%)    [25.2590ms .. 27.0699ms]    
+opaque      Memory: 20.9 MB     Avg: 31.1583ms (+3.42%)    Median: 30.9728ms (+3.36%)    [30.4900ms .. 35.1836ms]    
+vortex      Memory: 37.3 MB     Avg: 30.0065ms (+3.25%)    Median: 29.6582ms (+2.24%)    [29.3664ms .. 35.6629ms]    
+terms/terms_many_with_top_hits
+columnar    Memory: 51.7 MB     Avg: 101.8946ms (-2.19%)    Median: 100.1246ms (-1.13%)    [96.9564ms .. 120.6788ms]    
+terms/terms_status_with_histogram
+columnar    Memory: 123.8 KB            Avg: 14.2657ms (+0.23%)     Median: 14.2065ms (-0.10%)     [14.1308ms .. 15.3979ms]    
+opaque      Memory: 123.8 KB            Avg: 14.3332ms (-10.43%)    Median: 14.3313ms (-10.53%)    [14.1245ms .. 14.6647ms]    
+vortex      Memory: 18.3 MB (-0.07%)    Avg: 9.6667ms (-14.97%)     Median: 9.6040ms (-14.13%)     [9.5156ms .. 10.5702ms]     
+terms/terms_zipf_1000_with_histogram
+columnar    Memory: 1.1 MB              Avg: 33.5319ms (+0.35%)    Median: 33.5238ms (+0.74%)    [33.1253ms .. 33.8819ms]    
+opaque      Memory: 1.1 MB (+0.29%)     Avg: 33.5081ms (-2.04%)    Median: 33.5137ms (-1.77%)    [33.1524ms .. 33.8610ms]    
+vortex      Memory: 19.1 MB (-0.12%)    Avg: 24.8949ms (-4.29%)    Median: 24.8580ms (-4.67%)    [24.5884ms .. 25.2269ms]    
+terms/terms_status_with_date_histogram
+columnar    Memory: 122.9 KB             Avg: 10.9796ms (+0.12%)     Median: 10.9712ms (+0.23%)     [10.9393ms .. 11.1130ms]    
+opaque      Memory: 122.9 KB (-6.22%)    Avg: 11.0329ms (-13.30%)    Median: 11.0420ms (-13.27%)    [10.9256ms .. 11.1053ms]    
+vortex      Memory: 14.6 MB (-0.09%)     Avg: 8.2773ms (-16.35%)     Median: 8.2736ms (-16.36%)     [8.1682ms .. 8.5780ms]      
+terms/terms_status_with_date_histogram_26_bits
+columnar    Memory: 206.6 KB            Avg: 10.6487ms (-0.63%)     Median: 10.6031ms (-1.12%)     [10.4855ms .. 11.3797ms]    
+opaque      Memory: 206.6 KB            Avg: 10.7198ms (-14.13%)    Median: 10.6999ms (-14.46%)    [10.5543ms .. 11.2286ms]    
+vortex      Memory: 14.7 MB (-0.09%)    Avg: 7.8565ms (-18.04%)     Median: 7.8165ms (-19.10%)     [7.7787ms .. 8.3954ms]      
+terms/terms_status_with_date_histogram_single_bucket
+columnar    Memory: 80.5 KB              Avg: 10.8637ms (-1.36%)     Median: 10.7812ms (-3.23%)     [10.4915ms .. 11.4033ms]    
+opaque      Memory: 80.6 KB (-13.39%)    Avg: 11.0244ms (-14.20%)    Median: 11.0131ms (-14.99%)    [10.5360ms .. 11.3604ms]    
+vortex      Memory: 14.6 MB (-0.09%)     Avg: 7.9028ms (-16.97%)     Median: 7.8966ms (-16.69%)     [7.7584ms .. 8.1235ms]      
+terms/terms_status_with_date_histogram_4_buckets
+columnar    Memory: 81.5 KB              Avg: 10.9956ms (+0.24%)     Median: 10.9338ms (-0.48%)     [10.5473ms .. 11.3428ms]    
+opaque      Memory: 81.6 KB (-13.24%)    Avg: 11.1092ms (-13.05%)    Median: 11.2304ms (-12.65%)    [10.5731ms .. 11.4243ms]    
+vortex      Memory: 14.6 MB (-0.09%)     Avg: 7.9875ms (-16.56%)     Median: 7.9779ms (-16.65%)     [7.8757ms .. 8.1882ms]      
+terms/terms_status_with_date_histogram_8_buckets
+columnar    Memory: 82.9 KB              Avg: 11.0086ms (+0.69%)     Median: 10.9769ms (+0.51%)     [10.8891ms .. 11.2281ms]    
+opaque      Memory: 83.0 KB (-13.06%)    Avg: 11.0355ms (-13.13%)    Median: 11.0196ms (-13.17%)    [10.8325ms .. 11.3843ms]    
+vortex      Memory: 14.6 MB (-0.09%)     Avg: 8.3601ms (-15.76%)     Median: 8.3289ms (-15.96%)     [8.2022ms .. 8.6426ms]      
+terms/terms_status_with_date_histogram_hard_bounds
+columnar    Memory: 122.1 KB             Avg: 11.0961ms (-0.48%)     Median: 11.0852ms (-0.07%)     [11.0556ms .. 11.2971ms]    
+opaque      Memory: 122.1 KB (-6.22%)    Avg: 11.1048ms (-13.85%)    Median: 11.1086ms (-13.31%)    [10.9976ms .. 11.1975ms]    
+vortex      Memory: 14.6 MB (-0.09%)     Avg: 8.3000ms (-17.37%)     Median: 8.2998ms (-16.73%)     [8.2502ms .. 8.3569ms]      
+terms/terms_status_with_date_histogram_and_sibling_terms
+columnar    Memory: 199.1 KB             Avg: 17.6586ms (-0.50%)     Median: 17.6508ms (-0.29%)     [17.5741ms .. 17.7951ms]    
+opaque      Memory: 199.2 KB (-5.89%)    Avg: 17.9761ms (-12.04%)    Median: 17.9699ms (-11.94%)    [17.8279ms .. 18.2174ms]    
+vortex      Memory: 23.3 MB (-0.05%)     Avg: 11.5277ms (-16.96%)    Median: 11.5426ms (-16.60%)    [11.3160ms .. 11.6030ms]    
+multi_terms_vs_nested/nested_terms_status_and_zipf_1000
+columnar    Memory: 261.6 KB             Avg: 13.7993ms (+0.03%)     Median: 13.7018ms (+0.16%)     [13.6474ms .. 14.6586ms]    
+opaque      Memory: 261.7 KB (-4.54%)    Avg: 13.8995ms (-10.49%)    Median: 13.8413ms (-10.74%)    [13.6539ms .. 14.7622ms]    
+vortex      Memory: 18.6 MB (-0.07%)     Avg: 8.5997ms (-15.41%)     Median: 8.5684ms (-15.68%)     [8.4901ms .. 9.0025ms]      
+multi_terms_vs_nested/multi_terms_status_and_zipf_1000
+columnar    Memory: 189.2 KB     Avg: 12.3381ms (+0.26%)    Median: 12.3092ms (+0.06%)    [12.1443ms .. 13.1337ms]    
+multi_terms_vs_nested/nested_terms_status_and_zipf_1000_with_missing
+columnar    Memory: 261.6 KB     Avg: 14.9489ms (+0.48%)    Median: 14.9197ms (+0.36%)    [14.8636ms .. 15.1351ms]    
+multi_terms_vs_nested/multi_terms_status_and_zipf_1000_with_missing
+columnar    Memory: 189.5 KB     Avg: 13.6789ms (-0.25%)    Median: 13.6690ms (-0.25%)    [13.4070ms .. 14.3687ms]    
+multi_terms_vs_nested/nested_terms_zipf_1000_and_status
+columnar    Memory: 435.6 KB             Avg: 24.9531ms (+0.56%)    Median: 24.8170ms (+0.31%)    [24.6126ms .. 27.2338ms]    
+opaque      Memory: 435.6 KB (+0.71%)    Avg: 25.2789ms (-3.28%)    Median: 25.1812ms (-3.41%)    [24.8151ms .. 26.1178ms]    
+vortex      Memory: 18.6 MB (-0.13%)     Avg: 18.0288ms (-4.30%)    Median: 17.8917ms (-4.53%)    [17.7484ms .. 19.1967ms]    
+multi_terms_vs_nested/multi_terms_zipf_1000_and_status
+columnar    Memory: 189.7 KB     Avg: 12.3642ms (+1.03%)    Median: 12.3274ms (+0.81%)    [12.1611ms .. 12.5834ms]    
+multi_terms_vs_nested/nested_terms_many_and_zipf_1000
+columnar    Memory: 38.2 MB             Avg: 70.3414ms (+3.51%)    Median: 68.2917ms (+0.86%)    [66.0594ms .. 81.7235ms]    
+opaque      Memory: 38.2 MB (-9.11%)    Avg: 72.6235ms (-3.22%)    Median: 70.2623ms (-5.01%)    [67.4270ms .. 82.4977ms]    
+vortex      Memory: 54.9 MB (-6.52%)    Avg: 65.1444ms (-1.96%)    Median: 63.3179ms (-4.25%)    [59.7009ms .. 77.6362ms]    
+multi_terms_vs_nested/multi_terms_many_and_zipf_1000
+columnar    Memory: 31.9 MB (+0.00%)    Avg: 26.9436ms (+2.12%)    Median: 27.0759ms (+4.14%)    [25.8273ms .. 27.7386ms]    
+multi_terms_vs_nested/nested_terms_many_and_zipf_1000_and_status
+columnar    Memory: 146.9 MB             Avg: 150.8342ms (+0.40%)    Median: 149.0328ms (-0.57%)    [146.2049ms .. 165.5974ms]    
+opaque      Memory: 146.9 MB (-2.54%)    Avg: 151.3612ms (-5.58%)    Median: 150.4965ms (-5.15%)    [147.5763ms .. 165.6409ms]    
+vortex      Memory: 171.9 MB (-2.18%)    Avg: 144.8727ms (-4.73%)    Median: 143.1832ms (-4.80%)    [138.6682ms .. 163.0759ms]    
+multi_terms_vs_nested/multi_terms_many_and_zipf_1000_and_status
+columnar    Memory: 53.5 MB (-0.00%)    Avg: 37.3812ms (-0.40%)    Median: 37.3856ms (-0.29%)    [37.0390ms .. 37.7810ms]    
+multi_terms_vs_nested/nested_terms_status_and_zipf_1000_avg_sub_agg
+columnar    Memory: 1.6 MB              Avg: 27.0715ms (+0.32%)    Median: 26.9733ms (+0.20%)    [26.6498ms .. 29.5031ms]    
+opaque      Memory: 1.6 MB (-0.75%)     Avg: 30.2700ms (-5.32%)    Median: 30.0446ms (-6.13%)    [29.6667ms .. 35.5541ms]    
+vortex      Memory: 27.5 MB (-0.04%)    Avg: 21.6322ms (-7.60%)    Median: 21.5629ms (-7.68%)    [21.4450ms .. 22.2858ms]    
+multi_terms_vs_nested/multi_terms_status_and_zipf_1000_avg_sub_agg
+columnar    Memory: 622.6 KB     Avg: 24.7374ms (+1.77%)    Median: 24.8830ms (+2.33%)    [24.0757ms .. 25.6367ms]    
+multi_terms_vs_nested_with_1%_term_query/nested_terms_status_and_zipf_1000
+columnar    Memory: 128.1 KB             Avg: 0.2616ms (-0.38%)    Median: 0.2610ms (-0.28%)    [0.2589ms .. 0.2690ms]    
+opaque      Memory: 128.2 KB (-8.17%)    Avg: 0.2651ms (-5.24%)    Median: 0.2649ms (-5.14%)    [0.2634ms .. 0.2682ms]    
+vortex      Memory: 18.5 MB (-0.06%)     Avg: 1.6772ms (-1.58%)    Median: 1.6752ms (-1.26%)    [1.6694ms .. 1.7221ms]    
+multi_terms_vs_nested_with_1%_term_query/multi_terms_status_and_zipf_1000
+columnar    Memory: 89.0 KB (+0.29%)    Avg: 0.1913ms (+1.12%)    Median: 0.1912ms (+1.06%)    [0.1902ms .. 0.1948ms]    
+multi_terms_vs_nested_with_1%_term_query/nested_terms_status_and_zipf_1000_with_missing
+columnar    Memory: 128.4 KB (+0.01%)    Avg: 0.2740ms (+0.04%)    Median: 0.2737ms (-0.10%)    [0.2724ms .. 0.2794ms]    
+multi_terms_vs_nested_with_1%_term_query/multi_terms_status_and_zipf_1000_with_missing
+columnar    Memory: 89.1 KB     Avg: 0.2090ms (+1.51%)    Median: 0.2075ms (+1.10%)    [0.2063ms .. 0.2248ms]    
+multi_terms_vs_nested_with_1%_term_query/nested_terms_zipf_1000_and_status
+columnar    Memory: 343.9 KB             Avg: 0.4517ms (+0.01%)    Median: 0.4514ms (+0.38%)    [0.4469ms .. 0.4584ms]    
+opaque      Memory: 344.0 KB (+0.29%)    Avg: 0.4589ms (-1.54%)    Median: 0.4568ms (-1.70%)    [0.4523ms .. 0.4862ms]    
+vortex      Memory: 18.6 MB (-0.05%)     Avg: 1.8435ms (-0.83%)    Median: 1.8418ms (-0.63%)    [1.8285ms .. 1.8702ms]    
+multi_terms_vs_nested_with_1%_term_query/multi_terms_zipf_1000_and_status
+columnar    Memory: 89.2 KB     Avg: 0.1915ms (+1.93%)    Median: 0.1914ms (+1.82%)    [0.1905ms .. 0.1941ms]    
+multi_terms_vs_nested_with_1%_term_query/nested_terms_many_and_zipf_1000
+columnar    Memory: 2.7 MB              Avg: 0.9759ms (+0.14%)     Median: 0.9689ms (+0.15%)     [0.9454ms .. 1.0706ms]    
+opaque      Memory: 2.7 MB (+44.37%)    Avg: 0.9911ms (-12.12%)    Median: 0.9799ms (-12.86%)    [0.9640ms .. 1.0609ms]    
+vortex      Memory: 20.6 MB (+4.81%)    Avg: 2.4161ms (-5.14%)     Median: 2.3867ms (-5.84%)     [2.3585ms .. 2.5073ms]    
+multi_terms_vs_nested_with_1%_term_query/multi_terms_many_and_zipf_1000
+columnar    Memory: 446.7 KB     Avg: 0.6569ms (+2.50%)    Median: 0.6550ms (+2.29%)    [0.6458ms .. 0.7197ms]    
+multi_terms_vs_nested_with_1%_term_query/nested_terms_many_and_zipf_1000_and_status
+columnar    Memory: 4.1 MB              Avg: 1.5525ms (+0.24%)    Median: 1.5419ms (+0.17%)    [1.4913ms .. 1.7525ms]    
+opaque      Memory: 4.1 MB (+22.20%)    Avg: 1.5972ms (-7.10%)    Median: 1.5682ms (-8.23%)    [1.5160ms .. 2.5391ms]    
+vortex      Memory: 30.4 MB (+3.21%)    Avg: 3.8258ms (-3.55%)    Median: 3.8045ms (-3.66%)    [3.7815ms .. 4.0746ms]    
+multi_terms_vs_nested_with_1%_term_query/multi_terms_many_and_zipf_1000_and_status
+columnar    Memory: 448.1 KB     Avg: 0.7367ms (+0.54%)    Median: 0.7368ms (+0.76%)    [0.7321ms .. 0.7402ms]    
+multi_terms_vs_nested_with_1%_term_query/nested_terms_status_and_zipf_1000_avg_sub_agg
+columnar    Memory: 1.1 MB              Avg: 0.4828ms (-0.06%)    Median: 0.4790ms (-0.45%)    [0.4747ms .. 0.4972ms]    
+opaque      Memory: 1.1 MB (-0.90%)     Avg: 0.5172ms (-3.49%)    Median: 0.5184ms (-3.34%)    [0.5084ms .. 0.5261ms]    
+vortex      Memory: 27.1 MB (-0.04%)    Avg: 3.2846ms (+0.08%)    Median: 3.2811ms (+0.27%)    [3.2686ms .. 3.3694ms]    
+multi_terms_vs_nested_with_1%_term_query/multi_terms_status_and_zipf_1000_avg_sub_agg
+columnar    Memory: 226.4 KB (-0.11%)    Avg: 0.3360ms (+3.83%)    Median: 0.3353ms (+3.70%)    [0.3296ms .. 0.3549ms]    
+range_and_histogram/range_agg
+columnar    Memory: 8.7 KB (-1.68%)    Avg: 7.5937ms (-0.56%)    Median: 7.5539ms (-0.35%)    [7.5288ms .. 8.1134ms]    
+opaque      Memory: 9.0 KB (+1.70%)    Avg: 7.7330ms (+1.27%)    Median: 7.7047ms (+0.81%)    [7.6033ms .. 8.2710ms]    
+vortex      Memory: 9.6 MB (-0.00%)    Avg: 5.5771ms (+0.35%)    Median: 5.5359ms (-0.30%)    [5.5033ms .. 5.8813ms]    
+range_and_histogram/range_agg_with_avg_sub_agg
+columnar    Memory: 79.0 KB     Avg: 16.1547ms (-0.99%)    Median: 16.1521ms (-0.42%)    [16.0513ms .. 16.3328ms]    
+opaque      Memory: 79.1 KB     Avg: 16.4087ms (+0.26%)    Median: 16.3895ms (+0.44%)    [16.0695ms .. 16.7879ms]    
+vortex      Memory: 18.0 MB     Avg: 12.0811ms (-0.58%)    Median: 12.0789ms (-0.32%)    [11.8191ms .. 12.3045ms]    
+range_and_histogram/range_agg_with_term_agg_status
+columnar    Memory: 80.3 KB     Avg: 15.6506ms (-0.41%)    Median: 15.6116ms (-0.18%)    [15.5351ms .. 16.5883ms]    
+opaque      Memory: 80.3 KB     Avg: 15.9121ms (+0.72%)    Median: 15.9124ms (+0.67%)    [15.7024ms .. 16.4385ms]    
+vortex      Memory: 18.3 MB     Avg: 11.0089ms (-0.13%)    Median: 10.9934ms (-0.02%)    [10.8477ms .. 11.2259ms]    
+range_and_histogram/range_agg_with_term_agg_many
+columnar    Memory: 6.9 MB      Avg: 18.8988ms (-1.34%)    Median: 18.8359ms (-0.65%)    [18.7043ms .. 20.0480ms]    
+opaque      Memory: 6.9 MB      Avg: 19.0918ms (-0.19%)    Median: 19.0930ms (+0.16%)    [18.8181ms .. 19.4278ms]    
+vortex      Memory: 23.3 MB     Avg: 14.2922ms (-0.26%)    Median: 14.2711ms (-0.05%)    [14.0839ms .. 14.9080ms]    
+range_and_histogram/avg_and_range_with_avg_sub_agg
+columnar    Memory: 74.3 KB     Avg: 24.0807ms (+0.31%)    Median: 24.0347ms (+0.21%)    [23.7577ms .. 25.2495ms]    
+opaque      Memory: 74.4 KB     Avg: 24.3478ms (+0.38%)    Median: 24.3811ms (+0.36%)    [23.9580ms .. 24.9563ms]    
+vortex      Memory: 26.4 MB     Avg: 16.8356ms (+0.42%)    Median: 16.7821ms (+0.36%)    [16.4403ms .. 18.2684ms]    
+range_and_histogram/histogram
+columnar    Memory: 8.9 KB (+1.59%)    Avg: 7.2907ms (+2.15%)    Median: 7.1727ms (+0.72%)    [7.1063ms .. 7.7026ms]    
+opaque      Memory: 8.6 KB (-1.54%)    Avg: 7.3721ms (+2.45%)    Median: 7.2299ms (+0.41%)    [7.1315ms .. 7.8844ms]    
+vortex      Memory: 9.6 MB             Avg: 5.1424ms (+2.15%)    Median: 5.0362ms (+0.19%)    [4.9973ms .. 5.5486ms]    
+range_and_histogram/histogram_hard_bounds
+columnar    Memory: 7.3 KB             Avg: 5.9385ms (+0.17%)    Median: 5.9306ms (+0.29%)    [5.8800ms .. 6.1141ms]    
+opaque      Memory: 6.5 KB (-2.95%)    Avg: 6.0165ms (-4.64%)    Median: 6.0115ms (-4.72%)    [5.9291ms .. 6.2655ms]    
+vortex      Memory: 9.6 MB             Avg: 3.8658ms (-0.52%)    Median: 3.8591ms (-0.52%)    [3.8320ms .. 3.9202ms]    
+range_and_histogram/histogram_with_avg_sub_agg
+columnar    Memory: 101.3 KB     Avg: 17.2437ms (-0.43%)    Median: 17.2354ms (-0.04%)    [17.1122ms .. 17.4738ms]    
+opaque      Memory: 101.4 KB     Avg: 17.3071ms (-0.60%)    Median: 17.3098ms (-0.26%)    [17.1337ms .. 17.7967ms]    
+vortex      Memory: 18.0 MB      Avg: 13.1406ms (-1.07%)    Median: 13.1363ms (-0.54%)    [12.8616ms .. 13.3882ms]    
+range_and_histogram/histogram_with_term_agg_status
+columnar    Memory: 282.6 KB     Avg: 18.1367ms (-0.18%)    Median: 18.1353ms (-0.11%)    [18.0618ms .. 18.3236ms]    
+opaque      Memory: 282.7 KB     Avg: 18.3054ms (+0.14%)    Median: 18.3382ms (+0.29%)    [18.1163ms .. 18.4415ms]    
+vortex      Memory: 18.3 MB      Avg: 13.3497ms (-0.14%)    Median: 13.3460ms (-0.07%)    [13.1957ms .. 13.5937ms]    
+range_and_histogram/composite_term_few
+columnar    Memory: 237.9 KB     Avg: 21.3004ms (-0.97%)    Median: 21.2142ms (-0.80%)    [21.0237ms .. 22.1797ms]    
+range_and_histogram/composite_term_many_page_1000
+columnar    Memory: 373.3 KB     Avg: 20.2836ms (+0.06%)    Median: 20.1995ms (+0.06%)    [20.0561ms .. 20.6101ms]    
+range_and_histogram/composite_term_many_page_1000_with_avg_sub_agg
+columnar    Memory: 2.3 MB     Avg: 20.6053ms (+0.57%)    Median: 20.5515ms (+0.34%)    [20.4220ms .. 21.0144ms]    
+range_and_histogram/composite_histogram
+columnar    Memory: 299.0 KB     Avg: 47.3214ms (+0.04%)    Median: 47.1413ms (+0.06%)    [46.7663ms .. 49.1784ms]    
+range_and_histogram/composite_histogram_calendar
+columnar    Memory: 6.6 KB (-2.52%)    Avg: 56.8432ms (-1.08%)    Median: 56.6625ms (-1.11%)    [55.4983ms .. 60.5515ms]    
+filter_agg/filter_agg_all_query_count_agg
+columnar    Memory: 191.7 KB             Avg: 9.2322ms (-7.01%)    Median: 9.1399ms (-7.65%)    [9.0161ms .. 10.2530ms]    
+opaque      Memory: 192.1 KB (-0.08%)    Avg: 9.1709ms (-7.43%)    Median: 9.1303ms (-7.32%)    [8.9905ms .. 9.5231ms]     
+vortex      Memory: 9.6 MB               Avg: 7.2910ms (-5.35%)    Median: 7.2856ms (-4.78%)    [7.0431ms .. 7.4480ms]     
+filter_agg/filter_agg_term_query_count_agg
+columnar    Memory: 191.7 KB (-0.08%)    Avg: 11.8332ms (-4.73%)    Median: 11.5086ms (-6.22%)    [11.3249ms .. 13.8481ms]    
+opaque      Memory: 191.8 KB             Avg: 11.4490ms (-6.93%)    Median: 11.4494ms (-6.51%)    [11.1871ms .. 12.0788ms]    
+vortex      Memory: 9.6 MB               Avg: 9.5748ms (-4.83%)     Median: 9.5926ms (-4.40%)     [9.2209ms .. 9.8346ms]      
+filter_agg/filter_agg_all_query_with_sub_aggs
+columnar    Memory: 194.5 KB     Avg: 24.4576ms (-1.07%)    Median: 24.4469ms (-0.40%)    [24.0647ms .. 25.1454ms]    
+opaque      Memory: 194.5 KB     Avg: 24.4879ms (-0.56%)    Median: 24.5088ms (+0.08%)    [24.0734ms .. 24.8431ms]    
+vortex      Memory: 26.8 MB      Avg: 17.0977ms (-2.08%)    Median: 17.0615ms (-1.84%)    [16.6184ms .. 17.6867ms]    
+filter_agg/filter_agg_term_query_with_sub_aggs
+columnar    Memory: 194.2 KB (-0.08%)    Avg: 27.0129ms (+1.04%)    Median: 26.8036ms (+0.94%)    [26.4310ms .. 29.5121ms]    
+opaque      Memory: 194.9 KB (+0.23%)    Avg: 26.8600ms (+0.13%)    Median: 26.8542ms (+0.71%)    [26.2968ms .. 27.9388ms]    
+vortex      Memory: 26.8 MB              Avg: 19.4167ms (-1.34%)    Median: 19.3890ms (-1.64%)    [18.8330ms .. 20.0966ms]    
+100_segments
+segments/terms_7
+columnar    Memory: 212.3 KB             Avg: 0.8552ms (+0.93%)     Median: 0.8552ms (+0.93%)     [0.8552ms .. 0.8552ms]    
+opaque      Memory: 212.3 KB (-0.00%)    Avg: 0.8616ms (-57.93%)    Median: 0.8616ms (-57.93%)    [0.8616ms .. 0.8616ms]    
+vortex      Memory: 254.1 KB (-0.00%)    Avg: 0.9886ms (-55.55%)    Median: 0.9886ms (-55.55%)    [0.9886ms .. 0.9886ms]    
+segments/terms_zipfs_1000
+columnar    Memory: 6.3 MB             Avg: 5.5721ms (+1.40%)     Median: 5.5721ms (+1.40%)     [5.5721ms .. 5.5721ms]    
+opaque      Memory: 6.3 MB             Avg: 5.5816ms (-33.18%)    Median: 5.5816ms (-33.18%)    [5.5816ms .. 5.5816ms]    
+vortex      Memory: 6.3 MB (-0.00%)    Avg: 5.8805ms (-31.60%)    Median: 5.8805ms (-31.60%)    [5.8805ms .. 5.8805ms]    
+segments/terms_150_000
+columnar    Memory: 83.0 MB     Avg: 115.0717ms (-0.13%)     Median: 115.0717ms (-0.13%)     [115.0717ms .. 115.0717ms]    
+opaque      Memory: 83.0 MB     Avg: 114.7118ms (-19.25%)    Median: 114.7118ms (-19.25%)    [114.7118ms .. 114.7118ms]    
+vortex      Memory: 83.0 MB     Avg: 116.7305ms (-17.56%)    Median: 116.7305ms (-17.56%)    [116.7305ms .. 116.7305ms]    
+segments/terms_all_unique
+columnar    Memory: 306.2 MB     Avg: 343.8497ms (+5.00%)    Median: 343.8497ms (+5.00%)    [343.8497ms .. 343.8497ms]    
+opaque      Memory: 306.2 MB     Avg: 326.5689ms (-6.20%)    Median: 326.5689ms (-6.20%)    [326.5689ms .. 326.5689ms]    
+vortex      Memory: 306.2 MB     Avg: 330.9102ms (-5.43%)    Median: 330.9102ms (-5.43%)    [330.9102ms .. 330.9102ms]    
+segments/nested_terms_status_and_zipf_1000
+columnar    Memory: 5.0 MB             Avg: 13.5139ms (-1.67%)     Median: 13.5139ms (-1.67%)     [13.5139ms .. 13.5139ms]    
+opaque      Memory: 5.0 MB (-0.23%)    Avg: 13.5535ms (-11.85%)    Median: 13.5535ms (-11.85%)    [13.5535ms .. 13.5535ms]    
+vortex      Memory: 5.1 MB (-0.22%)    Avg: 13.8924ms (-11.35%)    Median: 13.8924ms (-11.35%)    [13.8924ms .. 13.8924ms]    
+segments/multi_terms_status_and_zipf_1000
+columnar    Memory: 2.8 MB     Avg: 5.0741ms (-0.58%)    Median: 5.0741ms (-0.58%)    [5.0741ms .. 5.0741ms]    
+segments/nested_terms_many_and_zipf_1000
+columnar    Memory: 19.9 MB             Avg: 63.9476ms (-5.11%)     Median: 63.9476ms (-5.11%)     [63.9476ms .. 63.9476ms]    
+opaque      Memory: 19.9 MB (-0.42%)    Avg: 65.0682ms (-28.48%)    Median: 65.0682ms (-28.48%)    [65.0682ms .. 65.0682ms]    
+vortex      Memory: 19.9 MB (-0.42%)    Avg: 66.4381ms (-28.31%)    Median: 66.4381ms (-28.31%)    [66.4381ms .. 66.4381ms]    
+segments/multi_terms_many_and_zipf_1000
+columnar    Memory: 4.5 MB     Avg: 28.7223ms (-1.04%)    Median: 28.7223ms (-1.04%)    [28.7223ms .. 28.7223ms]    
+segments/nested_terms_many_and_zipf_1000_top500
+columnar    Memory: 873.5 MB             Avg: 1.034264202s (+1.95%)    Median: 1.034264202s (+1.95%)    [1.034264202s .. 1.034264202s]    
+opaque      Memory: 873.5 MB (+0.02%)    Avg: 1.030679197s (-5.59%)    Median: 1.030679197s (-5.59%)    [1.030679197s .. 1.030679197s]    
+vortex      Memory: 873.6 MB (+0.02%)    Avg: 1.038948601s (-7.76%)    Median: 1.038948601s (-7.76%)    [1.038948601s .. 1.038948601s]    
+segments/multi_terms_many_and_zipf_1000_top500
+columnar    Memory: 19.4 MB     Avg: 39.2661ms (+0.42%)    Median: 39.2661ms (+0.42%)    [39.2661ms .. 39.2661ms]    
+1000_segments
+segments/terms_7
+columnar    Memory: 2.1 MB             Avg: 2.4774ms (+1.25%)     Median: 2.4774ms (+1.25%)     [2.4774ms .. 2.4774ms]    
+opaque      Memory: 2.1 MB (-0.00%)    Avg: 2.5205ms (-33.78%)    Median: 2.5205ms (-33.78%)    [2.5205ms .. 2.5205ms]    
+vortex      Memory: 2.1 MB (-0.00%)    Avg: 3.0685ms (-30.64%)    Median: 3.0685ms (-30.64%)    [3.0685ms .. 3.0685ms]    
+segments/terms_zipfs_1000
+columnar    Memory: 21.7 MB             Avg: 18.9955ms (-2.67%)     Median: 18.9955ms (-2.67%)     [18.9955ms .. 18.9955ms]    
+opaque      Memory: 21.7 MB (-0.00%)    Avg: 18.9957ms (-34.71%)    Median: 18.9957ms (-34.71%)    [18.9957ms .. 18.9957ms]    
+vortex      Memory: 21.7 MB (-0.00%)    Avg: 19.7275ms (-34.10%)    Median: 19.7275ms (-34.10%)    [19.7275ms .. 19.7275ms]    
+segments/terms_150_000
+columnar    Memory: 84.3 MB     Avg: 127.0264ms (+2.66%)     Median: 127.0264ms (+2.66%)     [127.0264ms .. 127.0264ms]    
+opaque      Memory: 84.3 MB     Avg: 125.8097ms (-15.07%)    Median: 125.8097ms (-15.07%)    [125.8097ms .. 125.8097ms]    
+vortex      Memory: 84.3 MB     Avg: 127.0177ms (-16.38%)    Median: 127.0177ms (-16.38%)    [127.0177ms .. 127.0177ms]    
+segments/terms_all_unique
+columnar    Memory: 289.8 MB     Avg: 343.9249ms (+0.89%)    Median: 343.9249ms (+0.89%)    [343.9249ms .. 343.9249ms]    
+opaque      Memory: 289.8 MB     Avg: 347.1693ms (-3.63%)    Median: 347.1693ms (-3.63%)    [347.1693ms .. 347.1693ms]    
+vortex      Memory: 289.8 MB     Avg: 344.7310ms (-6.39%)    Median: 344.7310ms (-6.39%)    [344.7310ms .. 344.7310ms]    
+segments/nested_terms_status_and_zipf_1000
+columnar    Memory: 28.9 MB             Avg: 45.3907ms (+2.01%)    Median: 45.3907ms (+2.01%)    [45.3907ms .. 45.3907ms]    
+opaque      Memory: 28.9 MB (-0.02%)    Avg: 44.8340ms (-5.41%)    Median: 44.8340ms (-5.41%)    [44.8340ms .. 44.8340ms]    
+vortex      Memory: 29.0 MB (-0.02%)    Avg: 46.8944ms (-5.69%)    Median: 46.8944ms (-5.69%)    [46.8944ms .. 46.8944ms]    
+segments/multi_terms_status_and_zipf_1000
+columnar    Memory: 27.8 MB     Avg: 35.0655ms (+7.21%)    Median: 35.0655ms (+7.21%)    [35.0655ms .. 35.0655ms]    
+segments/nested_terms_many_and_zipf_1000
+columnar    Memory: 175.9 MB             Avg: 187.7942ms (-2.39%)     Median: 187.7942ms (-2.39%)     [187.7942ms .. 187.7942ms]    
+opaque      Memory: 175.9 MB (-0.55%)    Avg: 188.3301ms (-16.58%)    Median: 188.3301ms (-16.58%)    [188.3301ms .. 188.3301ms]    
+vortex      Memory: 175.9 MB (-0.55%)    Avg: 190.5616ms (-16.40%)    Median: 190.5616ms (-16.40%)    [190.5616ms .. 190.5616ms]    
+segments/multi_terms_many_and_zipf_1000
+columnar    Memory: 39.2 MB     Avg: 107.8856ms (+1.35%)    Median: 107.8856ms (+1.35%)    [107.8856ms .. 107.8856ms]    
+segments/nested_terms_many_and_zipf_1000_top500
+columnar    Memory: 1.7 GB     Avg: 1.692540148s (+7.47%)    Median: 1.692540148s (+7.47%)    [1.692540148s .. 1.692540148s]    
+opaque      Memory: 1.7 GB     Avg: 1.666873072s (+4.28%)    Median: 1.666873072s (+4.28%)    [1.666873072s .. 1.666873072s]    
+vortex      Memory: 1.7 GB     Avg: 1.69165978s (+3.44%)     Median: 1.69165978s (+3.44%)     [1.69165978s .. 1.69165978s]      
+segments/multi_terms_many_and_zipf_1000_top500
+columnar    Memory: 172.9 MB     Avg: 264.1666ms (-1.56%)    Median: 264.1666ms (-1.56%)    [264.1666ms .. 264.1666ms]    

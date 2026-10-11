@@ -1,0 +1,67 @@
+<section id="correction">
+<h2>Correction des résultats</h2>
+<div class="prose">
+<p>Avant chaque groupe binggan, la requête est exécutée une fois par variante et le JSON du résultat est comparé à celui du columnar. Vortex et opaque renvoient <b>toujours exactement le même résultat</b> (même hash), sur toutes les requêtes et toutes les entrées : la colonne Vortex est une copie fidèle de la colonne tantivy.</p>
+<p>Les écarts avec le columnar viennent du chemin d'agrégation emprunté par les sources enregistrées, pas des valeurs lues :</p>
+<ul>
+<li><b>cardinality</b> : le sketch HLL de tantivy utilise un estimateur dont le résultat dépend de l'ordre d'insertion. Le chemin <code>BitSet</code> insère les termes par ord croissant, le chemin <code>TermOrdSet</code> dans un autre ordre : 152 236 contre 153 190 pour une vraie cardinalité de ~150 000.</li>
+<li><b>terms avec ex-æquo</b> (<code>terms_all_unique</code>, les nested à 1 % et à 100 segments) : tous les buckets candidats ont le même <code>doc_count</code>, et le stockage <code>HashMap</code> ne départage pas les ex-æquo comme le stockage <code>Vec</code>. Les deux résultats sont valides.</li>
+</ul>
+</div>
+<div class="scroll" id="verify-table"></div>
+</section>
+
+<section id="stabilite">
+<h2>Stabilité des mesures</h2>
+<div class="prose">
+<p>Deux passes complètes avec l'implémentation finale (31 min chacune), puis une troisième passe sur les 26 requêtes aux ratios les plus extrêmes (toutes les requêtes filtrées à 1 %, et les cas multivalués où Vortex est 40 % plus rapide). Sur 250 requêtes mesurées dans les trois variantes, la dispersion médiane du ratio vortex / columnar entre passes est de 0,8 %, le 90<sup>e</sup> centile de 3,0 % et le maximum de 5,7 %. Aucune requête n'a dépassé le seuil de 10 %, et la troisième passe a reproduit les extrêmes à ±2 %.</p>
+<p>Les temps absolus du columnar varient davantage d'une passe à l'autre (jusqu'à 7 %, par exemple <code>terms_many_with_avg_sub_agg</code> : 12,9 puis 12,1 ms). C'est le type d'incohérence que l'on observe en lançant <code>agg_bench</code> deux fois ; l'entrelacement des trois variantes dans un même groupe binggan l'élimine des ratios.</p>
+</div>
+<div class="scroll" id="stability-table"></div>
+<p class="small">Les 15 requêtes les plus dispersées.</p>
+</section>
+
+<section id="suite">
+<h2>Suites possibles</h2>
+<div class="prose">
+<ul class="findings">
+<li><b>Faire porter les fast paths par le trait, pas par <code>as_column()</code>.</b> C'est le levier principal, indépendamment de Vortex : toute source calculée en profite. <code>bounds()</code> suffit pour le choix de stockage du terms agg et le <code>BitSet</code> du cardinality (voir <a href="#phase2">phase 2</a>). Il reste le collecteur aplati terms × histogramme, le chemin un-doc du collecteur de stats et les histogrammes / ranges qui supposent une source multivaluée : un indice de cardinalité (<code>Cardinality</code> maximale de la source) et un accès « bloc complet » couvriraient la plupart.</li>
+<li><b>Requêtes sélectives.</b> Des chunks plus petits pour les colonnes souvent filtrées (<code>with_row_block_size</code> sans coalescence) ou un décodage par blocs FastLanes de 1024 valeurs limiteraient la décompression inutile. Le <code>take()</code> générique a un surcoût fixe trop élevé pour des blocs de 64 docs.</li>
+<li><b>Un fichier Vortex par segment.</b> Écrire une struct de colonnes plutôt qu'un fichier par colonne ramène l'overhead des petits segments de +15 % à +8 % (100 segments) et de ×2,2 à ×1,5 (1000 segments). Au-delà, il faudrait alléger les statistiques de zone pour les petits segments.</li>
+<li><b>Garder le dictionnaire sstable</b> pour le texte : les strings natives Vortex sont 1,3 à 2,7 fois plus grosses sur les colonnes à forte cardinalité, et les ords tantivy se compressent aussi bien des deux côtés.</li>
+<li><b>Côté tantivy</b> : l'index multivalué coûte ~1,5 Mo par million de docs même quand presque chaque doc a une seule valeur, et la lecture optional / multivaluée est 1,5 à 2 fois plus lente que celle de Vortex au micro-bench. Ce sont deux pistes d'amélioration du columnar existant.</li>
+</ul>
+</div>
+<div id="struct" class="scroll"><table><thead><tr><th class="l">index</th><th>segments mesurés</th><th>1 fichier par colonne</th><th>1 fichier struct par segment</th><th>gain</th></tr></thead><tbody id="struct-body"></tbody></table></div>
+<p class="small">Mesure faite par <code>examples/struct_file_size.rs</code> sur les 100 premiers segments au plus.</p>
+</section>
+
+<section id="repro">
+<h2>Reproduire</h2>
+<div class="prose">
+<p>Tout est dans <code>vortex-bench/</code>, à la racine du checkout tantivy (non commité).</p>
+</div>
+<div class="diagram"><pre>
+vortex-bench/
+  src/format.rs        format du composant .vortex (fichiers Vortex concaténés + pied JSON)
+  src/writer.rs        VortexPlugin : SegmentPlugin, conversion columnar → Vortex
+  src/source.rs        VortexValueSource / Provider / cache de segments, LRU de chunks
+  src/opaque.rs        groupe témoin : colonnes tantivy derrière une source enregistrée
+  benches/agg_bench_vortex.rs   copie de agg_bench, 3 variantes entrelacées, vérification
+  examples/size_report.rs       volumes par colonne et variantes de stockage
+  examples/decode_bench.rs      micro-bench load_block
+  examples/struct_file_size.rs  1 fichier par colonne vs 1 fichier struct par segment
+  patches/value_source_bounds_fast_paths.patch   phase 2 (tantivy)
+  report/                       agrégation et génération de ce rapport
+  runs/                         données brutes (JSON lines)
+
+cd vortex-bench
+cargo bench --bench agg_bench_vortex                  # crée les index dans agg_bench_vortex/
+VORTEX_BENCH_INPUTS=full VORTEX_BENCH_GROUPS=terms \
+  VORTEX_BENCH_SEGMENTS= cargo bench --bench agg_bench_vortex
+VORTEX_CHUNK_CACHE=1 ...        # la version v1 (un seul chunk en cache)
+VORTEX_TAKE_SPAN_RATIO=4 ...    # essai take()
+cargo run --release --example size_report -- sizes.json agg_bench_vortex/Full ...
+python3 report/aggregate.py runs/agg.json runs/run2 runs/run3 runs/run4
+</pre></div>
+</section>

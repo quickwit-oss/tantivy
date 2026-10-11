@@ -1,0 +1,258 @@
+<section id="resume">
+<h2>Résumé</h2>
+<div class="verdict">
+  <div><div class="big">×1,00</div><div class="lbl">volume des colonnes, index <code>full</code> mono-segment (25,0 contre 25,1 Mo). −34 % en multivalué, mais ×2,2 à 1000 segments.</div></div>
+  <div><div class="big">×1,10</div><div class="lbl">temps Vortex / opaque en <code>full</code>, hors requêtes filtrées : le coût du stockage seul. ×0,75 en <code>multivalue</code>.</div></div>
+  <div><div class="big">×1,56 → ×1,20</div><div class="lbl">coût de l'abstraction <code>ValueSource</code> en <code>full</code> (opaque / columnar), avant et après un patch de 2 lignes dans tantivy.</div></div>
+  <div><div class="big">×1,1 – ×6,1</div><div class="lbl">Vortex / opaque sur les requêtes filtrées à 1 % : la décompression par chunk entier ne convient pas aux accès sélectifs.</div></div>
+</div>
+<div class="prose">
+<ul class="findings">
+<li><b>Volume.</b> Sur les colonnes pleines d'un gros segment, Vortex et le columnar tantivy font jeu égal : les deux bitpackent les mêmes données. Vortex gagne sur les colonnes optional (−6 %), sparse (−30 %) et multivaluées (−34 %, sur un jeu de données très favorable). Il perd sur les petits segments à cause d'un coût fixe d'environ 2 ko par fichier (+15 % à 100 segments, ×2,2 à 1000), et stocker les chaînes nativement coûte 1,3 à 2,7 fois plus que les ords + le dictionnaire sstable de tantivy.</li>
+<li><b>Lecture.</b> En scan complet, Vortex coûte ~10 % de plus que le codec tantivy sur colonne pleine (×1,5 à ×2,8 au micro-bench de décodage, dilué dans l'agrégation) et est plus rapide sur colonnes optional et multivaluées (jusqu'à ×0,5 au micro-bench, ×0,75 en moyenne sur les agrégations <code>multivalue</code>).</li>
+<li><b>Le principal coût n'est pas Vortex.</b> Passer par une source enregistrée désactive les fast paths qui demandent <code>as_column()</code>. En <code>full</code> cela coûte ×1,56 en moyenne et jusqu'à ×9,3, plus que le stockage lui-même. Avec un patch de deux lignes qui fait utiliser <code>bounds()</code> au terms agg et au cardinality, la pénalité tombe à ×1,20 en <code>full</code> et ~×1,00 ailleurs ; il reste surtout le collecteur aplati terms × histogramme.</li>
+<li><b>Avec ce patch</b>, Vortex / columnar vaut ×1,36 en <code>full</code>, ×0,90 en <code>dense</code>, ×1,01 en <code>sparse</code> et ×0,74 en <code>multivalue</code> hors requêtes filtrées. Avec le filtre à 1 %, il reste entre ×1,2 et ×6,9.</li>
+<li><b>Correction.</b> Vortex renvoie exactement les mêmes résultats que la variante opaque partout. Avec le patch, les 250 résultats supportés sont identiques au columnar. <code>multi_terms</code>, <code>composite</code>, <code>top_hits</code> et <code>missing</code> sur texte refusent toute source enregistrée (20 requêtes sur 79 par entrée).</li>
+<li><b>Implémentation.</b> Un cache d'un seul chunk décompressé rendait les sous-agrégations jusqu'à 195 fois plus lentes (thrashing entre chunks voisins) ; un LRU de 8 chunks règle le problème, au prix de ~5 Mo par colonne et par collecteur.</li>
+</ul>
+<p><b>En bref</b> : sur ces données, Vortex n'apporte pas de gain de volume décisif sur les gros segments et en perd sur les petits. Côté lecture, il est compétitif en scan et meilleur sur les colonnes creuses ou multivaluées, mais mal adapté aux requêtes sélectives tant qu'on décompresse par chunk entier. Le chantier le plus rentable, utile à toute source calculée, est de rendre les fast paths d'agrégation indépendants de <code>as_column()</code>.</p>
+</div>
+</section>
+<section id="methode">
+<h2>Méthode</h2>
+<div class="prose">
+<p>Le bench est une copie de <code>benches/agg_bench.rs</code> (<code>vortex-bench/benches/agg_bench_vortex.rs</code>). Les requêtes et le générateur de données sont inchangés : 1 000 000 de documents, quatre entrées (<code>full</code>, <code>dense</code>, <code>sparse</code>, <code>multivalue</code>) plus les index à 100 et 1000 segments. Seule différence côté index : le <code>VortexPlugin</code> est enregistré à la création, donc chaque segment porte un fichier <code>.vortex</code> en plus du <code>.fast</code>. Les trois variantes lisent donc exactement les mêmes segments.</p>
+<p>Chaque requête est exécutée en trois variantes :</p>
+<ul>
+<li><span class="swatch sw-columnar"></span><b>columnar</b> : le chemin normal de tantivy (ce que mesure <code>agg_bench</code>).</li>
+<li><span class="swatch sw-opaque"></span><b>opaque</b> : les mêmes colonnes tantivy, mais enregistrées dans le <code>ValueSourceRegistry</code> derrière un wrapper qui renvoie <code>None</code> pour <code>as_column()</code>. C'est le groupe témoin : il paie la même pénalité « source enregistrée » que Vortex, avec le codec tantivy.</li>
+<li><span class="swatch sw-vortex"></span><b>vortex</b> : les colonnes du fichier <code>.vortex</code>, enregistrées de la même façon.</li>
+</ul>
+<p>Le rapport <b>opaque / columnar</b> isole donc le coût de l'abstraction (fast paths perdus), et <b>vortex / opaque</b> isole le coût du stockage Vortex lui-même. Leur produit donne <b>vortex / columnar</b>.</p>
+<p>Les trois variantes d'une requête sont dans le même groupe binggan, donc entrelacées (32 itérations de groupe, nombre d'itérations par bench auto-détecté, médiane). Les ratios sont calculés à l'intérieur de chaque passe, puis on prend la médiane sur les passes. La colonne « dispersion » est l'écart max − min des ratios vortex / columnar entre passes, rapporté à la médiane ; les requêtes au-dessus de 10 % sont marquées ↯ et ont été relancées.</p>
+<p>Les champs enregistrés sont tous les fast fields non-JSON : <code>score</code>, <code>score_f64</code>, <code>score_i64</code>, <code>timestamp</code>, <code>timestamp_26_bits</code> et les sept champs texte. Le champ JSON <code>json.mixed_type</code> reste toujours lu par le columnar.</p>
+</div>
+<div class="callout"><b>Machine.</b> <code>sysctl</code> indique un <b>Apple M4 Max</b> (12 cœurs performance + 4 efficacité, 64 Go), sous macOS 26.6.2, et non un M5. Les benchs sont mono-thread ; rien d'autre ne tournait pendant les passes (les compilations et les autres mesures ont été faites entre les passes).</div>
+</section>
+
+<section id="integration">
+<h2>Intégration</h2>
+<div class="prose">
+<p>Tout le code est dans le crate autonome <code>vortex-bench/</code> (son propre workspace, pour ne pas ajouter l'arbre de dépendances Vortex au workspace tantivy). Aucune modification de tantivy n'est nécessaire pour la phase 1.</p>
+</div>
+<div class="diagram"><pre>
+ écriture (commit ou merge)                          lecture (agrégation)
+ ──────────────────────────                          ────────────────────
+ SegmentWriter::finalize                             AggregationCollector
+   ├─ fieldnorms, postings, store                      └─ AggContextParams::value_sources
+   ├─ fast fields ─────► &lt;seg&gt;.fast  (columnar)            "score" ─► VortexValueSourceProvider
+   └─ VortexPlugin                     │                                 │ for_segment(reader)
+        relit &lt;seg&gt;.fast ◄─────────────┘                                 ▼
+        1 colonne ─► 1 fichier Vortex                    VortexSegmentCache  (ouverture 1× / segment)
+        (stratégie d'écriture par défaut :                 └─ chunks compressés (ArrayRef) par colonne
+         BtrBlocks, zones de 8192 lignes)                        │
+        └─► &lt;seg&gt;.vortex                               VortexValueSource  (1 par collecteur)
+                                                           load_block(docs)
+                                                             ├─ LRU de 8 chunks décompressés
+                                                             └─ conversion en u64 monotone tantivy
+</pre></div>
+<div class="prose">
+<h3>Écriture : le plugin de segment</h3>
+<p><code>VortexPlugin</code> implémente <code>SegmentPlugin</code> avec l'extension <code>vortex</code>. Il n'accumule rien pendant l'indexation : les plugins custom sont sérialisés et mergés après les built-ins, donc il relit le <code>.fast</code> du segment et convertit chaque colonne non-JSON de type <code>u64</code>, <code>i64</code>, <code>f64</code>, date ou texte. Le même code sert pour <code>serialize</code> et pour <code>merge</code>.</p>
+<ul>
+<li>Les valeurs sont stockées dans leur type logique (<code>u64</code>, <code>i64</code>, <code>f64</code>, timestamp nanosecondes en type extension temporel), pour laisser à BtrBlocks ses schémas spécialisés (ALP pour les flottants, DateTimeParts pour les dates).</li>
+<li>Les colonnes texte stockent les <b>ords</b> (<code>u32</code>) du dictionnaire sstable de tantivy. Le dictionnaire n'est pas dupliqué : la <code>ValueSource</code> le récupère dans le fast field au moment de la requête. Une variante « strings natives » est mesurée à part pour le volume.</li>
+<li>Cardinalité : <code>Full</code> devient un tableau non nullable, <code>Optional</code> un tableau nullable, <code>Multivalued</code> une <code>List</code>.</li>
+<li>Chaque colonne est un fichier Vortex autonome écrit avec la stratégie par défaut de <code>vortex-file</code> 0.88 (repartition en blocs de 8192 lignes avec statistiques de zone, coalescence vers ~1 Mo non compressé, compression BtrBlocks). Le fichier <code>.vortex</code> est la concaténation de ces fichiers, alignés sur 64 octets, suivie d'un pied JSON.</li>
+</ul>
+<h3>Lecture : la ValueSource</h3>
+<ul>
+<li>Un <code>VortexSegmentCache</code> partagé par tous les providers ouvre le <code>.vortex</code> une fois par segment (copie alignée, <code>open_buffer</code>, scan) et garde les chunks compressés. C'est l'équivalent de ce que ferait un <code>SegmentReader</code> ; tantivy ouvre ses colonnes à chaque requête, mais pour un coût négligeable (mmap + en-tête).</li>
+<li>Chaque collecteur reçoit sa propre <code>VortexValueSource</code>. <code>load_block</code> découpe le bloc de docs en runs par chunk, décompresse le chunk en tableau canonique (<code>execute::&lt;PrimitiveArray&gt;</code>), puis convertit vers le mapping <code>u64</code> monotone de tantivy en recopiant les valeurs demandées.</li>
+<li>Les 8 derniers chunks décompressés sont gardés (LRU). La première version n'en gardait qu'un ; voir <a href="#v1">l'effet de ce choix</a>.</li>
+<li><code>bounds()</code> renvoie le min / max calculé à l'écriture, ce qui garde le chemin « dense » des histogrammes. <code>as_column()</code> renvoie <code>None</code> : les fast paths qui en dépendent sont perdus (voir <a href="#phase2">Fast paths</a>).</li>
+</ul>
+<h3>Non supporté par une source enregistrée</h3>
+<p>Ces requêtes échouent en <code>opaque</code> comme en <code>vortex</code>, par conception actuelle de tantivy : <code>multi_terms</code> et <code>composite</code> refusent les sources enregistrées, <code>top_hits</code> exige la colonne physique, et <code>missing</code> n'est pas supporté sur une source texte calculée. Elles n'apparaissent qu'en <code>columnar</code> dans les tableaux.</p>
+</div>
+</section>
+
+<section id="volume">
+<h2>Volume des fichiers</h2>
+<div class="prose">
+<p>La comparaison porte sur les colonnes elles-mêmes : la colonne tantivy (valeurs + index optional / multivalué, sans le dictionnaire) contre le fichier Vortex de la même colonne. Le fichier <code>.fast</code> contient en plus les dictionnaires sstable (que la variante Vortex réutilise) et la colonne JSON, d'où l'écart entre les deux dernières colonnes du tableau.</p>
+</div>
+<div class="scroll" id="size-totals"></div>
+<figure>
+  <div class="legend"><span><span class="swatch sw-columnar"></span>colonnes tantivy</span><span><span class="swatch sw-vortex"></span>colonnes vortex</span></div>
+  <div class="chart" id="size-bars"></div>
+  <figcaption>Somme des 12 colonnes converties, par index. Les dictionnaires texte de tantivy (8,4 Mo en mono-segment) sont communs aux deux variantes et exclus.</figcaption>
+</figure>
+<div class="prose">
+<h3>Ce qu'il faut retenir</h3>
+<ul class="findings">
+<li><b>Colonnes pleines, mono-segment : match nul.</b> 25,13 Mo contre 25,04 Mo (−0,4 %). Les deux formats font du bitpacking sur les mêmes données : <code>score</code> tient en 20 bits par valeur dans les deux cas (2,44 Mo). Vortex gagne 8 % sur <code>timestamp</code> grâce à DateTimeParts, perd 4 % sur <code>timestamp_26_bits</code>, et ALP-RD fait jeu égal sur <code>score_f64</code> (6,92 contre 7,00 Mo, des log-normales sans structure décimale).</li>
+<li><b>Optional et sparse : Vortex gagne.</b> −6 % en <code>dense</code> (un seul doc sans valeur : la validité se compresse presque à rien), −30 % en <code>sparse</code> (encodage <code>sparse</code> + <code>sequence</code> pour les positions).</li>
+<li><b>Multivalué : −34 %, mais sur un cas favorable.</b> Dans ce jeu de données un seul document a deux valeurs : les offsets de liste forment une suite arithmétique que Vortex encode en <code>vortex.sequence</code> (quasi gratuit). Côté tantivy, l'index multivalué de <code>single_term</code> pèse 1,5 Mo pour 1 M de docs alors que les valeurs elles-mêmes ne coûtent rien ; c'est à regarder séparément dans le codec de tantivy. Sur des données réellement multivaluées, l'écart serait plus faible.</li>
+<li><b>Petits segments : Vortex perd nettement.</b> +15 % à 100 segments, ×2,2 à 1000 segments. Chaque fichier Vortex a un coût fixe d'environ 2 ko (footer, dtype, layout, statistiques de zone) ; ici il y a un fichier par colonne et par segment, soit 12 000 fichiers pour l'index à 1000 segments. Un seul fichier Vortex par segment (struct de colonnes) réduirait cette part, voir <a href="#struct">la mesure</a>.</li>
+<li><b>Strings natives : beaucoup plus gros.</b> Stocker les chaînes dans Vortex plutôt que les ords + le dictionnaire tantivy coûte 14,5 Mo contre 10,9 Mo pour <code>text_all_unique_terms</code> et 6,1 Mo contre 2,26 Mo pour <code>text_many_terms</code> (150 000 termes). Pour les colonnes à faible cardinalité, l'encodage dictionnaire de Vortex fait jeu égal. Garder le dictionnaire sstable reste le bon choix.</li>
+<li><b>Format fichier :</b> en mono-segment, le fichier Vortex n'ajoute rien de mesurable par rapport au tableau compressé en mémoire (25,04 contre 25,06 Mo), les statistiques de zone sont compensées par une compression par chunk.</li>
+</ul>
+</div>
+<details open>
+<summary>Détail par colonne, entrée <code>full</code></summary>
+<div class="scroll" id="size-full"></div>
+</details>
+<details>
+<summary>Détail par colonne, entrée <code>multivalue</code></summary>
+<div class="scroll" id="size-multi"></div>
+</details>
+<details>
+<summary>Détail par colonne, entrée <code>sparse</code></summary>
+<div class="scroll" id="size-sparse"></div>
+</details>
+<p class="small">« vortex en mémoire » : le même tableau compressé directement par <code>BtrBlocksCompressor</code>, sans format fichier. Pour les index multi-segments, les colonnes « en mémoire », « strings natives » et « date en i64 » ne portent que sur les 3 premiers segments.</p>
+</section>
+<section id="perf">
+<h2>Performances</h2>
+<div class="prose">
+<p>Moyennes géométriques des ratios de temps par groupe de requêtes (médiane de 2 passes complètes, 3 pour les requêtes relancées). En vert : plus rapide que la référence, en rouge : plus lent. Entre parenthèses, le nombre de requêtes que la variante sait exécuter.</p>
+</div>
+<h3>Vortex / columnar : l'effet total</h3>
+<div class="scroll" id="matrix-vortex"></div>
+<div class="two">
+  <div><h3>Opaque / columnar : le coût de l'abstraction</h3><div class="scroll" id="matrix-opaque"></div></div>
+  <div><h3>Vortex / opaque : le coût du stockage</h3><div class="scroll" id="matrix-vo"></div></div>
+</div>
+<figure>
+  <div class="legend"><span><span class="swatch sw-opaque"></span>opaque / columnar</span><span><span class="swatch sw-vortex"></span>vortex / columnar</span><span>échelle logarithmique, un point par requête</span></div>
+  <div class="chart" id="strip"></div>
+  <figcaption>Distribution des ratios par entrée. Le nuage violet montre ce que coûte le seul passage par <code>ValueSource</code> ; l'écart entre violet et bleu est l'effet du stockage Vortex.</figcaption>
+</figure>
+
+<div class="prose">
+<h3>Lecture des résultats</h3>
+<ul class="findings">
+<li><b>Le stockage Vortex coûte peu en scan complet, et gagne sur les colonnes optional et multivaluées.</b> Hors requêtes filtrées, Vortex / opaque vaut ×1,10 en <code>full</code>, ×0,89 en <code>dense</code>, ×1,00 en <code>sparse</code> et ×0,75 en <code>multivalue</code>. Sur colonne pleine, tantivy décode directement 64 valeurs bitpackées dans le buffer de sortie ; Vortex décompresse un chunk entier (~82 000 lignes) dans un tableau canonique puis on recopie. Sur colonne optional ou multivaluée, tantivy doit passer par son index (rang dans l'optional index, offsets du multivalué) pour chaque bloc, ce qui coûte plus cher que la validité et les offsets déjà décompressés de Vortex.</li>
+<li><b>La pénalité de l'abstraction domine en <code>full</code>.</b> Opaque / columnar vaut ×1,56 en moyenne et jusqu'à ×9,3. Les pires cas sont des fast paths qui exigent <code>as_column()</code> : le collecteur aplati terms × histogramme (<code>terms_status_with_date_histogram*</code>, ×3,6 à ×9,3), le <code>BitSet</code> du cardinality sur texte (<code>cardinality_agg_low_card</code>, ×3,5), et les stockages <code>Vec</code> / <code>Paged</code> du terms agg, choisis à partir du max de la colonne (<code>terms_7</code> ×2,7, <code>terms_all_unique</code> ×2,9). Sur les autres entrées l'écart est plus faible, parce que ces fast paths exigent souvent une colonne pleine.</li>
+<li><b>Requêtes sélectives : Vortex est nettement plus lent.</b> Avec le filtre à 1 %, Vortex / opaque va de ×1,1 à ×6,1. Pour lire ~10 000 valeurs, tantivy fait 10 000 accès directs (7 µs par colonne au micro-bench) ; Vortex décompresse tous les chunks touchés, c'est-à-dire toute la colonne, puisque les correspondances sont réparties partout (0,1 à 1 ms par colonne). Un chemin <code>take()</code> a été essayé sans gain net, voir <a href="#decodage">Décodage seul</a>.</li>
+<li><b>Beaucoup de segments : neutre.</b> À 100 et 1000 segments, Vortex / opaque reste à ×1,02–1,04 : le cache par segment rend l'ouverture gratuite, et ces requêtes sont dominées par la fusion des résultats.</li>
+<li><b>Mémoire.</b> Le cache de 8 chunks décompressés coûte jusqu'à ~5 Mo par colonne et par collecteur (colonnes <code>u64</code>), visible dans la mesure mémoire de binggan : <code>average_u64</code> passe de quelques ko à 4,9 Mo. Pour un scan pur, un seul chunk suffirait ; la taille du cache pourrait dépendre du type de collecteur.</li>
+</ul>
+</div>
+
+<h3>Détail par requête</h3>
+<div class="controls">
+  <div class="seg" id="input-seg" role="group" aria-label="Entrée"></div>
+  <label for="group-select" class="small">groupe</label><select id="group-select"></select>
+  <label for="req-search" class="small">filtre</label><input id="req-search" type="search" placeholder="nom de requête">
+  <span class="small" id="detail-count"></span>
+</div>
+<div class="legend"><span><span class="pill pill-ok">=</span> résultat identique au columnar</span><span><span class="pill pill-approx">≈</span> différent du columnar mais identique à opaque</span><span><span class="pill pill-err">n/a</span> refusé pour une source enregistrée</span><span>↯ dispersion entre passes &gt; 10 %</span><span>cliquer un en-tête pour trier</span></div>
+<div class="scroll" id="detail-table" style="max-height:640px;overflow:auto"></div>
+
+<h3 id="v1">Première version : un seul chunk en cache</h3>
+<div class="prose">
+<p>La première passe utilisait une <code>ValueSource</code> qui ne gardait que le dernier chunk décompressé. En scan pur cela suffit, mais les sous-agrégations reçoivent leurs docs par lots bufferisés (jusqu'à 2048 docs, regroupés par bucket parent) : en <code>sparse</code>, un lot couvre ~43 000 lignes, donc souvent deux chunks, et chaque bucket du lot redécompressait ces chunks. Résultat : Vortex / opaque à ×2,87 en moyenne sur <code>sparse</code>, et jusqu'à ×195 sur certaines requêtes filtrées. Avec un LRU de 8 chunks, la moyenne retombe à ×1,03 et le pire cas à ×6,1. Toute intégration réelle d'un format par chunks dans les agrégations devra prévoir ce cache (ou trier les accès).</p>
+</div>
+</section>
+
+<section id="decodage">
+<h2>Décodage seul</h2>
+<div class="prose">
+<p>Micro-bench sans agrégation (<code>examples/decode_bench.rs</code>) : appels à <code>ValueSource::load_block</code> par blocs de 64 docs, comme le collecteur, soit sur tous les docs (« scan »), soit sur les ~10 000 docs du filtre à 1 % (« filtré »). Meilleur temps sur 15 répétitions, une source neuve à chaque répétition. Le tableau donne vortex / columnar.</p>
+</div>
+<div class="scroll" id="decode-table"></div>
+<details>
+<summary>Temps absolus, entrée <code>full</code></summary>
+<div class="scroll" id="decode-abs"></div>
+</details>
+<div class="prose">
+<p>Sur colonne pleine, tantivy lit une valeur en 0,17 à 0,43 ns ; Vortex en 0,36 à 1,03 ns. Les plus coûteux côté Vortex sont <code>score_f64</code> (ALP-RD) et les dates (DateTimeParts, qui recompose jours, secondes et sous-secondes). Sur les colonnes optional et multivaluées, Vortex est plus rapide : ×0,69 à ×0,98 en <code>dense</code>, ×0,76 à ×0,83 en <code>sparse</code> (sauf les dates, ×1,4) et ×0,50 à ×0,61 en <code>multivalue</code>. Côté tantivy, chaque bloc passe par <code>row_ids_for_docs</code> (rang dans l'optional index, offsets du multivalué) puis par un <code>get_vals</code> sur les lignes obtenues ; Vortex a déjà la validité et les offsets décompressés.</p>
+<h3>Essai : <code>take()</code> pour les blocs creux</h3>
+<p>Pour les accès filtrés, une variante appelle <code>ArrayRef::take</code> sur le chunk compressé au lieu de le décompresser, dès qu'un run de docs couvre plus de 4 fois sa taille (<code>VORTEX_TAKE_SPAN_RATIO=4</code>, colonnes non multivaluées seulement). Le gain est réel en <code>dense</code> (×0,52 à ×0,79), mais c'est une perte en <code>sparse</code> (×1,3 à ×1,6) et sur les ords texte en <code>full</code> (×1,3 à ×1,5) : chaque appel paie un surcoût fixe (construction d'un <code>DictArray</code>, optimisation, exécution) de l'ordre de la microseconde pour un bloc de 64 docs. Le chemin est désactivé par défaut. Dans tous les cas on reste un à deux ordres de grandeur au-dessus des 6 à 31 µs de tantivy.</p>
+</div>
+<div class="scroll" id="take-table"></div>
+</section>
+<section id="phase2">
+<h2>Phase 2 : fast paths via <code>bounds()</code></h2>
+<div class="prose">
+<p>Deux fast paths ne dépendent de <code>as_column()</code> que pour lire le maximum de la colonne : le choix du stockage du terms agg (<code>Vec</code> avec voies de comptage, <code>Vec</code>, <code>PagedTermMap</code> ou <code>HashMap</code>, selon le plus grand ord) et le <code>BitSet</code> du cardinality sur texte. Pour une colonne physique, <code>ValueSource::bounds()</code> renvoie exactement <code>(min_value, max_value)</code>, et son contrat (« bornes globales, pour les fast paths qui doivent dimensionner quelque chose à l'avance ») couvre cet usage. Le patch <code>patches/value_source_bounds_fast_paths.patch</code> remplace donc ces deux lectures par <code>bounds()</code>. Le comportement du columnar est inchangé, les 328 tests d'agrégation de tantivy passent, et une passe complète a été refaite avec le patch (il a été retiré de l'arbre ensuite).</p>
+</div>
+<div class="scroll" id="phase2-summary"></div>
+<div class="prose">
+<p>Le columnar ne bouge pas (moyenne géométrique des temps ×1,00 entre les deux passes). La pénalité de l'abstraction disparaît presque partout : <code>cardinality_agg_low_card</code> passe de ×3,47 à ×1,01, <code>terms_all_unique</code> de ×2,93 à ×1,00, <code>terms_7</code> de ×2,69 à ×1,01. Les résultats deviennent aussi identiques au columnar (mêmes stockages, donc même ordre d'insertion HLL et même départage des ex-æquo).</p>
+<p>Ce qui reste : le collecteur aplati terms × histogramme exige les <code>ColumnValues</code> d'une colonne pleine (×2,3 à ×7,0 en <code>full</code>), et le chemin un-doc du collecteur de stats sous un terms à forte cardinalité (×1,3 à ×1,4 en <code>dense</code>, par exemple <code>terms_many_with_avg_sub_agg</code>).</p>
+</div>
+<details>
+<summary>Les <span id="phase2-count"></span> requêtes dont opaque / columnar baisse de plus de 5 %</summary>
+<div class="scroll" id="phase2-table" style="max-height:560px;overflow:auto"></div>
+</details>
+</section>
+<section id="correction">
+<h2>Correction des résultats</h2>
+<div class="prose">
+<p>Avant chaque groupe binggan, la requête est exécutée une fois par variante et le JSON du résultat est comparé à celui du columnar. Vortex et opaque renvoient <b>toujours exactement le même résultat</b> (même hash), sur toutes les requêtes et toutes les entrées : la colonne Vortex est une copie fidèle de la colonne tantivy.</p>
+<p>Les écarts avec le columnar viennent du chemin d'agrégation emprunté par les sources enregistrées, pas des valeurs lues :</p>
+<ul>
+<li><b>cardinality</b> : le sketch HLL de tantivy utilise un estimateur dont le résultat dépend de l'ordre d'insertion. Le chemin <code>BitSet</code> insère les termes par ord croissant, le chemin <code>TermOrdSet</code> dans un autre ordre : 152 236 contre 153 190 pour une vraie cardinalité de ~150 000.</li>
+<li><b>terms avec ex-æquo</b> (<code>terms_all_unique</code>, les nested à 1 % et à 100 segments) : tous les buckets candidats ont le même <code>doc_count</code>, et le stockage <code>HashMap</code> ne départage pas les ex-æquo comme le stockage <code>Vec</code>. Les deux résultats sont valides.</li>
+</ul>
+</div>
+<div class="scroll" id="verify-table"></div>
+</section>
+
+<section id="stabilite">
+<h2>Stabilité des mesures</h2>
+<div class="prose">
+<p>Deux passes complètes avec l'implémentation finale (31 min chacune), puis une troisième passe sur les 26 requêtes aux ratios les plus extrêmes (toutes les requêtes filtrées à 1 %, et les cas multivalués où Vortex est 40 % plus rapide). Sur 250 requêtes mesurées dans les trois variantes, la dispersion médiane du ratio vortex / columnar entre passes est de 0,8 %, le 90<sup>e</sup> centile de 3,0 % et le maximum de 5,7 %. Aucune requête n'a dépassé le seuil de 10 %, et la troisième passe a reproduit les extrêmes à ±2 %.</p>
+<p>Les temps absolus du columnar varient davantage d'une passe à l'autre (jusqu'à 7 %, par exemple <code>terms_many_with_avg_sub_agg</code> : 12,9 puis 12,1 ms). C'est le type d'incohérence que l'on observe en lançant <code>agg_bench</code> deux fois ; l'entrelacement des trois variantes dans un même groupe binggan l'élimine des ratios.</p>
+</div>
+<div class="scroll" id="stability-table"></div>
+<p class="small">Les 15 requêtes les plus dispersées.</p>
+</section>
+
+<section id="suite">
+<h2>Suites possibles</h2>
+<div class="prose">
+<ul class="findings">
+<li><b>Faire porter les fast paths par le trait, pas par <code>as_column()</code>.</b> C'est le levier principal, indépendamment de Vortex : toute source calculée en profite. <code>bounds()</code> suffit pour le choix de stockage du terms agg et le <code>BitSet</code> du cardinality (voir <a href="#phase2">phase 2</a>). Il reste le collecteur aplati terms × histogramme, le chemin un-doc du collecteur de stats et les histogrammes / ranges qui supposent une source multivaluée : un indice de cardinalité (<code>Cardinality</code> maximale de la source) et un accès « bloc complet » couvriraient la plupart.</li>
+<li><b>Requêtes sélectives.</b> Des chunks plus petits pour les colonnes souvent filtrées (<code>with_row_block_size</code> sans coalescence) ou un décodage par blocs FastLanes de 1024 valeurs limiteraient la décompression inutile. Le <code>take()</code> générique a un surcoût fixe trop élevé pour des blocs de 64 docs.</li>
+<li><b>Un fichier Vortex par segment.</b> Écrire une struct de colonnes plutôt qu'un fichier par colonne ramène l'overhead des petits segments de +15 % à +8 % (100 segments) et de ×2,2 à ×1,5 (1000 segments). Au-delà, il faudrait alléger les statistiques de zone pour les petits segments.</li>
+<li><b>Garder le dictionnaire sstable</b> pour le texte : les strings natives Vortex sont 1,3 à 2,7 fois plus grosses sur les colonnes à forte cardinalité, et les ords tantivy se compressent aussi bien des deux côtés.</li>
+<li><b>Côté tantivy</b> : l'index multivalué coûte ~1,5 Mo par million de docs même quand presque chaque doc a une seule valeur, et la lecture optional / multivaluée est 1,5 à 2 fois plus lente que celle de Vortex au micro-bench. Ce sont deux pistes d'amélioration du columnar existant.</li>
+</ul>
+</div>
+<div id="struct" class="scroll"><table><thead><tr><th class="l">index</th><th>segments mesurés</th><th>1 fichier par colonne</th><th>1 fichier struct par segment</th><th>gain</th></tr></thead><tbody id="struct-body"></tbody></table></div>
+<p class="small">Mesure faite par <code>examples/struct_file_size.rs</code> sur les 100 premiers segments au plus.</p>
+</section>
+
+<section id="repro">
+<h2>Reproduire</h2>
+<div class="prose">
+<p>Tout est dans <code>vortex-bench/</code>, à la racine du checkout tantivy (non commité).</p>
+</div>
+<div class="diagram"><pre>
+vortex-bench/
+  src/format.rs        format du composant .vortex (fichiers Vortex concaténés + pied JSON)
+  src/writer.rs        VortexPlugin : SegmentPlugin, conversion columnar → Vortex
+  src/source.rs        VortexValueSource / Provider / cache de segments, LRU de chunks
+  src/opaque.rs        groupe témoin : colonnes tantivy derrière une source enregistrée
+  benches/agg_bench_vortex.rs   copie de agg_bench, 3 variantes entrelacées, vérification
+  examples/size_report.rs       volumes par colonne et variantes de stockage
+  examples/decode_bench.rs      micro-bench load_block
+  examples/struct_file_size.rs  1 fichier par colonne vs 1 fichier struct par segment
+  patches/value_source_bounds_fast_paths.patch   phase 2 (tantivy)
+  report/                       agrégation et génération de ce rapport
+  runs/                         données brutes (JSON lines)
+
+cd vortex-bench
+cargo bench --bench agg_bench_vortex                  # crée les index dans agg_bench_vortex/
+VORTEX_BENCH_INPUTS=full VORTEX_BENCH_GROUPS=terms \
+  VORTEX_BENCH_SEGMENTS= cargo bench --bench agg_bench_vortex
+VORTEX_CHUNK_CACHE=1 ...        # la version v1 (un seul chunk en cache)
+VORTEX_TAKE_SPAN_RATIO=4 ...    # essai take()
+cargo run --release --example size_report -- sizes.json agg_bench_vortex/Full ...
+python3 report/aggregate.py runs/agg.json runs/run2 runs/run3 runs/run4
+</pre></div>
+</section>

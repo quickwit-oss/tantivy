@@ -1,0 +1,61 @@
+<section id="perf">
+<h2>Performances</h2>
+<div class="prose">
+<p>Moyennes géométriques des ratios de temps par groupe de requêtes (médiane de 2 passes complètes, 3 pour les requêtes relancées). En vert : plus rapide que la référence, en rouge : plus lent. Entre parenthèses, le nombre de requêtes que la variante sait exécuter.</p>
+</div>
+<h3>Vortex / columnar : l'effet total</h3>
+<div class="scroll" id="matrix-vortex"></div>
+<div class="two">
+  <div><h3>Opaque / columnar : le coût de l'abstraction</h3><div class="scroll" id="matrix-opaque"></div></div>
+  <div><h3>Vortex / opaque : le coût du stockage</h3><div class="scroll" id="matrix-vo"></div></div>
+</div>
+<figure>
+  <div class="legend"><span><span class="swatch sw-opaque"></span>opaque / columnar</span><span><span class="swatch sw-vortex"></span>vortex / columnar</span><span>échelle logarithmique, un point par requête</span></div>
+  <div class="chart" id="strip"></div>
+  <figcaption>Distribution des ratios par entrée. Le nuage violet montre ce que coûte le seul passage par <code>ValueSource</code> ; l'écart entre violet et bleu est l'effet du stockage Vortex.</figcaption>
+</figure>
+
+<div class="prose">
+<h3>Lecture des résultats</h3>
+<ul class="findings">
+<li><b>Le stockage Vortex coûte peu en scan complet, et gagne sur les colonnes optional et multivaluées.</b> Hors requêtes filtrées, Vortex / opaque vaut ×1,10 en <code>full</code>, ×0,89 en <code>dense</code>, ×1,00 en <code>sparse</code> et ×0,75 en <code>multivalue</code>. Sur colonne pleine, tantivy décode directement 64 valeurs bitpackées dans le buffer de sortie ; Vortex décompresse un chunk entier (~82 000 lignes) dans un tableau canonique puis on recopie. Sur colonne optional ou multivaluée, tantivy doit passer par son index (rang dans l'optional index, offsets du multivalué) pour chaque bloc, ce qui coûte plus cher que la validité et les offsets déjà décompressés de Vortex.</li>
+<li><b>La pénalité de l'abstraction domine en <code>full</code>.</b> Opaque / columnar vaut ×1,56 en moyenne et jusqu'à ×9,3. Les pires cas sont des fast paths qui exigent <code>as_column()</code> : le collecteur aplati terms × histogramme (<code>terms_status_with_date_histogram*</code>, ×3,6 à ×9,3), le <code>BitSet</code> du cardinality sur texte (<code>cardinality_agg_low_card</code>, ×3,5), et les stockages <code>Vec</code> / <code>Paged</code> du terms agg, choisis à partir du max de la colonne (<code>terms_7</code> ×2,7, <code>terms_all_unique</code> ×2,9). Sur les autres entrées l'écart est plus faible, parce que ces fast paths exigent souvent une colonne pleine.</li>
+<li><b>Requêtes sélectives : Vortex est nettement plus lent.</b> Avec le filtre à 1 %, Vortex / opaque va de ×1,1 à ×6,1. Pour lire ~10 000 valeurs, tantivy fait 10 000 accès directs (7 µs par colonne au micro-bench) ; Vortex décompresse tous les chunks touchés, c'est-à-dire toute la colonne, puisque les correspondances sont réparties partout (0,1 à 1 ms par colonne). Un chemin <code>take()</code> a été essayé sans gain net, voir <a href="#decodage">Décodage seul</a>.</li>
+<li><b>Beaucoup de segments : neutre.</b> À 100 et 1000 segments, Vortex / opaque reste à ×1,02–1,04 : le cache par segment rend l'ouverture gratuite, et ces requêtes sont dominées par la fusion des résultats.</li>
+<li><b>Mémoire.</b> Le cache de 8 chunks décompressés coûte jusqu'à ~5 Mo par colonne et par collecteur (colonnes <code>u64</code>), visible dans la mesure mémoire de binggan : <code>average_u64</code> passe de quelques ko à 4,9 Mo. Pour un scan pur, un seul chunk suffirait ; la taille du cache pourrait dépendre du type de collecteur.</li>
+</ul>
+</div>
+
+<h3>Détail par requête</h3>
+<div class="controls">
+  <div class="seg" id="input-seg" role="group" aria-label="Entrée"></div>
+  <label for="group-select" class="small">groupe</label><select id="group-select"></select>
+  <label for="req-search" class="small">filtre</label><input id="req-search" type="search" placeholder="nom de requête">
+  <span class="small" id="detail-count"></span>
+</div>
+<div class="legend"><span><span class="pill pill-ok">=</span> résultat identique au columnar</span><span><span class="pill pill-approx">≈</span> différent du columnar mais identique à opaque</span><span><span class="pill pill-err">n/a</span> refusé pour une source enregistrée</span><span>↯ dispersion entre passes &gt; 10 %</span><span>cliquer un en-tête pour trier</span></div>
+<div class="scroll" id="detail-table" style="max-height:640px;overflow:auto"></div>
+
+<h3 id="v1">Première version : un seul chunk en cache</h3>
+<div class="prose">
+<p>La première passe utilisait une <code>ValueSource</code> qui ne gardait que le dernier chunk décompressé. En scan pur cela suffit, mais les sous-agrégations reçoivent leurs docs par lots bufferisés (jusqu'à 2048 docs, regroupés par bucket parent) : en <code>sparse</code>, un lot couvre ~43 000 lignes, donc souvent deux chunks, et chaque bucket du lot redécompressait ces chunks. Résultat : Vortex / opaque à ×2,87 en moyenne sur <code>sparse</code>, et jusqu'à ×195 sur certaines requêtes filtrées. Avec un LRU de 8 chunks, la moyenne retombe à ×1,03 et le pire cas à ×6,1. Toute intégration réelle d'un format par chunks dans les agrégations devra prévoir ce cache (ou trier les accès).</p>
+</div>
+</section>
+
+<section id="decodage">
+<h2>Décodage seul</h2>
+<div class="prose">
+<p>Micro-bench sans agrégation (<code>examples/decode_bench.rs</code>) : appels à <code>ValueSource::load_block</code> par blocs de 64 docs, comme le collecteur, soit sur tous les docs (« scan »), soit sur les ~10 000 docs du filtre à 1 % (« filtré »). Meilleur temps sur 15 répétitions, une source neuve à chaque répétition. Le tableau donne vortex / columnar.</p>
+</div>
+<div class="scroll" id="decode-table"></div>
+<details>
+<summary>Temps absolus, entrée <code>full</code></summary>
+<div class="scroll" id="decode-abs"></div>
+</details>
+<div class="prose">
+<p>Sur colonne pleine, tantivy lit une valeur en 0,17 à 0,43 ns ; Vortex en 0,36 à 1,03 ns. Les plus coûteux côté Vortex sont <code>score_f64</code> (ALP-RD) et les dates (DateTimeParts, qui recompose jours, secondes et sous-secondes). Sur les colonnes optional et multivaluées, Vortex est plus rapide : ×0,69 à ×0,98 en <code>dense</code>, ×0,76 à ×0,83 en <code>sparse</code> (sauf les dates, ×1,4) et ×0,50 à ×0,61 en <code>multivalue</code>. Côté tantivy, chaque bloc passe par <code>row_ids_for_docs</code> (rang dans l'optional index, offsets du multivalué) puis par un <code>get_vals</code> sur les lignes obtenues ; Vortex a déjà la validité et les offsets décompressés.</p>
+<h3>Essai : <code>take()</code> pour les blocs creux</h3>
+<p>Pour les accès filtrés, une variante appelle <code>ArrayRef::take</code> sur le chunk compressé au lieu de le décompresser, dès qu'un run de docs couvre plus de 4 fois sa taille (<code>VORTEX_TAKE_SPAN_RATIO=4</code>, colonnes non multivaluées seulement). Le gain est réel en <code>dense</code> (×0,52 à ×0,79), mais c'est une perte en <code>sparse</code> (×1,3 à ×1,6) et sur les ords texte en <code>full</code> (×1,3 à ×1,5) : chaque appel paie un surcoût fixe (construction d'un <code>DictArray</code>, optimisation, exécution) de l'ordre de la microseconde pour un bloc de 64 docs. Le chemin est désactivé par défaut. Dans tous les cas on reste un à deux ordres de grandeur au-dessus des 6 à 31 µs de tantivy.</p>
+</div>
+<div class="scroll" id="take-table"></div>
+</section>

@@ -1,0 +1,126 @@
+<section id="perf">
+<h2>7. Performance</h2>
+
+<h3 id="m-method">7.1 Methodology</h3>
+<div class="prose">
+<p>The benchmark is a copy of <code>benches/agg_bench.rs</code> with the same requests and data. For every request, the three variants (columnar, opaque, vortex) are registered in <b>the same binggan group</b>, so they are interleaved: 32 group iterations, an auto-detected number of calls per sample, median reported. Interleaving matters on this machine: the absolute time of the columnar variant drifts by up to 7 % from one run to the next, but the ratios between variants measured within a run are stable. All ratios in this report are computed within a run, then the median over runs is taken.</p>
+<p>Before each group, the request runs once per variant and its result is compared with the columnar result (section 9). Requests rejected by registered sources (<code>multi_terms</code>, <code>composite</code>, <code>top_hits</code>, <code>missing</code> on text: 20 of the 79 requests per input) only appear in the columnar variant.</p>
+<p>Ratios are summarized with geometric means. A ratio below 1 means the variant is faster than the reference.</p>
+</div>
+
+<h3 id="m-overview">7.2 Overview</h3>
+<div class="prose">
+<p>The table below follows the storage cost (<b>vortex / opaque</b>) through the implementation versions, for all requests and for the selective requests only (<code>multi_terms_vs_nested_with_1%_term_query</code>).</p>
+</div>
+<div class="scroll" id="evolution"></div>
+<div class="prose">
+<ul class="findings">
+<li><b>v1 → v2</b>: caching 8 decompressed chunks instead of one removes the thrashing caused by sub-aggregations (section 7.6): the sparse average drops from ×2.87 to ×1.03, and the worst selective requests from ×195 to ×6.</li>
+<li><b>v2 → v3</b>: point access brings the selective requests of the full, dense and multivalue inputs from ×1.8–×3.8 down to ×1.1–×1.4. Thanks to the promotion rule of section 7.6, non-selective requests do not get slower, except sub-aggregations on the sparse input (up to +30 %). Sparse selective requests stay around ×1.4–×1.5. v3a, the first point-access version without promotion, shows what happens without the rule.</li>
+<li>The <b>bounds() patch</b> does not change the storage cost at all; it removes most of the <em>abstraction</em> cost (section 7.4), which is the other half of the story.</li>
+</ul>
+</div>
+<div class="kicker">Final version: vortex / columnar (total effect)</div>
+<div class="scroll" id="matrix-v3-vc"></div>
+<div class="two">
+  <div><div class="kicker">opaque / columnar: cost of the abstraction</div><div class="scroll" id="matrix-oc"></div></div>
+  <div><div class="kicker">vortex / opaque: cost of the storage (final version)</div><div class="scroll" id="matrix-v3-vo"></div></div>
+</div>
+<figure>
+  <div class="legend"><span><span class="swatch sw-opaque"></span>opaque / columnar</span><span><span class="swatch sw-vortex"></span>vortex / columnar</span><span>log scale, one dot per request</span></div>
+  <div class="chart" id="strip-v3"></div>
+  <figcaption>Distribution of the ratios per input, final version. The purple cloud is the cost of going through a registered <code>ValueSource</code> with the tantivy codec; the distance between purple and blue is the effect of the Vortex storage.</figcaption>
+</figure>
+
+<h3 id="m-decode">7.3 Decoding alone</h3>
+<div class="prose">
+<p>To separate storage from aggregation logic, a micro-benchmark calls <code>ValueSource::load_block</code> directly, in blocks of 64 docs like the collector, on every doc ("scan") or on the ~10,000 docs matching the 1 % filter ("filtered"). Each measurement is the best of 15 repetitions, with a fresh source each time (caches shared across queries, such as point accessors, are kept, as they would be in production).</p>
+</div>
+<div class="kicker">Scan: vortex / tantivy</div>
+<div class="scroll" id="decode-scan"></div>
+<div class="kicker">Scan: nanoseconds per value (full input)</div>
+<div class="scroll" id="decode-ns"></div>
+<div class="prose">
+<ul class="findings">
+<li><b>Full columns</b>: tantivy reads a value in 0.17–0.43 ns, Vortex in 0.36–1.03 ns (×1.4 to ×2.8). Vortex decompresses an ~80k-row chunk into a canonical buffer, then the source copies the requested values and maps them to <code>u64</code>; tantivy bit-unpacks 64 values straight into the output block. The most expensive Vortex columns are <code>score_f64</code> (ALP-RD recombines two parts and applies patches) and the dates (DateTimeParts recombines three parts).</li>
+<li><b>Optional and multivalued columns</b>: Vortex is faster (×0.5 to ×0.98). For every block, tantivy translates doc ids into row ids through its optional index (a rank query per doc) or its multivalue index (two offset reads per doc), then gathers the values. Vortex already has the validity bitmap and the list offsets decompressed with the chunk.</li>
+</ul>
+</div>
+<div class="kicker">Filtered (1 %): tantivy vs the three Vortex access strategies</div>
+<div class="scroll" id="decode-filtered" style="max-height:620px;overflow:auto"></div>
+<div class="prose">
+<p>Decompressing whole chunks costs one to two orders of magnitude more than tantivy's direct access; Vortex's generic <code>take()</code> is barely better, and sometimes worse; point access brings full bitpacked columns within ×2.6–×3.6 of tantivy, dense columns within ×1.2, multivalued columns within ×1.2–×1.4, and makes Vortex <b>faster</b> than tantivy on sparse columns (×0.7–×0.86), where tantivy's sparse optional index is relatively expensive to query. Floats and dates remain the hardest case (×1.6 to ×7.6, except on the sparse input).</p>
+</div>
+
+<h3 id="m-abstraction">7.4 The abstraction penalty and the bounds() patch</h3>
+<div class="prose">
+<p>The opaque variant reads exactly the same bytes through exactly the same codec as the columnar variant; the only difference is that the aggregation code does not see the physical column. On the full input this costs ×1.56 on average and up to ×9.4. The worst cases match the fast paths listed in section 2.4:</p>
+<ul>
+<li><code>terms_status_with_date_histogram*</code> and <code>terms_status_with_histogram</code> (×3.6 to ×9.4): the flattened terms × histogram collector needs the raw <code>ColumnValues</code> of two full columns;</li>
+<li><code>cardinality_agg_low_card</code> (×3.5): the pre-sized ordinal bitset needs the maximum ordinal;</li>
+<li><code>terms_7</code>, <code>terms_zipf_90</code>, <code>terms_all_unique</code> (×2.6 to ×2.9): the dense bucket storages are chosen from the maximum ordinal.</li>
+</ul>
+<p>On the other inputs the penalty is smaller (×1.1 to ×1.2) because several of these fast paths require a full column anyway.</p>
+<p>Two of these fast paths only read the column maximum, which <code>ValueSource::bounds()</code> already provides, with exactly the same value for physical columns, and whose contract ("global value bounds, for fast paths that need to size something up front") covers the use. The patch replaces those two reads. The tantivy aggregation tests (328) pass, the columnar variant does not move (geometric mean of times ×1.00 between runs), and the penalty mostly disappears:</p>
+</div>
+<div class="kicker">opaque / columnar with the bounds() patch</div>
+<div class="scroll" id="matrix-bounds-oc"></div>
+<div class="prose">
+<p>What remains is the flattened terms × histogram collector (×2.3 to ×7.0 on full) and the one-doc stats shortcut under high-cardinality terms (×1.3 to ×1.4 on dense). With the patch, vortex / columnar becomes ×1.40 on full, ×1.00 on dense, ×1.05 on sparse and ×0.85 on multivalue (chunk-decode version).</p>
+</div>
+<details><summary>The <span id="phase2-count"></span> requests whose opaque / columnar ratio drops by more than 5 % with the patch</summary><div class="scroll" id="phase2-table" style="max-height:520px;overflow:auto"></div></details>
+
+<h3 id="m-scans">7.5 The cost of the storage on scans</h3>
+<div class="kicker">vortex / opaque, chunk-decode version (v2), all groups</div>
+<div class="scroll" id="matrix-v2-vo"></div>
+<div class="prose">
+<p>Outside selective queries, the storage cost of Vortex is small or negative: ×1.09 on full, ×0.89 on dense, ×1.00 on sparse and ×0.75 on multivalue (geometric means without the filtered group). The decode micro-benchmark explains the pattern: Vortex pays a bulk-decompression and copy cost on full columns that is diluted by the aggregation work, and saves the doc-to-row translation on optional and multivalued columns. On the multivalue input, more than half of the requests run 25 % to 42 % faster with Vortex than with the opaque tantivy columns.</p>
+</div>
+
+<h3 id="m-selective">7.6 Selective queries, version by version</h3>
+<div class="prose">
+<p><b>v1</b> kept a single decompressed chunk. Pure scans do not care, but sub-aggregations receive their docs in buffered batches grouped by parent bucket. On the sparse input a batch covers about 43,000 rows, often two chunks, and every bucket of the batch decompressed these chunks again: the sparse average was ×2.87 and some selective requests were 195 times slower than opaque. <b>v2</b> keeps 8 chunks in an LRU and fixes it.</p>
+<p><b>v2</b> still decompresses every chunk a selective query touches, which is every chunk. <b>v3</b> adds point access (section 8):</p>
+</div>
+<div class="scroll" id="phase3-table"></div>
+<div class="prose">
+<p>The first point-access version (v3a) read every short run point by point. It fixed selective queries but made some scans slower: under a high-cardinality terms aggregation, a sub-aggregation over the whole segment receives a myriad of runs of one or two docs. v2 decompressed each chunk once and served everything from the LRU; v3a read every value point by point, which is more expensive, especially for ALP-RD floats (<code>terms_many_with_avg_sub_agg</code> went from ×1.14 to ×3.48). The final version adds a <b>promotion rule</b> (a "ski rental" strategy): point reads into a chunk are charged a cost per value plus a cost per run, and once the accumulated cost exceeds a fraction of the cost of decompressing the chunk, the chunk is decompressed and served from the LRU. Whatever the access pattern, the total stays within a small factor of the better of the two strategies.</p>
+<p>The constants of the rule matter. A targeted comparison on the requests most sensitive to them:</p>
+</div>
+<div class="scroll" id="ab-table" style="max-height:620px;overflow:auto"></div>
+<div class="prose">
+<p>A higher per-run cost promotes chunks earlier: it recovers the small loss on sparse sub-aggregations, but promotes chunks of selective queries too, which brings back part of the v2 cost on the filtered nested requests. The default (16) is the best compromise on this set. A cost model per encoding (point reads into a sparse chunk are relatively expensive, decompressing it is cheap) would remove most of the trade-off.</p>
+</div>
+<div class="kicker">Requests outside the filtered group that moved by more than 8 % between v2 and the final version</div>
+<div class="scroll" id="phase3-regressions"></div>
+
+<h3 id="m-segments">7.7 Many segments</h3>
+<div class="prose">
+<p>On the 100- and 1,000-segment indexes, vortex / opaque stays at ×1.02 to ×1.05 in every version. Once the per-segment cache is warm, opening a segment costs nothing, and these requests are dominated by merging intermediate results across segments. The abstraction penalty (×1.2 to ×1.3) disappears with the bounds() patch.</p>
+</div>
+
+<h3 id="m-memory">7.8 Memory</h3>
+<div class="prose">
+<p>The LRU of decompressed chunks costs up to about 5 MB per column and per collector for 64-bit columns (8 chunks of ~80k values). It is visible in binggan's memory measurement: <code>average_u64</code> goes from a few kB to 4.9 MB. A pure scan would only need one chunk; the LRU size could depend on whether the collector is a sub-aggregation. Point accessors are shared per segment and reference the compressed buffers without copying them; they only materialize validity bitsets, patches and small dictionaries.</p>
+</div>
+
+<h3 id="m-all">7.9 All requests</h3>
+<div class="controls">
+  <div class="seg" id="dataset-seg" role="group" aria-label="Implementation version"></div>
+</div>
+<div class="controls">
+  <div class="seg" id="input-seg" role="group" aria-label="Input"></div>
+  <label for="group-select" class="small">group</label><select id="group-select"></select>
+  <label for="req-search" class="small">filter</label><input id="req-search" type="search" placeholder="request name">
+  <span class="small" id="detail-count"></span>
+</div>
+<div class="legend"><span><span class="pill pill-ok">=</span> identical to columnar</span><span><span class="pill pill-approx">≈</span> differs from columnar, identical to opaque</span><span><span class="pill pill-err">n/a</span> rejected for registered sources</span><span>↯ spread across runs &gt; 10 %</span><span>click a header to sort</span></div>
+<div class="scroll" id="detail-table" style="max-height:640px;overflow:auto"></div>
+
+<h3 id="m-stability">7.10 Stability</h3>
+<div class="prose">
+<p>The chunk-decode version (v2) was measured in three full runs plus a targeted rerun of the 26 most extreme requests: over the 250 requests measured in all three variants, the median spread of the vortex / columnar ratio across runs is 1.2 %, the 90th percentile 3.7 %, the maximum 13 %. The extreme ratios of the selective group reproduced within ±2 %.</p><p>The final version (v3) was measured in two full runs, plus a third run of the four requests whose spread exceeded 10 %: median spread 0.6 %, 90th percentile 2.9 %. Those four (<code>cardinality_agg_low_card</code>, <code>terms_all_unique</code> and <code>terms_many_with_single_term_2_order_by_card</code> on full, a nested terms on 100 segments) keep an 11 % to 15 % spread over three runs; they are either very short (0.6 ms) or dominated by cross-segment merging. The report uses the median of the three runs. A run of the previous version that was accidentally made with the v2 binary while v3 was expected doubled as a fourth v2 run, and confirmed the columnar times within 1 %.</p>
+</div>
+<div class="scroll" id="stability-table"></div>
+<p class="small">The 12 most dispersed requests of v2.</p>
+</section>

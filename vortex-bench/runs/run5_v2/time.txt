@@ -1,0 +1,1 @@
+VORTEX_BENCH_OUT=runs/point_run1/results.jsonl VORTEX_BENCH_VERIFY_OUT= $BIN   1876.87s user 42.32s system 99% cpu 32:02.67 total

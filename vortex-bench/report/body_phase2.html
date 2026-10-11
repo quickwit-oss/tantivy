@@ -1,0 +1,15 @@
+<section id="phase2">
+<h2>Phase 2 : fast paths via <code>bounds()</code></h2>
+<div class="prose">
+<p>Deux fast paths ne dépendent de <code>as_column()</code> que pour lire le maximum de la colonne : le choix du stockage du terms agg (<code>Vec</code> avec voies de comptage, <code>Vec</code>, <code>PagedTermMap</code> ou <code>HashMap</code>, selon le plus grand ord) et le <code>BitSet</code> du cardinality sur texte. Pour une colonne physique, <code>ValueSource::bounds()</code> renvoie exactement <code>(min_value, max_value)</code>, et son contrat (« bornes globales, pour les fast paths qui doivent dimensionner quelque chose à l'avance ») couvre cet usage. Le patch <code>patches/value_source_bounds_fast_paths.patch</code> remplace donc ces deux lectures par <code>bounds()</code>. Le comportement du columnar est inchangé, les 328 tests d'agrégation de tantivy passent, et une passe complète a été refaite avec le patch (il a été retiré de l'arbre ensuite).</p>
+</div>
+<div class="scroll" id="phase2-summary"></div>
+<div class="prose">
+<p>Le columnar ne bouge pas (moyenne géométrique des temps ×1,00 entre les deux passes). La pénalité de l'abstraction disparaît presque partout : <code>cardinality_agg_low_card</code> passe de ×3,47 à ×1,01, <code>terms_all_unique</code> de ×2,93 à ×1,00, <code>terms_7</code> de ×2,69 à ×1,01. Les résultats deviennent aussi identiques au columnar (mêmes stockages, donc même ordre d'insertion HLL et même départage des ex-æquo).</p>
+<p>Ce qui reste : le collecteur aplati terms × histogramme exige les <code>ColumnValues</code> d'une colonne pleine (×2,3 à ×7,0 en <code>full</code>), et le chemin un-doc du collecteur de stats sous un terms à forte cardinalité (×1,3 à ×1,4 en <code>dense</code>, par exemple <code>terms_many_with_avg_sub_agg</code>).</p>
+</div>
+<details>
+<summary>Les <span id="phase2-count"></span> requêtes dont opaque / columnar baisse de plus de 5 %</summary>
+<div class="scroll" id="phase2-table" style="max-height:560px;overflow:auto"></div>
+</details>
+</section>

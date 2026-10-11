@@ -1,0 +1,358 @@
+[
+  {
+    "columns": {
+      "score": {
+        "codec": "bitpacked",
+        "dictionary_bytes": 0,
+        "index": "full",
+        "index_bytes": 1,
+        "values_bytes": 2500009
+      },
+      "score_f64": {
+        "codec": "bitpacked",
+        "dictionary_bytes": 0,
+        "index": "full",
+        "index_bytes": 1,
+        "values_bytes": 7000023
+      },
+      "score_i64": {
+        "codec": "bitpacked",
+        "dictionary_bytes": 0,
+        "index": "full",
+        "index_bytes": 1,
+        "values_bytes": 2500018
+      },
+      "single_term": {
+        "codec": "bitpacked",
+        "dictionary_bytes": 49,
+        "index": "full",
+        "index_bytes": 1,
+        "values_bytes": 7
+      },
+      "text_1000_terms_zipf": {
+        "codec": "bitpacked",
+        "dictionary_bytes": 2042,
+        "index": "full",
+        "index_bytes": 1,
+        "values_bytes": 1250008
+      },
+      "text_90_terms_zipf": {
+        "codec": "bitpacked",
+        "dictionary_bytes": 222,
+        "index": "full",
+        "index_bytes": 1,
+        "values_bytes": 875007
+      },
+      "text_all_unique_terms": {
+        "codec": "bitpacked",
+        "dictionary_bytes": 8401872,
+        "index": "full",
+        "index_bytes": 1,
+        "values_bytes": 2500009
+      },
+      "text_few_terms": {
+        "codec": "bitpacked",
+        "dictionary_bytes": 59,
+        "index": "full",
+        "index_bytes": 1,
+        "values_bytes": 250007
+      },
+      "text_few_terms_status": {
+        "codec": "bitpacked",
+        "dictionary_bytes": 80,
+        "index": "full",
+        "index_bytes": 1,
+        "values_bytes": 375007
+      },
+      "text_many_terms": {
+        "codec": "bitpacked",
+        "dictionary_bytes": 13907,
+        "index": "full",
+        "index_bytes": 1,
+        "values_bytes": 2250009
+      },
+      "timestamp": {
+        "codec": "bitpacked",
+        "dictionary_bytes": 0,
+        "index": "full",
+        "index_bytes": 1,
+        "values_bytes": 2375022
+      },
+      "timestamp_26_bits": {
+        "codec": "bitpacked",
+        "dictionary_bytes": 0,
+        "index": "full",
+        "index_bytes": 1,
+        "values_bytes": 3250023
+      }
+    },
+    "index": "agg_bench_vortex/Full"
+  },
+  {
+    "columns": {
+      "score": {
+        "codec": "bitpacked",
+        "dictionary_bytes": 0,
+        "index": "optional",
+        "index_bytes": 163910,
+        "values_bytes": 2500009
+      },
+      "score_f64": {
+        "codec": "bitpacked",
+        "dictionary_bytes": 0,
+        "index": "optional",
+        "index_bytes": 163910,
+        "values_bytes": 7000023
+      },
+      "score_i64": {
+        "codec": "bitpacked",
+        "dictionary_bytes": 0,
+        "index": "optional",
+        "index_bytes": 163910,
+        "values_bytes": 2500018
+      },
+      "single_term": {
+        "codec": "bitpacked",
+        "dictionary_bytes": 49,
+        "index": "optional",
+        "index_bytes": 163910,
+        "values_bytes": 7
+      },
+      "text_1000_terms_zipf": {
+        "codec": "bitpacked",
+        "dictionary_bytes": 2042,
+        "index": "optional",
+        "index_bytes": 163910,
+        "values_bytes": 1250008
+      },
+      "text_90_terms_zipf": {
+        "codec": "bitpacked",
+        "dictionary_bytes": 222,
+        "index": "optional",
+        "index_bytes": 163910,
+        "values_bytes": 875007
+      },
+      "text_all_unique_terms": {
+        "codec": "bitpacked",
+        "dictionary_bytes": 8401872,
+        "index": "optional",
+        "index_bytes": 163910,
+        "values_bytes": 2500009
+      },
+      "text_few_terms": {
+        "codec": "bitpacked",
+        "dictionary_bytes": 59,
+        "index": "optional",
+        "index_bytes": 163910,
+        "values_bytes": 250007
+      },
+      "text_few_terms_status": {
+        "codec": "bitpacked",
+        "dictionary_bytes": 80,
+        "index": "optional",
+        "index_bytes": 163910,
+        "values_bytes": 375007
+      },
+      "text_many_terms": {
+        "codec": "bitpacked",
+        "dictionary_bytes": 13907,
+        "index": "optional",
+        "index_bytes": 163910,
+        "values_bytes": 2250009
+      },
+      "timestamp": {
+        "codec": "bitpacked",
+        "dictionary_bytes": 0,
+        "index": "optional",
+        "index_bytes": 163910,
+        "values_bytes": 2375022
+      },
+      "timestamp_26_bits": {
+        "codec": "bitpacked",
+        "dictionary_bytes": 0,
+        "index": "optional",
+        "index_bytes": 163910,
+        "values_bytes": 3250023
+      }
+    },
+    "index": "agg_bench_vortex/OptionalDense"
+  },
+  {
+    "columns": {
+      "score": {
+        "codec": "bitpacked",
+        "dictionary_bytes": 0,
+        "index": "optional",
+        "index_bytes": 100074,
+        "values_bytes": 125009
+      },
+      "score_f64": {
+        "codec": "bitpacked",
+        "dictionary_bytes": 0,
+        "index": "optional",
+        "index_bytes": 100074,
+        "values_bytes": 350023
+      },
+      "score_i64": {
+        "codec": "bitpacked",
+        "dictionary_bytes": 0,
+        "index": "optional",
+        "index_bytes": 100074,
+        "values_bytes": 125018
+      },
+      "single_term": {
+        "codec": "bitpacked",
+        "dictionary_bytes": 49,
+        "index": "optional",
+        "index_bytes": 100074,
+        "values_bytes": 7
+      },
+      "text_1000_terms_zipf": {
+        "codec": "bitpacked",
+        "dictionary_bytes": 2042,
+        "index": "optional",
+        "index_bytes": 100074,
+        "values_bytes": 62508
+      },
+      "text_90_terms_zipf": {
+        "codec": "bitpacked",
+        "dictionary_bytes": 222,
+        "index": "optional",
+        "index_bytes": 100074,
+        "values_bytes": 43757
+      },
+      "text_all_unique_terms": {
+        "codec": "bitpacked",
+        "dictionary_bytes": 451580,
+        "index": "optional",
+        "index_bytes": 100074,
+        "values_bytes": 100009
+      },
+      "text_few_terms": {
+        "codec": "bitpacked",
+        "dictionary_bytes": 59,
+        "index": "optional",
+        "index_bytes": 100074,
+        "values_bytes": 12507
+      },
+      "text_few_terms_status": {
+        "codec": "bitpacked",
+        "dictionary_bytes": 80,
+        "index": "optional",
+        "index_bytes": 100074,
+        "values_bytes": 18757
+      },
+      "text_many_terms": {
+        "codec": "bitpacked",
+        "dictionary_bytes": 40414,
+        "index": "optional",
+        "index_bytes": 100074,
+        "values_bytes": 100009
+      },
+      "timestamp": {
+        "codec": "bitpacked",
+        "dictionary_bytes": 0,
+        "index": "optional",
+        "index_bytes": 100074,
+        "values_bytes": 118772
+      },
+      "timestamp_26_bits": {
+        "codec": "bitpacked",
+        "dictionary_bytes": 0,
+        "index": "optional",
+        "index_bytes": 100074,
+        "values_bytes": 162523
+      }
+    },
+    "index": "agg_bench_vortex/OptionalSparse"
+  },
+  {
+    "columns": {
+      "score": {
+        "codec": "bitpacked",
+        "dictionary_bytes": 0,
+        "index": "multivalued",
+        "index_bytes": 1538942,
+        "values_bytes": 2500014
+      },
+      "score_f64": {
+        "codec": "bitpacked",
+        "dictionary_bytes": 0,
+        "index": "multivalued",
+        "index_bytes": 1538942,
+        "values_bytes": 7000037
+      },
+      "score_i64": {
+        "codec": "bitpacked",
+        "dictionary_bytes": 0,
+        "index": "multivalued",
+        "index_bytes": 1538942,
+        "values_bytes": 2500023
+      },
+      "single_term": {
+        "codec": "bitpacked",
+        "dictionary_bytes": 49,
+        "index": "multivalued",
+        "index_bytes": 1538942,
+        "values_bytes": 7
+      },
+      "text_1000_terms_zipf": {
+        "codec": "bitpacked",
+        "dictionary_bytes": 2042,
+        "index": "multivalued",
+        "index_bytes": 1538942,
+        "values_bytes": 1250011
+      },
+      "text_90_terms_zipf": {
+        "codec": "bitpacked",
+        "dictionary_bytes": 222,
+        "index": "multivalued",
+        "index_bytes": 1538942,
+        "values_bytes": 875009
+      },
+      "text_all_unique_terms": {
+        "codec": "bitpacked",
+        "dictionary_bytes": 8401826,
+        "index": "multivalued",
+        "index_bytes": 1538942,
+        "values_bytes": 2500014
+      },
+      "text_few_terms": {
+        "codec": "blockwise linear",
+        "dictionary_bytes": 64,
+        "index": "multivalued",
+        "index_bytes": 1538942,
+        "values_bytes": 318893
+      },
+      "text_few_terms_status": {
+        "codec": "bitpacked",
+        "dictionary_bytes": 80,
+        "index": "multivalued",
+        "index_bytes": 1538942,
+        "values_bytes": 375008
+      },
+      "text_many_terms": {
+        "codec": "bitpacked",
+        "dictionary_bytes": 13915,
+        "index": "multivalued",
+        "index_bytes": 1538942,
+        "values_bytes": 2250014
+      },
+      "timestamp": {
+        "codec": "bitpacked",
+        "dictionary_bytes": 0,
+        "index": "optional",
+        "index_bytes": 163910,
+        "values_bytes": 2375022
+      },
+      "timestamp_26_bits": {
+        "codec": "bitpacked",
+        "dictionary_bytes": 0,
+        "index": "optional",
+        "index_bytes": 163910,
+        "values_bytes": 3250023
+      }
+    },
+    "index": "agg_bench_vortex/Multivalued"
+  }
+]

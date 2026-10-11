@@ -1,0 +1,25 @@
+multivalue
+metrics/average_u64
+columnar    Memory: 5.9 KB (-3.43%)    Avg: 7.5851ms (-0.12%)    Median: 7.5732ms (-0.05%)    [7.4804ms .. 7.9502ms]    
+opaque      Memory: 6.3 KB (+3.39%)    Avg: 7.8725ms (+3.68%)    Median: 7.8658ms (+3.96%)    [7.8049ms .. 7.9467ms]    
+vortex      Memory: 9.5 MB (-0.00%)    Avg: 4.7859ms (-0.44%)    Median: 4.7879ms (-0.01%)    [4.6905ms .. 4.9638ms]    
+metrics/cardinality_agg_low_card
+columnar    Memory: 6.2 KB             Avg: 5.6042ms (+0.01%)    Median: 5.5871ms (-0.02%)    [5.5735ms .. 5.8809ms]    
+opaque      Memory: 7.7 KB (-2.60%)    Avg: 7.4016ms (+3.07%)    Median: 7.4035ms (+3.30%)    [7.2661ms .. 7.5513ms]    
+vortex      Memory: 9.7 MB             Avg: 4.5677ms (+0.27%)    Median: 4.5731ms (+0.74%)    [4.5320ms .. 4.6116ms]    
+terms/terms_7
+columnar    Memory: 7.5 KB (+2.75%)    Avg: 5.7492ms (+0.24%)    Median: 5.7210ms (+0.19%)    [5.6972ms .. 6.0283ms]    
+opaque      Memory: 6.3 KB (-3.04%)    Avg: 7.3356ms (+3.68%)    Median: 7.3527ms (+3.93%)    [7.1023ms .. 7.5354ms]    
+vortex      Memory: 9.7 MB             Avg: 4.3806ms (+0.49%)    Median: 4.3680ms (+0.41%)    [4.3213ms .. 4.4845ms]    
+terms/terms_zipf_1000
+columnar    Memory: 36.3 KB     Avg: 5.7572ms (-0.23%)    Median: 5.7438ms (-0.15%)    [5.7310ms .. 5.9836ms]    
+opaque      Memory: 56.3 KB     Avg: 6.7495ms (+5.03%)    Median: 6.7428ms (+4.95%)    [6.6416ms .. 6.9442ms]    
+vortex      Memory: 9.8 MB      Avg: 3.7782ms (+0.62%)    Median: 3.7782ms (+0.78%)    [3.7577ms .. 3.8242ms]    
+terms/terms_zipf_90
+columnar    Memory: 24.7 KB     Avg: 5.7671ms (+0.29%)    Median: 5.7538ms (+0.30%)    [5.7312ms .. 6.0344ms]    
+opaque      Memory: 24.8 KB     Avg: 7.2790ms (+5.28%)    Median: 7.2699ms (+5.08%)    [7.1681ms .. 7.6018ms]    
+vortex      Memory: 9.7 MB      Avg: 4.2733ms (+0.33%)    Median: 4.2739ms (+0.69%)    [4.2448ms .. 4.3310ms]    
+range_and_histogram/histogram_hard_bounds
+columnar    Memory: 7.3 KB (+12.11%)    Avg: 5.9284ms (-0.38%)    Median: 5.9134ms (-0.33%)    [5.8850ms .. 6.1404ms]    
+opaque      Memory: 6.7 KB (-8.07%)     Avg: 6.3092ms (+4.52%)    Median: 6.3091ms (+4.49%)    [6.1916ms .. 6.3846ms]    
+vortex      Memory: 9.6 MB              Avg: 3.8862ms (-0.77%)    Median: 3.8792ms (+0.04%)    [3.8551ms .. 3.9827ms]    

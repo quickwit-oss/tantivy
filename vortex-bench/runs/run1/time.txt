@@ -1,0 +1,1 @@
+VORTEX_BENCH_OUT=runs/run1/results.jsonl VORTEX_BENCH_VERIFY_OUT= cargo bench  2471.13s user 42.94s system 99% cpu 41:58.11 total

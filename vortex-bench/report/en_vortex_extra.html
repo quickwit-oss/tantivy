@@ -1,0 +1,142 @@
+
+<h3 id="v-sparse">3.6 Missing values and sparse columns</h3>
+<div class="prose">
+<p>tantivy separates "which docs have a value" (the column index) from "the values" (the column values). Vortex has no column index: a column is just an array with one row per doc, and missing values are nulls of that array. How those nulls are stored depends on how many there are.</p>
+<p class="kicker">Nullability and validity</p>
+<p>Nullability is part of the <code>DType</code> (<code>u64</code> vs <code>u64?</code>). A nullable array carries a <em>validity</em>, which is one of: <code>NonNullable</code>, <code>AllValid</code>, <code>AllInvalid</code>, or a boolean child array with one bit per row. The values of null rows still exist physically in a plain encoding (they are just ignored), so a dense nullable column costs its values for <em>every</em> row plus one bit per row of validity. That is fine when most rows have a value, and wasteful when few do.</p>
+<p class="kicker">The <code>sparse</code> encoding</p>
+<p>For mostly-null (or mostly-identical) data, Vortex uses <code>vortex.sparse</code>: a <b>fill value</b> plus <b>patches</b>, the list of rows that differ from it.</p>
+</div>
+<div class="diagram"><pre>
+vortex.sparse                      len = number of rows (e.g. 65,536), dtype u64?
+├─ fill value                      null   (or the most frequent value)
+└─ patches
+   ├─ indices                      sorted positions of the rows that differ from the fill,
+   │                               narrowed to the smallest integer type (u16 for a 65,536-row
+   │                               chunk), then compressed like any integer array
+   ├─ values                       the values at those positions, packed densely,
+   │                               compressed by their own cascade (bitpacked, ALP, ...)
+   └─ chunk offsets (optional)     where the patches of each 1,024-row block start, so a
+                                   lookup can jump to the right slice of indices
+</pre></div>
+<div class="prose">
+<p>Only the rows that have a value cost anything; every other row is implicitly the fill value. Positions and values are ordinary Vortex arrays, so BtrBlocks recursively looks for the best encoding of each. For the positions it excludes the schemes that cannot help on sorted unique integers (dictionary, run-end, RLE, sparse).</p>
+<p class="kicker">When BtrBlocks chooses it</p>
+<p>The integer sparse scheme of Vortex 0.88 declares itself applicable in two cases, evaluated on the sample the compressor draws from the chunk:</p>
+<ul>
+<li>more than 90 % of the rows are null: the estimated ratio is <code>rows / non-null rows</code>;</li>
+<li>or one value accounts for at least 90 % of the non-null rows: that value becomes the fill and only the others are patches.</li>
+</ul>
+<p>It explicitly skips when the sample contains no value at all (expecting an all-null chunk to become a constant). Below 90 % nulls, a nullable column is stored densely: values for every row plus a validity bitmap.</p>
+<p class="kicker">Measured: what Vortex actually produces</p>
+<p>The program of section 3.7 builds nullable <code>u64</code> columns of 65,536 rows (one Vortex chunk), with values below 2<sup>20</sup> at random positions, and compresses them with the default BtrBlocks compressor:</p>
+</div>
+<div class="scroll"><table class="compact">
+<thead><tr><th class="l">rows with a value</th><th>compressed size</th><th>bytes per value</th><th class="l">encoding tree chosen</th></tr></thead>
+<tbody id="sparse-sweep"></tbody>
+</table></div>
+<div class="prose">
+<p>And the size of every node for the most interesting cases:</p>
+</div>
+<div class="diagram"><pre id="sparse-trees"></pre></div>
+<div class="prose">
+<ul class="findings">
+<li><b>1 % to 10 %: <code>sparse</code>, at 4.7 to 6 bytes per value.</b> Positions stay a plain <code>u16</code> array: once narrowed to 16 bits, positions that span the whole chunk cannot be bitpacked any smaller, and delta encoding is not in the default cascade. That is <b>exactly what tantivy's optional index does</b> for blocks with fewer than 6,144 values: a sorted list of 16-bit offsets. The values are bitpacked, but FastLanes works in blocks of 1,024 values, so 655 values cost a full 1,024-value block (2.6 kB instead of 1.6 kB). The values array also keeps a (trivial) validity child, because it inherits the nullable dtype of the column.</li>
+<li><b>Regular spacing: positions are free.</b> With one value exactly every 100 rows, the positions become a <code>vortex.sequence</code> (base + step, zero bytes). This is the case of the benchmark's sparse input, and the reason Vortex was 30 % smaller than tantivy there. Real data rarely looks like this.</li>
+<li><b>0.1 %: a sampling miss.</b> With 65 values in 65,536 rows, the ~1,024-row sample usually contains no value, so the sparse scheme skips itself. The compressor falls back to a bitpacked array of width 0 with the 65 values as patches, plus a <em>full</em> validity bitmap: 8 kB of validity for 65 values, 137 bytes per value, where <code>sparse</code> would have needed about 300 bytes in total.</li>
+<li><b>30 %: dense storage.</b> Below the 90 % null threshold, the column is bitpacked for every row (nulls included) plus a full validity bitmap: 8.75 bytes per actual value, almost twice what <code>sparse</code> costs at 10 %. tantivy's dense optional blocks (a bitset with rank metadata, and values for the present rows only) do better here.</li>
+</ul>
+<p class="kicker">Reading a sparse array</p>
+<ul>
+<li><b>Decompression</b> (<code>execute</code> to canonical) allocates the full chunk, fills it with the fill value, and scatters the patch values into it, building the validity bitmap on the way. The cost is proportional to the chunk length, not to the number of values.</li>
+<li><b>One value</b> (<code>execute_scalar</code>) searches the patch indices for the row (using the chunk offsets when present), and returns either the patch value or the fill.</li>
+<li><b>The point accessor of section 8</b> materializes the positions once per chunk, plus a bitset of the rows that have a value. For a row, it tests the bit and only binary-searches the positions when the row has a value. That is why Vortex was faster than tantivy on selective queries over the sparse input, and also why it stays slightly slower than decompression when a sub-aggregation ends up reading every value of the chunk (many binary searches cost more than one scatter).</li>
+</ul>
+<p class="kicker"><code>take</code> on a sparse array</p>
+<p>As always in Vortex, <code>array.take(indices)</code> first builds a lazy <code>vortex.dict</code> node whose codes are the requested rows. When that node is executed, the sparse encoding's take kernel runs, and it only touches the patches:</p>
+<ol>
+<li><b>Find which requested rows have a value.</b> Two strategies, chosen per call by comparing the number of patches with the number of requested rows:
+  <ul>
+  <li><em>search</em> (the usual case for small takes): for each requested row, binary-search the sorted patch positions. When the patches carry chunk offsets, the search first jumps to the 1,024-row block of the requested row and only searches inside it;</li>
+  <li><em>map</em> (when the patches are fewer than five times the requested rows): build a hash map from patch position to value index over <em>all</em> the patches, then probe it for each requested row.</li>
+  </ul>
+  For every hit it records the row's position in the output and the index of its value among the patch values.</li>
+<li><b>Take the values.</b> The selected patch values are gathered with the take kernel of their own encoding (for bitpacked values, single-value unpacking when few indices fall into a 1,024-value block). This step is itself lazy.</li>
+<li><b>Build the result</b>, which is still compressed:
+  <ul>
+  <li>no requested row has a value: a <code>vortex.constant</code> null of the output length;</li>
+  <li>every requested row has a value: just the selected values, without a sparse wrapper;</li>
+  <li>otherwise: a new <code>vortex.sparse</code> array of the output length, with the new positions and the lazily taken values.</li>
+  </ul></li>
+</ol>
+<p>The three outcomes, on the 1 % column built in section 3.7 (one execution step shows the result of the kernel; a full execution decompresses it):</p>
+</div>
+<pre class="code"><!--SNIPPET:sparse_take--></pre>
+<pre class="out"><!--OUTPUT:take mixed:#5--></pre>
+<div class="prose">
+<p>For one large gather, this is efficient: work proportional to the requested rows times a logarithm, plus the values that are actually needed. For the access pattern of an aggregation, one call per block of 64 docs, the fixed part dominates: the lazy node and the optimizer, executing the indices into a primitive array, reading the patch positions again (and decompressing them again if they are compressed, as with a <code>sequence</code>), allocating the new positions and value indices, building the result arrays, and in the <em>map</em> strategy hashing every patch of the chunk. Nothing is kept between calls. That is why the <code>take()</code> experiment of section 7.3 was slower than decompressing whole chunks on the sparse input, and why the point accessor of section 8 materializes the positions and a presence bitset once per chunk and reuses them across calls and queries. (Vortex also has a dedicated <code>filter</code> kernel for sparse arrays, which works on the patches in the same way.)</p>
+<p class="kicker">Compared with tantivy</p>
+<p>For random sparse positions the two systems converge on the same idea: about 2 bytes per position plus the bitpacked values. tantivy has a fixed policy (sparse codec below 6,144 values per 65,536-doc block, a dense bitset with rank metadata above), Vortex decides per chunk from a sample. Vortex wins when positions have exploitable structure (regular spacing, which the cascade detects), tantivy wins at intermediate densities (10 % to 90 % present) because its dense blocks never store values for missing docs, and at extreme sparsity where Vortex's sampling can miss.</p>
+</div>
+
+<h3 id="v-api">3.7 Using Vortex from Rust</h3>
+<div class="prose">
+<p>This section walks through the client API with code taken verbatim from <code>vortex-bench/examples/vortex_client_usage.rs</code>, which compiles against Vortex 0.88 and was run to produce the outputs shown. The <code>encoding_tree</code> helper used to print trees is a ten-line function of the study crate that walks <code>array.children()</code>.</p>
+<p class="kicker">Session</p>
+<p>Everything starts with a <code>VortexSession</code>: the registry of encodings, layouts, compute functions, compression schemes, and the handle of the async runtime used by file I/O. Execution (decompression) goes through an <code>ExecutionCtx</code> created from the session.</p>
+</div>
+<pre class="code"><!--SNIPPET:session--></pre>
+<div class="prose">
+<p class="kicker">Building and compressing an array</p>
+<p>Arrays are built in their canonical form (here a <code>PrimitiveArray</code> from a buffer) and type-erased into an <code>ArrayRef</code>. Compression is an explicit step: <code>BtrBlocksCompressor</code> returns a new <code>ArrayRef</code> with the same <code>DType</code> and length but a different encoding tree.</p>
+</div>
+<pre class="code"><!--SNIPPET:build--></pre>
+<pre class="code"><!--SNIPPET:compress--></pre>
+<pre class="out"><!--OUTPUT:canonical:|compressed:--></pre>
+<div class="prose">
+<p>8 MB of uniform integers below one million become 2.5 MB of 20-bit bitpacking.</p>
+<p class="kicker">slice</p>
+<p><code>slice(range)</code> returns a view on a range of rows. It never copies data. Encodings that know how to slice themselves push the slice down: a bitpacked array just records a new offset into its packed buffer, so the result is still a <code>fastlanes.bitpacked</code> array. Encodings that cannot are wrapped in a lazy <code>vortex.slice</code> node (the encoding tables of section 6 show <code>vortex.slice(vortex.alprd(...))</code> chunks: views on a larger compressed array).</p>
+</div>
+<pre class="code"><!--SNIPPET:slice--></pre>
+<pre class="out"><!--OUTPUT:slice:--></pre>
+<div class="prose">
+<p class="kicker">filter</p>
+<p><code>filter(mask)</code> keeps the rows selected by a <code>Mask</code>, Vortex's selection type (built from indices, from ranges, or from a bitmap). The result is lazy: a <code>vortex.filter</code> node over the untouched compressed child. The work happens at execution, where an encoding-specific kernel can filter compressed data directly, or the child is decoded and filtered.</p>
+</div>
+<pre class="code"><!--SNIPPET:filter--></pre>
+<pre class="out"><!--OUTPUT:filter:--></pre>
+<div class="prose">
+<p class="kicker">take</p>
+<p><code>take(indices)</code> gathers rows by position; the indices are themselves an array, may repeat and need not be sorted. Internally, Vortex expresses a take as a <b>dictionary</b> array whose codes are the indices and whose values are the original array, then lets its optimizer rewrite the tree. Here the result is <code>vortex.dict(vortex.primitive, fastlanes.bitpacked)</code>: still nothing decoded.</p>
+</div>
+<pre class="code"><!--SNIPPET:take--></pre>
+<pre class="out"><!--OUTPUT:take:--></pre>
+<div class="prose">
+<p class="kicker">Execution</p>
+<p>Lazy arrays become values when they are executed into a canonical form. For the take above, execution runs the bitpacked take kernel (which unpacks single values when few indices fall into a 1,024-value block, and whole blocks otherwise) and produces a plain <code>PrimitiveArray</code>.</p>
+</div>
+<pre class="code"><!--SNIPPET:execute--></pre>
+<pre class="out"><!--OUTPUT:take executed:--></pre>
+<div class="prose">
+<p class="kicker">Single values</p>
+<p><code>execute_scalar(index)</code> returns a <code>Scalar</code> (a dtype plus a value). It goes through the generic machinery for every call, which is fine for occasional access and too slow for the inner loop of an aggregation (section 8).</p>
+</div>
+<pre class="code"><!--SNIPPET:scalar--></pre>
+<pre class="out"><!--OUTPUT:scalar at--></pre>
+<div class="prose">
+<p class="kicker">Files and scans</p>
+<p>Writing goes through the session's write options (here the blocking adapter over the current-thread runtime); the default strategy chunks, compresses and adds zone statistics. Reading opens the file and builds a scan. A filter expression is bound to the file's dtype and pushed down: zone statistics skip chunks that cannot match, and comparison kernels can run on compressed data. The scan returns the matching rows, still as Vortex arrays.</p>
+</div>
+<pre class="code"><!--SNIPPET:file--></pre>
+<pre class="out"><!--OUTPUT:file:--></pre>
+<div class="prose">
+<p class="kicker">Building a sparse column</p>
+<p>Nullable arrays can be built from an iterator of <code>Option</code>; the compressor then chooses the sparse representation by itself.</p>
+</div>
+<pre class="code"><!--SNIPPET:sparse--></pre>
+<pre class="out"><!--OUTPUT:sparse 1%:#5--></pre>
+<div class="prose">
+<p class="kicker">What this means for an integration</p>
+<p>The API is pleasant for batch work: build, compress, slice, filter, take, and execute when you need values, with everything staying compressed in between. Two properties matter for a search engine. First, every operation allocates a small node and goes through dynamic dispatch and the optimizer; that overhead is negligible per million rows and significant per 64 docs. Second, nothing in the public API lets you "prepare" an array once for repeated reads at arbitrary positions. The integration therefore uses <code>execute</code> for scans (whole chunks) and its own point accessors for selective reads (section 8).</p>
+</div>

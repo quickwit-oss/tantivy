@@ -1,0 +1,152 @@
+<section id="point">
+<h2>8. How selective queries were fixed</h2>
+<div class="prose">
+<p>This section explains the mechanism, without numbers. The measurements are in section 7.</p>
+</div>
+
+<h3 id="p-problem">8.1 Why the straightforward reader is slow</h3>
+<div class="prose">
+<p>A selective query produces a few docs scattered across the whole segment. In this benchmark, the 1 % filter yields clusters of a handful of consecutive docs every few hundred docs. The collector hands them to the value source 64 at a time, so one block covers thousands of rows.</p>
+<p>The first versions of the reader handled every block the same way: find the chunk that contains the doc, decompress the whole chunk into a canonical array, pick the requested values. That is the natural way to use Vortex, and it is ideal for scans. For a selective query it is the worst case: since matching docs are spread everywhere, every chunk is touched at least once, so the reader decompresses <em>the entire column</em> to read a tiny fraction of it. The cost becomes proportional to the size of the column instead of the number of docs, which is exactly the opposite of what the tantivy columnar does.</p>
+<p>The obvious alternative, Vortex's <code>take</code>, does not help either. Its kernels are efficient (the bitpacked kernel can unpack single values), but every call goes through the generic machinery: wrap the array in a lazy dictionary node, run the optimizer, dispatch dynamically through the encoding tree, allocate an output array, handle validity, recurse into children. That fixed cost is small in absolute terms, but it is paid for every block of 64 docs, and it ends up in the same range as decompressing the chunk.</p>
+</div>
+
+<h3 id="p-idea">8.2 The idea: compile each chunk into a point accessor</h3>
+<div class="prose">
+<p>The values of a compressed Vortex array are not hidden behind an opaque blob: they are a tree of simple, well-specified encodings, and most of them can produce one value at a given index in constant time if you know their raw buffers and parameters. The fix is to walk the encoding tree of a chunk <b>once</b>, extract exactly what is needed for that, and keep it in a compact structure that mirrors the tree without any of the generic machinery. Call it a <b>point accessor</b>.</p>
+<p>Each node of the encoding tree becomes a node of the accessor:</p>
+</div>
+<dl class="terms">
+<dt>bitpacked</dt><dd>keep the packed words, the bit width, the offset of the first element, and the patches. Reading index <i>i</i> means locating its 1,024-value block and unpacking one value from the FastLanes transposed layout, then checking whether a patch overrides it.</dd>
+<dt>frame of reference</dt><dd>keep the child accessor and the reference of each 1,024-value block; the value is the child value plus the reference of its block.</dd>
+<dt>constant, sequence</dt><dd>closed forms: the constant, or <code>base + i × step</code>.</dd>
+<dt>slice</dt><dd>an index shift into the child.</dd>
+<dt>ALP-RD</dt><dd>keep both children (left codes and right parts), the small left dictionary and the patches. The value is the dictionary entry (or the patched left part) shifted left and OR-ed with the right part, reinterpreted as a double.</dd>
+<dt>DateTimeParts</dt><dd>three children and the time unit; the value is <code>days × 86,400 × unit + seconds × unit + subseconds</code>.</dd>
+<dt>sparse</dt><dd>the sorted patch positions and values, plus the fill value.</dd>
+<dt>zig-zag</dt><dd>the usual decode applied to the child value.</dd>
+<dt>masked</dt><dd>the child only; validity is handled separately.</dd>
+<dt>list</dt><dd>an offsets accessor and an elements accessor; the values of row <i>r</i> are the elements between <code>offsets[r]</code> and <code>offsets[r+1]</code>.</dd>
+<dt>anything else</dt><dd>if the sub-array is small (a dictionary, the per-block references), it is decompressed once and stored as a plain buffer. If it is large and unknown, the chunk simply gets no accessor and falls back to decompression.</dd>
+</dl>
+<div class="prose">
+<p>Validity is resolved at the top, once per chunk, into a plain bitset (or nothing, if the chunk has no nulls). Inner nodes never look at validity: a value read at a null position is garbage that the caller skips.</p>
+<p>Accessors produce <b>raw 64-bit words</b>: integers in two's complement (narrow signed types sign-extended so that frame-of-reference arithmetic wraps correctly), doubles as their IEEE bits. The value source converts them to tantivy's monotonic <code>u64</code> mapping at the very end, the same way it does for decompressed values.</p>
+</div>
+
+<h3 id="p-lifecycle">8.3 Built once, shared by every query</h3>
+<div class="prose">
+<p>Building an accessor costs about as much as touching the chunk's metadata, plus materializing a few small children. It happens lazily, the first time a query needs point access into a given chunk, and the result is stored next to the compressed chunk in the per-segment cache. Every later query on the segment, and every collector of the same query, reuses it. The accessor holds reference-counted handles to the original buffers, so it adds almost no memory: the compressed data is not copied.</p>
+</div>
+
+<h3 id="p-batch">8.4 Reading a batch, not a value</h3>
+<div class="prose">
+<p>A naive accessor would walk the tree once per value: one dynamic dispatch per node, then a branch on the bit width inside the unpacking routine. That overhead is several times the cost of the actual bit manipulation. Instead, the value source passes the whole run of rows down the tree:</p>
+<ul>
+<li>each node handles the batch in one go: the frame-of-reference node asks its child for all values, then adds the references; ALP-RD fetches all left codes and all right parts, then combines them; and so on;</li>
+<li>the bitpacked node groups the requested rows by FastLanes block and hands each group to the FastLanes "unpack these indices" routine, which resolves the bit width once per group and then unpacks each value with a few shifts and masks.</li>
+</ul>
+<p>The tree is thus traversed once per run of docs, and the per-value cost is close to that of a hand-written bitpacked lookup.</p>
+</div>
+
+<h3 id="p-choice">8.5 Choosing between point access and decompression</h3>
+<div class="prose">
+<p>Point access is not always the right tool. For a scan, decompressing a chunk with vectorized kernels is cheaper per value than any per-value lookup, and the decompressed chunk serves many following blocks. The value source therefore decides per run (the docs of one block that fall into the same chunk):</p>
+<ul>
+<li>if the chunk is already decompressed (in the LRU of the source), read from it;</li>
+<li>otherwise, if the run is short, or if it spans many more rows than it has docs, use the point accessor;</li>
+<li>otherwise (a long, dense run, typically a scan), decompress the chunk and keep it in the LRU.</li>
+</ul>
+<p>Those rules look at one run at a time, and that is not enough. Under a high-cardinality terms aggregation, a sub-aggregation over the whole segment receives a myriad of runs of one or two docs: every run looks sparse, yet in the end every value of every chunk is read. Reading them all point by point is slower than decompressing each chunk once. The reader therefore keeps, per chunk, a running cost of the point reads already done: a cost per value plus a fixed cost per run. When that cost reaches a fraction of what decompressing the chunk would cost, the chunk is decompressed, put in the LRU, and all later reads come from there. This is the classic "ski rental" strategy: rent while renting is cheaper than buying, then buy. A selective query stays below the threshold and never decompresses anything; a dense pattern made of tiny runs pays a bounded price before switching to decompression.</p>
+<p>The "short run" rule came from profiling. The first version only looked at density, and a selective query still spent half of its time decompressing chunks. The reason: matching docs come in small clusters of consecutive docs, and when a block straddles a chunk boundary, the part that falls into the next chunk is often a single cluster. A cluster of four consecutive docs has a perfect density, so the reader decided that it was looking at a scan and decompressed the whole chunk. Requiring a minimum run length before decompressing fixed it.</p>
+</div>
+
+<h3 id="p-limits">8.6 Correctness and limits</h3>
+<div class="prose">
+<p>The decode micro-benchmark compares a checksum of every value read through Vortex with the same checksum read through the tantivy columnar, for every column, every input and both access patterns, and the full aggregation suite compares every aggregation result with the columnar one. Both agree.</p>
+<p>The approach has clear limits:</p>
+<ul>
+<li>It depends on the <b>internal representation</b> of each encoding: the FastLanes transposed layout, the semantics of patches and their offsets, how ALP-RD combines its parts, how frame-of-reference stores one reference per block. These are not public contracts, and Vortex changes quickly; a production version would need either a pinned Vortex version with tests, or, better, an equivalent API upstream.</li>
+<li>Composite encodings stay more expensive than a single bitpacked lookup: ALP-RD and DateTimeParts read two or three children per value.</li>
+<li>Encodings that are not random-access by nature (zstd, pco, delta, run-end without an index) cannot be supported this way. BtrBlocks did not pick them for these columns, but it could for other data, and those chunks would fall back to decompression.</li>
+<li>The thresholds (minimum run length, density ratio, promotion costs, LRU size) are fixed constants tuned on this benchmark. The promotion rule uses the same costs for every encoding, while a point read into a sparse chunk is relatively expensive and decompressing it is cheap; this is why sub-aggregations on sparse data are still slightly slower than with pure chunk decompression. Costs per encoding, or measured at accessor construction, would remove most of that trade-off.</li>
+</ul>
+<p>What Vortex would need to support search-engine workloads natively is a cheap, reusable <b>gather</b> primitive: "prepare this array for repeated reads at sorted indices", returning a lightweight object whose per-call cost is a function of the number of indices only. The accessor built here is a prototype of that API, living outside Vortex.</p>
+</div>
+</section>
+
+<section id="correctness">
+<h2>9. Correctness</h2>
+<div class="prose">
+<p>Before each benchmark group, the request runs once per variant and the JSON result is compared with the columnar result.</p>
+<ul>
+<li><b>Vortex and opaque always return exactly the same result</b> (same hash) on every request and every input. The Vortex copy of the columns is faithful.</li>
+<li>Differences with the columnar come from the aggregation path taken by registered sources, not from the values. The cardinality aggregation uses an HLL sketch whose estimate depends on insertion order, and the bitset path inserts ordinals in a different order than the hash set path (152,236 vs 153,190 for a true cardinality of about 150,000). Terms aggregations with ties (all buckets with the same count, as in <code>terms_all_unique</code>) break ties differently in the hash map and dense vector storages. Both results are valid.</li>
+<li>With the <code>bounds()</code> patch, registered sources take the same storages as physical columns, and all 250 supported results become identical to the columnar ones.</li>
+</ul>
+</div>
+<div class="two">
+  <div><div class="kicker">v2, unpatched tantivy</div><div class="scroll" id="verify-v2"></div></div>
+  <div><div class="kicker">with the bounds() patch</div><div class="scroll" id="verify-bounds"></div></div>
+</div>
+</section>
+
+<section id="validity">
+<h2>10. Limitations and threats to validity</h2>
+<div class="prose">
+<ul class="findings">
+<li><b>Synthetic data.</b> The <code>agg_bench</code> generator is built to stress aggregations, not storage. Some of its patterns are unrealistically regular (the sparse index has values on exactly one doc in 21; the multivalue index has a single doc with two values), which flatters Vortex on size. Others are unrealistically random (uniform integers, log-normal doubles with full mantissas, random unique strings), which leaves no room to either system. Real logs have more structure: repeated hosts and services, monotonic timestamps, small integer ranges, which is where an adaptive compressor can gain more.</li>
+<li><b>Default write strategy.</b> Vortex was used with its default file layout. Chunk sizes, zone sizes and the dictionary layout are tunable, and one struct file per segment already helps small segments.</li>
+<li><b>Text as ordinals.</b> The benchmark reads Vortex ordinals and tantivy dictionaries. A pure Vortex design would need its own term resolution, and would lose the sorted-dictionary properties tantivy relies on (ordinals ordered like terms, one dictionary per segment).</li>
+<li><b>One machine, single thread.</b> All numbers come from one Apple M4 Max. Ratios between variants are stable (they are measured interleaved), absolute times are not portable.</li>
+<li><b>Glue code quality.</b> The value source, the caches and the accessor are a few hundred lines written for this study. Part of the remaining gap on full columns is the copy from the decompressed chunk into the output block, which a deeper integration could avoid.</li>
+<li><b>Vortex version.</b> Vortex 0.88 is evolving quickly; APIs used here (especially encoding internals) may change.</li>
+</ul>
+</div>
+</section>
+
+<section id="next">
+<h2>11. Recommendations</h2>
+<div class="prose">
+<ul class="findings">
+<li><b>Make aggregation fast paths independent of <code>as_column()</code>.</b> This is the largest lever and it does not depend on Vortex: every computed or external source benefits. <code>bounds()</code> is enough for the terms storage choice and the cardinality bitset (two lines, measured in section 7.4). The flattened terms × histogram collector, the one-doc stats shortcut and the single-value specializations of histograms and ranges need a cardinality hint and a way to read a block of a full column without copying.</li>
+<li><b>If Vortex is pursued,</b> pursue it with a point / gather reader like the one of section 8, ideally upstreamed into Vortex as a public API, and with one struct file per segment. Expect parity or better on optional and multivalued columns and on sparse data, a modest cost on full-column scans, and a remaining cost on selective queries over floats and dates.</li>
+<li><b>Keep tantivy's sorted dictionary for text.</b> Native Vortex strings are larger on high-cardinality text and lose the ordinal ordering.</li>
+<li><b>Size wins are data dependent.</b> On this benchmark, the clear wins (sparse, multivalue) come from Vortex detecting regular structure that the tantivy optional and multivalued indexes do not exploit. Two cheap experiments inside tantivy would capture part of it: compressing the multivalue start offsets better on near-linear data, and storing optional indexes with long runs more compactly.</li>
+<li><b>Validate on real data.</b> The next useful measurement is the same pipeline on a real log corpus, where repeated values and monotonic fields are common.</li>
+</ul>
+</div>
+</section>
+
+<section id="repro">
+<h2>12. Reproduction and code map</h2>
+<div class="prose"><p>Everything lives in <code>vortex-bench/</code> at the root of the tantivy checkout (not committed).</p></div>
+<div class="diagram"><pre>
+vortex-bench/
+  src/format.rs        .vortex component layout (concatenated Vortex files + JSON footer)
+  src/writer.rs        VortexPlugin: SegmentPlugin, columnar → Vortex conversion
+  src/source.rs        VortexValueSource, provider, segment cache, chunk LRU, run dispatch
+  src/point.rs         point accessors (section 8)
+  src/opaque.rs        control variant: tantivy columns behind a registered source
+  benches/agg_bench_vortex.rs    copy of agg_bench, 3 interleaved variants, result checks
+  examples/size_report.rs        per-column sizes and storage alternatives
+  examples/struct_file_size.rs   one file per column vs one struct file per segment
+  examples/tantivy_codecs.rs     codec chosen by tantivy for each column
+  examples/decode_bench.rs       load_block micro-benchmark (scan / 1 % filter)
+  examples/point_profile.rs      profiling harness for point access
+  examples/vortex_client_usage.rs   Vortex API tour and sparse measurements (sections 3.6, 3.7)
+  patches/value_source_bounds_fast_paths.patch   tantivy patch of section 7.4
+  report/                        aggregation scripts and report generator (build_en.py)
+  runs/                          raw results (JSON lines)
+
+cd vortex-bench
+cargo bench --bench agg_bench_vortex                     # builds indexes in agg_bench_vortex/
+VORTEX_BENCH_INPUTS=full VORTEX_BENCH_GROUPS=terms VORTEX_BENCH_SEGMENTS= \
+  cargo bench --bench agg_bench_vortex                   # subset
+VORTEX_CHUNK_CACHE=1 VORTEX_POINT_SPAN_RATIO=0 ...       # v1 behaviour
+VORTEX_POINT_SPAN_RATIO=0 ...                            # v2 behaviour (no point access)
+VORTEX_TAKE_SPAN_RATIO=4 VORTEX_POINT_SPAN_RATIO=0 ...   # take() experiment
+cargo run --release --example decode_bench -- out.json agg_bench_vortex/Full ...
+python3 report/aggregate.py agg.json runs/run2 runs/run3 runs/run4
+</pre></div>
+</section>

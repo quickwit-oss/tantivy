@@ -1,0 +1,73 @@
+<section id="sizes">
+<h2>6. Sizes</h2>
+<div class="prose">
+<p>The comparison is done column by column, on the twelve converted columns. For the tantivy side, "column" means values plus column index (optional or multivalued index), excluding the sstable dictionary of text columns, which the Vortex variant reuses. Dictionaries are reported separately. The <code>.fast</code> file is larger than the sum of the columns because it also contains the JSON field and the dictionaries.</p>
+</div>
+
+<h3 id="s-totals">6.1 Totals per index</h3>
+<div class="scroll" id="size-totals"></div>
+<figure>
+  <div class="legend"><span><span class="swatch sw-columnar"></span>tantivy columns</span><span><span class="swatch sw-vortex"></span>Vortex columns</span></div>
+  <div class="chart" id="size-bars"></div>
+  <figcaption>Sum of the twelve converted columns per index, dictionaries excluded (8.4 MB for the single segment indexes, identical in both variants).</figcaption>
+</figure>
+<div class="prose">
+<p>Three regimes stand out. On one large segment, the formats are within 1 % of each other for full columns, and Vortex is smaller as soon as values are missing or repeated (dense −6 %, sparse −30 %, multivalue −34 %). On many small segments, Vortex is larger (+15 % at 100 segments, ×2.2 at 1,000 segments), because of a fixed cost per file.</p>
+</div>
+
+<h3 id="s-approaches">6.2 Storage approaches compared</h3>
+<div class="prose">
+<p>The same data can be laid out in several ways. All the totals below cover the twelve columns <em>including</em> what is needed to turn text ordinals back into terms, so they are directly comparable.</p>
+</div>
+<div class="scroll" id="size-approaches"></div>
+<div class="prose">
+<ul class="findings">
+<li><b>B vs A</b> is what the benchmark reads: Vortex for the values, tantivy sstables for the terms. It is never larger than the tantivy columnar on a single segment.</li>
+<li><b>C</b> stores strings natively in Vortex and drops the sstable. It is the "pure Vortex" option, and the most expensive one on full and dense data (+22 % and +16 %, all of it on the high-cardinality text columns). On sparse and multivalue data it still comes out smaller than tantivy, but only because the savings on the column index of section 6.5 and 6.6 outweigh the loss on text. Section 6.6 explains the text loss.</li>
+<li><b>D</b> removes the file format: the arrays compressed in memory by BtrBlocks, without zone statistics, footer or per-chunk layout. On a 1M-row segment the file format costs nothing measurable; the per-chunk choice of encodings in the file even beats one global compression pass on multivalued data (D is larger than B there because the in-memory compressor does not find the arithmetic sequence of list offsets over the whole array).</li>
+<li><b>E</b> stores dates as plain <code>i64</code> instead of the timestamp extension type: the two date columns double in size. Keeping the logical type is what lets BtrBlocks use DateTimeParts.</li>
+</ul>
+</div>
+
+<h3 id="s-full">6.3 Column by column: full</h3>
+<div class="scroll" id="size-full"></div>
+<div class="prose">
+<p>tantivy chose its bitpacked codec for every column of this benchmark (the only exception is one multivalued text column, stored with the blockwise linear codec). Vortex chose bitpacking too for most columns, and fixed-width bitpacking of the same values costs the same, whoever does it. The differences come from what each system can detect before bitpacking.</p>
+<ul class="findings">
+<li><b><code>score</code>, <code>score_i64</code></b>: uniform integers in [0, 1,000,000): 20 bits per value in both systems (2.44 MB vs 2.45 MB). Nothing more can be done for uniform data.</li>
+<li><b>Text ordinals</b>: the width is the logarithm of the dictionary size in both systems: 3 bits for the 7 statuses, 10 bits for 1,000 terms, 18 bits for 150,000 terms, 20 bits for the unique terms. Identical sizes. BtrBlocks does not choose a dictionary encoding here because tantivy's ordinals are already dense.</li>
+<li><b><code>score_f64</code></b>: log-normal doubles with full-precision mantissas. tantivy bitpacks the monotonic mapping of the doubles (about 56 bits per value); Vortex chooses ALP-RD (a 3-bit dictionary code for the high bits, about 52 bits for the low bits, plus patches). 6.92 MB vs 7.00 MB: neither can compress random mantissas.</li>
+<li><b><code>timestamp</code></b>: timestamps in seconds that grow with the doc id, plus ±2 h of noise. tantivy stores nanoseconds; its bitpacked codec subtracts the minimum and divides by the GCD (10<sup>9</sup>, the field has second precision), and the remaining five-day range needs 19 bits. Vortex's DateTimeParts stores the day, the second within the day and the sub-second separately. The day is almost constant within a 1,024-row block (a block covers a few minutes), so frame of reference reduces it to nearly nothing; the second within the day needs 17 bits; sub-seconds are a constant. About 17.6 bits per value: Vortex is 8 % smaller, thanks to the per-block adaptivity rather than to the date-specific split.</li>
+<li><b><code>timestamp_26_bits</code></b>: uniformly random 26-bit second counts. tantivy needs exactly 26 bits after the GCD division. DateTimeParts splits each value into a day (10 bits) and a second within the day (17 bits): 27 bits, so Vortex is 4 % larger. Splitting is a loss when the parts are not more regular than the whole.</li>
+<li><b><code>single_term</code></b>: a constant. Both systems store a header only (a few kB of Vortex file overhead).</li>
+</ul>
+</div>
+
+<h3 id="s-dense">6.4 Column by column: dense (one document without values)</h3>
+<details><summary>Per-column table</summary><div class="scroll" id="size-dense"></div></details>
+<div class="prose">
+<p>The dense index differs from the full one by a single empty document. In tantivy, that makes every column <code>Optional</code>, so every column pays an optional index: one dense block bitset with rank metadata per 65,536 docs, about 160 kB per column, whatever the number of missing values. In Vortex, nullability is a type property but validity is stored per chunk: most chunks carry no validity at all, and only a few chunks around the empty document carry a (compressed) validity child. Result: −6 % for Vortex, all of it on the index.</p>
+</div>
+
+<h3 id="s-sparse">6.5 Column by column: sparse (one document in 21 has values)</h3>
+<details><summary>Per-column table</summary><div class="scroll" id="size-sparse"></div></details>
+<div class="prose">
+<p>With 50,000 values over 1,050,000 docs, each 65,536-doc block of tantivy's optional index holds about 3,100 values, below the dense threshold of 6,144, so blocks use the sparse codec: a list of 16-bit offsets, 2 bytes per value. Vortex picks its <code>sparse</code> encoding (a null fill plus patches), and compresses the patch positions as a <code>sequence</code>, because in this generator exactly one document in 21 has values. The positions cost almost nothing, hence −30 %.</p>
+<blockquote class="note">This regularity is an artifact of the generator. With randomly placed values (measured in section 3.6), the positions stay a plain <code>u16</code> array, 2 bytes each, exactly like tantivy's sparse optional blocks, and the gap disappears.</blockquote>
+</div>
+
+<h3 id="s-multi">6.6 Column by column: multivalue</h3>
+<details><summary>Per-column table</summary><div class="scroll" id="size-multi"></div></details>
+<div class="prose">
+<p>The multivalue index is the same data as the full one, except that the first document has two values. tantivy stores a <code>MultiValueIndex</code> for every text and numeric column: about 1.5 MB per column for 1M docs. That is visible on <code>single_term</code>, whose values are all the same and cost nothing, but whose index weighs 1.54 MB. Vortex stores a <code>List</code>, whose offsets are <code>0, 2, 3, 4, …</code>: an arithmetic sequence in every chunk but the first, encoded as <code>vortex.sequence</code> for free. Hence −34 %.</p>
+<blockquote class="note">This is the most favorable case possible for Vortex: on genuinely multivalued data, offsets have to be bitpacked too. The size of tantivy's start offsets column on near-linear data is still worth a look independently of Vortex (the linear codec should handle a sequence with a single +1 step well).</blockquote>
+<p><b>Native strings.</b> The <code>C</code> approach of section 6.2 stores the strings themselves. For low-cardinality text, Vortex's dictionary encoding is as good as ordinals + sstable. For high cardinality it is much worse: <code>text_all_unique_terms</code> takes 14.5 MB natively vs 10.9 MB for ordinals + sstable, and <code>text_many_terms</code> (150,000 distinct terms) 6.1 MB vs 2.3 MB. Two reasons. First, the sstable stores sorted terms once per segment with prefix sharing and block compression, while Vortex compresses each chunk independently, so a chunk-level dictionary of 150,000 terms is repeated in each of the 12 chunks. Second, unsorted strings with random digits (<code>unique_term_&lt;u64&gt;</code>) give FSST little to work with. The per-segment sorted dictionary is a structural advantage of tantivy for text.</p>
+</div>
+
+<h3 id="s-segments">6.7 Many small segments</h3>
+<div class="scroll" id="size-segments"></div>
+<div class="prose">
+<p>Each Vortex file carries a fixed cost: postscript and footer, the serialized <code>DType</code>, the layout tree, zone statistics, segment alignment. With one file per column and per segment, that cost is paid 12,000 times in the 1,000-segment index. A Vortex file there averages 4.1 kB, while the same column of the same segment takes 1.9 kB in the tantivy columnar: roughly 2.2 kB of fixed cost per file. Writing <b>one struct file per segment</b> (all twelve columns as fields of a struct array) shares the footer, the type and the layout root: the overhead drops from +15 % to +8 % at 100 segments, and from ×2.2 to about ×1.5 at 1,000 segments (extrapolated from the first 100 segments). The remaining overhead is the per-column layout and zone statistics, which Vortex keeps even for 1,000-row columns. The tantivy columnar has a single small footer per segment and no per-zone statistics, so it scales down better.</p>
+<p>In practice, segments are merged into large ones, so the single-segment numbers are the most representative of steady state; the small-segment numbers matter for freshly committed, unmerged data.</p>
+</div>
+</section>

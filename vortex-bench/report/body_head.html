@@ -1,0 +1,20 @@
+<section id="resume">
+<h2>Résumé</h2>
+<div class="verdict">
+  <div><div class="big">×1,00</div><div class="lbl">volume des colonnes, index <code>full</code> mono-segment (25,0 contre 25,1 Mo). −34 % en multivalué, mais ×2,2 à 1000 segments.</div></div>
+  <div><div class="big">×1,10</div><div class="lbl">temps Vortex / opaque en <code>full</code>, hors requêtes filtrées : le coût du stockage seul. ×0,75 en <code>multivalue</code>.</div></div>
+  <div><div class="big">×1,56 → ×1,20</div><div class="lbl">coût de l'abstraction <code>ValueSource</code> en <code>full</code> (opaque / columnar), avant et après un patch de 2 lignes dans tantivy.</div></div>
+  <div><div class="big">×1,1 – ×6,1</div><div class="lbl">Vortex / opaque sur les requêtes filtrées à 1 % : la décompression par chunk entier ne convient pas aux accès sélectifs.</div></div>
+</div>
+<div class="prose">
+<ul class="findings">
+<li><b>Volume.</b> Sur les colonnes pleines d'un gros segment, Vortex et le columnar tantivy font jeu égal : les deux bitpackent les mêmes données. Vortex gagne sur les colonnes optional (−6 %), sparse (−30 %) et multivaluées (−34 %, sur un jeu de données très favorable). Il perd sur les petits segments à cause d'un coût fixe d'environ 2 ko par fichier (+15 % à 100 segments, ×2,2 à 1000), et stocker les chaînes nativement coûte 1,3 à 2,7 fois plus que les ords + le dictionnaire sstable de tantivy.</li>
+<li><b>Lecture.</b> En scan complet, Vortex coûte ~10 % de plus que le codec tantivy sur colonne pleine (×1,5 à ×2,8 au micro-bench de décodage, dilué dans l'agrégation) et est plus rapide sur colonnes optional et multivaluées (jusqu'à ×0,5 au micro-bench, ×0,75 en moyenne sur les agrégations <code>multivalue</code>).</li>
+<li><b>Le principal coût n'est pas Vortex.</b> Passer par une source enregistrée désactive les fast paths qui demandent <code>as_column()</code>. En <code>full</code> cela coûte ×1,56 en moyenne et jusqu'à ×9,3, plus que le stockage lui-même. Avec un patch de deux lignes qui fait utiliser <code>bounds()</code> au terms agg et au cardinality, la pénalité tombe à ×1,20 en <code>full</code> et ~×1,00 ailleurs ; il reste surtout le collecteur aplati terms × histogramme.</li>
+<li><b>Avec ce patch</b>, Vortex / columnar vaut ×1,36 en <code>full</code>, ×0,90 en <code>dense</code>, ×1,01 en <code>sparse</code> et ×0,74 en <code>multivalue</code> hors requêtes filtrées. Avec le filtre à 1 %, il reste entre ×1,2 et ×6,9.</li>
+<li><b>Correction.</b> Vortex renvoie exactement les mêmes résultats que la variante opaque partout. Avec le patch, les 250 résultats supportés sont identiques au columnar. <code>multi_terms</code>, <code>composite</code>, <code>top_hits</code> et <code>missing</code> sur texte refusent toute source enregistrée (20 requêtes sur 79 par entrée).</li>
+<li><b>Implémentation.</b> Un cache d'un seul chunk décompressé rendait les sous-agrégations jusqu'à 195 fois plus lentes (thrashing entre chunks voisins) ; un LRU de 8 chunks règle le problème, au prix de ~5 Mo par colonne et par collecteur.</li>
+</ul>
+<p><b>En bref</b> : sur ces données, Vortex n'apporte pas de gain de volume décisif sur les gros segments et en perd sur les petits. Côté lecture, il est compétitif en scan et meilleur sur les colonnes creuses ou multivaluées, mais mal adapté aux requêtes sélectives tant qu'on décompresse par chunk entier. Le chantier le plus rentable, utile à toute source calculée, est de rendre les fast paths d'agrégation indépendants de <code>as_column()</code>.</p>
+</div>
+</section>

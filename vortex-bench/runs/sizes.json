@@ -1,0 +1,1545 @@
+[
+  {
+    "columns": {
+      "score": {
+        "cardinality": "Full",
+        "chunk_rows": 82496,
+        "columnar_column": 2500014,
+        "columnar_dictionary": 0,
+        "detailed_columnar_total": 2500014,
+        "detailed_segments": 1,
+        "detailed_vortex_compressed": 2501120,
+        "detailed_vortex_file": 2506908,
+        "encodings": {
+          "fastlanes.bitpacked": 15
+        },
+        "num_chunks": 15,
+        "num_docs": 1000000,
+        "num_values": 1000000,
+        "stored_type": "U64",
+        "vortex_file": 2506908
+      },
+      "score_f64": {
+        "cardinality": "Full",
+        "chunk_rows": 82496,
+        "columnar_column": 7000028,
+        "columnar_dictionary": 0,
+        "detailed_columnar_total": 7000028,
+        "detailed_segments": 1,
+        "detailed_vortex_compressed": 6911752,
+        "detailed_vortex_file": 6919364,
+        "encodings": {
+          "vortex.alprd(fastlanes.bitpacked, fastlanes.bitpacked, vortex.primitive, vortex.primitive)": 1,
+          "vortex.slice(vortex.alprd(fastlanes.bitpacked, fastlanes.bitpacked, vortex.primitive, vortex.primitive))": 14
+        },
+        "num_chunks": 15,
+        "num_docs": 1000000,
+        "num_values": 1000000,
+        "stored_type": "F64",
+        "vortex_file": 6919364
+      },
+      "score_i64": {
+        "cardinality": "Full",
+        "chunk_rows": 82496,
+        "columnar_column": 2500023,
+        "columnar_dictionary": 0,
+        "detailed_columnar_total": 2500023,
+        "detailed_segments": 1,
+        "detailed_vortex_compressed": 2501120,
+        "detailed_vortex_file": 2506908,
+        "encodings": {
+          "fastlanes.bitpacked": 15
+        },
+        "num_chunks": 15,
+        "num_docs": 1000000,
+        "num_values": 1000000,
+        "stored_type": "I64",
+        "vortex_file": 2506908
+      },
+      "single_term": {
+        "cardinality": "Full",
+        "chunk_rows": 87382,
+        "columnar_column": 16,
+        "columnar_dictionary": 49,
+        "detailed_columnar_total": 65,
+        "detailed_segments": 1,
+        "detailed_vortex_compressed": 2,
+        "detailed_vortex_file": 2596,
+        "detailed_vortex_native_str_compressed": 13,
+        "detailed_vortex_native_str_file": 4760,
+        "encodings": {
+          "vortex.constant": 12
+        },
+        "num_chunks": 12,
+        "num_docs": 1000000,
+        "num_values": 1000000,
+        "stored_type": "Str",
+        "vortex_file": 2596
+      },
+      "text_1000_terms_zipf": {
+        "cardinality": "Full",
+        "chunk_rows": 87382,
+        "columnar_column": 1250017,
+        "columnar_dictionary": 2042,
+        "detailed_columnar_total": 1252059,
+        "detailed_segments": 1,
+        "detailed_vortex_compressed": 1250560,
+        "detailed_vortex_file": 1253764,
+        "detailed_vortex_native_str_compressed": 1256060,
+        "detailed_vortex_native_str_file": 1260084,
+        "encodings": {
+          "fastlanes.bitpacked": 12
+        },
+        "num_chunks": 12,
+        "num_docs": 1000000,
+        "num_values": 1000000,
+        "stored_type": "Str",
+        "vortex_file": 1253764
+      },
+      "text_90_terms_zipf": {
+        "cardinality": "Full",
+        "chunk_rows": 87382,
+        "columnar_column": 875016,
+        "columnar_dictionary": 222,
+        "detailed_columnar_total": 875238,
+        "detailed_segments": 1,
+        "detailed_vortex_compressed": 875392,
+        "detailed_vortex_file": 878220,
+        "detailed_vortex_native_str_compressed": 875956,
+        "detailed_vortex_native_str_file": 879152,
+        "encodings": {
+          "fastlanes.bitpacked": 12
+        },
+        "num_chunks": 12,
+        "num_docs": 1000000,
+        "num_values": 1000000,
+        "stored_type": "Str",
+        "vortex_file": 878220
+      },
+      "text_all_unique_terms": {
+        "cardinality": "Full",
+        "chunk_rows": 87382,
+        "columnar_column": 2500018,
+        "columnar_dictionary": 8401872,
+        "detailed_columnar_total": 10901890,
+        "detailed_segments": 1,
+        "detailed_vortex_compressed": 2501120,
+        "detailed_vortex_file": 2505076,
+        "detailed_vortex_native_str_compressed": 14868925,
+        "detailed_vortex_native_str_file": 14464084,
+        "encodings": {
+          "fastlanes.bitpacked": 12
+        },
+        "num_chunks": 12,
+        "num_docs": 1000000,
+        "num_values": 1000000,
+        "stored_type": "Str",
+        "vortex_file": 2505076
+      },
+      "text_few_terms": {
+        "cardinality": "Full",
+        "chunk_rows": 87382,
+        "columnar_column": 250016,
+        "columnar_dictionary": 59,
+        "detailed_columnar_total": 250075,
+        "detailed_segments": 1,
+        "detailed_vortex_compressed": 250112,
+        "detailed_vortex_file": 252932,
+        "detailed_vortex_native_str_compressed": 250162,
+        "detailed_vortex_native_str_file": 253240,
+        "encodings": {
+          "fastlanes.bitpacked": 12
+        },
+        "num_chunks": 12,
+        "num_docs": 1000000,
+        "num_values": 1000000,
+        "stored_type": "Str",
+        "vortex_file": 252932
+      },
+      "text_few_terms_status": {
+        "cardinality": "Full",
+        "chunk_rows": 87382,
+        "columnar_column": 375016,
+        "columnar_dictionary": 80,
+        "detailed_columnar_total": 375096,
+        "detailed_segments": 1,
+        "detailed_vortex_compressed": 375168,
+        "detailed_vortex_file": 377996,
+        "detailed_vortex_native_str_compressed": 375280,
+        "detailed_vortex_native_str_file": 378128,
+        "encodings": {
+          "fastlanes.bitpacked": 12
+        },
+        "num_chunks": 12,
+        "num_docs": 1000000,
+        "num_values": 1000000,
+        "stored_type": "Str",
+        "vortex_file": 377996
+      },
+      "text_many_terms": {
+        "cardinality": "Full",
+        "chunk_rows": 87382,
+        "columnar_column": 2250018,
+        "columnar_dictionary": 13907,
+        "detailed_columnar_total": 2263925,
+        "detailed_segments": 1,
+        "detailed_vortex_compressed": 2251008,
+        "detailed_vortex_file": 2254916,
+        "detailed_vortex_native_str_compressed": 6021175,
+        "detailed_vortex_native_str_file": 6147396,
+        "encodings": {
+          "fastlanes.bitpacked": 12
+        },
+        "num_chunks": 12,
+        "num_docs": 1000000,
+        "num_values": 1000000,
+        "stored_type": "Str",
+        "vortex_file": 2254916
+      },
+      "timestamp": {
+        "cardinality": "Full",
+        "chunk_rows": 82496,
+        "columnar_column": 2375027,
+        "columnar_dictionary": 0,
+        "detailed_columnar_total": 2375027,
+        "detailed_segments": 1,
+        "detailed_vortex_compressed": 2270210,
+        "detailed_vortex_file": 2195468,
+        "detailed_vortex_plain_i64_file": 4445100,
+        "encodings": {
+          "vortex.datetimeparts(fastlanes.bitpacked, fastlanes.bitpacked, vortex.constant)": 2,
+          "vortex.datetimeparts(fastlanes.for.v2(fastlanes.bitpacked, vortex.constant), fastlanes.bitpacked, vortex.constant)": 4,
+          "vortex.datetimeparts(vortex.constant, vortex.primitive, vortex.constant)": 2,
+          "vortex.datetimeparts(vortex.slice(vortex.sparse(fastlanes.bitpacked, vortex.constant)), fastlanes.bitpacked, vortex.constant)": 2,
+          "vortex.datetimeparts(vortex.slice(vortex.sparse(fastlanes.for.v2, vortex.constant)), fastlanes.bitpacked, vortex.constant)": 2,
+          "vortex.datetimeparts(vortex.slice(vortex.sparse(vortex.primitive, vortex.constant)), fastlanes.bitpacked, vortex.constant)": 2,
+          "vortex.datetimeparts(vortex.sparse(fastlanes.for.v2(fastlanes.bitpacked, vortex.constant), vortex.constant), fastlanes.bitpacked, vortex.constant)": 1
+        },
+        "num_chunks": 15,
+        "num_docs": 1000000,
+        "num_values": 1000000,
+        "stored_type": "DateTime",
+        "vortex_file": 2195468
+      },
+      "timestamp_26_bits": {
+        "cardinality": "Full",
+        "chunk_rows": 82496,
+        "columnar_column": 3250028,
+        "columnar_dictionary": 0,
+        "detailed_columnar_total": 3250028,
+        "detailed_segments": 1,
+        "detailed_vortex_compressed": 3376514,
+        "detailed_vortex_file": 3383132,
+        "detailed_vortex_plain_i64_file": 7008980,
+        "encodings": {
+          "vortex.datetimeparts(fastlanes.bitpacked, fastlanes.bitpacked, vortex.constant)": 15
+        },
+        "num_chunks": 15,
+        "num_docs": 1000000,
+        "num_values": 1000000,
+        "stored_type": "DateTime",
+        "vortex_file": 3383132
+      }
+    },
+    "files": {
+      "fast": 36604206,
+      "fieldnorm": 9000169,
+      "idx": 9464667,
+      "pos": 153,
+      "store": 4087615,
+      "term": 19952257,
+      "vortex": 25039830
+    },
+    "index": "agg_bench_vortex/Full",
+    "num_docs": 1000000,
+    "num_segments": 1
+  },
+  {
+    "columns": {
+      "score": {
+        "cardinality": "Optional",
+        "chunk_rows": 82497,
+        "columnar_column": 2663923,
+        "columnar_dictionary": 0,
+        "detailed_columnar_total": 2663923,
+        "detailed_segments": 1,
+        "detailed_vortex_compressed": 2626121,
+        "detailed_vortex_file": 2523724,
+        "encodings": {
+          "fastlanes.bitpacked": 13,
+          "fastlanes.bitpacked(vortex.bool)": 2
+        },
+        "num_chunks": 15,
+        "num_docs": 1000001,
+        "num_values": 1000000,
+        "stored_type": "U64",
+        "vortex_file": 2523724
+      },
+      "score_f64": {
+        "cardinality": "Optional",
+        "chunk_rows": 82497,
+        "columnar_column": 7163937,
+        "columnar_dictionary": 0,
+        "detailed_columnar_total": 7163937,
+        "detailed_segments": 1,
+        "detailed_vortex_compressed": 7036759,
+        "detailed_vortex_file": 6936220,
+        "encodings": {
+          "vortex.alprd(fastlanes.bitpacked, fastlanes.bitpacked, vortex.primitive, vortex.primitive)": 1,
+          "vortex.slice(vortex.alprd(fastlanes.bitpacked(vortex.bool), fastlanes.bitpacked, vortex.primitive, vortex.primitive))": 2,
+          "vortex.slice(vortex.alprd(fastlanes.bitpacked, fastlanes.bitpacked, vortex.primitive, vortex.primitive))": 12
+        },
+        "num_chunks": 15,
+        "num_docs": 1000001,
+        "num_values": 1000000,
+        "stored_type": "F64",
+        "vortex_file": 6936220
+      },
+      "score_i64": {
+        "cardinality": "Optional",
+        "chunk_rows": 82497,
+        "columnar_column": 2663932,
+        "columnar_dictionary": 0,
+        "detailed_columnar_total": 2663932,
+        "detailed_segments": 1,
+        "detailed_vortex_compressed": 2626121,
+        "detailed_vortex_file": 2523724,
+        "encodings": {
+          "fastlanes.bitpacked": 13,
+          "fastlanes.bitpacked(vortex.bool)": 2
+        },
+        "num_chunks": 15,
+        "num_docs": 1000001,
+        "num_values": 1000000,
+        "stored_type": "I64",
+        "vortex_file": 2523724
+      },
+      "single_term": {
+        "cardinality": "Optional",
+        "chunk_rows": 87382,
+        "columnar_column": 163925,
+        "columnar_dictionary": 49,
+        "detailed_columnar_total": 163974,
+        "detailed_segments": 1,
+        "detailed_vortex_compressed": 125003,
+        "detailed_vortex_file": 35900,
+        "detailed_vortex_native_str_compressed": 125014,
+        "detailed_vortex_native_str_file": 13500,
+        "encodings": {
+          "vortex.constant": 9,
+          "vortex.masked(vortex.constant, vortex.bool)": 3
+        },
+        "num_chunks": 12,
+        "num_docs": 1000001,
+        "num_values": 1000000,
+        "stored_type": "Str",
+        "vortex_file": 35900
+      },
+      "text_1000_terms_zipf": {
+        "cardinality": "Optional",
+        "chunk_rows": 87382,
+        "columnar_column": 1413926,
+        "columnar_dictionary": 2042,
+        "detailed_columnar_total": 1415968,
+        "detailed_segments": 1,
+        "detailed_vortex_compressed": 1375561,
+        "detailed_vortex_file": 1286972,
+        "detailed_vortex_native_str_compressed": 1256278,
+        "detailed_vortex_native_str_file": 1260748,
+        "encodings": {
+          "fastlanes.bitpacked": 9,
+          "fastlanes.bitpacked(vortex.bool)": 3
+        },
+        "num_chunks": 12,
+        "num_docs": 1000001,
+        "num_values": 1000000,
+        "stored_type": "Str",
+        "vortex_file": 1286972
+      },
+      "text_90_terms_zipf": {
+        "cardinality": "Optional",
+        "chunk_rows": 87382,
+        "columnar_column": 1038925,
+        "columnar_dictionary": 222,
+        "detailed_columnar_total": 1039147,
+        "detailed_segments": 1,
+        "detailed_vortex_compressed": 1000393,
+        "detailed_vortex_file": 911468,
+        "detailed_vortex_native_str_compressed": 876048,
+        "detailed_vortex_native_str_file": 879788,
+        "encodings": {
+          "fastlanes.bitpacked": 9,
+          "fastlanes.bitpacked(vortex.bool)": 3
+        },
+        "num_chunks": 12,
+        "num_docs": 1000001,
+        "num_values": 1000000,
+        "stored_type": "Str",
+        "vortex_file": 911468
+      },
+      "text_all_unique_terms": {
+        "cardinality": "Optional",
+        "chunk_rows": 87382,
+        "columnar_column": 2663927,
+        "columnar_dictionary": 8401872,
+        "detailed_columnar_total": 11065799,
+        "detailed_segments": 1,
+        "detailed_vortex_compressed": 2626121,
+        "detailed_vortex_file": 2538276,
+        "detailed_vortex_native_str_compressed": 14993934,
+        "detailed_vortex_native_str_file": 14473460,
+        "encodings": {
+          "fastlanes.bitpacked": 9,
+          "fastlanes.bitpacked(vortex.bool)": 3
+        },
+        "num_chunks": 12,
+        "num_docs": 1000001,
+        "num_values": 1000000,
+        "stored_type": "Str",
+        "vortex_file": 2538276
+      },
+      "text_few_terms": {
+        "cardinality": "Optional",
+        "chunk_rows": 87382,
+        "columnar_column": 413925,
+        "columnar_dictionary": 59,
+        "detailed_columnar_total": 413984,
+        "detailed_segments": 1,
+        "detailed_vortex_compressed": 375113,
+        "detailed_vortex_file": 286180,
+        "detailed_vortex_native_str_compressed": 375221,
+        "detailed_vortex_native_str_file": 319172,
+        "encodings": {
+          "fastlanes.bitpacked": 9,
+          "fastlanes.bitpacked(vortex.bool)": 3
+        },
+        "num_chunks": 12,
+        "num_docs": 1000001,
+        "num_values": 1000000,
+        "stored_type": "Str",
+        "vortex_file": 286180
+      },
+      "text_few_terms_status": {
+        "cardinality": "Optional",
+        "chunk_rows": 87382,
+        "columnar_column": 538925,
+        "columnar_dictionary": 80,
+        "detailed_columnar_total": 539005,
+        "detailed_segments": 1,
+        "detailed_vortex_compressed": 500169,
+        "detailed_vortex_file": 411244,
+        "detailed_vortex_native_str_compressed": 375286,
+        "detailed_vortex_native_str_file": 378772,
+        "encodings": {
+          "fastlanes.bitpacked": 9,
+          "fastlanes.bitpacked(vortex.bool)": 3
+        },
+        "num_chunks": 12,
+        "num_docs": 1000001,
+        "num_values": 1000000,
+        "stored_type": "Str",
+        "vortex_file": 411244
+      },
+      "text_many_terms": {
+        "cardinality": "Optional",
+        "chunk_rows": 87382,
+        "columnar_column": 2413927,
+        "columnar_dictionary": 13907,
+        "detailed_columnar_total": 2427834,
+        "detailed_segments": 1,
+        "detailed_vortex_compressed": 2376009,
+        "detailed_vortex_file": 2288116,
+        "detailed_vortex_native_str_compressed": 6136848,
+        "detailed_vortex_native_str_file": 6150644,
+        "encodings": {
+          "fastlanes.bitpacked": 9,
+          "fastlanes.bitpacked(vortex.bool)": 3
+        },
+        "num_chunks": 12,
+        "num_docs": 1000001,
+        "num_values": 1000000,
+        "stored_type": "Str",
+        "vortex_file": 2288116
+      },
+      "timestamp": {
+        "cardinality": "Optional",
+        "chunk_rows": 82497,
+        "columnar_column": 2538936,
+        "columnar_dictionary": 0,
+        "detailed_columnar_total": 2538936,
+        "detailed_segments": 1,
+        "detailed_vortex_compressed": 2401503,
+        "detailed_vortex_file": 2229244,
+        "detailed_vortex_plain_i64_file": 4453756,
+        "encodings": {
+          "vortex.datetimeparts(fastlanes.bitpacked, fastlanes.bitpacked, vortex.constant)": 2,
+          "vortex.datetimeparts(fastlanes.for.v2(fastlanes.bitpacked, vortex.constant), fastlanes.bitpacked, vortex.constant)": 4,
+          "vortex.datetimeparts(vortex.masked(vortex.constant, vortex.bool), vortex.zigzag(vortex.slice(fastlanes.bitpacked)), vortex.slice(vortex.sparse(vortex.primitive, vortex.primitive)))": 2,
+          "vortex.datetimeparts(vortex.slice(vortex.sparse(fastlanes.bitpacked, vortex.constant)), fastlanes.bitpacked, vortex.constant)": 2,
+          "vortex.datetimeparts(vortex.slice(vortex.sparse(fastlanes.for.v2, vortex.constant)), fastlanes.bitpacked, vortex.constant)": 2,
+          "vortex.datetimeparts(vortex.slice(vortex.sparse(vortex.primitive, vortex.constant)), fastlanes.bitpacked, vortex.constant)": 2,
+          "vortex.datetimeparts(vortex.sparse(fastlanes.for.v2(fastlanes.bitpacked, vortex.constant), vortex.constant), fastlanes.bitpacked, vortex.constant)": 1
+        },
+        "num_chunks": 15,
+        "num_docs": 1000001,
+        "num_values": 1000000,
+        "stored_type": "DateTime",
+        "vortex_file": 2229244
+      },
+      "timestamp_26_bits": {
+        "cardinality": "Optional",
+        "chunk_rows": 82497,
+        "columnar_column": 3413937,
+        "columnar_dictionary": 0,
+        "detailed_columnar_total": 3413937,
+        "detailed_segments": 1,
+        "detailed_vortex_compressed": 3626580,
+        "detailed_vortex_file": 3416556,
+        "detailed_vortex_plain_i64_file": 7025796,
+        "encodings": {
+          "vortex.datetimeparts(fastlanes.bitpacked(vortex.bool), fastlanes.for.v2(fastlanes.bitpacked, vortex.constant), vortex.slice(vortex.sparse(vortex.primitive, vortex.primitive)))": 2,
+          "vortex.datetimeparts(fastlanes.bitpacked, fastlanes.bitpacked, vortex.constant)": 13
+        },
+        "num_chunks": 15,
+        "num_docs": 1000001,
+        "num_values": 1000000,
+        "stored_type": "DateTime",
+        "vortex_file": 3416556
+      }
+    },
+    "files": {
+      "fast": 38571116,
+      "fieldnorm": 9000178,
+      "idx": 9464704,
+      "pos": 153,
+      "store": 4087623,
+      "term": 19952257,
+      "vortex": 25389975
+    },
+    "index": "agg_bench_vortex/OptionalDense",
+    "num_docs": 1000001,
+    "num_segments": 1
+  },
+  {
+    "columns": {
+      "score": {
+        "cardinality": "Optional",
+        "chunk_rows": 65536,
+        "columnar_column": 225087,
+        "columnar_dictionary": 0,
+        "detailed_columnar_total": 225087,
+        "detailed_segments": 1,
+        "detailed_vortex_compressed": 131692,
+        "detailed_vortex_file": 159460,
+        "encodings": {
+          "vortex.slice(vortex.sparse(vortex.sequence, fastlanes.bitpacked(vortex.bool)))": 16,
+          "vortex.sparse(vortex.sequence, vortex.primitive(vortex.bool))": 1
+        },
+        "num_chunks": 17,
+        "num_docs": 1050000,
+        "num_values": 50000,
+        "stored_type": "U64",
+        "vortex_file": 159460
+      },
+      "score_f64": {
+        "cardinality": "Optional",
+        "chunk_rows": 65536,
+        "columnar_column": 450101,
+        "columnar_dictionary": 0,
+        "detailed_columnar_total": 450101,
+        "detailed_segments": 1,
+        "detailed_vortex_compressed": 406252,
+        "detailed_vortex_file": 414324,
+        "encodings": {
+          "vortex.slice(vortex.sparse(vortex.sequence, vortex.primitive(vortex.bool)))": 16,
+          "vortex.sparse(vortex.sequence, vortex.primitive(vortex.bool))": 1
+        },
+        "num_chunks": 17,
+        "num_docs": 1050000,
+        "num_values": 50000,
+        "stored_type": "F64",
+        "vortex_file": 414324
+      },
+      "score_i64": {
+        "cardinality": "Optional",
+        "chunk_rows": 65536,
+        "columnar_column": 225096,
+        "columnar_dictionary": 0,
+        "detailed_columnar_total": 225096,
+        "detailed_segments": 1,
+        "detailed_vortex_compressed": 131692,
+        "detailed_vortex_file": 159460,
+        "encodings": {
+          "vortex.slice(vortex.sparse(vortex.sequence, fastlanes.bitpacked(vortex.bool)))": 16,
+          "vortex.sparse(vortex.sequence, vortex.primitive(vortex.bool))": 1
+        },
+        "num_chunks": 17,
+        "num_docs": 1050000,
+        "num_values": 50000,
+        "stored_type": "I64",
+        "vortex_file": 159460
+      },
+      "single_term": {
+        "cardinality": "Optional",
+        "chunk_rows": 87382,
+        "columnar_column": 100089,
+        "columnar_dictionary": 49,
+        "detailed_columnar_total": 100138,
+        "detailed_segments": 1,
+        "detailed_vortex_compressed": 131252,
+        "detailed_vortex_file": 135468,
+        "detailed_vortex_native_str_compressed": 131263,
+        "detailed_vortex_native_str_file": 140044,
+        "encodings": {
+          "vortex.masked(vortex.constant, vortex.bool)": 13
+        },
+        "num_chunks": 13,
+        "num_docs": 1050000,
+        "num_values": 50000,
+        "stored_type": "Str",
+        "vortex_file": 135468
+      },
+      "text_1000_terms_zipf": {
+        "cardinality": "Optional",
+        "chunk_rows": 87382,
+        "columnar_column": 162590,
+        "columnar_dictionary": 2042,
+        "detailed_columnar_total": 164632,
+        "detailed_segments": 1,
+        "detailed_vortex_compressed": 68972,
+        "detailed_vortex_file": 78676,
+        "detailed_vortex_native_str_compressed": 194331,
+        "detailed_vortex_native_str_file": 75348,
+        "encodings": {
+          "vortex.slice(vortex.sparse(vortex.sequence, fastlanes.bitpacked(vortex.bool)))": 12,
+          "vortex.sparse(vortex.sequence, vortex.primitive(vortex.bool))": 1
+        },
+        "num_chunks": 13,
+        "num_docs": 1050000,
+        "num_values": 50000,
+        "stored_type": "Str",
+        "vortex_file": 78676
+      },
+      "text_90_terms_zipf": {
+        "cardinality": "Optional",
+        "chunk_rows": 87382,
+        "columnar_column": 143839,
+        "columnar_dictionary": 222,
+        "detailed_columnar_total": 144061,
+        "detailed_segments": 1,
+        "detailed_vortex_compressed": 50156,
+        "detailed_vortex_file": 58468,
+        "detailed_vortex_native_str_compressed": 170453,
+        "detailed_vortex_native_str_file": 50748,
+        "encodings": {
+          "vortex.slice(vortex.sparse(vortex.sequence, fastlanes.bitpacked(vortex.bool)))": 12,
+          "vortex.sparse(vortex.sequence, vortex.primitive(vortex.bool))": 1
+        },
+        "num_chunks": 13,
+        "num_docs": 1050000,
+        "num_values": 50000,
+        "stored_type": "Str",
+        "vortex_file": 58468
+      },
+      "text_all_unique_terms": {
+        "cardinality": "Optional",
+        "chunk_rows": 87382,
+        "columnar_column": 200091,
+        "columnar_dictionary": 451580,
+        "detailed_columnar_total": 651671,
+        "detailed_segments": 1,
+        "detailed_vortex_compressed": 106604,
+        "detailed_vortex_file": 119164,
+        "detailed_vortex_native_str_compressed": 924163,
+        "detailed_vortex_native_str_file": 859996,
+        "encodings": {
+          "vortex.slice(vortex.sparse(vortex.sequence, fastlanes.bitpacked(vortex.bool)))": 12,
+          "vortex.sparse(vortex.sequence, vortex.primitive(vortex.bool))": 1
+        },
+        "num_chunks": 13,
+        "num_docs": 1050000,
+        "num_values": 50000,
+        "stored_type": "Str",
+        "vortex_file": 119164
+      },
+      "text_few_terms": {
+        "cardinality": "Optional",
+        "chunk_rows": 87382,
+        "columnar_column": 112589,
+        "columnar_dictionary": 59,
+        "detailed_columnar_total": 112648,
+        "detailed_segments": 1,
+        "detailed_vortex_compressed": 18796,
+        "detailed_vortex_file": 24876,
+        "detailed_vortex_native_str_compressed": 144762,
+        "detailed_vortex_native_str_file": 23724,
+        "encodings": {
+          "vortex.slice(vortex.sparse(vortex.sequence, fastlanes.bitpacked(vortex.bool)))": 12,
+          "vortex.sparse(vortex.sequence, fastlanes.bitpacked(vortex.bool))": 1
+        },
+        "num_chunks": 13,
+        "num_docs": 1050000,
+        "num_values": 50000,
+        "stored_type": "Str",
+        "vortex_file": 24876
+      },
+      "text_few_terms_status": {
+        "cardinality": "Optional",
+        "chunk_rows": 87382,
+        "columnar_column": 118839,
+        "columnar_dictionary": 80,
+        "detailed_columnar_total": 118919,
+        "detailed_segments": 1,
+        "detailed_vortex_compressed": 25068,
+        "detailed_vortex_file": 31860,
+        "detailed_vortex_native_str_compressed": 144827,
+        "detailed_vortex_native_str_file": 24340,
+        "encodings": {
+          "vortex.slice(vortex.sparse(vortex.sequence, fastlanes.bitpacked(vortex.bool)))": 12,
+          "vortex.sparse(vortex.sequence, vortex.primitive(vortex.bool))": 1
+        },
+        "num_chunks": 13,
+        "num_docs": 1050000,
+        "num_values": 50000,
+        "stored_type": "Str",
+        "vortex_file": 31860
+      },
+      "text_many_terms": {
+        "cardinality": "Optional",
+        "chunk_rows": 87382,
+        "columnar_column": 200091,
+        "columnar_dictionary": 40414,
+        "detailed_columnar_total": 240505,
+        "detailed_segments": 1,
+        "detailed_vortex_compressed": 106604,
+        "detailed_vortex_file": 119164,
+        "detailed_vortex_native_str_compressed": 483157,
+        "detailed_vortex_native_str_file": 362988,
+        "encodings": {
+          "vortex.slice(vortex.sparse(vortex.sequence, fastlanes.bitpacked(vortex.bool)))": 12,
+          "vortex.sparse(vortex.sequence, vortex.primitive(vortex.bool))": 1
+        },
+        "num_chunks": 13,
+        "num_docs": 1050000,
+        "num_values": 50000,
+        "stored_type": "Str",
+        "vortex_file": 119164
+      },
+      "timestamp": {
+        "cardinality": "Optional",
+        "chunk_rows": 65536,
+        "columnar_column": 218850,
+        "columnar_dictionary": 0,
+        "detailed_columnar_total": 218850,
+        "detailed_segments": 1,
+        "detailed_vortex_compressed": 112982,
+        "detailed_vortex_file": 191636,
+        "detailed_vortex_plain_i64_file": 346212,
+        "encodings": {
+          "vortex.datetimeparts(vortex.masked(vortex.constant, vortex.bool), vortex.slice(vortex.sparse(vortex.sequence, fastlanes.bitpacked)), vortex.slice(vortex.sparse(vortex.sequence, vortex.constant)))": 6,
+          "vortex.datetimeparts(vortex.slice(vortex.sparse(vortex.sequence, fastlanes.bitpacked)), vortex.slice(vortex.sparse(vortex.sequence, fastlanes.bitpacked)), vortex.slice(vortex.sparse(vortex.sequence, vortex.constant)))": 2,
+          "vortex.datetimeparts(vortex.slice(vortex.sparse(vortex.sequence, fastlanes.for.v2)), vortex.slice(vortex.sparse(vortex.sequence, fastlanes.bitpacked)), vortex.slice(vortex.sparse(vortex.sequence, vortex.constant)))": 8,
+          "vortex.datetimeparts(vortex.sparse(vortex.sequence, vortex.primitive(vortex.bool)), vortex.sparse(vortex.sequence, vortex.primitive), vortex.sparse(vortex.sequence, vortex.constant))": 1
+        },
+        "num_chunks": 17,
+        "num_docs": 1050000,
+        "num_values": 50000,
+        "stored_type": "DateTime",
+        "vortex_file": 191636
+      },
+      "timestamp_26_bits": {
+        "cardinality": "Optional",
+        "chunk_rows": 65536,
+        "columnar_column": 262601,
+        "columnar_dictionary": 0,
+        "detailed_columnar_total": 262601,
+        "detailed_segments": 1,
+        "detailed_vortex_compressed": 175608,
+        "detailed_vortex_file": 213572,
+        "detailed_vortex_plain_i64_file": 415532,
+        "encodings": {
+          "vortex.datetimeparts(vortex.slice(vortex.sparse(vortex.sequence, fastlanes.bitpacked)), vortex.slice(vortex.sparse(vortex.sequence, fastlanes.bitpacked)), vortex.slice(vortex.sparse(vortex.sequence, vortex.constant)))": 16,
+          "vortex.datetimeparts(vortex.sparse(vortex.sequence, vortex.primitive(vortex.bool)), vortex.sparse(vortex.sequence, vortex.primitive), vortex.sparse(vortex.sequence, vortex.constant))": 1
+        },
+        "num_chunks": 17,
+        "num_docs": 1050000,
+        "num_values": 50000,
+        "stored_type": "DateTime",
+        "vortex_file": 213572
+      }
+    },
+    "files": {
+      "fast": 3178363,
+      "fieldnorm": 9450169,
+      "idx": 823583,
+      "pos": 153,
+      "store": 4292002,
+      "term": 1228195,
+      "vortex": 1708408
+    },
+    "index": "agg_bench_vortex/OptionalSparse",
+    "num_docs": 1050000,
+    "num_segments": 1
+  },
+  {
+    "columns": {
+      "score": {
+        "cardinality": "Multivalued",
+        "chunk_rows": 65536,
+        "columnar_column": 4038960,
+        "columnar_dictionary": 0,
+        "detailed_columnar_total": 4038960,
+        "detailed_segments": 1,
+        "detailed_vortex_compressed": 5002240,
+        "detailed_vortex_file": 2645568,
+        "encodings": {
+          "vortex.list(fastlanes.bitpacked, fastlanes.bitpacked(vortex.primitive, vortex.primitive, vortex.primitive))": 1,
+          "vortex.list(fastlanes.bitpacked, vortex.sequence)": 15
+        },
+        "num_chunks": 16,
+        "num_docs": 1000001,
+        "num_values": 1000002,
+        "stored_type": "U64",
+        "vortex_file": 2645568
+      },
+      "score_f64": {
+        "cardinality": "Multivalued",
+        "chunk_rows": 65536,
+        "columnar_column": 8538983,
+        "columnar_dictionary": 0,
+        "detailed_columnar_total": 8538983,
+        "detailed_segments": 1,
+        "detailed_vortex_compressed": 9412872,
+        "detailed_vortex_file": 7052680,
+        "encodings": {
+          "vortex.list(vortex.alprd(fastlanes.bitpacked, fastlanes.bitpacked, vortex.primitive, vortex.primitive), fastlanes.bitpacked(vortex.primitive, vortex.primitive, vortex.primitive))": 1,
+          "vortex.list(vortex.alprd(fastlanes.bitpacked, fastlanes.bitpacked, vortex.primitive, vortex.primitive), vortex.sequence)": 15
+        },
+        "num_chunks": 16,
+        "num_docs": 1000001,
+        "num_values": 1000002,
+        "stored_type": "F64",
+        "vortex_file": 7052680
+      },
+      "score_i64": {
+        "cardinality": "Multivalued",
+        "chunk_rows": 65536,
+        "columnar_column": 4038969,
+        "columnar_dictionary": 0,
+        "detailed_columnar_total": 4038969,
+        "detailed_segments": 1,
+        "detailed_vortex_compressed": 5002240,
+        "detailed_vortex_file": 2645568,
+        "encodings": {
+          "vortex.list(fastlanes.bitpacked, fastlanes.bitpacked(vortex.primitive, vortex.primitive, vortex.primitive))": 1,
+          "vortex.list(fastlanes.bitpacked, vortex.sequence)": 15
+        },
+        "num_chunks": 16,
+        "num_docs": 1000001,
+        "num_values": 1000002,
+        "stored_type": "I64",
+        "vortex_file": 2645568
+      },
+      "single_term": {
+        "cardinality": "Multivalued",
+        "chunk_rows": 90112,
+        "columnar_column": 1538957,
+        "columnar_dictionary": 49,
+        "detailed_columnar_total": 1539006,
+        "detailed_segments": 1,
+        "detailed_vortex_compressed": 2501122,
+        "detailed_vortex_file": 199568,
+        "detailed_vortex_native_str_compressed": 2501133,
+        "detailed_vortex_native_str_file": 107432,
+        "encodings": {
+          "vortex.list(vortex.constant, fastlanes.bitpacked)": 1,
+          "vortex.list(vortex.constant, vortex.sequence)": 11
+        },
+        "num_chunks": 12,
+        "num_docs": 1000001,
+        "num_values": 1000002,
+        "stored_type": "Str",
+        "vortex_file": 199568
+      },
+      "text_1000_terms_zipf": {
+        "cardinality": "Multivalued",
+        "chunk_rows": 90112,
+        "columnar_column": 2788961,
+        "columnar_dictionary": 2042,
+        "detailed_columnar_total": 2791003,
+        "detailed_segments": 1,
+        "detailed_vortex_compressed": 3751680,
+        "detailed_vortex_file": 1452248,
+        "detailed_vortex_native_str_compressed": 3757185,
+        "detailed_vortex_native_str_file": 1487368,
+        "encodings": {
+          "vortex.list(fastlanes.bitpacked, fastlanes.bitpacked)": 1,
+          "vortex.list(fastlanes.bitpacked, vortex.sequence)": 11
+        },
+        "num_chunks": 12,
+        "num_docs": 1000001,
+        "num_values": 1000002,
+        "stored_type": "Str",
+        "vortex_file": 1452248
+      },
+      "text_90_terms_zipf": {
+        "cardinality": "Multivalued",
+        "chunk_rows": 90112,
+        "columnar_column": 2413959,
+        "columnar_dictionary": 222,
+        "detailed_columnar_total": 2414181,
+        "detailed_segments": 1,
+        "detailed_vortex_compressed": 3376512,
+        "detailed_vortex_file": 1076696,
+        "detailed_vortex_native_str_compressed": 3377077,
+        "detailed_vortex_native_str_file": 1007040,
+        "encodings": {
+          "vortex.list(fastlanes.bitpacked, fastlanes.bitpacked)": 1,
+          "vortex.list(fastlanes.bitpacked, vortex.sequence)": 11
+        },
+        "num_chunks": 12,
+        "num_docs": 1000001,
+        "num_values": 1000002,
+        "stored_type": "Str",
+        "vortex_file": 1076696
+      },
+      "text_all_unique_terms": {
+        "cardinality": "Multivalued",
+        "chunk_rows": 90112,
+        "columnar_column": 4038964,
+        "columnar_dictionary": 8401826,
+        "detailed_columnar_total": 12440790,
+        "detailed_segments": 1,
+        "detailed_vortex_compressed": 5002240,
+        "detailed_vortex_file": 2704088,
+        "detailed_vortex_native_str_compressed": 17432246,
+        "detailed_vortex_native_str_file": 14497992,
+        "encodings": {
+          "vortex.list(fastlanes.bitpacked, fastlanes.bitpacked)": 1,
+          "vortex.list(fastlanes.bitpacked, vortex.sequence)": 11
+        },
+        "num_chunks": 12,
+        "num_docs": 1000001,
+        "num_values": 1000002,
+        "stored_type": "Str",
+        "vortex_file": 2704088
+      },
+      "text_few_terms": {
+        "cardinality": "Multivalued",
+        "chunk_rows": 90112,
+        "columnar_column": 1857843,
+        "columnar_dictionary": 64,
+        "detailed_columnar_total": 1857907,
+        "detailed_segments": 1,
+        "detailed_vortex_compressed": 2752213,
+        "detailed_vortex_file": 451056,
+        "detailed_vortex_native_str_compressed": 2876348,
+        "detailed_vortex_native_str_file": 374160,
+        "encodings": {
+          "vortex.list(fastlanes.bitpacked(vortex.primitive, vortex.constant, vortex.primitive), fastlanes.bitpacked)": 1,
+          "vortex.list(fastlanes.bitpacked, vortex.sequence)": 11
+        },
+        "num_chunks": 12,
+        "num_docs": 1000001,
+        "num_values": 1000002,
+        "stored_type": "Str",
+        "vortex_file": 451056
+      },
+      "text_few_terms_status": {
+        "cardinality": "Multivalued",
+        "chunk_rows": 90112,
+        "columnar_column": 1913958,
+        "columnar_dictionary": 80,
+        "detailed_columnar_total": 1914038,
+        "detailed_segments": 1,
+        "detailed_vortex_compressed": 2876288,
+        "detailed_vortex_file": 575960,
+        "detailed_vortex_native_str_compressed": 2876400,
+        "detailed_vortex_native_str_file": 491584,
+        "encodings": {
+          "vortex.list(fastlanes.bitpacked, fastlanes.bitpacked)": 1,
+          "vortex.list(fastlanes.bitpacked, vortex.sequence)": 11
+        },
+        "num_chunks": 12,
+        "num_docs": 1000001,
+        "num_values": 1000002,
+        "stored_type": "Str",
+        "vortex_file": 575960
+      },
+      "text_many_terms": {
+        "cardinality": "Multivalued",
+        "chunk_rows": 90112,
+        "columnar_column": 3788964,
+        "columnar_dictionary": 13915,
+        "detailed_columnar_total": 3802879,
+        "detailed_segments": 1,
+        "detailed_vortex_compressed": 4752128,
+        "detailed_vortex_file": 2453720,
+        "detailed_vortex_native_str_compressed": 8511442,
+        "detailed_vortex_native_str_file": 6019360,
+        "encodings": {
+          "vortex.list(fastlanes.bitpacked, fastlanes.bitpacked)": 1,
+          "vortex.list(fastlanes.bitpacked, vortex.sequence)": 11
+        },
+        "num_chunks": 12,
+        "num_docs": 1000001,
+        "num_values": 1000002,
+        "stored_type": "Str",
+        "vortex_file": 2453720
+      },
+      "timestamp": {
+        "cardinality": "Optional",
+        "chunk_rows": 82497,
+        "columnar_column": 2538936,
+        "columnar_dictionary": 0,
+        "detailed_columnar_total": 2538936,
+        "detailed_segments": 1,
+        "detailed_vortex_compressed": 2401502,
+        "detailed_vortex_file": 2229244,
+        "detailed_vortex_plain_i64_file": 4448308,
+        "encodings": {
+          "vortex.datetimeparts(fastlanes.bitpacked, fastlanes.bitpacked, vortex.constant)": 2,
+          "vortex.datetimeparts(fastlanes.for.v2(fastlanes.bitpacked, vortex.constant), fastlanes.bitpacked, vortex.constant)": 4,
+          "vortex.datetimeparts(vortex.masked(vortex.constant, vortex.bool), vortex.zigzag(vortex.slice(fastlanes.bitpacked)), vortex.slice(vortex.sparse(vortex.primitive, vortex.primitive)))": 2,
+          "vortex.datetimeparts(vortex.slice(vortex.sparse(fastlanes.bitpacked, vortex.constant)), fastlanes.bitpacked, vortex.constant)": 2,
+          "vortex.datetimeparts(vortex.slice(vortex.sparse(fastlanes.for.v2, vortex.constant)), fastlanes.bitpacked, vortex.constant)": 2,
+          "vortex.datetimeparts(vortex.slice(vortex.sparse(vortex.primitive, vortex.constant)), fastlanes.bitpacked, vortex.constant)": 2,
+          "vortex.datetimeparts(vortex.sparse(fastlanes.for.v2(fastlanes.bitpacked, vortex.constant), vortex.constant), fastlanes.bitpacked, vortex.constant)": 1
+        },
+        "num_chunks": 15,
+        "num_docs": 1000001,
+        "num_values": 1000000,
+        "stored_type": "DateTime",
+        "vortex_file": 2229244
+      },
+      "timestamp_26_bits": {
+        "cardinality": "Optional",
+        "chunk_rows": 82497,
+        "columnar_column": 3413937,
+        "columnar_dictionary": 0,
+        "detailed_columnar_total": 3413937,
+        "detailed_segments": 1,
+        "detailed_vortex_compressed": 3626580,
+        "detailed_vortex_file": 3416556,
+        "detailed_vortex_plain_i64_file": 7025796,
+        "encodings": {
+          "vortex.datetimeparts(fastlanes.bitpacked(vortex.bool), fastlanes.for.v2(fastlanes.bitpacked, vortex.constant), vortex.slice(vortex.sparse(vortex.primitive, vortex.primitive)))": 2,
+          "vortex.datetimeparts(fastlanes.bitpacked, fastlanes.bitpacked, vortex.constant)": 13
+        },
+        "num_chunks": 15,
+        "num_docs": 1000001,
+        "num_values": 1000000,
+        "stored_type": "DateTime",
+        "vortex_file": 3416556
+      }
+    },
+    "files": {
+      "fast": 52590088,
+      "fieldnorm": 9000178,
+      "idx": 9464748,
+      "pos": 153,
+      "store": 4087629,
+      "term": 19950935,
+      "vortex": 26905398
+    },
+    "index": "agg_bench_vortex/Multivalued",
+    "num_docs": 1000001,
+    "num_segments": 1
+  },
+  {
+    "columns": {
+      "score": {
+        "cardinality": "Full",
+        "chunk_rows": 10000,
+        "columnar_column": 2501331,
+        "columnar_dictionary": 0,
+        "detailed_columnar_total": 75040,
+        "detailed_segments": 3,
+        "detailed_vortex_compressed": 76800,
+        "detailed_vortex_file": 83676,
+        "encodings": {
+          "fastlanes.bitpacked": 1
+        },
+        "num_chunks": 1,
+        "num_docs": 10000,
+        "num_values": 10000,
+        "stored_type": "U64",
+        "vortex_file": 2789200
+      },
+      "score_f64": {
+        "cardinality": "Full",
+        "chunk_rows": 10000,
+        "columnar_column": 7002700,
+        "columnar_dictionary": 0,
+        "detailed_columnar_total": 210081,
+        "detailed_segments": 3,
+        "detailed_vortex_compressed": 211924,
+        "detailed_vortex_file": 219644,
+        "encodings": {
+          "vortex.alprd(fastlanes.bitpacked, fastlanes.bitpacked, vortex.primitive, vortex.primitive)": 1
+        },
+        "num_chunks": 1,
+        "num_docs": 10000,
+        "num_values": 10000,
+        "stored_type": "F64",
+        "vortex_file": 7319848
+      },
+      "score_i64": {
+        "cardinality": "Full",
+        "chunk_rows": 10000,
+        "columnar_column": 2502200,
+        "columnar_dictionary": 0,
+        "detailed_columnar_total": 75066,
+        "detailed_segments": 3,
+        "detailed_vortex_compressed": 76800,
+        "detailed_vortex_file": 83676,
+        "encodings": {
+          "fastlanes.bitpacked": 1
+        },
+        "num_chunks": 1,
+        "num_docs": 10000,
+        "num_values": 10000,
+        "stored_type": "I64",
+        "vortex_file": 2789200
+      },
+      "single_term": {
+        "cardinality": "Full",
+        "chunk_rows": 10000,
+        "columnar_column": 1500,
+        "columnar_dictionary": 4900,
+        "detailed_columnar_total": 192,
+        "detailed_segments": 3,
+        "detailed_vortex_compressed": 6,
+        "detailed_vortex_file": 6156,
+        "detailed_vortex_native_str_compressed": 39,
+        "detailed_vortex_native_str_file": 6744,
+        "encodings": {
+          "vortex.constant": 1
+        },
+        "num_chunks": 1,
+        "num_docs": 10000,
+        "num_values": 10000,
+        "stored_type": "Str",
+        "vortex_file": 205200
+      },
+      "text_1000_terms_zipf": {
+        "cardinality": "Full",
+        "chunk_rows": 10000,
+        "columnar_column": 1251600,
+        "columnar_dictionary": 171691,
+        "detailed_columnar_total": 42768,
+        "detailed_segments": 3,
+        "detailed_vortex_compressed": 38400,
+        "detailed_vortex_file": 45012,
+        "detailed_vortex_native_str_compressed": 53172,
+        "detailed_vortex_native_str_file": 63172,
+        "encodings": {
+          "fastlanes.bitpacked": 1
+        },
+        "num_chunks": 1,
+        "num_docs": 10000,
+        "num_values": 10000,
+        "stored_type": "Str",
+        "vortex_file": 1499520
+      },
+      "text_90_terms_zipf": {
+        "cardinality": "Full",
+        "chunk_rows": 10000,
+        "columnar_column": 876500,
+        "columnar_dictionary": 22200,
+        "detailed_columnar_total": 26961,
+        "detailed_segments": 3,
+        "detailed_vortex_compressed": 26880,
+        "detailed_vortex_file": 33204,
+        "detailed_vortex_native_str_compressed": 28573,
+        "detailed_vortex_native_str_file": 37368,
+        "encodings": {
+          "fastlanes.bitpacked": 1
+        },
+        "num_chunks": 1,
+        "num_docs": 10000,
+        "num_values": 10000,
+        "stored_type": "Str",
+        "vortex_file": 1107240
+      },
+      "text_all_unique_terms": {
+        "cardinality": "Full",
+        "chunk_rows": 10000,
+        "columnar_column": 1751600,
+        "columnar_dictionary": 9365040,
+        "detailed_columnar_total": 333558,
+        "detailed_segments": 3,
+        "detailed_vortex_compressed": 53760,
+        "detailed_vortex_file": 60588,
+        "detailed_vortex_native_str_compressed": 454479,
+        "detailed_vortex_native_str_file": 432924,
+        "encodings": {
+          "fastlanes.bitpacked": 1
+        },
+        "num_chunks": 1,
+        "num_docs": 10000,
+        "num_values": 10000,
+        "stored_type": "Str",
+        "vortex_file": 2019600
+      },
+      "text_few_terms": {
+        "cardinality": "Full",
+        "chunk_rows": 10000,
+        "columnar_column": 251500,
+        "columnar_dictionary": 5900,
+        "detailed_columnar_total": 7722,
+        "detailed_segments": 3,
+        "detailed_vortex_compressed": 7680,
+        "detailed_vortex_file": 14004,
+        "detailed_vortex_native_str_compressed": 7830,
+        "detailed_vortex_native_str_file": 16248,
+        "encodings": {
+          "fastlanes.bitpacked": 1
+        },
+        "num_chunks": 1,
+        "num_docs": 10000,
+        "num_values": 10000,
+        "stored_type": "Str",
+        "vortex_file": 466800
+      },
+      "text_few_terms_status": {
+        "cardinality": "Full",
+        "chunk_rows": 10000,
+        "columnar_column": 376500,
+        "columnar_dictionary": 7640,
+        "detailed_columnar_total": 11517,
+        "detailed_segments": 3,
+        "detailed_vortex_compressed": 11520,
+        "detailed_vortex_file": 17844,
+        "detailed_vortex_native_str_compressed": 11796,
+        "detailed_vortex_native_str_file": 20008,
+        "encodings": {
+          "fastlanes.bitpacked": 1
+        },
+        "num_chunks": 1,
+        "num_docs": 10000,
+        "num_values": 10000,
+        "stored_type": "Str",
+        "vortex_file": 594888
+      },
+      "text_many_terms": {
+        "cardinality": "Full",
+        "chunk_rows": 10000,
+        "columnar_column": 1751600,
+        "columnar_dictionary": 1319714,
+        "detailed_columnar_total": 92076,
+        "detailed_segments": 3,
+        "detailed_vortex_compressed": 53760,
+        "detailed_vortex_file": 60588,
+        "detailed_vortex_native_str_compressed": 188155,
+        "detailed_vortex_native_str_file": 196772,
+        "encodings": {
+          "fastlanes.bitpacked": 1
+        },
+        "num_chunks": 1,
+        "num_docs": 10000,
+        "num_values": 10000,
+        "stored_type": "Str",
+        "vortex_file": 2019384
+      },
+      "timestamp": {
+        "cardinality": "Full",
+        "chunk_rows": 10000,
+        "columnar_column": 1872596,
+        "columnar_dictionary": 0,
+        "detailed_columnar_total": 56328,
+        "detailed_segments": 3,
+        "detailed_vortex_compressed": 61456,
+        "detailed_vortex_file": 70116,
+        "detailed_vortex_plain_i64_file": 179660,
+        "encodings": {
+          "vortex.datetimeparts(fastlanes.for.v2(fastlanes.bitpacked, vortex.constant), fastlanes.bitpacked, vortex.constant)": 1
+        },
+        "num_chunks": 1,
+        "num_docs": 10000,
+        "num_values": 10000,
+        "stored_type": "DateTime",
+        "vortex_file": 2275608
+      },
+      "timestamp_26_bits": {
+        "cardinality": "Full",
+        "chunk_rows": 10000,
+        "columnar_column": 3252700,
+        "columnar_dictionary": 0,
+        "detailed_columnar_total": 97581,
+        "detailed_segments": 3,
+        "detailed_vortex_compressed": 103686,
+        "detailed_vortex_file": 112428,
+        "detailed_vortex_plain_i64_file": 222012,
+        "encodings": {
+          "vortex.datetimeparts(fastlanes.bitpacked, fastlanes.bitpacked, vortex.constant)": 1
+        },
+        "num_chunks": 1,
+        "num_docs": 10000,
+        "num_values": 10000,
+        "stored_type": "DateTime",
+        "vortex_file": 3749088
+      }
+    },
+    "files": {
+      "fast": 39079395,
+      "fieldnorm": 9016100,
+      "idx": 7735454,
+      "pos": 15300,
+      "store": 4101200,
+      "term": 27507440,
+      "vortex": 27057140
+    },
+    "index": "agg_bench_vortex/Full_100_segments",
+    "num_docs": 1000000,
+    "num_segments": 100
+  },
+  {
+    "columns": {
+      "score": {
+        "cardinality": "Full",
+        "chunk_rows": 1000,
+        "columnar_column": 2513881,
+        "columnar_dictionary": 0,
+        "detailed_columnar_total": 7542,
+        "detailed_segments": 3,
+        "detailed_vortex_compressed": 7680,
+        "detailed_vortex_file": 14052,
+        "encodings": {
+          "fastlanes.bitpacked": 1
+        },
+        "num_chunks": 1,
+        "num_docs": 1000,
+        "num_values": 1000,
+        "stored_type": "U64",
+        "vortex_file": 4683048
+      },
+      "score_f64": {
+        "cardinality": "Full",
+        "chunk_rows": 1000,
+        "columnar_column": 7022625,
+        "columnar_dictionary": 0,
+        "detailed_columnar_total": 21081,
+        "detailed_segments": 3,
+        "detailed_vortex_compressed": 21188,
+        "detailed_vortex_file": 28656,
+        "encodings": {
+          "vortex.alprd(fastlanes.bitpacked, fastlanes.bitpacked, vortex.primitive, vortex.primitive)": 1
+        },
+        "num_chunks": 1,
+        "num_docs": 1000,
+        "num_values": 1000,
+        "stored_type": "F64",
+        "vortex_file": 9544656
+      },
+      "score_i64": {
+        "cardinality": "Full",
+        "chunk_rows": 1000,
+        "columnar_column": 2522000,
+        "columnar_dictionary": 0,
+        "detailed_columnar_total": 7566,
+        "detailed_segments": 3,
+        "detailed_vortex_compressed": 7680,
+        "detailed_vortex_file": 14052,
+        "encodings": {
+          "fastlanes.bitpacked": 1
+        },
+        "num_chunks": 1,
+        "num_docs": 1000,
+        "num_values": 1000,
+        "stored_type": "I64",
+        "vortex_file": 4683544
+      },
+      "single_term": {
+        "cardinality": "Full",
+        "chunk_rows": 1000,
+        "columnar_column": 15000,
+        "columnar_dictionary": 49000,
+        "detailed_columnar_total": 192,
+        "detailed_segments": 3,
+        "detailed_vortex_compressed": 6,
+        "detailed_vortex_file": 6156,
+        "detailed_vortex_native_str_compressed": 39,
+        "detailed_vortex_native_str_file": 6744,
+        "encodings": {
+          "vortex.constant": 1
+        },
+        "num_chunks": 1,
+        "num_docs": 1000,
+        "num_values": 1000,
+        "stored_type": "Str",
+        "vortex_file": 2052000
+      },
+      "text_1000_terms_zipf": {
+        "cardinality": "Full",
+        "chunk_rows": 1000,
+        "columnar_column": 1139208,
+        "columnar_dictionary": 608173,
+        "detailed_columnar_total": 5221,
+        "detailed_segments": 3,
+        "detailed_vortex_compressed": 3456,
+        "detailed_vortex_file": 9780,
+        "detailed_vortex_native_str_compressed": 9922,
+        "detailed_vortex_native_str_file": 18992,
+        "encodings": {
+          "fastlanes.bitpacked": 1
+        },
+        "num_chunks": 1,
+        "num_docs": 1000,
+        "num_values": 1000,
+        "stored_type": "Str",
+        "vortex_file": 3287360
+      },
+      "text_90_terms_zipf": {
+        "cardinality": "Full",
+        "chunk_rows": 1000,
+        "columnar_column": 890000,
+        "columnar_dictionary": 212230,
+        "detailed_columnar_total": 3300,
+        "detailed_segments": 3,
+        "detailed_vortex_compressed": 2688,
+        "detailed_vortex_file": 9012,
+        "detailed_vortex_native_str_compressed": 4416,
+        "detailed_vortex_native_str_file": 12864,
+        "encodings": {
+          "fastlanes.bitpacked": 1
+        },
+        "num_chunks": 1,
+        "num_docs": 1000,
+        "num_values": 1000,
+        "stored_type": "Str",
+        "vortex_file": 3004000
+      },
+      "text_all_unique_terms": {
+        "cardinality": "Full",
+        "chunk_rows": 1000,
+        "columnar_column": 1266000,
+        "columnar_dictionary": 10051287,
+        "detailed_columnar_total": 33940,
+        "detailed_segments": 3,
+        "detailed_vortex_compressed": 3840,
+        "detailed_vortex_file": 10164,
+        "detailed_vortex_native_str_compressed": 44725,
+        "detailed_vortex_native_str_file": 53840,
+        "encodings": {
+          "fastlanes.bitpacked": 1
+        },
+        "num_chunks": 1,
+        "num_docs": 1000,
+        "num_values": 1000,
+        "stored_type": "Str",
+        "vortex_file": 3388000
+      },
+      "text_few_terms": {
+        "cardinality": "Full",
+        "chunk_rows": 1000,
+        "columnar_column": 265000,
+        "columnar_dictionary": 59000,
+        "detailed_columnar_total": 972,
+        "detailed_segments": 3,
+        "detailed_vortex_compressed": 768,
+        "detailed_vortex_file": 7092,
+        "detailed_vortex_native_str_compressed": 918,
+        "detailed_vortex_native_str_file": 9336,
+        "encodings": {
+          "fastlanes.bitpacked": 1
+        },
+        "num_chunks": 1,
+        "num_docs": 1000,
+        "num_values": 1000,
+        "stored_type": "Str",
+        "vortex_file": 2364000
+      },
+      "text_few_terms_status": {
+        "cardinality": "Full",
+        "chunk_rows": 1000,
+        "columnar_column": 390000,
+        "columnar_dictionary": 70739,
+        "detailed_columnar_total": 1383,
+        "detailed_segments": 3,
+        "detailed_vortex_compressed": 1152,
+        "detailed_vortex_file": 7476,
+        "detailed_vortex_native_str_compressed": 1401,
+        "detailed_vortex_native_str_file": 9856,
+        "encodings": {
+          "fastlanes.bitpacked": 1
+        },
+        "num_chunks": 1,
+        "num_docs": 1000,
+        "num_values": 1000,
+        "stored_type": "Str",
+        "vortex_file": 2492000
+      },
+      "text_many_terms": {
+        "cardinality": "Full",
+        "chunk_rows": 1000,
+        "columnar_column": 1266000,
+        "columnar_dictionary": 1927633,
+        "detailed_columnar_total": 9598,
+        "detailed_segments": 3,
+        "detailed_vortex_compressed": 3840,
+        "detailed_vortex_file": 10164,
+        "detailed_vortex_native_str_compressed": 20256,
+        "detailed_vortex_native_str_file": 28296,
+        "encodings": {
+          "fastlanes.bitpacked": 1
+        },
+        "num_chunks": 1,
+        "num_docs": 1000,
+        "num_values": 1000,
+        "stored_type": "Str",
+        "vortex_file": 3388000
+      },
+      "timestamp": {
+        "cardinality": "Full",
+        "chunk_rows": 1000,
+        "columnar_column": 1774500,
+        "columnar_dictionary": 0,
+        "detailed_columnar_total": 5325,
+        "detailed_segments": 3,
+        "detailed_vortex_compressed": 5400,
+        "detailed_vortex_file": 12816,
+        "detailed_vortex_plain_i64_file": 23640,
+        "encodings": {
+          "vortex.datetimeparts(vortex.constant, fastlanes.for.v2(fastlanes.bitpacked, vortex.constant), vortex.constant)": 1
+        },
+        "num_chunks": 1,
+        "num_docs": 1000,
+        "num_values": 1000,
+        "stored_type": "DateTime",
+        "vortex_file": 4368104
+      },
+      "timestamp_26_bits": {
+        "cardinality": "Full",
+        "chunk_rows": 1000,
+        "columnar_column": 3277000,
+        "columnar_dictionary": 0,
+        "detailed_columnar_total": 9831,
+        "detailed_segments": 3,
+        "detailed_vortex_compressed": 10374,
+        "detailed_vortex_file": 18048,
+        "detailed_vortex_plain_i64_file": 28008,
+        "encodings": {
+          "vortex.datetimeparts(fastlanes.bitpacked, fastlanes.bitpacked, vortex.constant)": 1
+        },
+        "num_chunks": 1,
+        "num_docs": 1000,
+        "num_values": 1000,
+        "stored_type": "DateTime",
+        "vortex_file": 6014064
+      }
+    },
+    "files": {
+      "fast": 41314685,
+      "fieldnorm": 9161000,
+      "idx": 8295980,
+      "pos": 153000,
+      "store": 4235000,
+      "term": 33878580,
+      "vortex": 51450956
+    },
+    "index": "agg_bench_vortex/Full_1000_segments",
+    "num_docs": 1000000,
+    "num_segments": 1000
+  }
+]

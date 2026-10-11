@@ -1,0 +1,422 @@
+[
+  {
+    "columns": {
+      "score": {
+        "all": {
+          "columnar_ns": 213417,
+          "num_docs": 1000000,
+          "num_values": 1000000,
+          "vortex_ns": 430459
+        },
+        "column_type": "U64",
+        "filtered": {
+          "columnar_ns": 7042,
+          "num_docs": 9997,
+          "num_values": 9997,
+          "vortex_ns": 172375
+        }
+      },
+      "score_f64": {
+        "all": {
+          "columnar_ns": 427166,
+          "num_docs": 1000000,
+          "num_values": 1000000,
+          "vortex_ns": 934625
+        },
+        "column_type": "F64",
+        "filtered": {
+          "columnar_ns": 7416,
+          "num_docs": 9997,
+          "num_values": 9997,
+          "vortex_ns": 600250
+        }
+      },
+      "score_i64": {
+        "all": {
+          "columnar_ns": 326500,
+          "num_docs": 1000000,
+          "num_values": 1000000,
+          "vortex_ns": 448292
+        },
+        "column_type": "I64",
+        "filtered": {
+          "columnar_ns": 7792,
+          "num_docs": 9997,
+          "num_values": 9997,
+          "vortex_ns": 180459
+        }
+      },
+      "text_1000_terms_zipf": {
+        "all": {
+          "columnar_ns": 221708,
+          "num_docs": 1000000,
+          "num_values": 1000000,
+          "vortex_ns": 343916
+        },
+        "column_type": "Str",
+        "filtered": {
+          "columnar_ns": 7292,
+          "num_docs": 9997,
+          "num_values": 9997,
+          "vortex_ns": 137459
+        }
+      },
+      "text_all_unique_terms": {
+        "all": {
+          "columnar_ns": 214000,
+          "num_docs": 1000000,
+          "num_values": 1000000,
+          "vortex_ns": 350167
+        },
+        "column_type": "Str",
+        "filtered": {
+          "columnar_ns": 7708,
+          "num_docs": 9997,
+          "num_values": 9997,
+          "vortex_ns": 150375
+        }
+      },
+      "text_few_terms_status": {
+        "all": {
+          "columnar_ns": 170958,
+          "num_docs": 1000000,
+          "num_values": 1000000,
+          "vortex_ns": 336708
+        },
+        "column_type": "Str",
+        "filtered": {
+          "columnar_ns": 5708,
+          "num_docs": 9997,
+          "num_values": 9997,
+          "vortex_ns": 134166
+        }
+      },
+      "text_many_terms": {
+        "all": {
+          "columnar_ns": 241292,
+          "num_docs": 1000000,
+          "num_values": 1000000,
+          "vortex_ns": 350833
+        },
+        "column_type": "Str",
+        "filtered": {
+          "columnar_ns": 7292,
+          "num_docs": 9997,
+          "num_values": 9997,
+          "vortex_ns": 147292
+        }
+      },
+      "timestamp": {
+        "all": {
+          "columnar_ns": 363125,
+          "num_docs": 1000000,
+          "num_values": 1000000,
+          "vortex_ns": 987417
+        },
+        "column_type": "DateTime",
+        "filtered": {
+          "columnar_ns": 7250,
+          "num_docs": 9997,
+          "num_values": 9997,
+          "vortex_ns": 669584
+        }
+      },
+      "timestamp_26_bits": {
+        "all": {
+          "columnar_ns": 364208,
+          "num_docs": 1000000,
+          "num_values": 1000000,
+          "vortex_ns": 963250
+        },
+        "column_type": "DateTime",
+        "filtered": {
+          "columnar_ns": 7291,
+          "num_docs": 9997,
+          "num_values": 9997,
+          "vortex_ns": 488917
+        }
+      }
+    },
+    "index": "agg_bench_vortex/Full"
+  },
+  {
+    "columns": {
+      "score": {
+        "all": {
+          "columnar_ns": 2355208,
+          "num_docs": 1000001,
+          "num_values": 1000000,
+          "vortex_ns": 1712083
+        },
+        "column_type": "U64",
+        "filtered": {
+          "columnar_ns": 26417,
+          "num_docs": 9997,
+          "num_values": 9997,
+          "vortex_ns": 249791
+        }
+      },
+      "score_f64": {
+        "all": {
+          "columnar_ns": 2262041,
+          "num_docs": 1000001,
+          "num_values": 1000000,
+          "vortex_ns": 2153708
+        },
+        "column_type": "F64",
+        "filtered": {
+          "columnar_ns": 26125,
+          "num_docs": 9997,
+          "num_values": 9997,
+          "vortex_ns": 728083
+        }
+      },
+      "score_i64": {
+        "all": {
+          "columnar_ns": 2349167,
+          "num_docs": 1000001,
+          "num_values": 1000000,
+          "vortex_ns": 1679583
+        },
+        "column_type": "I64",
+        "filtered": {
+          "columnar_ns": 26208,
+          "num_docs": 9997,
+          "num_values": 9997,
+          "vortex_ns": 257041
+        }
+      },
+      "text_1000_terms_zipf": {
+        "all": {
+          "columnar_ns": 2287583,
+          "num_docs": 1000001,
+          "num_values": 1000000,
+          "vortex_ns": 1587917
+        },
+        "column_type": "Str",
+        "filtered": {
+          "columnar_ns": 25417,
+          "num_docs": 9997,
+          "num_values": 9997,
+          "vortex_ns": 250833
+        }
+      },
+      "text_all_unique_terms": {
+        "all": {
+          "columnar_ns": 2337250,
+          "num_docs": 1000001,
+          "num_values": 1000000,
+          "vortex_ns": 1624291
+        },
+        "column_type": "Str",
+        "filtered": {
+          "columnar_ns": 26000,
+          "num_docs": 9997,
+          "num_values": 9997,
+          "vortex_ns": 260458
+        }
+      },
+      "text_few_terms_status": {
+        "all": {
+          "columnar_ns": 2317875,
+          "num_docs": 1000001,
+          "num_values": 1000000,
+          "vortex_ns": 1573875
+        },
+        "column_type": "Str",
+        "filtered": {
+          "columnar_ns": 22834,
+          "num_docs": 9997,
+          "num_values": 9997,
+          "vortex_ns": 229875
+        }
+      },
+      "text_many_terms": {
+        "all": {
+          "columnar_ns": 2338208,
+          "num_docs": 1000001,
+          "num_values": 1000000,
+          "vortex_ns": 1505458
+        },
+        "column_type": "Str",
+        "filtered": {
+          "columnar_ns": 23500,
+          "num_docs": 9997,
+          "num_values": 9997,
+          "vortex_ns": 236167
+        }
+      },
+      "timestamp": {
+        "all": {
+          "columnar_ns": 2291416,
+          "num_docs": 1000001,
+          "num_values": 1000000,
+          "vortex_ns": 2215833
+        },
+        "column_type": "DateTime",
+        "filtered": {
+          "columnar_ns": 23500,
+          "num_docs": 9997,
+          "num_values": 9997,
+          "vortex_ns": 838500
+        }
+      },
+      "timestamp_26_bits": {
+        "all": {
+          "columnar_ns": 2336792,
+          "num_docs": 1000001,
+          "num_values": 1000000,
+          "vortex_ns": 2204833
+        },
+        "column_type": "DateTime",
+        "filtered": {
+          "columnar_ns": 23750,
+          "num_docs": 9997,
+          "num_values": 9997,
+          "vortex_ns": 611667
+        }
+      }
+    },
+    "index": "agg_bench_vortex/OptionalDense"
+  },
+  {
+    "columns": {
+      "score": {
+        "all": {
+          "columnar_ns": 1305375,
+          "num_docs": 1050000,
+          "num_values": 50000,
+          "vortex_ns": 1164250
+        },
+        "column_type": "U64",
+        "filtered": {
+          "columnar_ns": 28375,
+          "num_docs": 10569,
+          "num_values": 526,
+          "vortex_ns": 822750
+        }
+      },
+      "score_f64": {
+        "all": {
+          "columnar_ns": 1299000,
+          "num_docs": 1050000,
+          "num_values": 50000,
+          "vortex_ns": 1142833
+        },
+        "column_type": "F64",
+        "filtered": {
+          "columnar_ns": 28458,
+          "num_docs": 10569,
+          "num_values": 526,
+          "vortex_ns": 789583
+        }
+      },
+      "score_i64": {
+        "all": {
+          "columnar_ns": 1286291,
+          "num_docs": 1050000,
+          "num_values": 50000,
+          "vortex_ns": 1022542
+        },
+        "column_type": "I64",
+        "filtered": {
+          "columnar_ns": 28291,
+          "num_docs": 10569,
+          "num_values": 526,
+          "vortex_ns": 787917
+        }
+      },
+      "text_1000_terms_zipf": {
+        "all": {
+          "columnar_ns": 1339458,
+          "num_docs": 1050000,
+          "num_values": 50000,
+          "vortex_ns": 1044334
+        },
+        "column_type": "Str",
+        "filtered": {
+          "columnar_ns": 31167,
+          "num_docs": 10569,
+          "num_values": 526,
+          "vortex_ns": 912916
+        }
+      },
+      "text_all_unique_terms": {
+        "all": {
+          "columnar_ns": 1268125,
+          "num_docs": 1050000,
+          "num_values": 50000,
+          "vortex_ns": 1034250
+        },
+        "column_type": "Str",
+        "filtered": {
+          "columnar_ns": 31291,
+          "num_docs": 10569,
+          "num_values": 526,
+          "vortex_ns": 924417
+        }
+      },
+      "text_few_terms_status": {
+        "all": {
+          "columnar_ns": 1315791,
+          "num_docs": 1050000,
+          "num_values": 50000,
+          "vortex_ns": 1033750
+        },
+        "column_type": "Str",
+        "filtered": {
+          "columnar_ns": 31083,
+          "num_docs": 10569,
+          "num_values": 526,
+          "vortex_ns": 913166
+        }
+      },
+      "text_many_terms": {
+        "all": {
+          "columnar_ns": 1310458,
+          "num_docs": 1050000,
+          "num_values": 50000,
+          "vortex_ns": 1053500
+        },
+        "column_type": "Str",
+        "filtered": {
+          "columnar_ns": 31125,
+          "num_docs": 10569,
+          "num_values": 526,
+          "vortex_ns": 919208
+        }
+      },
+      "timestamp": {
+        "all": {
+          "columnar_ns": 1265209,
+          "num_docs": 1050000,
+          "num_values": 50000,
+          "vortex_ns": 1849125
+        },
+        "column_type": "DateTime",
+        "filtered": {
+          "columnar_ns": 31583,
+          "num_docs": 10569,
+          "num_values": 526,
+          "vortex_ns": 2050250
+        }
+      },
+      "timestamp_26_bits": {
+        "all": {
+          "columnar_ns": 1279792,
+          "num_docs": 1050000,
+          "num_values": 50000,
+          "vortex_ns": 1795042
+        },
+        "column_type": "DateTime",
+        "filtered": {
+          "columnar_ns": 28333,
+          "num_docs": 10569,
+          "num_values": 526,
+          "vortex_ns": 2164375
+        }
+      }
+    },
+    "index": "agg_bench_vortex/OptionalSparse"
+  }
+]

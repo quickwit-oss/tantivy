@@ -1,0 +1,35 @@
+diff --git a/src/aggregation/bucket/term_agg/mod.rs b/src/aggregation/bucket/term_agg/mod.rs
+index f96778a35..62fee00af 100644
+--- a/src/aggregation/bucket/term_agg/mod.rs
++++ b/src/aggregation/bucket/term_agg/mod.rs
+@@ -416,10 +416,12 @@ pub(crate) fn build_segment_term_collector(
+ 
+     // Let's see if we can use a vec to aggregate our data
+     // instead of a hashmap.
++    // `bounds()` is the column min/max for physical columns. Computed sources that know their
++    // bounds up front get the dense storages too.
+     let col_max_value = terms_req_data
+         .accessor
+-        .as_column()
+-        .map(|col| col.max_value())
++        .bounds()
++        .map(|(_min_value, max_value)| max_value)
+         .unwrap_or(u64::MAX);
+     let max_column_val: u64 =
+         col_max_value.max(terms_req_data.missing_value_for_accessor.unwrap_or(0u64));
+diff --git a/src/aggregation/metric/cardinality/mod.rs b/src/aggregation/metric/cardinality/mod.rs
+index 18688ac7b..d76f08421 100644
+--- a/src/aggregation/metric/cardinality/mod.rs
++++ b/src/aggregation/metric/cardinality/mod.rs
+@@ -233,8 +233,9 @@ pub(crate) fn build_segment_cardinality_collector(
+     // number of terms.
+     //   * small (< BITSET_MAX_TERM_ORD): `BitSet`, pre-allocated.
+     //   * large: `TermOrdSet` (sparse HashSet that promotes to a paged bitset).
+-    Ok(if let Some(column) = req_data.accessor.as_column() {
+-        let max_term_ord_inclusive = column.max_value();
++    // `bounds()` is the column min/max for physical columns. Computed sources that know their
++    // bounds up front get the same collectors.
++    Ok(if let Some((_min_term_ord, max_term_ord_inclusive)) = req_data.accessor.bounds() {
+         if max_term_ord_inclusive < BITSET_MAX_TERM_ORD {
+             Box::new(SegmentStrCardinalityCollector::<BitSet>::from_req(
+                 req_data,

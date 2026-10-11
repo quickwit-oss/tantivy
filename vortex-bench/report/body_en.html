@@ -1,0 +1,901 @@
+<section id="summary">
+<h2>Summary</h2>
+<div class="verdict">
+  <div><div class="big">×1.00</div><div class="lbl">column size, Vortex vs tantivy, one large segment of full columns (25.04 vs 25.13 MB). −30 % sparse, −34 % multivalue; ×2.2 at 1,000 segments.</div></div>
+  <div><div class="big">×1.10</div><div class="lbl">query time, Vortex vs the same tantivy columns behind a <code>ValueSource</code>, full input, non-selective requests. ×0.76 on multivalued data.</div></div>
+  <div><div class="big">×1.56 → ×1.20</div><div class="lbl">cost of the <code>ValueSource</code> abstraction itself on the full input, before and after a two-line tantivy patch.</div></div>
+  <div><div class="big">×3.8 → ×1.1</div><div class="lbl">selective queries on multivalued data, Vortex vs tantivy columns, once a point-access reader replaces chunk decompression.</div></div>
+</div>
+<div class="prose">
+<ul class="findings">
+<li><b>Size.</b> On large segments, Vortex and the tantivy columnar store full numeric and ordinal columns at the same size: both end up bitpacking the same values. Vortex is smaller when it finds structure that the tantivy column indexes do not exploit (missing values, regular sparse positions, near-trivial list offsets), and it is larger on small segments, because every Vortex file carries about 2 kB of fixed cost. Storing text natively in Vortex instead of ordinals plus tantivy's sorted dictionary is 1.3 to 2.7 times larger on high-cardinality fields.</li>
+<li><b>Scan speed.</b> Vortex decompresses chunks of ~80k values with vectorized kernels. On full columns that is ×1.4 to ×2.8 slower than tantivy's direct bit-unpacking in isolation, which becomes about 10 % once diluted in the aggregation work. On optional and multivalued columns Vortex is faster, because tantivy pays a doc-to-row translation per block.</li>
+<li><b>The abstraction costs more than the storage.</b> A registered <code>ValueSource</code> loses the aggregation fast paths that require the physical column. That costs ×1.56 on average on the full input, up to ×9.4, more than the Vortex storage itself. Letting two fast paths use <code>bounds()</code> instead of <code>as_column()</code> brings it down to ×1.20 on full and about ×1.00 elsewhere.</li>
+<li><b>Selective queries are the hard case.</b> Vortex is designed for scans: decompressing a chunk to read a handful of values makes the cost proportional to the column size, and the generic <code>take()</code> has too much per-call overhead for blocks of 64 docs. A point-access reader that compiles each compressed chunk once into a small accessor tree, reads batches of values straight from the compressed buffers, and promotes a chunk to full decompression once it turns out to be read densely, brings selective queries close to the tantivy columns: ×1.79 → ×1.42 on full, ×2.80 → ×1.22 on dense, ×3.77 → ×1.11 on multivalue. Sparse data stays around ×1.5, and floats and dates remain the slowest case.</li>
+<li><b>Final numbers.</b> Against the plain tantivy columnar (abstraction cost included), the final Vortex reader is at ×1.76 on full, ×1.11 on dense, ×1.14 on sparse and ×0.89 on multivalue (geometric means over all requests). With the <code>bounds()</code> patch, the abstraction share of these numbers mostly disappears.</li>
+<li><b>Correctness.</b> Vortex returns exactly the same results as the tantivy columns read through the same path, on every request and input.</li>
+</ul>
+<p><b>Bottom line.</b> On this benchmark, Vortex is not a decisive size win on merged segments and is a loss on small ones. It is competitive on scans, better on optional and multivalued columns, and needs a dedicated point-access path for search-style selective queries. The cheapest and most broadly useful improvement, whatever the storage, is to make tantivy's aggregation fast paths independent of the physical column.</p>
+</div>
+</section>
+<section id="context">
+<h2>1. Context and question</h2>
+<div class="prose">
+<p>tantivy aggregations read their input from fast fields, which live in the <b>columnar</b> component of each segment (the <code>.fast</code> file). <a href="https://github.com/spiraldb/vortex">Vortex</a> is a columnar file format and in-memory array library built for analytical scans, with a large catalog of lightweight compression schemes and an adaptive compressor. The question is simple: <em>if the columns that feed aggregations were stored as Vortex arrays, what would happen to query time and to file size?</em></p>
+<p>Answering it requires two pieces of plumbing that tantivy recently gained:</p>
+<ul>
+<li>the <b>segment plugin system</b> (<code>SegmentPlugin</code>), which lets external code write extra files into a segment, at commit and at merge time;</li>
+<li>the <b><code>ValueSource</code></b> abstraction, which lets an aggregation read the values of a field from something other than the physical tantivy column.</li>
+</ul>
+<p>The experiment uses both: a plugin writes a Vortex copy of every non-JSON fast field into a <code>.vortex</code> file, and a <code>ValueSource</code> implementation serves those values to the unmodified aggregation code. The whole <code>agg_bench</code> suite then runs against the tantivy columnar and against Vortex, on the same segments.</p>
+<p>The report is written for a tantivy developer who has never looked at Vortex. Sections 2 to 4 explain the two systems and how their concepts line up. Section 5 describes the integration. Sections 6 and 7 hold the measurements. Section 8 explains, without numbers, how the reader was made fast on selective queries.</p>
+</div>
+<div class="callout"><b>Setup.</b> Apple M4 Max (12 performance cores, 4 efficiency cores, 64 GB), macOS 26.6.2, rustc 1.100 nightly, release profile. tantivy at commit <code>678343990</code>, Vortex 0.88.0 (crates.io), binggan 0.17. All benchmarks are single threaded. Indexes are generated by the unmodified <code>agg_bench</code> generator: 1,000,000 documents per index.</div>
+</section>
+
+<section id="tantivy">
+<h2>2. The tantivy side</h2>
+<div class="prose">
+<p>This section is a refresher, but it focuses on the properties that matter for the comparison: how values are addressed, how they are compressed, and which shortcuts the aggregation code takes.</p>
+</div>
+
+<h3 id="t-segment">2.1 Segments, components and plugins</h3>
+<div class="prose">
+<p>A segment is an immutable set of files sharing a UUID and differing by extension: postings (<code>.idx</code>, <code>.pos</code>, <code>.term</code>), field norms, the doc store, fast fields (<code>.fast</code>), deletes. Since the plugin refactoring, every built-in component is itself a <code>SegmentPlugin</code>. A plugin declares the extensions it owns, creates a <code>PluginWriter</code> for each new segment (fed with every document, then asked to <code>serialize</code>) and implements <code>merge</code>, which receives the source segment readers and the doc id mapping.</p>
+<p>Two properties of the plugin system make this experiment cheap:</p>
+<ul>
+<li><b>Ordering.</b> Built-in plugins serialize and merge first, custom plugins afterwards. A custom plugin can therefore open the freshly written <code>.fast</code> file of the segment it is building and derive its own file from it, both on commit and on merge.</li>
+<li><b>Fail-closed metadata.</b> The index metadata records the custom extensions it requires (<code>persisted_custom_extensions</code>). Opening a writer without re-registering the plugin fails instead of silently producing segments without the extra file.</li>
+</ul>
+</div>
+
+<h3 id="t-columnar">2.2 The columnar: columns, indexes and values</h3>
+<div class="prose">
+<p>The <code>.fast</code> file is one <code>ColumnarReader</code>. Columns are keyed by name and <code>ColumnType</code> (a JSON field can have several columns with the same path and different types). A <code>DynamicColumnHandle</code> opens a typed column lazily, by slicing the memory-mapped file.</p>
+<p>A column is <code>Column&lt;T&gt; = ColumnIndex + Arc&lt;dyn ColumnValues&lt;T&gt;&gt;</code>. The split matters: values are stored densely by <em>row id</em>, and the column index maps <em>doc ids</em> to row ids.</p>
+</div>
+<dl class="terms">
+<dt>Cardinality::Full</dt><dd>Every doc has exactly one value; row id = doc id. No index at all.</dd>
+<dt>Cardinality::Optional</dt><dd>Every doc has at most one value. The <code>OptionalIndex</code> splits the doc id space into blocks of 65,536 docs. A block with many values is stored as a bitset with rank metadata, a block with fewer than 6,144 values as a sorted list of 16-bit offsets. Turning a doc id into a row id is a rank query.</dd>
+<dt>Cardinality::Multivalued</dt><dd>An optional index of the docs that have values, plus a column of start offsets (one per doc with values), itself compressed with the bitpacked or linear codec. The values of doc <i>d</i> are rows <code>start[d]..start[d+1]</code>.</dd>
+</dl>
+<div class="prose">
+<p>Values are stored as <code>u64</code> through a <b>monotonic mapping</b>: <code>i64</code> flips the sign bit, <code>f64</code> uses the usual sign-magnitude trick, dates are their timestamp in nanoseconds (truncated to the field precision) mapped like an <code>i64</code>, IP addresses go through a compact-space mapping. Order is preserved, so min / max and range filters work on the mapped values. The aggregation code works on these mapped <code>u64</code> values internally.</p>
+<p>A <code>ColumnValues</code> implementation is chosen per column by estimating the encoded size with each candidate codec:</p>
+</div>
+<dl class="terms">
+<dt>Bitpacked</dt><dd>Subtract the minimum, divide by the GCD of the values, bitpack with a fixed width.</dd>
+<dt>Linear</dt><dd>Fit a line through the values and bitpack the residuals.</dd>
+<dt>BlockwiseLinear</dt><dd>Same, with one line per block of 512 values.</dd>
+</dl>
+<div class="prose">
+<p>All three codecs share the defining property of the tantivy columnar: <b>constant-time random access</b>. <code>get_val(row)</code> computes a bit offset, reads one unaligned 64-bit word, shifts and masks. <code>get_vals(rows, out)</code> does it for a batch, and <code>get_range(start, out)</code> bulk-decodes a contiguous range. The cost of reading <i>k</i> values is proportional to <i>k</i>, wherever they are in the column. That is the access pattern of a search engine: the docs to aggregate come from posting lists, in increasing but arbitrary order.</p>
+<p><b>Text columns</b> (<code>StrColumn</code>) are dictionary encoded per segment: an sstable dictionary of the sorted distinct terms, plus a <code>u64</code> column of term ordinals. Ordinals are sorted like the terms, so ordering by key or range filters on terms can work on ordinals, and the terms are only materialized at the end for the buckets that survive.</p>
+</div>
+
+<h3 id="t-aggs">2.3 How aggregations read values</h3>
+<div class="prose">
+<p>The collector hands matching docs to the segment aggregation collectors in blocks of up to 64 docs (<code>COLLECT_BLOCK_BUFFER_LEN</code>), in increasing doc id order. Each collector fetches the values of the block through a <code>ColumnBlockAccessor</code>, then updates its buckets or metrics. Bucket aggregations with sub-aggregations do not forward docs immediately: they buffer <code>(bucket, doc)</code> pairs and flush them to the sub-aggregations in batches (up to 2,048 docs), grouped by parent bucket. A sub-aggregation therefore receives runs of docs that are sorted within a bucket but can jump around the segment.</p>
+<p>With a selective query, the docs of one 64-doc block are scattered over thousands of rows. With <code>AllQuery</code>, blocks are contiguous ranges.</p>
+</div>
+
+<h3 id="t-valuesource">2.4 The <code>ValueSource</code> abstraction</h3>
+<div class="prose">
+<p><code>ValueSource</code> is what the aggregation code reads from. Its contract, in short:</p>
+</div>
+<dl class="terms">
+<dt>column_type()</dt><dd>Logical type of the values (they are returned in the monotonic <code>u64</code> mapping; text values are term ordinals).</dd>
+<dt>load_block(docs, values, docids, row_ids)</dt><dd>Loads the values of a sorted block of docs. If the source answers <code>Full</code>, <code>values[i]</code> is the value of <code>docs[i]</code>. If it answers <code>Optional</code> or <code>Multivalued</code>, <code>values[i]</code> belongs to <code>docids[i]</code> and docs without values are absent. Takes <code>&amp;mut self</code>: a source belongs to one collector and can keep caches.</dd>
+<dt>as_column()</dt><dd>The physical tantivy column, if any. Several fast paths require it.</dd>
+<dt>bounds()</dt><dd>Global min / max of the values, for code that sizes something up front. Defaults to the physical column min / max.</dd>
+<dt>term_dictionary()</dt><dd>Resolves the ordinals of a text source back into terms. Must be present for every text source.</dd>
+<dt>as_physical_str_column()</dt><dd>The physical text column, for the features that need the whole sstable (regex include / exclude, <code>min_doc_count: 0</code>).</dd>
+</dl>
+<div class="prose">
+<p>A <code>ValueSourceProvider</code> creates a source per segment, and a <code>ValueSourceRegistry</code> (passed through <code>AggContextParams</code>) maps field names to providers. A registered name shadows the physical field of the same name. Physical columns implement <code>ValueSource</code> too, so the aggregation code has a single read path.</p>
+<p>The important detail for this study is <b>what a registered source loses</b>. A handful of aggregation fast paths look at <code>as_column()</code>, which a registered source does not provide:</p>
+<ul>
+<li>the <b>terms aggregation</b> chooses its bucket storage (dense <code>Vec</code> with count lanes, dense <code>Vec</code>, paged map, or hash map) from the maximum ordinal of the column;</li>
+<li>the <b>flattened terms × histogram collector</b> needs the raw <code>ColumnValues</code> of two full columns and zips them;</li>
+<li>the <b>cardinality aggregation</b> on text uses a pre-sized bitset of ordinals when the dictionary is small;</li>
+<li>the <b>stats collector</b> has a one-doc shortcut (<code>values_for_doc</code>) used under high-cardinality terms;</li>
+<li>histograms and ranges use the column cardinality to pick a single-value specialization;</li>
+<li><code>multi_terms</code>, <code>composite</code> and <code>top_hits</code> reject registered sources altogether, and <code>missing</code> is not supported on a computed text source.</li>
+</ul>
+<p>The benchmark therefore includes a control variant that isolates this cost (section 5.4).</p>
+</div>
+</section>
+
+<section id="vortex">
+<h2>3. The Vortex side</h2>
+<div class="prose">
+<p>Vortex is two things at once: an <b>in-memory array library</b> in which arrays stay compressed and are decompressed on demand, and a <b>file format</b> that lays such arrays out on disk with statistics for pruning. Both halves are used here.</p>
+</div>
+
+<h3 id="v-dtype">3.1 Logical types</h3>
+<div class="prose">
+<p>Every array has a <code>DType</code>, its logical type, independent of how it is encoded: <code>Bool</code>, <code>Primitive(ptype)</code> (<code>u8</code>…<code>u64</code>, <code>i8</code>…<code>i64</code>, <code>f16</code>…<code>f64</code>), <code>Decimal</code>, <code>Utf8</code>, <code>Binary</code>, <code>List</code>, <code>FixedSizeList</code>, <code>Struct</code>, and <code>Extension</code> types layered on a storage type (timestamps, dates, UUIDs). <b>Nullability is part of the type</b>: a nullable <code>u64</code> is a different <code>DType</code> from a non-nullable one. There is no global dictionary and no notion of doc id; an array is just a sequence of <code>len</code> logical values.</p>
+</div>
+
+<h3 id="v-arrays">3.2 Arrays are trees of encodings</h3>
+<div class="prose">
+<p>An <code>ArrayRef</code> is an immutable, reference-counted node with a length, a <code>DType</code>, an <b>encoding</b> (identified by an id such as <code>fastlanes.bitpacked</code>), some metadata, byte buffers and child arrays. The children are arrays themselves, so a compressed column is a <em>tree</em>: for example a timestamp column can be a <code>datetimeparts</code> node whose three children (days, seconds, sub-seconds) are respectively a frame-of-reference array over a bitpacked array, a bitpacked array, and a constant. Each node also carries a lazily computed statistics set (min, max, null count, is-constant, is-sorted…).</p>
+<p>The encodings that show up in this study:</p>
+</div>
+<dl class="terms">
+<dt>fastlanes.bitpacked</dt><dd>Fixed-width bitpacking in blocks of 1,024 values, using the <a href="https://www.vldb.org/pvldb/vol16/p2132-afroozeh.pdf">FastLanes</a> transposed layout so that a whole block unpacks with SIMD, without data dependencies between lanes. Values that do not fit the width are stored as <em>patches</em> (sorted indices + values).</dd>
+<dt>fastlanes.for</dt><dd>Frame of reference: one reference value per 1,024-value block is subtracted, the rest is usually bitpacked.</dd>
+<dt>vortex.alprd</dt><dd>ALP for "real doubles": each <code>f64</code> is split into a left part (high bits, dictionary encoded with a tiny dictionary) and a right part (low bits, bitpacked). Left parts outside the dictionary become patches. (Plain ALP, for decimal-looking floats, turns them into integers.)</dd>
+<dt>vortex.datetimeparts</dt><dd>Splits timestamps into days, seconds within the day and sub-seconds, each compressed separately.</dd>
+<dt>vortex.constant, vortex.sequence</dt><dd>A single repeated value; an arithmetic sequence <code>base + i × step</code>.</dd>
+<dt>vortex.sparse</dt><dd>A fill value plus patches: the right encoding when almost every row has the same value (or is null).</dd>
+<dt>vortex.dict, fsst, zstd, runend, zigzag, pco…</dt><dd>Dictionary, string compression, run-end, zig-zag for signed integers, and others. FSST and the dictionary encoding matter for text stored natively.</dd>
+<dt>vortex.list</dt><dd>Offsets + elements, both compressed independently.</dd>
+<dt>vortex.slice, vortex.masked</dt><dd>Structural wrappers: a lazy view on a range of a child, and a child plus a validity bitmap.</dd>
+</dl>
+<div class="prose">
+<p>Validity (nulls) is represented separately from values, either as a validity child or as part of the encoding (a sparse array with a null fill, for example).</p>
+</div>
+
+<h3 id="v-execution">3.3 Canonical forms and execution</h3>
+<div class="prose">
+<p>Each <code>DType</code> has a <b>canonical</b> encoding, Arrow-like and uncompressed: <code>Primitive</code> (a plain buffer), <code>Bool</code>, <code>VarBinView</code> for strings, <code>ListView</code> (offsets + sizes + elements) for lists, <code>Struct</code>, <code>Extension</code>. Decompressing an array means <em>executing</em> it into a canonical form: <code>array.execute::&lt;PrimitiveArray&gt;(&amp;mut ctx)</code>. Execution is driven by an <code>ExecutionCtx</code> that owns allocation and dispatch; each encoding provides kernels that produce its canonical form (and fused kernels where possible, such as frame-of-reference + bitpacked in one pass).</p>
+<p>Compute is <b>lazy</b>. <code>slice</code>, <code>filter</code> and <code>take</code> do not compute anything: <code>take</code>, for instance, wraps the array in a dictionary array whose codes are the requested indices, then an optimizer rewrites the tree (pushing the take into children when an encoding supports it). The work happens when the result is executed. This design shines on large batches, because a whole tree of encodings can be rewritten and executed with vectorized kernels. Its fixed cost per call (building nodes, running rewrite rules, dynamic dispatch, allocating outputs) is irrelevant for a scan over a million rows, but it dominates when the caller wants 64 values at a time.</p>
+<p>There is also a single-value path (<code>execute_scalar</code>, formerly <code>scalar_at</code>), which returns a boxed <code>Scalar</code>: convenient, but not meant to be called in a loop.</p>
+</div>
+
+<h3 id="v-compressor">3.4 The BtrBlocks compressor</h3>
+<div class="prose">
+<p>Vortex does not ask the user to pick encodings. Its default compressor, modeled on the <a href="https://www.cs.cit.tum.de/fileadmin/w00cfj/dis/papers/btrblocks.pdf">BtrBlocks</a> paper, samples the data, estimates the compression ratio of each applicable scheme, picks the best one and recurses into the children it produces (the left parts of ALP-RD get bitpacked, the days of DateTimeParts get frame-of-reference + bitpacking, and so on). The choice is made per chunk, so different chunks of the same column can end up with different trees, as the encoding tables in section 6 show.</p>
+</div>
+
+<h3 id="v-files">3.5 Files, layouts and scans</h3>
+<div class="prose">
+<p>A Vortex file stores a <b>layout tree</b> in its footer and the array data in aligned <b>segments</b>. Layouts describe how a logical array is cut up on disk:</p>
+</div>
+<dl class="terms">
+<dt>struct</dt><dd>One child layout per field.</dd>
+<dt>chunked</dt><dd>A sequence of row ranges.</dd>
+<dt>zoned</dt><dd>A data layout plus a table of statistics (min, max, null count…) per zone of rows, used to skip zones when a filter cannot match.</dd>
+<dt>dict</dt><dd>A shared dictionary plus codes, for low-cardinality columns.</dd>
+<dt>flat</dt><dd>A leaf: one serialized, compressed array in one segment.</dd>
+</dl>
+<div class="prose">
+<p>The default write strategy (used unchanged here) repartitions the data into blocks of 8,192 rows, computes zone statistics, applies dictionary layouts where useful, coalesces blocks up to roughly 1 MB of uncompressed data, and compresses each block with BtrBlocks. For the 1M-row columns of this study, that yields chunks of 65,536 to 90,112 rows.</p>
+<p>Reading goes through a <b>scan</b>: a projection and an optional filter expression, executed over splits, asynchronously on a Vortex runtime (a current-thread executor here). Filters are pushed down: zone statistics prune whole zones, and comparison kernels can run on compressed data. The scan returns arrays that are still compressed, one per chunk. Everything is registered in a <code>VortexSession</code> (encodings, layouts, compute functions, compression schemes, the runtime handle and "editions", the versioned sets of encodings a file may use).</p>
+<p>The model is optimized for one access pattern: <b>scan a column (or a filtered subset that Vortex itself can find with its own statistics), chunk by chunk</b>. The pattern of a search engine, where an external index (the posting lists) supplies an arbitrary sorted subset of row ids, has no first-class API.</p>
+</div>
+
+<h3 id="v-sparse">3.6 Missing values and sparse columns</h3>
+<div class="prose">
+<p>tantivy separates "which docs have a value" (the column index) from "the values" (the column values). Vortex has no column index: a column is just an array with one row per doc, and missing values are nulls of that array. How those nulls are stored depends on how many there are.</p>
+<p class="kicker">Nullability and validity</p>
+<p>Nullability is part of the <code>DType</code> (<code>u64</code> vs <code>u64?</code>). A nullable array carries a <em>validity</em>, which is one of: <code>NonNullable</code>, <code>AllValid</code>, <code>AllInvalid</code>, or a boolean child array with one bit per row. The values of null rows still exist physically in a plain encoding (they are just ignored), so a dense nullable column costs its values for <em>every</em> row plus one bit per row of validity. That is fine when most rows have a value, and wasteful when few do.</p>
+<p class="kicker">The <code>sparse</code> encoding</p>
+<p>For mostly-null (or mostly-identical) data, Vortex uses <code>vortex.sparse</code>: a <b>fill value</b> plus <b>patches</b>, the list of rows that differ from it.</p>
+</div>
+<div class="diagram"><pre>
+vortex.sparse                      len = number of rows (e.g. 65,536), dtype u64?
+├─ fill value                      null   (or the most frequent value)
+└─ patches
+   ├─ indices                      sorted positions of the rows that differ from the fill,
+   │                               narrowed to the smallest integer type (u16 for a 65,536-row
+   │                               chunk), then compressed like any integer array
+   ├─ values                       the values at those positions, packed densely,
+   │                               compressed by their own cascade (bitpacked, ALP, ...)
+   └─ chunk offsets (optional)     where the patches of each 1,024-row block start, so a
+                                   lookup can jump to the right slice of indices
+</pre></div>
+<div class="prose">
+<p>Only the rows that have a value cost anything; every other row is implicitly the fill value. Positions and values are ordinary Vortex arrays, so BtrBlocks recursively looks for the best encoding of each. For the positions it excludes the schemes that cannot help on sorted unique integers (dictionary, run-end, RLE, sparse).</p>
+<p class="kicker">When BtrBlocks chooses it</p>
+<p>The integer sparse scheme of Vortex 0.88 declares itself applicable in two cases, evaluated on the sample the compressor draws from the chunk:</p>
+<ul>
+<li>more than 90 % of the rows are null: the estimated ratio is <code>rows / non-null rows</code>;</li>
+<li>or one value accounts for at least 90 % of the non-null rows: that value becomes the fill and only the others are patches.</li>
+</ul>
+<p>It explicitly skips when the sample contains no value at all (expecting an all-null chunk to become a constant). Below 90 % nulls, a nullable column is stored densely: values for every row plus a validity bitmap.</p>
+<p class="kicker">Measured: what Vortex actually produces</p>
+<p>The program of section 3.7 builds nullable <code>u64</code> columns of 65,536 rows (one Vortex chunk), with values below 2<sup>20</sup> at random positions, and compresses them with the default BtrBlocks compressor:</p>
+</div>
+<div class="scroll"><table class="compact">
+<thead><tr><th class="l">rows with a value</th><th>compressed size</th><th>bytes per value</th><th class="l">encoding tree chosen</th></tr></thead>
+<tbody id="sparse-sweep"><tr><td class="l">0.1 % (random)</td><td>8,906 B</td><td>137.02</td><td class="l mono" style="font-size:0.75rem;white-space:normal">fastlanes.bitpacked(vortex.primitive, vortex.primitive, vortex.primitive, vortex.bool)</td></tr>
+<tr><td class="l">1.0 % (random)</td><td>3,954 B</td><td>6.04</td><td class="l mono" style="font-size:0.75rem;white-space:normal">vortex.sparse(vortex.primitive, fastlanes.bitpacked(vortex.bool))</td></tr>
+<tr><td class="l">1.0 % (one every 100 rows)</td><td>2,644 B</td><td>4.03</td><td class="l mono" style="font-size:0.75rem;white-space:normal">vortex.sparse(vortex.sequence, fastlanes.bitpacked(vortex.bool))</td></tr>
+<tr><td class="l">3.0 % (random)</td><td>9,300 B</td><td>4.73</td><td class="l mono" style="font-size:0.75rem;white-space:normal">vortex.sparse(vortex.primitive, fastlanes.bitpacked(vortex.bool))</td></tr>
+<tr><td class="l">5.0 % (random)</td><td>17,204 B</td><td>5.25</td><td class="l mono" style="font-size:0.75rem;white-space:normal">vortex.sparse(vortex.primitive, fastlanes.bitpacked(vortex.bool))</td></tr>
+<tr><td class="l">10.0 % (random)</td><td>31,848 B</td><td>4.86</td><td class="l mono" style="font-size:0.75rem;white-space:normal">vortex.sparse(vortex.primitive, fastlanes.bitpacked(vortex.bool))</td></tr>
+<tr><td class="l">30.0 % (random)</td><td>172,032 B</td><td>8.75</td><td class="l mono" style="font-size:0.75rem;white-space:normal">fastlanes.bitpacked(vortex.bool)</td></tr>
+<tr><td class="l">100.0 % (random)</td><td>163,840 B</td><td>2.50</td><td class="l mono" style="font-size:0.75rem;white-space:normal">fastlanes.bitpacked</td></tr></tbody>
+</table></div>
+<div class="prose">
+<p>And the size of every node for the most interesting cases:</p>
+</div>
+<div class="diagram"><pre id="sparse-trees">1 % of rows, random positions
+root: vortex.sparse u64? len=65536 nbytes=3954
+  patch_indices: vortex.primitive u16 len=655 nbytes=1310
+  patch_values: fastlanes.bitpacked u64? len=655 nbytes=2642
+    validity_child: vortex.bool bool len=655 nbytes=82
+
+1 % of rows, one every 100 rows
+root: vortex.sparse u64? len=65536 nbytes=2644
+  patch_indices: vortex.sequence u16 len=656 nbytes=0
+  patch_values: fastlanes.bitpacked u64? len=656 nbytes=2642
+    validity_child: vortex.bool bool len=656 nbytes=82
+
+0.1 % of rows, random positions
+root: fastlanes.bitpacked u64? len=65536 nbytes=8906
+  patch_indices: vortex.primitive u16 len=65 nbytes=130
+  patch_values: vortex.primitive u64? len=65 nbytes=520
+  patch_chunk_offsets: vortex.primitive u8 len=64 nbytes=64
+  validity_child: vortex.bool bool len=65536 nbytes=8192
+
+30 % of rows, random positions
+root: fastlanes.bitpacked u64? len=65536 nbytes=172032
+  validity_child: vortex.bool bool len=65536 nbytes=8192</pre></div>
+<div class="prose">
+<ul class="findings">
+<li><b>1 % to 10 %: <code>sparse</code>, at 4.7 to 6 bytes per value.</b> Positions stay a plain <code>u16</code> array: once narrowed to 16 bits, positions that span the whole chunk cannot be bitpacked any smaller, and delta encoding is not in the default cascade. That is <b>exactly what tantivy's optional index does</b> for blocks with fewer than 6,144 values: a sorted list of 16-bit offsets. The values are bitpacked, but FastLanes works in blocks of 1,024 values, so 655 values cost a full 1,024-value block (2.6 kB instead of 1.6 kB). The values array also keeps a (trivial) validity child, because it inherits the nullable dtype of the column.</li>
+<li><b>Regular spacing: positions are free.</b> With one value exactly every 100 rows, the positions become a <code>vortex.sequence</code> (base + step, zero bytes). This is the case of the benchmark's sparse input, and the reason Vortex was 30 % smaller than tantivy there. Real data rarely looks like this.</li>
+<li><b>0.1 %: a sampling miss.</b> With 65 values in 65,536 rows, the ~1,024-row sample usually contains no value, so the sparse scheme skips itself. The compressor falls back to a bitpacked array of width 0 with the 65 values as patches, plus a <em>full</em> validity bitmap: 8 kB of validity for 65 values, 137 bytes per value, where <code>sparse</code> would have needed about 300 bytes in total.</li>
+<li><b>30 %: dense storage.</b> Below the 90 % null threshold, the column is bitpacked for every row (nulls included) plus a full validity bitmap: 8.75 bytes per actual value, almost twice what <code>sparse</code> costs at 10 %. tantivy's dense optional blocks (a bitset with rank metadata, and values for the present rows only) do better here.</li>
+</ul>
+<p class="kicker">Reading a sparse array</p>
+<ul>
+<li><b>Decompression</b> (<code>execute</code> to canonical) allocates the full chunk, fills it with the fill value, and scatters the patch values into it, building the validity bitmap on the way. The cost is proportional to the chunk length, not to the number of values.</li>
+<li><b>One value</b> (<code>execute_scalar</code>) searches the patch indices for the row (using the chunk offsets when present), and returns either the patch value or the fill.</li>
+<li><b>The point accessor of section 8</b> materializes the positions once per chunk, plus a bitset of the rows that have a value. For a row, it tests the bit and only binary-searches the positions when the row has a value. That is why Vortex was faster than tantivy on selective queries over the sparse input, and also why it stays slightly slower than decompression when a sub-aggregation ends up reading every value of the chunk (many binary searches cost more than one scatter).</li>
+</ul>
+<p class="kicker"><code>take</code> on a sparse array</p>
+<p>As always in Vortex, <code>array.take(indices)</code> first builds a lazy <code>vortex.dict</code> node whose codes are the requested rows. When that node is executed, the sparse encoding's take kernel runs, and it only touches the patches:</p>
+<ol>
+<li><b>Find which requested rows have a value.</b> Two strategies, chosen per call by comparing the number of patches with the number of requested rows:
+  <ul>
+  <li><em>search</em> (the usual case for small takes): for each requested row, binary-search the sorted patch positions. When the patches carry chunk offsets, the search first jumps to the 1,024-row block of the requested row and only searches inside it;</li>
+  <li><em>map</em> (when the patches are fewer than five times the requested rows): build a hash map from patch position to value index over <em>all</em> the patches, then probe it for each requested row.</li>
+  </ul>
+  For every hit it records the row's position in the output and the index of its value among the patch values.</li>
+<li><b>Take the values.</b> The selected patch values are gathered with the take kernel of their own encoding (for bitpacked values, single-value unpacking when few indices fall into a 1,024-value block). This step is itself lazy.</li>
+<li><b>Build the result</b>, which is still compressed:
+  <ul>
+  <li>no requested row has a value: a <code>vortex.constant</code> null of the output length;</li>
+  <li>every requested row has a value: just the selected values, without a sparse wrapper;</li>
+  <li>otherwise: a new <code>vortex.sparse</code> array of the output length, with the new positions and the lazily taken values.</li>
+  </ul></li>
+</ol>
+<p>The three outcomes, on the 1 % column built in section 3.7 (one execution step shows the result of the kernel; a full execution decompresses it):</p>
+</div>
+<pre class="code">// take() on a sparse array: some requested rows have a value, others are null.
+let mut sorted_positions = positions.clone();
+sorted_positions.sort_unstable();
+let with_values = &amp;sorted_positions[..3];
+let requested: Vec&lt;u32&gt; = vec![
+    with_values[0] as u32,
+    with_values[0] as u32 + 1, // almost surely null at 1 % density (checked by the output)
+    with_values[1] as u32,
+    with_values[2] as u32,
+    with_values[2] as u32 + 1,
+];
+let mixed = sparse_compressed.take(
+    PrimitiveArray::new(Buffer::from(requested), Validity::NonNullable).into_array(),
+)?;
+println!(&quot;take mixed: len {}, tree {}&quot;, mixed.len(), encoding_tree(&amp;mixed, 3));
+// One execution step runs the sparse take kernel, without decompressing the result.
+let mixed_step: ArrayRef = mixed.clone().execute(&amp;mut ctx)?;
+println!(&quot;take mixed, one step: tree {}&quot;, encoding_tree(&amp;mixed_step, 3));
+let mixed_values: PrimitiveArray = mixed.execute(&amp;mut ctx)?;
+println!(&quot;take mixed executed: {:?}&quot;, (0..mixed_values.len())
+    .map(|i| mixed_values.as_ref().is_valid(i, &amp;mut ctx).unwrap()
+        .then(|| mixed_values.as_slice::&lt;u64&gt;()[i]))
+    .collect::&lt;Vec&lt;Option&lt;u64&gt;&gt;&gt;());
+
+// Only null rows: the result collapses to a constant null.
+let null_rows: Vec&lt;u32&gt; = (0..num_rows as u32)
+    .filter(|row| column[*row as usize].is_none())
+    .take(4)
+    .collect();
+let all_null = sparse_compressed.take(
+    PrimitiveArray::new(Buffer::from(null_rows), Validity::NonNullable).into_array(),
+)?;
+let all_null_step: ArrayRef = all_null.execute(&amp;mut ctx)?;
+println!(&quot;take nulls only, one step: tree {}&quot;, encoding_tree(&amp;all_null_step, 3));
+
+// Only rows with a value: the result is just the taken values.
+let value_rows: Vec&lt;u32&gt; = sorted_positions[..4].iter().map(|&amp;row| row as u32).collect();
+let all_values = sparse_compressed.take(
+    PrimitiveArray::new(Buffer::from(value_rows), Validity::NonNullable).into_array(),
+)?;
+let all_values_step: ArrayRef = all_values.execute(&amp;mut ctx)?;
+println!(&quot;take values only, one step: tree {}&quot;, encoding_tree(&amp;all_values_step, 3));</pre>
+<pre class="out">take mixed: len 5, tree vortex.dict(vortex.primitive, vortex.sparse(vortex.primitive, fastlanes.bitpacked(vortex.bool)))
+take mixed, one step: tree vortex.sparse(vortex.primitive, vortex.dict(vortex.primitive, fastlanes.bitpacked(vortex.bool)))
+take mixed executed: [Some(559454), None, Some(478007), Some(88373), None]
+take nulls only, one step: tree vortex.constant
+take values only, one step: tree vortex.dict(vortex.primitive, fastlanes.bitpacked(vortex.bool))</pre>
+<div class="prose">
+<p>For one large gather, this is efficient: work proportional to the requested rows times a logarithm, plus the values that are actually needed. For the access pattern of an aggregation, one call per block of 64 docs, the fixed part dominates: the lazy node and the optimizer, executing the indices into a primitive array, reading the patch positions again (and decompressing them again if they are compressed, as with a <code>sequence</code>), allocating the new positions and value indices, building the result arrays, and in the <em>map</em> strategy hashing every patch of the chunk. Nothing is kept between calls. That is why the <code>take()</code> experiment of section 7.3 was slower than decompressing whole chunks on the sparse input, and why the point accessor of section 8 materializes the positions and a presence bitset once per chunk and reuses them across calls and queries. (Vortex also has a dedicated <code>filter</code> kernel for sparse arrays, which works on the patches in the same way.)</p>
+<p class="kicker">Compared with tantivy</p>
+<p>For random sparse positions the two systems converge on the same idea: about 2 bytes per position plus the bitpacked values. tantivy has a fixed policy (sparse codec below 6,144 values per 65,536-doc block, a dense bitset with rank metadata above), Vortex decides per chunk from a sample. Vortex wins when positions have exploitable structure (regular spacing, which the cascade detects), tantivy wins at intermediate densities (10 % to 90 % present) because its dense blocks never store values for missing docs, and at extreme sparsity where Vortex's sampling can miss.</p>
+</div>
+
+<h3 id="v-api">3.7 Using Vortex from Rust</h3>
+<div class="prose">
+<p>This section walks through the client API with code taken verbatim from <code>vortex-bench/examples/vortex_client_usage.rs</code>, which compiles against Vortex 0.88 and was run to produce the outputs shown. The <code>encoding_tree</code> helper used to print trees is a ten-line function of the study crate that walks <code>array.children()</code>.</p>
+<p class="kicker">Session</p>
+<p>Everything starts with a <code>VortexSession</code>: the registry of encodings, layouts, compute functions, compression schemes, and the handle of the async runtime used by file I/O. Execution (decompression) goes through an <code>ExecutionCtx</code> created from the session.</p>
+</div>
+<pre class="code">// A session registers encodings, layouts, compute functions and the async runtime.
+let runtime = CurrentThreadRuntime::new();
+let session = VortexSession::default().with_handle(runtime.handle());
+let mut ctx = session.create_execution_ctx();</pre>
+<div class="prose">
+<p class="kicker">Building and compressing an array</p>
+<p>Arrays are built in their canonical form (here a <code>PrimitiveArray</code> from a buffer) and type-erased into an <code>ArrayRef</code>. Compression is an explicit step: <code>BtrBlocksCompressor</code> returns a new <code>ArrayRef</code> with the same <code>DType</code> and length but a different encoding tree.</p>
+</div>
+<pre class="code">// 1M uniform integers in [0, 1_000_000): a plain, uncompressed (canonical) array.
+let mut rng = StdRng::seed_from_u64(42);
+let values: Vec&lt;u64&gt; = (0..1_000_000).map(|_| rng.random_range(0..1_000_000)).collect();
+let array: ArrayRef =
+    PrimitiveArray::new(Buffer::from(values.clone()), Validity::NonNullable).into_array();
+println!(&quot;canonical: {} rows, {} bytes, encoding {}&quot;, array.len(), array.nbytes(), array.encoding_id());</pre>
+<pre class="code">// BtrBlocks samples the data and picks a cascade of encodings.
+let compressor = BtrBlocksCompressor::from_session(&amp;session);
+let compressed: ArrayRef = compressor.compress(&amp;array, &amp;mut ctx)?;
+println!(
+    &quot;compressed: {} bytes, tree {}&quot;,
+    compressed.nbytes(),
+    encoding_tree(&amp;compressed, 3)
+);</pre>
+<pre class="out">canonical: 1000000 rows, 8000000 bytes, encoding vortex.primitive
+compressed: 2501120 bytes, tree fastlanes.bitpacked</pre>
+<div class="prose">
+<p>8 MB of uniform integers below one million become 2.5 MB of 20-bit bitpacking.</p>
+<p class="kicker">slice</p>
+<p><code>slice(range)</code> returns a view on a range of rows. It never copies data. Encodings that know how to slice themselves push the slice down: a bitpacked array just records a new offset into its packed buffer, so the result is still a <code>fastlanes.bitpacked</code> array. Encodings that cannot are wrapped in a lazy <code>vortex.slice</code> node (the encoding tables of section 6 show <code>vortex.slice(vortex.alprd(...))</code> chunks: views on a larger compressed array).</p>
+</div>
+<pre class="code">// slice() is lazy and cheap: on a bitpacked array it only adjusts an offset.
+let sliced: ArrayRef = compressed.slice(1_000..1_010)?;
+println!(&quot;slice: len {}, tree {}&quot;, sliced.len(), encoding_tree(&amp;sliced, 3));</pre>
+<pre class="out">slice: len 10, tree fastlanes.bitpacked</pre>
+<div class="prose">
+<p class="kicker">filter</p>
+<p><code>filter(mask)</code> keeps the rows selected by a <code>Mask</code>, Vortex's selection type (built from indices, from ranges, or from a bitmap). The result is lazy: a <code>vortex.filter</code> node over the untouched compressed child. The work happens at execution, where an encoding-specific kernel can filter compressed data directly, or the child is decoded and filtered.</p>
+</div>
+<pre class="code">// filter() takes a Mask (a set of selected rows) and is lazy too.
+let mask = Mask::from_indices(compressed.len(), [3, 17, 500_000, 999_999]);
+let filtered: ArrayRef = compressed.filter(mask)?;
+println!(&quot;filter: len {}, tree {}&quot;, filtered.len(), encoding_tree(&amp;filtered, 3));</pre>
+<pre class="out">filter: len 4, tree vortex.filter(fastlanes.bitpacked)</pre>
+<div class="prose">
+<p class="kicker">take</p>
+<p><code>take(indices)</code> gathers rows by position; the indices are themselves an array, may repeat and need not be sorted. Internally, Vortex expresses a take as a <b>dictionary</b> array whose codes are the indices and whose values are the original array, then lets its optimizer rewrite the tree. Here the result is <code>vortex.dict(vortex.primitive, fastlanes.bitpacked)</code>: still nothing decoded.</p>
+</div>
+<pre class="code">// take() gathers rows by index; the indices are themselves an array.
+let indices: ArrayRef =
+    PrimitiveArray::new(Buffer::&lt;u32&gt;::from(vec![999_999u32, 3, 3, 42]), Validity::NonNullable)
+        .into_array();
+let taken: ArrayRef = compressed.take(indices)?;
+println!(&quot;take: len {}, tree {}&quot;, taken.len(), encoding_tree(&amp;taken, 3));</pre>
+<pre class="out">take: len 4, tree vortex.dict(vortex.primitive, fastlanes.bitpacked)</pre>
+<div class="prose">
+<p class="kicker">Execution</p>
+<p>Lazy arrays become values when they are executed into a canonical form. For the take above, execution runs the bitpacked take kernel (which unpacks single values when few indices fall into a 1,024-value block, and whole blocks otherwise) and produces a plain <code>PrimitiveArray</code>.</p>
+</div>
+<pre class="code">// Nothing is decoded until the array is executed into a canonical form.
+let decoded: PrimitiveArray = taken.execute(&amp;mut ctx)?;
+let decoded_values: &amp;[u64] = decoded.as_slice::&lt;u64&gt;();
+assert_eq!(decoded_values, &amp;[values[999_999], values[3], values[3], values[42]]);
+println!(&quot;take executed: {decoded_values:?}&quot;);
+
+let filtered_values: PrimitiveArray = filtered.execute(&amp;mut ctx)?;
+assert_eq!(
+    filtered_values.as_slice::&lt;u64&gt;(),
+    &amp;[values[3], values[17], values[500_000], values[999_999]]
+);</pre>
+<pre class="out">take executed: [985204, 405901, 405901, 452622]</pre>
+<div class="prose">
+<p class="kicker">Single values</p>
+<p><code>execute_scalar(index)</code> returns a <code>Scalar</code> (a dtype plus a value). It goes through the generic machinery for every call, which is fine for occasional access and too slow for the inner loop of an aggregation (section 8).</p>
+</div>
+<pre class="code">// Single value access returns a Scalar (dtype + value). Convenient, not for hot loops.
+let scalar = compressed.execute_scalar(123_456, &amp;mut ctx)?;
+println!(&quot;scalar at 123456: {scalar} (expected {})&quot;, values[123_456]);</pre>
+<pre class="out">scalar at 123456: 899806u64 (expected 899806)</pre>
+<div class="prose">
+<p class="kicker">Files and scans</p>
+<p>Writing goes through the session's write options (here the blocking adapter over the current-thread runtime); the default strategy chunks, compresses and adds zone statistics. Reading opens the file and builds a scan. A filter expression is bound to the file's dtype and pushed down: zone statistics skip chunks that cannot match, and comparison kernels can run on compressed data. The scan returns the matching rows, still as Vortex arrays.</p>
+</div>
+<pre class="code">// Write the array to an in-memory Vortex file, then scan it with a pushed-down filter.
+let mut file_bytes: Vec&lt;u8&gt; = Vec::new();
+session
+    .write_options()
+    .blocking(&amp;runtime)
+    .write(&amp;mut file_bytes, array.to_array_iterator())?;
+let file = session.open_options().open_buffer(file_bytes.clone())?;
+let filter = gt(root(), lit(999_000u64)).bind(file.dtype())?.optimize_recursive()?;
+let matching: ArrayRef = file
+    .scan()?
+    .with_filter(filter)
+    .into_array_iter(&amp;runtime)?
+    .read_all()?;
+let expected = values.iter().filter(|&amp;&amp;value| value &gt; 999_000).count();
+println!(
+    &quot;file: {} bytes; scan with `value &gt; 999000` returned {} rows (expected {expected})&quot;,
+    file_bytes.len(),
+    matching.len()
+);
+assert_eq!(matching.len(), expected);</pre>
+<pre class="out">file: 2506908 bytes; scan with `value &gt; 999000` returned 926 rows (expected 926)</pre>
+<div class="prose">
+<p class="kicker">Building a sparse column</p>
+<p>Nullable arrays can be built from an iterator of <code>Option</code>; the compressor then chooses the sparse representation by itself.</p>
+</div>
+<pre class="code">// A nullable column where ~1 row in 100 has a value, at random positions.
+let num_rows = 65_536;
+let positions: Vec&lt;usize&gt; = sample(&amp;mut rng, num_rows, num_rows / 100).into_vec();
+let mut column: Vec&lt;Option&lt;u64&gt;&gt; = vec![None; num_rows];
+for &amp;position in &amp;positions {
+    column[position] = Some(rng.random_range(0..1_000_000));
+}
+let sparse = PrimitiveArray::from_option_iter(column.iter().copied()).into_array();
+let sparse_compressed = compressor.compress(&amp;sparse, &amp;mut ctx)?;
+println!(
+    &quot;sparse 1%: canonical {} bytes, compressed {} bytes, tree {}&quot;,
+    sparse.nbytes(),
+    sparse_compressed.nbytes(),
+    encoding_tree(&amp;sparse_compressed, 4)
+);
+print_tree(&amp;sparse_compressed, &quot;root&quot;, 1);</pre>
+<pre class="out">sparse 1%: canonical 532480 bytes, compressed 3954 bytes, tree vortex.sparse(vortex.primitive, fastlanes.bitpacked(vortex.bool))
+  root: vortex.sparse u64? len=65536 nbytes=3954
+    patch_indices: vortex.primitive u16 len=655 nbytes=1310
+    patch_values: fastlanes.bitpacked u64? len=655 nbytes=2642
+      validity_child: vortex.bool bool len=655 nbytes=82</pre>
+<div class="prose">
+<p class="kicker">What this means for an integration</p>
+<p>The API is pleasant for batch work: build, compress, slice, filter, take, and execute when you need values, with everything staying compressed in between. Two properties matter for a search engine. First, every operation allocates a small node and goes through dynamic dispatch and the optimizer; that overhead is negligible per million rows and significant per 64 docs. Second, nothing in the public API lets you "prepare" an array once for repeated reads at arbitrary positions. The integration therefore uses <code>execute</code> for scans (whole chunks) and its own point accessors for selective reads (section 8).</p>
+</div>
+</section>
+
+<section id="mapping">
+<h2>4. How the concepts line up</h2>
+<div class="scroll"><table class="compact"><thead><tr><th class="l">concept</th><th class="l">tantivy columnar</th><th class="l">Vortex</th></tr></thead><tbody>
+<tr><td class="l">unit of storage</td><td class="l">one <code>.fast</code> file per segment, all columns</td><td class="l">a file with a layout tree; here one file per column (or one struct file per segment)</td></tr>
+<tr><td class="l">column</td><td class="l"><code>Column&lt;T&gt;</code> = column index + values</td><td class="l"><code>ArrayRef</code> of a <code>DType</code>, read back as chunks</td></tr>
+<tr><td class="l">type system</td><td class="l"><code>ColumnType</code>, values mapped to monotonic <code>u64</code></td><td class="l"><code>DType</code> with native widths, floats and extension types; nullability in the type</td></tr>
+<tr><td class="l">compression choice</td><td class="l">per column, 3 codecs, size estimation</td><td class="l">per chunk, dozens of encodings, sampled cascade (BtrBlocks)</td></tr>
+<tr><td class="l">missing values</td><td class="l"><code>OptionalIndex</code> (blocks of 65,536 docs, dense or sparse)</td><td class="l">validity bitmap, or encoding-level (sparse fill, masked)</td></tr>
+<tr><td class="l">multiple values</td><td class="l"><code>MultiValueIndex</code>: optional index + start offsets column</td><td class="l"><code>List</code>: compressed offsets + compressed elements</td></tr>
+<tr><td class="l">text</td><td class="l">per-segment sorted sstable dictionary + ordinal column</td><td class="l"><code>Utf8</code> arrays; dictionary / FSST encodings chosen per chunk, no global sorted dictionary</td></tr>
+<tr><td class="l">reading one value</td><td class="l"><code>get_val</code>: O(1), a few instructions</td><td class="l"><code>execute_scalar</code>: generic, boxed scalar; encodings like bitpacked have an O(1) primitive internally</td></tr>
+<tr><td class="l">reading many values</td><td class="l"><code>get_vals</code> (random) and <code>get_range</code> (contiguous)</td><td class="l"><code>execute</code> a chunk to canonical; <code>take</code> builds a lazy array then executes</td></tr>
+<tr><td class="l">statistics</td><td class="l">min / max / GCD per column</td><td class="l">per array stats set, per zone stats in files</td></tr>
+<tr><td class="l">filtering</td><td class="l">done outside (posting lists), columnar is a value store</td><td class="l">filter expressions pushed down into the scan</td></tr>
+<tr><td class="l">designed for</td><td class="l">random access by doc id</td><td class="l">vectorized scans with pushdown</td></tr>
+</tbody></table></div>
+<div class="prose">
+<p>The last row is the whole story of the performance section. Where the aggregation scans a column, Vortex competes well and sometimes wins. Where tantivy's query has already selected a small subset of docs, the tantivy columnar's O(1) access is hard to beat, and Vortex needed a dedicated reader (section 8).</p>
+</div>
+</section>
+
+<section id="integration">
+<h2>5. The integration</h2>
+<div class="prose">
+<p>All the code lives in a standalone crate, <code>vortex-bench/</code>, with its own workspace so that the Vortex dependency tree stays out of tantivy's. Phase 1 needs no change to tantivy at all.</p>
+</div>
+<div class="diagram"><pre>
+ write path (commit or merge)                         read path (aggregation)
+ ────────────────────────────                         ───────────────────────
+ SegmentWriter::finalize                              AggregationCollector
+   ├─ field norms, postings, store                      └─ AggContextParams::value_sources
+   ├─ fast fields ─────► &lt;seg&gt;.fast  (columnar)             "score" ─► VortexValueSourceProvider
+   └─ VortexPlugin                     │                                  │ for_segment(reader)
+        re-reads &lt;seg&gt;.fast ◄──────────┘                                  ▼
+        1 column ─► 1 Vortex file                         VortexSegmentCache  (opened once per segment)
+        (default write strategy:                            └─ compressed chunks + lazy point accessors
+         BtrBlocks, 8,192-row zones)                              │
+        └─► &lt;seg&gt;.vortex                                VortexValueSource  (one per collector)
+                                                            load_block(docs)
+                                                              ├─ short / sparse runs: point accessor (until promoted)
+                                                              ├─ long dense runs: decompress chunk (LRU of 8)
+                                                              └─ map to tantivy's monotonic u64
+</pre></div>
+
+<h3 id="i-write">5.1 Writing: the segment plugin</h3>
+<div class="prose">
+<p><code>VortexPlugin</code> owns the <code>vortex</code> extension. Its writer accumulates nothing during indexing: at <code>serialize</code> time (and in <code>merge</code>) it opens the segment's <code>.fast</code> file, which the built-in fast field plugin has just written, and converts every non-JSON column of type <code>u64</code>, <code>i64</code>, <code>f64</code>, date or text:</p>
+<ul>
+<li>values are converted back from the monotonic mapping to their <b>logical type</b> (<code>i64</code>, <code>f64</code>, timestamp in nanoseconds as a Vortex timestamp extension type), so BtrBlocks can use ALP, DateTimeParts, zig-zag and friends;</li>
+<li>text columns store the tantivy <b>ordinals</b> as <code>u32</code>, and keep using the tantivy sstable dictionary at query time (a native-string variant is measured for size only);</li>
+<li>cardinality maps to the type: <code>Full</code> → non-nullable array, <code>Optional</code> → nullable array, <code>Multivalued</code> → <code>List</code>;</li>
+<li>each column becomes a standalone Vortex file written with the default strategy. The <code>.vortex</code> component is the concatenation of these files, each aligned on 64 bytes, followed by a JSON footer (name, type, cardinality, byte range, min, max).</li>
+</ul>
+</div>
+
+<h3 id="i-read">5.2 Reading: the value source</h3>
+<div class="prose">
+<ul>
+<li><b>Segment cache.</b> A <code>VortexSegmentCache</code>, shared by all providers of a registry, opens the <code>.vortex</code> component once per segment: it copies each file into a 64-byte aligned buffer, opens it from memory and scans it, keeping the compressed chunks. This is what a segment reader would do in a real integration; the tantivy columnar is cheap to open on every query, Vortex files are not.</li>
+<li><b>One source per collector.</b> <code>load_block</code> splits the block of docs into runs (one per chunk). Long, dense runs (scans) decompress the chunk into its canonical array and copy the requested values, converting them to tantivy's monotonic <code>u64</code>. The last 8 decompressed chunks are kept in an LRU, because sub-aggregations revisit chunks.</li>
+<li><b>Short or sparse runs</b> use a point accessor, built once per chunk and shared across queries, until the chunk has been read densely enough to be worth decompressing (section 8).</li>
+<li><b>Metadata.</b> <code>bounds()</code> returns the min / max computed at write time, <code>term_dictionary()</code> returns the tantivy dictionary of the field, <code>as_column()</code> returns <code>None</code>.</li>
+</ul>
+</div>
+
+<h3 id="i-variants">5.3 Three variants of every request</h3>
+<div class="prose">
+<ul>
+<li><span class="swatch sw-columnar"></span><b>columnar</b>: the normal tantivy path, exactly what <code>agg_bench</code> measures.</li>
+<li><span class="swatch sw-opaque"></span><b>opaque</b>: the same tantivy columns, registered in the <code>ValueSourceRegistry</code> behind a wrapper whose <code>as_column()</code> returns <code>None</code>. It pays the "registered source" penalty with the tantivy codec.</li>
+<li><span class="swatch sw-vortex"></span><b>vortex</b>: the columns of the <code>.vortex</code> file, registered the same way.</li>
+</ul>
+<p>So <b>opaque / columnar</b> measures the cost of the abstraction (lost fast paths), <b>vortex / opaque</b> measures the cost of the storage itself, and their product is <b>vortex / columnar</b>.</p>
+<p>Registered fields are the twelve non-JSON fast fields of the benchmark schema: <code>score</code>, <code>score_f64</code>, <code>score_i64</code>, <code>timestamp</code>, <code>timestamp_26_bits</code>, and seven text fields. The JSON field <code>json.mixed_type</code> is always read from the tantivy columnar.</p>
+</div>
+
+<h3 id="i-versions">5.4 Implementation versions</h3>
+<div class="prose">
+<p>The reader went through three versions, all measured on the full suite:</p>
+</div>
+<dl class="terms">
+<dt>v1</dt><dd>Decompress the chunk that contains the doc; keep only the last decompressed chunk.</dd>
+<dt>v2</dt><dd>Same, with an LRU of 8 decompressed chunks. Fixes the thrashing of sub-aggregations.</dd>
+<dt>v3a</dt><dd>v2 plus point access for short or sparse runs (section 8). Measured on a nearly complete run (804 of 836 measurements).</dd>
+<dt>v3</dt><dd>v3a plus the promotion rule: a chunk read densely through point access is decompressed and moved to the LRU (section 8.5). This is the final version.</dd>
+</dl>
+<div class="prose">
+<p>Independently, a two-line patch to tantivy (<code>patches/value_source_bounds_fast_paths.patch</code>) lets two fast paths use <code>bounds()</code> instead of <code>as_column()</code>; it was measured on top of v2 and is not applied to the tree.</p>
+</div>
+</section>
+<section id="sizes">
+<h2>6. Sizes</h2>
+<div class="prose">
+<p>The comparison is done column by column, on the twelve converted columns. For the tantivy side, "column" means values plus column index (optional or multivalued index), excluding the sstable dictionary of text columns, which the Vortex variant reuses. Dictionaries are reported separately. The <code>.fast</code> file is larger than the sum of the columns because it also contains the JSON field and the dictionaries.</p>
+</div>
+
+<h3 id="s-totals">6.1 Totals per index</h3>
+<div class="scroll" id="size-totals"></div>
+<figure>
+  <div class="legend"><span><span class="swatch sw-columnar"></span>tantivy columns</span><span><span class="swatch sw-vortex"></span>Vortex columns</span></div>
+  <div class="chart" id="size-bars"></div>
+  <figcaption>Sum of the twelve converted columns per index, dictionaries excluded (8.4 MB for the single segment indexes, identical in both variants).</figcaption>
+</figure>
+<div class="prose">
+<p>Three regimes stand out. On one large segment, the formats are within 1 % of each other for full columns, and Vortex is smaller as soon as values are missing or repeated (dense −6 %, sparse −30 %, multivalue −34 %). On many small segments, Vortex is larger (+15 % at 100 segments, ×2.2 at 1,000 segments), because of a fixed cost per file.</p>
+</div>
+
+<h3 id="s-approaches">6.2 Storage approaches compared</h3>
+<div class="prose">
+<p>The same data can be laid out in several ways. All the totals below cover the twelve columns <em>including</em> what is needed to turn text ordinals back into terms, so they are directly comparable.</p>
+</div>
+<div class="scroll" id="size-approaches"></div>
+<div class="prose">
+<ul class="findings">
+<li><b>B vs A</b> is what the benchmark reads: Vortex for the values, tantivy sstables for the terms. It is never larger than the tantivy columnar on a single segment.</li>
+<li><b>C</b> stores strings natively in Vortex and drops the sstable. It is the "pure Vortex" option, and the most expensive one on full and dense data (+22 % and +16 %, all of it on the high-cardinality text columns). On sparse and multivalue data it still comes out smaller than tantivy, but only because the savings on the column index of section 6.5 and 6.6 outweigh the loss on text. Section 6.6 explains the text loss.</li>
+<li><b>D</b> removes the file format: the arrays compressed in memory by BtrBlocks, without zone statistics, footer or per-chunk layout. On a 1M-row segment the file format costs nothing measurable; the per-chunk choice of encodings in the file even beats one global compression pass on multivalued data (D is larger than B there because the in-memory compressor does not find the arithmetic sequence of list offsets over the whole array).</li>
+<li><b>E</b> stores dates as plain <code>i64</code> instead of the timestamp extension type: the two date columns double in size. Keeping the logical type is what lets BtrBlocks use DateTimeParts.</li>
+</ul>
+</div>
+
+<h3 id="s-full">6.3 Column by column: full</h3>
+<div class="scroll" id="size-full"></div>
+<div class="prose">
+<p>tantivy chose its bitpacked codec for every column of this benchmark (the only exception is one multivalued text column, stored with the blockwise linear codec). Vortex chose bitpacking too for most columns, and fixed-width bitpacking of the same values costs the same, whoever does it. The differences come from what each system can detect before bitpacking.</p>
+<ul class="findings">
+<li><b><code>score</code>, <code>score_i64</code></b>: uniform integers in [0, 1,000,000): 20 bits per value in both systems (2.44 MB vs 2.45 MB). Nothing more can be done for uniform data.</li>
+<li><b>Text ordinals</b>: the width is the logarithm of the dictionary size in both systems: 3 bits for the 7 statuses, 10 bits for 1,000 terms, 18 bits for 150,000 terms, 20 bits for the unique terms. Identical sizes. BtrBlocks does not choose a dictionary encoding here because tantivy's ordinals are already dense.</li>
+<li><b><code>score_f64</code></b>: log-normal doubles with full-precision mantissas. tantivy bitpacks the monotonic mapping of the doubles (about 56 bits per value); Vortex chooses ALP-RD (a 3-bit dictionary code for the high bits, about 52 bits for the low bits, plus patches). 6.92 MB vs 7.00 MB: neither can compress random mantissas.</li>
+<li><b><code>timestamp</code></b>: timestamps in seconds that grow with the doc id, plus ±2 h of noise. tantivy stores nanoseconds; its bitpacked codec subtracts the minimum and divides by the GCD (10<sup>9</sup>, the field has second precision), and the remaining five-day range needs 19 bits. Vortex's DateTimeParts stores the day, the second within the day and the sub-second separately. The day is almost constant within a 1,024-row block (a block covers a few minutes), so frame of reference reduces it to nearly nothing; the second within the day needs 17 bits; sub-seconds are a constant. About 17.6 bits per value: Vortex is 8 % smaller, thanks to the per-block adaptivity rather than to the date-specific split.</li>
+<li><b><code>timestamp_26_bits</code></b>: uniformly random 26-bit second counts. tantivy needs exactly 26 bits after the GCD division. DateTimeParts splits each value into a day (10 bits) and a second within the day (17 bits): 27 bits, so Vortex is 4 % larger. Splitting is a loss when the parts are not more regular than the whole.</li>
+<li><b><code>single_term</code></b>: a constant. Both systems store a header only (a few kB of Vortex file overhead).</li>
+</ul>
+</div>
+
+<h3 id="s-dense">6.4 Column by column: dense (one document without values)</h3>
+<details><summary>Per-column table</summary><div class="scroll" id="size-dense"></div></details>
+<div class="prose">
+<p>The dense index differs from the full one by a single empty document. In tantivy, that makes every column <code>Optional</code>, so every column pays an optional index: one dense block bitset with rank metadata per 65,536 docs, about 160 kB per column, whatever the number of missing values. In Vortex, nullability is a type property but validity is stored per chunk: most chunks carry no validity at all, and only a few chunks around the empty document carry a (compressed) validity child. Result: −6 % for Vortex, all of it on the index.</p>
+</div>
+
+<h3 id="s-sparse">6.5 Column by column: sparse (one document in 21 has values)</h3>
+<details><summary>Per-column table</summary><div class="scroll" id="size-sparse"></div></details>
+<div class="prose">
+<p>With 50,000 values over 1,050,000 docs, each 65,536-doc block of tantivy's optional index holds about 3,100 values, below the dense threshold of 6,144, so blocks use the sparse codec: a list of 16-bit offsets, 2 bytes per value. Vortex picks its <code>sparse</code> encoding (a null fill plus patches), and compresses the patch positions as a <code>sequence</code>, because in this generator exactly one document in 21 has values. The positions cost almost nothing, hence −30 %.</p>
+<blockquote class="note">This regularity is an artifact of the generator. With randomly placed values (measured in section 3.6), the positions stay a plain <code>u16</code> array, 2 bytes each, exactly like tantivy's sparse optional blocks, and the gap disappears.</blockquote>
+</div>
+
+<h3 id="s-multi">6.6 Column by column: multivalue</h3>
+<details><summary>Per-column table</summary><div class="scroll" id="size-multi"></div></details>
+<div class="prose">
+<p>The multivalue index is the same data as the full one, except that the first document has two values. tantivy stores a <code>MultiValueIndex</code> for every text and numeric column: about 1.5 MB per column for 1M docs. That is visible on <code>single_term</code>, whose values are all the same and cost nothing, but whose index weighs 1.54 MB. Vortex stores a <code>List</code>, whose offsets are <code>0, 2, 3, 4, …</code>: an arithmetic sequence in every chunk but the first, encoded as <code>vortex.sequence</code> for free. Hence −34 %.</p>
+<blockquote class="note">This is the most favorable case possible for Vortex: on genuinely multivalued data, offsets have to be bitpacked too. The size of tantivy's start offsets column on near-linear data is still worth a look independently of Vortex (the linear codec should handle a sequence with a single +1 step well).</blockquote>
+<p><b>Native strings.</b> The <code>C</code> approach of section 6.2 stores the strings themselves. For low-cardinality text, Vortex's dictionary encoding is as good as ordinals + sstable. For high cardinality it is much worse: <code>text_all_unique_terms</code> takes 14.5 MB natively vs 10.9 MB for ordinals + sstable, and <code>text_many_terms</code> (150,000 distinct terms) 6.1 MB vs 2.3 MB. Two reasons. First, the sstable stores sorted terms once per segment with prefix sharing and block compression, while Vortex compresses each chunk independently, so a chunk-level dictionary of 150,000 terms is repeated in each of the 12 chunks. Second, unsorted strings with random digits (<code>unique_term_&lt;u64&gt;</code>) give FSST little to work with. The per-segment sorted dictionary is a structural advantage of tantivy for text.</p>
+</div>
+
+<h3 id="s-segments">6.7 Many small segments</h3>
+<div class="scroll" id="size-segments"></div>
+<div class="prose">
+<p>Each Vortex file carries a fixed cost: postscript and footer, the serialized <code>DType</code>, the layout tree, zone statistics, segment alignment. With one file per column and per segment, that cost is paid 12,000 times in the 1,000-segment index. A Vortex file there averages 4.1 kB, while the same column of the same segment takes 1.9 kB in the tantivy columnar: roughly 2.2 kB of fixed cost per file. Writing <b>one struct file per segment</b> (all twelve columns as fields of a struct array) shares the footer, the type and the layout root: the overhead drops from +15 % to +8 % at 100 segments, and from ×2.2 to about ×1.5 at 1,000 segments (extrapolated from the first 100 segments). The remaining overhead is the per-column layout and zone statistics, which Vortex keeps even for 1,000-row columns. The tantivy columnar has a single small footer per segment and no per-zone statistics, so it scales down better.</p>
+<p>In practice, segments are merged into large ones, so the single-segment numbers are the most representative of steady state; the small-segment numbers matter for freshly committed, unmerged data.</p>
+</div>
+</section>
+<section id="perf">
+<h2>7. Performance</h2>
+
+<h3 id="m-method">7.1 Methodology</h3>
+<div class="prose">
+<p>The benchmark is a copy of <code>benches/agg_bench.rs</code> with the same requests and data. For every request, the three variants (columnar, opaque, vortex) are registered in <b>the same binggan group</b>, so they are interleaved: 32 group iterations, an auto-detected number of calls per sample, median reported. Interleaving matters on this machine: the absolute time of the columnar variant drifts by up to 7 % from one run to the next, but the ratios between variants measured within a run are stable. All ratios in this report are computed within a run, then the median over runs is taken.</p>
+<p>Before each group, the request runs once per variant and its result is compared with the columnar result (section 9). Requests rejected by registered sources (<code>multi_terms</code>, <code>composite</code>, <code>top_hits</code>, <code>missing</code> on text: 20 of the 79 requests per input) only appear in the columnar variant.</p>
+<p>Ratios are summarized with geometric means. A ratio below 1 means the variant is faster than the reference.</p>
+</div>
+
+<h3 id="m-overview">7.2 Overview</h3>
+<div class="prose">
+<p>The table below follows the storage cost (<b>vortex / opaque</b>) through the implementation versions, for all requests and for the selective requests only (<code>multi_terms_vs_nested_with_1%_term_query</code>).</p>
+</div>
+<div class="scroll" id="evolution"></div>
+<div class="prose">
+<ul class="findings">
+<li><b>v1 → v2</b>: caching 8 decompressed chunks instead of one removes the thrashing caused by sub-aggregations (section 7.6): the sparse average drops from ×2.87 to ×1.03, and the worst selective requests from ×195 to ×6.</li>
+<li><b>v2 → v3</b>: point access brings the selective requests of the full, dense and multivalue inputs from ×1.8–×3.8 down to ×1.1–×1.4. Thanks to the promotion rule of section 7.6, non-selective requests do not get slower, except sub-aggregations on the sparse input (up to +30 %). Sparse selective requests stay around ×1.4–×1.5. v3a, the first point-access version without promotion, shows what happens without the rule.</li>
+<li>The <b>bounds() patch</b> does not change the storage cost at all; it removes most of the <em>abstraction</em> cost (section 7.4), which is the other half of the story.</li>
+</ul>
+</div>
+<div class="kicker">Final version: vortex / columnar (total effect)</div>
+<div class="scroll" id="matrix-v3-vc"></div>
+<div class="two">
+  <div><div class="kicker">opaque / columnar: cost of the abstraction</div><div class="scroll" id="matrix-oc"></div></div>
+  <div><div class="kicker">vortex / opaque: cost of the storage (final version)</div><div class="scroll" id="matrix-v3-vo"></div></div>
+</div>
+<figure>
+  <div class="legend"><span><span class="swatch sw-opaque"></span>opaque / columnar</span><span><span class="swatch sw-vortex"></span>vortex / columnar</span><span>log scale, one dot per request</span></div>
+  <div class="chart" id="strip-v3"></div>
+  <figcaption>Distribution of the ratios per input, final version. The purple cloud is the cost of going through a registered <code>ValueSource</code> with the tantivy codec; the distance between purple and blue is the effect of the Vortex storage.</figcaption>
+</figure>
+
+<h3 id="m-decode">7.3 Decoding alone</h3>
+<div class="prose">
+<p>To separate storage from aggregation logic, a micro-benchmark calls <code>ValueSource::load_block</code> directly, in blocks of 64 docs like the collector, on every doc ("scan") or on the ~10,000 docs matching the 1 % filter ("filtered"). Each measurement is the best of 15 repetitions, with a fresh source each time (caches shared across queries, such as point accessors, are kept, as they would be in production).</p>
+</div>
+<div class="kicker">Scan: vortex / tantivy</div>
+<div class="scroll" id="decode-scan"></div>
+<div class="kicker">Scan: nanoseconds per value (full input)</div>
+<div class="scroll" id="decode-ns"></div>
+<div class="prose">
+<ul class="findings">
+<li><b>Full columns</b>: tantivy reads a value in 0.17–0.43 ns, Vortex in 0.36–1.03 ns (×1.4 to ×2.8). Vortex decompresses an ~80k-row chunk into a canonical buffer, then the source copies the requested values and maps them to <code>u64</code>; tantivy bit-unpacks 64 values straight into the output block. The most expensive Vortex columns are <code>score_f64</code> (ALP-RD recombines two parts and applies patches) and the dates (DateTimeParts recombines three parts).</li>
+<li><b>Optional and multivalued columns</b>: Vortex is faster (×0.5 to ×0.98). For every block, tantivy translates doc ids into row ids through its optional index (a rank query per doc) or its multivalue index (two offset reads per doc), then gathers the values. Vortex already has the validity bitmap and the list offsets decompressed with the chunk.</li>
+</ul>
+</div>
+<div class="kicker">Filtered (1 %): tantivy vs the three Vortex access strategies</div>
+<div class="scroll" id="decode-filtered" style="max-height:620px;overflow:auto"></div>
+<div class="prose">
+<p>Decompressing whole chunks costs one to two orders of magnitude more than tantivy's direct access; Vortex's generic <code>take()</code> is barely better, and sometimes worse; point access brings full bitpacked columns within ×2.6–×3.6 of tantivy, dense columns within ×1.2, multivalued columns within ×1.2–×1.4, and makes Vortex <b>faster</b> than tantivy on sparse columns (×0.7–×0.86), where tantivy's sparse optional index is relatively expensive to query. Floats and dates remain the hardest case (×1.6 to ×7.6, except on the sparse input).</p>
+</div>
+
+<h3 id="m-abstraction">7.4 The abstraction penalty and the bounds() patch</h3>
+<div class="prose">
+<p>The opaque variant reads exactly the same bytes through exactly the same codec as the columnar variant; the only difference is that the aggregation code does not see the physical column. On the full input this costs ×1.56 on average and up to ×9.4. The worst cases match the fast paths listed in section 2.4:</p>
+<ul>
+<li><code>terms_status_with_date_histogram*</code> and <code>terms_status_with_histogram</code> (×3.6 to ×9.4): the flattened terms × histogram collector needs the raw <code>ColumnValues</code> of two full columns;</li>
+<li><code>cardinality_agg_low_card</code> (×3.5): the pre-sized ordinal bitset needs the maximum ordinal;</li>
+<li><code>terms_7</code>, <code>terms_zipf_90</code>, <code>terms_all_unique</code> (×2.6 to ×2.9): the dense bucket storages are chosen from the maximum ordinal.</li>
+</ul>
+<p>On the other inputs the penalty is smaller (×1.1 to ×1.2) because several of these fast paths require a full column anyway.</p>
+<p>Two of these fast paths only read the column maximum, which <code>ValueSource::bounds()</code> already provides, with exactly the same value for physical columns, and whose contract ("global value bounds, for fast paths that need to size something up front") covers the use. The patch replaces those two reads. The tantivy aggregation tests (328) pass, the columnar variant does not move (geometric mean of times ×1.00 between runs), and the penalty mostly disappears:</p>
+</div>
+<div class="kicker">opaque / columnar with the bounds() patch</div>
+<div class="scroll" id="matrix-bounds-oc"></div>
+<div class="prose">
+<p>What remains is the flattened terms × histogram collector (×2.3 to ×7.0 on full) and the one-doc stats shortcut under high-cardinality terms (×1.3 to ×1.4 on dense). With the patch, vortex / columnar becomes ×1.40 on full, ×1.00 on dense, ×1.05 on sparse and ×0.85 on multivalue (chunk-decode version).</p>
+</div>
+<details><summary>The <span id="phase2-count"></span> requests whose opaque / columnar ratio drops by more than 5 % with the patch</summary><div class="scroll" id="phase2-table" style="max-height:520px;overflow:auto"></div></details>
+
+<h3 id="m-scans">7.5 The cost of the storage on scans</h3>
+<div class="kicker">vortex / opaque, chunk-decode version (v2), all groups</div>
+<div class="scroll" id="matrix-v2-vo"></div>
+<div class="prose">
+<p>Outside selective queries, the storage cost of Vortex is small or negative: ×1.09 on full, ×0.89 on dense, ×1.00 on sparse and ×0.75 on multivalue (geometric means without the filtered group). The decode micro-benchmark explains the pattern: Vortex pays a bulk-decompression and copy cost on full columns that is diluted by the aggregation work, and saves the doc-to-row translation on optional and multivalued columns. On the multivalue input, more than half of the requests run 25 % to 42 % faster with Vortex than with the opaque tantivy columns.</p>
+</div>
+
+<h3 id="m-selective">7.6 Selective queries, version by version</h3>
+<div class="prose">
+<p><b>v1</b> kept a single decompressed chunk. Pure scans do not care, but sub-aggregations receive their docs in buffered batches grouped by parent bucket. On the sparse input a batch covers about 43,000 rows, often two chunks, and every bucket of the batch decompressed these chunks again: the sparse average was ×2.87 and some selective requests were 195 times slower than opaque. <b>v2</b> keeps 8 chunks in an LRU and fixes it.</p>
+<p><b>v2</b> still decompresses every chunk a selective query touches, which is every chunk. <b>v3</b> adds point access (section 8):</p>
+</div>
+<div class="scroll" id="phase3-table"></div>
+<div class="prose">
+<p>The first point-access version (v3a) read every short run point by point. It fixed selective queries but made some scans slower: under a high-cardinality terms aggregation, a sub-aggregation over the whole segment receives a myriad of runs of one or two docs. v2 decompressed each chunk once and served everything from the LRU; v3a read every value point by point, which is more expensive, especially for ALP-RD floats (<code>terms_many_with_avg_sub_agg</code> went from ×1.14 to ×3.48). The final version adds a <b>promotion rule</b> (a "ski rental" strategy): point reads into a chunk are charged a cost per value plus a cost per run, and once the accumulated cost exceeds a fraction of the cost of decompressing the chunk, the chunk is decompressed and served from the LRU. Whatever the access pattern, the total stays within a small factor of the better of the two strategies.</p>
+<p>The constants of the rule matter. A targeted comparison on the requests most sensitive to them:</p>
+</div>
+<div class="scroll" id="ab-table" style="max-height:620px;overflow:auto"></div>
+<div class="prose">
+<p>A higher per-run cost promotes chunks earlier: it recovers the small loss on sparse sub-aggregations, but promotes chunks of selective queries too, which brings back part of the v2 cost on the filtered nested requests. The default (16) is the best compromise on this set. A cost model per encoding (point reads into a sparse chunk are relatively expensive, decompressing it is cheap) would remove most of the trade-off.</p>
+</div>
+<div class="kicker">Requests outside the filtered group that moved by more than 8 % between v2 and the final version</div>
+<div class="scroll" id="phase3-regressions"></div>
+
+<h3 id="m-segments">7.7 Many segments</h3>
+<div class="prose">
+<p>On the 100- and 1,000-segment indexes, vortex / opaque stays at ×1.02 to ×1.05 in every version. Once the per-segment cache is warm, opening a segment costs nothing, and these requests are dominated by merging intermediate results across segments. The abstraction penalty (×1.2 to ×1.3) disappears with the bounds() patch.</p>
+</div>
+
+<h3 id="m-memory">7.8 Memory</h3>
+<div class="prose">
+<p>The LRU of decompressed chunks costs up to about 5 MB per column and per collector for 64-bit columns (8 chunks of ~80k values). It is visible in binggan's memory measurement: <code>average_u64</code> goes from a few kB to 4.9 MB. A pure scan would only need one chunk; the LRU size could depend on whether the collector is a sub-aggregation. Point accessors are shared per segment and reference the compressed buffers without copying them; they only materialize validity bitsets, patches and small dictionaries.</p>
+</div>
+
+<h3 id="m-all">7.9 All requests</h3>
+<div class="controls">
+  <div class="seg" id="dataset-seg" role="group" aria-label="Implementation version"></div>
+</div>
+<div class="controls">
+  <div class="seg" id="input-seg" role="group" aria-label="Input"></div>
+  <label for="group-select" class="small">group</label><select id="group-select"></select>
+  <label for="req-search" class="small">filter</label><input id="req-search" type="search" placeholder="request name">
+  <span class="small" id="detail-count"></span>
+</div>
+<div class="legend"><span><span class="pill pill-ok">=</span> identical to columnar</span><span><span class="pill pill-approx">≈</span> differs from columnar, identical to opaque</span><span><span class="pill pill-err">n/a</span> rejected for registered sources</span><span>↯ spread across runs &gt; 10 %</span><span>click a header to sort</span></div>
+<div class="scroll" id="detail-table" style="max-height:640px;overflow:auto"></div>
+
+<h3 id="m-stability">7.10 Stability</h3>
+<div class="prose">
+<p>The chunk-decode version (v2) was measured in three full runs plus a targeted rerun of the 26 most extreme requests: over the 250 requests measured in all three variants, the median spread of the vortex / columnar ratio across runs is 1.2 %, the 90th percentile 3.7 %, the maximum 13 %. The extreme ratios of the selective group reproduced within ±2 %.</p><p>The final version (v3) was measured in two full runs, plus a third run of the four requests whose spread exceeded 10 %: median spread 0.6 %, 90th percentile 2.9 %. Those four (<code>cardinality_agg_low_card</code>, <code>terms_all_unique</code> and <code>terms_many_with_single_term_2_order_by_card</code> on full, a nested terms on 100 segments) keep an 11 % to 15 % spread over three runs; they are either very short (0.6 ms) or dominated by cross-segment merging. The report uses the median of the three runs. A run of the previous version that was accidentally made with the v2 binary while v3 was expected doubled as a fourth v2 run, and confirmed the columnar times within 1 %.</p>
+</div>
+<div class="scroll" id="stability-table"></div>
+<p class="small">The 12 most dispersed requests of v2.</p>
+</section>
+<section id="point">
+<h2>8. How selective queries were fixed</h2>
+<div class="prose">
+<p>This section explains the mechanism, without numbers. The measurements are in section 7.</p>
+</div>
+
+<h3 id="p-problem">8.1 Why the straightforward reader is slow</h3>
+<div class="prose">
+<p>A selective query produces a few docs scattered across the whole segment. In this benchmark, the 1 % filter yields clusters of a handful of consecutive docs every few hundred docs. The collector hands them to the value source 64 at a time, so one block covers thousands of rows.</p>
+<p>The first versions of the reader handled every block the same way: find the chunk that contains the doc, decompress the whole chunk into a canonical array, pick the requested values. That is the natural way to use Vortex, and it is ideal for scans. For a selective query it is the worst case: since matching docs are spread everywhere, every chunk is touched at least once, so the reader decompresses <em>the entire column</em> to read a tiny fraction of it. The cost becomes proportional to the size of the column instead of the number of docs, which is exactly the opposite of what the tantivy columnar does.</p>
+<p>The obvious alternative, Vortex's <code>take</code>, does not help either. Its kernels are efficient (the bitpacked kernel can unpack single values), but every call goes through the generic machinery: wrap the array in a lazy dictionary node, run the optimizer, dispatch dynamically through the encoding tree, allocate an output array, handle validity, recurse into children. That fixed cost is small in absolute terms, but it is paid for every block of 64 docs, and it ends up in the same range as decompressing the chunk.</p>
+</div>
+
+<h3 id="p-idea">8.2 The idea: compile each chunk into a point accessor</h3>
+<div class="prose">
+<p>The values of a compressed Vortex array are not hidden behind an opaque blob: they are a tree of simple, well-specified encodings, and most of them can produce one value at a given index in constant time if you know their raw buffers and parameters. The fix is to walk the encoding tree of a chunk <b>once</b>, extract exactly what is needed for that, and keep it in a compact structure that mirrors the tree without any of the generic machinery. Call it a <b>point accessor</b>.</p>
+<p>Each node of the encoding tree becomes a node of the accessor:</p>
+</div>
+<dl class="terms">
+<dt>bitpacked</dt><dd>keep the packed words, the bit width, the offset of the first element, and the patches. Reading index <i>i</i> means locating its 1,024-value block and unpacking one value from the FastLanes transposed layout, then checking whether a patch overrides it.</dd>
+<dt>frame of reference</dt><dd>keep the child accessor and the reference of each 1,024-value block; the value is the child value plus the reference of its block.</dd>
+<dt>constant, sequence</dt><dd>closed forms: the constant, or <code>base + i × step</code>.</dd>
+<dt>slice</dt><dd>an index shift into the child.</dd>
+<dt>ALP-RD</dt><dd>keep both children (left codes and right parts), the small left dictionary and the patches. The value is the dictionary entry (or the patched left part) shifted left and OR-ed with the right part, reinterpreted as a double.</dd>
+<dt>DateTimeParts</dt><dd>three children and the time unit; the value is <code>days × 86,400 × unit + seconds × unit + subseconds</code>.</dd>
+<dt>sparse</dt><dd>the sorted patch positions and values, plus the fill value.</dd>
+<dt>zig-zag</dt><dd>the usual decode applied to the child value.</dd>
+<dt>masked</dt><dd>the child only; validity is handled separately.</dd>
+<dt>list</dt><dd>an offsets accessor and an elements accessor; the values of row <i>r</i> are the elements between <code>offsets[r]</code> and <code>offsets[r+1]</code>.</dd>
+<dt>anything else</dt><dd>if the sub-array is small (a dictionary, the per-block references), it is decompressed once and stored as a plain buffer. If it is large and unknown, the chunk simply gets no accessor and falls back to decompression.</dd>
+</dl>
+<div class="prose">
+<p>Validity is resolved at the top, once per chunk, into a plain bitset (or nothing, if the chunk has no nulls). Inner nodes never look at validity: a value read at a null position is garbage that the caller skips.</p>
+<p>Accessors produce <b>raw 64-bit words</b>: integers in two's complement (narrow signed types sign-extended so that frame-of-reference arithmetic wraps correctly), doubles as their IEEE bits. The value source converts them to tantivy's monotonic <code>u64</code> mapping at the very end, the same way it does for decompressed values.</p>
+</div>
+
+<h3 id="p-lifecycle">8.3 Built once, shared by every query</h3>
+<div class="prose">
+<p>Building an accessor costs about as much as touching the chunk's metadata, plus materializing a few small children. It happens lazily, the first time a query needs point access into a given chunk, and the result is stored next to the compressed chunk in the per-segment cache. Every later query on the segment, and every collector of the same query, reuses it. The accessor holds reference-counted handles to the original buffers, so it adds almost no memory: the compressed data is not copied.</p>
+</div>
+
+<h3 id="p-batch">8.4 Reading a batch, not a value</h3>
+<div class="prose">
+<p>A naive accessor would walk the tree once per value: one dynamic dispatch per node, then a branch on the bit width inside the unpacking routine. That overhead is several times the cost of the actual bit manipulation. Instead, the value source passes the whole run of rows down the tree:</p>
+<ul>
+<li>each node handles the batch in one go: the frame-of-reference node asks its child for all values, then adds the references; ALP-RD fetches all left codes and all right parts, then combines them; and so on;</li>
+<li>the bitpacked node groups the requested rows by FastLanes block and hands each group to the FastLanes "unpack these indices" routine, which resolves the bit width once per group and then unpacks each value with a few shifts and masks.</li>
+</ul>
+<p>The tree is thus traversed once per run of docs, and the per-value cost is close to that of a hand-written bitpacked lookup.</p>
+</div>
+
+<h3 id="p-choice">8.5 Choosing between point access and decompression</h3>
+<div class="prose">
+<p>Point access is not always the right tool. For a scan, decompressing a chunk with vectorized kernels is cheaper per value than any per-value lookup, and the decompressed chunk serves many following blocks. The value source therefore decides per run (the docs of one block that fall into the same chunk):</p>
+<ul>
+<li>if the chunk is already decompressed (in the LRU of the source), read from it;</li>
+<li>otherwise, if the run is short, or if it spans many more rows than it has docs, use the point accessor;</li>
+<li>otherwise (a long, dense run, typically a scan), decompress the chunk and keep it in the LRU.</li>
+</ul>
+<p>Those rules look at one run at a time, and that is not enough. Under a high-cardinality terms aggregation, a sub-aggregation over the whole segment receives a myriad of runs of one or two docs: every run looks sparse, yet in the end every value of every chunk is read. Reading them all point by point is slower than decompressing each chunk once. The reader therefore keeps, per chunk, a running cost of the point reads already done: a cost per value plus a fixed cost per run. When that cost reaches a fraction of what decompressing the chunk would cost, the chunk is decompressed, put in the LRU, and all later reads come from there. This is the classic "ski rental" strategy: rent while renting is cheaper than buying, then buy. A selective query stays below the threshold and never decompresses anything; a dense pattern made of tiny runs pays a bounded price before switching to decompression.</p>
+<p>The "short run" rule came from profiling. The first version only looked at density, and a selective query still spent half of its time decompressing chunks. The reason: matching docs come in small clusters of consecutive docs, and when a block straddles a chunk boundary, the part that falls into the next chunk is often a single cluster. A cluster of four consecutive docs has a perfect density, so the reader decided that it was looking at a scan and decompressed the whole chunk. Requiring a minimum run length before decompressing fixed it.</p>
+</div>
+
+<h3 id="p-limits">8.6 Correctness and limits</h3>
+<div class="prose">
+<p>The decode micro-benchmark compares a checksum of every value read through Vortex with the same checksum read through the tantivy columnar, for every column, every input and both access patterns, and the full aggregation suite compares every aggregation result with the columnar one. Both agree.</p>
+<p>The approach has clear limits:</p>
+<ul>
+<li>It depends on the <b>internal representation</b> of each encoding: the FastLanes transposed layout, the semantics of patches and their offsets, how ALP-RD combines its parts, how frame-of-reference stores one reference per block. These are not public contracts, and Vortex changes quickly; a production version would need either a pinned Vortex version with tests, or, better, an equivalent API upstream.</li>
+<li>Composite encodings stay more expensive than a single bitpacked lookup: ALP-RD and DateTimeParts read two or three children per value.</li>
+<li>Encodings that are not random-access by nature (zstd, pco, delta, run-end without an index) cannot be supported this way. BtrBlocks did not pick them for these columns, but it could for other data, and those chunks would fall back to decompression.</li>
+<li>The thresholds (minimum run length, density ratio, promotion costs, LRU size) are fixed constants tuned on this benchmark. The promotion rule uses the same costs for every encoding, while a point read into a sparse chunk is relatively expensive and decompressing it is cheap; this is why sub-aggregations on sparse data are still slightly slower than with pure chunk decompression. Costs per encoding, or measured at accessor construction, would remove most of that trade-off.</li>
+</ul>
+<p>What Vortex would need to support search-engine workloads natively is a cheap, reusable <b>gather</b> primitive: "prepare this array for repeated reads at sorted indices", returning a lightweight object whose per-call cost is a function of the number of indices only. The accessor built here is a prototype of that API, living outside Vortex.</p>
+</div>
+</section>
+
+<section id="correctness">
+<h2>9. Correctness</h2>
+<div class="prose">
+<p>Before each benchmark group, the request runs once per variant and the JSON result is compared with the columnar result.</p>
+<ul>
+<li><b>Vortex and opaque always return exactly the same result</b> (same hash) on every request and every input. The Vortex copy of the columns is faithful.</li>
+<li>Differences with the columnar come from the aggregation path taken by registered sources, not from the values. The cardinality aggregation uses an HLL sketch whose estimate depends on insertion order, and the bitset path inserts ordinals in a different order than the hash set path (152,236 vs 153,190 for a true cardinality of about 150,000). Terms aggregations with ties (all buckets with the same count, as in <code>terms_all_unique</code>) break ties differently in the hash map and dense vector storages. Both results are valid.</li>
+<li>With the <code>bounds()</code> patch, registered sources take the same storages as physical columns, and all 250 supported results become identical to the columnar ones.</li>
+</ul>
+</div>
+<div class="two">
+  <div><div class="kicker">v2, unpatched tantivy</div><div class="scroll" id="verify-v2"></div></div>
+  <div><div class="kicker">with the bounds() patch</div><div class="scroll" id="verify-bounds"></div></div>
+</div>
+</section>
+
+<section id="validity">
+<h2>10. Limitations and threats to validity</h2>
+<div class="prose">
+<ul class="findings">
+<li><b>Synthetic data.</b> The <code>agg_bench</code> generator is built to stress aggregations, not storage. Some of its patterns are unrealistically regular (the sparse index has values on exactly one doc in 21; the multivalue index has a single doc with two values), which flatters Vortex on size. Others are unrealistically random (uniform integers, log-normal doubles with full mantissas, random unique strings), which leaves no room to either system. Real logs have more structure: repeated hosts and services, monotonic timestamps, small integer ranges, which is where an adaptive compressor can gain more.</li>
+<li><b>Default write strategy.</b> Vortex was used with its default file layout. Chunk sizes, zone sizes and the dictionary layout are tunable, and one struct file per segment already helps small segments.</li>
+<li><b>Text as ordinals.</b> The benchmark reads Vortex ordinals and tantivy dictionaries. A pure Vortex design would need its own term resolution, and would lose the sorted-dictionary properties tantivy relies on (ordinals ordered like terms, one dictionary per segment).</li>
+<li><b>One machine, single thread.</b> All numbers come from one Apple M4 Max. Ratios between variants are stable (they are measured interleaved), absolute times are not portable.</li>
+<li><b>Glue code quality.</b> The value source, the caches and the accessor are a few hundred lines written for this study. Part of the remaining gap on full columns is the copy from the decompressed chunk into the output block, which a deeper integration could avoid.</li>
+<li><b>Vortex version.</b> Vortex 0.88 is evolving quickly; APIs used here (especially encoding internals) may change.</li>
+</ul>
+</div>
+</section>
+
+<section id="next">
+<h2>11. Recommendations</h2>
+<div class="prose">
+<ul class="findings">
+<li><b>Make aggregation fast paths independent of <code>as_column()</code>.</b> This is the largest lever and it does not depend on Vortex: every computed or external source benefits. <code>bounds()</code> is enough for the terms storage choice and the cardinality bitset (two lines, measured in section 7.4). The flattened terms × histogram collector, the one-doc stats shortcut and the single-value specializations of histograms and ranges need a cardinality hint and a way to read a block of a full column without copying.</li>
+<li><b>If Vortex is pursued,</b> pursue it with a point / gather reader like the one of section 8, ideally upstreamed into Vortex as a public API, and with one struct file per segment. Expect parity or better on optional and multivalued columns and on sparse data, a modest cost on full-column scans, and a remaining cost on selective queries over floats and dates.</li>
+<li><b>Keep tantivy's sorted dictionary for text.</b> Native Vortex strings are larger on high-cardinality text and lose the ordinal ordering.</li>
+<li><b>Size wins are data dependent.</b> On this benchmark, the clear wins (sparse, multivalue) come from Vortex detecting regular structure that the tantivy optional and multivalued indexes do not exploit. Two cheap experiments inside tantivy would capture part of it: compressing the multivalue start offsets better on near-linear data, and storing optional indexes with long runs more compactly.</li>
+<li><b>Validate on real data.</b> The next useful measurement is the same pipeline on a real log corpus, where repeated values and monotonic fields are common.</li>
+</ul>
+</div>
+</section>
+
+<section id="repro">
+<h2>12. Reproduction and code map</h2>
+<div class="prose"><p>Everything lives in <code>vortex-bench/</code> at the root of the tantivy checkout (not committed).</p></div>
+<div class="diagram"><pre>
+vortex-bench/
+  src/format.rs        .vortex component layout (concatenated Vortex files + JSON footer)
+  src/writer.rs        VortexPlugin: SegmentPlugin, columnar → Vortex conversion
+  src/source.rs        VortexValueSource, provider, segment cache, chunk LRU, run dispatch
+  src/point.rs         point accessors (section 8)
+  src/opaque.rs        control variant: tantivy columns behind a registered source
+  benches/agg_bench_vortex.rs    copy of agg_bench, 3 interleaved variants, result checks
+  examples/size_report.rs        per-column sizes and storage alternatives
+  examples/struct_file_size.rs   one file per column vs one struct file per segment
+  examples/tantivy_codecs.rs     codec chosen by tantivy for each column
+  examples/decode_bench.rs       load_block micro-benchmark (scan / 1 % filter)
+  examples/point_profile.rs      profiling harness for point access
+  examples/vortex_client_usage.rs   Vortex API tour and sparse measurements (sections 3.6, 3.7)
+  patches/value_source_bounds_fast_paths.patch   tantivy patch of section 7.4
+  report/                        aggregation scripts and report generator (build_en.py)
+  runs/                          raw results (JSON lines)
+
+cd vortex-bench
+cargo bench --bench agg_bench_vortex                     # builds indexes in agg_bench_vortex/
+VORTEX_BENCH_INPUTS=full VORTEX_BENCH_GROUPS=terms VORTEX_BENCH_SEGMENTS= \
+  cargo bench --bench agg_bench_vortex                   # subset
+VORTEX_CHUNK_CACHE=1 VORTEX_POINT_SPAN_RATIO=0 ...       # v1 behaviour
+VORTEX_POINT_SPAN_RATIO=0 ...                            # v2 behaviour (no point access)
+VORTEX_TAKE_SPAN_RATIO=4 VORTEX_POINT_SPAN_RATIO=0 ...   # take() experiment
+cargo run --release --example decode_bench -- out.json agg_bench_vortex/Full ...
+python3 report/aggregate.py agg.json runs/run2 runs/run3 runs/run4
+</pre></div>
+</section>

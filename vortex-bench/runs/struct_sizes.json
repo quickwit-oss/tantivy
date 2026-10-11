@@ -1,0 +1,20 @@
+[
+  {
+    "index": "agg_bench_vortex/Full",
+    "num_segments_measured": 1,
+    "per_column_files_bytes": 25037280,
+    "single_struct_file_bytes": 25021908
+  },
+  {
+    "index": "agg_bench_vortex/Full_100_segments",
+    "num_segments_measured": 100,
+    "per_column_files_bytes": 26835576,
+    "single_struct_file_bytes": 25346128
+  },
+  {
+    "index": "agg_bench_vortex/Full_1000_segments",
+    "num_segments_measured": 100,
+    "per_column_files_bytes": 4924456,
+    "single_struct_file_bytes": 3435328
+  }
+]

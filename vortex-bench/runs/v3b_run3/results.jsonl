@@ -1,0 +1,12 @@
+{"average_ns":582854,"avg_memory":5192,"group":"metrics/cardinality_agg_low_card","input":"full","max_ns":604169,"median_ns":581358,"min_ns":570679,"timestamp":1791721329,"variant":"columnar"}
+{"average_ns":1960293,"avg_memory":5948,"group":"metrics/cardinality_agg_low_card","input":"full","max_ns":2037199,"median_ns":1956506,"min_ns":1927117,"timestamp":1791721329,"variant":"opaque"}
+{"average_ns":2086112,"avg_memory":3155428,"group":"metrics/cardinality_agg_low_card","input":"full","max_ns":2191148,"median_ns":2077664,"min_ns":2041473,"timestamp":1791721329,"variant":"vortex"}
+{"average_ns":33972843,"avg_memory":26049302,"group":"metrics/terms_many_with_single_term_2_order_by_card","input":"full","max_ns":41197660,"median_ns":33098241,"min_ns":31944321,"timestamp":1791721347,"variant":"columnar"}
+{"average_ns":74333669,"avg_memory":40429246,"group":"metrics/terms_many_with_single_term_2_order_by_card","input":"full","max_ns":87582858,"median_ns":72609040,"min_ns":70654454,"timestamp":1791721347,"variant":"opaque"}
+{"average_ns":77782193,"avg_memory":45645670,"group":"metrics/terms_many_with_single_term_2_order_by_card","input":"full","max_ns":97304794,"median_ns":75610109,"min_ns":72652932,"timestamp":1791721347,"variant":"vortex"}
+{"average_ns":4602606,"avg_memory":18083262,"group":"terms/terms_all_unique","input":"full","max_ns":5066499,"median_ns":4570941,"min_ns":4022372,"timestamp":1791721360,"variant":"columnar"}
+{"average_ns":13443625,"avg_memory":53481463,"group":"terms/terms_all_unique","input":"full","max_ns":14184622,"median_ns":13290133,"min_ns":13105061,"timestamp":1791721360,"variant":"opaque"}
+{"average_ns":13598608,"avg_memory":56152150,"group":"terms/terms_all_unique","input":"full","max_ns":14264651,"median_ns":13530958,"min_ns":13225869,"timestamp":1791721360,"variant":"vortex"}
+{"average_ns":64152366,"avg_memory":19857241,"group":"segments/nested_terms_many_and_zipf_1000","input":"100_segments","max_ns":64152366,"median_ns":64152366,"min_ns":64152366,"timestamp":1791721378,"variant":"columnar"}
+{"average_ns":75685319,"avg_memory":19940765,"group":"segments/nested_terms_many_and_zipf_1000","input":"100_segments","max_ns":75685319,"median_ns":75685319,"min_ns":75685319,"timestamp":1791721378,"variant":"opaque"}
+{"average_ns":77983038,"avg_memory":20024621,"group":"segments/nested_terms_many_and_zipf_1000","input":"100_segments","max_ns":77983038,"median_ns":77983038,"min_ns":77983038,"timestamp":1791721378,"variant":"vortex"}

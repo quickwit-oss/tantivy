@@ -1,0 +1,336 @@
+[
+  {
+    "columns": {
+      "score": {
+        "all": {
+          "columnar_ns": 199292,
+          "num_docs": 1000000,
+          "num_values": 1000000,
+          "vortex_ns": 419084
+        },
+        "column_type": "U64",
+        "filtered": {
+          "columnar_ns": 7625,
+          "num_docs": 9997,
+          "num_values": 9997,
+          "vortex_ns": 47333
+        },
+        "num_chunks": 15,
+        "point_access_ns_per_value": 1.4862623638725148,
+        "point_accessible_chunks": 15
+      },
+      "score_f64": {
+        "all": {
+          "columnar_ns": 409917,
+          "num_docs": 1000000,
+          "num_values": 1000000,
+          "vortex_ns": 988333
+        },
+        "column_type": "F64",
+        "filtered": {
+          "columnar_ns": 7750,
+          "num_docs": 9997,
+          "num_values": 9997,
+          "vortex_ns": 185250
+        },
+        "num_chunks": 15,
+        "point_access_ns_per_value": 8.600459586372265,
+        "point_accessible_chunks": 15
+      },
+      "score_i64": {
+        "all": {
+          "columnar_ns": 317584,
+          "num_docs": 1000000,
+          "num_values": 1000000,
+          "vortex_ns": 473958
+        },
+        "column_type": "I64",
+        "filtered": {
+          "columnar_ns": 7417,
+          "num_docs": 9997,
+          "num_values": 9997,
+          "vortex_ns": 47834
+        },
+        "num_chunks": 15,
+        "point_access_ns_per_value": 1.5487061644519933,
+        "point_accessible_chunks": 15
+      },
+      "text_1000_terms_zipf": {
+        "all": {
+          "columnar_ns": 207417,
+          "num_docs": 1000000,
+          "num_values": 1000000,
+          "vortex_ns": 368834
+        },
+        "column_type": "Str",
+        "filtered": {
+          "columnar_ns": 6541,
+          "num_docs": 9997,
+          "num_values": 9997,
+          "vortex_ns": 49459
+        },
+        "num_chunks": 12,
+        "point_access_ns_per_value": 1.6120775844831035,
+        "point_accessible_chunks": 12
+      },
+      "text_all_unique_terms": {
+        "all": {
+          "columnar_ns": 204625,
+          "num_docs": 1000000,
+          "num_values": 1000000,
+          "vortex_ns": 376125
+        },
+        "column_type": "Str",
+        "filtered": {
+          "columnar_ns": 7000,
+          "num_docs": 9997,
+          "num_values": 9997,
+          "vortex_ns": 51292
+        },
+        "num_chunks": 12,
+        "point_access_ns_per_value": 1.7330533893221356,
+        "point_accessible_chunks": 12
+      },
+      "text_few_terms_status": {
+        "all": {
+          "columnar_ns": 152250,
+          "num_docs": 1000000,
+          "num_values": 1000000,
+          "vortex_ns": 365875
+        },
+        "column_type": "Str",
+        "filtered": {
+          "columnar_ns": 5750,
+          "num_docs": 9997,
+          "num_values": 9997,
+          "vortex_ns": 52208
+        },
+        "num_chunks": 12,
+        "point_access_ns_per_value": 1.5952809438112379,
+        "point_accessible_chunks": 12
+      },
+      "text_many_terms": {
+        "all": {
+          "columnar_ns": 218750,
+          "num_docs": 1000000,
+          "num_values": 1000000,
+          "vortex_ns": 390833
+        },
+        "column_type": "Str",
+        "filtered": {
+          "columnar_ns": 6500,
+          "num_docs": 9997,
+          "num_values": 9997,
+          "vortex_ns": 51125
+        },
+        "num_chunks": 12,
+        "point_access_ns_per_value": 1.858128374325135,
+        "point_accessible_chunks": 12
+      },
+      "timestamp": {
+        "all": {
+          "columnar_ns": 334667,
+          "num_docs": 1000000,
+          "num_values": 1000000,
+          "vortex_ns": 991792
+        },
+        "column_type": "DateTime",
+        "filtered": {
+          "columnar_ns": 7042,
+          "num_docs": 9997,
+          "num_values": 9997,
+          "vortex_ns": 173416
+        },
+        "num_chunks": 15,
+        "point_access_ns_per_value": 6.123688680187831,
+        "point_accessible_chunks": 15
+      },
+      "timestamp_26_bits": {
+        "all": {
+          "columnar_ns": 367583,
+          "num_docs": 1000000,
+          "num_values": 1000000,
+          "vortex_ns": 939542
+        },
+        "column_type": "DateTime",
+        "filtered": {
+          "columnar_ns": 7291,
+          "num_docs": 9997,
+          "num_values": 9997,
+          "vortex_ns": 139125
+        },
+        "num_chunks": 15,
+        "point_access_ns_per_value": 3.9797182535717854,
+        "point_accessible_chunks": 15
+      }
+    },
+    "index": "agg_bench_vortex/Full"
+  },
+  {
+    "columns": {
+      "score": {
+        "all": {
+          "columnar_ns": 2291042,
+          "num_docs": 1000001,
+          "num_values": 1000000,
+          "vortex_ns": 1670458
+        },
+        "column_type": "U64",
+        "filtered": {
+          "columnar_ns": 24084,
+          "num_docs": 9997,
+          "num_values": 9997,
+          "vortex_ns": 92791
+        },
+        "num_chunks": 15,
+        "point_access_ns_per_value": 1.4903586771905286,
+        "point_accessible_chunks": 15
+      },
+      "score_f64": {
+        "all": {
+          "columnar_ns": 2294333,
+          "num_docs": 1000001,
+          "num_values": 1000000,
+          "vortex_ns": 2139167
+        },
+        "column_type": "F64",
+        "filtered": {
+          "columnar_ns": 26250,
+          "num_docs": 9997,
+          "num_values": 9997,
+          "vortex_ns": 225666
+        },
+        "num_chunks": 15,
+        "point_access_ns_per_value": 7.822259966030573,
+        "point_accessible_chunks": 15
+      },
+      "score_i64": {
+        "all": {
+          "columnar_ns": 2258500,
+          "num_docs": 1000001,
+          "num_values": 1000000,
+          "vortex_ns": 1735167
+        },
+        "column_type": "I64",
+        "filtered": {
+          "columnar_ns": 26792,
+          "num_docs": 9997,
+          "num_values": 9997,
+          "vortex_ns": 104583
+        },
+        "num_chunks": 15,
+        "point_access_ns_per_value": 1.686082525726846,
+        "point_accessible_chunks": 15
+      },
+      "text_1000_terms_zipf": {
+        "all": {
+          "columnar_ns": 2210375,
+          "num_docs": 1000001,
+          "num_values": 1000000,
+          "vortex_ns": 1570958
+        },
+        "column_type": "Str",
+        "filtered": {
+          "columnar_ns": 26166,
+          "num_docs": 9997,
+          "num_values": 9997,
+          "vortex_ns": 140584
+        },
+        "num_chunks": 12,
+        "point_access_ns_per_value": 1.5954809038192361,
+        "point_accessible_chunks": 12
+      },
+      "text_all_unique_terms": {
+        "all": {
+          "columnar_ns": 2332500,
+          "num_docs": 1000001,
+          "num_values": 1000000,
+          "vortex_ns": 1615584
+        },
+        "column_type": "Str",
+        "filtered": {
+          "columnar_ns": 23542,
+          "num_docs": 9997,
+          "num_values": 9997,
+          "vortex_ns": 146375
+        },
+        "num_chunks": 12,
+        "point_access_ns_per_value": 1.9328134373125374,
+        "point_accessible_chunks": 12
+      },
+      "text_few_terms_status": {
+        "all": {
+          "columnar_ns": 2248708,
+          "num_docs": 1000001,
+          "num_values": 1000000,
+          "vortex_ns": 1529958
+        },
+        "column_type": "Str",
+        "filtered": {
+          "columnar_ns": 21625,
+          "num_docs": 9997,
+          "num_values": 9997,
+          "vortex_ns": 144542
+        },
+        "num_chunks": 12,
+        "point_access_ns_per_value": 1.424615076984603,
+        "point_accessible_chunks": 12
+      },
+      "text_many_terms": {
+        "all": {
+          "columnar_ns": 2220625,
+          "num_docs": 1000001,
+          "num_values": 1000000,
+          "vortex_ns": 1495917
+        },
+        "column_type": "Str",
+        "filtered": {
+          "columnar_ns": 26125,
+          "num_docs": 9997,
+          "num_values": 9997,
+          "vortex_ns": 142833
+        },
+        "num_chunks": 12,
+        "point_access_ns_per_value": 1.7953409318136373,
+        "point_accessible_chunks": 12
+      },
+      "timestamp": {
+        "all": {
+          "columnar_ns": 2374709,
+          "num_docs": 1000001,
+          "num_values": 1000000,
+          "vortex_ns": 2303583
+        },
+        "column_type": "DateTime",
+        "filtered": {
+          "columnar_ns": 26375,
+          "num_docs": 9997,
+          "num_values": 9997,
+          "vortex_ns": 391625
+        },
+        "num_chunks": 15,
+        "point_access_ns_per_value": 7.483615039668852,
+        "point_accessible_chunks": 13
+      },
+      "timestamp_26_bits": {
+        "all": {
+          "columnar_ns": 2355750,
+          "num_docs": 1000001,
+          "num_values": 1000000,
+          "vortex_ns": 2214917
+        },
+        "column_type": "DateTime",
+        "filtered": {
+          "columnar_ns": 25917,
+          "num_docs": 9997,
+          "num_values": 9997,
+          "vortex_ns": 201292
+        },
+        "num_chunks": 15,
+        "point_access_ns_per_value": 4.512538715156359,
+        "point_accessible_chunks": 15
+      }
+    },
+    "index": "agg_bench_vortex/OptionalDense"
+  }
+]

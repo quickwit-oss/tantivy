@@ -1,0 +1,140 @@
+full
+multi_terms_vs_nested_with_1%_term_query/nested_terms_status_and_zipf_1000
+columnar    Memory: 111.1 KB (-0.22%)    Avg: 0.1467ms (-1.43%)    Median: 0.1461ms (-1.87%)    [0.1397ms .. 0.1513ms]    
+opaque      Memory: 122.9 KB (+0.26%)    Avg: 0.1654ms (-1.68%)    Median: 0.1649ms (-1.74%)    [0.1614ms .. 0.1698ms]    
+vortex      Memory: 6.0 MB               Avg: 0.3323ms (-2.27%)    Median: 0.3291ms (-2.92%)    [0.3234ms .. 0.3542ms]    
+multi_terms_vs_nested_with_1%_term_query/multi_terms_status_and_zipf_1000
+columnar    Memory: 87.0 KB (+0.30%)    Avg: 0.0754ms (-0.72%)    Median: 0.0751ms (-0.86%)    [0.0729ms .. 0.0771ms]    
+multi_terms_vs_nested_with_1%_term_query/nested_terms_status_and_zipf_1000_with_missing
+columnar    Memory: 111.1 KB (-0.21%)    Avg: 0.1474ms (-1.35%)    Median: 0.1467ms (-1.76%)    [0.1432ms .. 0.1535ms]    
+multi_terms_vs_nested_with_1%_term_query/multi_terms_status_and_zipf_1000_with_missing
+columnar    Memory: 87.0 KB (-0.27%)    Avg: 0.0752ms (-0.55%)    Median: 0.0753ms (-0.39%)    [0.0733ms .. 0.0763ms]    
+multi_terms_vs_nested_with_1%_term_query/nested_terms_zipf_1000_and_status
+columnar    Memory: 342.7 KB             Avg: 0.2628ms (-1.18%)    Median: 0.2629ms (-0.80%)    [0.2549ms .. 0.2700ms]    
+opaque      Memory: 342.1 KB (+0.07%)    Avg: 0.2765ms (-1.09%)    Median: 0.2765ms (-0.65%)    [0.2703ms .. 0.2824ms]    
+vortex      Memory: 6.0 MB (-0.00%)      Avg: 0.4638ms (-2.26%)    Median: 0.4642ms (-1.83%)    [0.4513ms .. 0.4771ms]    
+multi_terms_vs_nested_with_1%_term_query/multi_terms_zipf_1000_and_status
+columnar    Memory: 87.7 KB (+0.55%)    Avg: 0.0744ms (-2.12%)    Median: 0.0741ms (-2.26%)    [0.0727ms .. 0.0775ms]    
+multi_terms_vs_nested_with_1%_term_query/nested_terms_many_and_zipf_1000
+columnar    Memory: 2.7 MB     Avg: 0.8052ms (+0.41%)    Median: 0.8017ms (+0.94%)    [0.7746ms .. 0.8474ms]    
+opaque      Memory: 1.9 MB     Avg: 0.9662ms (+0.13%)    Median: 0.9594ms (+0.00%)    [0.9285ms .. 1.0043ms]    
+vortex      Memory: 7.2 MB     Avg: 1.1774ms (-0.32%)    Median: 1.1700ms (-0.15%)    [1.1469ms .. 1.2475ms]    
+multi_terms_vs_nested_with_1%_term_query/multi_terms_many_and_zipf_1000
+columnar    Memory: 444.7 KB     Avg: 0.5227ms (+0.23%)    Median: 0.5227ms (+0.22%)    [0.5088ms .. 0.5373ms]    
+multi_terms_vs_nested_with_1%_term_query/nested_terms_many_and_zipf_1000_and_status
+columnar    Memory: 4.1 MB      Avg: 1.2516ms (-1.21%)    Median: 1.2512ms (-0.93%)    [1.2253ms .. 1.3134ms]    
+opaque      Memory: 3.4 MB      Avg: 1.4200ms (-0.94%)    Median: 1.4222ms (-0.27%)    [1.3949ms .. 1.4516ms]    
+vortex      Memory: 11.2 MB     Avg: 1.7678ms (-1.39%)    Median: 1.7659ms (-1.25%)    [1.7279ms .. 1.8405ms]    
+multi_terms_vs_nested_with_1%_term_query/multi_terms_many_and_zipf_1000_and_status
+columnar    Memory: 445.4 KB     Avg: 0.5557ms (+0.48%)    Median: 0.5528ms (+0.01%)    [0.5404ms .. 0.5859ms]    
+multi_terms_vs_nested_with_1%_term_query/nested_terms_status_and_zipf_1000_avg_sub_agg
+columnar    Memory: 1.1 MB      Avg: 0.2910ms (+0.32%)    Median: 0.2906ms (+0.13%)    [0.2800ms .. 0.2986ms]    
+opaque      Memory: 1.1 MB      Avg: 0.3344ms (+0.64%)    Median: 0.3336ms (+0.34%)    [0.3270ms .. 0.3431ms]    
+vortex      Memory: 10.6 MB     Avg: 1.1976ms (-0.36%)    Median: 1.1934ms (-0.69%)    [1.1757ms .. 1.2308ms]    
+multi_terms_vs_nested_with_1%_term_query/multi_terms_status_and_zipf_1000_avg_sub_agg
+columnar    Memory: 224.3 KB (+0.11%)    Avg: 0.1340ms (-0.37%)    Median: 0.1338ms (-0.07%)    [0.1315ms .. 0.1370ms]    
+dense
+multi_terms_vs_nested_with_1%_term_query/nested_terms_status_and_zipf_1000
+columnar    Memory: 136.5 KB     Avg: 0.1860ms (-1.48%)    Median: 0.1859ms (-1.06%)    [0.1836ms .. 0.1904ms]    
+opaque      Memory: 148.0 KB     Avg: 0.2054ms (-0.80%)    Median: 0.2053ms (-0.71%)    [0.2012ms .. 0.2101ms]    
+vortex      Memory: 7.4 MB       Avg: 0.9430ms (-2.33%)    Median: 0.9411ms (-2.25%)    [0.9315ms .. 0.9660ms]    
+multi_terms_vs_nested_with_1%_term_query/multi_terms_status_and_zipf_1000
+columnar    Memory: 88.3 KB     Avg: 0.1172ms (-0.75%)    Median: 0.1173ms (+0.25%)    [0.1153ms .. 0.1196ms]    
+multi_terms_vs_nested_with_1%_term_query/nested_terms_status_and_zipf_1000_with_missing
+columnar    Memory: 136.6 KB (+0.05%)    Avg: 0.1865ms (-0.58%)    Median: 0.1865ms (-0.54%)    [0.1833ms .. 0.1906ms]    
+multi_terms_vs_nested_with_1%_term_query/multi_terms_status_and_zipf_1000_with_missing
+columnar    Memory: 88.6 KB     Avg: 0.1187ms (-0.05%)    Median: 0.1181ms (-0.30%)    [0.1157ms .. 0.1224ms]    
+multi_terms_vs_nested_with_1%_term_query/nested_terms_zipf_1000_and_status
+columnar    Memory: 342.7 KB     Avg: 0.3855ms (+0.03%)    Median: 0.3858ms (+1.03%)    [0.3765ms .. 0.3933ms]    
+opaque      Memory: 343.3 KB     Avg: 0.4011ms (-1.18%)    Median: 0.4003ms (-0.69%)    [0.3905ms .. 0.4113ms]    
+vortex      Memory: 7.5 MB       Avg: 1.0805ms (-1.25%)    Median: 1.0759ms (-0.77%)    [1.0569ms .. 1.1608ms]    
+multi_terms_vs_nested_with_1%_term_query/multi_terms_zipf_1000_and_status
+columnar    Memory: 88.8 KB (-0.25%)    Avg: 0.1176ms (-0.44%)    Median: 0.1174ms (-0.19%)    [0.1161ms .. 0.1193ms]    
+multi_terms_vs_nested_with_1%_term_query/nested_terms_many_and_zipf_1000
+columnar    Memory: 2.7 MB     Avg: 0.8833ms (+0.77%)    Median: 0.8825ms (+0.83%)    [0.8604ms .. 0.9160ms]    
+opaque      Memory: 1.9 MB     Avg: 1.0691ms (+0.46%)    Median: 1.0678ms (+0.58%)    [1.0492ms .. 1.1023ms]    
+vortex      Memory: 8.6 MB     Avg: 1.7998ms (+0.23%)    Median: 1.7902ms (-0.15%)    [1.7635ms .. 1.8706ms]    
+multi_terms_vs_nested_with_1%_term_query/multi_terms_many_and_zipf_1000
+columnar    Memory: 446.3 KB     Avg: 0.5586ms (+0.57%)    Median: 0.5556ms (+0.32%)    [0.5452ms .. 0.5760ms]    
+multi_terms_vs_nested_with_1%_term_query/nested_terms_many_and_zipf_1000_and_status
+columnar    Memory: 4.1 MB      Avg: 1.4193ms (-0.40%)    Median: 1.4200ms (+0.09%)    [1.3907ms .. 1.4508ms]    
+opaque      Memory: 3.4 MB      Avg: 1.6110ms (-0.19%)    Median: 1.6068ms (-0.33%)    [1.5879ms .. 1.6560ms]    
+vortex      Memory: 13.3 MB     Avg: 2.7343ms (-0.49%)    Median: 2.7295ms (-0.41%)    [2.6988ms .. 2.8030ms]    
+multi_terms_vs_nested_with_1%_term_query/multi_terms_many_and_zipf_1000_and_status
+columnar    Memory: 447.4 KB     Avg: 0.6198ms (+0.80%)    Median: 0.6158ms (+0.12%)    [0.6037ms .. 0.6454ms]    
+multi_terms_vs_nested_with_1%_term_query/nested_terms_status_and_zipf_1000_avg_sub_agg
+columnar    Memory: 1.1 MB              Avg: 0.3622ms (-0.09%)    Median: 0.3624ms (+0.66%)    [0.3555ms .. 0.3686ms]    
+opaque      Memory: 1.1 MB              Avg: 0.4329ms (+0.77%)    Median: 0.4312ms (+0.60%)    [0.4251ms .. 0.4472ms]    
+vortex      Memory: 12.6 MB (+0.00%)    Avg: 2.0918ms (-1.03%)    Median: 2.0866ms (-1.01%)    [2.0623ms .. 2.1631ms]    
+multi_terms_vs_nested_with_1%_term_query/multi_terms_status_and_zipf_1000_avg_sub_agg
+columnar    Memory: 224.2 KB (-0.11%)    Avg: 0.2112ms (+1.90%)    Median: 0.2111ms (+1.95%)    [0.2051ms .. 0.2213ms]    
+sparse
+multi_terms_vs_nested_with_1%_term_query/nested_terms_status_and_zipf_1000
+columnar    Memory: 180.0 KB             Avg: 0.6763ms (+2.79%)    Median: 0.6732ms (+2.72%)    [0.6421ms .. 0.7195ms]    
+opaque      Memory: 192.7 KB (+0.13%)    Avg: 0.7648ms (+2.46%)    Median: 0.7635ms (+2.21%)    [0.7386ms .. 0.8037ms]    
+vortex      Memory: 7.9 MB               Avg: 1.6970ms (+1.17%)    Median: 1.6983ms (+1.43%)    [1.6687ms .. 1.7479ms]    
+multi_terms_vs_nested_with_1%_term_query/multi_terms_status_and_zipf_1000
+columnar    Memory: 121.2 KB     Avg: 0.4066ms (+2.24%)    Median: 0.4032ms (+1.31%)    [0.3952ms .. 0.4433ms]    
+multi_terms_vs_nested_with_1%_term_query/nested_terms_status_and_zipf_1000_with_missing
+columnar    Memory: 180.1 KB     Avg: 0.6783ms (+2.86%)    Median: 0.6730ms (+2.49%)    [0.6505ms .. 0.7157ms]    
+multi_terms_vs_nested_with_1%_term_query/multi_terms_status_and_zipf_1000_with_missing
+columnar    Memory: 121.5 KB     Avg: 0.4096ms (+2.03%)    Median: 0.4097ms (+2.52%)    [0.3986ms .. 0.4201ms]    
+multi_terms_vs_nested_with_1%_term_query/nested_terms_zipf_1000_and_status
+columnar    Memory: 380.7 KB     Avg: 1.7867ms (+3.81%)    Median: 1.7731ms (+3.33%)    [1.7012ms .. 2.3271ms]    
+opaque      Memory: 378.2 KB     Avg: 1.8082ms (+2.24%)    Median: 1.7961ms (+1.51%)    [1.7309ms .. 2.0174ms]    
+vortex      Memory: 8.0 MB       Avg: 2.2545ms (+1.74%)    Median: 2.2587ms (+2.27%)    [2.1903ms .. 2.3176ms]    
+multi_terms_vs_nested_with_1%_term_query/multi_terms_zipf_1000_and_status
+columnar    Memory: 121.6 KB     Avg: 0.4020ms (+0.46%)    Median: 0.4013ms (+0.40%)    [0.3873ms .. 0.4190ms]    
+multi_terms_vs_nested_with_1%_term_query/nested_terms_many_and_zipf_1000
+columnar    Memory: 6.8 MB      Avg: 3.1481ms (+0.48%)    Median: 3.1293ms (+0.30%)    [3.0850ms .. 3.3502ms]    
+opaque      Memory: 7.7 MB      Avg: 3.5436ms (+1.29%)    Median: 3.5321ms (+1.29%)    [3.4878ms .. 3.7023ms]    
+vortex      Memory: 14.5 MB     Avg: 4.1493ms (-0.08%)    Median: 4.1292ms (+0.02%)    [4.0666ms .. 4.4267ms]    
+multi_terms_vs_nested_with_1%_term_query/multi_terms_many_and_zipf_1000
+columnar    Memory: 1.9 MB     Avg: 1.2078ms (-1.48%)    Median: 1.2074ms (-1.41%)    [1.1925ms .. 1.2265ms]    
+multi_terms_vs_nested_with_1%_term_query/nested_terms_many_and_zipf_1000_and_status
+columnar    Memory: 13.2 MB     Avg: 5.8828ms (-0.66%)    Median: 5.8791ms (-0.13%)    [5.7665ms .. 6.1345ms]    
+opaque      Memory: 14.1 MB     Avg: 6.2576ms (-0.07%)    Median: 6.2455ms (-0.15%)    [6.0278ms .. 6.7303ms]    
+vortex      Memory: 24.4 MB     Avg: 7.1472ms (-1.37%)    Median: 7.1417ms (-0.77%)    [6.9968ms .. 7.5068ms]    
+multi_terms_vs_nested_with_1%_term_query/multi_terms_many_and_zipf_1000_and_status
+columnar    Memory: 1.9 MB     Avg: 1.3626ms (-0.06%)    Median: 1.3620ms (-0.18%)    [1.3349ms .. 1.3953ms]    
+multi_terms_vs_nested_with_1%_term_query/nested_terms_status_and_zipf_1000_avg_sub_agg
+columnar    Memory: 1.2 MB              Avg: 1.7369ms (+1.18%)    Median: 1.7425ms (+1.43%)    [1.6698ms .. 1.7960ms]    
+opaque      Memory: 1.3 MB              Avg: 2.0851ms (+0.95%)    Median: 2.0851ms (+0.74%)    [2.0344ms .. 2.2202ms]    
+vortex      Memory: 13.1 MB (+0.00%)    Avg: 2.9691ms (+0.78%)    Median: 2.9587ms (+0.35%)    [2.9379ms .. 3.2598ms]    
+multi_terms_vs_nested_with_1%_term_query/multi_terms_status_and_zipf_1000_avg_sub_agg
+columnar    Memory: 356.2 KB     Avg: 1.2139ms (+0.52%)    Median: 1.2136ms (+0.57%)    [1.1974ms .. 1.2226ms]    
+multivalue
+multi_terms_vs_nested_with_1%_term_query/nested_terms_status_and_zipf_1000
+columnar    Memory: 128.1 KB (-0.20%)    Avg: 0.2626ms (-0.66%)    Median: 0.2618ms (-0.68%)    [0.2587ms .. 0.2745ms]    
+opaque      Memory: 139.6 KB             Avg: 0.2798ms (-1.74%)    Median: 0.2792ms (-1.55%)    [0.2755ms .. 0.2897ms]    
+vortex      Memory: 18.5 MB (-0.00%)     Avg: 1.7041ms (-0.86%)    Median: 1.6965ms (-0.57%)    [1.6838ms .. 1.8354ms]    
+multi_terms_vs_nested_with_1%_term_query/multi_terms_status_and_zipf_1000
+columnar    Memory: 88.7 KB (-0.27%)    Avg: 0.1892ms (-0.48%)    Median: 0.1892ms (-0.27%)    [0.1872ms .. 0.1919ms]    
+multi_terms_vs_nested_with_1%_term_query/nested_terms_status_and_zipf_1000_with_missing
+columnar    Memory: 128.4 KB (+0.19%)    Avg: 0.2738ms (-1.62%)    Median: 0.2740ms (-0.32%)    [0.2705ms .. 0.2766ms]    
+multi_terms_vs_nested_with_1%_term_query/multi_terms_status_and_zipf_1000_with_missing
+columnar    Memory: 89.1 KB     Avg: 0.2059ms (+0.41%)    Median: 0.2052ms (+0.19%)    [0.2031ms .. 0.2188ms]    
+multi_terms_vs_nested_with_1%_term_query/nested_terms_zipf_1000_and_status
+columnar    Memory: 343.9 KB     Avg: 0.4516ms (+0.45%)    Median: 0.4496ms (+0.02%)    [0.4434ms .. 0.4893ms]    
+opaque      Memory: 343.0 KB     Avg: 0.4661ms (+0.57%)    Median: 0.4647ms (+0.31%)    [0.4572ms .. 0.4930ms]    
+vortex      Memory: 18.6 MB      Avg: 1.8590ms (+0.43%)    Median: 1.8534ms (+0.19%)    [1.8340ms .. 1.9206ms]    
+multi_terms_vs_nested_with_1%_term_query/multi_terms_zipf_1000_and_status
+columnar    Memory: 89.2 KB     Avg: 0.1879ms (-1.33%)    Median: 0.1879ms (-1.02%)    [0.1864ms .. 0.1900ms]    
+multi_terms_vs_nested_with_1%_term_query/nested_terms_many_and_zipf_1000
+columnar    Memory: 2.7 MB      Avg: 0.9746ms (+1.26%)    Median: 0.9674ms (+0.65%)    [0.9534ms .. 1.0752ms]    
+opaque      Memory: 1.9 MB      Avg: 1.1277ms (+0.15%)    Median: 1.1245ms (+0.13%)    [1.1060ms .. 1.1665ms]    
+vortex      Memory: 19.7 MB     Avg: 2.5471ms (-0.09%)    Median: 2.5348ms (-0.06%)    [2.5089ms .. 2.6286ms]    
+multi_terms_vs_nested_with_1%_term_query/multi_terms_many_and_zipf_1000
+columnar    Memory: 446.7 KB     Avg: 0.6409ms (+0.26%)    Median: 0.6403ms (+0.16%)    [0.6376ms .. 0.6462ms]    
+multi_terms_vs_nested_with_1%_term_query/nested_terms_many_and_zipf_1000_and_status
+columnar    Memory: 4.1 MB      Avg: 1.5487ms (+0.73%)    Median: 1.5393ms (+0.87%)    [1.4915ms .. 1.6520ms]    
+opaque      Memory: 3.4 MB      Avg: 1.7193ms (+0.96%)    Median: 1.7087ms (+0.69%)    [1.6600ms .. 1.8953ms]    
+vortex      Memory: 29.4 MB     Avg: 3.9668ms (-0.15%)    Median: 3.9490ms (-0.36%)    [3.9081ms .. 4.1414ms]    
+multi_terms_vs_nested_with_1%_term_query/multi_terms_many_and_zipf_1000_and_status
+columnar    Memory: 448.1 KB     Avg: 0.7328ms (+0.32%)    Median: 0.7312ms (+0.48%)    [0.7265ms .. 0.7469ms]    
+multi_terms_vs_nested_with_1%_term_query/nested_terms_status_and_zipf_1000_avg_sub_agg
+columnar    Memory: 1.1 MB      Avg: 0.4831ms (-0.14%)    Median: 0.4812ms (+0.13%)    [0.4754ms .. 0.5050ms]    
+opaque      Memory: 1.1 MB      Avg: 0.5359ms (-0.06%)    Median: 0.5363ms (+0.09%)    [0.5265ms .. 0.5445ms]    
+vortex      Memory: 27.1 MB     Avg: 3.2819ms (-0.44%)    Median: 3.2724ms (-0.53%)    [3.2501ms .. 3.3438ms]    
+multi_terms_vs_nested_with_1%_term_query/multi_terms_status_and_zipf_1000_avg_sub_agg
+columnar    Memory: 226.7 KB (+0.11%)    Avg: 0.3236ms (-1.56%)    Median: 0.3233ms (-0.93%)    [0.3200ms .. 0.3264ms]    

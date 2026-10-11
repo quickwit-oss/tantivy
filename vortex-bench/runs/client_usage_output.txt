@@ -1,0 +1,38 @@
+canonical: 1000000 rows, 8000000 bytes, encoding vortex.primitive
+compressed: 2501120 bytes, tree fastlanes.bitpacked
+slice: len 10, tree fastlanes.bitpacked
+filter: len 4, tree vortex.filter(fastlanes.bitpacked)
+take: len 4, tree vortex.dict(vortex.primitive, fastlanes.bitpacked)
+take executed: [985204, 405901, 405901, 452622]
+scalar at 123456: 899806u64 (expected 899806)
+file: 2506908 bytes; scan with `value > 999000` returned 926 rows (expected 926)
+sparse 1%: canonical 532480 bytes, compressed 3954 bytes, tree vortex.sparse(vortex.primitive, fastlanes.bitpacked(vortex.bool))
+  root: vortex.sparse u64? len=65536 nbytes=3954
+    patch_indices: vortex.primitive u16 len=655 nbytes=1310
+    patch_values: fastlanes.bitpacked u64? len=655 nbytes=2642
+      validity_child: vortex.bool bool len=655 nbytes=82
+take mixed: len 5, tree vortex.dict(vortex.primitive, vortex.sparse(vortex.primitive, fastlanes.bitpacked(vortex.bool)))
+take mixed, one step: tree vortex.sparse(vortex.primitive, vortex.dict(vortex.primitive, fastlanes.bitpacked(vortex.bool)))
+take mixed executed: [Some(559454), None, Some(478007), Some(88373), None]
+take nulls only, one step: tree vortex.constant
+take values only, one step: tree vortex.dict(vortex.primitive, fastlanes.bitpacked(vortex.bool))
+density sweep (65536 rows, random positions, values < 2^20):
+  density   0.1 %:    8906 bytes (137.02 bytes per value), tree fastlanes.bitpacked(vortex.primitive, vortex.primitive, vortex.primitive, vortex.bool)
+    root: fastlanes.bitpacked u64? len=65536 nbytes=8906
+      patch_indices: vortex.primitive u16 len=65 nbytes=130
+      patch_values: vortex.primitive u64? len=65 nbytes=520
+      patch_chunk_offsets: vortex.primitive u8 len=64 nbytes=64
+      validity_child: vortex.bool bool len=65536 nbytes=8192
+  density   1.0 %:    3954 bytes ( 6.04 bytes per value), tree vortex.sparse(vortex.primitive, fastlanes.bitpacked(vortex.bool))
+  density   3.0 %:    9300 bytes ( 4.73 bytes per value), tree vortex.sparse(vortex.primitive, fastlanes.bitpacked(vortex.bool))
+  density   5.0 %:   17204 bytes ( 5.25 bytes per value), tree vortex.sparse(vortex.primitive, fastlanes.bitpacked(vortex.bool))
+  density  10.0 %:   31848 bytes ( 4.86 bytes per value), tree vortex.sparse(vortex.primitive, fastlanes.bitpacked(vortex.bool))
+  density  30.0 %:  172032 bytes ( 8.75 bytes per value), tree fastlanes.bitpacked(vortex.bool)
+    root: fastlanes.bitpacked u64? len=65536 nbytes=172032
+      validity_child: vortex.bool bool len=65536 nbytes=8192
+  density 100.0 %:  163840 bytes ( 2.50 bytes per value), tree fastlanes.bitpacked
+regular 1%: 2644 bytes, tree vortex.sparse(vortex.sequence, fastlanes.bitpacked(vortex.bool))
+  root: vortex.sparse u64? len=65536 nbytes=2644
+    patch_indices: vortex.sequence u16 len=656 nbytes=0
+    patch_values: fastlanes.bitpacked u64? len=656 nbytes=2642
+      validity_child: vortex.bool bool len=656 nbytes=82
