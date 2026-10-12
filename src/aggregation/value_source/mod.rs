@@ -1,4 +1,6 @@
 mod block_accessor;
+#[cfg(feature = "jitexpr")]
+pub(crate) mod jitexpr_value_source;
 mod value_source_registry;
 
 #[cfg(test)]
@@ -9,6 +11,8 @@ use std::io;
 
 pub(crate) use block_accessor::ColumnBlockAccessor;
 use columnar::{Cardinality, Column, ColumnType, ColumnValues, Dictionary, RowId, StrColumn};
+#[cfg(feature = "jitexpr")]
+pub use jitexpr_value_source::JitExprValueSourceProvider;
 pub use value_source_registry::{ValueSourceProvider, ValueSourceRegistry};
 
 use crate::DocId;
@@ -87,12 +91,6 @@ pub trait ValueSource: std::fmt::Debug {
 ///
 /// For more dynamic ValueSource, the mapping from term is typically built dynamically.
 pub trait ValueSourceDictionary {
-    /// Returns true if the order of the ords matches the lexicographic order of the terms.
-    ///
-    /// Aggregations relying on that property (e.g. a terms aggregation ordered by `_key`) must
-    /// check it.
-    fn ords_sorted_with_terms(&self) -> bool;
-
     /// Number of terms in the dictionary. Valid ords are `0..num_terms()`.
     /// For dynamic columns, this number can vary with the number of encounterred
     /// terms.
@@ -111,10 +109,6 @@ pub trait ValueSourceDictionary {
 }
 
 impl ValueSourceDictionary for Dictionary {
-    fn ords_sorted_with_terms(&self) -> bool {
-        true
-    }
-
     fn num_terms(&self) -> u64 {
         Dictionary::num_terms(self) as u64
     }

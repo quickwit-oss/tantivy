@@ -146,7 +146,11 @@ use std::cmp::Ordering;
 use std::fmt::Display;
 use std::sync::Arc;
 
+#[cfg(feature = "jitexpr")]
+pub(crate) use value_source::jitexpr_value_source;
 pub(crate) use value_source::ColumnBlockAccessor;
+#[cfg(feature = "jitexpr")]
+pub use value_source::JitExprValueSourceProvider;
 pub use value_source::{
     ValueSource, ValueSourceDictionary, ValueSourceProvider, ValueSourceRegistry,
 };

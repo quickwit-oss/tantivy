@@ -16,8 +16,8 @@ use crate::aggregation::bucket::{
     build_segment_multi_terms_collector, build_segment_range_collector, CompositeAggReqData,
     CompositeAggregation, CompositeSourceAccessors, FilterAggReqData, HistogramAggReqData,
     IncludeExcludeParam, MissingTermAggReqData, MultiTermsAggReqData, MultiTermsAggregation,
-    MultiTermsFieldAccessor, MultiTermsMissingAccessor, RangeAggReqData, TermMissingAgg,
-    TermsAggReqData, TermsAggregation, TermsAggregationInternal,
+    MultiTermsFieldAccessor, MultiTermsMissingAccessor, OrderTarget, RangeAggReqData,
+    TermMissingAgg, TermsAggReqData, TermsAggregation, TermsAggregationInternal,
 };
 use crate::aggregation::metric::{
     build_segment_stats_collector, AverageAggregation, CardinalityAggReqData,
@@ -1002,11 +1002,35 @@ fn build_terms_or_cardinality_nodes(
                         missing.is_some(),
                     )?;
                 };
+                // Some terms aggregation options are not supported on computed value sources. We
+                // return an explicit error for them.
+                let req_internal = TermsAggregationInternal::from_req(req);
+                if accessor.as_physical_column().is_none() {
+                    // `_key` ordering orders the term ords. The term ords of a computed text
+                    // source are assigned in first-seen order, not sorted with the terms. Numeric
+                    // and bool values use the monotonic `u64` mapping, which is sorted with the
+                    // values.
+                    if accessor.column_type() == ColumnType::Str
+                        && req_internal.order.target == OrderTarget::Key
+                    {
+                        return Err(crate::TantivyError::InvalidArgument(format!(
+                            "terms aggregation ordered by `_key` is not supported on the computed \
+                             value source `{field_name}`"
+                        )));
+                    }
+                    // `min_doc_count: 0` requires listing all of the possible values.
+                    if req_internal.min_doc_count == 0 {
+                        return Err(crate::TantivyError::InvalidArgument(format!(
+                            "terms aggregation with `min_doc_count: 0` is not supported on the \
+                             computed value source `{field_name}`"
+                        )));
+                    }
+                }
                 AggNodeData::Terms(TermsAggReqData {
                     accessor,
                     missing_value_for_accessor,
                     name: agg_name.to_string(),
-                    req: TermsAggregationInternal::from_req(req),
+                    req: req_internal,
                     sub_aggregations: sub_aggs.clone(),
                     allowed_term_ids,
                     is_top_level,
