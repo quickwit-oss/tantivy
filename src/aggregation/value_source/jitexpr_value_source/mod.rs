@@ -8,7 +8,7 @@ mod term_resolver;
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use columnar::{Column, ColumnType, DynamicColumnHandle};
+use columnar::{ColumnType, DynamicColumnHandle};
 use jitexpr::ast::{infer_types, infer_types_with_target, InferredTypeSet, TypeError, UntypedExpr};
 use jitexpr::compile::CompiledFn;
 use jitexpr::types::VarType;
@@ -17,6 +17,7 @@ use self::input_column::InputColumn;
 use self::jitexpr_value_source::ConstantValueSource;
 pub(crate) use self::jitexpr_value_source::JitExprValueSource;
 use super::{ValueSource, ValueSourceProvider};
+use crate::aggregation::accessor_helpers::build_empty_value_source;
 use crate::{SegmentReader, TantivyError};
 
 /// A [`ValueSourceProvider`] computing values with a jitexpr expression over the fast fields of a
@@ -132,12 +133,14 @@ impl JitExprValueSourceProvider {
 
         if compiled_fn.inputs().is_empty() {
             // The expression does not depend on the doc: we evaluate it once.
-            let Some(constant_source) =
+            let jitexpr_segment_source = if let Some(constant_source) =
                 ConstantValueSource::evaluate(compiled_fn.context(), column_type)
-            else {
-                return Ok(JitExprSegmentSource::AlwaysNull(column_type));
+            {
+                JitExprSegmentSource::Constant(constant_source)
+            } else {
+                JitExprSegmentSource::AlwaysNull(column_type)
             };
-            return Ok(JitExprSegmentSource::Constant(constant_source));
+            return Ok(jitexpr_segment_source);
         }
 
         // The compiler defines the order of the inputs. Do not rely on the inference or on the
@@ -272,21 +275,21 @@ fn column_type_for_result_type(result_type: VarType) -> Option<ColumnType> {
 /// The source gets `column_type` if the aggregation accepts it, and an accepted type otherwise:
 /// with a type the aggregation does not accept, the aggregation would use the fast field with the
 /// same name instead.
+///
+/// A `Str` source is an empty `StrColumn`, so that it has an (empty) term dictionary.
 fn empty_source(
     reader: &SegmentReader,
-    column_type: ColumnType,
-    allowed_column_types: Option<&[ColumnType]>,
+    mut column_type: ColumnType,
+    allowed_column_types_opt: Option<&[ColumnType]>,
 ) -> Box<dyn ValueSource> {
-    let column_type = match allowed_column_types {
-        Some(allowed_column_types) if !allowed_column_types.contains(&column_type) => {
-            allowed_column_types.first().copied().unwrap_or(column_type)
+    // If the column_type received is not allowed, we just pick the first allowed column type.
+    // It is to return an empty col anyway.
+    if let Some(allowed_column_types) = allowed_column_types_opt {
+        if !allowed_column_types.contains(&column_type) {
+            column_type = allowed_column_types.first().copied().unwrap_or(column_type);
         }
-        _ => column_type,
-    };
-    Box::new((
-        Column::<u64>::build_empty_column(reader.max_doc()),
-        column_type,
-    ))
+    }
+    build_empty_value_source(reader.max_doc(), column_type)
 }
 
 #[cfg(test)]
@@ -491,6 +494,27 @@ mod tests {
             json!({ "s": { "stats": { "field": "#unknown" } } }),
         );
         assert_eq!(result["s"]["count"], 0);
+    }
+
+    #[test]
+    fn test_always_null_text_jitexpr_field() {
+        let index = create_index();
+        // The regexp never matches: a constant null `Str` expression.
+        let expression = r#"(REGEXP_EXTRACT "abc" "(z)" 1u64)"#;
+        let provider =
+            JitExprValueSourceProvider::new(jitexpr::ast::deserialize(expression).unwrap())
+                .unwrap();
+        let searcher = index.reader().unwrap().searcher();
+        let segment_reader = searcher.segment_reader(0);
+        let source = provider
+            .for_segment(segment_reader, None)
+            .unwrap()
+            .expect("a jitexpr field always returns a source");
+        assert_eq!(source.column_type(), ColumnType::Str);
+        let term_dictionary = source
+            .term_dictionary()
+            .expect("a `Str` source has a term dictionary");
+        assert_eq!(term_dictionary.num_terms(), 0);
     }
 
     #[test]
