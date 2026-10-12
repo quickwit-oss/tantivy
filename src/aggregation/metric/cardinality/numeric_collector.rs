@@ -70,7 +70,7 @@ impl SegmentNumericCardinalityCollector {
         assert_ne!(column_type, ColumnType::Str);
         let compact_space_accessor = if column_type == ColumnType::IpAddr {
             let compact_space_accessor = accessor
-                .as_column()
+                .as_physical_column()
                 .ok_or_else(|| {
                     TantivyError::AggregationError(
                         crate::aggregation::AggregationError::InternalError(

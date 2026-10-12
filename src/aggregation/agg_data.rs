@@ -288,7 +288,7 @@ fn missing_value_for_source(
     field_name: &str,
 ) -> crate::Result<Option<u64>> {
     let column_type = accessor.column_type();
-    let column_max_value = match accessor.as_column() {
+    let column_max_value = match accessor.as_physical_column() {
         Some(column) => column.max_value(),
         None if column_type == ColumnType::Str => {
             return Err(crate::TantivyError::InvalidArgument(format!(
@@ -309,7 +309,7 @@ fn require_physical_column(
     field_name: &str,
     agg_kind: &str,
 ) -> crate::Result<Column<u64>> {
-    source.as_column().cloned().ok_or_else(|| {
+    source.as_physical_column().cloned().ok_or_else(|| {
         crate::TantivyError::InvalidArgument(format!(
             "{agg_kind} does not support the computed value source `{field_name}`"
         ))

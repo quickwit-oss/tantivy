@@ -759,7 +759,7 @@ pub(crate) fn build_segment_histogram_collector(
     children: Vec<AggNode>,
 ) -> crate::Result<Box<dyn SegmentAggregationCollector>> {
     // Computed sources may change cardinality between blocks.
-    let source_contains_multivalues = if let Some(column) = req_data.accessor.as_column() {
+    let source_contains_multivalues = if let Some(column) = req_data.accessor.as_physical_column() {
         column.index.get_cardinality().is_multivalue()
     } else {
         true
