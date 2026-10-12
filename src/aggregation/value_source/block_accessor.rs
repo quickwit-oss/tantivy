@@ -369,6 +369,10 @@ mod tests {
             }
             self.cardinality
         }
+
+        fn to_f64(self: Box<Self>) -> Box<dyn ValueSource> {
+            crate::aggregation::value_source::coerce_to_f64(self)
+        }
     }
 
     #[test]

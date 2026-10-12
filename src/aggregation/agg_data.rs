@@ -448,7 +448,14 @@ fn build_nodes(
                     ))
                 }
             };
-            let accessor = get_value_source(reader, value_sources, field, allowed_column_types)?;
+            let mut accessor =
+                get_value_source(reader, value_sources, field, allowed_column_types)?;
+            if missing.is_some() {
+                // The collectors encode `missing` with the column type of the source: a `U64`
+                // source would turn `-1` into `0`, an `I64` source `2.5` into `2`. They collect
+                // `f64` values anyway, so coercing the source to `F64` loses no precision.
+                accessor = accessor.to_f64();
+            }
             let field_type = accessor.column_type();
             let node_data = AggNodeData::Metric(MetricAggReqData {
                 accessor,
@@ -467,12 +474,16 @@ fn build_nodes(
         // Percentiles handled as Metric as well
         AggregationVariants::Percentiles(percentiles_req) => {
             percentiles_req.validate()?;
-            let accessor = get_value_source(
+            let mut accessor = get_value_source(
                 reader,
                 value_sources,
                 percentiles_req.field_name(),
                 Some(get_numeric_or_date_column_types()),
             )?;
+            if percentiles_req.missing.is_some() {
+                // See the metric aggregations above.
+                accessor = accessor.to_f64();
+            }
             let field_type = accessor.column_type();
             let node_data = AggNodeData::Metric(MetricAggReqData {
                 accessor,

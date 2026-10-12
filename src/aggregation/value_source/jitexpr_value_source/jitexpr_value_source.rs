@@ -7,7 +7,8 @@ use jitexpr::types::{VarType, VariableValue};
 
 use super::dynamic_term_dictionary::DynamicTermDictionary;
 use super::input_column::InputColumn;
-use crate::aggregation::value_source::{ValueSource, ValueSourceDictionary};
+use crate::aggregation::f64_from_fastfield_u64;
+use crate::aggregation::value_source::{coerce_to_f64, ValueSource, ValueSourceDictionary};
 use crate::DocId;
 
 /// The value source of a jitexpr expression on a segment.
@@ -24,6 +25,7 @@ use crate::DocId;
 /// [`DynamicTermDictionary`] owned by the source: their values are term ords in first-seen order.
 pub(crate) struct JitExprValueSource {
     compiled_fn: CompiledFnCtx,
+    /// The column type of the result type of `compiled_fn`.
     column_type: ColumnType,
     /// Invariant: `inputs[i]` is bound to `compiled_fn.inputs()[i]`, and has the same type.
     inputs: Vec<InputColumn>,
@@ -142,7 +144,9 @@ impl ValueSource for JitExprValueSource {
             // are borrowed from `inputs`, which are not modified during the call.
             let result: VariableValue = unsafe { compiled_fn.call(&args) };
             // SAFETY: `result` has the result type of the compiled function.
-            if let Some(value) = unsafe { encode_result(result, result_type, term_dictionary) } {
+            let value_opt: Option<u64> =
+                unsafe { encode_result(result, result_type, term_dictionary) };
+            if let Some(value) = value_opt {
                 values.push(value);
                 docids.push(doc);
             }
@@ -153,6 +157,24 @@ impl ValueSource for JitExprValueSource {
         } else {
             Cardinality::Optional
         }
+    }
+
+    fn to_f64(mut self: Box<Self>) -> Box<dyn ValueSource> {
+        if !matches!(self.column_type, ColumnType::U64 | ColumnType::I64) {
+            return self;
+        }
+        // The expression wrapped in a coercion to `f64`, compiled once per compiled function.
+        let coerced_fn = match self.compiled_fn.compiled_fn().coerce_result_to_f64() {
+            Ok(coerced_fn) => coerced_fn,
+            // Should not happen for an `i64` / `u64` result. We still have a correct (slower)
+            // fallback: converting the values after evaluation.
+            Err(_) => return coerce_to_f64(self),
+        };
+        // The coerced function has the same inputs: `self.inputs` stay bound to it.
+        debug_assert!(coerced_fn.inputs() == self.compiled_fn.inputs());
+        self.compiled_fn = coerced_fn.context();
+        self.column_type = ColumnType::F64;
+        self
     }
 
     fn term_dictionary(&self) -> Option<&dyn ValueSourceDictionary> {
@@ -216,6 +238,14 @@ impl ValueSource for ConstantValueSource {
         values.clear();
         values.resize(docs.len(), self.value);
         Cardinality::Full
+    }
+
+    fn to_f64(mut self: Box<Self>) -> Box<dyn ValueSource> {
+        if matches!(self.column_type, ColumnType::U64 | ColumnType::I64) {
+            self.value = f64_from_fastfield_u64(self.value, self.column_type).to_u64();
+            self.column_type = ColumnType::F64;
+        }
+        self
     }
 
     fn term_dictionary(&self) -> Option<&dyn ValueSourceDictionary> {
@@ -421,6 +451,35 @@ mod tests {
                 .collect();
             assert_eq!(single_doc_values, expected, "expression `{expression}`");
             assert_eq!(single_doc_values[2], None, "doc 2 has no value");
+        }
+    }
+
+    #[test]
+    fn test_to_f64() {
+        let index = create_index(&["a", "b", "c"], &[1]);
+        let searcher = index.reader().unwrap().searcher();
+        let docs: Vec<DocId> = vec![0, 1, 2];
+        for expression in ["(ADD number 10u64)", "(ADD 1i64 2i64)"] {
+            let provider =
+                JitExprValueSourceProvider::new(jitexpr::ast::deserialize(expression).unwrap())
+                    .unwrap();
+            let source: Box<dyn ValueSource> = provider
+                .for_segment(searcher.segment_reader(0), None)
+                .unwrap()
+                .expect("a jitexpr field always returns a source");
+            assert_ne!(source.column_type(), ColumnType::F64);
+            let mut source = source.to_f64();
+            assert_eq!(source.column_type(), ColumnType::F64, "`{expression}`");
+            let (_, values, docids) = load_block(&mut *source, &docs);
+            let decoded: Vec<f64> = values.iter().map(|value| f64::from_u64(*value)).collect();
+            if expression == "(ADD 1i64 2i64)" {
+                // A constant: all of the docs have the value.
+                assert_eq!(decoded, vec![3.0, 3.0, 3.0]);
+            } else {
+                // Doc 1 has no `number`.
+                assert_eq!(docids, vec![0, 2]);
+                assert_eq!(decoded, vec![10.0, 12.0]);
+            }
         }
     }
 }

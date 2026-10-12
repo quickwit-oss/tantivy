@@ -756,6 +756,33 @@ mod tests {
     }
 
     #[test]
+    fn test_missing_on_segment_where_jitexpr_field_is_untyped_null() {
+        let mut schema_builder = Schema::builder();
+        let json_field = schema_builder.add_json_field("j", FAST);
+        let index = Index::create_in_ram(schema_builder.build());
+        let mut writer = index.writer_for_tests().unwrap();
+        writer
+            .add_document(doc!(json_field => json!({ "delta": -3 })))
+            .unwrap();
+        writer.commit().unwrap();
+        // `j.delta` is absent from this segment: the expression has no type on it.
+        writer.add_document(doc!()).unwrap();
+        writer.commit().unwrap();
+
+        let jitexpr_fields = [("#f", "(ADD j.delta 1i64)")];
+        let result = run_agg(
+            &index,
+            &jitexpr_fields,
+            json!({
+                "with_missing": { "sum": { "field": "#f", "missing": -10.0 } },
+                "without_missing": { "sum": { "field": "#f" } }
+            }),
+        );
+        assert_eq!(result["with_missing"]["value"], -12.0);
+        assert_eq!(result["without_missing"]["value"], -2.0);
+    }
+
+    #[test]
     fn test_result_type_is_resolved_per_segment() {
         let mut schema_builder = Schema::builder();
         let json_field = schema_builder.add_json_field("j", FAST);

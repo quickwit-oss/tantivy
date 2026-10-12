@@ -664,6 +664,64 @@ mod tests {
     }
 
     #[test]
+    fn test_stats_negative_missing_on_u64_column() {
+        let mut schema_builder = Schema::builder();
+        let number = schema_builder.add_u64_field("number", FAST);
+        let index = Index::create_in_ram(schema_builder.build());
+        let mut index_writer: IndexWriter = index.writer_for_tests().unwrap();
+        index_writer.add_document(doc!(number => 5u64)).unwrap();
+        index_writer.add_document(doc!()).unwrap();
+        index_writer.commit().unwrap();
+
+        let agg_req: Aggregations = serde_json::from_value(json!({
+            "my_stats": { "stats": { "field": "number", "missing": -1.0 } }
+        }))
+        .unwrap();
+        let res = exec_request_with_query(agg_req, &index, None).unwrap();
+
+        // The doc without a value counts as -1, which a `u64` column cannot represent.
+        assert_eq!(
+            res["my_stats"],
+            json!({
+                "avg": 2.0,
+                "count": 2,
+                "max": 5.0,
+                "min": -1.0,
+                "sum": 4.0
+            })
+        );
+    }
+
+    #[test]
+    fn test_stats_fractional_missing_on_i64_column() {
+        let mut schema_builder = Schema::builder();
+        let delta = schema_builder.add_i64_field("delta", FAST);
+        let index = Index::create_in_ram(schema_builder.build());
+        let mut index_writer: IndexWriter = index.writer_for_tests().unwrap();
+        index_writer.add_document(doc!(delta => -3i64)).unwrap();
+        index_writer.add_document(doc!()).unwrap();
+        index_writer.commit().unwrap();
+
+        let agg_req: Aggregations = serde_json::from_value(json!({
+            "my_stats": { "stats": { "field": "delta", "missing": 2.5 } }
+        }))
+        .unwrap();
+        let res = exec_request_with_query(agg_req, &index, None).unwrap();
+
+        // The doc without a value counts as 2.5, which an `i64` column cannot represent.
+        assert_eq!(
+            res["my_stats"],
+            json!({
+                "avg": -0.25,
+                "count": 2,
+                "max": 2.5,
+                "min": -3.0,
+                "sum": -0.5
+            })
+        );
+    }
+
+    #[test]
     fn test_stats_json_missing() -> crate::Result<()> {
         let mut schema_builder = Schema::builder();
         let json = schema_builder.add_json_field("json", FAST);

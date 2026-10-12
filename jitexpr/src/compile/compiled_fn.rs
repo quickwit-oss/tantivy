@@ -1,9 +1,9 @@
 use std::ops::Deref;
-use std::sync::Arc;
+use std::sync::{Arc, OnceLock};
 
 use cranelift_jit::JITModule;
 
-use super::{StringArena, TypedExpr, TypedVariable};
+use super::{CompileError, CompileFnBuilder, StringArena, TypedExpr, TypedVariable};
 use crate::types::{VarType, VariableValue};
 
 #[cfg(not(any(
@@ -36,7 +36,9 @@ pub struct CompiledFn {
     module: Option<JITModule>,
     inputs: Vec<TypedVariable>,
     // This AST owns the Arc-backed literals and regexes embedded in generated code.
-    _typed_expr: Box<TypedExpr>,
+    typed_expr: Box<TypedExpr>,
+    // Memoizes `coerce_result_to_f64`.
+    coerced_to_f64: OnceLock<Result<Arc<CompiledFn>, CompileError>>,
 }
 
 // `JITModule` is not `Sync` because it supports lazily looking up symbols through
@@ -69,7 +71,8 @@ impl CompiledFn {
             entry,
             module: Some(module),
             inputs,
-            _typed_expr: typed_expr,
+            typed_expr,
+            coerced_to_f64: OnceLock::new(),
         }
     }
 
@@ -80,7 +83,32 @@ impl CompiledFn {
 
     /// Returns the concrete result type selected during compilation.
     pub fn result_type(&self) -> VarType {
-        self._typed_expr.return_type
+        self.typed_expr.return_type
+    }
+
+    /// Returns the same function, with its result coerced to `f64`.
+    ///
+    /// Returns an error if the result type is not `I64`, `U64` or `F64`. For `F64`, returns `self`.
+    ///
+    /// The coerced function is compiled on the first call, and memoized.
+    pub fn coerce_result_to_f64(self: &Arc<Self>) -> Result<Arc<CompiledFn>, CompileError> {
+        let result_type = self.result_type();
+        match result_type {
+            VarType::F64 => return Ok(Arc::clone(self)),
+            VarType::I64 | VarType::U64 => {}
+            VarType::Bool | VarType::Str | VarType::None => {
+                return Err(CompileError::UnsupportedCoercion {
+                    from_type: result_type,
+                    target: VarType::F64,
+                });
+            }
+        }
+        self.coerced_to_f64
+            .get_or_init(|| {
+                let typed_expr: TypedExpr = (*self.typed_expr).clone().coerce(VarType::F64);
+                CompileFnBuilder::compile_with_inputs(self.inputs.clone(), typed_expr).map(Arc::new)
+            })
+            .clone()
     }
 
     /// Creates an evaluation context with a private string arena.
