@@ -292,28 +292,24 @@ impl TopHitsAggregationReq {
                             .map(FastFieldValue::F64)
                             .collect::<Vec<_>>(),
                         DynamicColumn::Bytes(accessor) => accessor
-                            .term_ords(doc_id)
-                            .map(|term_ord| {
+                            .value_range(doc_id)
+                            .expect("top_hits value index read failed")
+                            .map(|value| {
                                 let mut buffer = vec![];
-                                assert!(
-                                    accessor
-                                        .ord_to_bytes(term_ord, &mut buffer)
-                                        .expect("could not read term dictionary"),
-                                    "term corresponding to term_ord does not exist"
-                                );
+                                accessor
+                                    .read_value(value, &mut buffer)
+                                    .expect("top_hits value read failed");
                                 FastFieldValue::Bytes(buffer)
                             })
                             .collect::<Vec<_>>(),
                         DynamicColumn::Str(accessor) => accessor
-                            .term_ords(doc_id)
-                            .map(|term_ord| {
+                            .value_range(doc_id)
+                            .expect("top_hits value index read failed")
+                            .map(|value| {
                                 let mut buffer = vec![];
-                                assert!(
-                                    accessor
-                                        .ord_to_bytes(term_ord, &mut buffer)
-                                        .expect("could not read term dictionary"),
-                                    "term corresponding to term_ord does not exist"
-                                );
+                                accessor
+                                    .read_value(value, &mut buffer)
+                                    .expect("top_hits value read failed");
                                 FastFieldValue::Str(String::from_utf8(buffer).unwrap())
                             })
                             .collect::<Vec<_>>(),

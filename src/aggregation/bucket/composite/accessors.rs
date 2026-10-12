@@ -118,9 +118,20 @@ impl CompositeSourceAccessors {
                     ColumnType::IpAddr,
                     // ColumnType::Bytes Unsupported
                 ];
+                let str_dict_column = match reader.fast_fields().str(&source.field)? {
+                    Some(column) => Some(StrColumn::wrap(column.to_dictionary_encoded()?)),
+                    None => None,
+                };
+                let numeric_types: Vec<_> = allowed_column_types
+                    .into_iter()
+                    .filter(|column_type| *column_type != ColumnType::Str)
+                    .collect();
                 let mut columns_and_types = reader
                     .fast_fields()
-                    .u64_lenient_for_type_all(Some(&allowed_column_types), &source.field)?;
+                    .u64_lenient_for_type_all(Some(&numeric_types), &source.field)?;
+                if let Some(column) = &str_dict_column {
+                    columns_and_types.push((column.ords().clone(), ColumnType::Str));
+                }
 
                 // Sort columns by their pagination order and determine which to skip
                 columns_and_types.sort_by_key(|(_, col_type): &(Column, ColumnType)| {
@@ -142,7 +153,7 @@ impl CompositeSourceAccessors {
                         Ok(CompositeAccessor {
                             column,
                             column_type,
-                            str_dict_column: reader.fast_fields().str(&source.field)?,
+                            str_dict_column: str_dict_column.clone(),
                             date_histogram_interval: PrecomputedDateInterval::NotApplicable,
                         })
                     })

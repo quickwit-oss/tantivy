@@ -30,6 +30,9 @@ pub enum ColumnIndex {
     /// In addition, at index num_rows, an extra value is added
     /// containing the overall number of values.
     Multivalued(MultiValueIndex),
+    /// A lazy compact index. Infallible index methods panic on storage errors;
+    /// value readers should use CompactColumn's fallible methods when possible.
+    Grouped(crate::CompactColumn),
 }
 
 impl From<OptionalIndex> for ColumnIndex {
@@ -56,12 +59,17 @@ impl ColumnIndex {
             ColumnIndex::Empty { .. } => Cardinality::Optional,
             ColumnIndex::Optional(_) => Cardinality::Optional,
             ColumnIndex::Multivalued(_) => Cardinality::Multivalued,
+            ColumnIndex::Grouped(column) => column.cardinality(),
         }
     }
 
     /// Returns true if and only if there are at least one value associated to the row.
     pub fn has_value(&self, doc_id: DocId) -> bool {
         match self {
+            ColumnIndex::Grouped(column) => !column
+                .value_range(doc_id)
+                .expect("cannot read compact document index")
+                .is_empty(),
             ColumnIndex::Empty { .. } => false,
             ColumnIndex::Full => true,
             ColumnIndex::Optional(optional_index) => optional_index.contains(doc_id),
@@ -73,6 +81,9 @@ impl ColumnIndex {
 
     pub fn value_row_ids(&self, doc_id: DocId) -> Range<RowId> {
         match self {
+            ColumnIndex::Grouped(column) => column
+                .value_range(doc_id)
+                .expect("cannot read compact document index"),
             ColumnIndex::Empty { .. } => 0..0,
             ColumnIndex::Full => doc_id..doc_id + 1,
             ColumnIndex::Optional(optional_index) => {
@@ -101,6 +112,17 @@ impl ColumnIndex {
         row_ids: &mut Vec<RowId>,
     ) {
         match self {
+            ColumnIndex::Grouped(column) => {
+                for &doc in doc_ids {
+                    for row in column
+                        .value_range(doc)
+                        .expect("cannot read compact document index")
+                    {
+                        doc_ids_out.push(doc);
+                        row_ids.push(row);
+                    }
+                }
+            }
             ColumnIndex::Empty { .. } => {}
             ColumnIndex::Full => {
                 doc_ids_out.extend_from_slice(doc_ids);
@@ -122,6 +144,14 @@ impl ColumnIndex {
 
     pub fn docid_range_to_rowids(&self, doc_id_range: Range<DocId>) -> Range<RowId> {
         match self {
+            ColumnIndex::Grouped(column) => {
+                column
+                    .value_rank(doc_id_range.start)
+                    .expect("cannot read compact document index")
+                    ..column
+                        .value_rank(doc_id_range.end)
+                        .expect("cannot read compact document index")
+            }
             ColumnIndex::Empty { .. } => 0..0,
             ColumnIndex::Full => doc_id_range,
             ColumnIndex::Optional(optional_index) => {
@@ -169,6 +199,14 @@ impl ColumnIndex {
 
     pub fn select_batch_in_place(&self, doc_id_start: DocId, rank_ids: &mut Vec<RowId>) {
         match self {
+            ColumnIndex::Grouped(column) => {
+                for value in rank_ids.iter_mut() {
+                    *value = column
+                        .doc_for_value(*value)
+                        .expect("cannot read compact document index");
+                }
+                rank_ids.dedup();
+            }
             ColumnIndex::Empty { .. } => {
                 rank_ids.clear();
             }

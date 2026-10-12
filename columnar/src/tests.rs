@@ -26,7 +26,7 @@ fn test_dataframe_writer_str() {
     assert_eq!(columnar.num_columns(), 1);
     let cols: Vec<DynamicColumnHandle> = columnar.read_columns("my_string").unwrap();
     assert_eq!(cols.len(), 1);
-    assert_eq!(cols[0].num_bytes(), 73);
+    assert_eq!(cols[0].num_bytes(), 74);
 }
 
 #[test]
@@ -40,7 +40,7 @@ fn test_dataframe_writer_bytes() {
     assert_eq!(columnar.num_columns(), 1);
     let cols: Vec<DynamicColumnHandle> = columnar.read_columns("my_string").unwrap();
     assert_eq!(cols.len(), 1);
-    assert_eq!(cols[0].num_bytes(), 73);
+    assert_eq!(cols[0].num_bytes(), 74);
 }
 
 #[test]
@@ -253,20 +253,20 @@ fn test_dictionary_encoded_bytes() {
     assert_eq!(term_ords.first(0), None);
     assert_eq!(term_ords.first(1), Some(0));
     bytes_col
-        .dictionary
+        .dictionary()
         .ord_to_term(0u64, &mut term_buffer)
         .unwrap();
     assert_eq!(term_buffer, b"a");
     assert_eq!(term_ords.first(2), None);
     assert_eq!(term_ords.first(3), Some(2));
     bytes_col
-        .dictionary
+        .dictionary()
         .ord_to_term(2u64, &mut term_buffer)
         .unwrap();
     assert_eq!(term_buffer, b"c");
     assert_eq!(term_ords.first(4), Some(1));
     bytes_col
-        .dictionary
+        .dictionary()
         .ord_to_term(1u64, &mut term_buffer)
         .unwrap();
     assert_eq!(term_buffer, b"b");
@@ -559,15 +559,18 @@ fn assert_column_eq<T: Copy + PartialOrd + Debug + Send + Sync + 'static>(
 
 fn assert_bytes_column_eq(left: &BytesColumn, right: &BytesColumn) {
     assert_eq!(
-        left.term_ord_column.get_cardinality(),
-        right.term_ord_column.get_cardinality()
+        left.ords().get_cardinality(),
+        right.ords().get_cardinality()
     );
     assert_eq!(left.num_rows(), right.num_rows());
-    assert_column_eq(&left.term_ord_column, &right.term_ord_column);
-    assert_eq!(left.dictionary.num_terms(), right.dictionary.num_terms());
-    let num_terms = left.dictionary.num_terms();
-    let mut left_terms = left.dictionary.stream().unwrap();
-    let mut right_terms = right.dictionary.stream().unwrap();
+    assert_column_eq(&left.ords(), &right.ords());
+    assert_eq!(
+        left.dictionary().num_terms(),
+        right.dictionary().num_terms()
+    );
+    let num_terms = left.dictionary().num_terms();
+    let mut left_terms = left.dictionary().stream().unwrap();
+    let mut right_terms = right.dictionary().stream().unwrap();
     for _ in 0..num_terms {
         assert!(left_terms.advance());
         assert!(right_terms.advance());
@@ -697,7 +700,7 @@ fn assert_bytes_column_values(
 ) {
     let mut num_non_empty_rows = 0;
     let mut buffer = Vec::new();
-    for doc in 0..col.term_ord_column.num_docs() {
+    for doc in 0..col.ords().num_docs() {
         let doc_vals: Vec<u64> = col.term_ords(doc).collect();
         if doc_vals.is_empty() {
             continue;

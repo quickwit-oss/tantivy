@@ -55,6 +55,7 @@ impl TermsAggReqData {
     /// Estimate the memory consumption of this struct in bytes.
     pub fn get_memory_consumption(&self) -> usize {
         std::mem::size_of::<Self>()
+            + self.accessor.memory_usage()
             + self
                 .allowed_term_ids
                 .as_ref()
@@ -1064,7 +1065,7 @@ impl<TermMap: TermAggregationMap, B: SubAggBuffer> SegmentAggregationCollector
                 &mut *req_data.accessor,
                 req_data.missing_value_for_accessor,
                 self.sub_agg.is_some(),
-            );
+            )?;
 
         if let Some(sub_agg) = &mut self.sub_agg {
             let term_buckets = &mut self.parent_buckets[parent_bucket_id as usize];
@@ -1245,6 +1246,7 @@ where
     #[inline]
     fn get_memory_consumption(&self, parent_bucket_id: BucketId) -> usize {
         self.parent_buckets[parent_bucket_id as usize].get_memory_consumption()
+            + self.terms_req_data.accessor.memory_usage()
     }
 
     #[inline]
@@ -1269,22 +1271,58 @@ where
         // going through sort_unstable's fast path.
         match &term_req.req.order.target {
             OrderTarget::Key => {
-                // We rely on the fact, that term ordinals match the order of the strings
-                // TODO: We could have a special collector, that keeps only TOP n results at any
-                // time.
-                if TermMap::SORTED_BY_KEY {
-                    // `into_vec` already returned entries sorted by ord ascending, we can just
-                    // revert if we want descending.
+                if let Some(dictionary) = term_req
+                    .accessor
+                    .term_dictionary()
+                    .filter(|dictionary| !dictionary.ords_sorted_with_terms())
+                {
+                    // Query-local IDs have no lexical meaning. Resolve keys before cutoff.
+                    let mut ids: Vec<u64> = entries
+                        .iter()
+                        .map(|entry| entry.0)
+                        .filter(|id| Some(*id) != term_req.missing_value_for_accessor)
+                        .collect();
+                    ids.sort_unstable();
+                    let mut keys =
+                        FxHashMap::with_capacity_and_hasher(ids.len(), Default::default());
+                    let mut ids_iter = ids.iter();
+                    dictionary.sorted_ords_to_term_cb(&ids, &mut |term| {
+                        keys.insert(*ids_iter.next().unwrap(), term.to_vec());
+                    })?;
+                    if let (Some(id), Some(missing)) =
+                        (term_req.missing_value_for_accessor, &term_req.req.missing)
+                    {
+                        keys.insert(
+                            id,
+                            match missing {
+                                Key::Str(value) => value.as_bytes().to_vec(),
+                                _ => missing.to_string().into_bytes(),
+                            },
+                        );
+                    }
+                    entries.sort_unstable_by(|left, right| keys[&left.0].cmp(&keys[&right.0]));
                     if term_req.req.order.order == Order::Desc {
                         entries.reverse();
                     }
-                } else if entries.len() > segment_size {
-                    // Unsorted source: use select_nth
-                    if term_req.req.order.order == Order::Desc {
-                        entries
-                            .select_nth_unstable_by_key(segment_size, |b| std::cmp::Reverse(b.0));
-                    } else {
-                        entries.select_nth_unstable_by_key(segment_size, |b| b.0);
+                } else {
+                    // We rely on the fact, that term ordinals match the order of the strings
+                    // TODO: We could have a special collector, that keeps only TOP n results at any
+                    // time.
+                    if TermMap::SORTED_BY_KEY {
+                        // `into_vec` already returned entries sorted by ord ascending, we can just
+                        // revert if we want descending.
+                        if term_req.req.order.order == Order::Desc {
+                            entries.reverse();
+                        }
+                    } else if entries.len() > segment_size {
+                        // Unsorted source: use select_nth
+                        if term_req.req.order.order == Order::Desc {
+                            entries.select_nth_unstable_by_key(segment_size, |b| {
+                                std::cmp::Reverse(b.0)
+                            });
+                        } else {
+                            entries.select_nth_unstable_by_key(segment_size, |b| b.0);
+                        }
                     }
                 }
             }

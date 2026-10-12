@@ -1,5 +1,6 @@
 use columnar::{ColumnType, MonotonicallyMappableToU64};
 
+use super::sort_by_string::BytesSegmentSortKey;
 use crate::collector::sort_key::{
     NaturalComparator, SortByBytes, SortBySimilarityScore, SortByStaticFastValue, SortByString,
 };
@@ -7,6 +8,32 @@ use crate::collector::{SegmentSortKeyComputer, SortKeyComputer};
 use crate::fastfield::FastFieldNotAvailableError;
 use crate::schema::OwnedValue;
 use crate::{DateTime, DocId, Score};
+
+trait EraseSegmentKey {
+    fn erase(self) -> Option<BytesSegmentSortKey>;
+    fn restore(key: Option<BytesSegmentSortKey>) -> Self;
+}
+
+impl EraseSegmentKey for Option<u64> {
+    fn erase(self) -> Option<BytesSegmentSortKey> {
+        self.map(BytesSegmentSortKey::Ordinal)
+    }
+    fn restore(key: Option<BytesSegmentSortKey>) -> Self {
+        key.map(|key| match key {
+            BytesSegmentSortKey::Ordinal(value) => value,
+            _ => unreachable!("numeric sort keys cannot contain bytes"),
+        })
+    }
+}
+
+impl EraseSegmentKey for Option<BytesSegmentSortKey> {
+    fn erase(self) -> Self {
+        self
+    }
+    fn restore(key: Self) -> Self {
+        key
+    }
+}
 
 /// Sort by the boxed / OwnedValue representation of either a fast field, or of the score.
 ///
@@ -35,8 +62,8 @@ impl SortByErasedType {
 }
 
 trait ErasedSegmentSortKeyComputer: Send + Sync {
-    fn segment_sort_key(&mut self, doc: DocId, score: Score) -> Option<u64>;
-    fn convert_segment_sort_key(&self, sort_key: Option<u64>) -> OwnedValue;
+    fn segment_sort_key(&mut self, doc: DocId, score: Score) -> Option<BytesSegmentSortKey>;
+    fn convert_segment_sort_key(&self, sort_key: Option<BytesSegmentSortKey>) -> OwnedValue;
 }
 
 struct ErasedSegmentSortKeyComputerWrapper<C, F> {
@@ -46,15 +73,18 @@ struct ErasedSegmentSortKeyComputerWrapper<C, F> {
 
 impl<C, F> ErasedSegmentSortKeyComputer for ErasedSegmentSortKeyComputerWrapper<C, F>
 where
-    C: SegmentSortKeyComputer<SegmentSortKey = Option<u64>> + Send + Sync,
+    C: SegmentSortKeyComputer + Send + Sync,
+    C::SegmentSortKey: EraseSegmentKey,
     F: Fn(C::SortKey) -> OwnedValue + Send + Sync + 'static,
 {
-    fn segment_sort_key(&mut self, doc: DocId, score: Score) -> Option<u64> {
-        self.inner.segment_sort_key(doc, score)
+    fn segment_sort_key(&mut self, doc: DocId, score: Score) -> Option<BytesSegmentSortKey> {
+        self.inner.segment_sort_key(doc, score).erase()
     }
 
-    fn convert_segment_sort_key(&self, sort_key: Option<u64>) -> OwnedValue {
-        let val = self.inner.convert_segment_sort_key(sort_key);
+    fn convert_segment_sort_key(&self, sort_key: Option<BytesSegmentSortKey>) -> OwnedValue {
+        let val = self
+            .inner
+            .convert_segment_sort_key(C::SegmentSortKey::restore(sort_key));
         (self.converter)(val)
     }
 }
@@ -64,13 +94,14 @@ struct ScoreSegmentSortKeyComputer {
 }
 
 impl ErasedSegmentSortKeyComputer for ScoreSegmentSortKeyComputer {
-    fn segment_sort_key(&mut self, doc: DocId, score: Score) -> Option<u64> {
+    fn segment_sort_key(&mut self, doc: DocId, score: Score) -> Option<BytesSegmentSortKey> {
         let score_value: f64 = self.segment_computer.segment_sort_key(doc, score).into();
-        Some(score_value.to_u64())
+        Some(BytesSegmentSortKey::Ordinal(score_value.to_u64()))
     }
 
-    fn convert_segment_sort_key(&self, sort_key: Option<u64>) -> OwnedValue {
-        let score_value: u64 = sort_key.expect("This implementation always produces a score.");
+    fn convert_segment_sort_key(&self, sort_key: Option<BytesSegmentSortKey>) -> OwnedValue {
+        let score_value: u64 =
+            Option::<u64>::restore(sort_key).expect("This implementation always produces a score.");
         OwnedValue::F64(f64::from_u64(score_value))
     }
 }
@@ -96,11 +127,12 @@ impl SortKeyComputer for SortByErasedType {
                 // https://github.com/quickwit-oss/tantivy/issues/2776 is resolved, we should
                 // consider directly constructing the appropriate `SegmentSortKeyComputer` type for
                 // the column that we open here.
-                let (_column, column_type) =
-                    fast_fields.u64_lenient(column_name)?.ok_or_else(|| {
-                        FastFieldNotAvailableError {
-                            field_name: column_name.to_owned(),
-                        }
+                let column_type = fast_fields
+                    .dynamic_column_handles(column_name)?
+                    .first()
+                    .map(|handle| handle.column_type())
+                    .ok_or_else(|| FastFieldNotAvailableError {
+                        field_name: column_name.to_owned(),
                     })?;
 
                 match column_type {
@@ -197,11 +229,11 @@ pub struct ErasedColumnSegmentSortKeyComputer {
 
 impl SegmentSortKeyComputer for ErasedColumnSegmentSortKeyComputer {
     type SortKey = OwnedValue;
-    type SegmentSortKey = Option<u64>;
+    type SegmentSortKey = Option<BytesSegmentSortKey>;
     type SegmentComparator = NaturalComparator;
 
     #[inline(always)]
-    fn segment_sort_key(&mut self, doc: DocId, score: Score) -> Option<u64> {
+    fn segment_sort_key(&mut self, doc: DocId, score: Score) -> Self::SegmentSortKey {
         self.inner.segment_sort_key(doc, score)
     }
 

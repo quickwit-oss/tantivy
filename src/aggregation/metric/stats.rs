@@ -318,13 +318,13 @@ impl<const COLUMN_TYPE_ID: u8> SegmentAggregationCollector
                 docs,
                 column_source,
                 self.missing_u64,
-            );
+            )?;
         } else {
             agg_data.column_block_accessor.fetch_block_with_missing(
                 docs,
                 &mut *self.accessor,
                 self.missing_u64,
-            );
+            )?;
         }
         collect_stats::<COLUMN_TYPE_ID>(
             &mut self.buckets[parent_bucket_id as usize],

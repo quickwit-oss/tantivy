@@ -227,12 +227,14 @@ fn fetch_field_block(
     block_accessor: &mut ColumnBlockAccessor,
 ) -> bool {
     let missing_value = block_missing_value(missing);
-    block_accessor.fetch_block_with_missing_unique_per_doc(
-        docs,
-        &mut (&field.column, field.column_type),
-        missing_value,
-        true,
-    );
+    block_accessor
+        .fetch_block_with_missing_unique_per_doc(
+            docs,
+            &mut (&field.column, field.column_type),
+            missing_value,
+            true,
+        )
+        .expect("physical ordinal columns do not perform lazy I/O");
     block_accessor.has_one_value_per_doc(docs)
 }
 

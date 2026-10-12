@@ -52,6 +52,11 @@ fn get_doc_ids_with_values<'a>(
     doc_range: Range<u32>,
 ) -> Box<dyn Iterator<Item = u32> + 'a> {
     match column_index {
+        ColumnIndex::Grouped(column) => Box::new(
+            (0..column.num_docs())
+                .filter(move |&doc| column_index.has_value(doc))
+                .map(move |doc| doc + doc_range.start),
+        ),
         ColumnIndex::Empty { .. } => Box::new(0..0),
         ColumnIndex::Full => Box::new(doc_range),
         ColumnIndex::Optional(optional_index) => Box::new(
@@ -104,6 +109,11 @@ fn get_num_values_iterator<'a>(
     num_docs: u32,
 ) -> Box<dyn Iterator<Item = u32> + 'a> {
     match column_index {
+        ColumnIndex::Grouped(_) => Box::new(
+            (0..num_docs)
+                .map(move |doc| column_index.value_row_ids(doc).len() as u32)
+                .filter(|&count| count > 0),
+        ),
         ColumnIndex::Empty { .. } => Box::new(std::iter::empty()),
         ColumnIndex::Full => Box::new(std::iter::repeat_n(1u32, num_docs as usize)),
         ColumnIndex::Optional(optional_index) => Box::new(std::iter::repeat_n(
@@ -175,6 +185,11 @@ impl<'a> Iterable<RowId> for StackedOptionalIndex<'a> {
                 .flat_map(|(columnar_id, column_index_opt)| {
                     let columnar_row_range = self.stack_merge_order.columnar_range(columnar_id);
                     let rows_it: Box<dyn Iterator<Item = RowId>> = match column_index_opt {
+                        ColumnIndex::Grouped(_) => Box::new(
+                            (0..columnar_row_range.len() as u32)
+                                .filter(move |&doc| column_index_opt.has_value(doc))
+                                .map(move |doc| doc + columnar_row_range.start),
+                        ),
                         ColumnIndex::Full => Box::new(columnar_row_range),
                         ColumnIndex::Optional(optional_index) => Box::new(
                             optional_index

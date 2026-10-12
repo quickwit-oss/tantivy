@@ -294,7 +294,7 @@ impl SegmentAggregationCollector for SegmentPercentilesCollector {
             docs,
             &mut *self.accessor,
             self.missing_u64,
-        );
+        )?;
 
         let field_type = self.accessor.column_type();
         for val in agg_data.column_block_accessor.iter_vals() {

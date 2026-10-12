@@ -44,6 +44,7 @@ impl StrBytesSortFieldAccessor {
 enum ReaderSortFieldAccessors {
     Numeric(Vec<(SegmentOrdinal, Column<u64>)>),
     StrBytes(Vec<(SegmentOrdinal, StrBytesSortFieldAccessor)>),
+    DecodedBytes(Vec<(SegmentOrdinal, BytesColumn)>),
 }
 
 /// Segment's max doc must be `< MAX_DOC_LIMIT`.
@@ -296,12 +297,21 @@ impl IndexMerger {
         &self,
         sort_by_field: &IndexSortByField,
         field_type: Type,
-    ) -> crate::Result<Vec<(SegmentOrdinal, StrBytesSortFieldAccessor)>> {
+    ) -> crate::Result<ReaderSortFieldAccessors> {
         let bytes_columns = self
             .readers
             .iter()
             .map(|reader| Self::get_str_bytes_column(reader, sort_by_field, field_type))
             .collect::<crate::Result<Vec<_>>>()?;
+        if bytes_columns.iter().any(BytesColumn::is_compact) {
+            return Ok(ReaderSortFieldAccessors::DecodedBytes(
+                bytes_columns
+                    .into_iter()
+                    .enumerate()
+                    .map(|(segment, column)| (segment as SegmentOrdinal, column))
+                    .collect(),
+            ));
+        }
         let merged_term_ord_mappings = compute_merged_term_ord_mapping(&bytes_columns)?;
         debug_assert_eq!(bytes_columns.len(), merged_term_ord_mappings.len());
         let accessors = bytes_columns
@@ -320,7 +330,7 @@ impl IndexMerger {
                 },
             )
             .collect::<Vec<_>>();
-        Ok(accessors)
+        Ok(ReaderSortFieldAccessors::StrBytes(accessors))
     }
 
     /// Returns the full `Column<u64>` so callers can use `Column::first()` which
@@ -367,8 +377,7 @@ impl IndexMerger {
         let field_type = self.sort_by_field_type(sort_by_field)?;
 
         if matches!(field_type, Type::Str | Type::Bytes) {
-            let accessors = self.get_str_bytes_accessors(sort_by_field, field_type)?;
-            return Ok(ReaderSortFieldAccessors::StrBytes(accessors));
+            return self.get_str_bytes_accessors(sort_by_field, field_type);
         }
 
         let accessors = self.get_numeric_accessors(sort_by_field)?;
@@ -425,6 +434,39 @@ impl IndexMerger {
         //   Documents without a value map to `None` — first in ascending, last in descending.
         let asc = sort_by_field.order == Order::Asc;
         match sort_field_accessors {
+            ReaderSortFieldAccessors::DecodedBytes(accessors) => {
+                // kmerge retains only one decoded head per segment. Never build a
+                // whole-value dictionary for a compact sort column.
+                let streams = accessors.iter().map(|(segment, column)| {
+                    self.readers[*segment as usize]
+                        .doc_ids_alive()
+                        .map(move |doc| {
+                            let mut value = Vec::new();
+                            let present = column.first(doc, &mut value)?;
+                            Ok::<_, std::io::Error>((
+                                present.then_some(value),
+                                DocAddress {
+                                    segment_ord: *segment,
+                                    doc_id: doc,
+                                },
+                            ))
+                        })
+                });
+                let merged = streams.kmerge_by(|left, right| match (left, right) {
+                    (Err(_), _) => true,
+                    (_, Err(_)) => false,
+                    (Ok(left), Ok(right)) => {
+                        if asc {
+                            left.0 < right.0
+                        } else {
+                            left.0 > right.0
+                        }
+                    }
+                });
+                for entry in merged {
+                    sorted_doc_ids.push(entry?.1);
+                }
+            }
             ReaderSortFieldAccessors::Numeric(reader_ordinal_and_field_accessors) => {
                 self.extend_sorted_doc_ids(
                     &reader_ordinal_and_field_accessors,

@@ -29,12 +29,14 @@ pub struct TextOptions {
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) struct FastFieldTextOptions {
     pub tokenizer: String,
+    pub codec: Option<columnar::FastFieldCodec>,
 }
 
 impl Default for FastFieldTextOptions {
     fn default() -> Self {
         FastFieldTextOptions {
             tokenizer: RAW_TOKENIZER_NAME.to_string(),
+            codec: None,
         }
     }
 }
@@ -45,13 +47,20 @@ pub(super) fn merge_fast_field_options(
 ) -> Option<FastFieldTextOptions> {
     // A configured tokenizer takes precedence over the implicit raw tokenizer.
     match (left, right) {
-        (Some(left), Some(right)) if left.tokenizer == RAW_TOKENIZER_NAME => Some(right),
+        (Some(mut left), Some(right)) => {
+            if left.tokenizer == RAW_TOKENIZER_NAME {
+                left.tokenizer = right.tokenizer;
+            }
+            left.codec = left.codec.or(right.codec);
+            Some(left)
+        }
         (Some(left), _) => Some(left),
         (None, right) => right,
     }
 }
 
 pub(super) mod fast_field_text_options_serde {
+    use columnar::{CompactCodecOptions, FastFieldCodec};
     use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
     use super::{FastFieldTextOptions, RAW_TOKENIZER_NAME};
@@ -60,7 +69,22 @@ pub(super) mod fast_field_text_options_serde {
     #[serde(untagged)]
     enum WireFormat {
         IsEnabled(bool),
-        EnabledWithTokenizer { with_tokenizer: String },
+        Enabled(EnabledOptions),
+    }
+
+    #[derive(Default, Serialize, Deserialize)]
+    #[serde(default, deny_unknown_fields)]
+    struct EnabledOptions {
+        #[serde(skip_serializing_if = "Option::is_none")]
+        with_tokenizer: Option<String>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        codec: Option<String>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        row_group_max_docs: Option<u32>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        row_group_target_bytes: Option<u64>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        max_dict_bits: Option<u8>,
     }
 
     pub fn serialize<S>(
@@ -72,12 +96,29 @@ pub(super) mod fast_field_text_options_serde {
     {
         let wire_format = match fast_field_options {
             None => WireFormat::IsEnabled(false),
-            Some(fast_field_options) if fast_field_options.tokenizer == RAW_TOKENIZER_NAME => {
+            Some(fast_field_options)
+                if fast_field_options.tokenizer == RAW_TOKENIZER_NAME
+                    && fast_field_options.codec.is_none() =>
+            {
                 WireFormat::IsEnabled(true)
             }
-            Some(fast_field_options) => WireFormat::EnabledWithTokenizer {
-                with_tokenizer: fast_field_options.tokenizer.clone(),
-            },
+            Some(options) => {
+                let mut wire = EnabledOptions {
+                    with_tokenizer: Some(options.tokenizer.clone()),
+                    ..Default::default()
+                };
+                match &options.codec {
+                    None => {}
+                    Some(FastFieldCodec::Dictionary) => wire.codec = Some("dictionary".to_string()),
+                    Some(FastFieldCodec::Compact(compact)) => {
+                        wire.codec = Some("compact".to_string());
+                        wire.row_group_max_docs = Some(compact.row_group_max_docs);
+                        wire.row_group_target_bytes = Some(compact.row_group_target_bytes);
+                        wire.max_dict_bits = Some(compact.max_dict_bits);
+                    }
+                }
+                WireFormat::Enabled(wire)
+            }
         };
         wire_format.serialize(serializer)
     }
@@ -88,9 +129,42 @@ pub(super) mod fast_field_text_options_serde {
         match wire_format {
             WireFormat::IsEnabled(false) => Ok(None),
             WireFormat::IsEnabled(true) => Ok(Some(FastFieldTextOptions::default())),
-            WireFormat::EnabledWithTokenizer { with_tokenizer } => Ok(Some(FastFieldTextOptions {
-                tokenizer: with_tokenizer,
-            })),
+            WireFormat::Enabled(wire) => {
+                let codec = match wire.codec.as_deref() {
+                    None | Some("dictionary") => {
+                        if wire.row_group_max_docs.is_some()
+                            || wire.row_group_target_bytes.is_some()
+                            || wire.max_dict_bits.is_some()
+                        {
+                            return Err(serde::de::Error::custom(
+                                "group options require the compact codec",
+                            ));
+                        }
+                        wire.codec.map(|_| FastFieldCodec::Dictionary)
+                    }
+                    Some("compact") => {
+                        let defaults = CompactCodecOptions::default();
+                        let options = CompactCodecOptions {
+                            row_group_max_docs: wire
+                                .row_group_max_docs
+                                .unwrap_or(defaults.row_group_max_docs),
+                            row_group_target_bytes: wire
+                                .row_group_target_bytes
+                                .unwrap_or(defaults.row_group_target_bytes),
+                            max_dict_bits: wire.max_dict_bits.unwrap_or(defaults.max_dict_bits),
+                        };
+                        options.validate().map_err(serde::de::Error::custom)?;
+                        Some(FastFieldCodec::Compact(options))
+                    }
+                    Some(_) => return Err(serde::de::Error::custom("unknown fast-field codec")),
+                };
+                Ok(Some(FastFieldTextOptions {
+                    tokenizer: wire
+                        .with_tokenizer
+                        .unwrap_or_else(|| RAW_TOKENIZER_NAME.to_string()),
+                    codec,
+                }))
+            }
         }
     }
 }
@@ -152,8 +226,33 @@ impl TextOptions {
     #[must_use]
     pub fn set_fast(mut self, tokenizer_name: impl ToString) -> TextOptions {
         let tokenizer = tokenizer_name.to_string();
-        self.fast = Some(FastFieldTextOptions { tokenizer });
+        self.fast = Some(FastFieldTextOptions {
+            tokenizer,
+            ..Default::default()
+        });
         self
+    }
+
+    /// Enables a fast field with an explicit storage codec. Invalid compact
+    /// options are rejected when the index writer is created.
+    pub fn set_fast_with_codec(
+        mut self,
+        tokenizer: impl ToString,
+        codec: columnar::FastFieldCodec,
+    ) -> Self {
+        self.fast = Some(FastFieldTextOptions {
+            tokenizer: tokenizer.to_string(),
+            codec: Some(codec),
+        });
+        self
+    }
+
+    /// Returns the configured codec, or the dictionary default.
+    pub fn get_fast_field_codec(&self) -> columnar::FastFieldCodec {
+        self.fast
+            .as_ref()
+            .and_then(|options| options.codec.clone())
+            .unwrap_or_default()
     }
 
     /// Coerce values if they are not of type string. Defaults to false.
@@ -423,7 +522,8 @@ mod tests {
         assert_eq!(
             options.fast,
             Some(FastFieldTextOptions {
-                tokenizer: "default".to_string()
+                tokenizer: "default".to_string(),
+                codec: None,
             })
         );
         let serialized = serde_json::to_value(&options).unwrap();
@@ -435,7 +535,8 @@ mod tests {
         assert_eq!(
             options.fast,
             Some(FastFieldTextOptions {
-                tokenizer: "default".to_string()
+                tokenizer: "default".to_string(),
+                codec: None,
             })
         );
 
@@ -446,7 +547,8 @@ mod tests {
         assert_eq!(
             options.fast,
             Some(FastFieldTextOptions {
-                tokenizer: "raw".to_string()
+                tokenizer: "raw".to_string(),
+                codec: None,
             })
         );
         let serialized = serde_json::to_value(&options).unwrap();
@@ -455,7 +557,8 @@ mod tests {
         assert_eq!(
             options.fast,
             Some(FastFieldTextOptions {
-                tokenizer: "raw".to_string()
+                tokenizer: "raw".to_string(),
+                codec: None,
             })
         );
 

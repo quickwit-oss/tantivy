@@ -550,7 +550,7 @@ impl<B: BucketIdSlot, const SOURCE_CONTAINS_MULTIVALUES: bool> SegmentAggregatio
             &mut *self.req_data.accessor,
             None,
             false,
-        );
+        )?;
         // Known single-valued sources compile out deduplication; otherwise check the loaded batch.
         let multivalued = SOURCE_CONTAINS_MULTIVALUES && accessor.is_batch_multivalued();
         // Document IDs are needed for child collection and multivalued deduplication.

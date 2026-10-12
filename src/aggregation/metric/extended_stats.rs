@@ -375,7 +375,7 @@ impl SegmentAggregationCollector for SegmentExtendedStatsCollector {
             docs,
             &mut *self.accessor,
             self.missing,
-        );
+        )?;
         let field_type = self.accessor.column_type();
         for val in agg_data.column_block_accessor.iter_vals() {
             let val1 = f64_from_fastfield_u64(val, field_type);

@@ -334,12 +334,17 @@ where
     #[inline]
     fn accept_document(&mut self, doc_id: DocId) -> bool {
         if let Some(column) = &self.column_opt {
-            for ord in column.term_ords(doc_id) {
+            for value in column
+                .value_range(doc_id)
+                .expect("bytes filter index read failed")
+            {
                 self.buffer.clear();
 
-                let found = column.ord_to_bytes(ord, &mut self.buffer).unwrap_or(false);
+                column
+                    .read_value(value, &mut self.buffer)
+                    .expect("bytes filter value read failed");
 
-                if found && (self.predicate)(&self.buffer) {
+                if (self.predicate)(&self.buffer) {
                     return true;
                 }
             }

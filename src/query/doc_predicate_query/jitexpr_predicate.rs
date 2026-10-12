@@ -208,6 +208,7 @@ fn build_necessary_condition_docset(
                 return Box::new(EmptyScorer);
             };
             let exists_column_index = match column.column_index() {
+                ColumnIndex::Grouped(column) => ExistsColumnIndex::Grouped(column.clone()),
                 ColumnIndex::Empty { .. } => return Box::new(EmptyScorer),
                 ColumnIndex::Full => return Box::new(AllScorer::new(max_doc)),
                 ColumnIndex::Optional(optional_index) => {
@@ -351,14 +352,15 @@ fn load_str_input<'buffer>(
     buffer: &'buffer mut String,
 ) -> Option<&'buffer str> {
     buffer.clear();
-    let term_ord = column.ords().first(doc_id)?;
     // SegmentDocPredicate::eval cannot return I/O errors; an unreadable
     // dictionary therefore panics.
     // TODO this is terribly inefficient: we need at least some caching.
     let found = column
-        .ord_to_str(term_ord, buffer)
-        .expect("fast-field string dictionary is corrupted");
-    assert!(found);
+        .first_str(doc_id, buffer)
+        .expect("cannot read fast-field string value");
+    if !found {
+        return None;
+    }
     Some(buffer.as_str())
 }
 
@@ -403,6 +405,45 @@ mod tests {
     fn test_constructor_requires_boolean_expression() {
         let expression = jitexpr::ast::deserialize("(ADD number 1u64)").unwrap();
         assert!(JitExprPredicate::new(expression).is_err());
+    }
+
+    #[test]
+    fn compact_jitexpr_first_value_empty_missing_and_groups() {
+        use crate::schema::{CompactCodecOptions, FastFieldCodec, TextOptions};
+        let mut schema = Schema::builder();
+        let field = schema.add_text_field(
+            "label",
+            TextOptions::default().set_fast_with_codec(
+                "raw",
+                FastFieldCodec::Compact(CompactCodecOptions {
+                    row_group_max_docs: 1,
+                    ..Default::default()
+                }),
+            ),
+        );
+        let index = Index::create_in_ram(schema.build());
+        let mut writer = index.writer_for_tests().unwrap();
+        writer
+            .add_document(doc!(field => "first", field => "second"))
+            .unwrap();
+        writer.add_document(doc!(field => "")).unwrap();
+        writer.add_document(doc!()).unwrap();
+        writer.add_document(doc!(field => "second")).unwrap();
+        writer.commit().unwrap();
+        let searcher = index.reader().unwrap().searcher();
+        for (expression, expected) in [
+            (r#"(EQ label "first")"#, 1),
+            (r#"(EQ label "second")"#, 1),
+            (r#"(EQ label "")"#, 1),
+            ("(IS_NULL label)", 1),
+            ("(IS_NOT_NULL label)", 3),
+        ] {
+            assert_eq!(
+                searcher.search(&query(expression), &Count).unwrap(),
+                expected,
+                "{expression}"
+            );
+        }
     }
 
     #[test]

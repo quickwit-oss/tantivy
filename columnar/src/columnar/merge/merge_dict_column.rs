@@ -123,7 +123,7 @@ fn compute_term_bitset(column: &BytesColumn, row_bitset: &ReadOnlyBitSet) -> Bit
     let num_terms = column.dictionary().num_terms();
     let mut term_bitset = BitSet::with_max_value(num_terms as u32);
     for row_id in row_bitset.iter() {
-        for term_ord in column.term_ord_column.values_for_doc(row_id) {
+        for term_ord in column.ords().values_for_doc(row_id) {
             term_bitset.insert(term_ord as u32);
         }
     }
@@ -153,8 +153,8 @@ fn merge_dict_and_compute_term_ord_mapping(
     let mut field_term_streams = Vec::with_capacity(bytes_columns.len());
     for (segment_ord, column_opt) in bytes_columns.iter().enumerate() {
         if let Some(column) = column_opt {
-            term_ord_mapping.add_segment(column.dictionary.num_terms());
-            let terms: Streamer<VoidSSTable> = column.dictionary.stream()?;
+            term_ord_mapping.add_segment(column.dictionary().num_terms());
+            let terms: Streamer<VoidSSTable> = column.dictionary().stream()?;
             field_term_streams.push(TermsWithSegmentOrd { terms, segment_ord });
         } else {
             term_ord_mapping.add_segment(0);

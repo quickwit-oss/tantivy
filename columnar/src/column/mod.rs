@@ -1,3 +1,4 @@
+pub(crate) mod compact;
 mod dictionary_encoded;
 mod serialize;
 
@@ -64,6 +65,7 @@ impl<T: PartialOrd + Copy + Debug + Send + Sync + 'static> Column<T> {
 
     pub fn num_docs(&self) -> RowId {
         match &self.index {
+            ColumnIndex::Grouped(column) => column.num_docs(),
             ColumnIndex::Empty { num_docs } => *num_docs,
             ColumnIndex::Full => self.values.num_vals(),
             ColumnIndex::Optional(optional_index) => optional_index.num_docs(),
@@ -92,6 +94,11 @@ impl<T: PartialOrd + Copy + Debug + Send + Sync + 'static> Column<T> {
     #[inline]
     pub fn first_vals(&self, docids: &[DocId], output: &mut [Option<T>]) {
         match &self.index {
+            ColumnIndex::Grouped(_) => {
+                for (&doc, output) in docids.iter().zip(output) {
+                    *output = self.first(doc);
+                }
+            }
             ColumnIndex::Empty { .. } => {}
             ColumnIndex::Full => self.values.get_vals_opt(docids, output),
             ColumnIndex::Optional(optional_index) => {
@@ -203,6 +210,7 @@ impl<T: PartialOrd + Debug + Send + Sync + Copy + 'static> ColumnValues<T>
 
     fn num_vals(&self) -> u32 {
         match &self.column.index {
+            ColumnIndex::Grouped(column) => column.num_docs(),
             ColumnIndex::Empty { .. } => 0u32,
             ColumnIndex::Full => self.column.values.num_vals(),
             ColumnIndex::Optional(optional_idx) => optional_idx.num_docs(),

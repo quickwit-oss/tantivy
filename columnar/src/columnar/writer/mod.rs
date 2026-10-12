@@ -3,7 +3,7 @@ mod column_writers;
 mod serializer;
 mod value_index;
 
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::io;
 use std::net::Ipv6Addr;
 
@@ -14,6 +14,7 @@ use common::json_path_writer::JSON_END_OF_PATH;
 pub(crate) use serializer::ColumnarSerializer;
 use stacker::{Addr, ArenaHashMap, MemoryArena};
 
+use crate::column::compact::CompactColumnWriter;
 use crate::column_index::{SerializableColumnIndex, SerializableOptionalIndex};
 use crate::column_values::{MonotonicallyMappableToU64, MonotonicallyMappableToU128};
 use crate::columnar::column_type::ColumnType;
@@ -23,7 +24,7 @@ use crate::columnar::writer::column_writers::{
 use crate::columnar::writer::value_index::{IndexBuilder, PreallocatedIndexBuilders};
 use crate::dictionary::{DictionaryBuilder, TermIdMapping, UnorderedId};
 use crate::value::{Coerce, NumericalType, NumericalValue};
-use crate::{Cardinality, RowId};
+use crate::{Cardinality, FastFieldCodec, RowId};
 
 /// This is a set of buffers that are used to temporarily write the values into before passing them
 /// to the fast field codecs.
@@ -59,6 +60,8 @@ pub struct ColumnarWriter {
     arena: MemoryArena,
     // Dictionaries used to store dictionary-encoded values.
     dictionaries: Vec<DictionaryBuilder>,
+    compact_columns: Vec<CompactColumnWriter>,
+    str_codec_prefixes: HashMap<String, FastFieldCodec>,
     buffers: SpareBuffers,
 }
 
@@ -71,6 +74,18 @@ impl ColumnarWriter {
             + self.str_field_hash_map.mem_usage()
             + self.ip_addr_field_hash_map.mem_usage()
             + self.datetime_field_hash_map.mem_usage()
+            + self
+                .compact_columns
+                .iter()
+                .map(CompactColumnWriter::mem_usage)
+                .sum::<usize>()
+            + self.compact_columns.capacity() * std::mem::size_of::<CompactColumnWriter>()
+            + self.str_codec_prefixes.capacity() * std::mem::size_of::<(String, FastFieldCodec)>()
+            + self
+                .str_codec_prefixes
+                .keys()
+                .map(String::capacity)
+                .sum::<usize>()
             + self
                 .dictionaries
                 .iter()
@@ -106,6 +121,19 @@ impl ColumnarWriter {
                 return Vec::new();
             };
 
+            if let Some(compact_id) = str_or_bytes_column.compact_id {
+                let column = &self.compact_columns[compact_id as usize];
+                let mut docs: Vec<u32> = (0..num_docs).collect();
+                docs.sort_by(|&left, &right| {
+                    let ordering = column.first(left).cmp(&column.first(right));
+                    if reversed {
+                        ordering.reverse()
+                    } else {
+                        ordering
+                    }
+                });
+                return docs;
+            }
             let dictionary_builder = &self.dictionaries[str_or_bytes_column.dictionary_id as usize];
             let term_id_mapping = dictionary_builder.build_term_id_mapping(&self.arena);
             let mut symbols_buffer = Vec::new();
@@ -184,6 +212,10 @@ impl ColumnarWriter {
                             dictionaries.push(DictionaryBuilder::default());
                             StrOrBytesColumnWriter::with_dictionary_id(dictionary_id)
                         };
+                        assert!(
+                            column_writer.compact_id.is_none() || !sort_values_within_row,
+                            "compact columns preserve input value order"
+                        );
                         column_writer.sort_values_within_row = sort_values_within_row;
                         column_writer
                     },
@@ -224,6 +256,90 @@ impl ColumnarWriter {
         self.record_column_type(column_name, ColumnType::I64, false);
         self.generated_tie_breaker_columns
             .insert(column_name.as_bytes().to_vec());
+    }
+
+    /// Configures string leaves under a JSON root before any values are recorded.
+    /// The prefix is a root field name, not a dotted query path.
+    pub fn record_str_codec_prefix(&mut self, root: &str, codec: FastFieldCodec) -> io::Result<()> {
+        codec.validate()?;
+        if self
+            .str_codec_prefixes
+            .get(root)
+            .is_some_and(|previous| previous != &codec)
+        {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "cannot change a column codec",
+            ));
+        }
+        self.str_codec_prefixes.insert(root.to_owned(), codec);
+        Ok(())
+    }
+
+    /// Registers a byte/string codec before recording values. Existing columns
+    /// cannot change encoding, including when their value sequence is empty.
+    pub fn record_column_type_with_codec(
+        &mut self,
+        name: &str,
+        column_type: ColumnType,
+        sort_values: bool,
+        codec: FastFieldCodec,
+    ) -> io::Result<()> {
+        codec.validate()?;
+        if codec == FastFieldCodec::Dictionary {
+            let existing = match column_type {
+                ColumnType::Str => self
+                    .str_field_hash_map
+                    .get::<StrOrBytesColumnWriter>(name.as_bytes()),
+                ColumnType::Bytes => self
+                    .bytes_field_hash_map
+                    .get::<StrOrBytesColumnWriter>(name.as_bytes()),
+                _ => None,
+            };
+            if existing.is_some_and(|column| column.compact_id.is_some()) {
+                return Err(io::Error::new(
+                    io::ErrorKind::InvalidInput,
+                    "cannot change a column codec",
+                ));
+            }
+            self.record_column_type(name, column_type, sort_values);
+            return Ok(());
+        }
+        if !matches!(column_type, ColumnType::Str | ColumnType::Bytes) || sort_values {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "compact codec requires an unsorted string or bytes column",
+            ));
+        }
+        let FastFieldCodec::Compact(options) = codec else {
+            unreachable!()
+        };
+        let map = if column_type == ColumnType::Str {
+            &mut self.str_field_hash_map
+        } else {
+            &mut self.bytes_field_hash_map
+        };
+        if let Some(existing) = map.get::<StrOrBytesColumnWriter>(name.as_bytes()) {
+            if existing
+                .compact_id
+                .is_some_and(|id| self.compact_columns[id as usize].options == options)
+            {
+                return Ok(());
+            }
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "cannot change a column codec",
+            ));
+        }
+        let compact_id = u32::try_from(self.compact_columns.len())
+            .map_err(|_| io::Error::new(io::ErrorKind::InvalidInput, "too many compact columns"))?;
+        self.compact_columns.push(CompactColumnWriter::new(options));
+        map.mutate_or_create(name.as_bytes(), |_: Option<StrOrBytesColumnWriter>| {
+            let mut column = StrOrBytesColumnWriter::with_dictionary_id(0);
+            column.compact_id = Some(compact_id);
+            column
+        });
+        Ok(())
     }
 
     pub fn record_numerical<T: Into<NumericalValue> + Copy>(
@@ -284,10 +400,25 @@ impl ColumnarWriter {
     }
 
     pub fn record_str(&mut self, doc: RowId, column_name: &str, value: &str) {
-        let (hash_map, arena, dictionaries) = (
+        if self
+            .str_field_hash_map
+            .get::<StrOrBytesColumnWriter>(column_name.as_bytes())
+            .is_none()
+        {
+            let root = column_name
+                .split(common::json_path_writer::JSON_PATH_SEGMENT_SEP as char)
+                .next()
+                .unwrap();
+            if let Some(codec) = self.str_codec_prefixes.get(root).cloned() {
+                self.record_column_type_with_codec(column_name, ColumnType::Str, false, codec)
+                    .expect("registered compact options are valid");
+            }
+        }
+        let (hash_map, arena, dictionaries, compact_columns) = (
             &mut self.str_field_hash_map,
             &mut self.arena,
             &mut self.dictionaries,
+            &mut self.compact_columns,
         );
         hash_map.mutate_or_create(
             column_name.as_bytes(),
@@ -298,17 +429,18 @@ impl ColumnarWriter {
                     dictionaries.push(DictionaryBuilder::default());
                     StrOrBytesColumnWriter::with_dictionary_id(dictionary_id)
                 });
-                column.record_bytes(doc, value.as_bytes(), dictionaries, arena);
+                column.record_bytes(doc, value.as_bytes(), dictionaries, compact_columns, arena);
                 column
             },
         );
     }
 
     pub fn record_bytes(&mut self, doc: RowId, column_name: &str, value: &[u8]) {
-        let (hash_map, arena, dictionaries) = (
+        let (hash_map, arena, dictionaries, compact_columns) = (
             &mut self.bytes_field_hash_map,
             &mut self.arena,
             &mut self.dictionaries,
+            &mut self.compact_columns,
         );
         hash_map.mutate_or_create(
             column_name.as_bytes(),
@@ -319,7 +451,7 @@ impl ColumnarWriter {
                     dictionaries.push(DictionaryBuilder::default());
                     StrOrBytesColumnWriter::with_dictionary_id(dictionary_id)
                 });
-                column.record_bytes(doc, value, dictionaries, arena);
+                column.record_bytes(doc, value, dictionaries, compact_columns, arena);
                 column
             },
         );
@@ -421,6 +553,20 @@ impl ColumnarWriter {
                         } else {
                             self.str_field_hash_map.read(addr)
                         };
+                    if let Some(compact_id) = str_or_bytes_column_writer.compact_id {
+                        let mut column_serializer = serializer.start_serialize_column_with_codec(
+                            column_name,
+                            column_type,
+                            true,
+                        );
+                        self.compact_columns[compact_id as usize].serialize(
+                            num_docs,
+                            old_to_new_row_ids,
+                            &mut column_serializer,
+                        )?;
+                        column_serializer.finalize()?;
+                        continue;
+                    }
                     let dictionary_builder =
                         &dictionaries[str_or_bytes_column_writer.dictionary_id as usize];
                     let cardinality = str_or_bytes_column_writer

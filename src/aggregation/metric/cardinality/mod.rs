@@ -11,6 +11,7 @@
 //! both) merge through the single [`CardinalityCollector::merge_fruits`]
 //! implementation here.
 
+mod compact_collector;
 mod numeric_collector;
 mod str_collector;
 mod term_ord_accumulator;
@@ -218,6 +219,11 @@ impl CardinalityCollector {
 pub(crate) fn build_segment_cardinality_collector(
     req_data: CardinalityAggReqData,
 ) -> crate::Result<Box<dyn SegmentAggregationCollector>> {
+    if let Some(column) = req_data.accessor.as_compact_str_column().cloned() {
+        return Ok(Box::new(
+            compact_collector::CompactCardinalityCollector::new(req_data, column),
+        ));
+    }
     if req_data.accessor.column_type() != ColumnType::Str {
         return Ok(Box::new(SegmentNumericCardinalityCollector::from_req(
             req_data,

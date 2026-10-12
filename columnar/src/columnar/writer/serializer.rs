@@ -41,11 +41,22 @@ impl<W: io::Write> ColumnarSerializer<W> {
         column_name: &[u8],
         column_type: ColumnType,
     ) -> ColumnSerializer<'a, W> {
+        self.start_serialize_column_with_codec(column_name, column_type, false)
+    }
+
+    pub fn start_serialize_column_with_codec<'a>(
+        &'a mut self,
+        column_name: &[u8],
+        column_type: ColumnType,
+        compact: bool,
+    ) -> ColumnSerializer<'a, W> {
         let start_offset = self.wrt.written_bytes();
         prepare_key(column_name, column_type, &mut self.prepare_key_buffer);
         ColumnSerializer {
             columnar_serializer: self,
             start_offset,
+            storage_tag: matches!(column_type, ColumnType::Str | ColumnType::Bytes)
+                .then_some(u8::from(compact)),
         }
     }
 
@@ -65,9 +76,16 @@ impl<W: io::Write> ColumnarSerializer<W> {
 pub struct ColumnSerializer<'a, W: io::Write> {
     columnar_serializer: &'a mut ColumnarSerializer<W>,
     start_offset: u64,
+    storage_tag: Option<u8>,
 }
 
 impl<W: io::Write> ColumnSerializer<'_, W> {
+    fn write_tag(&mut self) -> io::Result<()> {
+        if let Some(tag) = self.storage_tag.take() {
+            self.columnar_serializer.wrt.write_all(&[tag])?;
+        }
+        Ok(())
+    }
     pub fn finalize(self) -> io::Result<()> {
         let end_offset: u64 = self.columnar_serializer.wrt.written_bytes();
         let byte_range = self.start_offset..end_offset;
@@ -82,6 +100,7 @@ impl<W: io::Write> ColumnSerializer<'_, W> {
 
 impl<W: io::Write> io::Write for ColumnSerializer<'_, W> {
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+        self.write_tag()?;
         self.columnar_serializer.wrt.write(buf)
     }
 
@@ -90,6 +109,7 @@ impl<W: io::Write> io::Write for ColumnSerializer<'_, W> {
     }
 
     fn write_all(&mut self, buf: &[u8]) -> io::Result<()> {
+        self.write_tag()?;
         self.columnar_serializer.wrt.write_all(buf)
     }
 }

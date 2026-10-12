@@ -75,6 +75,301 @@ impl FastValue for DateTime {
 }
 
 #[cfg(test)]
+mod compact_tests {
+    use serde_json::{json, Value};
+
+    use crate::aggregation::{AggContextParams, AggregationCollector};
+    use crate::collector::sort_key::{SortByBytes, SortByErasedType, SortByString};
+    use crate::collector::{Count, TopDocs};
+    use crate::query::{AllQuery, ExistsQuery, FastFieldRangeQuery};
+    use crate::schema::{
+        BytesOptions, CompactCodecOptions, FastFieldCodec, JsonObjectOptions, Schema, TextOptions,
+        FAST, INDEXED,
+    };
+    use crate::{Index, Order, TantivyDocument, Term};
+
+    fn codec() -> FastFieldCodec {
+        FastFieldCodec::Compact(CompactCodecOptions {
+            row_group_max_docs: 2,
+            row_group_target_bytes: 64,
+            ..Default::default()
+        })
+    }
+
+    fn index(codec: FastFieldCodec, sorted: bool) -> Index {
+        let mut schema = Schema::builder();
+        let text = schema.add_text_field(
+            "text",
+            TextOptions::default().set_fast_with_codec("raw", codec.clone()),
+        );
+        let bytes = schema.add_bytes_field(
+            "bytes",
+            BytesOptions::default().set_fast_with_codec(codec.clone()),
+        );
+        let id = schema.add_u64_field("id", FAST | INDEXED);
+        let json_field = schema.add_json_field(
+            "json",
+            JsonObjectOptions::default().set_fast_with_codec("raw", codec),
+        );
+        let mut builder = Index::builder().schema(schema.build());
+        if sorted {
+            builder = builder.settings(crate::IndexSettings {
+                sort_by_field: Some(crate::IndexSortByField {
+                    field: "text".into(),
+                    order: Order::Asc,
+                }),
+                ..Default::default()
+            });
+        }
+        let index = builder.create_in_ram().unwrap();
+        let mut writer: crate::IndexWriter = index.writer_for_tests().unwrap();
+        writer.set_merge_policy(Box::new(crate::indexer::NoMergePolicy));
+        let values: &[&[&str]] = &[
+            &["z", "a", "z"],
+            &[],
+            &[""],
+            &["é"],
+            &["a"],
+            &["z"],
+            &["b", "a"],
+        ];
+        for (doc, terms) in values.iter().enumerate() {
+            let mut document = TantivyDocument::new();
+            document.add_u64(id, doc as u64);
+            for term in *terms {
+                document.add_text(text, term);
+                document.add_bytes(bytes, term.as_bytes());
+            }
+            document.add_object(
+                json_field,
+                serde_json::from_value(json!({"leaf": terms, "number": doc})).unwrap(),
+            );
+            writer.add_document(document).unwrap();
+            if doc == 3 {
+                writer.commit().unwrap();
+            }
+        }
+        writer.commit().unwrap();
+        drop(writer);
+        index
+    }
+
+    fn aggregate(index: &Index, request: Value) -> Value {
+        let collector = AggregationCollector::from_aggs(
+            serde_json::from_value(request).unwrap(),
+            AggContextParams::new(Default::default(), index.tokenizers().clone()),
+        );
+        let result = index
+            .reader()
+            .unwrap()
+            .searcher()
+            .search(&AllQuery, &collector)
+            .unwrap();
+        serde_json::to_value(result).unwrap()
+    }
+
+    #[test]
+    fn compact_configuration_roundtrip_and_validation() {
+        let index = index(codec(), false);
+        let wire = serde_json::to_value(index.schema()).unwrap();
+        assert_eq!(wire[0]["options"]["fast"]["codec"], "compact");
+        assert_eq!(
+            serde_json::from_value::<Schema>(wire).unwrap(),
+            index.schema()
+        );
+        for invalid in [
+            json!({"codec":"compact","row_group_max_docs":0}),
+            json!({"codec":"compact","row_group_target_bytes":0}),
+            json!({"codec":"compact","max_dict_bits":8}),
+            json!({"codec":"dictionary","max_dict_bits":12}),
+            json!({"codec":"unknown"}),
+        ] {
+            assert!(serde_json::from_value::<TextOptions>(json!({"fast": invalid})).is_err());
+        }
+        let explicit = TextOptions::default().set_fast_with_codec("raw", codec());
+        assert_eq!((explicit.clone() | FAST).get_fast_field_codec(), codec());
+        assert_eq!((FAST | explicit).get_fast_field_codec(), codec());
+    }
+
+    #[test]
+    fn compact_aggregations_match_dictionary() {
+        let compact = index(codec(), false);
+        let dictionary = index(FastFieldCodec::Dictionary, false);
+        let requests = [
+            json!({"count":{"value_count":{"field":"text","missing":1}}}),
+            json!({"terms":{"terms":{"field":"text","size":100},"aggs":{"card":{"cardinality":{"field":"text"}},"count":{"value_count":{"field":"text"}}}},"count":{"value_count":{"field":"text"}},"card":{"cardinality":{"field":"text","missing":"a"}}}),
+            json!({"terms":{"terms":{"field":"text","size":2,"order":{"_key":"asc"}}}}),
+            json!({"terms":{"terms":{"field":"text","size":2,"order":{"_key":"desc"}}}}),
+            json!({"terms":{"terms":{"field":"text","size":100,"missing":"missing"}}}),
+            json!({"terms":{"terms":{"field":"text","size":100,"include":["a","z"]}}}),
+            json!({"terms":{"terms":{"field":"text","size":100,"exclude":"z","min_doc_count":0}}}),
+            json!({"terms":{"terms":{"field":"json.leaf","size":100}},"count":{"value_count":{"field":"json.leaf"}}}),
+            json!({"terms":{"multi_terms":{"terms":[{"field":"text"},{"field":"json.leaf"}],"size":100}}}),
+            json!({"terms":{"composite":{"sources":[{"value":{"terms":{"field":"text","missing_bucket":true}}}],"size":100}}}),
+            json!({"terms":{"composite":{"sources":[{"value":{"terms":{"field":"text"}}}],"after":{"value":"str:a"},"size":100}}}),
+            json!({"hits":{"top_hits":{"size":20,"sort":[{"id":"asc"}],"docvalue_fields":["text","bytes"]}}}),
+        ];
+        for request in requests {
+            assert_eq!(
+                aggregate(&compact, request.clone()),
+                aggregate(&dictionary, request.clone()),
+                "request: {request}"
+            );
+        }
+        assert_eq!(
+            aggregate(&compact, json!({"count":{"value_count":{"field":"text"}}}))["count"]
+                ["value"],
+            9.0
+        );
+        let missing = aggregate(
+            &compact,
+            json!({"terms":{"terms":{"field":"text","missing":"a","size":100}}}),
+        );
+        let bucket = missing["terms"]["buckets"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|bucket| bucket["key"] == "a")
+            .unwrap();
+        assert_eq!(bucket["doc_count"], 4);
+    }
+
+    #[test]
+    fn compact_terms_interner_obeys_aggregation_memory_limit() {
+        let mut schema = Schema::builder();
+        let field = schema.add_text_field(
+            "text",
+            TextOptions::default().set_fast_with_codec("raw", codec()),
+        );
+        let index = Index::create_in_ram(schema.build());
+        let mut writer = index.writer_for_tests().unwrap();
+        for doc in 0..32 {
+            writer
+                .add_document(doc!(field => format!("{doc}:{}", "x".repeat(4096))))
+                .unwrap();
+        }
+        writer.commit().unwrap();
+        let request =
+            serde_json::from_value(json!({"terms":{"terms":{"field":"text","size":100}}})).unwrap();
+        let limits = crate::aggregation::AggregationLimitsGuard::new(Some(32_000), None);
+        let collector = AggregationCollector::from_aggs(
+            request,
+            AggContextParams::new(limits, index.tokenizers().clone()),
+        );
+        assert!(index
+            .reader()
+            .unwrap()
+            .searcher()
+            .search(&AllQuery, &collector)
+            .is_err());
+        assert_eq!(
+            aggregate(
+                &index,
+                json!({"count":{"value_count":{"field":"text"}},"card":{"cardinality":{"field":"text"}}})
+            )["count"]["value"],
+            32.0
+        );
+    }
+
+    #[test]
+    fn compact_reads_queries_and_merge() {
+        for sorted in [false, true] {
+            let index = index(codec(), sorted);
+            for merged in [false, true] {
+                if merged {
+                    let mut writer: crate::IndexWriter = index.writer_for_tests().unwrap();
+                    writer.delete_term(Term::from_field_u64(
+                        index.schema().get_field("id").unwrap(),
+                        0,
+                    ));
+                    writer.commit().unwrap();
+                    writer
+                        .merge(&index.searchable_segment_ids().unwrap())
+                        .wait()
+                        .unwrap();
+                }
+                let searcher = index.reader().unwrap().searcher();
+                assert_eq!(
+                    searcher.search(&AllQuery, &Count).unwrap(),
+                    if merged { 6 } else { 7 }
+                );
+                for segment in searcher.segment_readers() {
+                    assert!(segment
+                        .fast_fields()
+                        .str("text")
+                        .unwrap()
+                        .unwrap()
+                        .is_compact());
+                    assert!(segment
+                        .fast_fields()
+                        .bytes("bytes")
+                        .unwrap()
+                        .unwrap()
+                        .is_compact());
+                    assert!(segment
+                        .fast_fields()
+                        .str("json.leaf")
+                        .unwrap()
+                        .unwrap()
+                        .is_compact());
+                }
+                assert_eq!(
+                    searcher
+                        .search(&ExistsQuery::new("text".into(), false), &Count)
+                        .unwrap(),
+                    if merged { 5 } else { 6 }
+                );
+                let text = index.schema().get_field("text").unwrap();
+                let range = FastFieldRangeQuery::new(
+                    std::ops::Bound::Included(Term::from_field_text(text, "a")),
+                    std::ops::Bound::Included(Term::from_field_text(text, "b")),
+                );
+                assert_eq!(
+                    searcher.search(&range, &Count).unwrap(),
+                    if merged { 2 } else { 3 }
+                );
+                let strings = searcher
+                    .search(
+                        &AllQuery,
+                        &TopDocs::with_limit(20)
+                            .order_by((SortByString::for_field("text"), Order::Asc)),
+                    )
+                    .unwrap();
+                let bytes = searcher
+                    .search(
+                        &AllQuery,
+                        &TopDocs::with_limit(20)
+                            .order_by((SortByBytes::for_field("bytes"), Order::Asc)),
+                    )
+                    .unwrap();
+                assert_eq!(
+                    strings
+                        .iter()
+                        .map(|(value, _)| value.as_ref().map(|value| value.as_bytes().to_vec()))
+                        .collect::<Vec<_>>(),
+                    bytes
+                        .into_iter()
+                        .map(|(value, _)| value)
+                        .collect::<Vec<_>>()
+                );
+                let present: Vec<_> = strings
+                    .iter()
+                    .filter_map(|(value, _)| value.as_ref())
+                    .collect();
+                assert!(present.windows(2).all(|pair| pair[0] <= pair[1]));
+                searcher
+                    .search(
+                        &AllQuery,
+                        &TopDocs::with_limit(20)
+                            .order_by((SortByErasedType::for_field("text"), Order::Asc)),
+                    )
+                    .unwrap();
+            }
+        }
+    }
+}
+
+#[cfg(test)]
 mod tests {
 
     use std::net::Ipv6Addr;

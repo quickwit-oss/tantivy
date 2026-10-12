@@ -283,11 +283,18 @@ pub(crate) fn build_aggregations_data_from_req(
 /// materialized column. A computed text source therefore cannot support `missing`; for numeric
 /// types the argument is ignored, so any value will do.
 fn missing_value_for_source(
-    accessor: &dyn ValueSource,
+    accessor: &mut dyn ValueSource,
     missing: &Key,
     field_name: &str,
 ) -> crate::Result<Option<u64>> {
     let column_type = accessor.column_type();
+    // Query-local IDs occupy 0..num_terms; u64::MAX is reserved for missing.
+    if accessor.as_compact_str_column().is_some() {
+        if let Key::Str(value) = missing {
+            return Ok(accessor.intern_string(value));
+        }
+        return Ok(Some(u64::MAX));
+    }
     let column_max_value = match accessor.as_physical_column() {
         Some(column) => column.max_value(),
         None if column_type == ColumnType::Str => {
@@ -448,8 +455,14 @@ fn build_nodes(
                     ))
                 }
             };
-            let accessor = get_value_source(reader, value_sources, field, allowed_column_types)?;
+            let mut accessor =
+                get_value_source(reader, value_sources, field, allowed_column_types)?;
             let field_type = accessor.column_type();
+            if matches!(collecting_for, StatsType::Count) {
+                if let Some(column) = accessor.as_compact_str_column().cloned() {
+                    accessor = Box::new(super::value_source::CompactCountValueSource(column));
+                }
+            }
             let node_data = AggNodeData::Metric(MetricAggReqData {
                 accessor,
                 name: agg_name.to_string(),
@@ -616,13 +629,17 @@ fn build_multi_terms_nodes(
     for field_def in &req.terms {
         let field_name = &field_def.field;
         reject_registered_source(value_sources, field_name, "multi_terms")?;
-        let str_dict_column = reader.fast_fields().str(field_name)?;
+        let str_dict_column = match reader.fast_fields().str(field_name)? {
+            Some(column) => Some(StrColumn::wrap(column.to_dictionary_encoded()?)),
+            None => None,
+        };
         // multi_terms resolves missing values through `ColumnIndex::has_value` per document, and
         // exposes its columns on a public struct, so it stays physical-only.
         let columns =
             get_term_agg_accessors(reader, value_sources, field_name, &field_def.missing, true)?
                 .into_iter()
                 .map(|source| {
+                    let source = materialize_compact_source(source)?;
                     let column = require_physical_column(&*source, field_name, "multi_terms")?;
                     Ok((column, source.column_type()))
                 })
@@ -942,6 +959,7 @@ fn build_terms_or_cardinality_nodes(
             get_all_value_sources(reader, value_sources, field_name, None, fallback_type)?
                 .into_iter()
                 .map(|source| {
+                    let source = materialize_compact_source(source)?;
                     let column = require_physical_column(
                         &*source,
                         field_name,
@@ -968,12 +986,22 @@ fn build_terms_or_cardinality_nodes(
     }
 
     // Add one node per accessor
-    for accessor in sources {
+    for mut accessor in sources {
+        // Dictionary searches and zero-count terms need the entire term universe.
+        // Ordinary terms/cardinality requests retain lazy compact access.
+        if let TermsOrCardinalityRequest::Terms(request) = &req {
+            if request.include.is_some()
+                || request.exclude.is_some()
+                || request.min_doc_count == Some(0)
+            {
+                accessor = materialize_compact_source(accessor)?;
+            }
+        }
         let column_type = accessor.column_type();
         let missing_value_for_accessor = if use_special_missing_agg {
             None
         } else if let Some(m) = missing.as_ref() {
-            missing_value_for_source(&*accessor, m, field_name)?
+            missing_value_for_source(&mut *accessor, m, field_name)?
         } else {
             None
         };
@@ -1025,6 +1053,16 @@ fn build_terms_or_cardinality_nodes(
     }
 
     Ok(nodes)
+}
+
+/// Compatibility path for aggregations requiring a complete sorted dictionary.
+pub(crate) fn materialize_compact_source(
+    source: Box<dyn ValueSource>,
+) -> crate::Result<Box<dyn ValueSource>> {
+    if let Some(column) = source.as_compact_str_column() {
+        return Ok(Box::new(StrColumn::wrap(column.to_dictionary_encoded()?)));
+    }
+    Ok(source)
 }
 
 /// Builds a single BitSet of allowed term ordinals for a string dictionary column according to

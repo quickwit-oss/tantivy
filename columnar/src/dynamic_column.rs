@@ -48,8 +48,8 @@ impl DynamicColumn {
             DynamicColumn::F64(c) => &c.index,
             DynamicColumn::IpAddr(c) => &c.index,
             DynamicColumn::DateTime(c) => &c.index,
-            DynamicColumn::Bytes(c) => &c.ords().index,
-            DynamicColumn::Str(c) => &c.ords().index,
+            DynamicColumn::Bytes(c) => c.index(),
+            DynamicColumn::Str(c) => c.index(),
         }
     }
 
@@ -79,8 +79,8 @@ impl DynamicColumn {
             DynamicColumn::F64(c) => c.values.num_vals(),
             DynamicColumn::IpAddr(c) => c.values.num_vals(),
             DynamicColumn::DateTime(c) => c.values.num_vals(),
-            DynamicColumn::Bytes(c) => c.ords().values.num_vals(),
-            DynamicColumn::Str(c) => c.ords().values.num_vals(),
+            DynamicColumn::Bytes(c) => c.num_values(),
+            DynamicColumn::Str(c) => c.num_values(),
         }
     }
 
@@ -252,6 +252,36 @@ pub struct DynamicColumnHandle {
 impl DynamicColumnHandle {
     // TODO rename load
     pub fn open(&self) -> io::Result<DynamicColumn> {
+        if self.format_version == Version::V3
+            && matches!(self.column_type, ColumnType::Str | ColumnType::Bytes)
+        {
+            if self.file_slice.num_bytes().get_bytes() == 0 {
+                return Err(io::Error::new(
+                    io::ErrorKind::InvalidData,
+                    "missing string/bytes storage tag",
+                ));
+            }
+            let tag = self.file_slice.slice(0..1).read_bytes()?[0];
+            match tag {
+                0 => return self.open_internal(self.file_slice.slice(1..).read_bytes()?),
+                1 => {
+                    let column = BytesColumn::from_compact(crate::CompactColumn::open(
+                        self.file_slice.clone(),
+                    )?);
+                    return Ok(if self.column_type == ColumnType::Str {
+                        StrColumn::wrap(column).into()
+                    } else {
+                        column.into()
+                    });
+                }
+                _ => {
+                    return Err(io::Error::new(
+                        io::ErrorKind::InvalidData,
+                        "unknown byte column codec",
+                    ));
+                }
+            }
+        }
         let column_bytes: OwnedBytes = self.file_slice.read_bytes()?;
         self.open_internal(column_bytes)
     }
@@ -272,12 +302,25 @@ impl DynamicColumnHandle {
     /// If not, the fastfield reader will returns the u64-value associated with the original
     /// FastValue.
     pub fn open_u64_lenient(&self) -> io::Result<Option<Column<u64>>> {
+        if matches!(self.column_type, ColumnType::Str | ColumnType::Bytes) {
+            let column = match self.open()? {
+                DynamicColumn::Str(column) => BytesColumn::from(column),
+                DynamicColumn::Bytes(column) => column,
+                _ => unreachable!(),
+            };
+            return column.ords_opt().cloned().map(Some).ok_or_else(|| {
+                io::Error::new(
+                    io::ErrorKind::Unsupported,
+                    "compact columns have no u64 ordinal column",
+                )
+            });
+        }
         let column_bytes = self.file_slice.read_bytes()?;
         match self.column_type {
             ColumnType::Str | ColumnType::Bytes => {
                 let column: BytesColumn =
                     crate::column::open_column_bytes(column_bytes, self.format_version)?;
-                Ok(Some(column.term_ord_column))
+                Ok(Some(column.ords().clone()))
             }
             ColumnType::IpAddr => {
                 let column = crate::column::open_column_u128_as_compact_u64(
@@ -350,8 +393,14 @@ impl DynamicColumnHandle {
         let total_num_bytes = self.num_bytes();
         let dynamic_column = self.open()?;
         let dictionary_num_bytes = match &dynamic_column {
-            DynamicColumn::Bytes(bytes_column) => bytes_column.dictionary().num_bytes(),
-            DynamicColumn::Str(str_column) => str_column.dictionary().num_bytes(),
+            DynamicColumn::Bytes(bytes_column) => match bytes_column.dictionary_opt() {
+                Some(dictionary) => dictionary.num_bytes(),
+                None => return Ok(ColumnSpaceUsage::new(total_num_bytes, None)),
+            },
+            DynamicColumn::Str(str_column) => match str_column.dictionary_opt() {
+                Some(dictionary) => dictionary.num_bytes(),
+                None => return Ok(ColumnSpaceUsage::new(total_num_bytes, None)),
+            },
             _ => {
                 return Ok(ColumnSpaceUsage::new(self.num_bytes(), None));
             }

@@ -133,10 +133,7 @@ pub fn open_column_bytes(data: OwnedBytes, format_version: Version) -> io::Resul
     let (dictionary_bytes, column_bytes) = body.split(dictionary_len as usize);
     let dictionary = Arc::new(Dictionary::from_bytes(dictionary_bytes)?);
     let term_ord_column = crate::column::open_column_u64::<u64>(column_bytes, format_version)?;
-    Ok(BytesColumn {
-        dictionary,
-        term_ord_column,
-    })
+    Ok(BytesColumn::from_dictionary(dictionary, term_ord_column))
 }
 
 pub fn open_column_str(data: OwnedBytes, format_version: Version) -> io::Result<StrColumn> {

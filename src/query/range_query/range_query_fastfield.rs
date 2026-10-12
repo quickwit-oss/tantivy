@@ -97,6 +97,10 @@ impl Weight for FastFieldRangeWeight {
                     else {
                         return Ok(Box::new(EmptyScorer));
                     };
+                    if str_dict_column.is_compact() {
+                        let bounds = self.bounds.map_bound(get_value_bytes);
+                        return search_compact_bytes(&str_dict_column, boost, bounds);
+                    }
                     let dict = str_dict_column.dictionary();
 
                     let bounds = self.bounds.map_bound(get_value_bytes);
@@ -164,6 +168,13 @@ impl Weight for FastFieldRangeWeight {
             else {
                 return Ok(Box::new(EmptyScorer));
             };
+            if str_dict_column.is_compact() {
+                return search_compact_bytes(
+                    &str_dict_column,
+                    boost,
+                    self.bounds.map_bound(get_value_bytes),
+                );
+            }
             let dict = str_dict_column.dictionary();
 
             let bounds = self.bounds.map_bound(get_value_bytes);
@@ -183,6 +194,13 @@ impl Weight for FastFieldRangeWeight {
             else {
                 return Ok(Box::new(EmptyScorer));
             };
+            if bytes_column.is_compact() {
+                return search_compact_bytes(
+                    &bytes_column,
+                    boost,
+                    self.bounds.map_bound(get_value_bytes),
+                );
+            }
             let dict = bytes_column.dictionary();
 
             let bounds = self.bounds.map_bound(get_value_bytes);
@@ -252,6 +270,39 @@ impl Weight for FastFieldRangeWeight {
 
         Ok(explanation)
     }
+}
+
+/// Compact symbols are not term ordinals. Compare decoded values as unsigned bytes.
+fn search_compact_bytes(
+    column: &BytesColumn,
+    boost: Score,
+    bounds: BoundsRange<Vec<u8>>,
+) -> crate::Result<Box<dyn Scorer>> {
+    let mut matches = common::BitSet::with_max_value(column.num_rows());
+    let mut value = Vec::new();
+    for doc in 0..column.num_rows() {
+        for row in column.value_range(doc)? {
+            column.read_value(row, &mut value)?;
+            let above_lower = match &bounds.lower_bound {
+                Bound::Unbounded => true,
+                Bound::Included(lower) => value.as_slice() >= lower.as_slice(),
+                Bound::Excluded(lower) => value.as_slice() > lower.as_slice(),
+            };
+            let below_upper = match &bounds.upper_bound {
+                Bound::Unbounded => true,
+                Bound::Included(upper) => value.as_slice() <= upper.as_slice(),
+                Bound::Excluded(upper) => value.as_slice() < upper.as_slice(),
+            };
+            if above_lower && below_upper {
+                matches.insert(doc);
+                break;
+            }
+        }
+    }
+    Ok(Box::new(ConstScorer::new(
+        crate::query::BitSetDocSet::from(matches),
+        boost,
+    )))
 }
 
 /// On numerical fields the column type may not match the user provided one.

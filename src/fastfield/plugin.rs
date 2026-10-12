@@ -53,10 +53,25 @@ impl SegmentPlugin for FastFieldsPlugin {
         let doc_id_mapping = ctx.doc_id_mapping.clone();
         let merge_row_order = convert_to_merge_order(&columnars[..], doc_id_mapping);
 
-        columnar::merge_columnar(
+        columnar::merge_columnar_with_codec(
             &columnars[..],
             &required_columns,
             merge_row_order,
+            |name, _column_type| {
+                let root = name
+                    .split(common::json_path_writer::JSON_PATH_SEGMENT_SEP as char)
+                    .next()
+                    .unwrap();
+                let Ok(field) = ctx.schema.get_field(root) else {
+                    return columnar::FastFieldCodec::Dictionary;
+                };
+                match ctx.schema.get_field_entry(field).field_type() {
+                    crate::schema::FieldType::Str(options) => options.get_fast_field_codec(),
+                    crate::schema::FieldType::Bytes(options) => options.get_fast_field_codec(),
+                    crate::schema::FieldType::JsonObject(options) => options.get_fast_field_codec(),
+                    _ => columnar::FastFieldCodec::Dictionary,
+                }
+            },
             &mut fast_field_wrt,
         )?;
 

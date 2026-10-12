@@ -285,7 +285,7 @@ impl<B: SubAggBuffer, const SOURCE_CONTAINS_MULTIVALUES: bool> SegmentAggregatio
             &mut *self.req_data.accessor,
             None,
             false,
-        );
+        )?;
 
         let buckets = &mut self.parent_buckets[parent_bucket_id as usize];
 

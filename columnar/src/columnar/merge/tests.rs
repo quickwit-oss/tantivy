@@ -302,7 +302,7 @@ fn test_merge_columnar_texts() {
         out
     };
 
-    assert_eq!(vals.dictionary.num_terms(), 2);
+    assert_eq!(vals.dictionary().num_terms(), 2);
     assert_eq!(get_str_for_ord(0), "a");
     assert_eq!(get_str_for_ord(1), "b");
 
@@ -349,7 +349,7 @@ fn test_merge_columnar_byte() {
         out
     };
 
-    assert_eq!(vals.dictionary.num_terms(), 3);
+    assert_eq!(vals.dictionary().num_terms(), 3);
     assert_eq!(get_bytes_for_ord(0), b"a");
     assert_eq!(get_bytes_for_ord(1), b"baaa");
     assert_eq!(get_bytes_for_ord(2), b"bbbb");
@@ -404,7 +404,7 @@ fn test_merge_columnar_byte_with_missing() {
         vals.ord_to_bytes(ord, &mut out).unwrap();
         out
     };
-    assert_eq!(vals.dictionary.num_terms(), 2);
+    assert_eq!(vals.dictionary().num_terms(), 2);
     assert_eq!(get_bytes_for_ord(0), b"a");
     assert_eq!(get_bytes_for_ord(1), b"b");
     let get_bytes_for_row = |row_id| {
@@ -472,7 +472,7 @@ fn test_merge_columnar_different_types() {
         out
     };
 
-    assert_eq!(vals.dictionary.num_terms(), 2);
+    assert_eq!(vals.dictionary().num_terms(), 2);
     assert_eq!(get_str_for_ord(0), "a");
     assert_eq!(get_str_for_ord(1), "b");
 

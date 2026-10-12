@@ -243,6 +243,7 @@ impl NumericalColumnWriter {
 #[derive(Copy, Clone)]
 pub(crate) struct StrOrBytesColumnWriter {
     pub(crate) dictionary_id: u32,
+    pub(crate) compact_id: Option<u32>,
     pub(crate) column_writer: ColumnWriter,
     // If true, when facing a multivalued cardinality,
     // values associated to a given document will be sorted.
@@ -258,6 +259,7 @@ impl StrOrBytesColumnWriter {
     pub(crate) fn with_dictionary_id(dictionary_id: u32) -> StrOrBytesColumnWriter {
         StrOrBytesColumnWriter {
             dictionary_id,
+            compact_id: None,
             column_writer: Default::default(),
             sort_values_within_row: false,
         }
@@ -268,8 +270,13 @@ impl StrOrBytesColumnWriter {
         doc: RowId,
         bytes: &[u8],
         dictionaries: &mut [DictionaryBuilder],
+        compact_columns: &mut [crate::column::compact::CompactColumnWriter],
         arena: &mut MemoryArena,
     ) {
+        if let Some(compact_id) = self.compact_id {
+            compact_columns[compact_id as usize].record(doc, bytes);
+            return;
+        }
         let unordered_id =
             dictionaries[self.dictionary_id as usize].get_or_allocate_id(bytes, arena);
         self.column_writer.record(doc, unordered_id, arena);

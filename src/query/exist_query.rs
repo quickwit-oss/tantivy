@@ -130,6 +130,7 @@ impl Weight for FastFieldExistsWeight {
         let mut column_indexes: Vec<ExistsColumnIndex> = column_indexes
             .into_iter()
             .filter_map(|column_index| match column_index {
+                ColumnIndex::Grouped(column) => Some(ExistsColumnIndex::Grouped(column)),
                 ColumnIndex::Empty { .. } => None,
                 ColumnIndex::Optional(optional_index) => {
                     Some(ExistsColumnIndex::Optional(optional_index))
@@ -157,6 +158,17 @@ impl Weight for FastFieldExistsWeight {
         let mut doc_bitset = BitSet::with_max_value(max_doc);
         for column_index in &column_indexes {
             match column_index {
+                ExistsColumnIndex::Grouped(column) => {
+                    let mut next = column
+                        .next_non_null_doc(0)
+                        .expect("cannot read compact presence index");
+                    while let Some(doc) = next {
+                        doc_bitset.insert(doc);
+                        next = column
+                            .next_non_null_doc(doc + 1)
+                            .expect("cannot read compact presence index");
+                    }
+                }
                 ExistsColumnIndex::Optional(optional_index) => {
                     for doc in optional_index.iter_non_null_docs() {
                         doc_bitset.insert(doc);
@@ -183,6 +195,7 @@ impl Weight for FastFieldExistsWeight {
 }
 
 pub(crate) enum ExistsColumnIndex {
+    Grouped(columnar::CompactColumn),
     Optional(OptionalIndex),
     Multivalued(MultiValueIndex),
 }
@@ -195,6 +208,9 @@ pub(crate) trait ExistsIndex: Send {
 impl ExistsIndex for ExistsColumnIndex {
     fn next_doc(&self, target: DocId) -> DocId {
         match self {
+            ExistsColumnIndex::Grouped(column) => column
+                .next_non_null_doc(target)
+                .expect("cannot read compact presence index"),
             ExistsColumnIndex::Optional(optional_index) => optional_index.next_non_null_doc(target),
             ExistsColumnIndex::Multivalued(multivalued_index) => {
                 multivalued_index.next_non_null_doc(target)
@@ -205,6 +221,7 @@ impl ExistsIndex for ExistsColumnIndex {
 
     fn size_hint(&self) -> u32 {
         match self {
+            ExistsColumnIndex::Grouped(column) => column.num_docs(),
             ExistsColumnIndex::Optional(optional_index) => optional_index.num_non_nulls(),
             ExistsColumnIndex::Multivalued(MultiValueIndex::MultiValueIndexV1(index)) => {
                 index.num_docs()

@@ -9,7 +9,8 @@ use super::flags::{FastFlag, IndexedFlag, SchemaFlagList, StoredFlag};
 pub struct BytesOptions {
     indexed: bool,
     fieldnorms: bool,
-    fast: bool,
+    #[serde(with = "fast_bytes_serde")]
+    fast: Option<columnar::FastFieldCodec>,
     stored: bool,
 }
 
@@ -23,7 +24,8 @@ struct BytesOptionsDeser {
     indexed: bool,
     #[serde(default)]
     fieldnorms: Option<bool>,
-    fast: bool,
+    #[serde(with = "fast_bytes_serde")]
+    fast: Option<columnar::FastFieldCodec>,
     stored: bool,
 }
 
@@ -54,7 +56,7 @@ impl BytesOptions {
     /// Returns true if the value is a fast field.
     #[inline]
     pub fn is_fast(&self) -> bool {
-        self.fast
+        self.fast.is_some()
     }
 
     /// Returns true if the value is stored.
@@ -88,8 +90,19 @@ impl BytesOptions {
     /// Fast fields are designed for random access.
     #[must_use]
     pub fn set_fast(mut self) -> BytesOptions {
-        self.fast = true;
+        self.fast = Some(columnar::FastFieldCodec::Dictionary);
         self
+    }
+
+    /// Enables fast access using the selected string/bytes storage codec.
+    pub fn set_fast_with_codec(mut self, codec: columnar::FastFieldCodec) -> Self {
+        self.fast = Some(codec);
+        self
+    }
+
+    /// Returns the configured codec, or the dictionary default.
+    pub fn get_fast_field_codec(&self) -> columnar::FastFieldCodec {
+        self.fast.clone().unwrap_or_default()
     }
 
     /// Set the field as stored.
@@ -112,7 +125,10 @@ impl<T: Into<BytesOptions>> BitOr<T> for BytesOptions {
             indexed: self.indexed | other.indexed,
             fieldnorms: self.fieldnorms | other.fieldnorms,
             stored: self.stored | other.stored,
-            fast: self.fast | other.fast,
+            fast: match (self.fast, other.fast) {
+                (Some(columnar::FastFieldCodec::Dictionary), Some(codec)) => Some(codec),
+                (left, right) => left.or(right),
+            },
         }
     }
 }
@@ -129,7 +145,7 @@ impl From<FastFlag> for BytesOptions {
             indexed: false,
             fieldnorms: false,
             stored: false,
-            fast: true,
+            fast: Some(columnar::FastFieldCodec::Dictionary),
         }
     }
 }
@@ -140,7 +156,7 @@ impl From<StoredFlag> for BytesOptions {
             indexed: false,
             fieldnorms: false,
             stored: true,
-            fast: false,
+            fast: None,
         }
     }
 }
@@ -151,7 +167,7 @@ impl From<IndexedFlag> for BytesOptions {
             indexed: true,
             fieldnorms: true,
             stored: false,
-            fast: false,
+            fast: None,
         }
     }
 }
@@ -164,6 +180,43 @@ where
 {
     fn from(head_tail: SchemaFlagList<Head, Tail>) -> Self {
         Self::from(head_tail.head) | Self::from(head_tail.tail)
+    }
+}
+
+mod fast_bytes_serde {
+    use columnar::FastFieldCodec;
+    use serde::{Deserialize, Deserializer, Serialize, Serializer};
+
+    #[derive(Serialize, Deserialize)]
+    #[serde(untagged)]
+    enum Wire {
+        Enabled(bool),
+        Codec(FastFieldCodec),
+    }
+
+    pub fn serialize<S: Serializer>(
+        codec: &Option<FastFieldCodec>,
+        serializer: S,
+    ) -> Result<S::Ok, S::Error> {
+        match codec {
+            None => Wire::Enabled(false),
+            Some(FastFieldCodec::Dictionary) => Wire::Enabled(true),
+            Some(codec) => Wire::Codec(codec.clone()),
+        }
+        .serialize(serializer)
+    }
+
+    pub fn deserialize<'de, D: Deserializer<'de>>(
+        deserializer: D,
+    ) -> Result<Option<FastFieldCodec>, D::Error> {
+        match Wire::deserialize(deserializer)? {
+            Wire::Enabled(false) => Ok(None),
+            Wire::Enabled(true) => Ok(Some(FastFieldCodec::Dictionary)),
+            Wire::Codec(codec) => {
+                codec.validate().map_err(serde::de::Error::custom)?;
+                Ok(Some(codec))
+            }
+        }
     }
 }
 
@@ -227,7 +280,7 @@ mod tests {
             &BytesOptions {
                 indexed: true,
                 fieldnorms: true,
-                fast: false,
+                fast: None,
                 stored: false
             }
         );
@@ -246,7 +299,7 @@ mod tests {
             &BytesOptions {
                 indexed: false,
                 fieldnorms: false,
-                fast: false,
+                fast: None,
                 stored: false
             }
         );
@@ -266,7 +319,7 @@ mod tests {
             &BytesOptions {
                 indexed: true,
                 fieldnorms: false,
-                fast: false,
+                fast: None,
                 stored: false
             }
         );
@@ -287,7 +340,7 @@ mod tests {
             &BytesOptions {
                 indexed: false,
                 fieldnorms: true,
-                fast: false,
+                fast: None,
                 stored: false
             }
         );

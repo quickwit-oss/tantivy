@@ -133,8 +133,32 @@ impl JsonObjectOptions {
     #[must_use]
     pub fn set_fast(mut self, tokenizer_name: impl ToString) -> Self {
         let tokenizer = tokenizer_name.to_string();
-        self.fast = Some(FastFieldTextOptions { tokenizer });
+        self.fast = Some(FastFieldTextOptions {
+            tokenizer,
+            ..Default::default()
+        });
         self
+    }
+
+    /// Applies the selected codec to string leaves below this JSON field.
+    pub fn set_fast_with_codec(
+        mut self,
+        tokenizer: impl ToString,
+        codec: columnar::FastFieldCodec,
+    ) -> Self {
+        self.fast = Some(FastFieldTextOptions {
+            tokenizer: tokenizer.to_string(),
+            codec: Some(codec),
+        });
+        self
+    }
+
+    /// Returns the string-leaf codec, or the dictionary default.
+    pub fn get_fast_field_codec(&self) -> columnar::FastFieldCodec {
+        self.fast
+            .as_ref()
+            .and_then(|options| options.codec.clone())
+            .unwrap_or_default()
     }
 
     /// Sets the field as indexed, with the specific indexing options.

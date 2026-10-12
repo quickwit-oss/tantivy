@@ -120,6 +120,7 @@ mod field_entry;
 mod field_type;
 
 mod bytes_options;
+pub use columnar::{CompactCodecOptions, FastFieldCodec};
 mod custom_options;
 mod date_time_options;
 mod field;

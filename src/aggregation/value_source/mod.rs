@@ -1,4 +1,6 @@
 mod block_accessor;
+mod compact;
+pub(crate) use compact::{CompactCountValueSource, CompactStrValueSource};
 mod value_source_registry;
 
 #[cfg(test)]
@@ -46,6 +48,32 @@ pub trait ValueSource: std::fmt::Debug {
         docids: &mut Vec<DocId>,
         row_ids: &mut Vec<RowId>,
     ) -> Cardinality;
+
+    /// Fallible block access for sources that perform lazy storage reads.
+    fn try_load_block(
+        &mut self,
+        docs: &[DocId],
+        values: &mut Vec<u64>,
+        docids: &mut Vec<DocId>,
+        row_ids: &mut Vec<RowId>,
+    ) -> io::Result<Cardinality> {
+        Ok(self.load_block(docs, values, docids, row_ids))
+    }
+
+    /// Compact text storage, without a global term dictionary.
+    fn as_compact_str_column(&self) -> Option<&StrColumn> {
+        None
+    }
+
+    /// Memory owned by a growing value source, excluding shared column data.
+    fn memory_usage(&self) -> usize {
+        0
+    }
+
+    /// Reserves a stable ID for a synthetic string when the dictionary can grow.
+    fn intern_string(&mut self, _value: &str) -> Option<u64> {
+        None
+    }
 
     /// Returns the physical column, if this source is backed by one.
     fn as_physical_column(&self) -> Option<&Column<u64>> {

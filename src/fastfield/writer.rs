@@ -62,6 +62,10 @@ impl FastFieldsWriter {
                 date_precisions[field_id.field_id() as usize] = date_options.get_precision();
             }
             if let FieldType::JsonObject(json_object_options) = field_entry.field_type() {
+                columnar_writer.record_str_codec_prefix(
+                    field_entry.name(),
+                    json_object_options.get_fast_field_codec(),
+                )?;
                 if let Some(json_text_fast_field_option) = &json_object_options.fast {
                     let tokenizer_name = json_text_fast_field_option.tokenizer.as_str();
                     if tokenizer_name != RAW_TOKENIZER_NAME {
@@ -94,11 +98,17 @@ impl FastFieldsWriter {
 
             let sort_values_within_row = value_type == Type::Facet;
             if let Some(column_type) = value_type_to_column_type(value_type) {
-                columnar_writer.record_column_type(
+                let codec = match field_entry.field_type() {
+                    FieldType::Str(options) => options.get_fast_field_codec(),
+                    FieldType::Bytes(options) => options.get_fast_field_codec(),
+                    _ => columnar::FastFieldCodec::Dictionary,
+                };
+                columnar_writer.record_column_type_with_codec(
                     field_entry.name(),
                     column_type,
                     sort_values_within_row,
-                );
+                    codec,
+                )?;
             }
         }
         Ok(FastFieldsWriter {

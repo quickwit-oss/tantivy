@@ -275,7 +275,7 @@ impl<S: TermOrdAccumulator + 'static> SegmentAggregationCollector
             docs,
             &mut *self.req_data.accessor,
             self.req_data.missing_value_for_accessor,
-        );
+        )?;
         let Some(term_ords) = self.buckets[parent_bucket_id as usize].as_mut() else {
             return Err(crate::TantivyError::InternalError(
                 "collection should not happen after finalization".to_string(),

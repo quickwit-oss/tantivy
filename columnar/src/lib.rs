@@ -30,10 +30,12 @@ pub mod column_values;
 mod columnar;
 mod dictionary;
 mod dynamic_column;
+mod fast_field_codec;
 mod iterable;
 pub(crate) mod utils;
 mod value;
 
+pub use column::compact::CompactColumn;
 pub use column::{BytesColumn, Column, StrColumn};
 pub use column_index::ColumnIndex;
 pub use column_values::{
@@ -42,8 +44,9 @@ pub use column_values::{
 pub use columnar::{
     CURRENT_VERSION, ColumnType, ColumnarReader, ColumnarWriter, HasAssociatedColumnType,
     MergeRowOrder, ShuffleMergeOrder, StackMergeOrder, Version, compute_merged_term_ord_mapping,
-    merge_columnar,
+    merge_columnar, merge_columnar_with_codec,
 };
+pub use fast_field_codec::{CompactCodecOptions, FastFieldCodec};
 use sstable::VoidSSTable;
 pub use value::{NumericalType, NumericalValue};
 

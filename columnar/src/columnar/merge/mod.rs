@@ -80,6 +80,24 @@ pub fn merge_columnar(
     merge_row_order: MergeRowOrder,
     output: &mut impl io::Write,
 ) -> io::Result<()> {
+    merge_columnar_with_codec(
+        columnar_readers,
+        required_columns,
+        merge_row_order,
+        |_, _| crate::FastFieldCodec::Dictionary,
+        output,
+    )
+}
+
+/// Merges columns using the explicitly selected output string/bytes codec.
+/// Input codecs may differ. Compact groups are rebuilt in final document order.
+pub fn merge_columnar_with_codec(
+    columnar_readers: &[&ColumnarReader],
+    required_columns: &[(String, ColumnType)],
+    merge_row_order: MergeRowOrder,
+    codec_for_column: impl Fn(&str, ColumnType) -> crate::FastFieldCodec,
+    output: &mut impl io::Write,
+) -> io::Result<()> {
     let mut serializer = ColumnarSerializer::new(output);
     let num_docs_per_columnar = columnar_readers
         .iter()
@@ -101,8 +119,29 @@ pub fn merge_columnar(
         assert_eq!(columns.len(), columnar_readers.len());
         coerce_columns(column_type_after_merge, &mut columns)?;
 
-        let mut column_serializer =
-            serializer.start_serialize_column(column_name.as_bytes(), column_type_after_merge);
+        let codec = codec_for_column(&column_name, column_type_after_merge);
+        codec.validate()?;
+        let compact = matches!(codec, crate::FastFieldCodec::Compact(_))
+            && matches!(column_type_after_merge, ColumnType::Str | ColumnType::Bytes);
+        let mut column_serializer = serializer.start_serialize_column_with_codec(
+            column_name.as_bytes(),
+            column_type_after_merge,
+            compact,
+        );
+        if compact {
+            let crate::FastFieldCodec::Compact(options) = codec else {
+                unreachable!()
+            };
+            merge_compact_columns(
+                &columns,
+                &num_docs_per_columnar,
+                &merge_row_order,
+                options,
+                &mut column_serializer,
+            )?;
+            column_serializer.finalize()?;
+            continue;
+        }
         merge_column(
             column_type_after_merge,
             &num_docs_per_columnar,
@@ -115,6 +154,59 @@ pub fn merge_columnar(
 
     serializer.finalize(merge_row_order.num_rows())?;
     Ok(())
+}
+
+fn merge_compact_columns(
+    columns: &[Option<DynamicColumn>],
+    num_docs: &[u32],
+    order: &MergeRowOrder,
+    options: crate::CompactCodecOptions,
+    output: &mut impl io::Write,
+) -> io::Result<()> {
+    let mut writer = crate::column::compact::CompactGroupWriter::new(options, output);
+    // One document's bytes are staged to decide whether to start a new group.
+    // A document is never split, including an oversized multivalued document.
+    let mut bytes = Vec::new();
+    let mut ends = Vec::new();
+    let mut value_buffer = Vec::new();
+    let mut append = |segment: usize, doc: u32| -> io::Result<()> {
+        bytes.clear();
+        ends.clear();
+        let column: Option<&BytesColumn> = match &columns[segment] {
+            Some(DynamicColumn::Str(column)) => Some(column),
+            Some(DynamicColumn::Bytes(column)) => Some(column),
+            _ => None,
+        };
+        if let Some(column) = column {
+            for value in column.value_range(doc)? {
+                column.read_value(value, &mut value_buffer)?;
+                bytes.extend_from_slice(&value_buffer);
+                ends.push(bytes.len());
+            }
+        }
+        writer.start_document(bytes.len() as u64)?;
+        let mut start = 0;
+        for &end in &ends {
+            writer.record_value(&bytes[start..end])?;
+            start = end;
+        }
+        writer.end_document()
+    };
+    match order {
+        MergeRowOrder::Stack(_) => {
+            for (segment, &count) in num_docs.iter().enumerate() {
+                for doc in 0..count {
+                    append(segment, doc)?;
+                }
+            }
+        }
+        MergeRowOrder::Shuffled(mapping) => {
+            for address in mapping.iter_new_to_old_row_addrs() {
+                append(address.segment_ord as usize, address.row_id)?;
+            }
+        }
+    }
+    writer.finish()
 }
 
 fn dynamic_column_to_u64_monotonic(dynamic_column: DynamicColumn) -> Option<Column<u64>> {
@@ -202,11 +294,13 @@ fn merge_column(
             for (i, dynamic_column_opt) in columns_to_merge.into_iter().enumerate() {
                 match dynamic_column_opt {
                     Some(DynamicColumn::Str(str_column)) => {
-                        column_indexes.push(str_column.term_ord_column.index.clone());
-                        bytes_columns.push(Some(str_column.into()));
+                        let str_column = str_column.to_dictionary_encoded()?;
+                        column_indexes.push(str_column.index().clone());
+                        bytes_columns.push(Some(str_column));
                     }
                     Some(DynamicColumn::Bytes(bytes_column)) => {
-                        column_indexes.push(bytes_column.term_ord_column.index.clone());
+                        let bytes_column = bytes_column.to_dictionary_encoded()?;
+                        column_indexes.push(bytes_column.index().clone());
                         bytes_columns.push(Some(bytes_column));
                     }
                     _ => {
@@ -365,6 +459,9 @@ fn is_empty_after_merge(
             if let Some(alive_bitset) = &shuffled.alive_bitsets[columnar_ord] {
                 let column_index = column.column_index();
                 match column_index {
+                    ColumnIndex::Grouped(_) => {
+                        !alive_bitset.iter().any(|doc| column_index.has_value(doc))
+                    }
                     ColumnIndex::Empty { .. } => true,
                     ColumnIndex::Full => alive_bitset.len() == 0,
                     ColumnIndex::Optional(optional_index) => {

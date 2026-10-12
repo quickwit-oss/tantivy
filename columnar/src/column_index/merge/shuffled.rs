@@ -99,6 +99,7 @@ fn iter_num_values<'a>(
     merge_order.iter_new_to_old_row_addrs().map(|row_addr| {
         let column_index = &column_indexes[row_addr.segment_ord as usize];
         match column_index {
+            ColumnIndex::Grouped(_) => column_index.value_row_ids(row_addr.row_id).len() as u32,
             ColumnIndex::Empty { .. } => 0u32,
             ColumnIndex::Full => 1,
             ColumnIndex::Optional(optional_index) => {

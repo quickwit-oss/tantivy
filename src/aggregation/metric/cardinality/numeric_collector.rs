@@ -138,7 +138,7 @@ impl SegmentAggregationCollector for SegmentNumericCardinalityCollector {
             docs,
             &mut *self.accessor,
             self.missing_value_for_accessor,
-        );
+        )?;
         let cardinality = self.buckets[parent_bucket_id as usize]
             .as_mut()
             .ok_or_else(|| {

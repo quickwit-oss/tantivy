@@ -201,6 +201,11 @@ fn open_physical_column_value_source(
                 "the text column could not be opened as a text column".to_string(),
             ));
         };
+        if str_column.is_compact() {
+            return Ok(Some(Box::new(
+                super::value_source::CompactStrValueSource::new(str_column),
+            )));
+        }
         return Ok(Some(Box::new(str_column)));
     }
     let Some(column) = column_handle.open_u64_lenient()? else {
