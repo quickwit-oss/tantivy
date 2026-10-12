@@ -99,7 +99,7 @@ pub(crate) fn get_value_source(
         return Ok(source);
     }
     // The empty-column shim stays physical on purpose: several fast paths check
-    // `as_column()` and would otherwise degrade for a merely absent field.
+    // `as_physical_column()` and would otherwise degrade for a merely absent field.
     Ok(Box::new((
         Column::build_empty_column(reader.num_docs()),
         ColumnType::U64,

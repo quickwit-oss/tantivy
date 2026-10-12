@@ -233,30 +233,32 @@ pub(crate) fn build_segment_cardinality_collector(
     // number of terms.
     //   * small (< BITSET_MAX_TERM_ORD): `BitSet`, pre-allocated.
     //   * large: `TermOrdSet` (sparse HashSet that promotes to a paged bitset).
-    Ok(if let Some(column) = req_data.accessor.as_column() {
-        let max_term_ord_inclusive = column.max_value();
-        if max_term_ord_inclusive < BITSET_MAX_TERM_ORD {
-            Box::new(SegmentStrCardinalityCollector::<BitSet>::from_req(
-                req_data,
-                max_term_ord_inclusive,
-            ))
+    Ok(
+        if let Some(column) = req_data.accessor.as_physical_column() {
+            let max_term_ord_inclusive = column.max_value();
+            if max_term_ord_inclusive < BITSET_MAX_TERM_ORD {
+                Box::new(SegmentStrCardinalityCollector::<BitSet>::from_req(
+                    req_data,
+                    max_term_ord_inclusive,
+                ))
+            } else {
+                Box::new(SegmentStrCardinalityCollector::<TermOrdSet>::from_req(
+                    req_data,
+                    max_term_ord_inclusive,
+                ))
+            }
         } else {
+            // For the moment, for non physical str column, we rely on the regular
+            // term ord set.
+            // TODO fix me! Although we do not have control over this, these values are likely
+            // created using a inc counter, with their unicity given by a hashmap already.
+            // We probably do not need another HashSet.
             Box::new(SegmentStrCardinalityCollector::<TermOrdSet>::from_req(
                 req_data,
-                max_term_ord_inclusive,
+                u64::MAX,
             ))
-        }
-    } else {
-        // For the moment, for non physical str column, we rely on the regular
-        // term ord set.
-        // TODO fix me! Although we do not have control over this, these values are likely
-        // created using a inc counter, with their unicity given by a hashmap already.
-        // We probably do not need another HashSet.
-        Box::new(SegmentStrCardinalityCollector::<TermOrdSet>::from_req(
-            req_data,
-            u64::MAX,
-        ))
-    })
+        },
+    )
 }
 
 #[cfg(test)]

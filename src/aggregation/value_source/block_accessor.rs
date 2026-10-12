@@ -455,14 +455,14 @@ mod tests {
     #[test]
     fn test_as_column_distinguishes_the_two_kinds() {
         let column: Box<dyn ValueSource> = Box::new((full_column(&[5, 6, 7]), ColumnType::U64));
-        assert!(column.as_column().is_some());
+        assert!(column.as_physical_column().is_some());
         assert_eq!(column.bounds(), Some((5, 7)));
 
         let computed: Box<dyn ValueSource> = Box::new(TestValueSource {
             cardinality: Cardinality::Full,
             entries: vec![(0, 1)],
         });
-        assert!(computed.as_column().is_none());
+        assert!(computed.as_physical_column().is_none());
         // No global view of a computed source, so no bounds and no bounds-driven fast paths.
         assert_eq!(computed.bounds(), None);
     }

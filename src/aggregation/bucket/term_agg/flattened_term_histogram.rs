@@ -647,7 +647,7 @@ pub(super) fn build_flattened_collector_from_plan(
 }
 
 fn try_get_column_full_values(value_source: &dyn ValueSource) -> Option<Arc<dyn ColumnValues>> {
-    let column = value_source.as_column()?;
+    let column = value_source.as_physical_column()?;
     if column.get_cardinality() == Cardinality::Full {
         Some(column.values.clone())
     } else {

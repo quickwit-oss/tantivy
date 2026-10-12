@@ -48,13 +48,13 @@ pub trait ValueSource: std::fmt::Debug {
     ) -> Cardinality;
 
     /// Returns the physical column, if this source is backed by one.
-    fn as_column(&self) -> Option<&Column<u64>> {
+    fn as_physical_column(&self) -> Option<&Column<u64>> {
         None
     }
 
     /// Global value bounds, for fast paths that need to size or clamp something up front.
     fn bounds(&self) -> Option<(u64, u64)> {
-        let column = self.as_column()?;
+        let column = self.as_physical_column()?;
         Some((column.min_value(), column.max_value()))
     }
 
@@ -160,7 +160,7 @@ impl<ColumnRef: Borrow<Column<u64>> + std::fmt::Debug> ValueSource for (ColumnRe
     }
 
     #[inline]
-    fn as_column(&self) -> Option<&Column<u64>> {
+    fn as_physical_column(&self) -> Option<&Column<u64>> {
         Some(self.0.borrow())
     }
 }
@@ -184,7 +184,7 @@ impl ValueSource for StrColumn {
     }
 
     #[inline]
-    fn as_column(&self) -> Option<&Column<u64>> {
+    fn as_physical_column(&self) -> Option<&Column<u64>> {
         Some(self.ords())
     }
 

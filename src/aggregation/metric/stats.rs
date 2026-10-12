@@ -202,7 +202,7 @@ fn create_collector<const TYPE_ID: u8>(
 ) -> Box<dyn SegmentAggregationCollector> {
     let column_opt = req
         .accessor
-        .as_column()
+        .as_physical_column()
         .map(|column| (column.clone(), req.accessor.column_type()));
     Box::new(SegmentStatsCollector::<TYPE_ID> {
         name: req.name,

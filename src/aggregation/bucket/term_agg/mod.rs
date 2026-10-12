@@ -418,7 +418,7 @@ pub(crate) fn build_segment_term_collector(
     // instead of a hashmap.
     let col_max_value = terms_req_data
         .accessor
-        .as_column()
+        .as_physical_column()
         .map(|col| col.max_value())
         .unwrap_or(u64::MAX);
     let max_column_val: u64 =
@@ -1459,7 +1459,7 @@ where
         } else if column_type == ColumnType::IpAddr {
             let compact_space_accessor = term_req
                 .accessor
-                .as_column()
+                .as_physical_column()
                 .ok_or_else(|| {
                     TantivyError::AggregationError(
                         crate::aggregation::AggregationError::InternalError(
