@@ -9,6 +9,7 @@ use std::sync::Arc;
 
 use common::BinarySerializable;
 pub use dictionary_encoded::{BytesColumn, StrColumn};
+pub(crate) use plain::PlainColumnSerializer;
 pub use plain::{PlainBytesColumn, PlainStrColumn, PlainValueReader};
 pub(crate) use serialize::serialize_generated_tie_breaker_column;
 pub use serialize::{

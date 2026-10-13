@@ -139,18 +139,23 @@ impl ExpUnrolledLinkedList {
     }
 
     pub fn read_to_end(&self, arena: &MemoryArena, output: &mut Vec<u8>) {
-        let mut addr = self.head;
-        if addr.is_null() {
-            return;
+        for chunk in self.iter_chunks(arena) {
+            output.extend_from_slice(chunk);
         }
+    }
 
+    /// Returns the content of the list, as the sequence of its blocks.
+    ///
+    /// Concatenating the chunks gives the same bytes as `read_to_end`, without copying them.
+    pub fn iter_chunks<'a>(&self, arena: &'a MemoryArena) -> impl Iterator<Item = &'a [u8]> + 'a {
+        let mut addr = self.head;
         // Calculate last block length with bounds checking to prevent underflow
         let block_size = get_block_size(self.block_num) as usize;
         let last_block_len = block_size.saturating_sub(self.remaining_cap as usize);
 
         // Safety check: if remaining_cap > block_size, the metadata is corrupted
         assert!(
-            self.remaining_cap as usize <= block_size,
+            addr.is_null() || self.remaining_cap as usize <= block_size,
             "ExpUnrolledLinkedList metadata corruption detected: remaining_cap ({}) > block_size \
              ({}). This indicates a serious bug, please report! (block_num={}, head={:?}, \
              tail={:?})",
@@ -161,17 +166,26 @@ impl ExpUnrolledLinkedList {
             self.tail
         );
 
-        // Full Blocks (iterate through all blocks except the last one)
-        // Note: Blocks are numbered starting from FIRST_BLOCK_NUM+1 (=3) after first allocation
-        for block_num in FIRST_BLOCK_NUM + 1..self.block_num {
-            let cap = get_block_size(block_num) as usize;
-            let data = arena.slice(addr, cap);
-            output.extend_from_slice(data);
-            addr = arena.read(addr.offset(cap as u32));
-        }
-        // Last Block
-        let data = arena.slice(addr, last_block_len);
-        output.extend_from_slice(data);
+        // Blocks are numbered starting from FIRST_BLOCK_NUM+1 (=3) after first allocation.
+        let mut block_num = FIRST_BLOCK_NUM + 1;
+        let last_block_num = self.block_num;
+        let mut is_done = addr.is_null();
+        std::iter::from_fn(move || {
+            if is_done {
+                return None;
+            }
+            if block_num < last_block_num {
+                // Full block.
+                let cap = get_block_size(block_num) as usize;
+                let data = arena.slice(addr, cap);
+                addr = arena.read(addr.offset(cap as u32));
+                block_num += 1;
+                return Some(data);
+            }
+            // Last block.
+            is_done = true;
+            Some(arena.slice(addr, last_block_len))
+        })
     }
 }
 
@@ -180,6 +194,26 @@ mod tests {
     use common::{read_u32_vint, write_u32_vint};
 
     use super::*;
+
+    #[test]
+    fn test_eull_iter_chunks() {
+        let mut arena = MemoryArena::default();
+        let mut eull = ExpUnrolledLinkedList::default();
+        assert_eq!(eull.iter_chunks(&arena).count(), 0);
+        let mut expected: Vec<u8> = Vec::new();
+        for i in 0..10_000u32 {
+            let bytes = i.to_le_bytes();
+            let value = &bytes[..(i % 4) as usize];
+            eull.writer(&mut arena).extend_from_slice(value);
+            expected.extend_from_slice(value);
+        }
+        let chunks: Vec<&[u8]> = eull.iter_chunks(&arena).collect();
+        assert!(chunks.len() > 1);
+        assert_eq!(chunks.concat(), expected);
+        let mut read_to_end_output = Vec::new();
+        eull.read_to_end(&arena, &mut read_to_end_output);
+        assert_eq!(read_to_end_output, expected);
+    }
 
     #[test]
     fn test_eull_empty() {

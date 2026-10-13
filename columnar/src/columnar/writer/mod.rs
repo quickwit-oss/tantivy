@@ -14,11 +14,14 @@ use common::json_path_writer::JSON_END_OF_PATH;
 pub(crate) use serializer::ColumnarSerializer;
 use stacker::{Addr, ArenaHashMap, MemoryArena};
 
+use crate::column::PlainColumnSerializer;
 use crate::column_index::{SerializableColumnIndex, SerializableOptionalIndex};
 use crate::column_values::{MonotonicallyMappableToU64, MonotonicallyMappableToU128};
-use crate::columnar::column_type::ColumnType;
+use crate::columnar::column_type::{ColumnType, StrColumnCodec, column_key_code};
+use crate::columnar::writer::column_operation::ValueLen;
 use crate::columnar::writer::column_writers::{
-    ColumnWriter, NumericalColumnWriter, StrOrBytesColumnWriter,
+    ColumnWriter, NumericalColumnWriter, PlainColumnWriter, PlainValueBytesReader,
+    StrOrBytesColumnWriter,
 };
 use crate::columnar::writer::value_index::{IndexBuilder, PreallocatedIndexBuilders};
 use crate::dictionary::{DictionaryBuilder, TermIdMapping, UnorderedId};
@@ -32,6 +35,8 @@ struct SpareBuffers {
     value_index_builders: PreallocatedIndexBuilders,
     u64_values: Vec<u64>,
     ip_addr_values: Vec<Ipv6Addr>,
+    /// Bytes of a plain column, materialized when docs are remapped.
+    plain_value_bytes: Vec<u8>,
 }
 
 /// Makes it possible to create a new columnar.
@@ -105,13 +110,20 @@ impl ColumnarWriter {
             let Some(str_or_bytes_column) = str_or_bytes_column_opt else {
                 return Vec::new();
             };
+            let StrOrBytesColumnWriter::Dictionary(dictionary_column_writer) = str_or_bytes_column
+            else {
+                // Sorting by a plain-encoded column is not supported, and rejected when the index
+                // is created. Docs keep their order.
+                return (0..num_docs).collect();
+            };
 
-            let dictionary_builder = &self.dictionaries[str_or_bytes_column.dictionary_id as usize];
+            let dictionary_builder =
+                &self.dictionaries[dictionary_column_writer.dictionary_id as usize];
             let term_id_mapping = dictionary_builder.build_term_id_mapping(&self.arena);
             let mut symbols_buffer = Vec::new();
 
             return collect_sort_order_from_ops(
-                str_or_bytes_column.operation_iterator(&self.arena, None, &mut symbols_buffer),
+                dictionary_column_writer.operation_iterator(&self.arena, None, &mut symbols_buffer),
                 num_docs,
                 reversed,
                 |uid| Some(term_id_mapping.to_ord(uid).0),
@@ -166,27 +178,11 @@ impl ColumnarWriter {
         }
         match column_type {
             ColumnType::Str | ColumnType::Bytes => {
-                let (hash_map, dictionaries) = (
-                    if column_type == ColumnType::Str {
-                        &mut self.str_field_hash_map
-                    } else {
-                        &mut self.bytes_field_hash_map
-                    },
-                    &mut self.dictionaries,
-                );
-                hash_map.mutate_or_create(
-                    column_name.as_bytes(),
-                    |column_opt: Option<StrOrBytesColumnWriter>| {
-                        let mut column_writer = if let Some(column_writer) = column_opt {
-                            column_writer
-                        } else {
-                            let dictionary_id = dictionaries.len() as u32;
-                            dictionaries.push(DictionaryBuilder::default());
-                            StrOrBytesColumnWriter::with_dictionary_id(dictionary_id)
-                        };
-                        column_writer.sort_values_within_row = sort_values_within_row;
-                        column_writer
-                    },
+                self.record_str_or_bytes_column_type(
+                    column_name,
+                    column_type,
+                    None,
+                    sort_values_within_row,
                 );
             }
             ColumnType::Bool => {
@@ -217,6 +213,90 @@ impl ColumnarWriter {
                 |column_opt: Option<ColumnWriter>| column_opt.unwrap_or_default(),
             ),
         }
+    }
+
+    /// Same as `record_column_type`, with the codec of a `Str` or `Bytes` column.
+    ///
+    /// The codec of a column is fixed when the column is created.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the column already exists with a different codec, or if `codec` is `Plain` for a
+    /// column type other than `Str` or `Bytes`.
+    pub fn record_column_type_with_codec(
+        &mut self,
+        column_name: &str,
+        column_type: ColumnType,
+        codec: StrColumnCodec,
+    ) {
+        match column_type {
+            ColumnType::Str | ColumnType::Bytes => {
+                self.record_str_or_bytes_column_type(column_name, column_type, Some(codec), false);
+            }
+            _ => {
+                assert_eq!(
+                    codec,
+                    StrColumnCodec::Dictionary,
+                    "the plain codec is only supported for str and bytes columns"
+                );
+                self.record_column_type(column_name, column_type, false);
+            }
+        }
+    }
+
+    /// Creates the `Str` or `Bytes` column if it does not exist yet.
+    ///
+    /// The column is created with `codec_opt`, or the dictionary codec if it is `None`.
+    fn record_str_or_bytes_column_type(
+        &mut self,
+        column_name: &str,
+        column_type: ColumnType,
+        codec_opt: Option<StrColumnCodec>,
+        sort_values_within_row: bool,
+    ) {
+        let (hash_map, dictionaries) = (
+            if column_type == ColumnType::Str {
+                &mut self.str_field_hash_map
+            } else {
+                &mut self.bytes_field_hash_map
+            },
+            &mut self.dictionaries,
+        );
+        hash_map.mutate_or_create(
+            column_name.as_bytes(),
+            |column_opt: Option<StrOrBytesColumnWriter>| {
+                let mut column_writer =
+                    get_or_create_str_or_bytes_column_writer(column_opt, codec_opt, dictionaries);
+                match &mut column_writer {
+                    StrOrBytesColumnWriter::Dictionary(dictionary_column_writer) => {
+                        dictionary_column_writer.sort_values_within_row = sort_values_within_row;
+                    }
+                    StrOrBytesColumnWriter::Plain(_) => {
+                        assert!(
+                            !sort_values_within_row,
+                            "sort_values_within_row is not supported with the plain codec"
+                        );
+                    }
+                }
+                column_writer
+            },
+        );
+    }
+
+    /// Returns the code ending the key of the column of type `column_type` stored at `addr`.
+    fn column_key_code(&self, column_type: ColumnType, addr: Addr) -> u8 {
+        let codec = match column_type {
+            ColumnType::Str => self
+                .str_field_hash_map
+                .read::<StrOrBytesColumnWriter>(addr)
+                .codec(),
+            ColumnType::Bytes => self
+                .bytes_field_hash_map
+                .read::<StrOrBytesColumnWriter>(addr)
+                .codec(),
+            _ => StrColumnCodec::Dictionary,
+        };
+        column_key_code(column_type, codec)
     }
 
     /// Registers a full `i64` column whose values are generated when this writer is serialized.
@@ -283,42 +363,78 @@ impl ColumnarWriter {
         );
     }
 
+    /// Records a value in a `Str` column.
+    ///
+    /// If the column does not exist yet, it is created with the dictionary codec.
     pub fn record_str(&mut self, doc: RowId, column_name: &str, value: &str) {
-        let (hash_map, arena, dictionaries) = (
-            &mut self.str_field_hash_map,
-            &mut self.arena,
-            &mut self.dictionaries,
-        );
-        hash_map.mutate_or_create(
-            column_name.as_bytes(),
-            |column_opt: Option<StrOrBytesColumnWriter>| {
-                let mut column: StrOrBytesColumnWriter = column_opt.unwrap_or_else(|| {
-                    // Each column has its own dictionary
-                    let dictionary_id = dictionaries.len() as u32;
-                    dictionaries.push(DictionaryBuilder::default());
-                    StrOrBytesColumnWriter::with_dictionary_id(dictionary_id)
-                });
-                column.record_bytes(doc, value.as_bytes(), dictionaries, arena);
-                column
-            },
+        self.record_str_or_bytes(ColumnType::Str, doc, column_name, value.as_bytes(), None);
+    }
+
+    /// Records a value in a `Str` column using the codec `codec`.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the column already exists with a different codec.
+    pub fn record_str_with_codec(
+        &mut self,
+        doc: RowId,
+        column_name: &str,
+        value: &str,
+        codec: StrColumnCodec,
+    ) {
+        self.record_str_or_bytes(
+            ColumnType::Str,
+            doc,
+            column_name,
+            value.as_bytes(),
+            Some(codec),
         );
     }
 
+    /// Records a value in a `Bytes` column.
+    ///
+    /// If the column does not exist yet, it is created with the dictionary codec.
     pub fn record_bytes(&mut self, doc: RowId, column_name: &str, value: &[u8]) {
+        self.record_str_or_bytes(ColumnType::Bytes, doc, column_name, value, None);
+    }
+
+    /// Records a value in a `Bytes` column using the codec `codec`.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the column already exists with a different codec.
+    pub fn record_bytes_with_codec(
+        &mut self,
+        doc: RowId,
+        column_name: &str,
+        value: &[u8],
+        codec: StrColumnCodec,
+    ) {
+        self.record_str_or_bytes(ColumnType::Bytes, doc, column_name, value, Some(codec));
+    }
+
+    fn record_str_or_bytes(
+        &mut self,
+        column_type: ColumnType,
+        doc: RowId,
+        column_name: &str,
+        value: &[u8],
+        codec_opt: Option<StrColumnCodec>,
+    ) {
         let (hash_map, arena, dictionaries) = (
-            &mut self.bytes_field_hash_map,
+            if column_type == ColumnType::Str {
+                &mut self.str_field_hash_map
+            } else {
+                &mut self.bytes_field_hash_map
+            },
             &mut self.arena,
             &mut self.dictionaries,
         );
         hash_map.mutate_or_create(
             column_name.as_bytes(),
             |column_opt: Option<StrOrBytesColumnWriter>| {
-                let mut column: StrOrBytesColumnWriter = column_opt.unwrap_or_else(|| {
-                    // Each column has its own dictionary
-                    let dictionary_id = dictionaries.len() as u32;
-                    dictionaries.push(DictionaryBuilder::default());
-                    StrOrBytesColumnWriter::with_dictionary_id(dictionary_id)
-                });
+                let mut column =
+                    get_or_create_str_or_bytes_column_writer(column_opt, codec_opt, dictionaries);
                 column.record_bytes(doc, value, dictionaries, arena);
                 column
             },
@@ -367,7 +483,11 @@ impl ColumnarWriter {
                 .iter()
                 .map(|(column_name, addr)| (column_name, ColumnType::DateTime, addr)),
         );
-        columns.sort_unstable_by_key(|(column_name, col_type, _)| (*column_name, *col_type));
+        // Columns must be serialized in the order of their keys. The key code of a `Str` or
+        // `Bytes` column depends on its codec.
+        columns.sort_unstable_by_key(|(column_name, column_type, addr)| {
+            (*column_name, self.column_key_code(*column_type, *addr))
+        });
         let (arena, buffers, dictionaries) = (&self.arena, &mut self.buffers, &self.dictionaries);
         let mut symbol_byte_buffer: Vec<u8> = Vec::new();
         for (column_name, column_type, addr) in columns {
@@ -421,27 +541,44 @@ impl ColumnarWriter {
                         } else {
                             self.str_field_hash_map.read(addr)
                         };
-                    let dictionary_builder =
-                        &dictionaries[str_or_bytes_column_writer.dictionary_id as usize];
-                    let cardinality = str_or_bytes_column_writer
-                        .column_writer
-                        .get_cardinality(num_docs);
-                    let mut column_serializer =
-                        serializer.start_serialize_column(column_name, column_type);
-                    serialize_bytes_or_str_column(
-                        cardinality,
-                        num_docs,
-                        str_or_bytes_column_writer.sort_values_within_row,
-                        dictionary_builder,
-                        str_or_bytes_column_writer.operation_iterator(
-                            arena,
-                            old_to_new_row_ids,
-                            &mut symbol_byte_buffer,
-                        ),
-                        buffers,
-                        &self.arena,
-                        &mut column_serializer,
-                    )?;
+                    let cardinality = str_or_bytes_column_writer.get_cardinality(num_docs);
+                    let mut column_serializer = serializer.start_serialize_column_with_codec(
+                        column_name,
+                        column_type,
+                        str_or_bytes_column_writer.codec(),
+                    );
+                    match str_or_bytes_column_writer {
+                        StrOrBytesColumnWriter::Dictionary(dictionary_column_writer) => {
+                            let dictionary_builder =
+                                &dictionaries[dictionary_column_writer.dictionary_id as usize];
+                            serialize_bytes_or_str_column(
+                                cardinality,
+                                num_docs,
+                                dictionary_column_writer.sort_values_within_row,
+                                dictionary_builder,
+                                dictionary_column_writer.operation_iterator(
+                                    arena,
+                                    old_to_new_row_ids,
+                                    &mut symbol_byte_buffer,
+                                ),
+                                buffers,
+                                &self.arena,
+                                &mut column_serializer,
+                            )?;
+                        }
+                        StrOrBytesColumnWriter::Plain(plain_column_writer) => {
+                            serialize_plain_bytes_or_str_column(
+                                cardinality,
+                                num_docs,
+                                &plain_column_writer,
+                                old_to_new_row_ids,
+                                arena,
+                                &mut symbol_byte_buffer,
+                                buffers,
+                                &mut column_serializer,
+                            )?;
+                        }
+                    }
                     column_serializer.finalize()?;
                 }
                 ColumnType::F64 | ColumnType::I64 | ColumnType::U64 => {
@@ -591,6 +728,185 @@ fn serialize_bytes_or_str_column(
         &mut wrt,
     )?;
     wrt.write_all(&dictionary_num_bytes.to_le_bytes()[..])?;
+    Ok(())
+}
+
+/// Returns the writer of an existing `Str` or `Bytes` column, or creates one.
+///
+/// A new column is created with `codec_opt`, or with the dictionary codec if it is `None`.
+///
+/// # Panics
+///
+/// Panics if the column exists with a codec different from `codec_opt`.
+fn get_or_create_str_or_bytes_column_writer(
+    column_opt: Option<StrOrBytesColumnWriter>,
+    codec_opt: Option<StrColumnCodec>,
+    dictionaries: &mut Vec<DictionaryBuilder>,
+) -> StrOrBytesColumnWriter {
+    let Some(column_writer) = column_opt else {
+        return StrOrBytesColumnWriter::with_codec(codec_opt.unwrap_or_default(), dictionaries);
+    };
+    if let Some(codec) = codec_opt {
+        assert_eq!(
+            column_writer.codec(),
+            codec,
+            "a column cannot be recorded with two different codecs"
+        );
+    }
+    column_writer
+}
+
+/// Serializes a plain-encoded column. See `PlainColumnSerializer` for the layout.
+#[expect(clippy::too_many_arguments)]
+fn serialize_plain_bytes_or_str_column(
+    cardinality: Cardinality,
+    num_docs: RowId,
+    plain_column_writer: &PlainColumnWriter,
+    old_to_new_row_ids: Option<&[RowId]>,
+    arena: &MemoryArena,
+    op_buffer: &mut Vec<u8>,
+    buffers: &mut SpareBuffers,
+    wrt: impl io::Write,
+) -> io::Result<()> {
+    let SpareBuffers {
+        value_index_builders,
+        plain_value_bytes,
+        ..
+    } = buffers;
+    let ops = plain_column_writer
+        .column_writer
+        .operation_iterator::<ValueLen>(arena, None, op_buffer);
+    let Some(old_to_new_row_ids) = old_to_new_row_ids else {
+        // Values are read in insertion order, chunk by chunk, straight into the block buffer.
+        let mut value_bytes_reader = PlainValueBytesReader::new(plain_column_writer, arena);
+        return serialize_plain_operations(
+            ops,
+            |len, block_bytes| value_bytes_reader.read_exact_into(len as usize, block_bytes),
+            cardinality,
+            num_docs,
+            value_index_builders,
+            wrt,
+        );
+    };
+    // The docs are remapped: the values are read in the new doc order.
+    plain_value_bytes.clear();
+    plain_column_writer
+        .value_bytes
+        .read_to_end(arena, plain_value_bytes);
+    // (new doc, start of the value in `plain_value_bytes`, length) for each value, in insertion
+    // order.
+    let mut doc_values: Vec<(RowId, usize, u32)> = Vec::new();
+    let mut new_doc: RowId = 0;
+    let mut value_start: usize = 0;
+    for op in ops {
+        match op {
+            ColumnOperation::NewDoc(old_doc) => {
+                new_doc = old_to_new_row_ids[old_doc as usize];
+            }
+            ColumnOperation::Value(ValueLen(len)) => {
+                doc_values.push((new_doc, value_start, len));
+                value_start += len as usize;
+            }
+        }
+    }
+    // The sort is stable: the values of a doc keep their order.
+    doc_values.sort_by_key(|(new_doc, _, _)| *new_doc);
+    let mut remapped_ops: Vec<ColumnOperation<ValueLen>> = Vec::with_capacity(doc_values.len() * 2);
+    let mut previous_new_doc: Option<RowId> = None;
+    for &(new_doc, _, len) in &doc_values {
+        if previous_new_doc != Some(new_doc) {
+            remapped_ops.push(ColumnOperation::NewDoc(new_doc));
+            previous_new_doc = Some(new_doc);
+        }
+        remapped_ops.push(ColumnOperation::Value(ValueLen(len)));
+    }
+    let mut doc_values_it = doc_values.iter();
+    serialize_plain_operations(
+        remapped_ops.into_iter(),
+        |len, block_bytes| {
+            let &(_, value_start, value_len) = doc_values_it
+                .next()
+                .expect("there is one doc value per value operation");
+            debug_assert_eq!(value_len, len);
+            block_bytes
+                .extend_from_slice(&plain_value_bytes[value_start..value_start + len as usize]);
+        },
+        cardinality,
+        num_docs,
+        value_index_builders,
+        wrt,
+    )
+}
+
+/// Builds the column index from `ops`, and streams the values to a `PlainColumnSerializer`.
+///
+/// For each `Value(ValueLen(len))` operation, `append_value(len, block_bytes)` must append the
+/// `len` bytes of the value to `block_bytes`.
+fn serialize_plain_operations(
+    ops: impl Iterator<Item = ColumnOperation<ValueLen>>,
+    mut append_value: impl FnMut(u32, &mut Vec<u8>),
+    cardinality: Cardinality,
+    num_rows: RowId,
+    value_index_builders: &mut PreallocatedIndexBuilders,
+    wrt: impl io::Write,
+) -> io::Result<()> {
+    let mut plain_serializer = PlainColumnSerializer::new(wrt);
+    let serializable_column_index = match cardinality {
+        Cardinality::Full => {
+            consume_plain_operations(
+                ops,
+                value_index_builders.borrow_required_index_builder(),
+                &mut append_value,
+                &mut plain_serializer,
+            )?;
+            SerializableColumnIndex::Full
+        }
+        Cardinality::Optional => {
+            let optional_index_builder = value_index_builders.borrow_optional_index_builder();
+            consume_plain_operations(
+                ops,
+                optional_index_builder,
+                &mut append_value,
+                &mut plain_serializer,
+            )?;
+            let optional_index = optional_index_builder.finish(num_rows);
+            SerializableColumnIndex::Optional(SerializableOptionalIndex {
+                non_null_row_ids: Box::new(optional_index),
+                num_rows,
+            })
+        }
+        Cardinality::Multivalued => {
+            let multivalued_index_builder = value_index_builders.borrow_multivalued_index_builder();
+            consume_plain_operations(
+                ops,
+                multivalued_index_builder,
+                &mut append_value,
+                &mut plain_serializer,
+            )?;
+            SerializableColumnIndex::Multivalued(multivalued_index_builder.finish(num_rows))
+        }
+    };
+    plain_serializer.finish(serializable_column_index)
+}
+
+fn consume_plain_operations<TIndexBuilder: IndexBuilder, W: io::Write>(
+    ops: impl Iterator<Item = ColumnOperation<ValueLen>>,
+    index_builder: &mut TIndexBuilder,
+    append_value: &mut impl FnMut(u32, &mut Vec<u8>),
+    plain_serializer: &mut PlainColumnSerializer<W>,
+) -> io::Result<()> {
+    for op in ops {
+        match op {
+            ColumnOperation::NewDoc(doc) => {
+                index_builder.record_row(doc);
+            }
+            ColumnOperation::Value(ValueLen(len)) => {
+                index_builder.record_value();
+                plain_serializer
+                    .add_value_with(len as usize, |block_bytes| append_value(len, block_bytes))?;
+            }
+        }
+    }
     Ok(())
 }
 
@@ -835,8 +1151,239 @@ fn consume_operation_iterator<T: Ord, TIndexBuilder: IndexBuilder>(
 mod tests {
     use stacker::MemoryArena;
 
+    use crate::columnar::format_version::{VERSION_FOOTER_NUM_BYTES, parse_footer};
     use crate::columnar::writer::column_operation::ColumnOperation;
-    use crate::{Cardinality, NumericalValue};
+    use crate::dynamic_column::str_or_bytes_values_per_doc;
+    use crate::{
+        Cardinality, ColumnType, ColumnarReader, ColumnarWriter, DynamicColumn, NumericalValue,
+        RowId, StrColumnCodec, Version,
+    };
+
+    fn columnar_version(columnar_bytes: &[u8]) -> Version {
+        let footer: [u8; VERSION_FOOTER_NUM_BYTES] = columnar_bytes
+            [columnar_bytes.len() - VERSION_FOOTER_NUM_BYTES..]
+            .try_into()
+            .unwrap();
+        parse_footer(footer).unwrap()
+    }
+
+    /// Builds a columnar with a plain `Str` column named "text".
+    fn build_plain_str_columnar(
+        docs: &[Vec<String>],
+        old_to_new_row_ids: Option<&[RowId]>,
+    ) -> Vec<u8> {
+        let mut columnar_writer = ColumnarWriter::default();
+        for (doc, doc_values) in docs.iter().enumerate() {
+            for value in doc_values {
+                columnar_writer.record_str_with_codec(
+                    doc as RowId,
+                    "text",
+                    value,
+                    StrColumnCodec::Plain,
+                );
+            }
+        }
+        let mut buffer = Vec::new();
+        columnar_writer
+            .serialize(docs.len() as RowId, old_to_new_row_ids, &mut buffer)
+            .unwrap();
+        buffer
+    }
+
+    fn to_bytes_per_doc(docs: &[Vec<String>]) -> Vec<Vec<Vec<u8>>> {
+        docs.iter()
+            .map(|doc_values| {
+                doc_values
+                    .iter()
+                    .map(|value| value.as_bytes().to_vec())
+                    .collect()
+            })
+            .collect()
+    }
+
+    #[track_caller]
+    fn test_plain_str_column_aux(docs: &[Vec<String>], expected_cardinality: Cardinality) {
+        let columnar_bytes = build_plain_str_columnar(docs, None);
+        assert_eq!(columnar_version(&columnar_bytes), Version::V3);
+        let columnar = ColumnarReader::open(columnar_bytes).unwrap();
+        let handles = columnar.read_columns("text").unwrap();
+        assert_eq!(handles.len(), 1);
+        assert_eq!(handles[0].column_type(), ColumnType::Str);
+        assert_eq!(handles[0].str_codec(), Some(StrColumnCodec::Plain));
+        assert!(handles[0].open_u64_lenient().is_err());
+        let dynamic_column = handles[0].open().unwrap();
+        assert!(matches!(dynamic_column, DynamicColumn::PlainStr(_)));
+        assert_eq!(dynamic_column.get_cardinality(), expected_cardinality);
+        assert_eq!(dynamic_column.str_codec(), Some(StrColumnCodec::Plain));
+        assert_eq!(
+            str_or_bytes_values_per_doc(&dynamic_column),
+            to_bytes_per_doc(docs)
+        );
+    }
+
+    fn doc(values: &[&str]) -> Vec<String> {
+        values.iter().map(|value| value.to_string()).collect()
+    }
+
+    #[test]
+    fn test_plain_str_column_full() {
+        let docs = vec![doc(&["hello"]), doc(&[""]), doc(&["happy tax payer"])];
+        test_plain_str_column_aux(&docs, Cardinality::Full);
+    }
+
+    #[test]
+    fn test_plain_str_column_optional() {
+        let docs = vec![doc(&[]), doc(&["b"]), doc(&[]), doc(&["a"]), doc(&[])];
+        test_plain_str_column_aux(&docs, Cardinality::Optional);
+    }
+
+    #[test]
+    fn test_plain_str_column_multivalued() {
+        let docs = vec![
+            doc(&["b", "a"]),
+            doc(&[]),
+            doc(&["c"]),
+            doc(&["a", "a", "a"]),
+        ];
+        test_plain_str_column_aux(&docs, Cardinality::Multivalued);
+    }
+
+    #[test]
+    fn test_plain_str_column_many_blocks() {
+        // Values span many arena chunks, and several blocks.
+        let docs: Vec<Vec<String>> = (0..100_000)
+            .map(|doc_id| {
+                if doc_id % 3 == 0 {
+                    doc(&[])
+                } else {
+                    vec![format!("/api/v1/user/{doc_id}/items?page={}", doc_id % 17); 2]
+                }
+            })
+            .collect();
+        test_plain_str_column_aux(&docs, Cardinality::Multivalued);
+    }
+
+    #[test]
+    fn test_plain_str_column_with_doc_remap() {
+        let docs = vec![
+            doc(&["zero"]),
+            doc(&["one", "uno"]),
+            doc(&[]),
+            doc(&["three"]),
+        ];
+        let old_to_new_row_ids: Vec<RowId> = vec![2, 0, 3, 1];
+        let columnar_bytes = build_plain_str_columnar(&docs, Some(&old_to_new_row_ids));
+        let columnar = ColumnarReader::open(columnar_bytes).unwrap();
+        let dynamic_column = columnar.read_columns("text").unwrap()[0].open().unwrap();
+        let expected = to_bytes_per_doc(&[
+            doc(&["one", "uno"]),
+            doc(&["three"]),
+            doc(&["zero"]),
+            doc(&[]),
+        ]);
+        assert_eq!(str_or_bytes_values_per_doc(&dynamic_column), expected);
+    }
+
+    #[test]
+    fn test_plain_bytes_column() {
+        let mut columnar_writer = ColumnarWriter::default();
+        columnar_writer.record_bytes_with_codec(0, "bytes", &[0, 255], StrColumnCodec::Plain);
+        columnar_writer.record_bytes_with_codec(2, "bytes", &[], StrColumnCodec::Plain);
+        let mut buffer = Vec::new();
+        columnar_writer.serialize(3, None, &mut buffer).unwrap();
+        let columnar = ColumnarReader::open(buffer).unwrap();
+        let handles = columnar.read_columns("bytes").unwrap();
+        assert_eq!(handles[0].column_type(), ColumnType::Bytes);
+        let dynamic_column = handles[0].open().unwrap();
+        assert!(matches!(dynamic_column, DynamicColumn::PlainBytes(_)));
+        assert_eq!(
+            str_or_bytes_values_per_doc(&dynamic_column),
+            vec![vec![vec![0, 255]], vec![], vec![vec![]]]
+        );
+    }
+
+    #[test]
+    fn test_record_str_uses_the_codec_of_the_column() {
+        let mut columnar_writer = ColumnarWriter::default();
+        columnar_writer.record_column_type_with_codec(
+            "text",
+            ColumnType::Str,
+            StrColumnCodec::Plain,
+        );
+        columnar_writer.record_str(0, "text", "hello");
+        let mut buffer = Vec::new();
+        columnar_writer.serialize(1, None, &mut buffer).unwrap();
+        let columnar = ColumnarReader::open(buffer).unwrap();
+        let handles = columnar.read_columns("text").unwrap();
+        assert_eq!(handles[0].str_codec(), Some(StrColumnCodec::Plain));
+    }
+
+    #[test]
+    fn test_required_plain_column_without_values() {
+        let mut columnar_writer = ColumnarWriter::default();
+        columnar_writer.record_column_type_with_codec(
+            "text",
+            ColumnType::Str,
+            StrColumnCodec::Plain,
+        );
+        let mut buffer = Vec::new();
+        columnar_writer.serialize(2, None, &mut buffer).unwrap();
+        let columnar = ColumnarReader::open(buffer).unwrap();
+        let dynamic_column = columnar.read_columns("text").unwrap()[0].open().unwrap();
+        assert_eq!(dynamic_column.num_values(), 0);
+        assert_eq!(
+            str_or_bytes_values_per_doc(&dynamic_column),
+            vec![Vec::<Vec<u8>>::new(); 2]
+        );
+    }
+
+    #[test]
+    #[should_panic(expected = "two different codecs")]
+    fn test_record_str_with_another_codec_panics() {
+        let mut columnar_writer = ColumnarWriter::default();
+        columnar_writer.record_str_with_codec(0, "text", "a", StrColumnCodec::Plain);
+        columnar_writer.record_str_with_codec(1, "text", "b", StrColumnCodec::Dictionary);
+    }
+
+    #[test]
+    fn test_columnar_without_plain_column_keeps_version_v2() {
+        let mut columnar_writer = ColumnarWriter::default();
+        columnar_writer.record_str(0, "text", "hello");
+        let mut buffer = Vec::new();
+        columnar_writer.serialize(1, None, &mut buffer).unwrap();
+        assert_eq!(columnar_version(&buffer), Version::V2);
+    }
+
+    #[test]
+    fn test_plain_column_and_other_types_with_the_same_name() {
+        // The plain key code sorts after all of the other column types.
+        let mut columnar_writer = ColumnarWriter::default();
+        columnar_writer.record_str_with_codec(0, "field", "a", StrColumnCodec::Plain);
+        columnar_writer.record_numerical(1, "field", 12u64);
+        columnar_writer.record_bool(1, "field", true);
+        columnar_writer.record_datetime(1, "field", common::DateTime::from_timestamp_secs(1));
+        columnar_writer.record_str(1, "other", "b");
+        let mut buffer = Vec::new();
+        columnar_writer.serialize(2, None, &mut buffer).unwrap();
+        let columnar = ColumnarReader::open(buffer).unwrap();
+        let column_types: Vec<(ColumnType, Option<StrColumnCodec>)> = columnar
+            .read_columns("field")
+            .unwrap()
+            .iter()
+            .map(|handle| (handle.column_type(), handle.str_codec()))
+            .collect();
+        assert_eq!(
+            column_types,
+            vec![
+                // Numerical columns are i64 when all of their values fit.
+                (ColumnType::I64, None),
+                (ColumnType::Bool, None),
+                (ColumnType::DateTime, None),
+                (ColumnType::Str, Some(StrColumnCodec::Plain)),
+            ]
+        );
+        assert_eq!(columnar.list_columns().unwrap().len(), 5);
+    }
 
     #[test]
     fn test_column_writer_required_simple() {

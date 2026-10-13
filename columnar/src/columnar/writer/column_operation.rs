@@ -242,6 +242,20 @@ impl SymbolValue for UnorderedId {
     }
 }
 
+/// Length of a value of a plain-encoded column. The bytes of the value are stored separately.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) struct ValueLen(pub u32);
+
+impl SymbolValue for ValueLen {
+    fn serialize(self, output: &mut [u8]) -> u8 {
+        self.0.serialize(output)
+    }
+
+    fn deserialize(bytes: &[u8]) -> Self {
+        ValueLen(u32::deserialize(bytes))
+    }
+}
+
 fn compute_num_bytes_for_u64(val: u64) -> usize {
     let msb = (64u32 - val.leading_zeros()) as usize;
     msb.div_ceil(8)
@@ -348,6 +362,19 @@ mod tests {
             ColumnOperation::deserialize(&mut cursor).unwrap();
         assert_eq!(column_op_serdeser, ColumnOperation::Value(UnorderedId(val)));
         assert_eq!(cursor.len() + expected_len, buf.len());
+    }
+
+    #[test]
+    fn test_column_operation_value_len() {
+        for len in [0u32, 1, 255, 256, 1 << 20, u32::MAX] {
+            let column_op = ColumnOperation::Value(ValueLen(len));
+            let minibuf = column_op.serialize();
+            let mut cursor = minibuf.as_ref();
+            let column_op_serdeser: ColumnOperation<ValueLen> =
+                ColumnOperation::deserialize(&mut cursor).unwrap();
+            assert_eq!(column_op_serdeser, column_op);
+            assert!(cursor.is_empty());
+        }
     }
 
     #[test]

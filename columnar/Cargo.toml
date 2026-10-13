@@ -64,5 +64,9 @@ harness = false
 name = "bench_multivalue_docids"
 harness = false
 
+[[bench]]
+name = "bench_plain_codec"
+harness = false
+
 [features]
 zstd-compression = ["sstable/zstd-compression"]
