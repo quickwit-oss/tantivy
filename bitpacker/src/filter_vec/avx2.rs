@@ -17,9 +17,10 @@ fn u32_to_i32(val: u32) -> i32 {
 }
 
 #[inline]
-unsafe fn u32_to_i32_avx2(vals_u32x8s: DataType) -> DataType {
+#[target_feature(enable = "avx2")]
+fn u32_to_i32_avx2(vals_u32x8s: DataType) -> DataType {
     const HIGHEST_BIT_MASK: DataType = from_u32x8([HIGHEST_BIT; NUM_LANES]);
-    unsafe { op_xor(vals_u32x8s, HIGHEST_BIT_MASK) }
+    op_xor(vals_u32x8s, HIGHEST_BIT_MASK)
 }
 
 pub fn filter_vec_in_place(range: RangeInclusive<u32>, offset: u32, output: &mut Vec<u32>) {
@@ -66,31 +67,35 @@ unsafe fn filter_vec_avx2_aux(
     ]);
     const SHIFT: __m256i = from_u32x8([NUM_LANES as u32; NUM_LANES]);
     for _ in 0..num_words {
+        // SAFETY: the caller guarantees that `input` points to `num_words` readable words.
+        let word = unsafe { load_unaligned(input) };
+        let word = u32_to_i32_avx2(word);
+        let keeper_bitset = compute_filter_bitset(word, range_simd.clone());
+        let added_len = keeper_bitset.count_ones();
+        let filtered_doc_ids = compact(ids, keeper_bitset);
+        // SAFETY: `output` and `input` point to the same buffer, and `output_tail` advances by
+        // at most `NUM_LANES` values per word read. So `output_tail` never gets ahead of
+        // `input`, and the store only overwrites words that have already been read.
         unsafe {
-            let word = load_unaligned(input);
-            let word = u32_to_i32_avx2(word);
-            let keeper_bitset = compute_filter_bitset(word, range_simd.clone());
-            let added_len = keeper_bitset.count_ones();
-            let filtered_doc_ids = compact(ids, keeper_bitset);
             store_unaligned(output_tail as *mut __m256i, filtered_doc_ids);
             output_tail = output_tail.offset(added_len as isize);
-            ids = op_add(ids, SHIFT);
             input = input.offset(1);
         }
+        ids = op_add(ids, SHIFT);
     }
     unsafe { output_tail.offset_from(output) as usize }
 }
 
 #[inline]
 #[target_feature(enable = "avx2")]
-unsafe fn compact(data: DataType, mask: u8) -> DataType {
+fn compact(data: DataType, mask: u8) -> DataType {
     let vperm_mask = MASK_TO_PERMUTATION[mask as usize];
     _mm256_permutevar8x32_epi32(data, vperm_mask)
 }
 
 #[inline]
 #[target_feature(enable = "avx2")]
-unsafe fn compute_filter_bitset(val: __m256i, range: std::ops::RangeInclusive<__m256i>) -> u8 {
+fn compute_filter_bitset(val: __m256i, range: std::ops::RangeInclusive<__m256i>) -> u8 {
     let too_low = op_greater(*range.start(), val);
     let too_high = op_greater(val, *range.end());
     let inside = op_or(too_low, too_high);
