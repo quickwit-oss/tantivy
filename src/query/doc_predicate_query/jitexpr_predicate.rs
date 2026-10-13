@@ -209,6 +209,52 @@ mod tests {
             .into()
     }
 
+    /// "label" is plain-encoded, "label_dict" is its dictionary encoded copy.
+    fn create_plain_index() -> Index {
+        use crate::schema::{StrColumnCodec, TextOptions};
+
+        let mut schema_builder = Schema::builder();
+        let label = schema_builder.add_text_field(
+            "label",
+            TextOptions::default().set_fast_codec(StrColumnCodec::Plain),
+        );
+        let label_dict = schema_builder.add_text_field("label_dict", STRING | FAST);
+        let index = Index::create_in_ram(schema_builder.build());
+        let mut writer = index.writer_for_tests().unwrap();
+        for label_value in ["apple", "banana", "avocado", "cherry"] {
+            writer
+                .add_document(doc!(label => label_value, label_dict => label_value))
+                .unwrap();
+        }
+        writer.add_document(doc!()).unwrap();
+        writer.commit().unwrap();
+        writer
+            .add_document(doc!(label => "apricot", label_dict => "apricot"))
+            .unwrap();
+        writer.commit().unwrap();
+        index
+    }
+
+    #[test]
+    fn test_predicate_over_plain_text_field() {
+        let index = create_plain_index();
+        let searcher = index.reader().unwrap().searcher();
+        for (expression, expected_count) in [
+            (r#"(EQ label "banana")"#, 1),
+            (r#"(EQ (UPPER label) "CHERRY")"#, 1),
+            (r#"(REGEXP_LIKE label "^a")"#, 3),
+            (r#"(EQ label "missing")"#, 0),
+            ("(IS_NULL label)", 1),
+            ("(IS_NOT_NULL label)", 5),
+        ] {
+            let count = searcher.search(&query(expression), &Count).unwrap();
+            assert_eq!(count, expected_count, "{expression}");
+            let dict_expression = expression.replace("label", "label_dict");
+            let dict_count = searcher.search(&query(&dict_expression), &Count).unwrap();
+            assert_eq!(count, dict_count, "{expression}");
+        }
+    }
+
     #[test]
     fn test_constructor_requires_boolean_expression() {
         let expression = jitexpr::ast::deserialize("(ADD number 1u64)").unwrap();

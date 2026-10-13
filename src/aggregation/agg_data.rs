@@ -292,7 +292,8 @@ fn missing_value_for_source(
         Some(column) => column.max_value(),
         None if column_type == ColumnType::Str => {
             return Err(crate::TantivyError::InvalidArgument(format!(
-                "`missing` is not supported for the computed text value source `{field_name}`"
+                "`missing` is not supported for the computed or plain-encoded text field \
+                 `{field_name}`"
             )));
         }
         None => 0,
@@ -311,7 +312,7 @@ fn require_physical_column(
 ) -> crate::Result<Column<u64>> {
     source.as_physical_column().cloned().ok_or_else(|| {
         crate::TantivyError::InvalidArgument(format!(
-            "{agg_kind} does not support the computed value source `{field_name}`"
+            "{agg_kind} does not support the computed or plain-encoded field `{field_name}`"
         ))
     })
 }
@@ -326,7 +327,7 @@ fn reject_registered_source(
 ) -> crate::Result<()> {
     if value_sources.get(field_name).is_some() {
         return Err(crate::TantivyError::InvalidArgument(format!(
-            "{agg_kind} does not support the computed value source `{field_name}`"
+            "{agg_kind} does not support the computed or plain-encoded field `{field_name}`"
         )));
     }
     Ok(())
@@ -1003,7 +1004,7 @@ fn build_terms_or_cardinality_nodes(
                     let Some(str_col) = accessor.as_physical_str_column() else {
                         return Err(crate::TantivyError::InvalidArgument(format!(
                             "terms aggregation with `include` / `exclude` requires a physical \
-                             text field, but `{field_name}` is a computed value source"
+                             text field, but `{field_name}` is a computed or plain-encoded field"
                         )));
                     };
                     allowed_term_ids = build_allowed_term_ids_for_str(
@@ -1026,14 +1027,14 @@ fn build_terms_or_cardinality_nodes(
                     {
                         return Err(crate::TantivyError::InvalidArgument(format!(
                             "terms aggregation ordered by `_key` is not supported on the computed \
-                             value source `{field_name}`"
+                             or plain-encoded text field `{field_name}`"
                         )));
                     }
                     // `min_doc_count: 0` requires listing all of the possible values.
                     if req_internal.min_doc_count == 0 {
                         return Err(crate::TantivyError::InvalidArgument(format!(
                             "terms aggregation with `min_doc_count: 0` is not supported on the \
-                             computed value source `{field_name}`"
+                             computed or plain-encoded field `{field_name}`"
                         )));
                     }
                 }

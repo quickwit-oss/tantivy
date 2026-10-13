@@ -2,7 +2,9 @@
 
 use std::io;
 
-use columnar::{BytesColumn, Column, ColumnType, DynamicColumn, DynamicColumnHandle, StrColumn};
+use columnar::{
+    BytesColumn, Column, ColumnType, DynamicColumn, DynamicColumnHandle, StrColumn, StrColumnCodec,
+};
 
 use crate::aggregation::value_source::ValueSource;
 use crate::aggregation::{f64_to_fastfield_u64, Key, ValueSourceRegistry};
@@ -144,6 +146,20 @@ pub(crate) fn get_all_value_sources(
     Ok(sources)
 }
 
+#[cfg(feature = "jitexpr")]
+use crate::aggregation::jitexpr_value_source::plain_str_value_source;
+
+/// Aggregations on plain-encoded text columns require the `jitexpr` feature.
+#[cfg(not(feature = "jitexpr"))]
+fn plain_str_value_source(
+    _reader: &SegmentReader,
+    _handle: &DynamicColumnHandle,
+) -> crate::Result<Box<dyn ValueSource>> {
+    Err(crate::TantivyError::InvalidArgument(
+        "aggregations on plain-encoded text fast fields require the `jitexpr` feature".to_string(),
+    ))
+}
+
 /// Builds a value source without any value, with the given type.
 ///
 /// `num_rows` is the number of rows of the column (the `max_doc` of the segment).
@@ -183,7 +199,7 @@ fn open_physical_column_value_sources(
                 continue;
             }
         }
-        if let Some(column) = open_physical_column_value_source(handle)? {
+        if let Some(column) = open_physical_column_value_source(reader, handle)? {
             sources.push(column);
             if first_only {
                 break;
@@ -196,10 +212,22 @@ fn open_physical_column_value_sources(
 /// Opens a column as a value source.
 ///
 /// Returns `None` if the column cannot be read as `u64`.
+///
+/// A plain-encoded text column has no term ordinals: it is exposed through a jitexpr source
+/// interning its values, see `plain_str_value_source`.
 fn open_physical_column_value_source(
+    reader: &SegmentReader,
     column_handle: DynamicColumnHandle,
 ) -> crate::Result<Option<Box<dyn ValueSource>>> {
     let column_type = column_handle.column_type();
+    if column_handle.str_codec() == Some(StrColumnCodec::Plain) {
+        if column_type != ColumnType::Str {
+            return Err(crate::TantivyError::InvalidArgument(format!(
+                "aggregations are not supported on plain-encoded {column_type} fast fields"
+            )));
+        }
+        return plain_str_value_source(reader, &column_handle).map(Some);
+    }
     if column_type == ColumnType::Str {
         let DynamicColumn::Str(str_column) = column_handle.open()? else {
             return Err(crate::TantivyError::InternalError(
@@ -212,4 +240,34 @@ fn open_physical_column_value_source(
         return Ok(None);
     };
     Ok(Some(Box::new((column, column_type))))
+}
+
+#[cfg(all(test, not(feature = "jitexpr")))]
+mod tests {
+    use serde_json::json;
+
+    use crate::aggregation::agg_req::Aggregations;
+    use crate::aggregation::AggregationCollector;
+    use crate::query::AllQuery;
+    use crate::schema::{Schema, StrColumnCodec, TextOptions};
+    use crate::Index;
+
+    #[test]
+    fn test_aggregation_on_plain_text_field_requires_jitexpr() {
+        let mut schema_builder = Schema::builder();
+        let label = schema_builder.add_text_field(
+            "label",
+            TextOptions::default().set_fast_codec(StrColumnCodec::Plain),
+        );
+        let index = Index::create_in_ram(schema_builder.build());
+        let mut writer = index.writer_for_tests().unwrap();
+        writer.add_document(doc!(label => "a")).unwrap();
+        writer.commit().unwrap();
+        let aggs: Aggregations =
+            serde_json::from_value(json!({ "t": { "terms": { "field": "label" } } })).unwrap();
+        let collector = AggregationCollector::from_aggs(aggs, Default::default());
+        let searcher = index.reader().unwrap().searcher();
+        let err = searcher.search(&AllQuery, &collector).unwrap_err();
+        assert!(err.to_string().contains("`jitexpr` feature"), "{err}");
+    }
 }

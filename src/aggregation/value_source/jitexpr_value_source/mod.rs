@@ -172,6 +172,55 @@ impl JitExprValueSourceProvider {
     }
 }
 
+/// Name of the variable of the identity expression of `plain_str_value_source`.
+///
+/// The variable is bound to a column handle directly, so its name does not matter. A constant
+/// name lets all of the plain columns share the same compiled function.
+const PLAIN_STR_IDENTITY_VARIABLE: &str = "value";
+
+/// Returns a value source with the values of the plain-encoded `Str` column of `handle`.
+///
+/// The source evaluates the identity jitexpr expression on the column. Its text results are
+/// interned in the term dictionary of the source, like the results of any text expression: the
+/// term ords are in first-seen order, and not sorted with the terms.
+///
+/// A jitexpr source reads the first value of each doc only. Multivalued columns would silently
+/// lose their other values, so they return an error.
+pub(crate) fn plain_str_value_source(
+    reader: &SegmentReader,
+    handle: &DynamicColumnHandle,
+) -> crate::Result<Box<dyn ValueSource>> {
+    let input = InputColumn::open(handle)?;
+    if input.var_type() != VarType::Str {
+        return Err(TantivyError::InternalError(
+            "a plain column source requires a text column".to_string(),
+        ));
+    }
+    if input.column_index().get_cardinality().is_multivalue() {
+        return Err(TantivyError::InvalidArgument(
+            "aggregations are not supported on multivalued plain-encoded text fast fields"
+                .to_string(),
+        ));
+    }
+    let identity = UntypedExpr::variable(PLAIN_STR_IDENTITY_VARIABLE);
+    let variable_types: HashMap<&str, VarType> =
+        HashMap::from([(PLAIN_STR_IDENTITY_VARIABLE, VarType::Str)]);
+    let compiled_fn: Arc<CompiledFn> = reader
+        .index()
+        .expr_compilation_cache()
+        .compile(&identity, &variable_types)
+        .map_err(|compile_error| {
+            TantivyError::InternalError(format!(
+                "the compilation of the identity expression failed: {compile_error}"
+            ))
+        })?;
+    Ok(Box::new(JitExprValueSource::new(
+        compiled_fn.context(),
+        ColumnType::Str,
+        vec![input],
+    )))
+}
+
 /// The source of a jitexpr expression on a segment, returned by
 /// `JitExprValueSourceProvider::open_segment`.
 pub(crate) enum JitExprSegmentSource {
@@ -901,5 +950,169 @@ mod tests {
             );
         }
         assert_eq!(expected["tripled_stats"]["count"], 398);
+    }
+
+    /// Two segments. "label" is a plain-encoded copy of the dictionary encoded "label_dict".
+    /// "tags" is a multivalued plain-encoded field.
+    fn create_plain_label_index() -> Index {
+        use crate::schema::{StrColumnCodec, TextOptions};
+
+        let plain_text_options = TextOptions::default().set_fast_codec(StrColumnCodec::Plain);
+        let mut schema_builder = Schema::builder();
+        let label = schema_builder.add_text_field("label", plain_text_options.clone());
+        let label_dict = schema_builder.add_text_field("label_dict", STRING | FAST);
+        let tags = schema_builder.add_text_field("tags", plain_text_options);
+        let score = schema_builder.add_u64_field("score", FAST);
+        let index = Index::create_in_ram(schema_builder.build());
+        let mut writer = index.writer_for_tests().unwrap();
+        for (label_value, score_value) in [("b", 1u64), ("a", 2), ("b", 3), ("c", 4)] {
+            writer
+                .add_document(doc!(
+                    label => label_value,
+                    label_dict => label_value,
+                    score => score_value,
+                    tags => "x",
+                    tags => label_value,
+                ))
+                .unwrap();
+        }
+        writer.add_document(doc!(score => 100u64)).unwrap();
+        writer.commit().unwrap();
+        for (label_value, score_value) in [("c", 5u64), ("a", 6), ("b", 7)] {
+            writer
+                .add_document(
+                    doc!(label => label_value, label_dict => label_value, score => score_value),
+                )
+                .unwrap();
+        }
+        writer.commit().unwrap();
+        index
+    }
+
+    #[test]
+    fn test_terms_over_plain_text_field_matches_dictionary() {
+        let index = create_plain_label_index();
+        for terms_req in [
+            json!({ "field": "FIELD" }),
+            json!({ "field": "FIELD", "size": 2 }),
+            json!({ "field": "FIELD", "order": { "score_sum": "desc" } }),
+        ] {
+            let mut results: Vec<Value> = Vec::new();
+            for field in ["label", "label_dict"] {
+                let mut terms_req = terms_req.clone();
+                terms_req["field"] = json!(field);
+                let result = run_agg(
+                    &index,
+                    &[],
+                    json!({
+                        "t": {
+                            "terms": terms_req,
+                            "aggs": { "score_sum": { "sum": { "field": "score" } } }
+                        }
+                    }),
+                );
+                results.push(result);
+            }
+            assert_eq!(results[0], results[1], "{terms_req}");
+        }
+        let result = run_agg(
+            &index,
+            &[],
+            json!({ "t": { "terms": { "field": "label" } } }),
+        );
+        assert_eq!(
+            sorted_bucket_counts(&result, "t"),
+            vec![
+                ("\"a\"".to_string(), 2),
+                ("\"b\"".to_string(), 3),
+                ("\"c\"".to_string(), 2)
+            ]
+        );
+    }
+
+    #[test]
+    fn test_cardinality_over_plain_text_field() {
+        let index = create_plain_label_index();
+        let result = run_agg(
+            &index,
+            &[],
+            json!({
+                "plain": { "cardinality": { "field": "label" } },
+                "dict": { "cardinality": { "field": "label_dict" } }
+            }),
+        );
+        assert_eq!(result["plain"]["value"], 3.0);
+        assert_eq!(result["plain"], result["dict"]);
+    }
+
+    #[test]
+    fn test_jitexpr_field_over_plain_text_input() {
+        let index = create_plain_label_index();
+        let result = run_agg(
+            &index,
+            &[
+                ("#upper", "(UPPER label)"),
+                ("#upper_dict", "(UPPER label_dict)"),
+            ],
+            json!({
+                "plain": { "terms": { "field": "#upper" } },
+                "dict": { "terms": { "field": "#upper_dict" } }
+            }),
+        );
+        assert_eq!(
+            sorted_bucket_counts(&result, "plain"),
+            vec![
+                ("\"A\"".to_string(), 2),
+                ("\"B\"".to_string(), 3),
+                ("\"C\"".to_string(), 2)
+            ]
+        );
+        assert_eq!(result["plain"], result["dict"]);
+    }
+
+    #[test]
+    fn test_unsupported_aggregations_on_plain_text_field() {
+        let index = create_plain_label_index();
+        for (aggs, expected_message) in [
+            (
+                json!({ "t": { "terms": { "field": "label", "order": { "_key": "asc" } } } }),
+                "ordered by `_key`",
+            ),
+            (
+                json!({ "t": { "terms": { "field": "label", "min_doc_count": 0 } } }),
+                "`min_doc_count: 0`",
+            ),
+            (
+                json!({ "t": { "terms": { "field": "label", "include": "a.*" } } }),
+                "`include` / `exclude`",
+            ),
+            (
+                json!({ "t": { "terms": { "field": "label", "exclude": ["a"] } } }),
+                "`include` / `exclude`",
+            ),
+            (
+                json!({ "t": { "terms": { "field": "label", "missing": "NONE" } } }),
+                "`missing`",
+            ),
+            (
+                json!({ "t": { "terms": { "field": "tags" } } }),
+                "multivalued plain-encoded",
+            ),
+            (
+                json!({ "t": { "cardinality": { "field": "tags" } } }),
+                "multivalued plain-encoded",
+            ),
+            (
+                json!({ "t": { "multi_terms": { "terms": [{ "field": "label" }, { "field": "score" }] } } }),
+                "plain",
+            ),
+            (
+                json!({ "t": { "composite": { "size": 10, "sources": [{ "l": { "terms": { "field": "label" } } }] } } }),
+                "plain",
+            ),
+        ] {
+            let err = try_run_agg(&index, &[], aggs.clone()).unwrap_err();
+            assert!(err.to_string().contains(expected_message), "{aggs}: {err}");
+        }
     }
 }
