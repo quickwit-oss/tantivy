@@ -497,7 +497,7 @@ pub(crate) fn build_segment_term_collector(
             // large/sparse ordinal spaces. See `LAZY_BUCKET_ID_GENERATION_THRESHOLD`.
             if num_terms > LAZY_BUCKET_ID_GENERATION_THRESHOLD {
                 let term_buckets =
-                    VecTermBuckets::<BucketId, true>::new(num_terms, &mut bucket_id_provider);
+                    LazyVecTermBuckets::<BucketId>::new(num_terms, &mut bucket_id_provider);
                 add_memory_consumption(&term_buckets, req_data)?;
                 Ok(boxed_high_card_collector(
                     term_buckets,
@@ -508,7 +508,7 @@ pub(crate) fn build_segment_term_collector(
                 ))
             } else {
                 let term_buckets =
-                    VecTermBuckets::<BucketId, false>::new(num_terms, &mut bucket_id_provider);
+                    VecTermBuckets::<BucketId>::new(num_terms, &mut bucket_id_provider);
                 add_memory_consumption(&term_buckets, req_data)?;
                 Ok(boxed_high_card_collector(
                     term_buckets,
@@ -871,37 +871,62 @@ impl<B: BucketIdSlot, const LANES: usize> TermBucketWithLanes<B, LANES> {
         }
     }
 }
-
 /// A dense term map for very low cardinality. Each logical bucket cycles writes over independent
 /// count lanes, which are consolidated when the map is converted into its result representation.
+///
+/// When the sub-aggregation id space would be large and sparsely filled, use [`LazyVecTermBuckets`]
+/// instead, which assigns ids on first use.
 #[derive(Clone, Debug)]
-struct VecTermBucketsWithLanes<B, const LANES: usize = NUM_LOW_CARD_COUNT_LANES> {
+pub(crate) struct VecTermBuckets<B = BucketId, const LANES: usize = 1> {
     buckets: Vec<TermBucketWithLanes<B, LANES>>,
     next_count_lane: usize,
 }
 
-impl<B: BucketIdSlot, const LANES: usize> TermAggregationMap for VecTermBucketsWithLanes<B, LANES> {
+/// A dense term map for very low cardinality that spreads counts across several lanes. A named
+/// alias of [`VecTermBuckets`] for readability at the lane-using call site.
+pub(crate) type VecTermBucketsWithLanes<B, const LANES: usize = NUM_LOW_CARD_COUNT_LANES> =
+    VecTermBuckets<B, LANES>;
+
+impl<B: BucketIdSlot, const LANES: usize> VecTermBuckets<B, LANES> {
+    // Rotate writes across the lanes to break the per-bucket update dependency; with
+    // `LANES == 1` this always targets lane 0, i.e. a single counter.
+    #[inline(always)]
+    fn next_count_lane(&mut self) -> usize {
+        if LANES <= 1 {
+            return 0;
+        }
+        self.next_count_lane = (self.next_count_lane + 1) % LANES;
+        self.next_count_lane
+    }
+}
+
+impl<B: BucketIdSlot, const LANES: usize> TermAggregationMap for VecTermBuckets<B, LANES> {
     type Slot = B;
 
     const SORTED_BY_KEY: bool = true;
 
+    /// Estimate the memory consumption of this struct in bytes.
     fn get_memory_consumption(&self) -> usize {
+        // We do not include `std::mem::size_of::<Self>()`.
+        // It is already measured by the parent aggregation.
+        //
+        // The root aggregation mem size is not measured but we do not care.
         self.buckets.capacity() * std::mem::size_of::<TermBucketWithLanes<B, LANES>>()
     }
 
-    #[inline(always)]
+    /// Add an occurrence of the given term id.
+    #[inline]
     fn term_entry(&mut self, term_id: u64, _bucket_id_provider: &mut BucketIdProvider) -> B {
         let term_id_usize = term_id as usize;
         debug_assert!(
             term_id_usize < self.buckets.len(),
-            "term_id {} out of bounds for VecTermBucketsWithLanes (len={})",
+            "term_id {} out of bounds for VecTermBuckets (len={})",
             term_id,
             self.buckets.len()
         );
-
-        self.next_count_lane = (self.next_count_lane + 1) % LANES;
+        let next_count_lane = self.next_count_lane();
         let bucket = unsafe { self.buckets.get_unchecked_mut(term_id_usize) };
-        bucket.count_lanes[self.next_count_lane] += 1;
+        bucket.count_lanes[next_count_lane] += 1;
         bucket.bucket_id
     }
 
@@ -909,8 +934,8 @@ impl<B: BucketIdSlot, const LANES: usize> TermAggregationMap for VecTermBucketsW
         self.buckets
             .into_iter()
             .enumerate()
-            .filter_map(|(term_id, low_card_bucket)| {
-                let bucket = low_card_bucket.into_bucket();
+            .filter_map(|(term_id, lane_bucket)| {
+                let bucket = lane_bucket.into_bucket();
                 (bucket.count > 0).then_some((term_id as u64, bucket))
             })
             .collect()
@@ -918,38 +943,37 @@ impl<B: BucketIdSlot, const LANES: usize> TermAggregationMap for VecTermBucketsW
 
     fn new(num_terms: u64, bucket_id_provider: &mut BucketIdProvider) -> Self {
         const { assert!(LANES > 0, "a term map needs at least one count lane") };
+        // Eager: assign an id to every ordinal up front (a no-op for the `()` slot).
         let buckets =
             std::iter::repeat_with(|| TermBucketWithLanes::<B, LANES>::new(bucket_id_provider))
                 .take(num_terms as usize)
                 .collect();
-        Self {
+        VecTermBuckets {
             buckets,
             next_count_lane: 0,
         }
     }
 }
 
-/// A term map backed by a `Vec`, indexed directly by term ordinal.
+/// A term map backed by a `Vec`, indexed directly by term ordinal, assigning sub-aggregation bucket
+/// ids lazily on a bucket's first occurrence.
 ///
-/// `LAZY_BUCKET_ID_GENERATION` defers sub-aggregation bucket ID generation until first use.
+/// This keeps the id space compact when the ordinal span is large but sparsely populated, at the
+/// cost of one branch per insert. It uses a single counter per bucket: count lanes only pay off at
+/// very low cardinality, which never overlaps the lazy regime (see
+/// [`LAZY_BUCKET_ID_GENERATION_THRESHOLD`]).
 #[derive(Clone, Debug)]
-pub(crate) struct VecTermBuckets<B = BucketId, const LAZY_BUCKET_ID_GENERATION: bool = false> {
+pub(crate) struct LazyVecTermBuckets<B = BucketId> {
     buckets: Vec<Bucket<B>>,
 }
 
-impl<B: BucketIdSlot, const LAZY_BUCKET_ID_GENERATION: bool> TermAggregationMap
-    for VecTermBuckets<B, LAZY_BUCKET_ID_GENERATION>
-{
+impl<B: BucketIdSlot> TermAggregationMap for LazyVecTermBuckets<B> {
     type Slot = B;
 
     const SORTED_BY_KEY: bool = true;
 
     /// Estimate the memory consumption of this struct in bytes.
     fn get_memory_consumption(&self) -> usize {
-        // We do not include `std::mem::size_of::<Self>()`
-        // It is already measure by the parent aggregation.
-        //
-        // The root aggregation mem size is not measure but we do not care.
         self.buckets.capacity() * std::mem::size_of::<Bucket<B>>()
     }
 
@@ -959,16 +983,14 @@ impl<B: BucketIdSlot, const LAZY_BUCKET_ID_GENERATION: bool> TermAggregationMap
         let term_id_usize = term_id as usize;
         debug_assert!(
             term_id_usize < self.buckets.len(),
-            "term_id {} out of bounds for VecTermBuckets (len={})",
+            "term_id {} out of bounds for LazyVecTermBuckets (len={})",
             term_id,
             self.buckets.len()
         );
         let bucket = unsafe { self.buckets.get_unchecked_mut(term_id_usize) };
-        // Lazy mode: assign the id the first time a term is seen (`count == 0`). Both
-        // `LAZY_BUCKET_ID_GENERATION` and `B::ASSIGNS_ID` are consts, so in eager mode (or for the
-        // `()` slot) the whole branch is gated out at monomorphization, leaving just the `count`
-        // bump.
-        if LAZY_BUCKET_ID_GENERATION && B::ASSIGNS_ID && bucket.count == 0 {
+        // Assign the id the first time the term is seen (`count == 0`). `B::assign` is a no-op for
+        // the `()` slot, but this map is only used with a real `BucketId`.
+        if bucket.count == 0 {
             bucket.bucket_id = B::assign(bucket_id_provider);
         }
         bucket.count += 1;
@@ -984,18 +1006,10 @@ impl<B: BucketIdSlot, const LAZY_BUCKET_ID_GENERATION: bool> TermAggregationMap
             .collect()
     }
 
-    fn new(num_terms: u64, bucket_id_provider: &mut BucketIdProvider) -> Self {
-        let num_terms = num_terms as usize;
-        let buckets = if LAZY_BUCKET_ID_GENERATION {
-            // Empty buckets; ids are assigned lazily in `term_entry`, so the provider is untouched.
-            vec![Bucket::default(); num_terms]
-        } else {
-            // Eager: assign an id to every ordinal up front (a no-op for the `()` slot).
-            std::iter::repeat_with(|| Bucket::new(bucket_id_provider))
-                .take(num_terms)
-                .collect()
-        };
-        VecTermBuckets { buckets }
+    fn new(num_terms: u64, _bucket_id_provider: &mut BucketIdProvider) -> Self {
+        // Empty buckets; ids are assigned lazily in `term_entry`, so the provider is untouched.
+        let buckets = vec![Bucket::default(); num_terms as usize];
+        LazyVecTermBuckets { buckets }
     }
 }
 
