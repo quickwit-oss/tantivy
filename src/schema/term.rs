@@ -101,15 +101,14 @@ impl Term {
     }
 
     /// Gets the json path if the type is JSON
+    ///
+    /// The public API (`append_bytes`, `set_bytes`, `Term::wrap`, serde, ...) can put
+    /// arbitrary bytes in the path, so invalid UTF-8 sequences are replaced by `U+FFFD`.
     pub fn get_json_path(&self) -> Option<String> {
         let value = self.value();
-        if let Some((json_path, _)) = value.as_json() {
-            Some(unsafe {
-                std::str::from_utf8_unchecked(&json_path[..json_path.len() - 1]).to_string()
-            })
-        } else {
-            None
-        }
+        let (json_path, _) = value.as_json()?;
+        let json_path_without_end = &json_path[..json_path.len() - 1];
+        Some(String::from_utf8_lossy(json_path_without_end).into_owned())
     }
 
     pub(crate) fn with_type_and_field(typ: Type, field: Field) -> Term {
@@ -575,5 +574,28 @@ mod tests {
         assert_eq!(term.typ(), Type::Bool);
         assert_eq!(term.serialized_value_bytes().len(), 8);
         assert_eq!(term.value().as_bool(), Some(true))
+    }
+
+    #[test]
+    pub fn test_term_get_json_path() {
+        let mut schema_builder = Schema::builder();
+        let json_field = schema_builder.add_json_field("json", STRING);
+        let term = Term::from_field_json_path(json_field, "attributes", false);
+        assert_eq!(term.get_json_path().as_deref(), Some("attributes"));
+        let text_term = Term::from_field_text(json_field, "attributes");
+        assert_eq!(text_term.get_json_path(), None);
+    }
+
+    #[test]
+    pub fn test_term_get_json_path_invalid_utf8() {
+        let mut schema_builder = Schema::builder();
+        let json_field = schema_builder.add_json_field("json", STRING);
+        let schema = schema_builder.build();
+        let mut term = Term::from_field_bytes(json_field, &[]);
+        term.clear_with_type(Type::Json);
+        // Invalid UTF-8 path, followed by the end-of-path marker.
+        term.append_bytes(&[b'a', 0xFF, common::json_path_writer::JSON_END_OF_PATH]);
+        assert_eq!(term.get_json_path().as_deref(), Some("a\u{FFFD}"));
+        assert_eq!(term.get_full_path(&schema), "json.a\u{FFFD}");
     }
 }
