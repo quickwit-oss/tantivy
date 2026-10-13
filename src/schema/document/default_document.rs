@@ -29,7 +29,10 @@ pub struct CompactDoc {
     /// `node_data` is a vec of bytes, where each value is serialized into bytes and stored. It
     /// includes all the data of the document and also metadata like where the nodes are located
     /// in an object or array.
-    pub node_data: Vec<u8>,
+    ///
+    /// Invariant: string values are only written from `&str`, so their bytes are valid UTF-8.
+    /// `extract_str` relies on this. The field must not be exposed outside of the crate.
+    pub(crate) node_data: Vec<u8>,
     /// The root (Field, Value) pairs
     field_values: Vec<FieldValueAddr>,
 }
@@ -322,7 +325,9 @@ impl CompactDoc {
     /// get &str reference from node_data
     fn extract_str(&self, addr: Addr) -> &str {
         let data = self.extract_bytes(addr);
-        // Utf-8 checks would have a noticeable performance overhead here
+        // Utf-8 checks would have a noticeable performance overhead here.
+        // SAFETY: `addr` points to a string value, which `add_value_leaf` wrote from a `&str`.
+        // `node_data` is not writable outside of the crate, so the bytes are still valid UTF-8.
         unsafe { std::str::from_utf8_unchecked(data) }
     }
 
