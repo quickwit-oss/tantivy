@@ -5,9 +5,9 @@ use common::file_slice::FileSlice;
 use common::{ByteCount, DateTime, OwnedBytes};
 use serde::{Deserialize, Serialize};
 
-use crate::column::{BytesColumn, Column, StrColumn};
+use crate::column::{BytesColumn, Column, PlainBytesColumn, PlainStrColumn, StrColumn};
 use crate::column_values::{StrictlyMonotonicFn, monotonic_map_column};
-use crate::columnar::ColumnType;
+use crate::columnar::{ColumnType, StrColumnCodec};
 use crate::{Cardinality, ColumnIndex, ColumnValues, NumericalType, Version};
 
 #[derive(Clone)]
@@ -20,6 +20,10 @@ pub enum DynamicColumn {
     DateTime(Column<DateTime>),
     Bytes(BytesColumn),
     Str(StrColumn),
+    /// A `Bytes` column using the plain codec.
+    PlainBytes(PlainBytesColumn),
+    /// A `Str` column using the plain codec.
+    PlainStr(PlainStrColumn),
 }
 
 impl fmt::Debug for DynamicColumn {
@@ -34,6 +38,8 @@ impl fmt::Debug for DynamicColumn {
             DynamicColumn::DateTime(col) => write!(f, "{col:?}")?,
             DynamicColumn::Bytes(col) => write!(f, "{col:?}")?,
             DynamicColumn::Str(col) => write!(f, "{col:?}")?,
+            DynamicColumn::PlainBytes(col) => write!(f, "{col:?}")?,
+            DynamicColumn::PlainStr(col) => write!(f, "{col:?}")?,
         }
         write!(f, "]")
     }
@@ -50,6 +56,8 @@ impl DynamicColumn {
             DynamicColumn::DateTime(c) => &c.index,
             DynamicColumn::Bytes(c) => &c.ords().index,
             DynamicColumn::Str(c) => &c.ords().index,
+            DynamicColumn::PlainBytes(c) => c.column_index(),
+            DynamicColumn::PlainStr(c) => c.column_index(),
         }
     }
 
@@ -64,6 +72,8 @@ impl DynamicColumn {
             DynamicColumn::DateTime(c) => c.index,
             DynamicColumn::Bytes(c) => c.into_column_index(),
             DynamicColumn::Str(c) => c.into_column_index(),
+            DynamicColumn::PlainBytes(c) => c.into_column_index(),
+            DynamicColumn::PlainStr(c) => PlainBytesColumn::from(c).into_column_index(),
         }
     }
 
@@ -81,6 +91,8 @@ impl DynamicColumn {
             DynamicColumn::DateTime(c) => c.values.num_vals(),
             DynamicColumn::Bytes(c) => c.ords().values.num_vals(),
             DynamicColumn::Str(c) => c.ords().values.num_vals(),
+            DynamicColumn::PlainBytes(c) => c.num_values(),
+            DynamicColumn::PlainStr(c) => c.num_values(),
         }
     }
 
@@ -94,6 +106,24 @@ impl DynamicColumn {
             DynamicColumn::DateTime(_) => ColumnType::DateTime,
             DynamicColumn::Bytes(_) => ColumnType::Bytes,
             DynamicColumn::Str(_) => ColumnType::Str,
+            DynamicColumn::PlainBytes(_) => ColumnType::Bytes,
+            DynamicColumn::PlainStr(_) => ColumnType::Str,
+        }
+    }
+
+    /// Returns the codec of `Str` and `Bytes` columns, and `None` for other column types.
+    pub fn str_codec(&self) -> Option<StrColumnCodec> {
+        match self {
+            DynamicColumn::Bytes(_) | DynamicColumn::Str(_) => Some(StrColumnCodec::Dictionary),
+            DynamicColumn::PlainBytes(_) | DynamicColumn::PlainStr(_) => {
+                Some(StrColumnCodec::Plain)
+            }
+            DynamicColumn::Bool(_)
+            | DynamicColumn::I64(_)
+            | DynamicColumn::U64(_)
+            | DynamicColumn::F64(_)
+            | DynamicColumn::IpAddr(_)
+            | DynamicColumn::DateTime(_) => None,
         }
     }
 
@@ -241,19 +271,51 @@ static_dynamic_conversions!(Column<DateTime>, DateTime);
 static_dynamic_conversions!(StrColumn, Str);
 static_dynamic_conversions!(BytesColumn, Bytes);
 static_dynamic_conversions!(Column<Ipv6Addr>, IpAddr);
+static_dynamic_conversions!(PlainStrColumn, PlainStr);
+static_dynamic_conversions!(PlainBytesColumn, PlainBytes);
 
 #[derive(Clone, Debug)]
 pub struct DynamicColumnHandle {
     pub(crate) file_slice: FileSlice,
     pub(crate) column_type: ColumnType,
+    /// Always `Dictionary` for columns other than `Str` and `Bytes`.
+    pub(crate) codec: StrColumnCodec,
     pub(crate) format_version: Version,
+}
+
+fn plain_column_has_no_u64_representation() -> io::Error {
+    io::Error::new(
+        io::ErrorKind::InvalidInput,
+        "a plain-encoded column has no term ordinals and cannot be read as u64",
+    )
 }
 
 impl DynamicColumnHandle {
     // TODO rename load
     pub fn open(&self) -> io::Result<DynamicColumn> {
+        if self.codec == StrColumnCodec::Plain {
+            // Only the column metadata is read: the blocks are read lazily.
+            let plain_column =
+                PlainBytesColumn::open(self.file_slice.clone(), self.format_version)?;
+            return match self.column_type {
+                ColumnType::Str => Ok(DynamicColumn::PlainStr(PlainStrColumn::wrap(plain_column))),
+                ColumnType::Bytes => Ok(DynamicColumn::PlainBytes(plain_column)),
+                _ => Err(io::Error::new(
+                    io::ErrorKind::InvalidData,
+                    "the plain codec is only valid for str and bytes columns",
+                )),
+            };
+        }
         let column_bytes: OwnedBytes = self.file_slice.read_bytes()?;
         self.open_internal(column_bytes)
+    }
+
+    /// Returns the codec of `Str` and `Bytes` columns, and `None` for other column types.
+    pub fn str_codec(&self) -> Option<StrColumnCodec> {
+        match self.column_type {
+            ColumnType::Str | ColumnType::Bytes => Some(self.codec),
+            _ => None,
+        }
     }
 
     #[doc(hidden)]
@@ -271,7 +333,13 @@ impl DynamicColumnHandle {
     ///
     /// If not, the fastfield reader will returns the u64-value associated with the original
     /// FastValue.
+    ///
+    /// Plain-encoded columns have no `u64` representation: this method returns an
+    /// `InvalidInput` error for them.
     pub fn open_u64_lenient(&self) -> io::Result<Option<Column<u64>>> {
+        if self.codec == StrColumnCodec::Plain {
+            return Err(plain_column_has_no_u64_representation());
+        }
         let column_bytes = self.file_slice.read_bytes()?;
         match self.column_type {
             ColumnType::Str | ColumnType::Bytes => {
