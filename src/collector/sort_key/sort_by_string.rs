@@ -70,3 +70,28 @@ impl SegmentSortKeyComputer for ByStringColumnSegmentSortKeyComputer {
         String::try_from(bytes).ok()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use crate::collector::TopDocs;
+    use crate::query::AllQuery;
+    use crate::schema::{Schema, StrColumnCodec, TextOptions};
+    use crate::{Index, Order};
+
+    #[test]
+    fn test_sort_by_plain_text_field_is_an_error() {
+        let mut schema_builder = Schema::builder();
+        let city = schema_builder.add_text_field(
+            "city",
+            TextOptions::default().set_fast_codec(StrColumnCodec::Plain),
+        );
+        let index = Index::create_in_ram(schema_builder.build());
+        let mut writer = index.writer_for_tests().unwrap();
+        writer.add_document(doc!(city => "paris")).unwrap();
+        writer.commit().unwrap();
+        let searcher = index.reader().unwrap().searcher();
+        let collector = TopDocs::with_limit(10).order_by_string_fast_field("city", Order::Asc);
+        let err = searcher.search(&AllQuery, &collector).unwrap_err();
+        assert!(err.to_string().contains("plain codec"), "{err}");
+    }
+}

@@ -887,6 +887,48 @@ mod tests {
         Ok(())
     }
 
+    #[test]
+    fn test_aggregation_top_hits_plain_text_field() {
+        use crate::schema::{Schema, StrColumnCodec, TextOptions, FAST};
+        use crate::Index;
+
+        let mut schema_builder = Schema::builder();
+        let label = schema_builder.add_text_field(
+            "label",
+            TextOptions::default().set_fast_codec(StrColumnCodec::Plain),
+        );
+        let score = schema_builder.add_u64_field("score", FAST);
+        let index = Index::create_in_ram(schema_builder.build());
+        let mut writer = index.writer_for_tests().unwrap();
+        writer
+            .add_document(doc!(label => "low", score => 1u64))
+            .unwrap();
+        writer
+            .add_document(doc!(label => "high", label => "top", score => 3u64))
+            .unwrap();
+        writer.add_document(doc!(score => 2u64)).unwrap();
+        writer.commit().unwrap();
+
+        let aggs: Aggregations = serde_json::from_value(json!({
+            "top": {
+                "top_hits": {
+                    "size": 2,
+                    "sort": [{ "score": "desc" }],
+                    "docvalue_fields": ["label"]
+                }
+            }
+        }))
+        .unwrap();
+        let collector = AggregationCollector::from_aggs(aggs, Default::default());
+        let searcher = index.reader().unwrap().searcher();
+        let agg_res =
+            serde_json::to_value(searcher.search(&AllQuery, &collector).unwrap()).unwrap();
+        let hits = agg_res["top"]["hits"].as_array().unwrap();
+        assert_eq!(hits.len(), 2);
+        assert_eq!(hits[0]["docvalue_fields"]["label"], json!(["high", "top"]));
+        assert_eq!(hits[1]["docvalue_fields"]["label"], json!([]));
+    }
+
     fn test_aggregation_top_hits(merge_segments: bool) -> crate::Result<()> {
         let docs = vec![
             vec![

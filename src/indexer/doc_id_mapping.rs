@@ -536,6 +536,65 @@ mod tests_indexsorting {
     }
 
     #[test]
+    fn test_sort_index_with_plain_text_field() {
+        use crate::schema::StrColumnCodec;
+
+        let mut schema_builder = Schema::builder();
+        let number = schema_builder.add_u64_field("number", NumericOptions::default().set_fast());
+        let text = schema_builder.add_text_field(
+            "text",
+            TextOptions::default().set_fast_codec(StrColumnCodec::Plain),
+        );
+        let settings = IndexSettings {
+            sort_by_field: Some(IndexSortByField {
+                field: "number".to_string(),
+                order: Order::Asc,
+            }),
+            ..Default::default()
+        };
+        let index = Index::builder()
+            .schema(schema_builder.build())
+            .settings(settings)
+            .create_in_ram()
+            .unwrap();
+        let mut index_writer = index.writer_for_tests().unwrap();
+        index_writer
+            .add_document(doc!(number => 3u64, text => "c", text => "cc"))
+            .unwrap();
+        index_writer
+            .add_document(doc!(number => 1u64, text => "a"))
+            .unwrap();
+        index_writer.add_document(doc!(number => 0u64)).unwrap();
+        index_writer
+            .add_document(doc!(number => 2u64, text => "b"))
+            .unwrap();
+        index_writer.commit().unwrap();
+        let searcher = index.reader().unwrap().searcher();
+        let fast_fields = searcher.segment_reader(0).fast_fields();
+        let text_column = fast_fields.plain_str("text").unwrap().unwrap();
+        let mut reader = text_column.reader();
+        let mut values_per_doc: Vec<Vec<String>> = Vec::new();
+        for doc in 0..4u32 {
+            let mut doc_values: Vec<String> = Vec::new();
+            for value_idx in text_column.column_index().value_row_ids(doc) {
+                let mut value = String::new();
+                reader.append_str_value(value_idx, &mut value).unwrap();
+                doc_values.push(value);
+            }
+            values_per_doc.push(doc_values);
+        }
+        assert_eq!(
+            values_per_doc,
+            vec![
+                vec![],
+                vec!["a".to_string()],
+                vec!["b".to_string()],
+                vec!["c".to_string(), "cc".to_string()]
+            ]
+        );
+    }
+
+    #[test]
     fn test_with_sort_by_date_field() -> crate::Result<()> {
         let mut schema_builder = Schema::builder();
         let date_field = schema_builder.add_date_field("date", INDEXED | STORED | FAST);

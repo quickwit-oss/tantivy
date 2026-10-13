@@ -8,6 +8,7 @@ use std::collections::BTreeMap;
 
 use columnar::{
     ColumnType, ColumnarReader, MergeRowOrder, RowAddr, ShuffleMergeOrder, StackMergeOrder,
+    StrColumnCodec,
 };
 use common::TerminatingWrite;
 use measure_time::debug_time;
@@ -18,7 +19,7 @@ use crate::index::{SegmentComponent, SegmentReader};
 use crate::indexer::doc_id_mapping::{DocIdMapping, MappingType, SegmentDocIdMapping};
 use crate::plugin::{PluginMergeContext, PluginWriter, PluginWriterContext, SegmentPlugin};
 use crate::schema::document::Document;
-use crate::schema::{value_type_to_column_type, Schema};
+use crate::schema::{value_type_to_column_type, FieldType, Schema};
 use crate::space_usage::{ComponentSpaceUsage, FAST_FIELDS};
 use crate::Segment;
 
@@ -53,7 +54,7 @@ impl SegmentPlugin for FastFieldsPlugin {
         let doc_id_mapping = ctx.doc_id_mapping.clone();
         let merge_row_order = convert_to_merge_order(&columnars[..], doc_id_mapping);
 
-        columnar::merge_columnar(
+        columnar::merge_columnar_with_codecs(
             &columnars[..],
             &required_columns,
             merge_row_order,
@@ -173,7 +174,10 @@ fn convert_to_merge_order(
     }
 }
 
-fn extract_fast_field_required_columns(schema: &Schema) -> Vec<(String, ColumnType)> {
+/// Returns the columns of the fast fields of the schema, with the codec of their string values.
+fn extract_fast_field_required_columns(
+    schema: &Schema,
+) -> Vec<(String, ColumnType, StrColumnCodec)> {
     schema
         .fields()
         .map(|(_, field_entry)| field_entry)
@@ -181,7 +185,73 @@ fn extract_fast_field_required_columns(schema: &Schema) -> Vec<(String, ColumnTy
         .filter_map(|field_entry| {
             let column_name = field_entry.name().to_string();
             let column_type = value_type_to_column_type(field_entry.field_type().value_type())?;
-            Some((column_name, column_type))
+            let codec = match field_entry.field_type() {
+                FieldType::Str(text_options) => text_options
+                    .get_fast_field_codec()
+                    .unwrap_or(StrColumnCodec::Dictionary),
+                _ => StrColumnCodec::Dictionary,
+            };
+            Some((column_name, column_type, codec))
         })
         .collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use columnar::{ColumnType, StrColumnCodec};
+
+    use crate::index::SegmentId;
+    use crate::schema::{Schema, TextOptions};
+    use crate::{Index, IndexWriter};
+
+    #[test]
+    fn test_merge_plain_text_fast_field() {
+        let mut schema_builder = Schema::builder();
+        let plain_text_options = TextOptions::default().set_fast_codec(StrColumnCodec::Plain);
+        let text = schema_builder.add_text_field("text", plain_text_options.clone());
+        // Never has a value: the merged column only exists because it is required.
+        let _empty = schema_builder.add_text_field("empty", plain_text_options);
+        let index = Index::create_in_ram(schema_builder.build());
+        let mut index_writer: IndexWriter = index.writer_for_tests().unwrap();
+        index_writer.add_document(doc!(text => "a")).unwrap();
+        index_writer.add_document(doc!()).unwrap();
+        index_writer.commit().unwrap();
+        index_writer
+            .add_document(doc!(text => "b", text => "c"))
+            .unwrap();
+        index_writer.commit().unwrap();
+        let segment_ids: Vec<SegmentId> = index.searchable_segment_ids().unwrap();
+        assert_eq!(segment_ids.len(), 2);
+        index_writer.merge(&segment_ids).wait().unwrap();
+        index_writer.wait_merging_threads().unwrap();
+
+        let searcher = index.reader().unwrap().searcher();
+        assert_eq!(searcher.segment_readers().len(), 1);
+        let fast_fields = searcher.segment_reader(0u32).fast_fields();
+        let text_column = fast_fields.plain_str("text").unwrap().unwrap();
+        let mut reader = text_column.reader();
+        let mut values_per_doc: Vec<Vec<String>> = Vec::new();
+        for doc in 0..3u32 {
+            let mut doc_values: Vec<String> = Vec::new();
+            for value_idx in text_column.column_index().value_row_ids(doc) {
+                let mut value = String::new();
+                reader.append_str_value(value_idx, &mut value).unwrap();
+                doc_values.push(value);
+            }
+            values_per_doc.push(doc_values);
+        }
+        assert_eq!(
+            values_per_doc,
+            vec![
+                vec!["a".to_string()],
+                vec![],
+                vec!["b".to_string(), "c".to_string()]
+            ]
+        );
+        let empty_handle = fast_fields
+            .dynamic_column_handle("empty", ColumnType::Str)
+            .unwrap()
+            .unwrap();
+        assert_eq!(empty_handle.str_codec(), Some(StrColumnCodec::Plain));
+    }
 }

@@ -132,6 +132,7 @@ mod numeric_options;
 mod text_options;
 
 use columnar::ColumnType;
+pub use columnar::StrColumnCodec;
 
 pub use self::bytes_options::BytesOptions;
 pub use self::custom_options::CustomOptions;

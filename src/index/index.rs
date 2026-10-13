@@ -30,7 +30,7 @@ use crate::indexer::{IndexWriter, SingleSegmentIndexWriter};
 use crate::plugin::SegmentPlugin;
 use crate::reader::{IndexReader, IndexReaderBuilder};
 use crate::schema::document::Document;
-use crate::schema::{Field, FieldType, Schema, Type};
+use crate::schema::{Field, FieldType, Schema, StrColumnCodec, Type};
 use crate::store::StorePlugin;
 use crate::tokenizer::{TextAnalyzer, TokenizerManager};
 use crate::SegmentReader;
@@ -332,6 +332,15 @@ impl IndexBuilder {
                          to be used to sort an index",
                         sort_by_field.field
                     )));
+                }
+                if let FieldType::Str(text_options) = entry.field_type() {
+                    if text_options.get_fast_field_codec() == Some(StrColumnCodec::Plain) {
+                        return Err(TantivyError::InvalidArgument(format!(
+                            "Field {} uses the plain fast field codec, which does not support \
+                             sorting an index",
+                            sort_by_field.field
+                        )));
+                    }
                 }
                 let supported_field_types = [
                     Type::I64,
@@ -940,5 +949,36 @@ impl Index {
 impl fmt::Debug for Index {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "Index({:?})", self.directory)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::schema::{Schema, StrColumnCodec, TextOptions, FAST, STRING};
+    use crate::{Index, IndexSettings, IndexSortByField, Order};
+
+    fn create_index_sorted_by(text_options: TextOptions) -> crate::Result<Index> {
+        let mut schema_builder = Schema::builder();
+        schema_builder.add_text_field("text", text_options);
+        let settings = IndexSettings {
+            sort_by_field: Some(IndexSortByField {
+                field: "text".to_string(),
+                order: Order::Asc,
+            }),
+            ..Default::default()
+        };
+        Index::builder()
+            .schema(schema_builder.build())
+            .settings(settings)
+            .create_in_ram()
+    }
+
+    #[test]
+    fn test_sort_by_plain_text_field_is_rejected() {
+        let err =
+            create_index_sorted_by(TextOptions::default().set_fast_codec(StrColumnCodec::Plain))
+                .unwrap_err();
+        assert!(err.to_string().contains("plain"), "{err}");
+        assert!(create_index_sorted_by(STRING | FAST).is_ok());
     }
 }

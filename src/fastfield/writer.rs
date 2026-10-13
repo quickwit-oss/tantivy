@@ -1,6 +1,6 @@
 use std::io;
 
-use columnar::{ColumnarWriter, NumericalValue};
+use columnar::{ColumnType, ColumnarWriter, NumericalValue, StrColumnCodec};
 use common::{DateTimePrecision, JsonPathWriter};
 use tokenizer_api::Token;
 
@@ -19,6 +19,8 @@ pub struct FastFieldsWriter {
     columnar_writer: ColumnarWriter,
     fast_field_names: Vec<Option<String>>, //< TODO see if we can hash the field name hash too.
     per_field_tokenizer: Vec<Option<TextAnalyzer>>,
+    /// Codec of the string values of each field. `Dictionary` for the non-text fields.
+    per_field_codec: Vec<StrColumnCodec>,
     date_precisions: Vec<DateTimePrecision>,
     expand_dots: Vec<bool>,
     num_docs: DocId,
@@ -47,6 +49,8 @@ impl FastFieldsWriter {
                 .collect();
         let mut expand_dots = vec![false; schema.num_fields()];
         let mut per_field_tokenizer: Vec<Option<TextAnalyzer>> = vec![None; schema.num_fields()];
+        let mut per_field_codec: Vec<StrColumnCodec> =
+            vec![StrColumnCodec::Dictionary; schema.num_fields()];
         // TODO see other types
         for (field_id, field_entry) in schema.fields() {
             if !field_entry.field_type().is_fast() {
@@ -76,6 +80,9 @@ impl FastFieldsWriter {
                 }
                 expand_dots[field_id.field_id() as usize] =
                     json_object_options.is_expand_dots_enabled();
+                if let Some(codec) = json_object_options.get_fast_field_codec() {
+                    per_field_codec[field_id.field_id() as usize] = codec;
+                }
             }
             if let FieldType::Str(text_options) = field_entry.field_type() {
                 if let Some(fast_field_text_options) = &text_options.fast {
@@ -89,22 +96,33 @@ impl FastFieldsWriter {
                             })?;
                         per_field_tokenizer[field_id.field_id() as usize] = Some(text_analyzer);
                     }
+                    per_field_codec[field_id.field_id() as usize] = fast_field_text_options.codec;
                 }
             }
 
             let sort_values_within_row = value_type == Type::Facet;
+            let codec = per_field_codec[field_id.field_id() as usize];
             if let Some(column_type) = value_type_to_column_type(value_type) {
-                columnar_writer.record_column_type(
-                    field_entry.name(),
-                    column_type,
-                    sort_values_within_row,
-                );
+                if column_type == ColumnType::Str && codec != StrColumnCodec::Dictionary {
+                    columnar_writer.record_column_type_with_codec(
+                        field_entry.name(),
+                        column_type,
+                        codec,
+                    );
+                } else {
+                    columnar_writer.record_column_type(
+                        field_entry.name(),
+                        column_type,
+                        sort_values_within_row,
+                    );
+                }
             }
         }
         Ok(FastFieldsWriter {
             columnar_writer,
             fast_field_names,
             per_field_tokenizer,
+            per_field_codec,
             num_docs: 0u32,
             date_precisions,
             expand_dots,
@@ -150,6 +168,7 @@ impl FastFieldsWriter {
             Some(name) => name,
         };
 
+        let codec = self.per_field_codec[field.field_id() as usize];
         match value.as_value() {
             ReferenceValue::Leaf(leaf) => match leaf {
                 ReferenceValueLeaf::Null => {}
@@ -159,11 +178,16 @@ impl FastFieldsWriter {
                     {
                         let mut token_stream = tokenizer.token_stream(val);
                         token_stream.process(&mut |token: &Token| {
-                            self.columnar_writer
-                                .record_str(doc_id, field_name, &token.text);
+                            self.columnar_writer.record_str_with_codec(
+                                doc_id,
+                                field_name,
+                                &token.text,
+                                codec,
+                            );
                         })
                     } else {
-                        self.columnar_writer.record_str(doc_id, field_name, val);
+                        self.columnar_writer
+                            .record_str_with_codec(doc_id, field_name, val, codec);
                     }
                 }
                 ReferenceValueLeaf::U64(val) => {
@@ -207,8 +231,12 @@ impl FastFieldsWriter {
                 }
                 ReferenceValueLeaf::PreTokStr(val) => {
                     for token in &val.tokens {
-                        self.columnar_writer
-                            .record_str(doc_id, field_name, &token.text);
+                        self.columnar_writer.record_str_with_codec(
+                            doc_id,
+                            field_name,
+                            &token.text,
+                            codec,
+                        );
                     }
                 }
                 // Custom fields are never fast (`is_fast() == false`), so they are not registered
@@ -240,6 +268,7 @@ impl FastFieldsWriter {
                     &mut self.json_path_buffer,
                     &mut self.columnar_writer,
                     text_analyzer,
+                    codec,
                 );
             }
         }
@@ -270,6 +299,7 @@ fn record_json_obj_to_columnar_writer<'a, V: Value<'a>>(
     json_path_buffer: &mut JsonPathWriter,
     columnar_writer: &mut columnar::ColumnarWriter,
     tokenizer: &mut Option<TextAnalyzer>,
+    codec: StrColumnCodec,
 ) {
     for (key, child) in json_visitor {
         json_path_buffer.push(key);
@@ -280,6 +310,7 @@ fn record_json_obj_to_columnar_writer<'a, V: Value<'a>>(
             json_path_buffer,
             columnar_writer,
             tokenizer,
+            codec,
         );
         json_path_buffer.pop();
     }
@@ -292,6 +323,7 @@ fn record_json_value_to_columnar_writer<'a, V: Value<'a>>(
     json_path_writer: &mut JsonPathWriter,
     columnar_writer: &mut columnar::ColumnarWriter,
     tokenizer: &mut Option<TextAnalyzer>,
+    codec: StrColumnCodec,
 ) {
     if remaining_depth_limit == 0 {
         return;
@@ -305,10 +337,20 @@ fn record_json_value_to_columnar_writer<'a, V: Value<'a>>(
                 if let Some(text_analyzer) = tokenizer.as_mut() {
                     let mut token_stream = text_analyzer.token_stream(val);
                     token_stream.process(&mut |token| {
-                        columnar_writer.record_str(doc, json_path_writer.as_str(), &token.text);
+                        columnar_writer.record_str_with_codec(
+                            doc,
+                            json_path_writer.as_str(),
+                            &token.text,
+                            codec,
+                        );
                     })
                 } else {
-                    columnar_writer.record_str(doc, json_path_writer.as_str(), val);
+                    columnar_writer.record_str_with_codec(
+                        doc,
+                        json_path_writer.as_str(),
+                        val,
+                        codec,
+                    );
                 }
             }
             ReferenceValueLeaf::U64(val) => {
@@ -367,6 +409,7 @@ fn record_json_value_to_columnar_writer<'a, V: Value<'a>>(
                     json_path_writer,
                     columnar_writer,
                     tokenizer,
+                    codec,
                 );
             }
         }
@@ -378,6 +421,7 @@ fn record_json_value_to_columnar_writer<'a, V: Value<'a>>(
                 json_path_writer,
                 columnar_writer,
                 tokenizer,
+                codec,
             );
         }
     }
@@ -422,6 +466,7 @@ mod tests {
                 &mut json_path,
                 &mut columnar_writer,
                 &mut None,
+                columnar::StrColumnCodec::Dictionary,
             );
         }
         let mut buffer = Vec::new();

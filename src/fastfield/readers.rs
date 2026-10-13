@@ -4,7 +4,8 @@ use std::sync::Arc;
 
 use columnar::{
     BytesColumn, Column, ColumnType, ColumnValues, ColumnarReader, DynamicColumn,
-    DynamicColumnHandle, HasAssociatedColumnType, StrColumn,
+    DynamicColumnHandle, HasAssociatedColumnType, PlainBytesColumn, PlainStrColumn, StrColumn,
+    StrColumnCodec,
 };
 use common::ByteCount;
 
@@ -191,10 +192,40 @@ impl FastFieldReaders {
         self.column(field)
     }
 
-    /// Returns a `str` column.
+    /// Returns the handle of the `column_type` column of `field_name`, after checking its codec.
+    ///
+    /// Returns an error if the column exists with another codec.
+    fn str_or_bytes_column_handle(
+        &self,
+        field_name: &str,
+        column_type: ColumnType,
+        codec: StrColumnCodec,
+    ) -> crate::Result<Option<DynamicColumnHandle>> {
+        let Some(dynamic_column_handle) = self.dynamic_column_handle(field_name, column_type)?
+        else {
+            return Ok(None);
+        };
+        let column_codec = dynamic_column_handle
+            .str_codec()
+            .unwrap_or(StrColumnCodec::Dictionary);
+        if column_codec != codec {
+            return Err(crate::TantivyError::InvalidArgument(format!(
+                "the {column_type} fast field `{field_name}` uses the {column_codec} codec, \
+                 expected the {codec} codec"
+            )));
+        }
+        Ok(Some(dynamic_column_handle))
+    }
+
+    /// Returns a dictionary encoded `str` column.
+    ///
+    /// Returns an error if the column uses the plain codec: see [`Self::plain_str`].
     pub fn str(&self, field_name: &str) -> crate::Result<Option<StrColumn>> {
-        let Some(dynamic_column_handle) =
-            self.dynamic_column_handle(field_name, ColumnType::Str)?
+        let Some(dynamic_column_handle) = self.str_or_bytes_column_handle(
+            field_name,
+            ColumnType::Str,
+            StrColumnCodec::Dictionary,
+        )?
         else {
             return Ok(None);
         };
@@ -202,10 +233,41 @@ impl FastFieldReaders {
         Ok(dynamic_column.into())
     }
 
-    /// Returns a `bytes` column.
+    /// Returns a dictionary encoded `bytes` column.
+    ///
+    /// Returns an error if the column uses the plain codec: see [`Self::plain_bytes`].
     pub fn bytes(&self, field_name: &str) -> crate::Result<Option<BytesColumn>> {
+        let Some(dynamic_column_handle) = self.str_or_bytes_column_handle(
+            field_name,
+            ColumnType::Bytes,
+            StrColumnCodec::Dictionary,
+        )?
+        else {
+            return Ok(None);
+        };
+        let dynamic_column = dynamic_column_handle.open()?;
+        Ok(dynamic_column.into())
+    }
+
+    /// Returns a plain-encoded `str` column.
+    ///
+    /// Returns an error if the column uses the dictionary codec: see [`Self::str`].
+    pub fn plain_str(&self, field_name: &str) -> crate::Result<Option<PlainStrColumn>> {
         let Some(dynamic_column_handle) =
-            self.dynamic_column_handle(field_name, ColumnType::Bytes)?
+            self.str_or_bytes_column_handle(field_name, ColumnType::Str, StrColumnCodec::Plain)?
+        else {
+            return Ok(None);
+        };
+        let dynamic_column = dynamic_column_handle.open()?;
+        Ok(dynamic_column.into())
+    }
+
+    /// Returns a plain-encoded `bytes` column.
+    ///
+    /// Returns an error if the column uses the dictionary codec: see [`Self::bytes`].
+    pub fn plain_bytes(&self, field_name: &str) -> crate::Result<Option<PlainBytesColumn>> {
+        let Some(dynamic_column_handle) =
+            self.str_or_bytes_column_handle(field_name, ColumnType::Bytes, StrColumnCodec::Plain)?
         else {
             return Ok(None);
         };
@@ -386,6 +448,91 @@ mod tests {
     use crate::schema::{JsonObjectOptions, Schema, FAST};
     use crate::tokenizer::RAW_TOKENIZER_NAME;
     use crate::{Index, IndexWriter, TantivyDocument};
+
+    /// Returns the values of each doc of a plain column, as strings.
+    fn plain_str_values(column: &columnar::PlainStrColumn, num_docs: u32) -> Vec<Vec<String>> {
+        let mut reader = column.reader();
+        (0..num_docs)
+            .map(|doc| {
+                column
+                    .column_index()
+                    .value_row_ids(doc)
+                    .map(|value_idx| {
+                        let mut value = String::new();
+                        reader.append_str_value(value_idx, &mut value).unwrap();
+                        value
+                    })
+                    .collect()
+            })
+            .collect()
+    }
+
+    #[test]
+    fn test_plain_str_fast_fields() {
+        use crate::schema::{StrColumnCodec, TextOptions, STRING};
+
+        let mut schema_builder = Schema::builder();
+        let text = schema_builder.add_text_field(
+            "text",
+            TextOptions::default().set_fast_codec(StrColumnCodec::Plain),
+        );
+        let dict = schema_builder.add_text_field("dict", STRING | FAST);
+        let json = schema_builder.add_json_field(
+            "json",
+            JsonObjectOptions::default().set_fast_codec(StrColumnCodec::Plain),
+        );
+        let schema = schema_builder.build();
+        let index = Index::create_in_ram(schema);
+        let mut index_writer: IndexWriter = index.writer_for_tests().unwrap();
+        index_writer
+            .add_document(doc!(
+                text => "hello",
+                text => "happy",
+                dict => "a",
+                json => serde_json::json!({ "attr": "x", "num": 1 }),
+            ))
+            .unwrap();
+        index_writer.add_document(doc!(dict => "b")).unwrap();
+        index_writer
+            .add_document(doc!(text => "world", json => serde_json::json!({ "attr": ["y", "z"] })))
+            .unwrap();
+        index_writer.commit().unwrap();
+        let searcher = index.reader().unwrap().searcher();
+        let fast_fields = searcher.segment_reader(0u32).fast_fields();
+
+        let text_column = fast_fields.plain_str("text").unwrap().unwrap();
+        assert_eq!(
+            plain_str_values(&text_column, 3),
+            vec![
+                vec!["hello".to_string(), "happy".to_string()],
+                vec![],
+                vec!["world".to_string()]
+            ]
+        );
+        let json_column = fast_fields.plain_str("json.attr").unwrap().unwrap();
+        assert_eq!(
+            plain_str_values(&json_column, 3),
+            vec![
+                vec!["x".to_string()],
+                vec![],
+                vec!["y".to_string(), "z".to_string()]
+            ]
+        );
+        // Numerical values of the json field are not affected by the codec.
+        assert!(fast_fields.i64("json.num").is_ok());
+
+        // Accessing a column with the wrong codec is an error, not a missing column.
+        assert!(fast_fields.str("text").is_err());
+        assert!(fast_fields.str("json.attr").is_err());
+        assert!(fast_fields.plain_str("dict").is_err());
+        assert!(fast_fields.str("dict").unwrap().is_some());
+        assert!(fast_fields.plain_str("missing").unwrap().is_none());
+        let text_handle = fast_fields
+            .dynamic_column_handle("text", ColumnType::Str)
+            .unwrap()
+            .unwrap();
+        assert!(text_handle.open_u64_lenient().is_err());
+    }
 
     #[test]
     fn test_fast_field_reader_resolve_with_dynamic_internal() {

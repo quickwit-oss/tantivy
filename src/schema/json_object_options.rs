@@ -1,8 +1,12 @@
 use std::ops::BitOr;
 
+use columnar::StrColumnCodec;
 use serde::{Deserialize, Serialize};
 
-use super::text_options::{merge_fast_field_options, FastFieldTextOptions};
+use super::text_options::{
+    fast_field_options_with_codec, fast_field_options_with_tokenizer, merge_fast_field_options,
+    FastFieldTextOptions,
+};
 use crate::schema::flags::{FastFlag, SchemaFlagList, StoredFlag};
 use crate::schema::{TextFieldIndexing, TextOptions};
 
@@ -109,6 +113,15 @@ impl JsonObjectOptions {
         self.indexing.as_ref()
     }
 
+    /// Returns the codec of the string values of the fast field, if the json object is a fast
+    /// field.
+    #[inline]
+    pub fn get_fast_field_codec(&self) -> Option<StrColumnCodec> {
+        self.fast
+            .as_ref()
+            .map(|fast_field_options| fast_field_options.codec)
+    }
+
     /// Sets the field as stored
     #[must_use]
     pub fn set_stored(mut self) -> Self {
@@ -133,7 +146,17 @@ impl JsonObjectOptions {
     #[must_use]
     pub fn set_fast(mut self, tokenizer_name: impl ToString) -> Self {
         let tokenizer = tokenizer_name.to_string();
-        self.fast = Some(FastFieldTextOptions { tokenizer });
+        self.fast = Some(fast_field_options_with_tokenizer(self.fast, tokenizer));
+        self
+    }
+
+    /// Sets the codec of the string values of the fast field.
+    ///
+    /// The codec applies to every string leaf of the json object.
+    /// If the field is not a fast field yet, it becomes a fast field with the raw tokenizer.
+    #[must_use]
+    pub fn set_fast_codec(mut self, codec: StrColumnCodec) -> Self {
+        self.fast = Some(fast_field_options_with_codec(self.fast, codec));
         self
     }
 
@@ -247,6 +270,25 @@ mod tests {
             assert!(!json_options.is_indexed());
             assert!(json_options.is_fast());
         }
+    }
+
+    #[test]
+    fn test_fast_field_codec() {
+        let json_options = JsonObjectOptions::default();
+        assert_eq!(json_options.get_fast_field_codec(), None);
+        let json_options = json_options.set_fast_codec(StrColumnCodec::Plain);
+        assert!(json_options.is_fast());
+        assert_eq!(
+            json_options.get_fast_field_codec(),
+            Some(StrColumnCodec::Plain)
+        );
+        let serialized = serde_json::to_value(&json_options).unwrap();
+        assert_eq!(
+            serialized["fast"],
+            serde_json::json!({ "with_tokenizer": "raw", "codec": "plain" })
+        );
+        let deserialized: JsonObjectOptions = serde_json::from_value(serialized).unwrap();
+        assert_eq!(deserialized, json_options);
     }
 
     #[test]
