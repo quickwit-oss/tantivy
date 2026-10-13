@@ -59,6 +59,19 @@ impl ColumnIndex {
         }
     }
 
+    /// Returns the number of docs of the column index.
+    ///
+    /// Returns `None` for a `Full` index: it does not store its number of docs, which is the
+    /// number of values of the column.
+    pub fn num_docs(&self) -> Option<RowId> {
+        match self {
+            ColumnIndex::Empty { num_docs } => Some(*num_docs),
+            ColumnIndex::Full => None,
+            ColumnIndex::Optional(optional_index) => Some(optional_index.num_docs()),
+            ColumnIndex::Multivalued(multivalued_index) => Some(multivalued_index.num_docs()),
+        }
+    }
+
     /// Returns true if and only if there are at least one value associated to the row.
     pub fn has_value(&self, doc_id: DocId) -> bool {
         match self {

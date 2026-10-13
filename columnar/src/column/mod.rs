@@ -1,4 +1,5 @@
 mod dictionary_encoded;
+mod plain;
 mod serialize;
 
 use std::fmt::{self, Debug};
@@ -8,6 +9,7 @@ use std::sync::Arc;
 
 use common::BinarySerializable;
 pub use dictionary_encoded::{BytesColumn, StrColumn};
+pub use plain::{PlainBytesColumn, PlainStrColumn, PlainValueReader};
 pub(crate) use serialize::serialize_generated_tie_breaker_column;
 pub use serialize::{
     open_column_bytes, open_column_str, open_column_u64, open_column_u128,
@@ -63,16 +65,10 @@ impl<T: PartialOrd + Copy + Debug + Send + Sync + 'static> Column<T> {
     }
 
     pub fn num_docs(&self) -> RowId {
-        match &self.index {
-            ColumnIndex::Empty { num_docs } => *num_docs,
-            ColumnIndex::Full => self.values.num_vals(),
-            ColumnIndex::Optional(optional_index) => optional_index.num_docs(),
-            ColumnIndex::Multivalued(col_index) => {
-                // The multivalued index contains all value start row_id,
-                // and one extra value at the end with the overall number of rows.
-                col_index.num_docs()
-            }
-        }
+        // A full column has one value per doc.
+        self.index
+            .num_docs()
+            .unwrap_or_else(|| self.values.num_vals())
     }
 
     pub fn min_value(&self) -> T {

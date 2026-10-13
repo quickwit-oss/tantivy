@@ -63,6 +63,65 @@ impl ColumnType {
     }
 }
 
+/// Codec of the values of a `Str` or `Bytes` column.
+///
+/// The codec is part of the configuration. It is never detected from the data.
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum StrColumnCodec {
+    /// Sorted term dictionary (sstable) and bitpacked term ordinals.
+    #[default]
+    Dictionary,
+    /// Values stored in blocks, compressed with OnPair16. There are no term ordinals.
+    ///
+    /// Better suited to columns with a high cardinality.
+    Plain,
+}
+
+impl fmt::Display for StrColumnCodec {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let codec_str = match self {
+            StrColumnCodec::Dictionary => "dictionary",
+            StrColumnCodec::Plain => "plain",
+        };
+        write!(f, "{codec_str}")
+    }
+}
+
+/// Bit set in the column key code of plain-encoded columns.
+const PLAIN_CODEC_KEY_CODE_FLAG: u8 = 0x10;
+
+/// Returns the code stored as the last byte of the column key.
+///
+/// The code is `column_type` for numerical, bool, ip, datetime columns and dictionary encoded
+/// columns. Plain-encoded columns have the `0x10` bit set.
+///
+/// Precondition: `codec` is `Dictionary` unless `column_type` is `Str` or `Bytes`.
+pub(crate) fn column_key_code(column_type: ColumnType, codec: StrColumnCodec) -> u8 {
+    match codec {
+        StrColumnCodec::Dictionary => column_type.to_code(),
+        StrColumnCodec::Plain => {
+            assert!(
+                matches!(column_type, ColumnType::Str | ColumnType::Bytes),
+                "the plain codec is only supported for str and bytes columns"
+            );
+            PLAIN_CODEC_KEY_CODE_FLAG | column_type.to_code()
+        }
+    }
+}
+
+/// Parses the last byte of a column key. See [`column_key_code`].
+pub(crate) fn parse_column_key_code(code: u8) -> Result<(ColumnType, StrColumnCodec), InvalidData> {
+    if code & PLAIN_CODEC_KEY_CODE_FLAG == 0 {
+        return Ok((ColumnType::try_from_code(code)?, StrColumnCodec::Dictionary));
+    }
+    let column_type = ColumnType::try_from_code(code & !PLAIN_CODEC_KEY_CODE_FLAG)?;
+    if !matches!(column_type, ColumnType::Str | ColumnType::Bytes) {
+        return Err(InvalidData);
+    }
+    Ok((column_type, StrColumnCodec::Plain))
+}
+
 impl From<NumericalType> for ColumnType {
     fn from(numerical_type: NumericalType) -> Self {
         match numerical_type {
@@ -167,6 +226,58 @@ mod tests {
         for code in COLUMN_TYPES.len() as u8..=u8::MAX {
             assert!(ColumnType::try_from_code(code).is_err());
         }
+    }
+
+    #[test]
+    fn test_column_key_code() {
+        for column_type in COLUMN_TYPES {
+            let code = column_key_code(column_type, StrColumnCodec::Dictionary);
+            assert_eq!(code, column_type.to_code());
+            assert_eq!(
+                parse_column_key_code(code).unwrap(),
+                (column_type, StrColumnCodec::Dictionary)
+            );
+        }
+        assert_eq!(
+            column_key_code(ColumnType::Str, StrColumnCodec::Plain),
+            0x14
+        );
+        assert_eq!(
+            column_key_code(ColumnType::Bytes, StrColumnCodec::Plain),
+            0x13
+        );
+        for column_type in [ColumnType::Str, ColumnType::Bytes] {
+            let code = column_key_code(column_type, StrColumnCodec::Plain);
+            assert_eq!(
+                parse_column_key_code(code).unwrap(),
+                (column_type, StrColumnCodec::Plain)
+            );
+        }
+        let mut num_valid_codes = 0;
+        for code in u8::MIN..=u8::MAX {
+            if parse_column_key_code(code).is_ok() {
+                num_valid_codes += 1;
+            }
+        }
+        assert_eq!(num_valid_codes, COLUMN_TYPES.len() + 2);
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_column_key_code_plain_numerical_panics() {
+        column_key_code(ColumnType::U64, StrColumnCodec::Plain);
+    }
+
+    #[test]
+    fn test_str_column_codec_serde() {
+        assert_eq!(
+            serde_json::to_value(StrColumnCodec::Plain).unwrap(),
+            serde_json::json!("plain")
+        );
+        assert_eq!(
+            serde_json::from_value::<StrColumnCodec>(serde_json::json!("dictionary")).unwrap(),
+            StrColumnCodec::Dictionary
+        );
     }
 
     #[test]
