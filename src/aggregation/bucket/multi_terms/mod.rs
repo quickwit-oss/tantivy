@@ -19,7 +19,7 @@ use crate::aggregation::agg_data::{
 use crate::aggregation::agg_req::Aggregations;
 use crate::aggregation::bucket::term_agg::{
     cut_off_buckets, get_agg_name_and_property, AggregationMapKey, Bucket, GetDocCount,
-    HashMapTermBuckets, PagedTermMap, TermAggregationMap, VecTermBuckets,
+    HashMapTermBuckets, LazyVecTermBuckets, PagedTermMap, TermAggregationMap, VecTermBuckets,
     LAZY_BUCKET_ID_GENERATION_THRESHOLD, MAX_NUM_TERMS_FOR_LOWCARD_SUBAGG,
     MAX_NUM_TERMS_FOR_PAGED_MAP, MAX_NUM_TERMS_FOR_VEC,
 };
@@ -994,7 +994,7 @@ fn build_multi_terms_collector<BucketSlot: BucketIdSlot>(
                 return box_multi_terms_collector::<
                     HighCardSubAggBuffer,
                     _,
-                    VecTermBuckets<BucketSlot, true>,
+                    LazyVecTermBuckets<BucketSlot>,
                 >(req, sub_agg, req_data, packing, num_terms, true);
             }
             return box_multi_terms_collector::<HighCardSubAggBuffer, _, VecTermBuckets<BucketSlot>>(

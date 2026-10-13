@@ -10,8 +10,8 @@ use std::sync::Arc;
 use columnar::{Cardinality, ColumnType, ColumnValues};
 
 use super::{
-    Bucket, SegmentTermCollector, TermsAggReqData, VecTermBuckets, MAX_NUM_BUCKETS_FOR_COUNT_LANES,
-    NUM_LOW_CARD_COUNT_LANES,
+    SegmentTermCollector, TermBucketWithLanes, TermsAggReqData, VecTermBuckets,
+    MAX_NUM_BUCKETS_FOR_COUNT_LANES, NUM_LOW_CARD_COUNT_LANES,
 };
 use crate::aggregation::agg_data::{AggNode, AggNodeData, AggregationsSegmentCtx};
 use crate::aggregation::bucket::{
@@ -406,6 +406,7 @@ impl<R: BucketResolver, const LANES: usize> SegmentAggregationCollector
         // Per-term total = histogram row-sum (in-bounds) + `term_counts` (out-of-bounds remainder,
         // empty when there are no hard bounds).
         let num_time_buckets = self.bucket_resolver.num_buckets();
+        // Single count lane: the per-term total is precomputed here, so no lane cycling is needed.
         let term_buckets = VecTermBuckets {
             buckets: self
                 .counts
@@ -418,12 +419,13 @@ impl<R: BucketResolver, const LANES: usize> SegmentAggregationCollector
                         .get(term_id)
                         .map(|lanes| lanes.iter().sum())
                         .unwrap_or(0);
-                    Bucket {
-                        count: in_bounds + out_of_bounds,
+                    TermBucketWithLanes {
+                        count_lanes: [in_bounds + out_of_bounds],
                         bucket_id: bucket_id_provider.next_bucket_id(),
                     }
                 })
                 .collect(),
+            next_count_lane: 0,
         };
         self.intermediate_result_histogram_collector
             .fill_from_dense_rows(self.base_pos, num_time_buckets, &self.counts);
