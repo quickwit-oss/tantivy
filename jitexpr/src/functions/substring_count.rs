@@ -86,12 +86,18 @@ impl FnCall for SubstringCountFnCall {
     ) -> Result<LoweredValue, CompileError> {
         let haystack = context.compile_expr(&self.args[0], builder)?;
         let needle = context.compile_expr(&self.args[1], builder)?;
+        // The native helper relies on absent strings being passed as null pointers.
+        let null = builder.ins().iconst(context.pointer_type(), 0);
+        let haystack_ptr = builder
+            .ins()
+            .select(haystack.is_present, haystack.value, null);
+        let needle_ptr = builder.ins().select(needle.is_present, needle.value, null);
         let call = builder.ins().call(
             context.native_functions().substring_count(),
             &[
-                haystack.value,
+                haystack_ptr,
                 haystack.string_len,
-                needle.value,
+                needle_ptr,
                 needle.string_len,
             ],
         );
@@ -123,16 +129,23 @@ pub(super) fn declare_native_function(
     let id = module.declare_function(SYMBOL, Linkage::Import, &signature)?;
     Ok(module.declare_func_in_func(id, function))
 }
+/// # Safety
+///
+/// Each pointer is either null (absent string) or points to `len` readable bytes.
+/// The result is ignored by generated code when either argument is absent.
 unsafe extern "C" fn substring_count(
     haystack: *const u8,
     haystack_len: usize,
     needle: *const u8,
     needle_len: usize,
 ) -> i64 {
-    if needle_len == 0 {
+    if haystack.is_null() || needle.is_null() || needle_len == 0 {
         return 0;
     }
+    // SAFETY: Both pointers are non-null, so generated code passes live strings with
+    // their exact byte lengths.
     let haystack = unsafe { std::slice::from_raw_parts(haystack, haystack_len) };
+    // SAFETY: See above.
     let needle = unsafe { std::slice::from_raw_parts(needle, needle_len) };
     let mut count = 0i64;
     let mut rest = haystack;
@@ -187,6 +200,17 @@ mod tests {
                     .call(&[VariableValue::some("abc"), VariableValue::none()])
                     .as_i64()
             },
+            None
+        );
+    }
+    #[test]
+    fn test_runtime_null_haystack() {
+        let expr = deserialize("(SUBSTRING_COUNT text \"a\")").unwrap();
+        let mut compiled = compile(&expr, &HashMap::from([("text", VarType::Str)]))
+            .unwrap()
+            .context();
+        assert_eq!(
+            unsafe { compiled.call(&[VariableValue::none()]).as_i64() },
             None
         );
     }
