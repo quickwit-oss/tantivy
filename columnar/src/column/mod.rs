@@ -1,4 +1,5 @@
 mod dictionary_encoded;
+mod plain;
 mod serialize;
 
 use std::fmt::{self, Debug};
@@ -8,6 +9,7 @@ use std::sync::Arc;
 
 use common::BinarySerializable;
 pub use dictionary_encoded::{BytesColumn, StrColumn};
+pub use plain::{PlainBytesColumn, PlainStrColumn, PlainValueReader};
 pub(crate) use serialize::serialize_generated_tie_breaker_column;
 pub use serialize::{
     open_column_bytes, open_column_str, open_column_u64, open_column_u128,

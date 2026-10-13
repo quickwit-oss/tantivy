@@ -19,11 +19,14 @@ tantivy-bitpacker = { version= "0.10", path = "../bitpacker/" }
 serde = "1.0.152"
 downcast-rs = "2.0.1"
 rand = "0.9"
+# OnPair16 string compression, used by the plain codec of Str and Bytes columns.
+onpair = "0.2.1"
 
 [dev-dependencies]
 proptest = "1"
 more-asserts = "0.3.1"
 binggan = "0.17.0"
+serde_json = "1"
 
 [[bench]]
 name = "bench_merge"
