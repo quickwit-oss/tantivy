@@ -288,7 +288,7 @@ fn try_convert_to_datetime_and_append_to_json_term(
     truncate_date_for_search: bool,
 ) -> Option<Term> {
     let dt = OffsetDateTime::parse(text, &Rfc3339).ok()?;
-    let mut dt = DateTime::from_utc(dt.to_offset(UtcOffset::UTC));
+    let mut dt = DateTime::try_from_utc(dt.to_offset(UtcOffset::UTC))?;
     if truncate_date_for_search {
         dt = dt.truncate(DATE_TIME_PRECISION_INDEXED);
     }
@@ -380,7 +380,7 @@ pub(crate) fn encode_column_name(
 
 #[cfg(test)]
 mod tests {
-    use super::split_json_path;
+    use super::{convert_to_fast_value_and_append_to_json_term, split_json_path};
     use crate::schema::Field;
     use crate::Term;
 
@@ -400,6 +400,20 @@ mod tests {
         assert_eq!(
             format!("{term:?}"),
             "Term(field=1, type=Json, path=attributes.dimensions.width, type=I64, 400)"
+        );
+    }
+
+    #[test]
+    fn test_out_of_range_date_is_not_converted() {
+        let field = Field::from_field_id(1);
+        let term = Term::from_field_json_path(field, "date", false);
+        assert!(
+            convert_to_fast_value_and_append_to_json_term(&term, "1601-01-01T00:00:00Z", true)
+                .is_none()
+        );
+        assert!(
+            convert_to_fast_value_and_append_to_json_term(&term, "2026-06-30T17:20:27Z", true)
+                .is_some()
         );
     }
 
