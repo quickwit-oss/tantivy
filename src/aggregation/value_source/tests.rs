@@ -24,6 +24,10 @@ impl ValueSource for Constant {
         values.resize(docs.len(), self.0);
         Cardinality::Full
     }
+
+    fn to_f64(self: Box<Self>) -> Box<dyn ValueSource> {
+        coerce_to_f64(self)
+    }
 }
 
 pub(crate) struct ConstantProvider(pub u64);
@@ -133,6 +137,10 @@ impl ValueSource for TypedConstant {
         values.resize(docs.len(), self.value);
         Cardinality::Full
     }
+
+    fn to_f64(self: Box<Self>) -> Box<dyn ValueSource> {
+        coerce_to_f64(self)
+    }
 }
 
 struct TypedConstantProvider {
@@ -238,6 +246,10 @@ impl ValueSource for EmptyStrValueSource {
         Cardinality::Optional
     }
 
+    fn to_f64(self: Box<Self>) -> Box<dyn ValueSource> {
+        self
+    }
+
     fn term_dictionary(&self) -> Option<&dyn ValueSourceDictionary> {
         Some(&self.0)
     }
@@ -285,4 +297,48 @@ fn test_cardinality_on_absent_field_with_str_missing() {
         ValueSourceRegistry::default(),
     );
     assert_eq!(result["card"]["value"], 1.0);
+}
+
+/// A full column with the given values, in their monotonic `u64` mapping.
+fn full_column(values: &[u64]) -> Column<u64> {
+    use columnar::column_index::ColumnIndex;
+    use columnar::column_values::{
+        serialize_and_load_u64_based_column_values, ALL_U64_CODEC_TYPES,
+    };
+    Column {
+        index: ColumnIndex::Full,
+        values: serialize_and_load_u64_based_column_values::<u64>(&values, &ALL_U64_CODEC_TYPES),
+    }
+}
+
+#[test]
+fn test_to_f64_on_physical_columns() {
+    use columnar::MonotonicallyMappableToU64;
+
+    let docs: Vec<DocId> = vec![0, 1, 2];
+    let mut values = Vec::new();
+    let mut docids = Vec::new();
+    let mut row_ids = Vec::new();
+
+    let mut u64_source: Box<dyn ValueSource> =
+        Box::new((full_column(&[3u64, 0, 7]), ColumnType::U64)).to_f64();
+    assert_eq!(u64_source.column_type(), ColumnType::F64);
+    let cardinality = u64_source.load_block(&docs, &mut values, &mut docids, &mut row_ids);
+    assert!(cardinality.is_full());
+    let decoded: Vec<f64> = values.iter().map(|value| f64::from_u64(*value)).collect();
+    assert_eq!(decoded, vec![3.0, 0.0, 7.0]);
+
+    // A borrowed column works too.
+    let i64_column = full_column(&[(-2i64).to_u64(), 5i64.to_u64(), 0i64.to_u64()]);
+    let mut i64_source: Box<dyn ValueSource> = Box::new((&i64_column, ColumnType::I64)).to_f64();
+    assert_eq!(i64_source.column_type(), ColumnType::F64);
+    i64_source.load_block(&docs, &mut values, &mut docids, &mut row_ids);
+    let decoded: Vec<f64> = values.iter().map(|value| f64::from_u64(*value)).collect();
+    assert_eq!(decoded, vec![-2.0, 5.0, 0.0]);
+
+    // Other types are unchanged.
+    let f64_column = full_column(&[1.5f64.to_u64()]);
+    let f64_source: Box<dyn ValueSource> = Box::new((f64_column, ColumnType::F64)).to_f64();
+    assert_eq!(f64_source.column_type(), ColumnType::F64);
+    assert!(f64_source.as_physical_column().is_some());
 }

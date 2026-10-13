@@ -144,15 +144,20 @@ pub(crate) fn get_all_value_sources(
     Ok(sources)
 }
 
-/// Builds the value source of a field without any column, with the given type.
+/// Builds a value source without any value, with the given type.
+///
+/// `num_rows` is the number of rows of the column (the `max_doc` of the segment).
 ///
 /// A `Str` shim is an empty `StrColumn`, so that it has an (empty) term dictionary, as required by
 /// `ValueSource::term_dictionary`.
-fn build_empty_value_source(num_docs: u32, column_type: ColumnType) -> Box<dyn ValueSource> {
+pub(crate) fn build_empty_value_source(
+    num_rows: u32,
+    column_type: ColumnType,
+) -> Box<dyn ValueSource> {
     if column_type == ColumnType::Str {
-        Box::new(StrColumn::wrap(BytesColumn::empty(num_docs)))
+        Box::new(StrColumn::wrap(BytesColumn::empty(num_rows)))
     } else {
-        Box::new((Column::build_empty_column(num_docs), column_type))
+        Box::new((Column::build_empty_column(num_rows), column_type))
     }
 }
 

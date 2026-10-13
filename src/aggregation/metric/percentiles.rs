@@ -703,4 +703,26 @@ mod tests {
 
         Ok(())
     }
+
+    #[test]
+    fn test_percentiles_negative_missing_on_u64_column() {
+        let mut schema_builder = Schema::builder();
+        let score = schema_builder.add_u64_field("score", FAST);
+        let index = Index::create_in_ram(schema_builder.build());
+        let mut index_writer = index.writer_for_tests().unwrap();
+        index_writer.add_document(doc!(score => 10u64)).unwrap();
+        index_writer.add_document(doc!()).unwrap();
+        index_writer.commit().unwrap();
+
+        let agg_req: Aggregations = serde_json::from_value(json!({
+            "percentiles": { "percentiles": { "field": "score", "missing": -1.0 } }
+        }))
+        .unwrap();
+        let res = exec_request_with_query(agg_req, &index, None).unwrap();
+
+        // The doc without a value counts as -1, which a `u64` column cannot represent.
+        let first_percentile = res["percentiles"]["values"]["1.0"].as_f64().unwrap();
+        assert_le!(first_percentile, -0.95);
+        assert_ge!(first_percentile, -1.05);
+    }
 }

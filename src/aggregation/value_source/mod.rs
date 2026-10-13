@@ -1,4 +1,6 @@
 mod block_accessor;
+#[cfg(feature = "jitexpr")]
+pub(crate) mod jitexpr_value_source;
 mod value_source_registry;
 
 #[cfg(test)]
@@ -8,9 +10,15 @@ use std::borrow::Borrow;
 use std::io;
 
 pub(crate) use block_accessor::ColumnBlockAccessor;
-use columnar::{Cardinality, Column, ColumnType, ColumnValues, Dictionary, RowId, StrColumn};
+use columnar::{
+    Cardinality, Column, ColumnType, ColumnValues, Dictionary, MonotonicallyMappableToU64, RowId,
+    StrColumn,
+};
+#[cfg(feature = "jitexpr")]
+pub use jitexpr_value_source::JitExprValueSourceProvider;
 pub use value_source_registry::{ValueSourceProvider, ValueSourceRegistry};
 
+use crate::aggregation::f64_from_fastfield_u64;
 use crate::DocId;
 
 /// A source of values for a block of documents.
@@ -46,6 +54,15 @@ pub trait ValueSource: std::fmt::Debug {
         docids: &mut Vec<DocId>,
         row_ids: &mut Vec<RowId>,
     ) -> Cardinality;
+
+    /// Returns a source with the same docs, and the values converted to `f64`.
+    ///
+    /// Only changes `U64` and `I64` sources: the other types are returned unchanged. `u64` and
+    /// `i64` values above 2^53 are rounded.
+    ///
+    /// Used by the metric aggregations, which collect `f64` values anyway, so that a `missing`
+    /// value the column type cannot represent (e.g. `-1` for a `u64` column) is not corrupted.
+    fn to_f64(self: Box<Self>) -> Box<dyn ValueSource>;
 
     /// Returns the physical column, if this source is backed by one.
     fn as_physical_column(&self) -> Option<&Column<u64>> {
@@ -87,12 +104,6 @@ pub trait ValueSource: std::fmt::Debug {
 ///
 /// For more dynamic ValueSource, the mapping from term is typically built dynamically.
 pub trait ValueSourceDictionary {
-    /// Returns true if the order of the ords matches the lexicographic order of the terms.
-    ///
-    /// Aggregations relying on that property (e.g. a terms aggregation ordered by `_key`) must
-    /// check it.
-    fn ords_sorted_with_terms(&self) -> bool;
-
     /// Number of terms in the dictionary. Valid ords are `0..num_terms()`.
     /// For dynamic columns, this number can vary with the number of encounterred
     /// terms.
@@ -111,10 +122,6 @@ pub trait ValueSourceDictionary {
 }
 
 impl ValueSourceDictionary for Dictionary {
-    fn ords_sorted_with_terms(&self) -> bool {
-        true
-    }
-
     fn num_terms(&self) -> u64 {
         Dictionary::num_terms(self) as u64
     }
@@ -159,6 +166,13 @@ impl<ColumnRef: Borrow<Column<u64>> + std::fmt::Debug> ValueSource for (ColumnRe
         cardinality
     }
 
+    fn to_f64(self: Box<Self>) -> Box<dyn ValueSource> {
+        // We clone the column (cheap: `Arc`s), as `ColumnRef` may be a reference.
+        let (column_ref, column_type) = *self;
+        let column: Column<u64> = column_ref.borrow().clone();
+        coerce_to_f64(Box::new((column, column_type)))
+    }
+
     #[inline]
     fn as_physical_column(&self) -> Option<&Column<u64>> {
         Some(self.0.borrow())
@@ -183,6 +197,10 @@ impl ValueSource for StrColumn {
         (self.ords(), ColumnType::Str).load_block(docs, values, docids, row_ids)
     }
 
+    fn to_f64(self: Box<Self>) -> Box<dyn ValueSource> {
+        self
+    }
+
     #[inline]
     fn as_physical_column(&self) -> Option<&Column<u64>> {
         Some(self.ords())
@@ -194,6 +212,58 @@ impl ValueSource for StrColumn {
 
     fn term_dictionary(&self) -> Option<&dyn ValueSourceDictionary> {
         Some(self.dictionary())
+    }
+}
+
+/// Wraps a `U64` or `I64` source in an `F64CoercedValueSource`. Returns the other sources
+/// unchanged.
+///
+/// For the `ValueSource::to_f64` implementations that have no cheaper way to produce `f64`.
+pub(crate) fn coerce_to_f64(source: Box<dyn ValueSource>) -> Box<dyn ValueSource> {
+    let inner_type = source.column_type();
+    if !matches!(inner_type, ColumnType::U64 | ColumnType::I64) {
+        return source;
+    }
+    Box::new(F64CoercedValueSource {
+        inner: source,
+        inner_type,
+    })
+}
+
+/// A `U64` or `I64` source, with its values converted to `f64`. See `ValueSource::to_f64`.
+///
+/// The values are converted in place after each `load_block` of the inner source. This keeps the
+/// batched path of the inner source, for one more virtual call per block. (Mapping the column
+/// values with `monotonic_map_column` would add a virtual call per value instead.)
+#[derive(Debug)]
+pub(crate) struct F64CoercedValueSource {
+    inner: Box<dyn ValueSource>,
+    /// Invariant: `U64` or `I64`, the column type of `inner`.
+    inner_type: ColumnType,
+}
+
+impl ValueSource for F64CoercedValueSource {
+    fn column_type(&self) -> ColumnType {
+        ColumnType::F64
+    }
+
+    fn load_block(
+        &mut self,
+        docs: &[DocId],
+        values: &mut Vec<u64>,
+        docids: &mut Vec<DocId>,
+        row_ids: &mut Vec<RowId>,
+    ) -> Cardinality {
+        let cardinality = self.inner.load_block(docs, values, docids, row_ids);
+        let inner_type = self.inner_type;
+        for value in values.iter_mut() {
+            *value = f64_from_fastfield_u64(*value, inner_type).to_u64();
+        }
+        cardinality
+    }
+
+    fn to_f64(self: Box<Self>) -> Box<dyn ValueSource> {
+        self
     }
 }
 

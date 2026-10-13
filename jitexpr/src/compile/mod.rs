@@ -254,6 +254,42 @@ mod tests {
     }
 
     #[test]
+    fn test_coerce_result_to_f64() {
+        let untyped_expr = crate::ast::deserialize("(ADD number 1i64)").unwrap();
+        let variable_types = HashMap::from([("number", VarType::I64)]);
+        let compiled_fn = compile(&untyped_expr, &variable_types).unwrap();
+        assert_eq!(compiled_fn.result_type(), VarType::I64);
+
+        let coerced_fn = compiled_fn.coerce_result_to_f64().unwrap();
+        assert_eq!(coerced_fn.result_type(), VarType::F64);
+        assert!(coerced_fn.inputs() == compiled_fn.inputs());
+        let mut string_arena = StringArena::new();
+        let output = unsafe { coerced_fn.call(&[VariableValue::some(-3i64)], &mut string_arena) };
+        assert_eq!(unsafe { output.as_f64() }, Some(-2.0));
+        // A null result stays null.
+        let output = unsafe { coerced_fn.call(&[VariableValue::none()], &mut string_arena) };
+        assert_eq!(unsafe { output.as_f64() }, None);
+
+        // Memoized.
+        assert!(Arc::ptr_eq(
+            &coerced_fn,
+            &compiled_fn.coerce_result_to_f64().unwrap()
+        ));
+        // Already `f64`.
+        assert!(Arc::ptr_eq(
+            &coerced_fn,
+            &coerced_fn.coerce_result_to_f64().unwrap()
+        ));
+        // Not numerical.
+        let str_fn = compile(
+            &UntypedExpr::variable("label"),
+            &HashMap::from([("label", VarType::Str)]),
+        )
+        .unwrap();
+        assert!(str_fn.coerce_result_to_f64().is_err());
+    }
+
+    #[test]
     fn test_compiled_fn_is_send_and_sync() {
         fn assert_send_and_sync<T: Send + Sync>() {}
 

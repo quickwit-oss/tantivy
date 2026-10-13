@@ -202,6 +202,24 @@ impl<'types, 'names> CompileFnBuilder<'types, 'names> {
         self.lower_typed_expr(expression)?.into_compiled_fn()
     }
 
+    /// Compiles an expression whose variable ids are already assigned.
+    ///
+    /// Precondition: `input_vars` are the inputs of `expression`, as assigned by
+    /// `assign_variable_ids`.
+    pub(super) fn compile_with_inputs(
+        input_vars: Vec<TypedVariable>,
+        expression: TypedExpr,
+    ) -> Result<CompiledFn, CompileError> {
+        // The variable types are only used to build a typed expression: `expression` is already
+        // typed.
+        let variable_types: HashMap<&str, VarType> = HashMap::new();
+        let builder = CompileFnBuilder {
+            variable_types: &variable_types,
+            input_vars,
+        };
+        builder.compile_typed_expr(expression)
+    }
+
     pub(super) fn compile_typed_expr_to_assembly(
         self,
         expression: TypedExpr,
