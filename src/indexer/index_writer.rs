@@ -527,8 +527,10 @@ impl<D: Document> IndexWriter<D> {
     pub fn delete_all_documents(&self) -> crate::Result<Opstamp> {
         // Delete segments
         self.segment_updater.remove_all_segments();
-        // Return new stamp - reverted stamp
-        self.stamper.revert(self.committed_opstamp);
+        // Revert the stamper to the first opstamp after the last commit, as in `IndexWriter::new`.
+        // Reverting to the commit opstamp itself would give the next operation an opstamp
+        // below a pending delete issued earlier in this writer, which would then delete it.
+        self.stamper.revert(self.committed_opstamp + 1);
         Ok(self.committed_opstamp)
     }
 
@@ -1391,6 +1393,28 @@ mod tests {
                 .unwrap(),
             0
         );
+    }
+
+    #[test]
+    fn test_delete_all_documents_keeps_doc_added_after_pending_delete() -> crate::Result<()> {
+        let mut schema_builder = schema::Schema::builder();
+        let text_field = schema_builder.add_text_field("text", TEXT);
+        let index = Index::create_in_ram(schema_builder.build());
+        let mut index_writer: IndexWriter = index.writer_for_tests()?;
+        // The delete stays in the delete queue after `delete_all_documents`. The document
+        // added after the clear must not get an opstamp below it.
+        index_writer.delete_term(Term::from_field_text(text_field, "a"));
+        index_writer.delete_all_documents()?;
+        index_writer.add_document(doc!(text_field => "a"))?;
+        index_writer.commit()?;
+
+        let searcher = index.reader()?.searcher();
+        let term_query = TermQuery::new(
+            Term::from_field_text(text_field, "a"),
+            IndexRecordOption::Basic,
+        );
+        assert_eq!(searcher.search(&term_query, &Count)?, 1);
+        Ok(())
     }
 
     #[test]
