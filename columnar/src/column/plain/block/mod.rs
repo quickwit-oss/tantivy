@@ -31,14 +31,9 @@ const MIN_ONPAIR16_BLOCK_NUM_BYTES: usize = 4 << 10;
 /// Codecs considered for the code offsets and the byte offsets of a block.
 const OFFSETS_CODECS: [CodecType; 2] = [CodecType::Bitpacked, CodecType::BlockwiseLinear];
 
-fn invalid_data(msg: &str) -> io::Error {
-    io::Error::new(io::ErrorKind::InvalidData, msg.to_string())
-}
-
 /// Reads a little endian `u16` from the front of `bytes`, and advances `bytes` past it.
 ///
-/// Precondition: `bytes` holds at least 2 bytes. Callers check the header length with
-/// `split_checked` first.
+/// Precondition: `bytes` holds at least 2 bytes.
 fn read_u16(bytes: &mut &[u8]) -> u16 {
     let (u16_bytes, rest) = bytes
         .split_first_chunk::<2>()
@@ -49,8 +44,7 @@ fn read_u16(bytes: &mut &[u8]) -> u16 {
 
 /// Reads a little endian `u32` from the front of `bytes`, and advances `bytes` past it.
 ///
-/// Precondition: `bytes` holds at least 4 bytes. Callers check the header length with
-/// `split_checked` first.
+/// Precondition: `bytes` holds at least 4 bytes.
 fn read_u32(bytes: &mut &[u8]) -> u32 {
     let (u32_bytes, rest) = bytes
         .split_first_chunk::<4>()
@@ -59,24 +53,18 @@ fn read_u32(bytes: &mut &[u8]) -> u32 {
     u32::from_le_bytes(*u32_bytes)
 }
 
-/// Splits `len` bytes off the front of `bytes`, or returns an error if there are not enough.
-fn split_checked(bytes: OwnedBytes, len: usize) -> io::Result<(OwnedBytes, OwnedBytes)> {
-    if bytes.len() < len {
-        return Err(invalid_data("truncated plain block"));
-    }
-    Ok(bytes.split(len))
-}
-
 /// Loads `ColumnValues<u32>` with `expected_num_vals` values.
-fn load_offsets(
-    bytes: OwnedBytes,
-    expected_num_vals: u32,
-) -> io::Result<Arc<dyn ColumnValues<u32>>> {
-    let offsets: Arc<dyn ColumnValues<u32>> = load_u64_based_column_values::<u32>(bytes)?;
-    if offsets.num_vals() != expected_num_vals {
-        return Err(invalid_data("unexpected number of offsets in plain block"));
-    }
-    Ok(offsets)
+///
+/// Panics if `bytes` is corrupted.
+fn load_offsets(bytes: OwnedBytes, expected_num_vals: u32) -> Arc<dyn ColumnValues<u32>> {
+    let offsets: Arc<dyn ColumnValues<u32>> =
+        load_u64_based_column_values::<u32>(bytes).expect("corrupted offsets in plain block");
+    assert_eq!(
+        offsets.num_vals(),
+        expected_num_vals,
+        "unexpected number of offsets in plain block"
+    );
+    offsets
 }
 
 /// Encodes the values of a block into `output`.
@@ -98,7 +86,7 @@ pub(crate) fn encode_block(
     if bytes.len() < MIN_ONPAIR16_BLOCK_NUM_BYTES {
         return encode_raw_block(bytes, offsets, output);
     }
-    encode_onpair16_block(bytes, offsets, output)?;
+    encode_onpair16_block(bytes, offsets, output);
     if output.len() <= bytes.len() + RAW_HEADER_NUM_BYTES {
         // A raw block is at least that large.
         return Ok(());
@@ -119,28 +107,29 @@ pub(crate) enum PlainBlock {
 
 impl PlainBlock {
     /// Opens a block holding `num_values` values.
-    pub(crate) fn open(bytes: OwnedBytes, num_values: u32) -> io::Result<PlainBlock> {
-        let Some(&kind) = bytes.as_slice().first() else {
-            return Err(invalid_data("empty plain block"));
-        };
+    ///
+    /// Panics if `bytes` is corrupted.
+    pub(crate) fn open(bytes: OwnedBytes, num_values: u32) -> PlainBlock {
+        assert!(bytes.len() > 0, "block bytes should not be empty");
+        let kind: u8 = bytes[0];
         match kind {
-            BLOCK_KIND_RAW => Ok(PlainBlock::Raw(RawBlock::open(bytes, num_values)?)),
-            BLOCK_KIND_ONPAIR16 => Ok(PlainBlock::OnPair16(OnPair16Block::open(
-                bytes, num_values,
-            )?)),
-            _ => Err(invalid_data("unknown plain block kind")),
+            BLOCK_KIND_RAW => PlainBlock::Raw(RawBlock::open(bytes, num_values)),
+            BLOCK_KIND_ONPAIR16 => PlainBlock::OnPair16(OnPair16Block::open(bytes, num_values)),
+            _ => panic!("unknown plain block kind {kind}"),
         }
     }
 
     /// Appends the bytes of the value at position `slot` in the block to `output`.
     ///
-    /// `codes_buffer` is scratch space.
+    /// Output is NOT cleared beforehand.
+    ///
+    /// `codes_buffer` is scratch space to contain the token codes.
     pub(crate) fn append_value(
         &self,
         slot: u32,
         codes_buffer: &mut Vec<u16>,
         output: &mut Vec<u8>,
-    ) -> io::Result<()> {
+    ) {
         match self {
             PlainBlock::OnPair16(onpair16_block) => {
                 onpair16_block.append_value(slot, codes_buffer, output)
@@ -148,6 +137,10 @@ impl PlainBlock {
             PlainBlock::Raw(raw_block) => raw_block.append_value(slot, output),
         }
     }
+
+    // TODO add a batched version
+    // pub(crate) fn append_value_batch(&self, slots: &[u32], codes_buffer: &mut Vec<u16>,
+    // concatenated_output: &mut Vec<u8>, ouput_lens: &[u32]);
 }
 
 #[cfg(test)]
@@ -190,14 +183,12 @@ mod tests {
     }
 
     fn decode_all(block_bytes: Vec<u8>, num_values: usize) -> Vec<Vec<u8>> {
-        let block = PlainBlock::open(OwnedBytes::new(block_bytes), num_values as u32).unwrap();
+        let block = PlainBlock::open(OwnedBytes::new(block_bytes), num_values as u32);
         let mut codes_buffer = Vec::new();
         (0..num_values as u32)
             .map(|slot| {
                 let mut value = Vec::new();
-                block
-                    .append_value(slot, &mut codes_buffer, &mut value)
-                    .unwrap();
+                block.append_value(slot, &mut codes_buffer, &mut value);
                 value
             })
             .collect()
@@ -259,29 +250,55 @@ mod tests {
         test_roundtrip_aux(&values, BLOCK_KIND_RAW);
     }
 
-    #[test]
-    fn test_truncated_block_is_an_error() {
+    /// Opens the block of 500 log lines, truncated to `truncated_len` bytes.
+    fn open_truncated_block(truncated_len: usize) -> PlainBlock {
         let values = log_lines(500);
         let value_refs: Vec<&[u8]> = values.iter().map(|value| value.as_slice()).collect();
         let block_bytes = encode(&value_refs);
-        for truncated_len in [0, 1, 10, 16, 100, block_bytes.len() - 1] {
-            let truncated = OwnedBytes::new(block_bytes[..truncated_len].to_vec());
-            assert!(PlainBlock::open(truncated, values.len() as u32).is_err());
-        }
+        let truncated_len = truncated_len.min(block_bytes.len() - 1);
+        let truncated = OwnedBytes::new(block_bytes[..truncated_len].to_vec());
+        PlainBlock::open(truncated, values.len() as u32)
     }
 
     #[test]
-    fn test_wrong_num_values_is_an_error() {
+    #[should_panic(expected = "empty plain block")]
+    fn test_empty_block_panics() {
+        open_truncated_block(0);
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_truncated_block_header_panics() {
+        open_truncated_block(10);
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_truncated_block_body_panics() {
+        open_truncated_block(100);
+    }
+
+    #[test]
+    #[should_panic(expected = "invalid codes length")]
+    fn test_truncated_block_codes_panics() {
+        // The block misses its last byte.
+        open_truncated_block(usize::MAX);
+    }
+
+    #[test]
+    #[should_panic(expected = "unexpected number of offsets")]
+    fn test_wrong_num_values_panics() {
         let values = log_lines(500);
         let value_refs: Vec<&[u8]> = values.iter().map(|value| value.as_slice()).collect();
         let block_bytes = OwnedBytes::new(encode(&value_refs));
-        assert!(PlainBlock::open(block_bytes, values.len() as u32 + 1).is_err());
+        PlainBlock::open(block_bytes, values.len() as u32 + 1);
     }
 
     #[test]
-    fn test_unknown_block_kind_is_an_error() {
+    #[should_panic(expected = "unknown plain block kind")]
+    fn test_unknown_block_kind_panics() {
         let mut block_bytes = encode(&[b"abc".as_slice()]);
         block_bytes[0] = 7;
-        assert!(PlainBlock::open(OwnedBytes::new(block_bytes), 1).is_err());
+        PlainBlock::open(OwnedBytes::new(block_bytes), 1);
     }
 }
