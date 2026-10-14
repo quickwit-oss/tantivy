@@ -917,15 +917,9 @@ impl<B: BucketIdSlot, const LANES: usize> TermAggregationMap for VecTermBuckets<
     /// Add an occurrence of the given term id.
     #[inline]
     fn term_entry(&mut self, term_id: u64, _bucket_id_provider: &mut BucketIdProvider) -> B {
-        let term_id_usize = term_id as usize;
-        debug_assert!(
-            term_id_usize < self.buckets.len(),
-            "term_id {} out of bounds for VecTermBuckets (len={})",
-            term_id,
-            self.buckets.len()
-        );
         let next_count_lane = self.next_count_lane();
-        let bucket = unsafe { self.buckets.get_unchecked_mut(term_id_usize) };
+        // Panics if `term_id` exceeds the column's stored max value (corrupt column).
+        let bucket = &mut self.buckets[term_id as usize];
         bucket.count_lanes[next_count_lane] += 1;
         bucket.bucket_id
     }
@@ -980,14 +974,8 @@ impl<B: BucketIdSlot> TermAggregationMap for LazyVecTermBuckets<B> {
     /// Add an occurrence of the given term id.
     #[inline]
     fn term_entry(&mut self, term_id: u64, bucket_id_provider: &mut BucketIdProvider) -> B {
-        let term_id_usize = term_id as usize;
-        debug_assert!(
-            term_id_usize < self.buckets.len(),
-            "term_id {} out of bounds for LazyVecTermBuckets (len={})",
-            term_id,
-            self.buckets.len()
-        );
-        let bucket = unsafe { self.buckets.get_unchecked_mut(term_id_usize) };
+        // Panics if `term_id` exceeds the column's stored max value (corrupt column).
+        let bucket = &mut self.buckets[term_id as usize];
         // Assign the id the first time the term is seen (`count == 0`). `B::assign` is a no-op for
         // the `()` slot, but this map is only used with a real `BucketId`.
         if bucket.count == 0 {
