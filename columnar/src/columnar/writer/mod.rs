@@ -86,62 +86,55 @@ impl ColumnarWriter {
     /// the lowest possible score.
     ///
     /// The sort applied is stable.
+    ///
+    /// The sort_field has to be a schema field (not a json path): we rely on the fact that
+    /// all values have the same numerical type in `collect_numerical_sort_order`.
     pub fn sort_order(&self, sort_field: &str, num_docs: RowId, reversed: bool) -> Vec<u32> {
-        let Some(numerical_col_writer) = self
+        let sort_field_bytes = sort_field.as_bytes();
+        let mut symbols_buffer = Vec::new();
+        if let Some(numerical_col_writer) = self
             .numerical_field_hash_map
-            .get::<NumericalColumnWriter>(sort_field.as_bytes())
-            .or_else(|| {
-                self.datetime_field_hash_map
-                    .get::<NumericalColumnWriter>(sort_field.as_bytes())
-            })
-        else {
-            let str_or_bytes_column_opt = self
-                .str_field_hash_map
-                .get::<StrOrBytesColumnWriter>(sort_field.as_bytes())
-                .or_else(|| {
-                    self.bytes_field_hash_map
-                        .get::<StrOrBytesColumnWriter>(sort_field.as_bytes())
-                });
-            let Some(str_or_bytes_column) = str_or_bytes_column_opt else {
-                return Vec::new();
-            };
-
-            let dictionary_builder = &self.dictionaries[str_or_bytes_column.dictionary_id as usize];
-            let term_id_mapping = dictionary_builder.build_term_id_mapping(&self.arena);
-            let mut symbols_buffer = Vec::new();
-
-            return collect_sort_order_from_ops(
-                str_or_bytes_column.operation_iterator(&self.arena, None, &mut symbols_buffer),
+            .get::<NumericalColumnWriter>(sort_field_bytes)
+        {
+            return collect_numerical_sort_order(
+                numerical_col_writer.operation_iterator(&self.arena, None, &mut symbols_buffer),
                 num_docs,
                 reversed,
-                |uid| Some(term_id_mapping.to_ord(uid).0),
-                None,
-                |a, b| a.cmp(b),
             );
+        }
+        // Datetime columns store a plain `ColumnWriter` (not a `NumericalColumnWriter`), with
+        // `NumericalValue::I64` values.
+        if let Some(datetime_col_writer) = self
+            .datetime_field_hash_map
+            .get::<ColumnWriter>(sort_field_bytes)
+        {
+            return collect_numerical_sort_order(
+                datetime_col_writer.operation_iterator::<NumericalValue>(
+                    &self.arena,
+                    None,
+                    &mut symbols_buffer,
+                ),
+                num_docs,
+                reversed,
+            );
+        }
+        let str_or_bytes_column_opt = self
+            .str_field_hash_map
+            .get::<StrOrBytesColumnWriter>(sort_field_bytes)
+            .or_else(|| {
+                self.bytes_field_hash_map
+                    .get::<StrOrBytesColumnWriter>(sort_field_bytes)
+            });
+        let Some(str_or_bytes_column) = str_or_bytes_column_opt else {
+            return Vec::new();
         };
-        let mut symbols_buffer = Vec::new();
+        let dictionary_builder = &self.dictionaries[str_or_bytes_column.dictionary_id as usize];
+        let term_id_mapping = dictionary_builder.build_term_id_mapping(&self.arena);
         collect_sort_order_from_ops(
-            numerical_col_writer.operation_iterator(&self.arena, None, &mut symbols_buffer),
+            str_or_bytes_column.operation_iterator(&self.arena, None, &mut symbols_buffer),
             num_docs,
             reversed,
-            // MonotonicallyMappableToU64 converts each value to u64 in an
-            // order-preserving way (u64: identity, i64: XOR sign bit, f64: bit
-            // manipulation). Converting once per document lets the comparator be
-            // a simple u64 cmp instead of unwrapping the NumericalValue variant
-            // on every comparison.
-            //
-            // For f64, NaN maps to a deterministic u64 via raw bit manipulation,
-            // so it sorts to a consistent position. Sorting only requires total
-            // ordering, not IEEE 754 equality semantics where NaN != NaN.
-            |nv| {
-                Some(match nv {
-                    NumericalValue::U64(v) => v.to_u64(),
-                    NumericalValue::I64(v) => v.to_u64(),
-                    NumericalValue::F64(v) => v.to_u64(),
-                })
-            },
-            // None for missing values. Option<u64> sorts None < Some(_),
-            // placing nulls before non-null values.
+            |uid| Some(term_id_mapping.to_ord(uid).0),
             None,
             |a, b| a.cmp(b),
         )
@@ -496,6 +489,34 @@ impl ColumnarWriter {
         serializer.finalize(num_docs)?;
         Ok(())
     }
+}
+
+/// Returns the sort order of a numerical or datetime column, given its operations.
+///
+/// # Hidden contract
+///
+/// For this to make sense, all numerical value emitted have to be of the same type.
+fn collect_numerical_sort_order(
+    ops: impl Iterator<Item = ColumnOperation<NumericalValue>>,
+    num_docs: RowId,
+    reversed: bool,
+) -> Vec<u32> {
+    collect_sort_order_from_ops(
+        ops,
+        num_docs,
+        reversed,
+        |numerical_value| {
+            Some(match numerical_value {
+                NumericalValue::U64(val_u64) => val_u64.to_u64(),
+                NumericalValue::I64(val_i64) => val_i64.to_u64(),
+                NumericalValue::F64(val_f64) => val_f64.to_u64(),
+            })
+        },
+        // None for missing values. Option<u64> sorts None < Some(_),
+        // placing nulls before non-null values.
+        None,
+        |a, b| a.cmp(b),
+    )
 }
 
 /// Shared sorting pattern for both numeric and Str/Bytes sort fields.
