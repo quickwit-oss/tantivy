@@ -38,7 +38,7 @@ BLOCK_INDEX :=
     [BYTE_STARTS: u64 * (NUM_BLOCKS + 1)]   # start of each block, then the blocks length
 ```
 
-A block holds at most 65,536 values, and at most 1 MiB of raw bytes, unless it holds a single
+A block holds at most 100,000 values, and at most 10 MiB of raw bytes, unless it holds a single
 larger value. Each block is self-contained: reading a value only requires reading its block.
 
 ```
@@ -51,8 +51,7 @@ ONPAIR16_BLOCK :=
     [TOKEN_LENS: 4 bits * NUM_TOKENS]       # token length - 1, token 2k in the low nibble
     [DICT_BYTES]                            # tokens concatenated, with the onpair read padding
     [CODE_OFFSETS]                          # u64 based column values, NUM_VALUES + 1 entries
-    [CODES]                                 # CODE_BITS bits per code (raw u16 at 16 bits),
-                                            # followed by 7 zero bytes
+    [CODES: ceil(NUM_CODES * CODE_BITS / 8) + 7]  # CODE_BITS bits per code, then 7 zero bytes
 
 CODE_BITS := ceil(log2(NUM_TOKENS))         # not stored: the minimal width of a token id
 

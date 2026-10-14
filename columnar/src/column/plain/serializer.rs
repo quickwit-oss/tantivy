@@ -9,10 +9,10 @@ use super::{PLAIN_FOOTER_NUM_BYTES, PLAIN_FORMAT_VERSION};
 use crate::column_index::{SerializableColumnIndex, serialize_column_index};
 
 /// A block is closed once it holds this many values.
-pub(crate) const PLAIN_BLOCK_MAX_NUM_VALUES: usize = 65_536;
+pub(crate) const PLAIN_BLOCK_MAX_NUM_VALUES: usize = 100_000;
 
 /// A block is closed before its raw bytes exceed this size, unless it holds a single value.
-pub(crate) const PLAIN_BLOCK_MAX_NUM_BYTES: usize = 1 << 20;
+pub(crate) const PLAIN_BLOCK_MAX_NUM_BYTES: usize = 10 << 20;
 
 /// Serializes a plain-encoded column.
 ///
@@ -154,11 +154,11 @@ mod tests {
 
     #[test]
     fn test_blocks_cut_on_num_bytes() {
-        // 4 values of 300 KiB: 3 fit in 1 MiB.
-        let values: Vec<Vec<u8>> = vec![vec![b'x'; 300 << 10]; 4];
+        // 4 values of 30% of the limit: 3 fit in a block.
+        let values: Vec<Vec<u8>> = vec![vec![b'x'; PLAIN_BLOCK_MAX_NUM_BYTES * 3 / 10]; 4];
         assert_eq!(block_num_values(&values), vec![3, 1]);
-        // Exactly 1 MiB fits in a block.
-        let values: Vec<Vec<u8>> = vec![vec![b'x'; 256 << 10]; 5];
+        // Exactly the limit fits in a block.
+        let values: Vec<Vec<u8>> = vec![vec![b'x'; PLAIN_BLOCK_MAX_NUM_BYTES / 4]; 5];
         assert_eq!(block_num_values(&values), vec![4, 1]);
     }
 
@@ -166,7 +166,7 @@ mod tests {
     fn test_large_value_has_its_own_block() {
         let values: Vec<Vec<u8>> = vec![
             b"small".to_vec(),
-            vec![b'x'; (1 << 20) + 1],
+            vec![b'x'; PLAIN_BLOCK_MAX_NUM_BYTES + 1],
             b"small".to_vec(),
         ];
         assert_eq!(block_num_values(&values), vec![1, 1, 1]);

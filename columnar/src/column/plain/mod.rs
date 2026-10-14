@@ -3,7 +3,7 @@
 //! Unlike dictionary encoded columns, plain columns store the values themselves, without
 //! term ordinals. This is better suited to columns with a high cardinality.
 //!
-//! Values are stored in self-contained blocks of at most 65,536 values and at most 1 MiB of raw
+//! Values are stored in self-contained blocks of at most 100,000 values and at most 10 MiB of raw
 //! bytes. Each block is compressed with OnPair16 and has its own dictionary, so reading a value
 //! only requires reading its block.
 //!
@@ -20,6 +20,7 @@ mod block_index;
 mod serializer;
 
 use std::ops::{Deref, Range};
+use std::sync::Arc;
 use std::{fmt, io};
 
 use common::OwnedBytes;
@@ -49,10 +50,22 @@ fn invalid_data(msg: impl ToString) -> io::Error {
 /// [`PlainBytesColumn::reader`].
 #[derive(Clone)]
 pub struct PlainBytesColumn {
+    inner: Arc<PlainBytesColumnInner>,
+}
+
+pub struct PlainBytesColumnInner {
     column_index: ColumnIndex,
     block_index: PlainBlockIndex,
     /// The blocks, read lazily, one at a time.
     blocks: FileSlice,
+}
+
+impl Deref for PlainBytesColumn {
+    type Target = PlainBytesColumnInner;
+
+    fn deref(&self) -> &PlainBytesColumnInner {
+        &self.inner
+    }
 }
 
 impl fmt::Debug for PlainBytesColumn {
@@ -68,11 +81,11 @@ impl fmt::Debug for PlainBytesColumn {
 impl PlainBytesColumn {
     /// Returns a column without any value.
     pub fn empty(num_docs: u32) -> PlainBytesColumn {
-        PlainBytesColumn {
+        PlainBytesColumn::from_inner(PlainBytesColumnInner {
             column_index: ColumnIndex::Empty { num_docs },
             block_index: PlainBlockIndex::empty(),
             blocks: FileSlice::empty(),
-        }
+        })
     }
 
     /// Opens a plain column. Only the footer, the block index and the column index are read.
@@ -107,11 +120,17 @@ impl PlainBytesColumn {
                 "the plain block index does not match the blocks",
             ));
         }
-        Ok(PlainBytesColumn {
+        Ok(PlainBytesColumn::from_inner(PlainBytesColumnInner {
             column_index,
             block_index,
             blocks: file_slice.slice(0..blocks_num_bytes),
-        })
+        }))
+    }
+
+    fn from_inner(inner: PlainBytesColumnInner) -> PlainBytesColumn {
+        PlainBytesColumn {
+            inner: Arc::new(inner),
+        }
     }
 
     /// Returns the index mapping docs to value idxs.
@@ -120,7 +139,11 @@ impl PlainBytesColumn {
     }
 
     pub fn into_column_index(self) -> ColumnIndex {
-        self.column_index
+        // Avoids the clone when this is the last reference to the column.
+        match Arc::try_unwrap(self.inner) {
+            Ok(inner) => inner.column_index,
+            Err(inner) => inner.column_index.clone(),
+        }
     }
 
     pub fn get_cardinality(&self) -> Cardinality {
@@ -177,7 +200,7 @@ impl PlainBytesColumn {
             .blocks
             .read_bytes_slice(byte_range.start as usize..byte_range.end as usize)?;
         let num_values = self.block_index.value_range(block_id).len() as u32;
-        PlainBlock::open(block_bytes, num_values)
+        Ok(PlainBlock::open(block_bytes, num_values))
     }
 }
 
@@ -238,51 +261,57 @@ impl PlainValueReader {
         &self.column
     }
 
-    /// Returns the block containing `value_idx`.
+    /// Makes `current_block` the block containing `value_idx`, loading it only if needed.
     ///
     /// Precondition: `value_idx < self.column.num_values()`.
-    fn find_block(&self, value_idx: RowId) -> u32 {
+    fn load_block_for_value(&mut self, value_idx: RowId) -> io::Result<()> {
         let block_index = &self.column.block_index;
         // Fast path: values are usually read in increasing order.
-        if let Some((current_block_id, _)) = &self.current_block {
+        if let Some(current_block_id) = self.current_block_id() {
             if block_index
-                .value_range(*current_block_id)
+                .value_range(current_block_id)
                 .contains(&value_idx)
             {
-                return *current_block_id;
+                return Ok(());
             }
-            let next_block_id = *current_block_id + 1;
+            let next_block_id = current_block_id + 1;
             if next_block_id < block_index.num_blocks()
                 && block_index.value_range(next_block_id).contains(&value_idx)
             {
-                return next_block_id;
+                let block = self.column.load_block(next_block_id)?;
+                self.current_block = Some((next_block_id, block));
+                return Ok(());
             }
         }
-        block_index.block_containing(value_idx)
+        let block_id = block_index.block_containing(value_idx);
+        let block = self.column.load_block(block_id)?;
+        self.current_block = Some((block_id, block));
+        Ok(())
     }
 
-    /// Appends the bytes of the value `value_idx` to `output`.
+    #[inline(always)]
+    fn current_block_id(&self) -> Option<u32> {
+        let (current_block_id, _) = self.current_block.as_ref()?;
+        Some(*current_block_id)
+    }
+
+    /// Read bytes of the value for value_idx and append them to `output`.
+    ///
+    /// Output is NOT cleared beforehand.
     pub fn append_value(&mut self, value_idx: RowId, output: &mut Vec<u8>) -> io::Result<()> {
-        if value_idx >= self.column.num_values() {
-            return Err(io::Error::new(
-                io::ErrorKind::InvalidInput,
-                format!(
-                    "value idx {value_idx} out of range (num values: {})",
-                    self.column.num_values()
-                ),
-            ));
-        }
-        let block_id = self.find_block(value_idx);
-        let is_current_block = matches!(&self.current_block, Some((current_block_id, _)) if *current_block_id == block_id);
-        if !is_current_block {
-            let block = self.column.load_block(block_id)?;
-            self.current_block = Some((block_id, block));
-        }
-        let Some((_, block)) = &self.current_block else {
-            unreachable!("the block was loaded above");
-        };
-        let slot = value_idx - self.column.block_index.value_range(block_id).start;
-        block.append_value(slot, &mut self.codes_buffer, output)
+        assert!(
+            value_idx < self.column.num_values(),
+            "value idx {value_idx} out of range (num values: {})",
+            self.column.num_values()
+        );
+        self.load_block_for_value(value_idx)?;
+        let (current_block_id, current_block) = self
+            .current_block
+            .as_ref()
+            .expect("load_block_for_value sets the current block");
+        let slot = value_idx - self.column.block_index.value_range(*current_block_id).start;
+        current_block.append_value(slot, &mut self.codes_buffer, output);
+        Ok(())
     }
 
     /// Appends the value `value_idx` to `output`.
@@ -323,17 +352,13 @@ impl PlainValueReader {
     ) -> io::Result<()> {
         let value_range = self.column.column_index.value_row_ids(doc);
         let mut value_buffer = std::mem::take(&mut self.value_buffer);
-        let mut result = Ok(());
         for value_idx in value_range {
             value_buffer.clear();
-            result = self.append_value(value_idx, &mut value_buffer);
-            if result.is_err() {
-                break;
-            }
+            self.append_value(value_idx, &mut value_buffer)?;
             callback(&value_buffer);
         }
         self.value_buffer = value_buffer;
-        result
+        Ok(())
     }
 }
 
@@ -369,8 +394,8 @@ mod tests {
         let column = open(serialize_full_column(&values));
         assert_eq!(column.num_values(), 150_000);
         assert_eq!(column.num_docs(), 150_000);
-        // About 21 bytes per value: blocks are cut by the 1 MiB rule.
-        assert_eq!(column.num_blocks(), 4);
+        // About 21 bytes per value: blocks are cut by the number of values.
+        assert_eq!(column.num_blocks(), 2);
         assert_eq!(column.get_cardinality(), Cardinality::Full);
         let mut reader = column.reader();
         let mut value = Vec::new();
@@ -380,12 +405,20 @@ mod tests {
             assert_eq!(&value, expected_value);
         }
         // Random access, going backward.
-        for value_idx in [149_999u32, 70_000, 3, 65_536, 65_535, 0] {
+        for value_idx in [149_999u32, 70_000, 3, 100_000, 99_999, 0] {
             value.clear();
             reader.append_value(value_idx, &mut value).unwrap();
             assert_eq!(value, values[value_idx as usize]);
         }
-        assert!(reader.append_value(150_000, &mut value).is_err());
+    }
+
+    #[test]
+    #[should_panic(expected = "out of range")]
+    fn test_append_value_out_of_range_panics() {
+        let values = values_for_test(3);
+        let column = open(serialize_full_column(&values));
+        let mut value = Vec::new();
+        let _ = column.reader().append_value(3, &mut value);
     }
 
     #[test]

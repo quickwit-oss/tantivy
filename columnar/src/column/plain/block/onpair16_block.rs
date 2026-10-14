@@ -14,13 +14,12 @@
 //!                                               token 2k in the low nibble
 //! ..      dict_bytes_len                        token bytes, concatenated, + read padding
 //! ..      code_offsets_len                      code offsets: ColumnValues<u32>, n + 1 entries
-//! ..      ceil(num_codes * code_bits / 8) + 7   codes, bitpacked (raw u16 when code_bits = 16),
+//! ..      ceil(num_codes * code_bits / 8) + 7   codes, bitpacked on code_bits bits,
 //!                                               followed by 7 zero bytes
 //! ```
 //!
 //! `code_bits` is not stored: it is `ceil(log2(num_tokens))`, the minimal width of a token id.
 
-use std::io;
 use std::mem::MaybeUninit;
 use std::sync::Arc;
 
@@ -28,10 +27,7 @@ use common::OwnedBytes;
 use onpair::{CompactDictionaryView, MaxDictBits, Threshold};
 use tantivy_bitpacker::{BitPacker, BitUnpacker};
 
-use super::{
-    BLOCK_KIND_ONPAIR16, OFFSETS_CODECS, invalid_data, load_offsets, read_u16, read_u32,
-    split_checked,
-};
+use super::{BLOCK_KIND_ONPAIR16, OFFSETS_CODECS, load_offsets, read_u16, read_u32};
 use crate::column_values::{ColumnValues, serialize_u64_based_column_values};
 
 const ONPAIR16_HEADER_NUM_BYTES: usize = 15;
@@ -39,37 +35,47 @@ const ONPAIR16_HEADER_NUM_BYTES: usize = 15;
 /// Zero bytes appended after the codes, so that the bit unpacker can always do 8-byte loads.
 const CODES_PADDING_NUM_BYTES: usize = 7;
 
+/// Minimum dictionary budget, in bits: the minimum accepted by onpair.
+const MIN_CODE_BITS: u8 = 9;
+
+/// Maximum dictionary budget, in bits: a dictionary has at most `2^MAX_CODE_BITS` tokens.
+///
+/// This is well below the 16 bits onpair16 allows. Onpair16 has no logic to stop growing the
+/// dictionary when new tokens no longer pay off: it always fills the whole budget. A larger
+/// budget means wider codes and a larger dictionary to decode on every block open. We expect
+/// 12 bits to be enough for logs.
+const MAX_CODE_BITS: u8 = 12;
+
 /// Returns the OnPair dictionary budget (in bits) for a block of `num_bytes` raw bytes.
 ///
 /// This is called max_dict_bits to follow OnPair's naming, but could have been called
 /// `max_code_bits`: it is also the maximum number of bits used to describe a token.
 ///
-/// The dictionary has at most `num_bytes / 256` tokens, between 2^9 (the minimum accepted by
-/// onpair) and 2^12. 1 MiB gives 12 bits.
+/// The dictionary has at most `num_bytes / 256` tokens, between `2^MIN_CODE_BITS` and
+/// `2^MAX_CODE_BITS`. 1 MiB gives 12 bits.
 ///
 /// The size is not necessarily entirely used by OnPair.
 fn max_dict_bits_for(num_bytes: usize) -> MaxDictBits {
     let num_bytes_log2 = num_bytes.max(1).ilog2();
-    let max_dict_bits = num_bytes_log2.saturating_sub(8).clamp(9, 12) as u8;
+    let max_dict_bits = num_bytes_log2
+        .saturating_sub(8)
+        .clamp(MIN_CODE_BITS as u32, MAX_CODE_BITS as u32) as u8;
     MaxDictBits::new(max_dict_bits).unwrap()
 }
 
 /// Appends an OnPair16 block to `output`.
 ///
 /// `bytes` and `offsets` describe the values of the block, see `encode_block`.
-pub(super) fn encode_onpair16_block(
-    bytes: &[u8],
-    offsets: &[u32],
-    output: &mut Vec<u8>,
-) -> io::Result<()> {
+pub(super) fn encode_onpair16_block(bytes: &[u8], offsets: &[u32], output: &mut Vec<u8>) {
     let max_dict_bits = max_dict_bits_for(bytes.len());
     let config = onpair::Config {
         max_dict_bits,
         threshold: Threshold::new(0.15).unwrap(),
         seed: Some(42),
     };
-    let column: onpair::Column<u32> = onpair::compress(bytes, offsets, config)
-        .map_err(|onpair_error| io::Error::new(io::ErrorKind::InvalidInput, onpair_error))?;
+    // onpair only rejects invalid offsets, which breaks the contract of `encode_block`.
+    let column: onpair::Column<u32> =
+        onpair::compress(bytes, offsets, config).expect("invalid offsets for plain block");
     let (dictionary, codes, code_offsets) = column.into_raw();
     let num_tokens: usize = dictionary.num_tokens();
     let code_bits: u8 = dictionary.code_bits();
@@ -100,33 +106,27 @@ pub(super) fn encode_onpair16_block(
     output.extend_from_slice(dict_bytes);
 
     let code_offsets_start = output.len();
-    serialize_u64_based_column_values::<u32>(&&code_offsets[..], &OFFSETS_CODECS, output)?;
+    serialize_u64_based_column_values::<u32>(&&code_offsets[..], &OFFSETS_CODECS, output)
+        .expect("writing to a Vec cannot fail");
     let code_offsets_len = (output.len() - code_offsets_start) as u32;
     output[code_offsets_len_pos..code_offsets_len_pos + 4]
         .copy_from_slice(&code_offsets_len.to_le_bytes());
 
-    write_codes(&codes, code_bits, output)?;
-    Ok(())
+    write_codes(&codes, code_bits, output);
 }
 
 /// Writes the codes with `code_bits` bits each, followed by `CODES_PADDING_NUM_BYTES` zero bytes.
-///
-/// At 16 bits, the bitpacked layout is exactly raw little endian `u16`.
-fn write_codes(codes: &[u16], code_bits: u8, output: &mut Vec<u8>) -> io::Result<()> {
-    if code_bits == 16 {
-        output.reserve(codes.len() * 2 + CODES_PADDING_NUM_BYTES);
-        for code in codes {
-            output.extend_from_slice(&code.to_le_bytes());
-        }
-    } else {
-        let mut bit_packer = BitPacker::new();
-        for &code in codes {
-            bit_packer.write(code as u64, code_bits, output)?;
-        }
-        bit_packer.close(output)?;
+fn write_codes(codes: &[u16], code_bits: u8, output: &mut Vec<u8>) {
+    let mut bit_packer = BitPacker::new();
+    for &code in codes {
+        bit_packer
+            .write(code as u64, code_bits, output)
+            .expect("writing to a Vec cannot fail");
     }
+    bit_packer
+        .close(output)
+        .expect("writing to a Vec cannot fail");
     output.extend_from_slice(&[0u8; CODES_PADDING_NUM_BYTES]);
-    Ok(())
 }
 
 fn codes_num_bytes(num_codes: usize, code_bits: u8) -> usize {
@@ -152,8 +152,10 @@ impl OnPair16Block {
     /// Opens an OnPair16 block holding `num_values` values.
     ///
     /// Precondition: the first byte of `bytes` is `BLOCK_KIND_ONPAIR16`.
-    pub(super) fn open(bytes: OwnedBytes, num_values: u32) -> io::Result<OnPair16Block> {
-        let (header, body) = split_checked(bytes, ONPAIR16_HEADER_NUM_BYTES)?;
+    /// Panics if `bytes` is corrupted.
+    pub(super) fn open(bytes: OwnedBytes, num_values: u32) -> OnPair16Block {
+        // `OwnedBytes::split` panics on a truncated (corrupted) block.
+        let (header, body) = bytes.split(ONPAIR16_HEADER_NUM_BYTES);
         // Skip the block kind, checked by `PlainBlock::open`.
         let mut header: &[u8] = &header.as_slice()[1..];
         let num_tokens: usize = read_u16(&mut header) as usize + 1;
@@ -163,12 +165,14 @@ impl OnPair16Block {
         debug_assert!(header.is_empty());
         // The writer uses the minimal width of the token ids, computed by onpair.
         let code_bits = onpair::code_bits_for_num_tokens(num_tokens);
-        let (token_lens, body) = split_checked(body, num_tokens.div_ceil(2))?;
-        let (dict_bytes, body) = split_checked(body, dict_bytes_len)?;
-        let (code_offsets_bytes, codes) = split_checked(body, code_offsets_len)?;
-        if codes.len() != codes_num_bytes(num_codes as usize, code_bits) {
-            return Err(invalid_data("invalid codes length in plain block"));
-        }
+        let (token_lens, body) = body.split(num_tokens.div_ceil(2));
+        let (dict_bytes, body) = body.split(dict_bytes_len);
+        let (code_offsets_bytes, codes) = body.split(code_offsets_len);
+        assert_eq!(
+            codes.len(),
+            codes_num_bytes(num_codes as usize, code_bits),
+            "invalid codes length in plain block"
+        );
         let mut dict_offsets: Vec<u32> = Vec::with_capacity(num_tokens + 1);
         dict_offsets.push(0u32);
         let mut dict_offset = 0u32;
@@ -178,17 +182,20 @@ impl OnPair16Block {
             dict_offset += token_len;
             dict_offsets.push(dict_offset);
         }
-        CompactDictionaryView::validate_safety(dict_bytes.as_slice(), &dict_offsets)
-            .map_err(|_| invalid_data("invalid dictionary in plain block"))?;
-        let code_offsets = load_offsets(code_offsets_bytes, num_values + 1)?;
-        Ok(OnPair16Block {
+        // Required by `dictionary_view`, which skips the checks.
+        assert!(
+            CompactDictionaryView::validate_safety(dict_bytes.as_slice(), &dict_offsets).is_ok(),
+            "invalid dictionary in plain block"
+        );
+        let code_offsets = load_offsets(code_offsets_bytes, num_values + 1);
+        OnPair16Block {
             dict_bytes,
             dict_offsets,
             code_offsets,
             code_unpacker: BitUnpacker::new(code_bits),
             codes,
             num_codes,
-        })
+        }
     }
 
     fn dictionary_view(&self) -> CompactDictionaryView<'_> {
@@ -206,12 +213,13 @@ impl OnPair16Block {
         slot: u32,
         codes_buffer: &mut Vec<u16>,
         output: &mut Vec<u8>,
-    ) -> io::Result<()> {
+    ) {
         let code_start = self.code_offsets.get_val(slot);
         let code_end = self.code_offsets.get_val(slot + 1);
-        if code_start > code_end || code_end > self.num_codes {
-            return Err(invalid_data("invalid code offsets in plain block"));
-        }
+        assert!(
+            code_start <= code_end && code_end <= self.num_codes,
+            "invalid code offsets in plain block"
+        );
         codes_buffer.clear();
         let codes_data = self.codes.as_slice();
         codes_buffer.reserve((code_end - code_start) as usize);
@@ -229,7 +237,6 @@ impl OnPair16Block {
         debug_assert_eq!(num_written, decoded_len);
         // SAFETY: `decode_into` initialized the first `num_written` bytes of the spare capacity.
         unsafe { output.set_len(output.len() + num_written) };
-        Ok(())
     }
 }
 
@@ -253,31 +260,29 @@ mod tests {
         let value_refs: Vec<&[u8]> = values.iter().map(|value| value.as_slice()).collect();
         let (bytes, offsets) = concatenate_values(&value_refs);
         let mut block_bytes = Vec::new();
-        encode_onpair16_block(&bytes, &offsets, &mut block_bytes).unwrap();
+        encode_onpair16_block(&bytes, &offsets, &mut block_bytes);
         assert_eq!(block_bytes[0], BLOCK_KIND_ONPAIR16);
-        let onpair16_block =
-            OnPair16Block::open(OwnedBytes::new(block_bytes), values.len() as u32).unwrap();
+        let onpair16_block = OnPair16Block::open(OwnedBytes::new(block_bytes), values.len() as u32);
         let mut codes_buffer = Vec::new();
         for (slot, expected_value) in values.iter().enumerate() {
             let mut value = Vec::new();
-            onpair16_block
-                .append_value(slot as u32, &mut codes_buffer, &mut value)
-                .unwrap();
+            onpair16_block.append_value(slot as u32, &mut codes_buffer, &mut value);
             assert_eq!(&value, expected_value);
         }
     }
 
     #[test]
+    #[should_panic(expected = "invalid codes length")]
     fn test_onpair16_block_invalid_num_codes() {
         let values = log_lines(100);
         let value_refs: Vec<&[u8]> = values.iter().map(|value| value.as_slice()).collect();
         let (bytes, offsets) = concatenate_values(&value_refs);
         let mut block_bytes = Vec::new();
-        encode_onpair16_block(&bytes, &offsets, &mut block_bytes).unwrap();
+        encode_onpair16_block(&bytes, &offsets, &mut block_bytes);
         // `num_codes` no longer matches the length of the codes.
         let num_codes = read_u32(&mut &block_bytes[11..]);
         block_bytes[11..15].copy_from_slice(&(num_codes + 8).to_le_bytes());
-        assert!(OnPair16Block::open(OwnedBytes::new(block_bytes), values.len() as u32).is_err());
+        OnPair16Block::open(OwnedBytes::new(block_bytes), values.len() as u32);
     }
 
     #[test]
@@ -297,7 +302,7 @@ mod tests {
                 .map(|i| (i.wrapping_mul(2_654_435_761) % (max_code + 1)) as u16)
                 .collect();
             let mut output = Vec::new();
-            write_codes(&codes, code_bits, &mut output).unwrap();
+            write_codes(&codes, code_bits, &mut output);
             assert_eq!(output.len(), codes_num_bytes(codes.len(), code_bits));
             let bit_unpacker = BitUnpacker::new(code_bits);
             for (code_pos, &code) in codes.iter().enumerate() {

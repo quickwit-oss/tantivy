@@ -15,7 +15,7 @@ use std::sync::Arc;
 
 use common::OwnedBytes;
 
-use super::{BLOCK_KIND_RAW, OFFSETS_CODECS, invalid_data, load_offsets, read_u32, split_checked};
+use super::{BLOCK_KIND_RAW, OFFSETS_CODECS, load_offsets, read_u32};
 use crate::column_values::{ColumnValues, serialize_u64_based_column_values};
 
 pub(super) const RAW_HEADER_NUM_BYTES: usize = 5;
@@ -50,29 +50,31 @@ impl RawBlock {
     /// Opens a raw block holding `num_values` values.
     ///
     /// Precondition: the first byte of `bytes` is `BLOCK_KIND_RAW`.
-    pub(super) fn open(bytes: OwnedBytes, num_values: u32) -> io::Result<RawBlock> {
-        let (header, body) = split_checked(bytes, RAW_HEADER_NUM_BYTES)?;
+    /// Panics if `bytes` is corrupted.
+    pub(super) fn open(bytes: OwnedBytes, num_values: u32) -> RawBlock {
+        // `OwnedBytes::split` panics on a truncated (corrupted) block.
+        let (header, body) = bytes.split(RAW_HEADER_NUM_BYTES);
         // Skip the block kind, checked by `PlainBlock::open`.
         let mut header: &[u8] = &header.as_slice()[1..];
         let offsets_len = read_u32(&mut header) as usize;
         debug_assert!(header.is_empty());
-        let (offsets_bytes, value_bytes) = split_checked(body, offsets_len)?;
-        let byte_offsets = load_offsets(offsets_bytes, num_values + 1)?;
-        Ok(RawBlock {
+        let (offsets_bytes, value_bytes) = body.split(offsets_len);
+        let byte_offsets = load_offsets(offsets_bytes, num_values + 1);
+        RawBlock {
             byte_offsets,
             bytes: value_bytes,
-        })
+        }
     }
 
     /// Appends the bytes of the value at position `slot` in the block to `output`.
-    pub(super) fn append_value(&self, slot: u32, output: &mut Vec<u8>) -> io::Result<()> {
+    pub(super) fn append_value(&self, slot: u32, output: &mut Vec<u8>) {
         let start = self.byte_offsets.get_val(slot) as usize;
         let end = self.byte_offsets.get_val(slot + 1) as usize;
-        if start > end || end > self.bytes.len() {
-            return Err(invalid_data("invalid value offsets in raw plain block"));
-        }
+        assert!(
+            start <= end && end <= self.bytes.len(),
+            "invalid value offsets in raw plain block"
+        );
         output.extend_from_slice(&self.bytes.as_slice()[start..end]);
-        Ok(())
     }
 }
 
@@ -90,10 +92,10 @@ mod tests {
         let mut block_bytes = vec![42u8; 3];
         encode_raw_block(&bytes, &offsets, &mut block_bytes).unwrap();
         assert_eq!(block_bytes[0], BLOCK_KIND_RAW);
-        let raw_block = RawBlock::open(OwnedBytes::new(block_bytes), values.len() as u32).unwrap();
+        let raw_block = RawBlock::open(OwnedBytes::new(block_bytes), values.len() as u32);
         for (slot, expected_value) in values.iter().enumerate() {
             let mut value = Vec::new();
-            raw_block.append_value(slot as u32, &mut value).unwrap();
+            raw_block.append_value(slot as u32, &mut value);
             assert_eq!(&value, expected_value);
         }
     }
