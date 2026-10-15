@@ -5,7 +5,7 @@ use super::{
     comparison, concat, eq, int_mod, lower, pow, regexp_extract, regexp_like, round, split_after,
     split_before, substring, substring_count, trim, upper,
 };
-use crate::compile::CompileError;
+use crate::compile::{CompileError, declare_str_to_f64, register_str_to_f64};
 
 /// References to native functions imported into the current Cranelift function.
 pub(crate) struct NativeFunctions {
@@ -28,6 +28,7 @@ pub(crate) struct NativeFunctions {
     string_compare: FuncRef,
     f64_i64_compare: FuncRef,
     f64_u64_compare: FuncRef,
+    str_to_f64: FuncRef,
 }
 
 impl NativeFunctions {
@@ -104,6 +105,10 @@ impl NativeFunctions {
     pub(crate) fn f64_u64_compare(&self) -> FuncRef {
         self.f64_u64_compare
     }
+
+    pub(crate) fn str_to_f64(&self) -> FuncRef {
+        self.str_to_f64
+    }
 }
 
 /// Registers the process symbols that native calls may reference from generated code.
@@ -123,6 +128,7 @@ pub(crate) fn register_jit_symbols(jit_builder: &mut JITBuilder) {
     round::register_jit_symbols(jit_builder);
     regexp_extract::register_jit_symbol(jit_builder);
     regexp_like::register_jit_symbol(jit_builder);
+    register_str_to_f64(jit_builder);
 }
 
 /// Declares every native function imported by the expression being compiled.
@@ -153,5 +159,6 @@ pub(crate) fn declare_native_functions(
         string_compare: comparison.string_compare,
         f64_i64_compare: comparison.f64_i64_compare,
         f64_u64_compare: comparison.f64_u64_compare,
+        str_to_f64: declare_str_to_f64(module, function, pointer_type)?,
     })
 }

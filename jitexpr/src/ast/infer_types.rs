@@ -164,6 +164,12 @@ pub fn infer_types(expr: &UntypedExpr) -> Result<HashMap<&str, InferredTypeSet>,
     infer_types_with_target(expr, InferredTypeSet::ALL)
 }
 
+/// Returns the set of types the expression can return.
+pub fn infer_result_types(expr: &UntypedExpr) -> Result<InferredTypeSet, TypeError> {
+    let mut inferred_types = HashMap::default();
+    infer_types_aux(expr, InferredTypeSet::ALL, &mut inferred_types)
+}
+
 /// Infer the accepted variable types while constraining the expression's result type.
 pub fn infer_types_with_target(
     expr: &UntypedExpr,
@@ -296,6 +302,25 @@ mod tests {
                 .unwrap();
 
         assert_eq!(inferred_type, InferredTypeSet::F64);
+    }
+
+    #[test]
+    fn test_infer_result_types() {
+        let string_expr = crate::ast::deserialize(r#"(REGEXP_EXTRACT msg "(\\d+)" 1u64)"#).unwrap();
+        assert_eq!(
+            infer_result_types(&string_expr).unwrap(),
+            InferredTypeSet::STRING
+        );
+        let variable_expr = UntypedExpr::variable("a");
+        assert_eq!(
+            infer_result_types(&variable_expr).unwrap(),
+            InferredTypeSet::ALL
+        );
+        let add_expr = crate::ast::deserialize("(ADD a 1i64)").unwrap();
+        assert_eq!(
+            infer_result_types(&add_expr).unwrap(),
+            InferredTypeSet::NUMERICAL
+        );
     }
 
     #[test]

@@ -4,7 +4,9 @@ mod presence;
 mod serde;
 mod untyped_expr;
 
-pub use infer_types::{InferredTypeSet, TypeError, infer_types, infer_types_with_target};
+pub use infer_types::{
+    InferredTypeSet, TypeError, infer_result_types, infer_types, infer_types_with_target,
+};
 pub(crate) use infer_types::{infer_type_with_variable_types, infer_types_aux};
 pub use literal::{Literal, NonFiniteFloat};
 pub use presence::{
