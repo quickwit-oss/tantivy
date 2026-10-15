@@ -88,15 +88,19 @@ impl CompiledFn {
 
     /// Returns the same function, with its result coerced to `f64`.
     ///
-    /// Returns an error if the result type is not `I64`, `U64` or `F64`. For `F64`, returns `self`.
+    /// Returns an error if the result type is not `I64`, `U64`, `F64` or `Str`. For `F64`, returns
+    /// `self`.
+    ///
+    /// A `Str` result is parsed as `f64`. The result is null if the string cannot be parsed or is
+    /// not finite.
     ///
     /// The coerced function is compiled on the first call, and memoized.
     pub fn coerce_result_to_f64(self: &Arc<Self>) -> Result<Arc<CompiledFn>, CompileError> {
         let result_type = self.result_type();
         match result_type {
             VarType::F64 => return Ok(Arc::clone(self)),
-            VarType::I64 | VarType::U64 => {}
-            VarType::Bool | VarType::Str | VarType::None => {
+            VarType::I64 | VarType::U64 | VarType::Str => {}
+            VarType::Bool | VarType::None => {
                 return Err(CompileError::UnsupportedCoercion {
                     from_type: result_type,
                     target: VarType::F64,
