@@ -48,12 +48,14 @@ ONPAIR16_BLOCK :=
     [DICT_BYTES_LEN: u32]
     [CODE_OFFSETS_LEN: u32]
     [NUM_CODES: u32]
-    [TOKEN_LENS: 4 bits * NUM_TOKENS]       # token length - 1, token 2k in the low nibble
+    [TOKEN_ENDS: 64 * ceil(NUM_TOKENS / 128)]  # dict offsets 1..=NUM_TOKENS, BitPacker4x
+                                               # strictly sorted, 4 bits, 128 per chunk
     [DICT_BYTES]                            # tokens concatenated, with the onpair read padding
     [CODE_OFFSETS]                          # u64 based column values, NUM_VALUES + 1 entries
     [CODES: ceil(NUM_CODES * CODE_BITS / 8) + 7]  # CODE_BITS bits per code, then 7 zero bytes
 
 CODE_BITS := ceil(log2(NUM_TOKENS))         # not stored: the minimal width of a token id
+NUM_TOKENS <= 2^12                          # readers reject larger dictionaries
 
 RAW_BLOCK :=                                # for small or incompressible blocks
     [KIND: u8 = 0]

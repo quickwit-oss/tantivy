@@ -19,6 +19,16 @@ fn invalid_data(msg: &str) -> io::Error {
     io::Error::new(io::ErrorKind::InvalidData, msg.to_string())
 }
 
+/// Returns true if `values` are strictly increasing.
+///
+/// Branch-free and without early exit, so that it vectorizes: optimized for valid indexes.
+fn is_strictly_increasing<T: Ord>(values: impl Iterator<Item = T> + Clone) -> bool {
+    values
+        .clone()
+        .zip(values.skip(1))
+        .fold(true, |ok, (previous, next)| ok & (previous < next))
+}
+
 /// Builds the block index of a plain column, block by block.
 ///
 /// Invariant: `value_starts` and `byte_starts` have the same length, start with 0, and are
@@ -121,14 +131,18 @@ impl PlainBlockIndex {
         }
         // Blocks are never empty: both value and byte starts are strictly increasing.
         // `block_containing` relies on it (binary search), and so do the range computations.
-        for entry_id in 1..=num_blocks {
-            if block_index.value_start(entry_id) <= block_index.value_start(entry_id - 1)
-                || block_index.byte_start(entry_id) <= block_index.byte_start(entry_id - 1)
-            {
-                return Err(invalid_data(
-                    "plain block index starts are not strictly increasing",
-                ));
-            }
+        let (value_starts, _) = block_index.value_starts.as_slice().as_chunks::<4>();
+        let (byte_starts, _) = block_index.byte_starts.as_slice().as_chunks::<8>();
+        let value_starts = value_starts
+            .iter()
+            .map(|value_start| u32::from_le_bytes(*value_start));
+        let byte_starts = byte_starts
+            .iter()
+            .map(|byte_start| u64::from_le_bytes(*byte_start));
+        if !(is_strictly_increasing(value_starts) & is_strictly_increasing(byte_starts)) {
+            return Err(invalid_data(
+                "plain block index starts are not strictly increasing",
+            ));
         }
         Ok(block_index)
     }

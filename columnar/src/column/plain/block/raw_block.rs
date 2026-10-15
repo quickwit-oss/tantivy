@@ -40,7 +40,8 @@ pub(super) fn encode_raw_block(
     Ok(())
 }
 
-pub(crate) struct RawBlock {
+#[doc(hidden)]
+pub struct RawBlock {
     /// `num_values + 1` offsets of the values in `bytes`.
     byte_offsets: Arc<dyn ColumnValues<u32>>,
     bytes: OwnedBytes,

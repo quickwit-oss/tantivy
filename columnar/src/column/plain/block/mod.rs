@@ -15,6 +15,7 @@ use std::sync::Arc;
 
 use common::OwnedBytes;
 
+pub use self::onpair16_block::DictOffsetsBuffer;
 use self::onpair16_block::{OnPair16Block, encode_onpair16_block};
 use self::raw_block::{RAW_HEADER_NUM_BYTES, RawBlock, encode_raw_block};
 use crate::column_values::{CodecType, ColumnValues, load_u64_based_column_values};
@@ -74,7 +75,10 @@ fn load_offsets(bytes: OwnedBytes, expected_num_vals: u32) -> Arc<dyn ColumnValu
 ///
 /// The block is compressed with OnPair16, unless it is small or OnPair16 does not make it
 /// smaller. In that case, it is stored raw.
-pub(crate) fn encode_block(
+///
+/// Public for benchmarks only: not part of the stable API.
+#[doc(hidden)]
+pub fn encode_block(
     bytes: &[u8],
     offsets: &[u32],
     output: &mut Vec<u8>,
@@ -100,7 +104,10 @@ pub(crate) fn encode_block(
 
 /// The decoded metadata of a block. All of the buffers are zero-copy views on the block bytes,
 /// except the dictionary offsets.
-pub(crate) enum PlainBlock {
+///
+/// Public for benchmarks only: not part of the stable API.
+#[doc(hidden)]
+pub enum PlainBlock {
     OnPair16(OnPair16Block),
     Raw(RawBlock),
 }
@@ -109,13 +116,32 @@ impl PlainBlock {
     /// Opens a block holding `num_values` values.
     ///
     /// Panics if `bytes` is corrupted.
-    pub(crate) fn open(bytes: OwnedBytes, num_values: u32) -> PlainBlock {
+    ///
+    /// `dict_offsets_buffer` is a reusable allocation, created if it is `None` and needed. An
+    /// OnPair16 block takes it. `recycle` gives it back.
+    pub fn open(
+        bytes: OwnedBytes,
+        num_values: u32,
+        dict_offsets_buffer: &mut Option<DictOffsetsBuffer>,
+    ) -> PlainBlock {
         assert!(!bytes.is_empty(), "empty plain block");
         let kind: u8 = bytes[0];
         match kind {
             BLOCK_KIND_RAW => PlainBlock::Raw(RawBlock::open(bytes, num_values)),
-            BLOCK_KIND_ONPAIR16 => PlainBlock::OnPair16(OnPair16Block::open(bytes, num_values)),
+            BLOCK_KIND_ONPAIR16 => {
+                PlainBlock::OnPair16(OnPair16Block::open(bytes, num_values, dict_offsets_buffer))
+            }
             _ => panic!("unknown plain block kind {kind}"),
+        }
+    }
+
+    /// Drops the block, and gives its reusable allocation back to `dict_offsets_buffer`.
+    pub fn recycle(self, dict_offsets_buffer: &mut Option<DictOffsetsBuffer>) {
+        match self {
+            PlainBlock::OnPair16(onpair16_block) => {
+                *dict_offsets_buffer = Some(onpair16_block.into_dict_offsets());
+            }
+            PlainBlock::Raw(_) => {}
         }
     }
 
@@ -124,12 +150,7 @@ impl PlainBlock {
     /// Output is NOT cleared beforehand.
     ///
     /// `codes_buffer` is scratch space to contain the token codes.
-    pub(crate) fn append_value(
-        &self,
-        slot: u32,
-        codes_buffer: &mut Vec<u16>,
-        output: &mut Vec<u8>,
-    ) {
+    pub fn append_value(&self, slot: u32, codes_buffer: &mut Vec<u16>, output: &mut Vec<u8>) {
         match self {
             PlainBlock::OnPair16(onpair16_block) => {
                 onpair16_block.append_value(slot, codes_buffer, output)
@@ -183,7 +204,7 @@ mod tests {
     }
 
     fn decode_all(block_bytes: Vec<u8>, num_values: usize) -> Vec<Vec<u8>> {
-        let block = PlainBlock::open(OwnedBytes::new(block_bytes), num_values as u32);
+        let block = PlainBlock::open(OwnedBytes::new(block_bytes), num_values as u32, &mut None);
         let mut codes_buffer = Vec::new();
         (0..num_values as u32)
             .map(|slot| {
@@ -257,7 +278,7 @@ mod tests {
         let block_bytes = encode(&value_refs);
         let truncated_len = truncated_len.min(block_bytes.len() - 1);
         let truncated = OwnedBytes::new(block_bytes[..truncated_len].to_vec());
-        PlainBlock::open(truncated, values.len() as u32)
+        PlainBlock::open(truncated, values.len() as u32, &mut None)
     }
 
     #[test]
@@ -291,7 +312,7 @@ mod tests {
         let values = log_lines(500);
         let value_refs: Vec<&[u8]> = values.iter().map(|value| value.as_slice()).collect();
         let block_bytes = OwnedBytes::new(encode(&value_refs));
-        PlainBlock::open(block_bytes, values.len() as u32 + 1);
+        PlainBlock::open(block_bytes, values.len() as u32 + 1, &mut None);
     }
 
     #[test]
@@ -299,6 +320,6 @@ mod tests {
     fn test_unknown_block_kind_panics() {
         let mut block_bytes = encode(&[b"abc".as_slice()]);
         block_bytes[0] = 7;
-        PlainBlock::open(OwnedBytes::new(block_bytes), 1);
+        PlainBlock::open(OwnedBytes::new(block_bytes), 1, &mut None);
     }
 }

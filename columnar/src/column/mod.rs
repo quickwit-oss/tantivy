@@ -9,6 +9,8 @@ use std::sync::Arc;
 
 use common::BinarySerializable;
 pub use dictionary_encoded::{BytesColumn, StrColumn};
+#[doc(hidden)]
+pub use plain::{DictOffsetsBuffer, PlainBlock, encode_block as encode_plain_block};
 pub use plain::{PlainBytesColumn, PlainStrColumn, PlainValueReader};
 pub(crate) use serialize::serialize_generated_tie_breaker_column;
 pub use serialize::{
