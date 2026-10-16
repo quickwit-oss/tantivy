@@ -113,14 +113,19 @@ impl SegmentManager {
             .expect("Failed to acquire write lock on SegmentManager.")
     }
 
-    /// Deletes all empty segments
-    fn remove_empty_segments(&self) {
+    /// Deletes all empty segments, except those an ongoing merge still uses: the
+    /// merge removes them when it ends, and removing them first would make
+    /// `end_merge` discard the merge.
+    fn remove_empty_segments(&self, in_merge_segment_ids: &HashSet<SegmentId>) {
         let mut registers_lock = self.write();
         registers_lock
             .committed
             .segment_entries()
             .iter()
-            .filter(|segment| segment.meta().num_docs() == 0)
+            .filter(|segment| {
+                segment.meta().num_docs() == 0
+                    && !in_merge_segment_ids.contains(&segment.segment_id())
+            })
             .for_each(|segment| {
                 registers_lock
                     .committed
@@ -214,8 +219,11 @@ impl SegmentManager {
         Ok(segments_status)
     }
 
-    pub fn committed_segment_metas(&self) -> Vec<SegmentMeta> {
-        self.remove_empty_segments();
+    pub fn committed_segment_metas(
+        &self,
+        in_merge_segment_ids: &HashSet<SegmentId>,
+    ) -> Vec<SegmentMeta> {
+        self.remove_empty_segments(in_merge_segment_ids);
         let registers_lock = self.read();
         registers_lock.committed.segment_metas()
     }
