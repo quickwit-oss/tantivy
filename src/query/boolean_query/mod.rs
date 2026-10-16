@@ -19,8 +19,9 @@ mod tests {
     use crate::collector::{Count, TopDocs};
     use crate::query::term_query::TermScorer;
     use crate::query::{
-        AllScorer, EmptyScorer, EnableScoring, Intersection, Occur, Query, QueryParser, RangeQuery,
-        RequiredOptionalScorer, Scorer, SumCombiner, TermQuery,
+        AllScorer, EmptyScorer, EnableScoring, Intersection, Occur, PhraseQuery, Query,
+        QueryParser, RangeQuery, RegexPhraseQuery, RequiredOptionalScorer, Scorer, SumCombiner,
+        TermQuery,
     };
     use crate::schema::*;
     use crate::{assert_nearly_equals, DocAddress, DocId, Index, IndexWriter, Score};
@@ -215,6 +216,53 @@ mod tests {
             assert_eq!(top_doc, DocAddress::new(0, 4));
             assert_eq!(top_score, score_doc_4);
         }
+        Ok(())
+    }
+
+    /// The excluded phrase scorer starts on its first match (doc 1), which is after the
+    /// first candidate (doc 0) it is asked about through `seek_danger`.
+    fn count_excluding_phrase_after_first_candidate(
+        excluded: impl FnOnce(Field) -> Box<dyn Query>,
+    ) -> crate::Result<usize> {
+        let mut schema_builder = Schema::builder();
+        let text_field = schema_builder.add_text_field("text", TEXT);
+        let index = Index::create_in_ram(schema_builder.build());
+        {
+            let mut index_writer: IndexWriter = index.writer_for_tests()?;
+            index_writer.add_document(doc!(text_field => "catfish recipe"))?;
+            index_writer.add_document(doc!(text_field => "fried catfish"))?;
+            index_writer.commit()?;
+        }
+        let must: Box<dyn Query> = Box::new(TermQuery::new(
+            Term::from_field_text(text_field, "catfish"),
+            IndexRecordOption::Basic,
+        ));
+        let boolean_query = BooleanQuery::new(vec![
+            (Occur::Must, must),
+            (Occur::MustNot, excluded(text_field)),
+        ]);
+        index.reader()?.searcher().search(&boolean_query, &Count)
+    }
+
+    #[test]
+    pub fn test_boolean_query_excluded_phrase_after_first_candidate() -> crate::Result<()> {
+        let count = count_excluding_phrase_after_first_candidate(|field| {
+            let term = |text: &str| Term::from_field_text(field, text);
+            Box::new(PhraseQuery::new(vec![term("fried"), term("catfish")]))
+        })?;
+        assert_eq!(count, 1);
+        Ok(())
+    }
+
+    #[test]
+    pub fn test_boolean_query_excluded_regex_phrase_after_first_candidate() -> crate::Result<()> {
+        let count = count_excluding_phrase_after_first_candidate(|field| {
+            Box::new(RegexPhraseQuery::new(
+                field,
+                vec!["fried".to_string(), "cat.*".to_string()],
+            ))
+        })?;
+        assert_eq!(count, 1);
         Ok(())
     }
 
