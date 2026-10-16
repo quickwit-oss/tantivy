@@ -120,7 +120,7 @@ impl SegmentMeta {
             SegmentComponent::Positions => ".pos".to_string(),
             SegmentComponent::Terms => ".term".to_string(),
             SegmentComponent::Store => ".store".to_string(),
-            SegmentComponent::TempStore => ".store.temp".to_string(),
+            SegmentComponent::TempStore => format!(".store{}", crate::directory::TEMP_SUFFIX),
             SegmentComponent::FastFields => ".fast".to_string(),
             SegmentComponent::FieldNorms => ".fieldnorm".to_string(),
             SegmentComponent::Delete => format!(".{}.del", self.delete_opstamp().unwrap_or(0)),
