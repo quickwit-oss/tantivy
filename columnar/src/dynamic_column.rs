@@ -1,4 +1,5 @@
 use std::net::Ipv6Addr;
+use std::ops::RangeInclusive;
 use std::{fmt, io};
 
 use common::file_slice::FileSlice;
@@ -175,6 +176,14 @@ impl StrictlyMonotonicFn<i64, f64> for MapI64ToF64 {
     fn inverse(&self, out: f64) -> i64 {
         out as i64
     }
+    fn inverse_range(&self, range: RangeInclusive<f64>) -> Option<RangeInclusive<i64>> {
+        let (start, end) = range.into_inner();
+        if start.is_nan() || end.is_nan() || start > i64::MAX as f64 || end < i64::MIN as f64 {
+            return None;
+        }
+        // Float to int casts saturate, so `i64::MAX as f64` (2^63) maps back to `i64::MAX`.
+        Some(start.ceil() as i64..=end.floor() as i64)
+    }
 }
 
 struct MapU64ToF64;
@@ -186,6 +195,15 @@ impl StrictlyMonotonicFn<u64, f64> for MapU64ToF64 {
     #[inline(always)]
     fn inverse(&self, out: f64) -> u64 {
         out as u64
+    }
+    fn inverse_range(&self, range: RangeInclusive<f64>) -> Option<RangeInclusive<u64>> {
+        let (start, end) = range.into_inner();
+        if start.is_nan() || end.is_nan() || start > u64::MAX as f64 || end < 0.0 {
+            return None;
+        }
+        // Float to int casts saturate: negative values map to 0 and `u64::MAX as f64` (2^64)
+        // maps back to `u64::MAX`.
+        Some(start.ceil() as u64..=end.floor() as u64)
     }
 }
 
@@ -199,6 +217,13 @@ impl StrictlyMonotonicFn<u64, i64> for MapU64ToI64 {
     fn inverse(&self, out: i64) -> u64 {
         out as u64
     }
+    fn inverse_range(&self, range: RangeInclusive<i64>) -> Option<RangeInclusive<u64>> {
+        let (start, end) = range.into_inner();
+        if end < 0 {
+            return None;
+        }
+        Some(start.max(0) as u64..=end as u64)
+    }
 }
 
 struct MapI64ToU64;
@@ -210,6 +235,13 @@ impl StrictlyMonotonicFn<i64, u64> for MapI64ToU64 {
     #[inline(always)]
     fn inverse(&self, out: u64) -> i64 {
         out as i64
+    }
+    fn inverse_range(&self, range: RangeInclusive<u64>) -> Option<RangeInclusive<i64>> {
+        let (start, end) = range.into_inner();
+        if start > i64::MAX as u64 {
+            return None;
+        }
+        Some(start as i64..=end.min(i64::MAX as u64) as i64)
     }
 }
 
@@ -415,5 +447,106 @@ impl ColumnSpaceUsage {
             column_num_bytes: self.column_num_bytes + other.column_num_bytes,
             dictionary_num_bytes,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::fmt::Debug;
+
+    use super::*;
+    use crate::{ColumnarReader, ColumnarWriter, NumericalValue};
+
+    /// Writes `vals` (one per doc) into a column of type `column_type` and opens it coerced to
+    /// `target_type`.
+    fn open_coerced(
+        vals: &[NumericalValue],
+        column_type: ColumnType,
+        target_type: NumericalType,
+    ) -> DynamicColumn {
+        let mut columnar_writer = ColumnarWriter::default();
+        columnar_writer.record_column_type("num", column_type, false);
+        for (doc, val) in vals.iter().enumerate() {
+            columnar_writer.record_numerical(doc as u32, "num", *val);
+        }
+        let mut buffer: Vec<u8> = Vec::new();
+        columnar_writer
+            .serialize(vals.len() as u32, None, &mut buffer)
+            .unwrap();
+        let columnar = ColumnarReader::open(buffer).unwrap();
+        let column = columnar.read_columns("num").unwrap()[0].open().unwrap();
+        assert_eq!(column.column_type(), column_type);
+        column.coerce_numerical(target_type).unwrap()
+    }
+
+    fn docids<T>(column: &Column<T>, value_range: RangeInclusive<T>) -> Vec<u32>
+    where T: PartialOrd + Copy + Debug + Send + Sync + 'static {
+        let mut docids = Vec::new();
+        column.get_docids_for_value_range(value_range, 0..column.num_docs(), &mut docids);
+        docids
+    }
+
+    #[test]
+    fn test_i64_column_coerced_to_u64_value_range() {
+        let vals = [0i64.into(), 5i64.into(), 10i64.into()];
+        let DynamicColumn::U64(column) = open_coerced(&vals, ColumnType::I64, NumericalType::U64)
+        else {
+            panic!();
+        };
+        assert_eq!(docids(&column, 0..=u64::MAX), vec![0, 1, 2]);
+        assert_eq!(docids(&column, 5..=u64::MAX), vec![1, 2]);
+        assert_eq!(docids(&column, 1..=5), vec![1]);
+        assert!(docids(&column, i64::MAX as u64 + 1..=u64::MAX).is_empty());
+    }
+
+    #[test]
+    fn test_u64_column_coerced_to_i64_value_range() {
+        let vals = [0u64.into(), 5u64.into(), 10u64.into()];
+        let DynamicColumn::I64(column) = open_coerced(&vals, ColumnType::U64, NumericalType::I64)
+        else {
+            panic!();
+        };
+        assert_eq!(docids(&column, i64::MIN..=i64::MAX), vec![0, 1, 2]);
+        assert_eq!(docids(&column, -5..=5), vec![0, 1]);
+        assert!(docids(&column, i64::MIN..=-1).is_empty());
+    }
+
+    #[test]
+    fn test_i64_column_coerced_to_f64_value_range() {
+        let vals = [(-10i64).into(), 0i64.into(), 10i64.into()];
+        let DynamicColumn::F64(column) = open_coerced(&vals, ColumnType::I64, NumericalType::F64)
+        else {
+            panic!();
+        };
+        assert_eq!(
+            docids(&column, f64::NEG_INFINITY..=f64::INFINITY),
+            vec![0, 1, 2]
+        );
+        assert_eq!(docids(&column, -10.5..=-0.5), vec![0]);
+        assert_eq!(docids(&column, -0.5..=0.5), vec![1]);
+        assert!(docids(&column, 0.5..=9.5).is_empty());
+        assert!(docids(&column, -9.5..=-0.5).is_empty());
+        assert!(docids(&column, 0.2..=0.7).is_empty());
+        assert!(docids(&column, 1e30..=f64::INFINITY).is_empty());
+        assert!(docids(&column, f64::NEG_INFINITY..=-1e30).is_empty());
+        assert!(docids(&column, f64::NAN..=f64::INFINITY).is_empty());
+    }
+
+    #[test]
+    fn test_u64_column_coerced_to_f64_value_range() {
+        let vals = [0u64.into(), 10u64.into(), u64::MAX.into()];
+        let DynamicColumn::F64(column) = open_coerced(&vals, ColumnType::U64, NumericalType::F64)
+        else {
+            panic!();
+        };
+        assert_eq!(
+            docids(&column, f64::NEG_INFINITY..=f64::INFINITY),
+            vec![0, 1, 2]
+        );
+        assert_eq!(docids(&column, -1.0..=0.5), vec![0]);
+        assert!(docids(&column, 0.5..=9.5).is_empty());
+        assert!(docids(&column, f64::NEG_INFINITY..=-0.5).is_empty());
+        assert_eq!(docids(&column, u64::MAX as f64..=f64::INFINITY), vec![2]);
+        assert!(docids(&column, 1e30..=f64::INFINITY).is_empty());
     }
 }
