@@ -14,6 +14,55 @@ pub fn compressed_block_size(num_bits: u8) -> usize {
     (num_bits as usize) * COMPRESSION_BLOCK_SIZE / 8
 }
 
+/// Returns the size in bytes of a dense bitset block with `num_longs` u64s.
+///
+/// Each bit `s` represents doc `bitset_base_doc(offset) + s`.
+/// See `Lucene104PostingsWriter`, which stores dense blocks the same way
+/// when the bitset is more storage-efficient than FOR deltas.
+#[inline]
+pub fn dense_block_size(num_longs: u8) -> usize {
+    num_longs as usize * 8
+}
+
+/// Number of u64s needed to cover `doc_range` docs as a bitset.
+#[inline]
+pub fn num_bitset_longs(doc_range: u32) -> u32 {
+    doc_range.div_ceil(64)
+}
+
+/// For each byte value, the positions of its set bits (padded with zeros).
+const fn build_byte_positions() -> [[u8; 8]; 256] {
+    let mut table = [[0u8; 8]; 256];
+    let mut byte = 0usize;
+    while byte < 256 {
+        let mut pos = 0u8;
+        let mut k = 0usize;
+        while pos < 8 {
+            if (byte as u8) & (1 << pos) != 0 {
+                table[byte][k] = pos;
+                k += 1;
+            }
+            pos += 1;
+        }
+        byte += 1;
+    }
+    table
+}
+
+/// Base doc id for a dense bitset block: first doc id that bit 0 represents.
+///
+/// `offset` is the previous block's last doc (`0` for the first block, where
+/// doc ids start at 0). Mirrors the `offset == 0 -> None` convention of
+/// `compress_block_sorted`.
+#[inline]
+pub fn bitset_base_doc(offset: u32) -> u32 {
+    if offset == 0 {
+        0
+    } else {
+        offset.wrapping_add(1)
+    }
+}
+
 pub struct BlockEncoder {
     bitpacker: BitPacker4x,
     pub output: [u8; COMPRESSED_BLOCK_MAX_SIZE],
@@ -73,6 +122,31 @@ impl BlockEncoder {
             .bitpacker
             .compress(block, &mut self.output[..], num_bits);
         (num_bits, &self.output[..written_size])
+    }
+
+    /// Compress a full block of sorted doc ids as a dense bitset.
+    ///
+    /// Bit `s` (`s = doc - base`, where `base` is [`bitset_base_doc`]) is
+    /// set iff that doc is in `block`. Returns the `num_longs * 8` encoded
+    /// bytes. Mirrors the unary-coding path (`spareBitSet`) in Lucene's
+    /// `Lucene104PostingsWriter`.
+    pub fn compress_bitset_sorted(
+        &mut self,
+        block: &[u32],
+        offset: u32,
+        num_longs: usize,
+    ) -> &[u8] {
+        debug_assert_eq!(block.len(), COMPRESSION_BLOCK_SIZE);
+        let bytes_needed = num_longs * 8;
+        debug_assert!(bytes_needed <= self.output.len());
+        self.output[..bytes_needed].fill(0);
+        let base = bitset_base_doc(offset);
+        for &doc in block {
+            let s = doc.wrapping_sub(base) as usize;
+            debug_assert!(s < num_longs * 64);
+            self.output[s / 8] |= 1u8 << (s % 8);
+        }
+        &self.output[..bytes_needed]
     }
 }
 
@@ -147,6 +221,38 @@ impl BlockDecoder {
             }
         }
         res
+    }
+
+    /// Decompress a dense bitset block written by
+    /// `BlockEncoder::compress_bitset_sorted`.
+    ///
+    /// Decoded byte-at-a-time through a 2 KiB lookup table mapping each byte
+    /// value to the positions of its set bits, so the cost is proportional
+    /// to the number of docs rather than the span of the block.
+    /// Returns the number of bytes consumed (`num_longs * 8`).
+    pub fn uncompress_bitset_sorted(
+        &mut self,
+        compressed_data: &[u8],
+        offset: u32,
+        num_longs: usize,
+    ) -> usize {
+        const BYTE_POSITIONS: [[u8; 8]; 256] = build_byte_positions();
+        let bytes_needed = num_longs * 8;
+        debug_assert!(compressed_data.len() >= bytes_needed);
+        let base = bitset_base_doc(offset);
+        let mut out = 0usize;
+        for (byte_idx, &byte) in compressed_data[..bytes_needed].iter().enumerate() {
+            let positions = &BYTE_POSITIONS[byte as usize];
+            let num_bits = byte.count_ones() as usize;
+            let byte_base = base.wrapping_add((byte_idx * 8) as u32);
+            for k in 0..num_bits {
+                self.output[out] = byte_base.wrapping_add(positions[k] as u32);
+                out += 1;
+            }
+        }
+        debug_assert_eq!(out, COMPRESSION_BLOCK_SIZE);
+        self.output_len = out;
+        bytes_needed
     }
 
     #[inline]
@@ -355,6 +461,38 @@ pub(crate) mod tests {
         let block = BlockDecoder::with_val(TERMINATED);
         assert_eq!(block.output(0), TERMINATED);
     }
+
+    #[test]
+    fn test_bitset_sorted_roundtrip() {
+        // Dense-ish block: every other doc, range 256 -> 4 longs (32B).
+        let vals: Vec<u32> = (0u32..128).map(|i| i * 2).collect();
+        let mut encoder = BlockEncoder::new();
+        let num_longs = 4;
+        let encoded: Vec<u8> = encoder.compress_bitset_sorted(&vals, 0, num_longs).to_vec();
+        assert_eq!(encoded.len(), num_longs * 8);
+        let mut decoder = BlockDecoder::default();
+        let consumed = decoder.uncompress_bitset_sorted(&encoded, 0, num_longs);
+        assert_eq!(consumed, encoded.len());
+        assert_eq!(decoder.output_array(), &vals[..]);
+    }
+
+    #[test]
+    fn test_bitset_sorted_roundtrip_with_offset() {
+        // Second block: prev last = 1000, docs 1001.. with an extra gap every 7 docs.
+        let vals: Vec<u32> = (0u32..128).map(|i| 1001 + i + i / 7).collect();
+        let last = *vals.last().unwrap();
+        let base = bitset_base_doc(1000);
+        let range = last.wrapping_sub(base).wrapping_add(1);
+        let num_longs = num_bitset_longs(range) as usize;
+        let mut encoder = BlockEncoder::new();
+        let encoded: Vec<u8> = encoder
+            .compress_bitset_sorted(&vals, 1000, num_longs)
+            .to_vec();
+        let mut decoder = BlockDecoder::default();
+        decoder.uncompress_bitset_sorted(&encoded, 1000, num_longs);
+        assert_eq!(decoder.output_array(), &vals[..]);
+    }
+
     #[test]
     fn test_encode_vint() {
         const PADDING_VALUE: u32 = 234_234_345u32;
