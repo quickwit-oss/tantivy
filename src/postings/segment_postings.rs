@@ -1,10 +1,11 @@
-use common::HasLen;
+use common::{HasLen, TinySet};
 
 use crate::docset::DocSet;
 use crate::fastfield::AliveBitSet;
 use crate::positions::PositionReader;
-use crate::postings::compression::COMPRESSION_BLOCK_SIZE;
-use crate::postings::{BlockSegmentPostings, Postings};
+use crate::postings::bitset_fill::or_range_into_tinysets;
+use crate::postings::compression::{bitset_base_doc, dense_block_size, COMPRESSION_BLOCK_SIZE};
+use crate::postings::{BlockInfo, BlockSegmentPostings, Postings};
 use crate::{DocId, TERMINATED};
 
 /// `SegmentPostings` represents the inverted list or postings associated with
@@ -199,6 +200,114 @@ impl DocSet for SegmentPostings {
     fn size_hint(&self) -> u32 {
         self.len() as u32
     }
+
+    fn fill_bitset_window(&mut self, min_doc: DocId, mask: &mut [TinySet]) -> DocId {
+        if mask.is_empty() {
+            return self.doc();
+        }
+        if self.doc() < min_doc {
+            self.seek(min_doc);
+        }
+        let horizon = min_doc.saturating_add(mask.len() as u32 * 64);
+        loop {
+            if !self.block_cursor.block_is_loaded() {
+                if let Some(next) = self.try_or_unloaded_dense_block(min_doc, horizon, mask) {
+                    if next == TERMINATED {
+                        return TERMINATED;
+                    }
+                    continue;
+                }
+                self.block_cursor.load_block();
+                self.cur = 0;
+            }
+
+            let doc = self.doc();
+            if doc >= horizon {
+                return doc;
+            }
+
+            match self.block_cursor.skip_reader().block_info() {
+                BlockInfo::Dense { num_longs, .. } => {
+                    let last = self.block_cursor.skip_reader().last_doc_in_block();
+                    let base =
+                        bitset_base_doc(self.block_cursor.skip_reader().last_doc_in_previous_block);
+                    let to = last.saturating_add(1).min(horizon);
+                    if to > doc {
+                        let offset = self.block_cursor.skip_reader().byte_offset();
+                        let nbytes = dense_block_size(num_longs);
+                        let src = &self.block_cursor.postings_bytes()[offset..offset + nbytes];
+                        or_range_into_tinysets(src, doc - base, mask, doc - min_doc, to - doc);
+                    }
+                    if last < horizon {
+                        self.block_cursor.advance_skip_only();
+                        self.cur = 0;
+                        continue;
+                    }
+                    self.cur = self.block_cursor.seek_within_loaded_block(horizon);
+                    return self.doc();
+                }
+                BlockInfo::BitPacked { .. } | BlockInfo::VInt { .. } => {
+                    let docs = self.block_cursor.docs();
+                    let len = self.block_cursor.block_len();
+                    let mut i = self.cur;
+                    while i < len {
+                        let d = docs[i];
+                        if d >= horizon {
+                            self.cur = i;
+                            return d;
+                        }
+                        let delta = d - min_doc;
+                        mask[(delta / 64) as usize].insert_mut(delta % 64);
+                        i += 1;
+                    }
+                    self.block_cursor.advance_skip_only();
+                    self.cur = 0;
+                }
+            }
+        }
+    }
+}
+
+impl SegmentPostings {
+    /// If the current (unloaded) block is dense and lies entirely inside
+    /// `[min_doc, horizon)`, OR it into `mask` and skip decode. Returns
+    /// `Some(TERMINATED)` when postings are exhausted, `Some(0)` when the
+    /// block was consumed, `None` when the block must be decoded.
+    fn try_or_unloaded_dense_block(
+        &mut self,
+        min_doc: DocId,
+        horizon: DocId,
+        mask: &mut [TinySet],
+    ) -> Option<DocId> {
+        let skip = self.block_cursor.skip_reader();
+        if !skip.has_remaining_docs() {
+            // Leave the decoder on a TERMINATED-padded empty block so
+            // `doc()` matches the `TERMINATED` we return. Union refill
+            // reads `doc()` after fill_bitset_window.
+            self.block_cursor.load_block();
+            self.cur = 0;
+            return Some(TERMINATED);
+        }
+        let BlockInfo::Dense { num_longs, .. } = skip.block_info() else {
+            return None;
+        };
+        let last = skip.last_doc_in_block();
+        if last >= horizon {
+            return None;
+        }
+        let base = bitset_base_doc(skip.last_doc_in_previous_block);
+        let from = min_doc.max(base);
+        let to = last.saturating_add(1);
+        if to > from {
+            let offset = skip.byte_offset();
+            let nbytes = dense_block_size(num_longs);
+            let src = &self.block_cursor.postings_bytes()[offset..offset + nbytes];
+            or_range_into_tinysets(src, from - base, mask, from - min_doc, to - from);
+        }
+        self.block_cursor.advance_skip_only();
+        self.cur = 0;
+        Some(0)
+    }
 }
 
 impl HasLen for SegmentPostings {
@@ -263,6 +372,7 @@ mod tests {
     use crate::docset::{DocSet, TERMINATED};
     use crate::fastfield::AliveBitSet;
     use crate::postings::postings::Postings;
+    use crate::DocId;
 
     #[test]
     fn test_empty_segment_postings() {
@@ -294,5 +404,83 @@ mod tests {
         let all_deleted =
             AliveBitSet::for_test_from_deleted_docs(&[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11], 12);
         assert_eq!(docs.doc_freq_given_deletes(&all_deleted), 0);
+    }
+
+    fn collect_windows(docs: &[DocId]) -> Vec<(DocId, Vec<DocId>, DocId)> {
+        let mut postings = SegmentPostings::create_from_docs(docs);
+        let mut windows = Vec::new();
+        let mut min_doc = postings.doc();
+        while min_doc != TERMINATED {
+            let mut mask = [common::TinySet::empty(); crate::docset::BLOCK_NUM_TINYBITSETS];
+            let next = postings.fill_bitset_window(min_doc, &mut mask);
+            let mut hits = Vec::new();
+            for (i, tiny) in mask.iter().enumerate() {
+                for bit in *tiny {
+                    hits.push(min_doc + (i as u32) * 64 + bit);
+                }
+            }
+            windows.push((min_doc, hits, next));
+            min_doc = next;
+        }
+        windows
+    }
+
+    fn expected_windows(docs: &[DocId]) -> Vec<(DocId, Vec<DocId>, DocId)> {
+        let window = crate::docset::BLOCK_WINDOW;
+        let mut out = Vec::new();
+        if docs.is_empty() {
+            return out;
+        }
+        let mut min_doc = docs[0];
+        loop {
+            let horizon = min_doc.saturating_add(window);
+            let hits: Vec<DocId> = docs
+                .iter()
+                .copied()
+                .filter(|&d| d >= min_doc && d < horizon)
+                .collect();
+            let next = docs
+                .iter()
+                .copied()
+                .find(|&d| d >= horizon)
+                .unwrap_or(TERMINATED);
+            out.push((min_doc, hits, next));
+            if next == TERMINATED {
+                break;
+            }
+            min_doc = next;
+        }
+        out
+    }
+
+    #[test]
+    fn fill_bitset_window_dense_gapped() {
+        // 90% dense with every-10th gap: forces dense bitset blocks.
+        let docs: Vec<DocId> = (0..5_000u32).filter(|i| i % 10 != 0).collect();
+        assert_eq!(collect_windows(&docs), expected_windows(&docs));
+    }
+
+    #[test]
+    fn fill_bitset_window_sparse_for() {
+        let docs: Vec<DocId> = (0..2_000u32).map(|i| i * 17).collect();
+        assert_eq!(collect_windows(&docs), expected_windows(&docs));
+    }
+
+    #[test]
+    fn fill_bitset_window_burst() {
+        let docs: Vec<DocId> = (0..4_000u32).filter(|i| (i % 192) < 128).collect();
+        assert_eq!(collect_windows(&docs), expected_windows(&docs));
+    }
+
+    #[test]
+    fn fill_bitset_window_leaves_terminated() {
+        let docs: Vec<DocId> = (0..5_000u32).filter(|i| i % 10 != 0).collect();
+        let mut postings = SegmentPostings::create_from_docs(&docs);
+        let mut min_doc = postings.doc();
+        while min_doc != TERMINATED {
+            let mut mask = [common::TinySet::empty(); 64];
+            min_doc = postings.fill_bitset_window(min_doc, &mut mask);
+        }
+        assert_eq!(postings.doc(), TERMINATED);
     }
 }
