@@ -86,7 +86,8 @@ pub trait DocSet: Send {
     /// `seek_danger`.
     ///
     /// Consecutive calls to seek_danger are guaranteed to have strictly increasing `target`
-    /// values.
+    /// values. Nothing more is guaranteed: `target` may be lower than `doc()` or than a
+    /// previously returned lower bound (for example, `Exclude` probes every candidate).
     fn seek_danger(&mut self, target: DocId) -> SeekDangerResult {
         if target >= TERMINATED {
             debug_assert!(target == TERMINATED);
