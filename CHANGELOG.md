@@ -2,11 +2,98 @@ Tantivy 0.27.0
 ================================
 
 ## Breaking change
-- `.set_fast(..)` now takes a &str. The same behavior as `.set_fast(None)` can be obtained with .set_fast(tantivy::tokenizer::RAW_TOKENIZER_NAME).
+- MSRV is now 1.88.
+- `.set_fast(..)` now takes a &str. The same behavior as `.set_fast(None)` can be obtained with .set_fast(tantivy::tokenizer::RAW_TOKENIZER_NAME). [#3020](https://github.com/quickwit-oss/tantivy/pull/3020) [#3029](https://github.com/quickwit-oss/tantivy/pull/3029)(@fulmicoton @trinity-1686a)
 - Added the `FieldType::TieBreaker` variant; exhaustive matches on `FieldType` need a new arm.
+- Segment plugins add `Custom` variants to `FieldType`, `Type`, `OwnedValue`, `ReferenceValueLeaf` and `SegmentComponent`, and new `TantivyError` variants. `SegmentComponent` is no longer `Copy`, `SegmentSerializer` is removed and `IndexMerger::write` now takes a `&Segment` [#2993](https://github.com/quickwit-oss/tantivy/pull/2993)(@rebasedming)
+- `IndexSettings` has a new public `sort_by_field` field, and `ColumnarWriter::serialize` / `FastFieldsWriter::serialize` take an optional doc id mapping [#2959](https://github.com/quickwit-oss/tantivy/pull/2959)(@rebasedming)
+- `Directory` writers only need `terminate()`, not `flush()`. `RamDirectory::deep_clone` is removed [#3095](https://github.com/quickwit-oss/tantivy/pull/3095)(@PSeitz)
+- `BooleanWeight::new` is removed; use `BooleanWeight::with_minimum_number_should_match` [#3071](https://github.com/quickwit-oss/tantivy/pull/3071)(@fulmicoton)
+- `SumAggregation` has a new `none_if_no_match` field [#2878](https://github.com/quickwit-oss/tantivy/pull/2878)(@mdashti)
+- `IntermediateTermBucketResult::entries()` returns a slice instead of a hash map, and intermediate aggregation results no longer implement `PartialEq` [#3040](https://github.com/quickwit-oss/tantivy/pull/3040)(@PSeitz)
+- Per-segment aggregation request data types (`*AggReqData`) and `columnar::ColumnBlockAccessor` are no longer public [#3110](https://github.com/quickwit-oss/tantivy/pull/3110) [#3066](https://github.com/quickwit-oss/tantivy/pull/3066)(@fulmicoton)
+- `tantivy-sstable`: `BlockReader::from_multiple_blocks` and `DeltaReader::from_multiple_blocks` take the first term ordinal of each block [#3030](https://github.com/quickwit-oss/tantivy/pull/3030)(@flow3d)
+- `CompactDoc::node_data` is no longer public [#3175](https://github.com/quickwit-oss/tantivy/pull/3175)(@fulmicoton-dd)
+
+## Bugfixes
+- **Aggregation**
+    - Fix range and histogram aggregations counting a document several times when several values of a multivalued field fall into the same bucket [#3150](https://github.com/quickwit-oss/tantivy/pull/3150)(@PSeitz)
+    - Fix terms aggregation on numeric values not merging equal keys across segments with different column types (e.g. u64 and i64 in a JSON field) [#3051](https://github.com/quickwit-oss/tantivy/pull/3051)(@fulmicoton)
+    - Fix wrong sub-aggregation results when the terms aggregation `missing` value also exists as a real term [#3163](https://github.com/quickwit-oss/tantivy/pull/3163)(@PSeitz)
+    - Fix panic in terms aggregation on text fields when `missing` is used with `include`/`exclude` [#2907](https://github.com/quickwit-oss/tantivy/pull/2907)(@barbarj)
+    - Composite aggregation now always returns `after_key` on a non-empty page, like Elasticsearch [#2910](https://github.com/quickwit-oss/tantivy/pull/2910)(@Abdul-Andha)
+    - Use upstream `datasketches` for cardinality aggregation, fixing sketch LIST serialization, and switch to HLL8 [#2936](https://github.com/quickwit-oss/tantivy/pull/2936)(@fulmicoton)
+    - Fix possible out-of-bounds write in terms aggregation on corrupt index files [#3182](https://github.com/quickwit-oss/tantivy/pull/3182)(@fulmicoton-dd)
+- **Query Parser**
+    - Fix exponential parse time for deeply nested queries [#2905](https://github.com/quickwit-oss/tantivy/pull/2905)(@wallies)
+    - Fix panic on `*^2` and missing boost after a regex (`foo:/bar/^2`) [#2960](https://github.com/quickwit-oss/tantivy/pull/2960)(@Darkheir)
+    - Fix panics and an endless loop on malformed input [#3099](https://github.com/quickwit-oss/tantivy/pull/3099)(@PSeitz)
+- Fix `DisjunctionMaxQuery` and other non-summing score combiners being scored as a sum with `TopDocs` [#3022](https://github.com/quickwit-oss/tantivy/pull/3022)(@marcbachmann)
+- Fix range queries with fractional bounds on integer columns (`>= 1.5` no longer matches `1`) [#3074](https://github.com/quickwit-oss/tantivy/pull/3074)(@fulmicoton)
+- Fix `Streamer::term_ord()` returning wrong ordinals when an automaton prunes dictionary blocks [#3030](https://github.com/quickwit-oss/tantivy/pull/3030)(@flow3d)
+- Fix `FacetCollector` returning a facet from an unrelated branch [#2867](https://github.com/quickwit-oss/tantivy/pull/2867)(@majiayu000)
+- Fix dates outside the i64 nanosecond range wrapping to a wrong date. Dynamic JSON fields index them as strings, typed date fields return an error. Add `DateTime::try_from_utc` [#3156](https://github.com/quickwit-oss/tantivy/pull/3156)(@Darkheir)
+- Fix overflow in the blockwise linear codec on large jumps [#2971](https://github.com/quickwit-oss/tantivy/pull/2971)(@trinity-1686a)
+- Return an error instead of truncating when a merged str/bytes dictionary exceeds 4GB [#3169](https://github.com/quickwit-oss/tantivy/pull/3169)(@nadav-govari)
+- Fix `SegmentReader` ignoring I/O errors when opening the positions file [#2931](https://github.com/quickwit-oss/tantivy/pull/2931)(@JinheLin)
+- Replace unmaintained `rust-stemmers` with `frostem`, fixing a panic on some Greek words [#3028](https://github.com/quickwit-oss/tantivy/pull/3028)(@Xuanwo)
+- Fix unsound unsafe code in `StrColumn::ord_to_str`, `Term::get_json_path`, the doc store and `MemoryArena` [#3175](https://github.com/quickwit-oss/tantivy/pull/3175) [#3176](https://github.com/quickwit-oss/tantivy/pull/3176)(@fulmicoton-dd)
 
 ## Features/Improvements
-- Add generated tie-breaker fast fields via `SchemaBuilder::add_tie_breaker_field`. Values are consecutive within a segment, start at a random offset, and are preserved across merges.
+- Add generated tie-breaker fast fields via `SchemaBuilder::add_tie_breaker_field`. Values are consecutive within a segment, start at a random offset, and are preserved across merges. [#3104](https://github.com/quickwit-oss/tantivy/pull/3104) [#3143](https://github.com/quickwit-oss/tantivy/pull/3143) [#3158](https://github.com/quickwit-oss/tantivy/pull/3158)(@PSeitz @Mallets)
+- **Calculated fields (experimental, `jitexpr` feature)**
+    - Add the `jitexpr` crate, a Cranelift-based JIT expression compiler with arithmetic, comparison, boolean, null, math, string and regex functions [#3078](https://github.com/quickwit-oss/tantivy/pull/3078) [#3083](https://github.com/quickwit-oss/tantivy/pull/3083) [#3090](https://github.com/quickwit-oss/tantivy/pull/3090) [#3107](https://github.com/quickwit-oss/tantivy/pull/3107) [#3109](https://github.com/quickwit-oss/tantivy/pull/3109)(@fulmicoton @fulmicoton-dd)
+    - Add `JitExprPredicate` to filter documents with a jitexpr expression over fast fields [#3081](https://github.com/quickwit-oss/tantivy/pull/3081) [#3129](https://github.com/quickwit-oss/tantivy/pull/3129)(@fulmicoton)
+    - Add `JitExprValueSourceProvider` to use calculated fields in aggregations [#3162](https://github.com/quickwit-oss/tantivy/pull/3162) [#3166](https://github.com/quickwit-oss/tantivy/pull/3166)(@fulmicoton)
+- **Aggregation**
+    - Add multi-terms aggregation [#2984](https://github.com/quickwit-oss/tantivy/pull/2984)(@trinity-1686a)
+    - Add `ValueSource` abstraction to aggregate on computed values, registered via `AggregationCollector::with_value_sources` [#3112](https://github.com/quickwit-oss/tantivy/pull/3112) [#3147](https://github.com/quickwit-oss/tantivy/pull/3147) [#3160](https://github.com/quickwit-oss/tantivy/pull/3160) [#3171](https://github.com/quickwit-oss/tantivy/pull/3171)(@fulmicoton)
+    - Add `IntermediateAggregationResults::prune_intermediate_results` to re-prune intermediate results with the request limits [#2990](https://github.com/quickwit-oss/tantivy/pull/2990)(@trinity-1686a)
+    - Add `none_if_no_match` option to the `sum` aggregation [#2878](https://github.com/quickwit-oss/tantivy/pull/2878)(@mdashti)
+    - Add `validate_aggregation_fields_exist` to check aggregation fields up front [#2768](https://github.com/quickwit-oss/tantivy/pull/2768)(@mdashti)
+    - Make `BucketEntries::iter()` and `TopNComputer::threshold` public [#2890](https://github.com/quickwit-oss/tantivy/pull/2890)(@alexanderbianchi)
+- **Index sorting**
+    - Restore index sorting (`IndexSettings::sort_by_field`), now with `Str`/`Bytes` fast field support and correct NULL ordering in merges [#2959](https://github.com/quickwit-oss/tantivy/pull/2959) [#3116](https://github.com/quickwit-oss/tantivy/pull/3116) [#3185](https://github.com/quickwit-oss/tantivy/pull/3185)(@rebasedming @walter-woodall @fulmicoton)
+    - Allow a caller-provided doc id order at segment finalization (`finalize_with_doc_id_mapping`) [#2978](https://github.com/quickwit-oss/tantivy/pull/2978)(@Mallets)
+- **Query**
+    - Support exists queries (`field:*`) in the query parser [#2798](https://github.com/quickwit-oss/tantivy/pull/2798)(@Darkheir)
+    - Add `DocPredicateQuery` and `FunctionPredicate` to match documents with a per-document predicate [#3072](https://github.com/quickwit-oss/tantivy/pull/3072)(@fulmicoton-dd)
+    - Add `RegexPhraseQuery::from_regexes` and `RegexPhraseQuery::regexes()` [#3138](https://github.com/quickwit-oss/tantivy/pull/3138)(@palmoni5)
+    - Add `FuzzyTermQuery::automaton()` and make `DfaWrapper` public [#3136](https://github.com/quickwit-oss/tantivy/pull/3136)(@palmoni5)
+    - Export `SeekDangerResult` for downstream `DocSet` implementations [#3144](https://github.com/quickwit-oss/tantivy/pull/3144)(@PSeitz)
+    - Add `BlockSegmentPostings::rank()` to count docs below a target using the skip list [#2958](https://github.com/quickwit-oss/tantivy/pull/2958)(@Windforce17)
+- Add `SegmentPlugin` trait for custom per-segment components and custom field types [#2993](https://github.com/quickwit-oss/tantivy/pull/2993)(@rebasedming)
+- Add `IndexMeta::list_segment_files()` [#3080](https://github.com/quickwit-oss/tantivy/pull/3080)(@fulmicoton)
+- Add `Snippet::fragment_range()` [#3134](https://github.com/quickwit-oss/tantivy/pull/3134)(@palmoni5)
+- Downgrade `info!` logs to `debug!` [#3013](https://github.com/quickwit-oss/tantivy/pull/3013)(@mmustafasenoglu)
+
+## Performance
+- **Aggregation**
+    - 2x faster terms × histogram aggregations with a specialized fused collector [#2957](https://github.com/quickwit-oss/tantivy/pull/2957) [#3018](https://github.com/quickwit-oss/tantivy/pull/3018)(@PSeitz-dd @PSeitz)
+    - Faster terms aggregations: Vec-backed storage up to 20k terms, count lanes for very low cardinality, no bucket ids without sub-aggregations, `select_nth` for top-k [#2989](https://github.com/quickwit-oss/tantivy/pull/2989) [#3017](https://github.com/quickwit-oss/tantivy/pull/3017) [#2987](https://github.com/quickwit-oss/tantivy/pull/2987) [#2983](https://github.com/quickwit-oss/tantivy/pull/2983) [#3174](https://github.com/quickwit-oss/tantivy/pull/3174)(@PSeitz @trinity-1686a @fulmicoton)
+    - Prune buckets after segment collection in terms aggregations ordered by a sub-aggregation [#2916](https://github.com/quickwit-oss/tantivy/pull/2916)(@PSeitz)
+    - Faster merging of aggregation results across many segments, fixing quadratic merges for multi_terms, composite and range (up to 50x) [#3040](https://github.com/quickwit-oss/tantivy/pull/3040) [#3114](https://github.com/quickwit-oss/tantivy/pull/3114)(@PSeitz)
+    - Faster cardinality aggregation: bitsets for term ordinals and per-segment coupon cache for nested cardinality (up to 13x) [#2922](https://github.com/quickwit-oss/tantivy/pull/2922) [#2889](https://github.com/quickwit-oss/tantivy/pull/2889) [#2893](https://github.com/quickwit-oss/tantivy/pull/2893) [#3120](https://github.com/quickwit-oss/tantivy/pull/3120)(@PSeitz @fulmicoton @fulmicoton-dd)
+    - Up to 2.5x faster sum/avg/min/max/count/stats aggregations with accumulator lanes [#3180](https://github.com/quickwit-oss/tantivy/pull/3180)(@guilload)
+- **Query**
+    - Block-max pruning for top-K on conjunctive queries, and Block-Max WAND for single-scorer boolean queries [#2865](https://github.com/quickwit-oss/tantivy/pull/2865) [#2897](https://github.com/quickwit-oss/tantivy/pull/2897) [#2912](https://github.com/quickwit-oss/tantivy/pull/2912) [#2915](https://github.com/quickwit-oss/tantivy/pull/2915) [#2981](https://github.com/quickwit-oss/tantivy/pull/2981) [#3003](https://github.com/quickwit-oss/tantivy/pull/3003)(@fulmicoton @jamessewell @PSeitz)
+    - Faster counting on intersections with a dense bitset path [#2861](https://github.com/quickwit-oss/tantivy/pull/2861)(@fulmicoton)
+    - Up to 50x faster intersections with range queries via `seek_danger` on `RangeDocSet` [#2963](https://github.com/quickwit-oss/tantivy/pull/2963)(@PSeitz-dd)
+    - ~10% faster intersections with k-ary search in postings blocks, and no allocation in `Intersection::seek` [#2982](https://github.com/quickwit-oss/tantivy/pull/2982) [#3164](https://github.com/quickwit-oss/tantivy/pull/3164)(@PSeitz @fulmicoton-dd)
+    - Add `Weight::scorer_danger` so intersections can build slow scorers (e.g. phrase) lazily around a candidate doc [#3070](https://github.com/quickwit-oss/tantivy/pull/3070)(@fulmicoton)
+    - Up to 500x faster `ExistsQuery` on sparse fast fields [#3052](https://github.com/quickwit-oss/tantivy/pull/3052)(@PSeitz)
+    - `ConstScoreQuery` disables scoring of the wrapped query [#3059](https://github.com/quickwit-oss/tantivy/pull/3059)(@JinheLin)
+    - Compile `RegexPhraseQuery` regexes once per query (up to 9x faster) [#3135](https://github.com/quickwit-oss/tantivy/pull/3135) [#3137](https://github.com/quickwit-oss/tantivy/pull/3137)(@palmoni5)
+    - Add `warm_postings_automaton_with_bitset` to warm an automaton's postings and return matching docs in one pass [#3157](https://github.com/quickwit-oss/tantivy/pull/3157)(@PSeitz)
+- **Columnar**
+    - Up to 35% faster column access with batched bit unpacking [#3106](https://github.com/quickwit-oss/tantivy/pull/3106) [#3177](https://github.com/quickwit-oss/tantivy/pull/3177)(@PSeitz @fulmicoton-dd)
+    - NEON and SVE `filter_vec` implementations for ARM (~2.5x faster) [#2940](https://github.com/quickwit-oss/tantivy/pull/2940) [#2952](https://github.com/quickwit-oss/tantivy/pull/2952)(@fulmicoton)
+    - Faster rank in sparse optional index blocks (~20% faster aggregations on sparse columns) [#3159](https://github.com/quickwit-oss/tantivy/pull/3159)(@fulmicoton)
+    - Up to 10x faster range queries on multivalued fast fields [#3133](https://github.com/quickwit-oss/tantivy/pull/3133)(@omerb-vega)
+- **SSTable**
+    - Faster `Streamer::advance` (up to 2x) and `without_keys()` streamers for automaton and range queries [#3126](https://github.com/quickwit-oss/tantivy/pull/3126) [#3155](https://github.com/quickwit-oss/tantivy/pull/3155)(@trinity-1686a @fulmicoton)
+    - Avoid a binary search in the index per ordinal when resolving sorted term ordinals [#2933](https://github.com/quickwit-oss/tantivy/pull/2933)(@trinity-1686a)
+- Avoid a memcopy in `RamDirectory` and remove unneeded flushes while writing segments [#3095](https://github.com/quickwit-oss/tantivy/pull/3095)(@PSeitz)
 
 
 Tantivy 0.26.2

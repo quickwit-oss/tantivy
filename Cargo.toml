@@ -81,12 +81,12 @@ jitexpr = { version = "0.1", path = "./jitexpr", optional = true }
 # Used by the jitexpr value source to intern the computed terms.
 hashbrown = { version = "0.17", default-features = false, optional = true }
 
-columnar = { version = "0.7", path = "./columnar", package = "tantivy-columnar" }
-sstable = { version = "0.7", path = "./sstable", package = "tantivy-sstable", optional = true }
-stacker = { version = "0.7", path = "./stacker", package = "tantivy-stacker" }
-query-grammar = { version = "0.26.0", path = "./query-grammar", package = "tantivy-query-grammar" }
-tantivy-bitpacker = { version = "0.10", path = "./bitpacker" }
-common = { version = "0.11", path = "./common/", package = "tantivy-common" }
+columnar = { version = "0.27", path = "./columnar", package = "tantivy-columnar" }
+sstable = { version = "0.27", path = "./sstable", package = "tantivy-sstable", optional = true }
+stacker = { version = "0.27", path = "./stacker", package = "tantivy-stacker" }
+query-grammar = { version = "0.27", path = "./query-grammar", package = "tantivy-query-grammar" }
+tantivy-bitpacker = { version = "0.27", path = "./bitpacker" }
+common = { version = "0.27", path = "./common/", package = "tantivy-common" }
 tokenizer-api = { version = "0.7", path = "./tokenizer-api", package = "tantivy-tokenizer-api" }
 sketches-ddsketch = { version = "0.4", features = ["use_serde"] }
 datasketches = { version = "0.5.0", features = ["hll"] }
