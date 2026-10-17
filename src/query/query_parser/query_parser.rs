@@ -7,7 +7,9 @@ use std::sync::Arc;
 use base64::engine::general_purpose::STANDARD as BASE64;
 use base64::Engine;
 use itertools::Itertools;
-use query_grammar::{UserInputAst, UserInputBound, UserInputLeaf, UserInputLiteral};
+use query_grammar::{
+    SpatialPredicateKind, UserInputAst, UserInputBound, UserInputLeaf, UserInputLiteral,
+};
 use rustc_hash::FxHashMap;
 use tantivy_fst::Regex;
 
@@ -17,12 +19,14 @@ use crate::json_utils::convert_to_fast_value_and_append_to_json_term;
 use crate::query::range_query::{is_type_valid_for_fastfield_range_query, RangeQuery};
 use crate::query::{
     AllQuery, BooleanQuery, BoostQuery, EmptyQuery, ExistsQuery, FuzzyTermQuery, Occur,
-    PhrasePrefixQuery, PhraseQuery, Query, RegexQuery, TermQuery, TermSetQuery,
+    PhrasePrefixQuery, PhraseQuery, Query, RegexQuery, SpatialPredicate, SpatialQuery, TermQuery,
+    TermSetQuery,
 };
 use crate::schema::{
     Facet, FacetParseError, Field, FieldType, IndexRecordOption, IntoIpv6Addr, JsonObjectOptions,
     Schema, Term, TextFieldIndexing, Type,
 };
+use crate::spatial::executor::{PlanNode, SpatialExecutor, SpatialRelation};
 use crate::time::format_description::well_known::Rfc3339;
 use crate::time::OffsetDateTime;
 use crate::tokenizer::{TextAnalyzer, TokenizerManager};
@@ -186,6 +190,24 @@ fn trim_ast(logical_ast: LogicalAst) -> Option<LogicalAst> {
 ///   count as existing.
 ///
 /// * all docs query: A plain `*` will match all documents in the index.
+///
+/// * spatial predicates on a spatial field, with lon/lat coordinates and distances in `mi`,
+///   `km`, `m`, `ft` or `rad`:
+///   - `geo:$intersects(0 0, 10 0, 10 10, 0 10)`: geometries that meet the polygon.
+///   - `geo:$contains(0 0, 10 0, 10 10, 0 10)`: geometries that contain the polygon.
+///   - `geo:$within(0 0, 10 0, 10 10, 0 10)`: geometries inside the polygon.
+///   - `geo:$within(5km, 2.35 48.85)`: geometries within a distance of a point.
+///   - `geo:$between(1km, 5km, 2.35 48.85)`: geometries within the outer distance of a point,
+///     but not the inner one.
+///   - `geo:$knn(10, 2.35 48.85)`: the 10 nearest geometries to a point, scored by rank. The
+///     required and excluded clauses beside it narrow its candidates: `+type:cafe
+///     +geo:$knn(10, ..)` finds the 10 nearest cafes.
+///
+///   Polygon rings are closed if they are not, and bound the smaller region whichever way they
+///   run, unless the field is oriented (see [`crate::schema::SpatialOptions::set_oriented`]). A
+///   join replaces the coordinates with `$query(...)`, a query for the documents to relate to:
+///   `geo:$within(1km, $query(type:station))` finds geometries within 1 km of a station's.
+///   Joins take `$intersects`, `$contains`, `$within` with a distance and `$between`.
 ///
 /// Parts of the queries can be boosted by appending `^boostfactor`.
 /// For instance, `"SRE"^2.0 OR devops^0.4` will boost documents containing `SRE` instead of
@@ -528,6 +550,9 @@ impl QueryParser {
                 let ip_v6 = IpAddr::from_str(phrase)?.into_ipv6_addr();
                 Ok(Term::from_field_ip_addr(field, ip_v6))
             }
+            FieldType::Spatial(_) => Err(QueryParserError::UnsupportedQuery(
+                "Spatial queries are not yet supported in text query parser".to_string(),
+            )),
             // Custom fields are neither indexed nor fast, so the guard above returns
             // `FieldNotIndexed` before this match.
             FieldType::Custom(_) => {
@@ -635,6 +660,10 @@ impl QueryParser {
                 let term = Term::from_field_ip_addr(field, ip_v6);
                 Ok(vec![LogicalLiteral::Term(term)])
             }
+            FieldType::Spatial(_) => Err(QueryParserError::UnsupportedQuery(format!(
+                "Spatial queries are not yet supported for field '{}'",
+                field_name
+            ))),
             // These fields are not indexed, so the `is_indexed()` guard above returns
             // `FieldNotIndexed` before this match.
             FieldType::TieBreaker | FieldType::Custom(_) => {
@@ -876,6 +905,105 @@ impl QueryParser {
                 Some(LogicalAst::Leaf(Box::new(LogicalLiteral::Exists { field }))),
                 Vec::new(),
             ),
+            UserInputLeaf::Spatial {
+                field,
+                predicate,
+                coordinates,
+                inner_query,
+            } => {
+                let full_path = try_tuple!(field.ok_or_else(|| {
+                    QueryParserError::UnsupportedQuery(
+                        "Spatial query requires an explicit field name.".to_string(),
+                    )
+                }));
+                let (field, json_path) = try_tuple!(self
+                    .split_full_path(&full_path)
+                    .ok_or_else(|| QueryParserError::FieldDoesNotExist(full_path.clone())));
+                if !json_path.is_empty() {
+                    return (
+                        None,
+                        vec![QueryParserError::UnsupportedQuery(
+                            "Spatial query does not support json paths.".to_string(),
+                        )],
+                    );
+                }
+                if !matches!(
+                    self.schema.get_field_entry(field).field_type(),
+                    FieldType::Spatial(_)
+                ) {
+                    return (
+                        None,
+                        vec![QueryParserError::UnsupportedQuery(
+                            "Spatial predicates require a spatial field.".to_string(),
+                        )],
+                    );
+                }
+                if let Some(inner_query) = inner_query {
+                    let relation = match predicate {
+                        SpatialPredicateKind::Intersects => SpatialRelation::Intersects,
+                        SpatialPredicateKind::Contains => SpatialRelation::Contains,
+                        SpatialPredicateKind::Within(r) => SpatialRelation::Near(r.0),
+                        SpatialPredicateKind::Between(inner, outer) => {
+                            SpatialRelation::Between(inner.0, outer.0)
+                        }
+                        SpatialPredicateKind::Knn(_) | SpatialPredicateKind::CoveredBy => {
+                            return (
+                                None,
+                                vec![QueryParserError::UnsupportedQuery(format!(
+                                    "A {predicate:?} predicate cannot join a $query."
+                                ))],
+                            );
+                        }
+                    };
+                    // The inner query's errors are the query's errors. The lenient grammar
+                    // accepts some queries the strict one rejects, so check with both.
+                    let (inner, errors) = match query_grammar::parse_query(&inner_query) {
+                        Ok(user_input_ast) => self.compute_logical_ast_lenient(user_input_ast),
+                        Err(_) => {
+                            let (inner, mut errors) =
+                                self.parse_query_to_logical_ast_lenient(&inner_query);
+                            errors.insert(0, QueryParserError::SyntaxError(inner_query));
+                            (inner, errors)
+                        }
+                    };
+                    let logical_ast = LogicalAst::Leaf(Box::new(LogicalLiteral::SpatialJoin {
+                        field,
+                        relation,
+                        inner: Box::new(inner.simplify()),
+                    }));
+                    return (Some(logical_ast), errors);
+                }
+                let (predicate, min_coordinates) = match predicate {
+                    SpatialPredicateKind::Intersects => (SpatialPredicate::Intersects, 3),
+                    // `$contains` reads from the field's side, as a join's does: the field's
+                    // geometry contains the polygon. `$within` a polygon is the other way around.
+                    SpatialPredicateKind::Contains => (SpatialPredicate::Contains, 3),
+                    SpatialPredicateKind::CoveredBy => (SpatialPredicate::CoveredBy, 3),
+                    SpatialPredicateKind::Within(r) => (SpatialPredicate::Within(r.0), 1),
+                    SpatialPredicateKind::Between(inner, outer) => {
+                        (SpatialPredicate::Between(inner.0, outer.0), 1)
+                    }
+                    SpatialPredicateKind::Knn(k) => (SpatialPredicate::Knn(k), 1),
+                };
+                if coordinates.len() < min_coordinates {
+                    return (
+                        None,
+                        vec![QueryParserError::UnsupportedQuery(format!(
+                            "Spatial predicate {predicate:?} needs at least {min_coordinates} \
+                             coordinates."
+                        ))],
+                    );
+                }
+                let logical_ast = LogicalAst::Leaf(Box::new(LogicalLiteral::Spatial {
+                    field,
+                    predicate,
+                    coordinates: coordinates
+                        .into_iter()
+                        .map(|(lon, lat)| [lon.0, lat.0])
+                        .collect(),
+                }));
+                (Some(logical_ast), Vec::new())
+            }
             UserInputLeaf::Regex { field, pattern } => {
                 if !self.regexes_allowed {
                     return (
@@ -966,6 +1094,27 @@ fn convert_literal_to_query(
         LogicalLiteral::Regex { pattern, field } => {
             Box::new(RegexQuery::from_regex(pattern, field))
         }
+        // A kNN query is a plan of its own, so that its siblings can narrow its candidates.
+        LogicalLiteral::Spatial {
+            field,
+            predicate: SpatialPredicate::Knn(k),
+            coordinates,
+        } => Box::new(SpatialExecutor::knn(field, coordinates[0], k)),
+        LogicalLiteral::Spatial {
+            field,
+            predicate,
+            coordinates,
+        } => Box::new(SpatialQuery::with_predicate(field, coordinates, predicate)),
+        LogicalLiteral::SpatialJoin {
+            field,
+            relation,
+            inner,
+        } => Box::new(SpatialExecutor::new(PlanNode::Join {
+            field,
+            outer: Box::new(PlanNode::Query(Box::new(AllQuery))),
+            inner: Box::new(PlanNode::Query(convert_to_query(fuzzy, *inner))),
+            relation,
+        })),
         LogicalLiteral::Exists { field } => Box::new(ExistsQuery::new(field, true)),
     }
 }
@@ -1078,10 +1227,138 @@ fn generate_literals_for_json_object(
     Ok(logical_literals)
 }
 
+/// A spatial join probes the geometry of every one of its outer documents, so it pays to narrow
+/// them down. Every document a clause matches satisfies its required siblings and none of its
+/// excluded ones, so restricting the outer documents of the clause's joins to those leaves the
+/// clause's matches and scores unchanged, whatever the occur of the join and of its siblings. That
+/// holds as well for a join that is boosted, or nested in a sibling boolean query, which the
+/// clause's own restriction then adds to.
+///
+/// A kNN query is restricted the same way, but to change its matches: `+name:cafe
+/// +geometry:$knn(5, ..)` asks for the 5 nearest cafes, not for the cafes among the 5 nearest
+/// documents, however the kNN query is boosted or nested. Siblings that hold a join or a kNN
+/// query of their own do not restrict.
+fn restrict_join_outers(occur_subqueries: &mut [(Occur, Box<dyn Query>)]) {
+    if !occur_subqueries
+        .iter()
+        .any(|(_, query)| holds_spatial_plan(query.as_ref()))
+    {
+        return;
+    }
+    // With no required clause, a document must match one of the optional ones.
+    let has_must = occur_subqueries
+        .iter()
+        .any(|(occur, _)| *occur == Occur::Must);
+    for i in 0..occur_subqueries.len() {
+        if !holds_spatial_plan(occur_subqueries[i].1.as_ref()) {
+            continue;
+        }
+        let mut restriction: Vec<(Occur, Box<dyn Query>)> = Vec::new();
+        let siblings = occur_subqueries
+            .iter()
+            .enumerate()
+            .filter(|(j, _)| *j != i)
+            .map(|(_, sibling)| sibling);
+        for (occur, query) in siblings.clone() {
+            collect_restriction(*occur, query.as_ref(), &mut restriction);
+        }
+        let optional: Vec<&Box<dyn Query>> = siblings
+            .filter(|(occur, _)| *occur == Occur::Should)
+            .map(|(_, query)| query)
+            .collect();
+        let plan_is_optional = occur_subqueries[i].0 == Occur::Should;
+        if !has_must
+            && !plan_is_optional
+            && !optional.is_empty()
+            && !optional
+                .iter()
+                .any(|query| holds_spatial_plan(query.as_ref()))
+        {
+            let any_of = optional
+                .iter()
+                .map(|query| (Occur::Should, query.box_clone()))
+                .collect();
+            restriction.push((Occur::Must, Box::new(BooleanQuery::new(any_of))));
+        }
+        if restriction.is_empty() {
+            continue;
+        }
+        if !restriction.iter().any(|(occur, _)| *occur == Occur::Must) {
+            // A boolean query of exclusions alone matches nothing.
+            restriction.push((Occur::Must, Box::new(AllQuery)));
+        }
+        let outer: Box<dyn Query> = if restriction.len() == 1 {
+            restriction.pop().unwrap().1
+        } else {
+            Box::new(BooleanQuery::new(restriction))
+        };
+        restrict_spatial_plans(occur_subqueries[i].1.as_mut(), outer.as_ref());
+    }
+}
+
+/// Collect what every document a clause matches satisfies, through a sibling with the given
+/// occur: the sibling itself, required or excluded, if it holds no spatial plan of its own, and
+/// otherwise the required and excluded clauses of a required group, however nested or boosted.
+fn collect_restriction(occur: Occur, query: &dyn Query, out: &mut Vec<(Occur, Box<dyn Query>)>) {
+    if occur == Occur::Should {
+        return;
+    }
+    if !holds_spatial_plan(query) {
+        out.push((occur, query.box_clone()));
+        return;
+    }
+    if occur != Occur::Must {
+        return;
+    }
+    if let Some(boost) = query.downcast_ref::<BoostQuery>() {
+        collect_restriction(occur, boost.query(), out);
+    } else if let Some(boolean) = query.downcast_ref::<BooleanQuery>() {
+        let has_must = boolean
+            .clauses()
+            .iter()
+            .any(|(occur, _)| *occur == Occur::Must);
+        for (occur, clause) in boolean.clauses() {
+            if *occur == Occur::MustNot || has_must {
+                collect_restriction(*occur, clause.as_ref(), out);
+            }
+        }
+    }
+}
+
+/// Whether the query is a join or kNN query, or holds one in a boost or a boolean query.
+fn holds_spatial_plan(query: &dyn Query) -> bool {
+    if query.is::<SpatialExecutor>() {
+        return true;
+    }
+    if let Some(boost) = query.downcast_ref::<BoostQuery>() {
+        return holds_spatial_plan(boost.query());
+    }
+    if let Some(boolean) = query.downcast_ref::<BooleanQuery>() {
+        return boolean
+            .clauses()
+            .iter()
+            .any(|(_, clause)| holds_spatial_plan(clause.as_ref()));
+    }
+    false
+}
+
+/// Restrict every join and kNN query the query is or holds.
+fn restrict_spatial_plans(query: &mut dyn Query, restriction: &dyn Query) {
+    if let Some(executor) = query.downcast_mut::<SpatialExecutor>() {
+        executor.restrict(restriction.box_clone());
+    } else if let Some(boost) = query.downcast_mut::<BoostQuery>() {
+        restrict_spatial_plans(boost.query_mut(), restriction);
+    } else if let Some(boolean) = query.downcast_mut::<BooleanQuery>() {
+        for (_, clause) in boolean.clauses_mut() {
+            restrict_spatial_plans(clause.as_mut(), restriction);
+        }
+    }
+}
+
 fn convert_to_query(fuzzy: &FxHashMap<Field, Fuzzy>, logical_ast: LogicalAst) -> Box<dyn Query> {
     match trim_ast(logical_ast) {
         Some(LogicalAst::Clause(trimmed_clause)) => {
-            let occur_subqueries = trimmed_clause
+            let mut occur_subqueries = trimmed_clause
                 .into_iter()
                 .map(|(occur, subquery)| (occur, convert_to_query(fuzzy, subquery)))
                 .collect::<Vec<_>>();
@@ -1089,6 +1366,7 @@ fn convert_to_query(fuzzy: &FxHashMap<Field, Fuzzy>, logical_ast: LogicalAst) ->
                 !occur_subqueries.is_empty(),
                 "Should not be empty after trimming"
             );
+            restrict_join_outers(&mut occur_subqueries);
             Box::new(BooleanQuery::new(occur_subqueries))
         }
         Some(LogicalAst::Leaf(trimmed_logical_literal)) => {
