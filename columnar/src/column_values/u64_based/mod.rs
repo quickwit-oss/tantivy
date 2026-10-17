@@ -84,15 +84,19 @@ pub enum CodecType {
     /// values by the offset from the line. The number of bits is defined by the max deviation from
     /// the line.
     Linear = 1u8,
-    /// Same as [`CodecType::Linear`], but encodes in blocks of 512 elements.
+    /// Legacy blockwise linear format with variable-size block metadata.
+    /// When requested for writing, uses [`CodecType::BlockwiseLinearV2`] instead.
     BlockwiseLinear = 2u8,
+    /// Same as [`CodecType::Linear`], but encodes in blocks of 512 elements with
+    /// fixed-size metadata records for constant-time opening and random access.
+    BlockwiseLinearV2 = 3u8,
 }
 
-/// List of all available u64-base codecs.
+/// List of u64-based codecs used for new columns, excluding superseded versions.
 pub const ALL_U64_CODEC_TYPES: [CodecType; 3] = [
     CodecType::Bitpacked,
     CodecType::Linear,
-    CodecType::BlockwiseLinear,
+    CodecType::BlockwiseLinearV2,
 ];
 
 impl CodecType {
@@ -105,6 +109,7 @@ impl CodecType {
             0u8 => Some(CodecType::Bitpacked),
             1u8 => Some(CodecType::Linear),
             2u8 => Some(CodecType::BlockwiseLinear),
+            3u8 => Some(CodecType::BlockwiseLinearV2),
             _ => None,
         }
     }
@@ -116,7 +121,10 @@ impl CodecType {
         match self {
             CodecType::Bitpacked => bitpacked::load::<T>(bytes),
             CodecType::Linear => load_specific_codec::<LinearCodec, T>(bytes),
-            CodecType::BlockwiseLinear => load_specific_codec::<BlockwiseLinearCodec, T>(bytes),
+            CodecType::BlockwiseLinear => Ok(map_column_values::<_, T>(
+                BlockwiseLinearCodec::load_v1(bytes)?,
+            )),
+            CodecType::BlockwiseLinearV2 => load_specific_codec::<BlockwiseLinearCodec, T>(bytes),
         }
     }
 }
@@ -142,7 +150,9 @@ impl CodecType {
         match self {
             CodecType::Bitpacked => BitpackedCodec::boxed_estimator(),
             CodecType::Linear => LinearCodec::boxed_estimator(),
-            CodecType::BlockwiseLinear => BlockwiseLinearCodec::boxed_estimator(),
+            CodecType::BlockwiseLinear | CodecType::BlockwiseLinearV2 => {
+                BlockwiseLinearCodec::boxed_estimator()
+            }
         }
     }
 }
@@ -157,6 +167,11 @@ pub fn serialize_u64_based_column_values<T: MonotonicallyMappableToU64>(
     let mut estimators: Vec<(CodecType, Box<dyn ColumnCodecEstimator>)> =
         Vec::with_capacity(codec_types.len());
     for &codec_type in codec_types {
+        // V1 is read-only. Always pair the V2 estimator with its on-disk codec ID.
+        let codec_type = match codec_type {
+            CodecType::BlockwiseLinear => CodecType::BlockwiseLinearV2,
+            codec_type => codec_type,
+        };
         estimators.push((codec_type, codec_type.estimator()));
     }
     for val in vals.boxed_iter() {

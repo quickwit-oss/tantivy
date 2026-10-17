@@ -2,29 +2,37 @@ use std::io::Write;
 use std::sync::Arc;
 use std::{io, iter};
 
-use common::{BinarySerializable, CountingWriter, DeserializeFrom, OwnedBytes};
+use common::{BinarySerializable, DeserializeFrom, OwnedBytes};
 use fastdivide::DividerU64;
 use tantivy_bitpacker::{BitPacker, BitUnpacker, compute_num_bits};
 
 use crate::MonotonicallyMappableToU64;
 use crate::column_values::u64_based::line::Line;
-use crate::column_values::u64_based::{ColumnCodec, ColumnCodecEstimator, ColumnStats};
+use crate::column_values::u64_based::{ColumnCodecEstimator, ColumnStats};
 use crate::column_values::{ColumnValues, VecColumn};
+
+mod v2;
+use v2::BlockWidths;
+pub use v2::BlockwiseLinearCodec;
 
 const BLOCK_SIZE: u32 = 512u32;
 
-#[derive(Debug, Default)]
+#[derive(Clone, Copy, Debug, Default)]
 struct Block {
     line: Line,
     bit_unpacker: BitUnpacker,
     data_start_offset: usize,
 }
 
-impl BinarySerializable for Block {
-    fn serialize<W: Write + ?Sized>(&self, writer: &mut W) -> io::Result<()> {
-        self.line.serialize(writer)?;
-        self.bit_unpacker.bit_width().serialize(writer)?;
-        Ok(())
+impl Block {
+    #[inline]
+    fn get_val(&self, idx: u32, data: &[u8], stats: &ColumnStats) -> u64 {
+        let diff = self.bit_unpacker.get(idx, &data[self.data_start_offset..]);
+        stats.min_value
+            + stats
+                .gcd
+                .get()
+                .wrapping_mul(self.line.eval(idx).wrapping_add(diff))
     }
 
     fn deserialize<R: io::Read>(reader: &mut R) -> io::Result<Self> {
@@ -45,7 +53,7 @@ fn compute_num_blocks(num_vals: u32) -> u32 {
 pub struct BlockwiseLinearEstimator {
     block: Vec<u64>,
     values_num_bytes: u64,
-    meta_num_bytes: u64,
+    widths: BlockWidths,
 }
 
 impl Default for BlockwiseLinearEstimator {
@@ -53,7 +61,7 @@ impl Default for BlockwiseLinearEstimator {
         Self {
             block: Vec::with_capacity(BLOCK_SIZE as usize),
             values_num_bytes: 0u64,
-            meta_num_bytes: 0u64,
+            widths: BlockWidths::default(),
         }
     }
 }
@@ -74,8 +82,8 @@ impl BlockwiseLinearEstimator {
             max_value = val.max(max_value);
         }
         let bit_width = compute_num_bits(max_value) as usize;
+        self.widths.collect(line, self.values_num_bytes);
         self.values_num_bytes += (bit_width * self.block.len() + 7) as u64 / 8;
-        self.meta_num_bytes += 1 + line.num_bytes();
     }
 }
 
@@ -88,7 +96,9 @@ impl ColumnCodecEstimator for BlockwiseLinearEstimator {
         }
     }
     fn estimate(&self, stats: &ColumnStats) -> Option<u64> {
-        let mut estimate = 4 + stats.num_bytes() + self.meta_num_bytes + self.values_num_bytes;
+        let metadata_size =
+            3 + self.widths.record_size() as u64 * compute_num_blocks(stats.num_rows) as u64;
+        let mut estimate = stats.num_bytes() + metadata_size + self.values_num_bytes;
         if stats.gcd.get() > 1 {
             let estimate_gain_from_gcd =
                 (stats.gcd.get() as f32).log2().floor() * stats.num_rows as f32 / 8.0f32;
@@ -113,6 +123,7 @@ impl ColumnCodecEstimator for BlockwiseLinearEstimator {
         let mut blocks = Vec::with_capacity(num_blocks);
 
         let mut bit_packer = BitPacker::new();
+        let mut data_start_offset = 0;
 
         let gcd_divider = DividerU64::divide_by(stats.gcd.get());
 
@@ -146,33 +157,21 @@ impl ColumnCodecEstimator for BlockwiseLinearEstimator {
             blocks.push(Block {
                 line,
                 bit_unpacker: BitUnpacker::new(bit_width),
-                data_start_offset: 0,
+                data_start_offset,
             });
+            data_start_offset += (bit_width as usize * buffer.len()).div_ceil(8);
         }
 
         bit_packer.close(wrt)?;
 
         assert_eq!(blocks.len(), num_blocks);
 
-        let mut counting_wrt = CountingWriter::wrap(wrt);
-        for block in &blocks {
-            block.serialize(&mut counting_wrt)?;
-        }
-        let footer_len = counting_wrt.written_bytes();
-        (footer_len as u32).serialize(&mut counting_wrt)?;
-
-        Ok(())
+        v2::serialize_blocks(&blocks, wrt)
     }
 }
 
-pub struct BlockwiseLinearCodec;
-
-impl ColumnCodec<u64> for BlockwiseLinearCodec {
-    type ColumnValues = BlockwiseLinearReader;
-
-    type Estimator = BlockwiseLinearEstimator;
-
-    fn load(mut bytes: OwnedBytes) -> io::Result<Self::ColumnValues> {
+impl BlockwiseLinearCodec {
+    pub fn load_v1(mut bytes: OwnedBytes) -> io::Result<BlockwiseLinearReader<DecodedBlocks>> {
         let stats = ColumnStats::deserialize(&mut bytes)?;
         let footer_len: u32 = (&bytes[bytes.len() - 4..]).deserialize()?;
         let footer_offset = bytes.len() - 4 - footer_len as usize;
@@ -187,37 +186,68 @@ impl ColumnCodec<u64> for BlockwiseLinearCodec {
             start_offset += (block.bit_unpacker.bit_width() as usize) * BLOCK_SIZE as usize / 8;
         }
         Ok(BlockwiseLinearReader {
-            blocks: blocks.into_boxed_slice().into(),
+            blocks: DecodedBlocks(blocks.into_boxed_slice().into()),
             data,
             stats,
         })
     }
 }
 
+// Access one block's metadata; value decoding is shared across storage layouts.
+trait BlockMetadata: Send + Sync + 'static {
+    fn get_block(&self, block_id: usize) -> Block;
+}
+
+/// Decoded block metadata for the legacy format.
 #[derive(Clone)]
-pub struct BlockwiseLinearReader {
-    blocks: Arc<[Block]>,
+pub struct DecodedBlocks(Arc<[Block]>);
+
+impl BlockMetadata for DecodedBlocks {
+    #[inline]
+    fn get_block(&self, block_id: usize) -> Block {
+        self.0[block_id]
+    }
+}
+
+#[derive(Clone)]
+pub struct BlockwiseLinearReader<M> {
+    blocks: M,
     data: OwnedBytes,
     stats: ColumnStats,
 }
 
-impl ColumnValues for BlockwiseLinearReader {
+impl<M: BlockMetadata> ColumnValues for BlockwiseLinearReader<M> {
     #[inline(always)]
     fn get_val(&self, idx: u32) -> u64 {
         let block_id = (idx / BLOCK_SIZE) as usize;
         let idx_within_block = idx % BLOCK_SIZE;
-        let block = &self.blocks[block_id];
-        let interpoled_val: u64 = block.line.eval(idx_within_block);
-        let block_bytes = &self.data[block.data_start_offset..];
-        let bitpacked_diff = block.bit_unpacker.get(idx_within_block, block_bytes);
-        // TODO optimize me! the line parameters could be tweaked to include the multiplication and
-        // remove the dependency.
-        self.stats.min_value
-            + self
-                .stats
-                .gcd
-                .get()
-                .wrapping_mul(interpoled_val.wrapping_add(bitpacked_diff))
+        self.blocks
+            .get_block(block_id)
+            .get_val(idx_within_block, &self.data, &self.stats)
+    }
+
+    fn get_range(&self, start: u64, mut output: &mut [u64]) {
+        let mut start = start as u32;
+        while !output.is_empty() {
+            let block = self.blocks.get_block((start / BLOCK_SIZE) as usize);
+            let within_block = start % BLOCK_SIZE;
+            let len = output.len().min((BLOCK_SIZE - within_block) as usize);
+            let (head, tail) = output.split_at_mut(len);
+            block
+                .bit_unpacker
+                .get_range(within_block, &self.data[block.data_start_offset..], head);
+            for (i, value) in head.iter_mut().enumerate() {
+                *value = self.stats.min_value
+                    + self.stats.gcd.get().wrapping_mul(
+                        block
+                            .line
+                            .eval(within_block + i as u32)
+                            .wrapping_add(*value),
+                    );
+            }
+            start += len as u32;
+            output = tail;
+        }
     }
 
     #[inline(always)]
@@ -279,7 +309,7 @@ mod tests {
             "name",
         )
         .unwrap();
-        assert_eq!(actual_compression_rate, 0.175);
+        assert_eq!(actual_compression_rate, 0.1375);
     }
 
     #[test]
