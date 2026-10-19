@@ -8,7 +8,7 @@ use crate::column_values::ColumnStats;
 /// Compute the gcd of two non null numbers.
 ///
 /// It is recommended, but not required, to feed values such that `large >= small`.
-fn compute_gcd(mut large: NonZeroU64, mut small: NonZeroU64) -> NonZeroU64 {
+pub(crate) fn compute_gcd(mut large: NonZeroU64, mut small: NonZeroU64) -> NonZeroU64 {
     loop {
         let rem: u64 = large.get() % small;
         if let Some(new_small) = NonZeroU64::new(rem) {
