@@ -69,16 +69,17 @@ pub(crate) fn split_edges<S: Surface>(
         if !clip_edge_bound(a_uv, b_uv, &cell_bound, &mut bound) {
             continue;
         }
-        if bound[0].lo() < u_mid_hi && bound[1].lo() < v_mid_hi {
+        // A divider edge is needed on both parent-to-child center paths.
+        if bound[0].lo() <= u_mid_hi && bound[1].lo() <= v_mid_hi {
             child_edges[0][0].push(edge_idx);
         }
-        if bound[0].lo() < u_mid_hi && bound[1].hi() > v_mid_lo {
+        if bound[0].lo() <= u_mid_hi && bound[1].hi() >= v_mid_lo {
             child_edges[0][1].push(edge_idx);
         }
-        if bound[0].hi() > u_mid_lo && bound[1].lo() < v_mid_hi {
+        if bound[0].hi() >= u_mid_lo && bound[1].lo() <= v_mid_hi {
             child_edges[1][0].push(edge_idx);
         }
-        if bound[0].hi() > u_mid_lo && bound[1].hi() > v_mid_lo {
+        if bound[0].hi() >= u_mid_lo && bound[1].hi() >= v_mid_lo {
             child_edges[1][1].push(edge_idx);
         }
     }
@@ -95,7 +96,7 @@ pub(crate) fn covering_split<S: Surface>(
     get_edge: &impl Fn(u32) -> (S::Point, S::Point),
     start_for_cell: &impl Fn(S2CellId, u32, u32) -> (u32, i32),
 ) -> Vec<CoveringCell<S>> {
-    if entry.pcell.id().is_leaf() {
+    if entry.pcell.id().is_leaf() || entry.index_start == entry.index_end {
         return vec![];
     }
 
@@ -109,10 +110,16 @@ pub(crate) fn covering_split<S: Surface>(
         child_ids[pos as usize] = entry.pcell.id().child(pos);
     }
 
-    let mut starts = [(0u32, 0i32); 4];
-    starts[0] = (entry.index_start, entry.first_index_level);
-    for k in 1..4 {
-        starts[k] = start_for_cell(child_ids[k], starts[k - 1].0, entry.index_end);
+    // In a disjoint directory an ancestor is the only entry in this range.
+    // Contains may descend below it; every child still overlaps that entry.
+    let has_ancestor = entry.first_index_level <= entry.pcell.level();
+    let mut starts = [(entry.index_start, entry.first_index_level); 4];
+    if has_ancestor {
+        debug_assert_eq!(entry.index_end - entry.index_start, 1);
+    } else {
+        for k in 1..4 {
+            starts[k] = start_for_cell(child_ids[k], starts[k - 1].0, entry.index_end);
+        }
     }
 
     let mut result = Vec::with_capacity(4);
@@ -120,7 +127,7 @@ pub(crate) fn covering_split<S: Surface>(
         let (i, j) = child_ij[k];
         let edges = std::mem::take(&mut child_edges[i][j]);
         let (start, first_index_level) = starts[k];
-        let end = if k < 3 {
+        let end = if !has_ancestor && k < 3 {
             starts[k + 1].0
         } else {
             entry.index_end
@@ -147,6 +154,22 @@ pub(crate) fn covering_split<S: Surface>(
     result
 }
 
+/// Return the containment change along a path across the supplied edges.
+pub(crate) fn crossing_parity<S: Surface>(
+    from: &S::Point,
+    to: &S::Point,
+    edges: &[u32],
+    get_edge: &impl Fn(u32) -> (S::Point, S::Point),
+) -> bool {
+    let mut crosser = S::EdgeCrosser::new(from, to);
+    let mut parity = false;
+    for &edge_idx in edges {
+        let (v0, v1) = get_edge(edge_idx);
+        parity ^= crosser.edge_or_vertex_crossing_two(&v0, &v1);
+    }
+    parity
+}
+
 /// Update contains_center on child cells by testing edge crossings from the parent center
 /// to each child center.
 pub(crate) fn covering_contains_center<S: Surface>(
@@ -159,12 +182,15 @@ pub(crate) fn covering_contains_center<S: Surface>(
             continue;
         }
         let child_center = child.pcell.get_center();
-        let mut crosser = S::EdgeCrosser::new(parent_center, &child_center);
-        for &edge_idx in &child.query_edges {
-            let (v0, v1) = get_edge(edge_idx);
-            if crosser.edge_or_vertex_crossing_two(&v0, &v1) {
-                child.contains_center = !child.contains_center;
-            }
-        }
+        child.contains_center ^=
+            crossing_parity::<S>(parent_center, &child_center, &child.query_edges, get_edge);
     }
 }
+
+#[cfg(test)]
+#[path = "tests/covering_tests.rs"]
+mod tests;
+
+#[cfg(test)]
+#[path = "tests/covering_query_tests.rs"]
+mod query_tests;

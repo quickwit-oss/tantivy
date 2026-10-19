@@ -5,7 +5,9 @@ use std::collections::VecDeque;
 use common::BitSet;
 
 use super::cell_index_reader::CellIndexReader;
-use super::covering::{covering_contains_center, covering_split, CoveringCell};
+use super::covering::{
+    covering_contains_center, covering_split, crossing_parity, split_edges, CoveringCell,
+};
 use super::edge_cache::EdgeCache;
 use super::edge_crosser::EdgeCrosser;
 use super::edge_provider::EdgeProvider;
@@ -127,6 +129,7 @@ impl<S: Surface> Contains<S> {
 
     /// Split a single geometry from a coarse index cell down toward the target
     /// covering cell. At each level, only chase the child on the path to target_id.
+    /// The target lies within this stored cell, so no directory lookup is needed.
     /// If the geometry's edges drop away before reaching the target, contains_center
     /// is the answer. If edges remain at the target level, not a candidate.
     fn split_to_interior<'a>(
@@ -136,7 +139,8 @@ impl<S: Surface> Contains<S> {
         target_id: S2CellId,
         edge_cache: &mut EdgeCache<'a, S>,
     ) -> Option<u32> {
-        let edge_indices: Vec<u32> = clipped.edge_indices.clone();
+        debug_assert!(index_cell_id.contains(target_id));
+        let mut edges = clipped.edge_indices.clone();
         let located = edge_cache.locate(clipped.geometry_id);
         let doc_id = located.doc_id;
 
@@ -144,46 +148,26 @@ impl<S: Surface> Contains<S> {
             let entry = edge_cache.locate(clipped.geometry_id);
             entry.edge(idx)
         };
-        let no_op_start = |_cell_id: S2CellId, _lo: u32, _hi: u32| -> (u32, i32) { (0, 0) };
-
-        let mut current = CoveringCell {
-            pcell: S2PaddedCell::<S>::new(index_cell_id, S::CELL_PADDING),
-            query_edges: edge_indices,
-            contains_center: clipped.contains_center,
-            index_start: 0,
-            index_end: 0,
-            first_index_level: 0,
-        };
+        let mut pcell = S2PaddedCell::<S>::new(index_cell_id, S::CELL_PADDING);
+        let mut contains_center = clipped.contains_center;
 
         loop {
-            if current.query_edges.is_empty() {
-                return if current.contains_center {
-                    Some(doc_id)
-                } else {
-                    None
-                };
+            if edges.is_empty() {
+                return contains_center.then_some(doc_id);
             }
 
-            if current.pcell.id().level() >= target_id.level() || current.pcell.id().is_leaf() {
+            if pcell.level() >= target_id.level() || pcell.id().is_leaf() {
                 return None;
             }
 
-            let parent_center = current.pcell.get_center();
-            let mut children = covering_split(&current, &get_edge, &no_op_start);
-            covering_contains_center::<S>(&parent_center, &mut children, &get_edge);
-
-            let mut found_child = false;
-            for child in children {
-                if child.pcell.id().contains(target_id) || child.pcell.id() == target_id {
-                    current = child;
-                    found_child = true;
-                    break;
-                }
-            }
-
-            if !found_child {
-                return None;
-            }
+            let mut child_edges = split_edges(&pcell, &edges, &get_edge);
+            let pos = target_id.child_position_at_level(pcell.level() + 1);
+            let (i, j) = pcell.get_child_ij(i32::from(pos));
+            let child = S2PaddedCell::from_parent(&pcell, i, j);
+            edges = std::mem::take(&mut child_edges[i][j]);
+            contains_center ^=
+                crossing_parity::<S>(&pcell.get_center(), &child.get_center(), &edges, &get_edge);
+            pcell = child;
         }
     }
 

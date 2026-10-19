@@ -50,19 +50,32 @@ impl EdgeCrosser for PlaneEdgeCrosser {
         self.crossing_sign_two(c, d)
     }
 
-    /// Half-open crossing test for containment tracking. A vertex exactly on the line
-    /// is treated as below (strict > on both sides). Two adjacent edges at a
-    /// through-vertex produce one straddle. A touch from one side produces zero or
-    /// two, preserving parity.
+    /// Transport containment with A and B displaced by (e, e^2), for positive symbolic e.
+    /// Only zero orientations change. Each endpoint then has the same boundary meaning
+    /// on arrival and departure, matching point_in_polygon.
     fn edge_or_vertex_crossing_two(&mut self, c: &[f64; 2], d: &[f64; 2]) -> bool {
-        let hc = orient2d(&self.a, &self.b, c);
-        let hd = orient2d(&self.a, &self.b, d);
-        if (hc > 0.0) == (hd > 0.0) {
+        if self.a == self.b || c == d {
             return false;
         }
+
+        // Translating AB adds (B.y - A.y)*e - (B.x - A.x)*e^2 to each orientation.
+        let ab_positive =
+            self.b[1] > self.a[1] || (self.b[1] == self.a[1] && self.a[0] > self.b[0]);
+        let hc = orient2d(&self.a, &self.b, c);
+        let hd = orient2d(&self.a, &self.b, d);
+        let c_positive = hc > 0.0 || (hc == 0.0 && ab_positive);
+        let d_positive = hd > 0.0 || (hd == 0.0 && ab_positive);
+        if c_positive == d_positive {
+            return false;
+        }
+
+        // Translating a point relative to CD adds -(D.y - C.y)*e + (D.x - C.x)*e^2.
+        let cd_positive = c[1] > d[1] || (c[1] == d[1] && d[0] > c[0]);
         let ha = orient2d(c, d, &self.a);
         let hb = orient2d(c, d, &self.b);
-        (ha > 0.0) != (hb > 0.0)
+        let a_positive = ha > 0.0 || (ha == 0.0 && cd_positive);
+        let b_positive = hb > 0.0 || (hb == 0.0 && cd_positive);
+        a_positive != b_positive
     }
 }
 
@@ -82,7 +95,7 @@ mod tests {
     }
 
     #[test]
-    fn through_vertex_produces_even_crossings() {
+    fn test_through_vertex_produces_even_crossings() {
         let ring = [[0.0, 0.0], [1.0, 0.0], [1.0, 1.0], [0.0, 1.0], [0.0, 0.0]];
         let a = [0.0, -1.0];
         let b = [2.0, 1.0];
@@ -90,15 +103,13 @@ mod tests {
     }
 
     #[test]
-    fn through_vertex_parity_even_for_closed_ring() {
-        // Any tracker segment crossing a closed convex polygon must produce
-        // an even number of crossings (enter and exit).
+    fn test_through_vertex_parity() {
         let ring = [[0.0, 0.0], [1.0, 0.0], [1.0, 1.0], [0.0, 1.0], [0.0, 0.0]];
 
         // Through vertex (0,0).
         assert_eq!(count_crossings(&[-1.0, -1.0], &[2.0, 2.0], &ring) % 2, 0);
-        // Through vertex (1,1).
-        assert_eq!(count_crossings(&[0.0, 0.0], &[2.0, 2.0], &ring) % 2, 0);
+        // The displaced lower-left vertex starts inside.
+        assert_eq!(count_crossings(&[0.0, 0.0], &[2.0, 2.0], &ring) % 2, 1);
         // Through vertex (1,0).
         assert_eq!(count_crossings(&[0.5, -1.0], &[1.5, 1.0], &ring) % 2, 0);
         // Through vertex (0,1).
@@ -106,7 +117,7 @@ mod tests {
     }
 
     #[test]
-    fn touch_from_above_preserves_parity() {
+    fn test_touch_from_above_preserves_parity() {
         // Tracker passes through a vertex where the polygon touches from above
         // but does not cross (V-shape dipping down to the line).
         // Triangle above the x-axis touching at (0.5, 0).
@@ -117,7 +128,7 @@ mod tests {
     }
 
     #[test]
-    fn touch_from_below_preserves_parity() {
+    fn test_touch_from_below_preserves_parity() {
         // Triangle below the x-axis touching at (0.5, 0).
         let ring = [[0.0, -1.0], [0.5, 0.0], [1.0, -1.0], [0.0, -1.0]];
         let a = [-1.0, 0.0];
@@ -126,7 +137,7 @@ mod tests {
     }
 
     #[test]
-    fn interior_crossing_still_works() {
+    fn test_interior_crossing_still_works() {
         // No vertex on the line. Standard interior crossing.
         let ring = [[0.0, 0.0], [1.0, 0.0], [1.0, 1.0], [0.0, 1.0], [0.0, 0.0]];
         let a = [0.5, -1.0];
@@ -135,7 +146,7 @@ mod tests {
     }
 
     #[test]
-    fn no_crossing_when_disjoint() {
+    fn test_no_crossing_when_disjoint() {
         let ring = [[0.0, 0.0], [1.0, 0.0], [1.0, 1.0], [0.0, 1.0], [0.0, 0.0]];
         let a = [2.0, 0.0];
         let b = [3.0, 1.0];
@@ -143,7 +154,7 @@ mod tests {
     }
 
     #[test]
-    fn collinear_overlap_no_crossing() {
+    fn test_collinear_overlap_preserves_parity() {
         // Tracker segment lies on the same line as a polygon edge.
         let ring = [[0.0, 0.0], [2.0, 0.0], [2.0, 1.0], [0.0, 1.0], [0.0, 0.0]];
         let a = [-1.0, 0.0];
@@ -151,3 +162,7 @@ mod tests {
         assert_eq!(count_crossings(&a, &b, &ring) % 2, 0);
     }
 }
+
+#[cfg(test)]
+#[path = "../tests/plane_transport_tests.rs"]
+mod transport_tests;

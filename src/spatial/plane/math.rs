@@ -32,7 +32,8 @@ pub fn segments_cross(a: &[f64; 2], b: &[f64; 2], c: &[f64; 2], d: &[f64; 2]) ->
 
 /// Returns true if point P is inside the polygon defined by the given vertices. The polygon is
 /// assumed closed (first vertex equals last vertex). Uses the ray casting algorithm with orient2d
-/// for robust crossing decisions.
+/// for robust crossing decisions. Boundary points are classified as if displaced
+/// by (e, e^2) for positive symbolic e, matching PlaneEdgeCrosser.
 pub fn point_in_polygon(p: &[f64; 2], vertices: &[[f64; 2]]) -> bool {
     if vertices.len() < 4 {
         return false;
@@ -43,8 +44,12 @@ pub fn point_in_polygon(p: &[f64; 2], vertices: &[[f64; 2]]) -> bool {
     for i in 0..n {
         let vi = &vertices[i];
         let vj = &vertices[j];
-        if ((vi[1] > p[1]) != (vj[1] > p[1])) && (orient2d(vi, vj, p) > 0.0) == (vi[1] > vj[1]) {
-            inside = !inside;
+        if (vi[1] > p[1]) != (vj[1] > p[1]) {
+            let orientation = orient2d(vi, vj, p);
+            // A boundary edge is left of the displaced point and crosses its leftward ray.
+            if orientation == 0.0 || (orientation > 0.0) == (vi[1] > vj[1]) {
+                inside = !inside;
+            }
         }
         j = i;
     }

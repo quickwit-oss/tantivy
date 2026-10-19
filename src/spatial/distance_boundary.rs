@@ -144,6 +144,34 @@ mod tests {
     use crate::spatial::sphere::Sphere;
 
     #[test]
+    fn test_boundary_retains_both_sides_of_a_divider() {
+        for swap in [false, true] {
+            let point = |u, v| {
+                if swap {
+                    Sphere::face_uv_to_point(0, v, u)
+                } else {
+                    Sphere::face_uv_to_point(0, u, v)
+                }
+            };
+            let a = point(0.0, -0.5);
+            let b = point(0.0, 0.5);
+            let boundary = DistanceBoundary::build::<Sphere>(
+                S1ChordAngle::from_radians(0.2),
+                [(S2CellId::from_face(0), vec![0])],
+                &|_| (a, b),
+            );
+            assert!(boundary.level > 0);
+            for i in 0..=16 {
+                let v = -0.49 + 0.98 * i as f64 / 16.0;
+                for u in [-1e-8, 1e-8] {
+                    let id = Sphere::cell_id_from_point(&point(u, v)).parent(boundary.level);
+                    assert!(boundary.cells.contains(&id), "missing boundary cell {id:?}");
+                }
+            }
+        }
+    }
+
+    #[test]
     fn test_radius_uses_the_flood_center() {
         let id = S2CellId(0x0555350000000000);
         let center = Sphere::cell_center(id);
