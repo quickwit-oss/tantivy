@@ -71,6 +71,10 @@ impl Weight for ConstWeight {
         Ok(Box::new(ConstScorer::new(inner_scorer, boost * self.score)))
     }
 
+    fn refutation_cost(&self) -> u64 {
+        self.weight.refutation_cost()
+    }
+
     fn explain(&self, reader: &SegmentReader, doc: u32) -> crate::Result<Explanation> {
         let mut scorer = self.scorer(reader, 1.0)?;
         if scorer.doc() > doc || scorer.seek(doc) != doc {
