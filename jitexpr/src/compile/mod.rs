@@ -2,6 +2,7 @@ mod cache;
 mod compile_fn_builder;
 mod compiled_fn;
 mod error;
+mod str_to_f64;
 mod string_arena;
 mod typed_expr;
 mod typed_expr_serialize;
@@ -17,6 +18,9 @@ use cranelift::codegen::ir::{
 };
 use cranelift::frontend::FunctionBuilder;
 pub use error::CompileError;
+pub(crate) use str_to_f64::{
+    declare_native_function as declare_str_to_f64, register_jit_symbol as register_str_to_f64,
+};
 #[cfg(test)]
 pub(crate) use string_arena::STRING_ARENA_CAPACITY;
 pub use string_arena::StringArena;
@@ -124,6 +128,10 @@ impl LoweringContext<'_> {
             TypedExprAst::Coerce { target_type, expr } => {
                 let source_type = expr.return_type;
                 let lowered = self.compile_expr(expr, builder)?;
+                if source_type == VarType::Str && *target_type == VarType::F64 {
+                    // Needs a native call, and makes the result absent if the parsing fails.
+                    return Ok(str_to_f64::lower_str_to_f64(lowered, self, builder));
+                }
                 let value = lower_coercion(lowered.value, source_type, *target_type, builder)?;
                 Ok(LoweredValue {
                     value,
@@ -280,13 +288,92 @@ mod tests {
             &coerced_fn,
             &coerced_fn.coerce_result_to_f64().unwrap()
         ));
-        // Not numerical.
-        let str_fn = compile(
+        // Not numerical, and not a string.
+        let bool_fn = compile(
+            &UntypedExpr::variable("flag"),
+            &HashMap::from([("flag", VarType::Bool)]),
+        )
+        .unwrap();
+        assert!(bool_fn.coerce_result_to_f64().is_err());
+    }
+
+    fn eval_str_coerced_to_f64(compiled_fn: &Arc<CompiledFn>, input: Option<&str>) -> Option<f64> {
+        let coerced_fn = compiled_fn.coerce_result_to_f64().unwrap();
+        assert_eq!(coerced_fn.result_type(), VarType::F64);
+        let mut string_arena = StringArena::new();
+        let input = match input {
+            Some(input) => VariableValue::some(input),
+            None => VariableValue::none(),
+        };
+        // SAFETY: the function has a single `Str` input, and returns a nullable f64.
+        unsafe { coerced_fn.call(&[input], &mut string_arena).as_f64() }
+    }
+
+    #[test]
+    fn test_coerce_str_result_to_f64() {
+        let compiled_fn = compile(
             &UntypedExpr::variable("label"),
             &HashMap::from([("label", VarType::Str)]),
         )
         .unwrap();
-        assert!(str_fn.coerce_result_to_f64().is_err());
+        assert_eq!(
+            eval_str_coerced_to_f64(&compiled_fn, Some("12.5")),
+            Some(12.5)
+        );
+        assert_eq!(
+            eval_str_coerced_to_f64(&compiled_fn, Some("-3")),
+            Some(-3.0)
+        );
+        assert_eq!(
+            eval_str_coerced_to_f64(&compiled_fn, Some("1e3")),
+            Some(1000.0)
+        );
+        for unparsable in ["", " 1", "abc", "NaN", "inf", "-inf"] {
+            assert_eq!(
+                eval_str_coerced_to_f64(&compiled_fn, Some(unparsable)),
+                None,
+                "{unparsable:?}"
+            );
+        }
+        assert_eq!(eval_str_coerced_to_f64(&compiled_fn, None), None);
+        let coerced_fn = compiled_fn.coerce_result_to_f64().unwrap();
+        assert!(coerced_fn.inputs() == compiled_fn.inputs());
+        // Memoized.
+        assert!(Arc::ptr_eq(
+            &coerced_fn,
+            &compiled_fn.coerce_result_to_f64().unwrap()
+        ));
+    }
+
+    #[test]
+    fn test_coerce_regexp_extract_result_to_f64() {
+        let untyped_expr =
+            crate::ast::deserialize(r#"(REGEXP_EXTRACT msg "latency=(\\w+)" 1u64)"#).unwrap();
+        let compiled_fn = compile(&untyped_expr, &HashMap::from([("msg", VarType::Str)])).unwrap();
+        assert_eq!(compiled_fn.result_type(), VarType::Str);
+        assert_eq!(
+            eval_str_coerced_to_f64(&compiled_fn, Some("GET latency=12 ok")),
+            Some(12.0)
+        );
+        assert_eq!(
+            eval_str_coerced_to_f64(&compiled_fn, Some("GET latency=abc ok")),
+            None
+        );
+        assert_eq!(
+            eval_str_coerced_to_f64(&compiled_fn, Some("no match")),
+            None
+        );
+        assert_eq!(eval_str_coerced_to_f64(&compiled_fn, None), None);
+    }
+
+    #[test]
+    fn test_coerce_str_literal_result_to_f64() {
+        let compiled_fn = compile(&UntypedExpr::literal("42"), &HashMap::new()).unwrap();
+        let coerced_fn = compiled_fn.coerce_result_to_f64().unwrap();
+        let mut string_arena = StringArena::new();
+        // SAFETY: the function has no input, and returns a nullable f64.
+        let output = unsafe { coerced_fn.call(&[], &mut string_arena) };
+        assert_eq!(unsafe { output.as_f64() }, Some(42.0));
     }
 
     #[test]
