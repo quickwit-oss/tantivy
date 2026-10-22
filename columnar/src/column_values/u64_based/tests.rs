@@ -331,7 +331,7 @@ fn test_fast_field_codec_type_to_code() {
             count_codec += 1;
         }
     }
-    assert_eq!(count_codec, 3);
+    assert_eq!(count_codec, 4);
 }
 
 fn test_fastfield_gcd_i64_with_codec(codec_type: CodecType, num_vals: usize) -> io::Result<()> {
@@ -371,6 +371,7 @@ fn test_fastfield_gcd_i64() -> io::Result<()> {
         CodecType::Bitpacked,
         CodecType::BlockwiseLinear,
         CodecType::Linear,
+        CodecType::BlockwiseLinearV2,
     ] {
         test_fastfield_gcd_i64_with_codec(codec_type, 5500)?;
     }
@@ -413,6 +414,7 @@ fn test_fastfield_gcd_u64() -> io::Result<()> {
         CodecType::Bitpacked,
         CodecType::BlockwiseLinear,
         CodecType::Linear,
+        CodecType::BlockwiseLinearV2,
     ] {
         test_fastfield_gcd_u64_with_codec(codec_type, 5500)?;
     }
