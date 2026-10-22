@@ -271,11 +271,20 @@ impl<S: TermOrdAccumulator + 'static> SegmentAggregationCollector
         docs: &[crate::DocId],
         agg_data: &mut AggregationsSegmentCtx,
     ) -> crate::Result<()> {
+        // A computed text source grows its term dictionary while loading the block.
+        let mem_pre = self.req_data.accessor.memory_consumption();
         agg_data.column_block_accessor.fetch_block_with_missing(
             docs,
             &mut *self.req_data.accessor,
             self.req_data.missing_value_for_accessor,
         );
+        let mem_delta = self.req_data.accessor.memory_consumption() - mem_pre;
+        if mem_delta > 0 {
+            agg_data
+                .context
+                .limits
+                .add_memory_consumed(mem_delta as u64)?;
+        }
         let Some(term_ords) = self.buckets[parent_bucket_id as usize].as_mut() else {
             return Err(crate::TantivyError::InternalError(
                 "collection should not happen after finalization".to_string(),

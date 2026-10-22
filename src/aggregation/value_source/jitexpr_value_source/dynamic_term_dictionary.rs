@@ -7,6 +7,7 @@ use hashbrown::hash_table::Entry;
 use hashbrown::HashTable;
 use rustc_hash::FxBuildHasher;
 
+use crate::aggregation::agg_limits::MemoryConsumption;
 use crate::aggregation::value_source::ValueSourceDictionary;
 
 /// An append-only dictionary that interns terms and assigns them term ords.
@@ -121,6 +122,16 @@ impl DynamicTermDictionary {
 
     pub(crate) fn num_terms(&self) -> u64 {
         (self.offsets.len() - 1) as u64
+    }
+}
+
+impl MemoryConsumption for DynamicTermDictionary {
+    /// Heap bytes of the term buffer, the offsets, and the buckets of the hash table (one
+    /// control byte per bucket, like the `HashMap` estimate).
+    fn memory_consumption(&self) -> usize {
+        self.buffer.capacity()
+            + self.offsets.capacity() * std::mem::size_of::<usize>()
+            + self.term_ords.capacity() * (std::mem::size_of::<TermOrdItem>() + 1)
     }
 }
 
