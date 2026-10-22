@@ -3,7 +3,7 @@ use std::marker::PhantomData;
 use crate::index::list_segment_files;
 use crate::indexer::operation::AddOperation;
 use crate::indexer::segment_updater::save_metas;
-use crate::indexer::{DocIdMapping, SegmentWriter};
+use crate::indexer::{DocIdMapping, SegmentWriter, SegmentWriterMemoryUsage};
 use crate::schema::document::Document;
 use crate::{Directory, Index, IndexMeta, Opstamp, Segment, TantivyDocument};
 
@@ -29,6 +29,10 @@ impl<D: Document> SingleSegmentIndexWriter<D> {
 
     pub fn mem_usage(&self) -> usize {
         self.segment_writer.mem_usage()
+    }
+
+    pub fn mem_usage_breakdown(&self) -> SegmentWriterMemoryUsage {
+        self.segment_writer.mem_usage_breakdown()
     }
 
     pub fn add_document(&mut self, document: D) -> crate::Result<()> {

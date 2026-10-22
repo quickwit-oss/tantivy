@@ -62,20 +62,41 @@ pub struct ColumnarWriter {
     buffers: SpareBuffers,
 }
 
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct ColumnarWriterMemoryUsage {
+    pub arena: usize,
+    pub field_hash_maps: usize,
+    pub dictionaries: usize,
+}
+
+impl ColumnarWriterMemoryUsage {
+    pub fn total(&self) -> usize {
+        self.arena + self.field_hash_maps + self.dictionaries
+    }
+}
+
 impl ColumnarWriter {
     pub fn mem_usage(&self) -> usize {
-        self.arena.mem_usage()
-            + self.numerical_field_hash_map.mem_usage()
+        self.mem_usage_breakdown().total()
+    }
+
+    pub fn mem_usage_breakdown(&self) -> ColumnarWriterMemoryUsage {
+        let field_hash_maps = self.numerical_field_hash_map.mem_usage()
             + self.bool_field_hash_map.mem_usage()
             + self.bytes_field_hash_map.mem_usage()
             + self.str_field_hash_map.mem_usage()
             + self.ip_addr_field_hash_map.mem_usage()
-            + self.datetime_field_hash_map.mem_usage()
-            + self
-                .dictionaries
-                .iter()
-                .map(|dict| dict.mem_usage())
-                .sum::<usize>()
+            + self.datetime_field_hash_map.mem_usage();
+        let dictionaries = self
+            .dictionaries
+            .iter()
+            .map(|dict| dict.mem_usage())
+            .sum::<usize>();
+        ColumnarWriterMemoryUsage {
+            arena: self.arena.mem_usage(),
+            field_hash_maps,
+            dictionaries,
+        }
     }
 
     /// Returns the list of doc ids from 0..num_docs sorted by the `sort_field`

@@ -147,6 +147,14 @@ pub struct InvertedIndexPluginWriter {
 }
 
 impl InvertedIndexPluginWriter {
+    pub(crate) fn indexing_context(&self) -> &IndexingContext {
+        &self.ctx
+    }
+
+    pub(crate) fn fieldnorms_mem_usage(&self) -> usize {
+        self.fieldnorms_writer.mem_usage()
+    }
+
     pub(crate) fn new(ctx: &PluginWriterContext) -> crate::Result<Self> {
         let segment = ctx.segment;
         let schema = segment.schema();

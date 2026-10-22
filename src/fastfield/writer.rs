@@ -1,6 +1,6 @@
 use std::io;
 
-use columnar::{ColumnarWriter, NumericalValue};
+use columnar::{ColumnarWriter, ColumnarWriterMemoryUsage, NumericalValue};
 use common::{DateTimePrecision, JsonPathWriter};
 use tokenizer_api::Token;
 
@@ -115,6 +115,10 @@ impl FastFieldsWriter {
     /// The memory used (inclusive childs)
     pub fn mem_usage(&self) -> usize {
         self.columnar_writer.mem_usage()
+    }
+
+    pub(crate) fn mem_usage_breakdown(&self) -> ColumnarWriterMemoryUsage {
+        self.columnar_writer.mem_usage_breakdown()
     }
 
     pub(crate) fn sort_order(

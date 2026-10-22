@@ -13,4 +13,4 @@ pub use merge::{
     merge_columnar,
 };
 pub use reader::ColumnarReader;
-pub use writer::ColumnarWriter;
+pub use writer::{ColumnarWriter, ColumnarWriterMemoryUsage};

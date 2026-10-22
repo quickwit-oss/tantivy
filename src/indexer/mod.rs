@@ -41,7 +41,7 @@ pub use self::operation::{AddOperation, DeleteOperation, UserOperation};
 pub use self::prepared_commit::PreparedCommit;
 pub use self::segment_entry::SegmentEntry;
 pub use self::segment_updater::{merge_filtered_segments, merge_indices};
-pub use self::segment_writer::SegmentWriter;
+pub use self::segment_writer::{SegmentWriter, SegmentWriterMemoryUsage};
 pub use self::single_segment_index_writer::SingleSegmentIndexWriter;
 
 /// Alias for the default merge policy, which is the `LogMergePolicy`.

@@ -1,3 +1,5 @@
+use columnar::ColumnarWriterMemoryUsage;
+
 use super::doc_id_mapping::{get_doc_id_mapping_from_field, DocIdMapping};
 use super::operation::AddOperation;
 use crate::fastfield::FastFieldsPluginWriter;
@@ -7,6 +9,19 @@ use crate::schema::document::{Document, ErasedDocument};
 use crate::schema::Schema;
 use crate::store::StorePluginWriter;
 use crate::{DocId, Opstamp, TantivyError};
+
+#[doc(hidden)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct SegmentWriterMemoryUsage {
+    pub postings: usize,
+    pub terms_table: usize,
+    pub terms_keys: usize,
+    pub fieldnorms: usize,
+    pub fast_fields: ColumnarWriterMemoryUsage,
+    pub docstore: usize,
+    pub custom_plugins: usize,
+    pub doc_opstamps: usize,
+}
 
 fn remap_doc_opstamps(
     opstamps: Vec<Opstamp>,
@@ -159,6 +174,26 @@ impl SegmentWriter {
 
     /// Returns an estimation of the current memory usage of the segment writer.
     /// If the mem usage exceeds the `memory_budget`, the segment be serialized.
+    #[doc(hidden)]
+    pub fn mem_usage_breakdown(&self) -> SegmentWriterMemoryUsage {
+        let indexing_context = self.inverted_index.indexing_context();
+        let terms_keys = indexing_context.term_index.memory_arena.mem_usage();
+        SegmentWriterMemoryUsage {
+            postings: indexing_context.arena.mem_usage(),
+            terms_table: indexing_context.term_index.mem_usage() - terms_keys,
+            terms_keys,
+            fieldnorms: self.inverted_index.fieldnorms_mem_usage(),
+            fast_fields: self.fast_fields.writer().mem_usage_breakdown(),
+            docstore: self.store_writer.mem_usage(),
+            custom_plugins: self
+                .custom_plugins
+                .iter()
+                .map(|writer| writer.mem_usage())
+                .sum::<usize>(),
+            doc_opstamps: self.doc_opstamps.capacity() * std::mem::size_of::<Opstamp>(),
+        }
+    }
+
     pub fn mem_usage(&self) -> usize {
         self.inverted_index.mem_usage()
             + self.fast_fields.mem_usage()
