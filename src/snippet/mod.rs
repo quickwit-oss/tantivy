@@ -101,7 +101,7 @@ impl FragmentCandidate {
     /// if the token is one of the terms, the score
     /// and highlighted fields are updated in the fragment.
     fn try_add_token(&mut self, token: &Token, terms: &BTreeMap<String, Score>) {
-        self.stop_offset = token.offset_to;
+        self.stop_offset = self.stop_offset.max(token.offset_to);
 
         if let Some(&score) = terms.get(&token.text.to_lowercase()) {
             self.score += score;
@@ -501,7 +501,7 @@ mod tests {
     use crate::query::QueryParser;
     use crate::schema::{Schema, TEXT};
     use crate::snippet::SnippetGenerator;
-    use crate::tokenizer::{NgramTokenizer, SimpleTokenizer};
+    use crate::tokenizer::{NgramTokenizer, SimpleTokenizer, Token};
     use crate::Index;
 
     const TEST_TEXT: &str = r#"Rust is a systems programming language sponsored by
@@ -547,6 +547,24 @@ Survey in 2016, 2017, and 2018."#;
             "<b>Rust</b> is a systems programming <b>language</b> sponsored by\nMozilla which \
              describes it as a &quot;safe"
         )
+    }
+
+    #[test]
+    fn test_snippet_with_overlapping_tokens() {
+        let terms = btreemap! { "abc".to_string() => 1.0 };
+        let mut fragment = super::FragmentCandidate::new(0);
+        // A whole token followed by a shorter token at the same offset.
+        for text in ["abc", "a"] {
+            let token = Token {
+                text: text.to_string(),
+                offset_from: 0,
+                offset_to: text.len(),
+                ..Token::default()
+            };
+            fragment.try_add_token(&token, &terms);
+        }
+        let snippet = select_best_fragment_combination(&[fragment], "abc");
+        assert_eq!(snippet.to_html(), "<b>abc</b>");
     }
 
     #[test]
