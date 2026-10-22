@@ -399,6 +399,8 @@ pub struct SnippetGenerator {
 
 impl SnippetGenerator {
     /// Creates a new snippet generator
+    ///
+    /// `terms_text` holds the terms as `tokenizer` produces them.
     pub fn new(
         terms_text: BTreeMap<String, Score>,
         tokenizer: TextAnalyzer,
