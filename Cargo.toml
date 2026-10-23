@@ -93,6 +93,10 @@ datasketches = { version = "0.5.0", features = ["hll"] }
 futures-util = { version = "0.3.28", optional = true }
 futures-channel = { version = "0.3.28", optional = true }
 fnv = "1.0.7"
+num-bigint = "0.4"
+num-rational = "0.4"
+num-traits = "0.2"
+robust = "1"
 typetag = "0.2.21"
 unwrap-infallible = "1.0.0"
 serde-tuple-vec-map = "1.0.1"

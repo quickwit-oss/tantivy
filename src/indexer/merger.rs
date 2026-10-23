@@ -542,6 +542,8 @@ impl IndexMerger {
 
 #[cfg(test)]
 mod tests {
+    use std::collections::HashSet;
+
     use columnar::Column;
     use proptest::prop_oneof;
     use proptest::strategy::Strategy;
@@ -550,7 +552,7 @@ mod tests {
     use crate::collector::tests::{
         BytesFastFieldTestCollector, FastFieldTestCollector, TEST_COLLECTOR_WITH_SCORE,
     };
-    use crate::collector::{Count, FacetCollector};
+    use crate::collector::{Count, DocSetCollector, FacetCollector};
     use crate::index::{Index, SegmentId};
     use crate::indexer::NoMergePolicy;
     use crate::query::{AllQuery, BooleanQuery, EnableScoring, Scorer, TermQuery};
@@ -563,6 +565,162 @@ mod tests {
         assert_nearly_equals, schema, DateTime, DocAddress, DocId, DocSet, IndexSettings,
         IndexSortByField, IndexWriter, Order, Searcher,
     };
+
+    /// Commits each JSON document as its own segment, then merges the segments in commit order,
+    /// so that each document's id in the merged segment is its position in `docs`.
+    fn merge_one_segment_per_doc(
+        docs: &[&str],
+    ) -> crate::Result<(Index, schema::Field, schema::Field)> {
+        let mut schema_builder = schema::Schema::builder();
+        let text = schema_builder.add_text_field("text", TEXT);
+        let geometry = schema_builder.add_spatial_field("geometry", schema::SPATIAL);
+        let index = Index::create_in_ram(schema_builder.build());
+        let mut writer: IndexWriter = index.writer_for_tests()?;
+        writer.set_merge_policy(Box::new(NoMergePolicy));
+        let mut segment_ids: Vec<SegmentId> = Vec::new();
+        for json in docs {
+            writer.add_document(TantivyDocument::parse_json(&index.schema(), json)?)?;
+            writer.commit()?;
+            let committed = index.searchable_segment_ids()?;
+            segment_ids.extend(committed.into_iter().find(|id| !segment_ids.contains(id)));
+        }
+        writer.merge(&segment_ids).wait()?;
+        Ok((index, text, geometry))
+    }
+
+    #[test]
+    fn test_merge_spatial_segments_without_geometry() -> crate::Result<()> {
+        let (index, text, geometry) = merge_one_segment_per_doc(&[
+            r#"{"text": "no place"}"#,
+            r#"{"text": "nowhere"}"#,
+            r#"{"text": "here", "geometry": {"type": "Point", "coordinates": [19.94, 50.06]}}"#,
+        ])?;
+
+        let searcher = index.reader()?.searcher();
+        assert_eq!(searcher.segment_readers().len(), 1);
+        assert_eq!(searcher.num_docs(), 3);
+        // The point moved from doc 0 of its own segment to doc 2 of the merged one.
+        let krakow =
+            crate::query::SpatialQuery::from_bounds(geometry, [[19.9, 50.0], [20.0, 50.1]]);
+        let here = TermQuery::new(
+            Term::from_field_text(text, "here"),
+            IndexRecordOption::Basic,
+        );
+        let found = searcher.search(&krakow, &DocSetCollector)?;
+        assert_eq!(found, searcher.search(&here, &DocSetCollector)?);
+        assert_eq!(found, HashSet::from([DocAddress::new(0, 2)]));
+        Ok(())
+    }
+
+    #[test]
+    fn test_merge_never_puts_a_line_around_a_cell_center() -> crate::Result<()> {
+        use crate::spatial::cell_index_reader::CellIndexReader;
+        use crate::spatial::edge_reader::EdgeReader;
+        use crate::spatial::sphere::Sphere;
+
+        // A zigzag line among points from other segments, so that the merge subdivides the cells
+        // the line crosses.
+        let mut docs = vec![r#"{"text": "line", "geometry": {"type": "LineString",
+            "coordinates": [[0, 0], [1, 2], [2, 0], [3, 2], [4, 0], [5, 2], [6, 0]]}}"#
+            .to_string()];
+        for i in 0..48 {
+            let (lon, lat) = (i as f64 / 8.0, (i % 5) as f64 / 2.5);
+            docs.push(format!(
+                r#"{{"text": "point", "geometry": {{"type": "Point", "coordinates": [{lon}, {lat}]}}}}"#
+            ));
+        }
+        let docs: Vec<&str> = docs.iter().map(String::as_str).collect();
+        let (index, _, geometry) = merge_one_segment_per_doc(&docs)?;
+
+        let searcher = index.reader()?.searcher();
+        assert_eq!(searcher.segment_readers().len(), 1);
+        let spatial = searcher
+            .segment_reader(0)
+            .spatial_fields()
+            .get_field(geometry)?
+            .unwrap();
+        let cells = CellIndexReader::open(spatial.cells_bytes())?;
+        let edges = EdgeReader::<Sphere>::open(spatial.edges_bytes())?;
+        let mut line_cells = 0;
+        for cell in cells.iter() {
+            for shape in &cell.shapes {
+                let (_, set) = edges.read_geometry_set(shape.geometry_id.1);
+                if set.members[0].closed {
+                    continue;
+                }
+                // A line or point is in a cell only where its edges are.
+                assert!(!shape.contains_center, "{:?}", cell.cell_id);
+                assert!(!shape.edge_indices.is_empty(), "{:?}", cell.cell_id);
+                line_cells += usize::from(set.members[0].vertices.len() > 1);
+            }
+        }
+        assert!(line_cells > 1);
+        Ok(())
+    }
+
+    #[test]
+    fn test_merge_never_puts_an_absorbed_line_around_a_cell_center() -> crate::Result<()> {
+        use crate::spatial::cell_index_reader::CellIndexReader;
+        use crate::spatial::edge_reader::EdgeReader;
+        use crate::spatial::sphere::Sphere;
+
+        // Short lines inside the spread of a few points: the points' coarse cell absorbs the
+        // lines' fine cells when merged, and the cells are flattened into one.
+        let mut docs = Vec::new();
+        for i in 0..24 {
+            let angle = i as f64 * 0.7;
+            let (lon, lat) = ((i % 5) as f64 - 2.0, (i % 7) as f64 * 0.6 - 1.8);
+            docs.push(format!(
+                r#"{{"text": "line", "geometry": {{"type": "LineString",
+                    "coordinates": [[{lon}, {lat}], [{}, {}]]}}}}"#,
+                lon + angle.cos(),
+                lat + angle.sin()
+            ));
+        }
+        for (lon, lat) in [(-4.0, -4.0), (5.0, -4.5), (4.5, 5.0), (-4.5, 4.0)] {
+            docs.push(format!(
+                r#"{{"text": "point", "geometry": {{"type": "Point", "coordinates": [{lon}, {lat}]}}}}"#
+            ));
+        }
+        let docs: Vec<&str> = docs.iter().map(String::as_str).collect();
+        let (index, _, geometry) = merge_one_segment_per_doc(&docs)?;
+
+        let searcher = index.reader()?.searcher();
+        let spatial = searcher
+            .segment_reader(0)
+            .spatial_fields()
+            .get_field(geometry)?
+            .unwrap();
+        let cells = CellIndexReader::open(spatial.cells_bytes())?;
+        let edges = EdgeReader::<Sphere>::open(spatial.edges_bytes())?;
+        for cell in cells.iter() {
+            for shape in &cell.shapes {
+                let (_, set) = edges.read_geometry_set(shape.geometry_id.1);
+                assert!(
+                    set.members[0].closed || !shape.contains_center,
+                    "{:?}",
+                    cell.cell_id
+                );
+            }
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn test_merge_spatial_field_never_written() -> crate::Result<()> {
+        let (index, _, geometry) =
+            merge_one_segment_per_doc(&[r#"{"text": "no place"}"#, r#"{"text": "nowhere"}"#])?;
+
+        let searcher = index.reader()?.searcher();
+        assert_eq!(searcher.num_docs(), 2);
+        // Like the segments merged into it, the merged segment has no entry for the field.
+        let spatial_fields = searcher.segment_reader(0).spatial_fields();
+        assert!(spatial_fields.get_field(geometry)?.is_none());
+        let anywhere =
+            crate::query::SpatialQuery::from_bounds(geometry, [[-10.0, -10.0], [10.0, 10.0]]);
+        assert_eq!(searcher.search(&anywhere, &Count)?, 0);
+        Ok(())
+    }
 
     #[test]
     fn test_index_merger_no_deletes() -> crate::Result<()> {

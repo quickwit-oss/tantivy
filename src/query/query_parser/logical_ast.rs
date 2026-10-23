@@ -4,8 +4,9 @@ use std::sync::Arc;
 
 use tantivy_fst::Regex;
 
-use crate::query::Occur;
+use crate::query::{Occur, SpatialPredicate};
 use crate::schema::{Field, Term};
+use crate::spatial::executor::SpatialRelation;
 use crate::Score;
 
 #[derive(Clone)]
@@ -28,11 +29,24 @@ pub enum LogicalLiteral {
         pattern: Arc<Regex>,
         field: Field,
     },
+    Spatial {
+        field: Field,
+        predicate: SpatialPredicate,
+        coordinates: Vec<[f64; 2]>,
+    },
+    /// Matches the documents whose geometry relates to the geometry of a document `inner`
+    /// matches.
+    SpatialJoin {
+        field: Field,
+        relation: SpatialRelation,
+        inner: Box<LogicalAst>,
+    },
     Exists {
         field: String,
     },
 }
 
+#[derive(Clone)]
 pub enum LogicalAst {
     Clause(Vec<(Occur, LogicalAst)>),
     Leaf(Box<LogicalLiteral>),
@@ -162,6 +176,20 @@ impl fmt::Debug for LogicalLiteral {
                 ref pattern,
                 ref field,
             } => write!(formatter, "Regex({field:?}, {pattern:?})"),
+            LogicalLiteral::Spatial {
+                ref field,
+                ref predicate,
+                ref coordinates,
+            } => write!(
+                formatter,
+                "Spatial({field:?}, {predicate:?}, {} coords)",
+                coordinates.len()
+            ),
+            LogicalLiteral::SpatialJoin {
+                ref field,
+                ref relation,
+                ref inner,
+            } => write!(formatter, "SpatialJoin({field:?}, {relation:?}, {inner:?})"),
             LogicalLiteral::Exists { ref field } => write!(formatter, "Exists({field})"),
         }
     }
