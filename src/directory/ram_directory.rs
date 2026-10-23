@@ -1,4 +1,4 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::io::{self, BufWriter, Cursor, Write};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -16,6 +16,20 @@ use crate::directory::{
 };
 
 const MEMORY_USAGE_UPDATE_THRESHOLD: usize = 10_000;
+
+#[derive(Default)]
+struct ActiveWriterMemoryUsage {
+    file_bytes: AtomicUsize,
+    allocated_bytes: AtomicUsize,
+}
+
+#[derive(Debug)]
+#[allow(missing_docs)]
+pub struct RamDirectoryFileMemoryUsage {
+    pub path: PathBuf,
+    pub file_bytes: usize,
+    pub allocated_bytes: usize,
+}
 
 struct MemoryUsageTracker {
     shared_usage: Arc<AtomicUsize>,
@@ -66,11 +80,16 @@ struct VecWriter {
     shared_directory: RamDirectory,
     data: Cursor<Vec<u8>>,
     memory_usage: MemoryUsageTracker,
+    file_memory_usage: Arc<ActiveWriterMemoryUsage>,
     is_finished: bool,
 }
 
 impl VecWriter {
-    fn new(path_buf: PathBuf, shared_directory: RamDirectory) -> VecWriter {
+    fn new(
+        path_buf: PathBuf,
+        shared_directory: RamDirectory,
+        file_memory_usage: Arc<ActiveWriterMemoryUsage>,
+    ) -> VecWriter {
         let memory_usage =
             MemoryUsageTracker::new(Arc::clone(&shared_directory.active_writer_mem_usage));
         VecWriter {
@@ -78,6 +97,7 @@ impl VecWriter {
             data: Cursor::new(Vec::new()),
             shared_directory,
             memory_usage,
+            file_memory_usage,
             is_finished: true,
         }
     }
@@ -94,7 +114,11 @@ impl Drop for VecWriter {
             );
         }
         if let Ok(mut fs) = self.shared_directory.fs.write() {
-            fs.active_writers.remove(&self.path);
+            if let Some(registered) = fs.active_writers.get(&self.path) {
+                if Arc::ptr_eq(registered, &self.file_memory_usage) {
+                    fs.active_writers.remove(&self.path);
+                }
+            }
         }
     }
 }
@@ -106,6 +130,14 @@ impl Write for VecWriter {
         self.data.write_all(buf)?;
         let capacity = self.data.get_ref().capacity();
         self.memory_usage.add(capacity - previous_capacity);
+        if capacity != previous_capacity {
+            self.file_memory_usage
+                .allocated_bytes
+                .store(capacity, Ordering::Relaxed);
+        }
+        self.file_memory_usage
+            .file_bytes
+            .store(self.data.get_ref().len(), Ordering::Release);
         Ok(buf.len())
     }
 
@@ -127,10 +159,15 @@ impl TerminatingWrite for VecWriter {
     }
 }
 
+struct RamFile {
+    data: FileSlice,
+    allocated_bytes: usize,
+}
+
 #[derive(Default)]
 struct InnerDirectory {
-    fs: HashMap<PathBuf, FileSlice>,
-    active_writers: HashSet<PathBuf>,
+    fs: HashMap<PathBuf, RamFile>,
+    active_writers: HashMap<PathBuf, Arc<ActiveWriterMemoryUsage>>,
     watch_router: WatchCallbackList,
 }
 
@@ -140,14 +177,23 @@ impl InnerDirectory {
     }
 
     fn write_owned(&mut self, path: PathBuf, data: Vec<u8>) -> bool {
-        self.fs.insert(path, FileSlice::from(data)).is_some()
+        let allocated_bytes = data.capacity();
+        self.fs
+            .insert(
+                path,
+                RamFile {
+                    data: FileSlice::from(data),
+                    allocated_bytes,
+                },
+            )
+            .is_some()
     }
 
     fn open_read(&self, path: &Path) -> Result<FileSlice, OpenReadError> {
         self.fs
             .get(path)
             .ok_or_else(|| OpenReadError::FileDoesNotExist(PathBuf::from(path)))
-            .cloned()
+            .map(|file| file.data.clone())
     }
 
     fn delete(&mut self, path: &Path) -> result::Result<(), DeleteError> {
@@ -158,7 +204,7 @@ impl InnerDirectory {
     }
 
     fn exists(&self, path: &Path) -> bool {
-        self.fs.contains_key(path) || self.active_writers.contains(path)
+        self.fs.contains_key(path) || self.active_writers.contains_key(path)
     }
 
     fn watch(&mut self, watch_handle: WatchCallback) -> WatchHandle {
@@ -166,7 +212,7 @@ impl InnerDirectory {
     }
 
     fn total_mem_usage(&self) -> usize {
-        self.fs.values().map(|f| f.len()).sum()
+        self.fs.values().map(|file| file.data.len()).sum()
     }
 }
 
@@ -200,6 +246,29 @@ impl RamDirectory {
             + self.active_writer_mem_usage.load(Ordering::Relaxed)
     }
 
+    #[allow(missing_docs)]
+    pub fn file_mem_usage(&self) -> Vec<RamDirectoryFileMemoryUsage> {
+        let directory = self.fs.read().unwrap();
+        let mut usage = Vec::with_capacity(directory.fs.len() + directory.active_writers.len());
+        for (path, file) in &directory.fs {
+            usage.push(RamDirectoryFileMemoryUsage {
+                path: path.clone(),
+                file_bytes: file.data.len(),
+                allocated_bytes: file.allocated_bytes,
+            });
+        }
+        for (path, writer) in &directory.active_writers {
+            let file_bytes = writer.file_bytes.load(Ordering::Acquire);
+            let allocated_bytes = writer.allocated_bytes.load(Ordering::Relaxed);
+            usage.push(RamDirectoryFileMemoryUsage {
+                path: path.clone(),
+                file_bytes,
+                allocated_bytes,
+            });
+        }
+        usage
+    }
+
     /// Write a copy of all of the files saved in the [`RamDirectory`] in the target [`Directory`].
     ///
     /// Files are all written using the [`Directory::open_write()`] meaning, even if they were
@@ -210,7 +279,7 @@ impl RamDirectory {
         let wlock = self.fs.write().unwrap();
         for (path, file) in wlock.fs.iter() {
             let mut dest_wrt = dest.open_write(path)?;
-            dest_wrt.write_all(file.read_bytes()?.as_slice())?;
+            dest_wrt.write_all(file.data.read_bytes()?.as_slice())?;
             dest_wrt.terminate()?;
         }
         Ok(())
@@ -251,11 +320,14 @@ impl Directory for RamDirectory {
     fn open_write(&self, path: &Path) -> Result<WritePtr, OpenWriteError> {
         let path_buf = PathBuf::from(path);
         let mut fs = self.fs.write().unwrap();
-        if fs.exists(path) || !fs.active_writers.insert(path_buf.clone()) {
+        if fs.exists(path) {
             return Err(OpenWriteError::FileAlreadyExists(path_buf));
         }
+        let file_memory_usage = Arc::new(ActiveWriterMemoryUsage::default());
+        fs.active_writers
+            .insert(path_buf.clone(), Arc::clone(&file_memory_usage));
         drop(fs);
-        let vec_writer = VecWriter::new(path_buf, self.clone());
+        let vec_writer = VecWriter::new(path_buf, self.clone(), file_memory_usage);
         Ok(BufWriter::new(Box::new(vec_writer)))
     }
 
