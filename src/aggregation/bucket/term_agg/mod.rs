@@ -54,7 +54,9 @@ pub(crate) struct TermsAggReqData {
 impl TermsAggReqData {
     /// Estimate the memory consumption of this struct in bytes.
     pub fn get_memory_consumption(&self) -> usize {
+        // A computed text source may already hold interned terms (e.g. a constant source).
         std::mem::size_of::<Self>()
+            + self.accessor.memory_consumption()
             + self
                 .allowed_term_ids
                 .as_ref()
@@ -1055,7 +1057,9 @@ impl<TermMap: TermAggregationMap, B: SubAggBuffer> SegmentAggregationCollector
         docs: &[crate::DocId],
         agg_data: &mut AggregationsSegmentCtx,
     ) -> crate::Result<()> {
-        let mem_pre = self.get_memory_consumption(parent_bucket_id);
+        // A computed text source grows its term dictionary while loading the block.
+        let mem_pre = self.get_memory_consumption(parent_bucket_id)
+            + self.terms_req_data.accessor.memory_consumption();
 
         let req_data = &mut self.terms_req_data;
 
@@ -1098,7 +1102,9 @@ impl<TermMap: TermAggregationMap, B: SubAggBuffer> SegmentAggregationCollector
             }
         }
 
-        let mem_delta = self.get_memory_consumption(parent_bucket_id) - mem_pre;
+        let mem_delta = (self.get_memory_consumption(parent_bucket_id)
+            + self.terms_req_data.accessor.memory_consumption())
+            - mem_pre;
         if mem_delta > 0 {
             agg_data
                 .context

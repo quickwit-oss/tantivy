@@ -298,10 +298,13 @@ mod tests {
 
     use super::*;
     use crate::aggregation::agg_req::Aggregations;
-    use crate::aggregation::{AggContextParams, AggregationCollector, ValueSourceRegistry};
+    use crate::aggregation::{
+        AggContextParams, AggregationCollector, AggregationError, AggregationLimitsGuard,
+        ValueSourceRegistry,
+    };
     use crate::query::AllQuery;
     use crate::schema::{Schema, FAST, STRING};
-    use crate::{Index, TantivyDocument};
+    use crate::{Index, TantivyDocument, TantivyError};
 
     fn registry(jitexpr_fields: &[(&str, &str)]) -> ValueSourceRegistry {
         let mut registry = ValueSourceRegistry::default();
@@ -318,8 +321,22 @@ mod tests {
         jitexpr_fields: &[(&str, &str)],
         aggs: Value,
     ) -> crate::Result<Value> {
-        let context =
-            AggContextParams::default().with_value_sources(Arc::new(registry(jitexpr_fields)));
+        try_run_agg_with_limits(
+            index,
+            jitexpr_fields,
+            aggs,
+            AggregationLimitsGuard::default(),
+        )
+    }
+
+    fn try_run_agg_with_limits(
+        index: &Index,
+        jitexpr_fields: &[(&str, &str)],
+        aggs: Value,
+        limits: AggregationLimitsGuard,
+    ) -> crate::Result<Value> {
+        let context = AggContextParams::new(limits, index.tokenizers().clone())
+            .with_value_sources(Arc::new(registry(jitexpr_fields)));
         let aggs: Aggregations = serde_json::from_value(aggs).unwrap();
         let collector = AggregationCollector::from_aggs(aggs, context);
         let searcher = index.reader().unwrap().searcher();
@@ -671,6 +688,80 @@ mod tests {
             json!({ "c": { "cardinality": { "field": "#first_letter" } } }),
         );
         assert_eq!(result["c"]["value"], 3.0);
+    }
+
+    /// https://github.com/quickwit-oss/tantivy/issues/3172
+    ///
+    /// The term dictionary of a computed text source grows during collection, and its growth
+    /// is charged against the aggregation memory limit: with a tiny limit, an aggregation
+    /// that interns many terms must abort instead of succeeding.
+    #[test]
+    fn test_computed_text_dictionary_is_charged_against_memory_limit() {
+        let mut schema_builder = Schema::builder();
+        let label = schema_builder.add_text_field("label", STRING | FAST);
+        let index = Index::create_in_ram(schema_builder.build());
+        let mut writer = index.writer_for_tests().unwrap();
+        for i in 0..2_000 {
+            writer
+                .add_document(doc!(label => format!("label_{i}")))
+                .unwrap();
+        }
+        writer.commit().unwrap();
+
+        let jitexpr_fields = [("#upper", "(UPPER label)")];
+        for aggs in [
+            json!({ "c": { "cardinality": { "field": "#upper" } } }),
+            json!({ "t": { "terms": { "field": "#upper" } } }),
+            json!({ "n": { "value_count": { "field": "#upper" } } }),
+        ] {
+            let err = try_run_agg_with_limits(
+                &index,
+                &jitexpr_fields,
+                aggs.clone(),
+                AggregationLimitsGuard::new(Some(1_024), None),
+            )
+            .unwrap_err();
+            assert!(
+                matches!(
+                    err,
+                    TantivyError::AggregationError(AggregationError::MemoryExceeded { .. })
+                ),
+                "{aggs}: {err}"
+            );
+        }
+
+        // A constant text source interns its single term when the source is built: that
+        // baseline is charged as well.
+        let big_literal = format!("\"{}\"", "x".repeat(4_096));
+        let err = try_run_agg_with_limits(
+            &index,
+            &[("#constant", big_literal.as_str())],
+            json!({ "c": { "cardinality": { "field": "#constant" } } }),
+            AggregationLimitsGuard::new(Some(1_024), None),
+        )
+        .unwrap_err();
+        assert!(
+            matches!(
+                err,
+                TantivyError::AggregationError(AggregationError::MemoryExceeded { .. })
+            ),
+            "{err}"
+        );
+
+        // With a limit that fits the dictionary, the same aggregations succeed.
+        let result = try_run_agg_with_limits(
+            &index,
+            &jitexpr_fields,
+            json!({
+                "c": { "cardinality": { "field": "#upper" } },
+                "t": { "terms": { "field": "#upper", "size": 3_000 } }
+            }),
+            AggregationLimitsGuard::new(Some(10_000_000), None),
+        )
+        .unwrap();
+        assert_eq!(result["t"]["buckets"].as_array().unwrap().len(), 2_000);
+        let cardinality = result["c"]["value"].as_f64().unwrap();
+        assert!((cardinality - 2_000.0).abs() < 200.0, "{cardinality}");
     }
 
     #[test]
