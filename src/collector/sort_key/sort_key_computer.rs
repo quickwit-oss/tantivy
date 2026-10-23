@@ -80,6 +80,19 @@ pub trait SegmentSortKeyComputer: 'static {
 
     /// Convert a segment level sort key into the global sort key.
     fn convert_segment_sort_key(&self, sort_key: Self::SegmentSortKey) -> Self::SortKey;
+
+    /// Convert a batch of segment level sort keys into global sort keys, in order.
+    ///
+    /// The top-k collector converts a segment's hits in one call. Override this when
+    /// converting keys together is cheaper than one at a time, e.g. dictionary lookups
+    /// of term ordinals.
+    fn convert_segment_sort_keys(&self, sort_keys: &[Self::SegmentSortKey]) -> Vec<Self::SortKey> {
+        sort_keys
+            .iter()
+            .cloned()
+            .map(|sort_key| self.convert_segment_sort_key(sort_key))
+            .collect()
+    }
 }
 
 /// `SortKeyComputer` defines the sort key to be used by a TopK Collector.
@@ -266,6 +279,15 @@ where
             self.1.convert_segment_sort_key(tail_sort_key),
         )
     }
+
+    fn convert_segment_sort_keys(&self, sort_keys: &[Self::SegmentSortKey]) -> Vec<Self::SortKey> {
+        let (head_sort_keys, tail_sort_keys): (Vec<_>, Vec<_>) = sort_keys.iter().cloned().unzip();
+        self.0
+            .convert_segment_sort_keys(&head_sort_keys)
+            .into_iter()
+            .zip(self.1.convert_segment_sort_keys(&tail_sort_keys))
+            .collect()
+    }
 }
 
 /// This struct is used as an adapter to take a sort key computer and map its score to another
@@ -316,6 +338,17 @@ where
             self.sort_key_computer
                 .convert_segment_sort_key(segment_sort_key),
         )
+    }
+
+    fn convert_segment_sort_keys(
+        &self,
+        segment_sort_keys: &[Self::SegmentSortKey],
+    ) -> Vec<Self::SortKey> {
+        self.sort_key_computer
+            .convert_segment_sort_keys(segment_sort_keys)
+            .into_iter()
+            .map(self.map)
+            .collect()
     }
 }
 
