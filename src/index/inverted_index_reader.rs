@@ -1,9 +1,9 @@
 use std::io;
 
 use common::json_path_writer::JSON_END_OF_PATH;
-#[cfg(feature = "quickwit")]
-use common::BitSet;
 use common::{BinarySerializable, ByteCount};
+#[cfg(feature = "quickwit")]
+use common::{BitSet, VInt};
 #[cfg(feature = "quickwit")]
 use futures_util::{FutureExt, StreamExt, TryStreamExt};
 #[cfg(feature = "quickwit")]
@@ -516,32 +516,45 @@ impl InvertedIndexReader {
         let (posting_range_sender, posting_range_receiver) = futures_channel::mpsc::unbounded();
         let termdict = self.termdict.clone();
         let cpu_bound_task = move || {
-            let mut stream = termdict.search(&automaton).into_stream()?;
-            let posting_ranges = std::iter::from_fn(move || {
-                stream.next().map(|(_, info)| info.postings_range.clone())
+            let mut stream = termdict.search(automaton).without_keys().into_stream()?;
+            let mut encoded_postings = Vec::new();
+            let mut previous_end = 0;
+            let posting_ranges = std::iter::from_fn(|| {
+                let info = stream.next_without_key()?;
+                let range = info.postings_range.clone();
+                // Retain only what decoding postings needs, avoiding another dictionary scan.
+                VInt((range.start - previous_end) as u64).serialize_into_vec(&mut encoded_postings);
+                VInt(range.len() as u64).serialize_into_vec(&mut encoded_postings);
+                VInt(u64::from(info.doc_freq)).serialize_into_vec(&mut encoded_postings);
+                previous_end = range.end;
+                Some(range)
             });
             send_coalesced_posting_ranges(posting_ranges, posting_range_sender)?;
-            Ok(automaton)
+            Ok(encoded_postings)
         };
         let task_handle = executor.spawn_blocking(cpu_bound_task).map(|result| {
             result.map_err(|_| io::Error::other("automaton warmup task panicked"))?
         });
-        let (automaton, _) = futures_util::future::try_join(
+        let (encoded_postings, _) = futures_util::future::try_join(
             task_handle,
             self.download_posting_ranges(posting_range_receiver),
         )
         .await?;
 
-        let termdict = self.termdict.clone();
         let postings_file_slice = self.postings_file_slice.clone();
         let record_option = self.record_option;
         let cpu_bound_task = move || {
             let mut bitset = BitSet::with_max_value(max_doc);
-            let mut stream = termdict.search(automaton).into_stream()?;
-            while let Some((_, term_info)) = stream.next() {
+            let mut data = encoded_postings.as_slice();
+            let mut previous_end = 0;
+            while !data.is_empty() {
+                let start = previous_end + VInt::deserialize_u64(&mut data)? as usize;
+                let end = start + VInt::deserialize_u64(&mut data)? as usize;
+                let doc_freq = VInt::deserialize_u64(&mut data)? as u32;
+                previous_end = end;
                 let mut postings = BlockSegmentPostings::open(
-                    term_info.doc_freq,
-                    postings_file_slice.slice(term_info.postings_range.clone()),
+                    doc_freq,
+                    postings_file_slice.slice(start..end),
                     record_option,
                     IndexRecordOption::Basic,
                 )?;
@@ -614,6 +627,7 @@ mod tests {
             ("b.*", vec![0, 2]),
             ("z.*", vec![]),
             ("a.*", [vec![0, 1], (4..264).collect()].concat()),
+            ("apple|berry", [vec![0, 2], (4..264).collect()].concat()),
             (".*", (0..264).collect()),
         ] {
             let bitset =
