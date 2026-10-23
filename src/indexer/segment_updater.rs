@@ -410,7 +410,9 @@ impl SegmentUpdater {
         if self.is_alive() {
             let index = &self.index;
             let directory = index.directory();
-            let mut committed_segment_metas = self.segment_manager.committed_segment_metas();
+            let mut committed_segment_metas = self
+                .segment_manager
+                .committed_segment_metas(&self.merge_operations.segment_in_merge());
 
             // We sort segment_readers by number of documents.
             // This is an heuristic to make multithreading more efficient.
