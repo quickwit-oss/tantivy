@@ -39,6 +39,16 @@ pub fn validate_columnar_reader(reader: &ColumnarReader) {
                     assert!(ord < num_terms_dict);
                 }
             }
+            columnar::DynamicColumn::PlainBytes(plain_column) => {
+                let num_vals = plain_column.num_values();
+                let num_blocks = plain_column.num_blocks();
+                println!("{col_name:35}  num_vals {num_vals:10} \t plain, num_blocks {num_blocks:8}");
+            }
+            columnar::DynamicColumn::PlainStr(plain_column) => {
+                let num_vals = plain_column.num_values();
+                let num_blocks = plain_column.num_blocks();
+                println!("{col_name:35}  num_vals {num_vals:10} \t plain, num_blocks {num_blocks:8}");
+            }
         }
     }
 }
