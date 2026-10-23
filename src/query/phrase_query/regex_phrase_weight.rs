@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use common::BitSet;
-use tantivy_fst::Regex;
+use tantivy_fst::{Automaton, Regex};
 
 use super::PhraseScorer;
 use crate::fieldnorm::FieldNormReader;
@@ -18,24 +18,28 @@ type UnionType = SimpleUnion<Box<dyn Postings + 'static>>;
 
 /// The `RegexPhraseWeight` is the weight associated to a regex phrase query.
 /// See RegexPhraseWeight::get_union_from_term_infos for some design decisions.
-pub struct RegexPhraseWeight {
+pub struct RegexPhraseWeight<A = Regex> {
     field: Field,
-    phrase_terms: Vec<(usize, Arc<Regex>)>,
+    phrase_terms: Vec<(usize, Arc<A>)>,
     similarity_weight_opt: Option<Bm25Weight>,
     slop: u32,
     max_expansions: u32,
 }
 
-impl RegexPhraseWeight {
+impl<A> RegexPhraseWeight<A>
+where
+    A: Automaton + Send + Sync + 'static,
+    A::State: Clone,
+{
     /// Creates a new phrase weight.
     /// If `similarity_weight_opt` is None, then scoring is disabled
     pub fn new(
         field: Field,
-        phrase_terms: Vec<(usize, Arc<Regex>)>,
+        phrase_terms: Vec<(usize, Arc<A>)>,
         similarity_weight_opt: Option<Bm25Weight>,
         max_expansions: u32,
         slop: u32,
-    ) -> RegexPhraseWeight {
+    ) -> RegexPhraseWeight<A> {
         RegexPhraseWeight {
             field,
             phrase_terms,
@@ -67,9 +71,9 @@ impl RegexPhraseWeight {
         let mut posting_lists = Vec::new();
         let inverted_index = reader.inverted_index(self.field)?;
         let mut num_terms = 0;
-        for &(offset, ref regex) in &self.phrase_terms {
-            let automaton: AutomatonWeight<Regex> =
-                AutomatonWeight::new(self.field, Arc::clone(regex));
+        for &(offset, ref automaton) in &self.phrase_terms {
+            let automaton: AutomatonWeight<A> =
+                AutomatonWeight::new(self.field, Arc::clone(automaton));
             let term_infos = automaton.get_match_term_infos(reader)?;
             // If term_infos is empty, the phrase can not match any documents.
             if term_infos.is_empty() {
@@ -265,7 +269,11 @@ impl RegexPhraseWeight {
     }
 }
 
-impl Weight for RegexPhraseWeight {
+impl<A> Weight for RegexPhraseWeight<A>
+where
+    A: Automaton + Send + Sync + 'static,
+    A::State: Clone,
+{
     fn scorer(&self, reader: &SegmentReader, boost: Score) -> crate::Result<Box<dyn Scorer>> {
         if let Some(scorer) = self.phrase_scorer(reader, boost)? {
             Ok(Box::new(scorer))
@@ -531,6 +539,39 @@ mod tests {
         assert_eq!(phrase_scorer.doc(), 0);
         assert_eq!(phrase_scorer.phrase_count(), 1);
         assert_eq!(phrase_scorer.advance(), TERMINATED);
+        Ok(())
+    }
+
+    #[test]
+    pub fn test_phrase_from_automata_accepts_any_automaton() -> crate::Result<()> {
+        use std::sync::Arc;
+
+        use crate::collector::{Count, TopDocs};
+        use crate::query::{DfaWrapper, FuzzyTermQuery};
+        use crate::Term;
+
+        let index = create_index(&["hello world", "help world", "hello there", "world hello"])?;
+        let text_field = index.schema().get_field("text").unwrap();
+        let searcher = index.reader()?.searcher();
+        let fuzzy = |text: &str, distance: u8| -> crate::Result<Arc<DfaWrapper>> {
+            let query =
+                FuzzyTermQuery::new(Term::from_field_text(text_field, text), distance, true);
+            Ok(Arc::new(query.automaton()?))
+        };
+        let query = RegexPhraseQuery::from_automata(
+            text_field,
+            vec![
+                (1, "world".into(), fuzzy("world", 0)?),
+                (0, "helo".into(), fuzzy("helo", 1)?),
+            ],
+            0,
+        );
+        assert_eq!(query.automata()?.len(), 2);
+        assert_eq!(searcher.search(&query, &Count)?, 2);
+        let top_docs = searcher.search(&query, &TopDocs::with_limit(10).order_by_score())?;
+        let mut docs: Vec<u32> = top_docs.iter().map(|(_, addr)| addr.doc_id).collect();
+        docs.sort();
+        assert_eq!(docs, vec![0, 1]);
         Ok(())
     }
 }
