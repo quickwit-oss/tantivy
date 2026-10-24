@@ -1,4 +1,5 @@
 use std::borrow::Cow;
+use std::fmt;
 use std::ops::RangeInclusive;
 use std::sync::Arc;
 
@@ -23,11 +24,28 @@ use std::sync::Arc;
 /// assert!(zero_width_chars.contains('\u{301}'));
 /// assert!(!zero_width_chars.contains('e'));
 /// ```
-#[derive(Clone, Default, Debug, PartialEq, Eq)]
+#[derive(Clone, Default, PartialEq, Eq)]
 pub struct ZeroWidthChars {
     ascii: [u64; 2],
     // Sorted, non-overlapping and non-adjacent ranges of non-ASCII chars.
     non_ascii: Arc<[(char, char)]>,
+}
+
+impl fmt::Debug for ZeroWidthChars {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let ascii = (0u8..0x80)
+            .filter(|&byte| self.ascii[(byte >> 6) as usize] & (1u64 << (byte & 63)) != 0)
+            .map(|byte| (char::from(byte), char::from(byte)));
+        let mut list = f.debug_list();
+        for (start, end) in ascii.chain(self.non_ascii.iter().copied()) {
+            if start == end {
+                list.entry(&start);
+            } else {
+                list.entry(&(start..=end));
+            }
+        }
+        list.finish()
+    }
 }
 
 impl ZeroWidthChars {
@@ -36,12 +54,14 @@ impl ZeroWidthChars {
         ZeroWidthChars::default().with_ranges(chars.into_iter().map(|c| c..=c))
     }
 
-    /// Makes the characters of the given inclusive range zero-width too.
+    /// Makes the characters of the given inclusive range zero-width too. An empty range, such as
+    /// `'b'..='a'`, adds nothing.
     pub fn with_range(self, range: RangeInclusive<char>) -> ZeroWidthChars {
         self.with_ranges([range])
     }
 
-    /// Makes the characters of the given inclusive ranges zero-width too.
+    /// Makes the characters of the given inclusive ranges zero-width too. Empty ranges add
+    /// nothing.
     pub fn with_ranges(
         mut self,
         ranges: impl IntoIterator<Item = RangeInclusive<char>>,
@@ -173,19 +193,19 @@ mod tests {
         assert!(none.is_empty());
         assert!(!none.contains('\''));
 
-        let zero_width_chars = ZeroWidthChars::from_chars(['\'', '"', '\u{5F3}']).with_ranges([
+        let zero_width_chars = ZeroWidthChars::from_chars(['\'', '"', '\u{2019}']).with_ranges([
             '\u{300}'..='\u{36F}',
             '\u{200B}'..='\u{200D}',
             'b'..='a',
         ]);
         assert!(!zero_width_chars.is_empty());
         for c in [
-            '\'', '"', '\u{5F3}', '\u{300}', '\u{301}', '\u{36F}', '\u{200C}',
+            '\'', '"', '\u{2019}', '\u{300}', '\u{301}', '\u{36F}', '\u{200C}',
         ] {
             assert!(zero_width_chars.contains(c), "{c:?}");
         }
         for c in [
-            'a', 'b', '\u{2FF}', '\u{370}', '\u{e9}', '\u{200E}', '\u{5F4}',
+            'a', 'b', '\u{2FF}', '\u{370}', '\u{e9}', '\u{200E}', '\u{2018}',
         ] {
             assert!(!zero_width_chars.contains(c), "{c:?}");
         }

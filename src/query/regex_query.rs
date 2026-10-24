@@ -77,6 +77,9 @@ impl fmt::Debug for RegexQuery {
         if let Some(cap) = &self.max_expansions {
             debug_struct.field("max_expansions", cap);
         }
+        if !self.zero_width_chars.is_empty() {
+            debug_struct.field("zero_width_chars", &self.zero_width_chars);
+        }
         debug_struct.finish()
     }
 }
