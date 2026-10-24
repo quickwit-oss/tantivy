@@ -45,6 +45,9 @@ const DEFAULT_MAX_EXPANSIONS: u32 = 1 << 14;
 /// before giving up; it bounds both its time and its memory.
 const MAX_EXACT_SEARCH_STATES: usize = 100_000;
 
+/// The exact search recurses once per slot: this bounds its stack depth.
+const MAX_UNORDERED_SLOTS: usize = 1024;
+
 /// The terms of one slot of a [`SpanQuery`].
 ///
 /// A custom source, here a slot matching any of a few exact terms:
@@ -228,6 +231,10 @@ enum SpanMode {
 /// the query's field. The slots may expand to at most
 /// [`SpanQuery::set_max_expansions`] terms in total per segment.
 ///
+/// On a JSON field, each path counts its positions separately, as for
+/// [`PhraseQuery`](crate::query::PhraseQuery): keep all slots on one path, or
+/// slots on different paths may match words that are not near each other.
+///
 /// Distances count positions, as [`PhraseQuery`](crate::query::PhraseQuery)'s
 /// slop does: for two slots in order, a gap of `n` matches what a slop of `n`
 /// matches. With more slots, the slop is one budget for the whole phrase while
@@ -362,7 +369,9 @@ impl SpanQuery {
     /// When a word can fill two non-adjacent slots, the unordered check runs
     /// an exact search, exponential in the number of slots in the worst case.
     /// It expands at most 100,000 states per document; a document where it
-    /// gives up does not match.
+    /// gives up does not match. Its recursion is one level per slot, so an
+    /// unordered sequence takes at most 1,024 slots: searching with more
+    /// returns an error.
     ///
     /// # Panics
     ///
@@ -407,6 +416,13 @@ impl Query for SpanQuery {
                 "Span query on field {:?} has a slot on field {:?}",
                 field_entry.name(),
                 enable_scoring.schema().get_field_name(slot.field())
+            )));
+        }
+        let unordered = matches!(self.mode, SpanMode::Sequence { ordered: false, .. });
+        if unordered && self.slots.len() > MAX_UNORDERED_SLOTS {
+            return Err(TantivyError::InvalidArgument(format!(
+                "Unordered span query has {} slots, more than {MAX_UNORDERED_SLOTS}",
+                self.slots.len()
             )));
         }
         Ok(Box::new(SpanWeight {
@@ -948,7 +964,7 @@ mod tests {
 
     use super::{
         AutomatonTermSource, ExactTermSource, SpanMatcher, SpanMode, SpanQuery, SpanTermSource,
-        MAX_EXACT_SEARCH_STATES,
+        MAX_EXACT_SEARCH_STATES, MAX_UNORDERED_SLOTS,
     };
     use crate::collector::{Count, DocSetCollector};
     use crate::query::{EnableScoring, FuzzyTermQuery, PhraseQuery, Query};
@@ -1525,5 +1541,34 @@ mod tests {
             vec![0, 1, 2]
         );
         Ok(())
+    }
+
+    #[test]
+    fn unordered_slot_limit() -> crate::Result<()> {
+        let (index, f) = build(&["a a"])?;
+        let searcher = index.reader()?.searcher();
+        let words = vec!["a"; MAX_UNORDERED_SLOTS + 1];
+        let gaps = vec![0; MAX_UNORDERED_SLOTS];
+        let unordered = sequence(f, &words, &gaps, false);
+        assert!(matches!(
+            unordered.weight(EnableScoring::disabled_from_searcher(&searcher)),
+            Err(TantivyError::InvalidArgument(msg)) if msg.contains("slots")
+        ));
+        let ordered = sequence(f, &words, &gaps, true);
+        assert!(search(&index, &ordered)?.is_empty());
+        Ok(())
+    }
+
+    #[test]
+    fn unordered_exact_search_at_the_slot_limit() {
+        // Identical slots over as many positions: the exact search runs and
+        // recurses once per slot.
+        let positions =
+            vec![(0..MAX_UNORDERED_SLOTS as u32).collect::<Vec<u32>>(); MAX_UNORDERED_SLOTS];
+        let mode = SpanMode::Sequence {
+            gaps: vec![0; MAX_UNORDERED_SLOTS - 1],
+            ordered: false,
+        };
+        assert!(SpanMatcher::default().matches(&positions, &mode));
     }
 }
