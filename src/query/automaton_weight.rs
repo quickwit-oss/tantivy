@@ -1,5 +1,5 @@
 use std::cmp::{Ordering, Reverse};
-use std::collections::{BTreeSet, BinaryHeap};
+use std::collections::{BTreeSet, BinaryHeap, HashMap};
 use std::sync::atomic::{AtomicBool, Ordering as AtomicOrdering};
 use std::sync::{Arc, Mutex, MutexGuard};
 use std::{fmt, io};
@@ -10,7 +10,7 @@ use tantivy_fst::Automaton;
 use super::phrase_prefix_query::prefix_end;
 use crate::index::SegmentReader;
 use crate::postings::TermInfo;
-use crate::query::{BitSetDocSet, ConstScorer, Explanation, Scorer, Weight};
+use crate::query::{BitSetDocSet, ConstScorer, Explanation, Scorer, Weight, ZeroWidthChars};
 use crate::schema::{Field, IndexRecordOption};
 use crate::termdict::{TermDictionary, TermStreamer, TermStreamerBuilder, WithoutKeys};
 use crate::{DocId, Score, TantivyError};
@@ -126,6 +126,7 @@ pub struct AutomatonWeight<A> {
     matched_terms_sink: Option<MatchedTermsSink>,
     max_expansions: Option<usize>,
     expansion_rank: Option<ExpansionRank>,
+    zero_width_chars: ZeroWidthChars,
 }
 
 impl<A> AutomatonWeight<A>
@@ -142,6 +143,7 @@ where
             matched_terms_sink: None,
             max_expansions: None,
             expansion_rank: None,
+            zero_width_chars: ZeroWidthChars::default(),
         }
     }
 
@@ -161,6 +163,7 @@ where
             matched_terms_sink: None,
             max_expansions: None,
             expansion_rank: None,
+            zero_width_chars: ZeroWidthChars::default(),
         }
     }
 
@@ -189,6 +192,9 @@ where
     ///
     /// A cap of `0` matches no document; the sink is then marked truncated if any term matched.
     ///
+    /// See [`set_zero_width_chars`](Self::set_zero_width_chars) to group terms that differ only
+    /// in some characters into one slot.
+    ///
     /// Unlike [`RegexPhraseQuery::set_max_expansions`], which returns an error past its limit,
     /// this keeps the selected terms and leaves the others out; the sink, if any, is then marked
     /// truncated.
@@ -202,6 +208,20 @@ where
     /// Without a rank, every term has rank `0`. It has no effect without a cap.
     pub fn set_expansion_rank(&mut self, rank: ExpansionRank) {
         self.expansion_rank = Some(rank);
+    }
+
+    /// Sets characters that do not count towards a term's length under
+    /// [`set_max_expansions`](Self::set_max_expansions). It has no effect without a cap.
+    ///
+    /// Terms that are equal once these characters are removed share one slot of the cap: the
+    /// slot's rank is the lowest rank of its terms, its length the length of its terms without
+    /// these characters, and its document frequency the sum of theirs (ties are broken by the
+    /// stripped bytes). Every term of a kept slot is used.
+    ///
+    /// Since a slot's document frequency is only known once all of its terms are seen, the
+    /// selection then holds every matching term of the segment in memory, instead of `cap` terms.
+    pub fn set_zero_width_chars(&mut self, zero_width_chars: ZeroWidthChars) {
+        self.zero_width_chars = zero_width_chars;
     }
 
     fn automaton_stream_builder<'a>(
@@ -266,8 +286,11 @@ where
         &self,
         term_dict: &TermDictionary,
         cap: usize,
-        mut on_term_info: impl FnMut(&TermInfo) -> crate::Result<()>,
+        on_term_info: impl FnMut(&TermInfo) -> crate::Result<()>,
     ) -> crate::Result<()> {
+        if !self.zero_width_chars.is_empty() {
+            return self.for_each_capped_slot_term_info(term_dict, cap, on_term_info);
+        }
         let mut term_stream = self.automaton_stream_builder(term_dict).into_stream()?;
         let mut best_terms = BestTerms::new(cap);
         while term_stream.advance() {
@@ -282,19 +305,87 @@ where
         }
         let truncated = best_terms.truncated;
         let kept_terms = best_terms.into_sorted_vec();
+        self.use_kept_terms(
+            kept_terms
+                .iter()
+                .map(|candidate| (&candidate.key[..], &candidate.term_info)),
+            truncated,
+            on_term_info,
+        )
+    }
+
+    /// Like [`for_each_capped_term_info`](Self::for_each_capped_term_info), where terms that are
+    /// equal without their zero-width characters share one slot of the cap.
+    fn for_each_capped_slot_term_info(
+        &self,
+        term_dict: &TermDictionary,
+        cap: usize,
+        on_term_info: impl FnMut(&TermInfo) -> crate::Result<()>,
+    ) -> crate::Result<()> {
+        let mut term_stream = self.automaton_stream_builder(term_dict).into_stream()?;
+        // Slots by stripped term.
+        let mut slots: HashMap<Vec<u8>, ExpansionSlot> = HashMap::new();
+        let mut truncated = false;
+        while term_stream.advance() {
+            if cap == 0 {
+                truncated = true;
+                break;
+            }
+            let key = term_stream.key();
+            let rank = self.expansion_rank.as_ref().map_or(0, |rank| rank(key));
+            let recorded_term = self.recorded_term(key);
+            let num_chars = self.zero_width_chars.num_chars(recorded_term);
+            let stripped_term = self.zero_width_chars.strip(recorded_term);
+            let term = (key.to_vec(), term_stream.value().clone());
+            match slots.get_mut(stripped_term.as_ref()) {
+                Some(slot) => slot.add(rank, num_chars, term),
+                None => {
+                    slots.insert(
+                        stripped_term.into_owned(),
+                        ExpansionSlot::new(rank, num_chars, term),
+                    );
+                }
+            }
+        }
+        let mut slots: Vec<(Vec<u8>, ExpansionSlot)> = slots.into_iter().collect();
+        let by_sort_key = |left: &(Vec<u8>, ExpansionSlot), right: &(Vec<u8>, ExpansionSlot)| {
+            left.1.sort_key(&left.0).cmp(&right.1.sort_key(&right.0))
+        };
+        if slots.len() > cap {
+            truncated = true;
+            slots.select_nth_unstable_by(cap, by_sort_key);
+            slots.truncate(cap);
+        }
+        slots.sort_unstable_by(by_sort_key);
+        let kept_terms = slots.iter().flat_map(|(_, slot)| {
+            slot.terms
+                .iter()
+                .map(|(key, term_info)| (&key[..], term_info))
+        });
+        self.use_kept_terms(kept_terms, truncated, on_term_info)
+    }
+
+    /// Reports the terms kept by a capped expansion to the sink, and calls `on_term_info` for
+    /// each of them.
+    fn use_kept_terms<'t>(
+        &self,
+        kept_terms: impl Iterator<Item = (&'t [u8], &'t TermInfo)> + Clone,
+        truncated: bool,
+        mut on_term_info: impl FnMut(&TermInfo) -> crate::Result<()>,
+    ) -> crate::Result<()> {
         if let Some(sink) = &self.matched_terms_sink {
             if truncated {
                 sink.mark_truncated();
             }
             sink.extend(
                 kept_terms
-                    .iter()
-                    .map(|candidate| self.recorded_term(&candidate.key).to_vec())
+                    .clone()
+                    .map(|(key, _)| self.recorded_term(key).to_vec())
                     .collect(),
             );
         }
-        for candidate in &kept_terms {
-            on_term_info(&candidate.term_info)?;
+        for (_, term_info) in kept_terms {
+            on_term_info(term_info)?;
         }
         Ok(())
     }
@@ -413,6 +504,44 @@ impl Ord for ExpansionCandidate {
     }
 }
 
+/// The terms that are equal without their zero-width characters, competing together for a slot
+/// of a capped expansion.
+struct ExpansionSlot {
+    rank: u32,
+    num_chars: usize,
+    doc_freq: u64,
+    terms: Vec<(Vec<u8>, TermInfo)>,
+}
+
+impl ExpansionSlot {
+    fn new(rank: u32, num_chars: usize, term: (Vec<u8>, TermInfo)) -> ExpansionSlot {
+        ExpansionSlot {
+            rank,
+            num_chars,
+            doc_freq: u64::from(term.1.doc_freq),
+            terms: vec![term],
+        }
+    }
+
+    fn add(&mut self, rank: u32, num_chars: usize, term: (Vec<u8>, TermInfo)) {
+        self.rank = self.rank.min(rank);
+        // Equal for valid UTF-8; the minimum keeps the order independent of the walk otherwise.
+        self.num_chars = self.num_chars.min(num_chars);
+        self.doc_freq += u64::from(term.1.doc_freq);
+        self.terms.push(term);
+    }
+
+    /// Lower is better.
+    fn sort_key<'a>(&self, stripped_term: &'a [u8]) -> (u32, usize, Reverse<u64>, &'a [u8]) {
+        (
+            self.rank,
+            self.num_chars,
+            Reverse(self.doc_freq),
+            stripped_term,
+        )
+    }
+}
+
 /// Keeps the best `cap` terms offered to it, in `O(cap)` memory.
 struct BestTerms {
     cap: usize,
@@ -462,9 +591,12 @@ impl BestTerms {
 
 #[cfg(test)]
 mod tests {
+    use std::collections::{BTreeMap, BTreeSet};
     use std::sync::Arc;
 
     use proptest::prelude::*;
+    use rand::rngs::StdRng;
+    use rand::{Rng, SeedableRng};
     use tantivy_fst::automaton::AlwaysMatch;
     use tantivy_fst::Automaton;
 
@@ -472,7 +604,7 @@ mod tests {
     use crate::docset::{DocSet, TERMINATED};
     use crate::index::SegmentReader;
     use crate::postings::TermInfo;
-    use crate::query::Weight;
+    use crate::query::{Weight, ZeroWidthChars};
     use crate::schema::{Schema, INDEXED, STRING};
     use crate::{DocId, Index, IndexWriter};
 
@@ -713,6 +845,156 @@ mod tests {
             assert_eq!(num_docs, cap, "cap {cap}");
             assert_eq!(sink.take_bytes(), expected_terms, "cap {cap}");
         }
+        Ok(())
+    }
+
+    #[test]
+    fn test_automaton_weight_max_expansions_zero_width_chars() -> crate::Result<()> {
+        let mut schema = Schema::builder();
+        let title = schema.add_text_field("title", STRING);
+        let index = Index::create_in_ram(schema.build());
+        let mut index_writer: IndexWriter = index.writer_for_tests()?;
+        // docs:          0           1        2      3      4
+        for word in ["ab\u{301}c", "abc", "abd", "abd", "abe"] {
+            index_writer.add_document(doc!(title => word))?;
+        }
+        index_writer.commit()?;
+        let searcher = index.reader()?.searcher();
+        let segment_reader = searcher.segment_reader(0);
+
+        let mut automaton_weight = AutomatonWeight::new(title, PrefixedByA);
+        let sink = MatchedTermsSink::new();
+        automaton_weight.set_matched_terms_sink(sink.clone());
+        automaton_weight.set_max_expansions(2);
+        // "ab\u{301}c" counts 4 chars.
+        assert_eq!(matching_docs(&automaton_weight, segment_reader), [1, 2, 3]);
+        assert_eq!(sink.take_strings(), ["abc", "abd"]);
+
+        // "ab\u{301}c" counts 3 chars and shares a slot with "abc", with a summed doc frequency
+        // of 2. Ties with "abd" are broken by the stripped bytes.
+        automaton_weight
+            .set_zero_width_chars(ZeroWidthChars::default().with_range('\u{300}'..='\u{36F}'));
+        assert_eq!(
+            matching_docs(&automaton_weight, segment_reader),
+            [0, 1, 2, 3]
+        );
+        assert_eq!(sink.take_strings(), ["abc", "abd", "ab\u{301}c"]);
+
+        // The slot's rank is the lowest rank of its terms.
+        automaton_weight.set_max_expansions(1);
+        automaton_weight.set_expansion_rank(Arc::new(|key: &[u8]| {
+            if key == "ab\u{301}c".as_bytes() {
+                0
+            } else {
+                1
+            }
+        }));
+        assert_eq!(matching_docs(&automaton_weight, segment_reader), [0, 1]);
+        assert_eq!(sink.take_strings(), ["abc", "ab\u{301}c"]);
+        assert!(sink.is_truncated());
+        Ok(())
+    }
+
+    /// The terms a capped expansion keeps, computed by sorting every slot.
+    fn expected_kept_terms(
+        doc_freqs: &BTreeMap<String, u32>,
+        zero_width_chars: &ZeroWidthChars,
+        rank: impl Fn(&[u8]) -> u32,
+        cap: usize,
+    ) -> Vec<String> {
+        let mut slots: BTreeMap<Vec<u8>, (u32, usize, u64, Vec<String>)> = BTreeMap::new();
+        for (term, &doc_freq) in doc_freqs {
+            let stripped_term = zero_width_chars.strip(term.as_bytes()).into_owned();
+            let slot = slots
+                .entry(stripped_term)
+                .or_insert((u32::MAX, 0, 0, Vec::new()));
+            slot.0 = slot.0.min(rank(term.as_bytes()));
+            slot.1 = zero_width_chars.num_chars(term.as_bytes());
+            slot.2 += u64::from(doc_freq);
+            slot.3.push(term.clone());
+        }
+        let mut slots: Vec<_> = slots.into_iter().collect();
+        slots.sort_by(|(left_term, left), (right_term, right)| {
+            (left.0, left.1, std::cmp::Reverse(left.2), left_term).cmp(&(
+                right.0,
+                right.1,
+                std::cmp::Reverse(right.2),
+                right_term,
+            ))
+        });
+        let mut kept: Vec<String> = slots
+            .into_iter()
+            .take(cap)
+            .flat_map(|(_, slot)| slot.3)
+            .collect();
+        kept.sort();
+        kept
+    }
+
+    #[test]
+    fn test_automaton_weight_max_expansions_random_terms() -> crate::Result<()> {
+        let alphabet = ['a', 'b', '\'', '\u{e9}', '\u{301}'];
+        let mut rng = StdRng::seed_from_u64(7);
+        let mut schema = Schema::builder();
+        let title = schema.add_text_field("title", STRING);
+        let index = Index::create_in_ram(schema.build());
+        let mut index_writer: IndexWriter = index.writer_for_tests()?;
+        let mut doc_freqs: BTreeMap<String, u32> = BTreeMap::new();
+        for _ in 0..400 {
+            let len = rng.random_range(1..6);
+            let term: String = (0..len)
+                .map(|_| alphabet[rng.random_range(0..alphabet.len())])
+                .collect();
+            index_writer.add_document(doc!(title => term.as_str()))?;
+            *doc_freqs.entry(term).or_default() += 1;
+        }
+        index_writer.commit()?;
+        let searcher = index.reader()?.searcher();
+        assert_eq!(searcher.segment_readers().len(), 1);
+        let segment_reader = searcher.segment_reader(0);
+
+        let rank = |key: &[u8]| u32::from(key.first() == Some(&b'b'));
+        for zero_width_chars in [
+            ZeroWidthChars::default(),
+            ZeroWidthChars::from_chars(['\'']),
+            ZeroWidthChars::from_chars(['\'']).with_range('\u{300}'..='\u{36F}'),
+        ] {
+            for with_rank in [false, true] {
+                for cap in [0, 1, 2, 3, 5, 10, 30, 100, 1000] {
+                    let mut automaton_weight = AutomatonWeight::new(title, AlwaysMatch);
+                    let sink = MatchedTermsSink::new();
+                    automaton_weight.set_matched_terms_sink(sink.clone());
+                    automaton_weight.set_max_expansions(cap);
+                    automaton_weight.set_zero_width_chars(zero_width_chars.clone());
+                    if with_rank {
+                        automaton_weight.set_expansion_rank(Arc::new(rank));
+                    }
+                    let num_docs = matching_docs(&automaton_weight, segment_reader).len();
+                    let expected = if with_rank {
+                        expected_kept_terms(&doc_freqs, &zero_width_chars, rank, cap)
+                    } else {
+                        expected_kept_terms(&doc_freqs, &zero_width_chars, |_| 0, cap)
+                    };
+                    let context = format!("{zero_width_chars:?} rank {with_rank} cap {cap}");
+                    assert_eq!(sink.take_strings(), expected, "{context}");
+                    let expected_docs: u32 = expected.iter().map(|term| doc_freqs[term]).sum();
+                    assert_eq!(num_docs, expected_docs as usize, "{context}");
+                    assert_eq!(
+                        sink.is_truncated(),
+                        expected.len() < doc_freqs.len(),
+                        "{context}"
+                    );
+                }
+            }
+        }
+        // Grouping found variants to merge.
+        let zero_width_chars = ZeroWidthChars::from_chars(['\'']);
+        let num_forms = doc_freqs
+            .keys()
+            .map(|term| zero_width_chars.strip(term.as_bytes()).into_owned())
+            .collect::<BTreeSet<_>>()
+            .len();
+        assert!(num_forms < doc_freqs.len());
         Ok(())
     }
 

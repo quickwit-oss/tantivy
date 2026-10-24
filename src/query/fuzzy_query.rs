@@ -5,7 +5,9 @@ use levenshtein_automata::{Distance, LevenshteinAutomatonBuilder, DFA};
 use once_cell::sync::OnceCell;
 use tantivy_fst::Automaton;
 
-use crate::query::{AutomatonWeight, EnableScoring, MatchedTermsSink, Query, Weight};
+use crate::query::{
+    AutomatonWeight, EnableScoring, MatchedTermsSink, Query, Weight, ZeroWidthChars,
+};
 use crate::schema::{Term, Type};
 use crate::TantivyError::InvalidArgument;
 
@@ -95,6 +97,7 @@ pub struct FuzzyTermQuery {
     prefix: bool,
     matched_terms_sink: Option<MatchedTermsSink>,
     max_expansions: Option<usize>,
+    zero_width_chars: ZeroWidthChars,
 }
 
 impl fmt::Debug for FuzzyTermQuery {
@@ -111,6 +114,9 @@ impl fmt::Debug for FuzzyTermQuery {
         if let Some(cap) = &self.max_expansions {
             debug_struct.field("max_expansions", cap);
         }
+        if !self.zero_width_chars.is_empty() {
+            debug_struct.field("zero_width_chars", &self.zero_width_chars);
+        }
         debug_struct.finish()
     }
 }
@@ -125,6 +131,7 @@ impl FuzzyTermQuery {
             prefix: false,
             matched_terms_sink: None,
             max_expansions: None,
+            zero_width_chars: ZeroWidthChars::default(),
         }
     }
 
@@ -137,6 +144,7 @@ impl FuzzyTermQuery {
             prefix: true,
             matched_terms_sink: None,
             max_expansions: None,
+            zero_width_chars: ZeroWidthChars::default(),
         }
     }
 
@@ -156,6 +164,13 @@ impl FuzzyTermQuery {
     /// [`RegexPhraseQuery::set_max_expansions`]: crate::query::RegexPhraseQuery::set_max_expansions
     pub fn set_max_expansions(&mut self, cap: usize) {
         self.max_expansions = Some(cap);
+    }
+
+    /// Sets characters that do not count towards a term's length under
+    /// [`set_max_expansions`](Self::set_max_expansions).
+    /// See [`AutomatonWeight::set_zero_width_chars`].
+    pub fn set_zero_width_chars(&mut self, zero_width_chars: ZeroWidthChars) {
+        self.zero_width_chars = zero_width_chars;
     }
 
     /// Returns the automaton this query matches terms with.
@@ -244,6 +259,7 @@ impl FuzzyTermQuery {
                 Distance::Exact(distance) | Distance::AtLeast(distance) => u32::from(distance),
             }));
         }
+        weight.set_zero_width_chars(self.zero_width_chars.clone());
         Ok(weight)
     }
 }
@@ -259,8 +275,8 @@ mod test {
     use super::FuzzyTermQuery;
     use crate::collector::{Count, TopDocs};
     use crate::indexer::NoMergePolicy;
-    use crate::query::{MatchedTermsSink, QueryParser};
-    use crate::schema::{Schema, STORED, TEXT};
+    use crate::query::{MatchedTermsSink, QueryParser, ZeroWidthChars};
+    use crate::schema::{Schema, STORED, STRING, TEXT};
     use crate::{assert_nearly_equals, Index, IndexWriter, TantivyDocument, Term};
 
     #[test]
@@ -424,6 +440,31 @@ mod test {
         query.set_max_expansions(1);
         assert_eq!(searcher.search(&query, &Count)?, 3);
         assert_eq!(sink.take_strings(), ["abcf", "abd"]);
+        assert!(sink.is_truncated());
+        Ok(())
+    }
+
+    #[test]
+    pub fn test_fuzzy_term_max_expansions_zero_width_chars() -> crate::Result<()> {
+        let mut schema_builder = Schema::builder();
+        let field = schema_builder.add_text_field("text", STRING);
+        let index = Index::create_in_ram(schema_builder.build());
+        let mut index_writer: IndexWriter = index.writer_for_tests()?;
+        // "cafe\u{301}" is "cafe" with a combining accent
+        for word in ["cafe", "cafe\u{301}", "cafes", "cafes", "cafe\u{301}s"] {
+            index_writer.add_document(doc!(field => word))?;
+        }
+        index_writer.commit()?;
+        let searcher = index.reader()?.searcher();
+
+        let mut query = FuzzyTermQuery::new(Term::from_field_text(field, "cafe"), 2, true);
+        let sink = MatchedTermsSink::new();
+        query.set_matched_terms_sink(sink.clone());
+        query.set_max_expansions(1);
+        query.set_zero_width_chars(ZeroWidthChars::default().with_range('\u{300}'..='\u{36F}'));
+        assert_eq!(searcher.search(&query, &Count)?, 2);
+        // the slot's rank is the lowest edit distance of its terms
+        assert_eq!(sink.take_strings(), ["cafe", "cafe\u{301}"]);
         assert!(sink.is_truncated());
         Ok(())
     }
