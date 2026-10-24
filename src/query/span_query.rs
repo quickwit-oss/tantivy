@@ -13,9 +13,11 @@
 //!   on a match of the relaxed problem where a word may fill several slots. If no kept position can
 //!   serve two non-adjacent slots (checked with one sort), the relaxed answer is exact. Otherwise
 //!   an exact search over the kept positions runs, memoizing failed states. It is exponential in
-//!   `k` in the worst case: the problem can encode job interval selection, which is NP-complete.
+//!   `k` in the worst case (the problem can encode job interval selection, which is NP-complete),
+//!   so it gives up after `MAX_EXACT_SEARCH_STATES` states: see [`SpanQuery::set_ordered`].
 //! - Window: one sweep over the merged positions, keeping a slot/position matching up to date.
-//!   Worst case: `O((n + k) * k * (max_span + 1))`.
+//!   Worst case: `O((n + k) * k * w)`, where `w <= min(n, max_span + 1)` is the number of positions
+//!   in one window.
 
 use std::collections::{HashSet, VecDeque};
 use std::sync::Arc;
@@ -35,7 +37,69 @@ use crate::query::{
 use crate::schema::{Field, IndexRecordOption, Term};
 use crate::{DocId, Score, TantivyError};
 
+/// Default of [`SpanQuery::set_max_expansions`], as for
+/// [`RegexPhraseQuery`](crate::query::RegexPhraseQuery).
+const DEFAULT_MAX_EXPANSIONS: u32 = 1 << 14;
+
+/// States the exact search of an unordered sequence may expand per document
+/// before giving up; it bounds both its time and its memory.
+const MAX_EXACT_SEARCH_STATES: usize = 100_000;
+
 /// The terms of one slot of a [`SpanQuery`].
+///
+/// A custom source, here a slot matching any of a few exact terms:
+///
+/// ```rust
+/// use std::sync::Arc;
+///
+/// use tantivy::collector::Count;
+/// use tantivy::postings::TermInfo;
+/// use tantivy::query::{ExactTermSource, SpanQuery, SpanTermSource};
+/// use tantivy::schema::{Field, Schema, TEXT};
+/// use tantivy::{doc, Index, IndexWriter, SegmentReader, Term};
+///
+/// struct AnyOf(Vec<Term>);
+///
+/// impl SpanTermSource for AnyOf {
+///     fn field(&self) -> Field {
+///         self.0[0].field()
+///     }
+///
+///     fn match_term_infos(&self, reader: &SegmentReader) -> tantivy::Result<Vec<TermInfo>> {
+///         let inverted_index = reader.inverted_index(self.field())?;
+///         let mut term_infos = Vec::new();
+///         for term in &self.0 {
+///             term_infos.extend(inverted_index.get_term_info(term)?);
+///         }
+///         Ok(term_infos)
+///     }
+///
+///     fn query_terms<'a>(&'a self, visitor: &mut dyn FnMut(&'a Term, bool)) {
+///         for term in &self.0 {
+///             visitor(term, true);
+///         }
+///     }
+/// }
+///
+/// # fn main() -> tantivy::Result<()> {
+/// let mut schema_builder = Schema::builder();
+/// let body = schema_builder.add_text_field("body", TEXT);
+/// let index = Index::create_in_ram(schema_builder.build());
+/// let mut writer: IndexWriter = index.writer(15_000_000)?;
+/// writer.add_document(doc!(body => "a big dog"))?;
+/// writer.add_document(doc!(body => "a large dog"))?;
+/// writer.add_document(doc!(body => "a small dog"))?;
+/// writer.commit()?;
+/// let searcher = index.reader()?.searcher();
+///
+/// let term = |word: &str| Term::from_field_text(body, word);
+/// let size = AnyOf(vec![term("big"), term("large")]);
+/// let query = SpanQuery::new(body, Arc::new(size))
+///     .then_within(0, Arc::new(ExactTermSource::new(term("dog"))));
+/// assert_eq!(searcher.search(&query, &Count)?, 2);
+/// # Ok(())
+/// # }
+/// ```
 pub trait SpanTermSource: Send + Sync + 'static {
     /// The field whose terms this source matches. It must be the field of the
     /// [`SpanQuery`] that holds the source.
@@ -102,17 +166,24 @@ where
         }
     }
 
-    /// Creates a slot matching the terms under a JSON path accepted by
-    /// `automaton`.
+    /// Creates a slot matching the terms under the JSON path of `json_term`
+    /// accepted by `automaton`. `json_term` is a JSON term such as
+    /// [`Term::from_field_json_path`] builds; a value after the path is ignored.
     pub fn new_for_json_path<IntoArcA: Into<Arc<A>>>(
-        field: Field,
+        json_term: &Term,
         automaton: IntoArcA,
-        json_path_bytes: &[u8],
-    ) -> Self {
-        AutomatonTermSource {
+    ) -> crate::Result<Self> {
+        let json_value = json_term.value();
+        let Some((json_path_bytes, _)) = json_value.as_json() else {
+            return Err(TantivyError::InvalidArgument(format!(
+                "Expected a JSON term with a path, got {json_term:?}"
+            )));
+        };
+        let field = json_term.field();
+        Ok(AutomatonTermSource {
             field,
             weight: AutomatonWeight::new_for_json_path(field, automaton, json_path_bytes),
-        }
+        })
     }
 }
 
@@ -154,7 +225,14 @@ enum SpanMode {
 /// A slot is any [`SpanTermSource`]: an [`ExactTermSource`], an
 /// [`AutomatonTermSource`] or a custom source. Two slots never match the same
 /// word. The field must be indexed with positions, and every slot must be on
-/// the query's field.
+/// the query's field. The slots may expand to at most
+/// [`SpanQuery::set_max_expansions`] terms in total per segment.
+///
+/// Distances count positions, as [`PhraseQuery`](crate::query::PhraseQuery)'s
+/// slop does: for two slots in order, a gap of `n` matches what a slop of `n`
+/// matches. With more slots, the slop is one budget for the whole phrase while
+/// each gap applies to its pair only. One empty position separates the values
+/// of a multi-valued field, so a gap of 1 or more can match across values.
 ///
 /// Matching documents get a constant score (the boost), like the automaton
 /// queries: the terms of an automaton slot are only known per segment, so
@@ -193,6 +271,17 @@ enum SpanMode {
 /// query.set_ordered(false);
 /// assert_eq!(searcher.search(&query, &Count)?, 2);
 ///
+/// // Unordered applies to each consecutive pair, not to the whole phrase:
+/// // "quick" next to "the" and "the" next to "fox" does not match "the quick
+/// // fox", where "the" and "fox" are two words apart. A window does.
+/// let mut query = SpanQuery::new(body, exact("quick"))
+///     .then_within(0, exact("the"))
+///     .then_within(0, exact("fox"));
+/// query.set_ordered(false);
+/// assert_eq!(searcher.search(&query, &Count)?, 0);
+/// let query = SpanQuery::window(body, vec![exact("quick"), exact("the"), exact("fox")], 2);
+/// assert_eq!(searcher.search(&query, &Count)?, 1);
+///
 /// // "dog", "fox" and "quick" in any order, spanning at most 6 positions.
 /// let query = SpanQuery::window(body, vec![exact("dog"), exact("fox"), exact("quick")], 5);
 /// assert_eq!(searcher.search(&query, &Count)?, 1);
@@ -204,6 +293,7 @@ pub struct SpanQuery {
     field: Field,
     slots: Vec<Arc<dyn SpanTermSource>>,
     mode: SpanMode,
+    max_expansions: u32,
 }
 
 impl std::fmt::Debug for SpanQuery {
@@ -212,6 +302,7 @@ impl std::fmt::Debug for SpanQuery {
             .field("field", &self.field)
             .field("num_slots", &self.slots.len())
             .field("mode", &self.mode)
+            .field("max_expansions", &self.max_expansions)
             .finish()
     }
 }
@@ -226,6 +317,7 @@ impl SpanQuery {
                 gaps: Vec::new(),
                 ordered: true,
             },
+            max_expansions: DEFAULT_MAX_EXPANSIONS,
         }
     }
 
@@ -242,6 +334,7 @@ impl SpanQuery {
             field,
             slots,
             mode: SpanMode::Window { max_span },
+            max_expansions: DEFAULT_MAX_EXPANSIONS,
         }
     }
 
@@ -262,6 +355,14 @@ impl SpanQuery {
 
     /// Ordered (the default): the slots must appear in query order.
     /// Unordered: each consecutive pair of slots may appear in either order.
+    /// It is not a permutation of the slots inside a window: slots `a, b, c`
+    /// with gaps `0, 0` match "a b c" and "c b a" but not "b a c" or "c a b".
+    /// Use [`SpanQuery::window`] for any order.
+    ///
+    /// When a word can fill two non-adjacent slots, the unordered check runs
+    /// an exact search, exponential in the number of slots in the worst case.
+    /// It expands at most 100,000 states per document; a document where it
+    /// gives up does not match.
     ///
     /// # Panics
     ///
@@ -275,6 +376,15 @@ impl SpanQuery {
             panic!("set_ordered applies to sequences; a window query is always unordered");
         };
         *ordered_mut = ordered;
+    }
+
+    /// Sets the maximum number of terms all the slots may expand to in a
+    /// segment, as [`RegexPhraseQuery::set_max_expansions`] does. Searching a
+    /// segment past it returns an error. Defaults to 16,384.
+    ///
+    /// [`RegexPhraseQuery::set_max_expansions`]: crate::query::RegexPhraseQuery::set_max_expansions
+    pub fn set_max_expansions(&mut self, max_expansions: u32) {
+        self.max_expansions = max_expansions;
     }
 }
 
@@ -303,6 +413,7 @@ impl Query for SpanQuery {
             field: self.field,
             slots: self.slots.clone(),
             mode: self.mode.clone(),
+            max_expansions: self.max_expansions,
         }))
     }
 
@@ -317,18 +428,26 @@ struct SpanWeight {
     field: Field,
     slots: Vec<Arc<dyn SpanTermSource>>,
     mode: SpanMode,
+    max_expansions: u32,
 }
 
 impl Weight for SpanWeight {
     fn scorer(&self, reader: &SegmentReader, boost: Score) -> crate::Result<Box<dyn Scorer>> {
         let inverted_index = reader.inverted_index(self.field)?;
         let mut unions = Vec::with_capacity(self.slots.len());
+        let mut num_terms = 0;
         for slot in &self.slots {
             let term_infos = slot.match_term_infos(reader)?;
             if term_infos.is_empty() {
                 return Ok(Box::new(EmptyScorer));
             }
-            unions.push(RegexPhraseWeight::get_union_from_term_infos(
+            num_terms += term_infos.len();
+            if num_terms > self.max_expansions as usize {
+                return Err(TantivyError::InvalidArgument(format!(
+                    "Span query exceeded max expansions {num_terms}"
+                )));
+            }
+            unions.push(<RegexPhraseWeight>::get_union_from_term_infos(
                 &term_infos,
                 reader,
                 &inverted_index,
@@ -505,6 +624,8 @@ struct SpanMatcher {
     /// States of the exact search known to fail: (slot, position, taken
     /// positions that a later slot could still want).
     failed: HashSet<(usize, u32, Vec<u32>)>,
+    /// States the exact search may still expand for this document.
+    budget: usize,
     window: WindowMatcher,
 }
 
@@ -612,6 +733,7 @@ impl SpanMatcher {
             return false;
         }
         self.failed.clear();
+        self.budget = MAX_EXACT_SEARCH_STATES;
         for i in 0..self.reach[0].len() {
             let start = self.reach[0][i];
             self.used.clear();
@@ -630,6 +752,9 @@ impl SpanMatcher {
         if next == gaps.len() + 1 {
             return true;
         }
+        if self.budget == 0 {
+            return false;
+        }
         // Only taken positions that a later slot could want shape the outcome.
         let mut relevant: Vec<u32> = self
             .used
@@ -642,6 +767,7 @@ impl SpanMatcher {
         if self.failed.contains(&state) {
             return false;
         }
+        self.budget -= 1;
         let reach = u64::from(gaps[slot]) + 1;
         let lo = u64::from(position).saturating_sub(reach);
         let hi = u64::from(position) + reach;
@@ -822,11 +948,12 @@ mod tests {
 
     use super::{
         AutomatonTermSource, ExactTermSource, SpanMatcher, SpanMode, SpanQuery, SpanTermSource,
+        MAX_EXACT_SEARCH_STATES,
     };
     use crate::collector::{Count, DocSetCollector};
-    use crate::query::{EnableScoring, FuzzyTermQuery, Query};
+    use crate::query::{EnableScoring, FuzzyTermQuery, PhraseQuery, Query};
     use crate::schema::{Field, Schema, TEXT};
-    use crate::{DocAddress, Index, IndexWriter, TantivyError, Term};
+    use crate::{DocAddress, Index, IndexWriter, TantivyDocument, TantivyError, Term};
 
     fn build(lines: &[&str]) -> crate::Result<(Index, Field)> {
         let mut schema_builder = Schema::builder();
@@ -1284,5 +1411,119 @@ mod tests {
             "{:?}",
             start.elapsed()
         );
+    }
+
+    #[test]
+    fn unordered_exact_search_gives_up() {
+        // Fifteen identical slots over clusters of fourteen words: millions of
+        // states without a budget.
+        let clusters: Vec<u32> = (0..20u32)
+            .flat_map(|cluster| (0..14).map(move |word| cluster * 1000 + word))
+            .collect();
+        let positions = vec![clusters; 15];
+        let mode = SpanMode::Sequence {
+            gaps: vec![14; 14],
+            ordered: false,
+        };
+        let mut matcher = SpanMatcher::default();
+        let start = Instant::now();
+        assert!(!matcher.matches(&positions, &mode));
+        assert_eq!(matcher.budget, 0);
+        assert!(matcher.failed.len() <= MAX_EXACT_SEARCH_STATES);
+        assert!(
+            start.elapsed() < Duration::from_secs(10),
+            "{:?}",
+            start.elapsed()
+        );
+    }
+
+    #[test]
+    fn max_expansions_counts_all_slots() -> crate::Result<()> {
+        let (index, f) = build(&["japan korea", "japon korea"])?;
+        let fuzzy = FuzzyTermQuery::new(Term::from_field_text(f, "japan"), 1, true);
+        let slot = Arc::new(AutomatonTermSource::new(f, fuzzy.automaton()?));
+        let mut query = SpanQuery::new(f, slot).then_within(0, exact(f, "korea"));
+        query.set_max_expansions(3);
+        assert_eq!(search(&index, &query)?, vec![0, 1]);
+        query.set_max_expansions(2);
+        assert!(matches!(
+            search(&index, &query),
+            Err(TantivyError::InvalidArgument(msg)) if msg.contains("max expansions")
+        ));
+        Ok(())
+    }
+
+    #[test]
+    fn json_path_slots() -> crate::Result<()> {
+        let mut schema_builder = Schema::builder();
+        let json = schema_builder.add_json_field("json", TEXT);
+        let schema = schema_builder.build();
+        let index = Index::create_in_ram(schema.clone());
+        let mut writer: IndexWriter = index.writer_for_tests()?;
+        for doc in [
+            r#"{"json": {"k": "hello big world"}}"#,
+            r#"{"json": {"k": "hello world"}}"#,
+            r#"{"json": {"x": "hello world"}}"#,
+            r#"{"json": {"k": "hello", "x": "world"}}"#,
+        ] {
+            writer.add_document(TantivyDocument::parse_json(&schema, doc).unwrap())?;
+        }
+        writer.commit()?;
+        let json_term = |path: &str, word: &str| {
+            let mut term = Term::from_field_json_path(json, path, false);
+            term.append_type_and_str(word);
+            term
+        };
+        let json_exact = |path: &str, word: &str| -> Arc<dyn SpanTermSource> {
+            Arc::new(ExactTermSource::new(json_term(path, word)))
+        };
+        let query =
+            SpanQuery::new(json, json_exact("k", "hello")).then_within(0, json_exact("k", "world"));
+        assert_eq!(search(&index, &query)?, vec![1]);
+        let query =
+            SpanQuery::new(json, json_exact("k", "hello")).then_within(1, json_exact("k", "world"));
+        assert_eq!(search(&index, &query)?, vec![0, 1]);
+
+        let fuzzy = FuzzyTermQuery::new(json_term("k", "wrld"), 1, true);
+        let world =
+            AutomatonTermSource::new_for_json_path(&json_term("k", "wrld"), fuzzy.automaton()?)?;
+        let query = SpanQuery::new(json, json_exact("k", "hello")).then_within(1, Arc::new(world));
+        assert_eq!(search(&index, &query)?, vec![0, 1]);
+        let path_only = Term::from_field_json_path(json, "k", false);
+        assert!(AutomatonTermSource::new_for_json_path(&path_only, fuzzy.automaton()?).is_ok());
+        assert!(matches!(
+            AutomatonTermSource::new_for_json_path(
+                &Term::from_field_text(json, "k"),
+                fuzzy.automaton()?
+            ),
+            Err(TantivyError::InvalidArgument(_))
+        ));
+        Ok(())
+    }
+
+    #[test]
+    fn gap_and_slop_across_values() -> crate::Result<()> {
+        let mut schema_builder = Schema::builder();
+        let text = schema_builder.add_text_field("text", TEXT);
+        let index = Index::create_in_ram(schema_builder.build());
+        let mut writer: IndexWriter = index.writer_for_tests()?;
+        writer.add_document(doc!(text => "x a", text => "b x"))?;
+        writer.add_document(doc!(text => "a x b"))?;
+        writer.add_document(doc!(text => "a b"))?;
+        writer.commit()?;
+        for gap in 0..3 {
+            let span = sequence(text, &["a", "b"], &[gap], true);
+            let mut phrase = PhraseQuery::new(vec![
+                Term::from_field_text(text, "a"),
+                Term::from_field_text(text, "b"),
+            ]);
+            phrase.set_slop(gap);
+            assert_eq!(search(&index, &span)?, search(&index, &phrase)?, "{gap}");
+        }
+        assert_eq!(
+            search(&index, &sequence(text, &["a", "b"], &[1], true))?,
+            vec![0, 1, 2]
+        );
+        Ok(())
     }
 }
