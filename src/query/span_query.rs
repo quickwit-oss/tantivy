@@ -14,7 +14,7 @@
 //!   serve two non-adjacent slots (checked with one sort), the relaxed answer is exact. Otherwise
 //!   an exact search over the kept positions runs, memoizing failed states. It is exponential in
 //!   `k` in the worst case (the problem can encode job interval selection, which is NP-complete),
-//!   so it gives up after `MAX_EXACT_SEARCH_STATES` states: see [`SpanQuery::set_ordered`].
+//!   so it gives up after `MAX_EXACT_SEARCH_COST` steps: see [`SpanQuery::set_ordered`].
 //! - Window: one sweep over the merged positions, keeping a slot/position matching up to date.
 //!   Worst case: `O((n + k) * k * w)`, where `w <= min(n, max_span + 1)` is the number of positions
 //!   in one window.
@@ -22,8 +22,10 @@
 use std::collections::{HashSet, VecDeque};
 use std::sync::Arc;
 
+use common::json_path_writer::JSON_END_OF_PATH;
 use tantivy_fst::Automaton;
 
+use super::phrase_prefix_query::prefix_end;
 use super::phrase_query::RegexPhraseWeight;
 use crate::docset::{DocSet, SeekDangerResult, TERMINATED};
 use crate::index::SegmentReader;
@@ -31,19 +33,19 @@ use crate::postings::{Postings, TermInfo};
 use crate::query::explanation::does_not_match;
 use crate::query::union::SimpleUnion;
 use crate::query::{
-    AutomatonWeight, ConstScorer, EmptyScorer, EnableScoring, Explanation, Intersection, Query,
-    Scorer, Weight,
+    ConstScorer, EmptyScorer, EnableScoring, Explanation, Intersection, Query, Scorer, Weight,
 };
-use crate::schema::{Field, IndexRecordOption, Term};
+use crate::schema::{Field, IndexRecordOption, Term, Type};
 use crate::{DocId, Score, TantivyError};
 
 /// Default of [`SpanQuery::set_max_expansions`], as for
 /// [`RegexPhraseQuery`](crate::query::RegexPhraseQuery).
 const DEFAULT_MAX_EXPANSIONS: u32 = 1 << 14;
 
-/// States the exact search of an unordered sequence may expand per document
-/// before giving up; it bounds both its time and its memory.
-const MAX_EXACT_SEARCH_STATES: usize = 100_000;
+/// Steps the exact search of an unordered sequence may take per document
+/// before giving up. A state costs its taken positions and its candidates,
+/// so this bounds both the search's time and the memory of its failed states.
+const MAX_EXACT_SEARCH_COST: usize = 1 << 20;
 
 /// The exact search recurses once per slot: this bounds its stack depth.
 const MAX_UNORDERED_SLOTS: usize = 1024;
@@ -110,6 +112,8 @@ pub trait SpanTermSource: Send + Sync + 'static {
 
     /// The term infos of the terms of [`SpanTermSource::field`] that this
     /// source matches in `reader`'s segment.
+    /// They must be indexed with positions: on a JSON field, only string
+    /// values are.
     fn match_term_infos(&self, reader: &SegmentReader) -> crate::Result<Vec<TermInfo>>;
 
     /// Passes the terms known before searching to `visitor`, as
@@ -137,6 +141,9 @@ impl SpanTermSource for ExactTermSource {
     }
 
     fn match_term_infos(&self, reader: &SegmentReader) -> crate::Result<Vec<TermInfo>> {
+        if self.term.typ() == Type::Json && !is_json_str_key(self.term.serialized_value_bytes()) {
+            return Ok(Vec::new());
+        }
         let inverted_index = reader.inverted_index(self.term.field())?;
         Ok(inverted_index
             .get_term_info(&self.term)?
@@ -149,11 +156,24 @@ impl SpanTermSource for ExactTermSource {
     }
 }
 
+/// Whether a JSON field's term, as its dictionary key, holds a string: a
+/// JSON field indexes its other values without positions.
+fn is_json_str_key(key: &[u8]) -> bool {
+    let type_code = key
+        .iter()
+        .position(|&byte| byte == JSON_END_OF_PATH)
+        .and_then(|end| key.get(end + 1));
+    type_code == Some(&Type::Str.to_code())
+}
+
 /// A slot matching every term accepted by an automaton, e.g. the one of a
-/// [`FuzzyTermQuery`](crate::query::FuzzyTermQuery) or a regex.
+/// [`FuzzyTermQuery`](crate::query::FuzzyTermQuery) or a regex. On a JSON
+/// field, it only matches string values.
 pub struct AutomatonTermSource<A> {
     field: Field,
-    weight: AutomatonWeight<A>,
+    automaton: Arc<A>,
+    /// A JSON path, its end-of-path byte and the string type code.
+    json_str_prefix: Option<Vec<u8>>,
 }
 
 impl<A> AutomatonTermSource<A>
@@ -165,7 +185,8 @@ where
     pub fn new<IntoArcA: Into<Arc<A>>>(field: Field, automaton: IntoArcA) -> Self {
         AutomatonTermSource {
             field,
-            weight: AutomatonWeight::new(field, automaton),
+            automaton: automaton.into(),
+            json_str_prefix: None,
         }
     }
 
@@ -182,10 +203,12 @@ where
                 "Expected a JSON term with a path, got {json_term:?}"
             )));
         };
-        let field = json_term.field();
+        let mut json_str_prefix = json_path_bytes.to_vec();
+        json_str_prefix.push(Type::Str.to_code());
         Ok(AutomatonTermSource {
-            field,
-            weight: AutomatonWeight::new_for_json_path(field, automaton, json_path_bytes),
+            field: json_term.field(),
+            automaton: automaton.into(),
+            json_str_prefix: Some(json_str_prefix),
         })
     }
 }
@@ -200,7 +223,28 @@ where
     }
 
     fn match_term_infos(&self, reader: &SegmentReader) -> crate::Result<Vec<TermInfo>> {
-        self.weight.get_match_term_infos(reader)
+        let is_json = reader
+            .schema()
+            .get_field_entry(self.field)
+            .field_type()
+            .value_type()
+            == Type::Json;
+        let inverted_index = reader.inverted_index(self.field)?;
+        let mut stream_builder = inverted_index.terms().search(&*self.automaton);
+        if let Some(prefix) = &self.json_str_prefix {
+            stream_builder = stream_builder.ge(prefix);
+            if let Some(end) = prefix_end(prefix) {
+                stream_builder = stream_builder.lt(&end);
+            }
+        }
+        let mut stream = stream_builder.into_stream()?;
+        let mut term_infos = Vec::new();
+        while stream.advance() {
+            if !is_json || is_json_str_key(stream.key()) {
+                term_infos.push(stream.value().clone());
+            }
+        }
+        Ok(term_infos)
     }
 }
 
@@ -368,10 +412,11 @@ impl SpanQuery {
     ///
     /// When a word can fill two non-adjacent slots, the unordered check runs
     /// an exact search, exponential in the number of slots in the worst case.
-    /// It expands at most 100,000 states per document; a document where it
-    /// gives up does not match. Its recursion is one level per slot, so an
-    /// unordered sequence takes at most 1,024 slots: searching with more
-    /// returns an error.
+    /// It takes at most about a million steps per document, a state costing
+    /// a step per slot placed so far and per candidate position it tries; a
+    /// document where it gives up does not match. Its recursion is one level
+    /// per slot, so an unordered sequence takes at most 1,024 slots: searching
+    /// with more returns an error.
     ///
     /// # Panics
     ///
@@ -637,10 +682,12 @@ struct SpanMatcher {
     last_slot: Vec<(u32, usize)>,
     /// Positions taken by the exact search, one per placed slot.
     used: Vec<u32>,
+    /// Per entry of `last_slot`, whether `used` holds its position.
+    taken: Vec<bool>,
     /// States of the exact search known to fail: (slot, position, taken
     /// positions that a later slot could still want).
     failed: HashSet<(usize, u32, Vec<u32>)>,
-    /// States the exact search may still expand for this document.
+    /// Steps the exact search may still take for this document.
     budget: usize,
     window: WindowMatcher,
 }
@@ -749,14 +796,19 @@ impl SpanMatcher {
             return false;
         }
         self.failed.clear();
-        self.budget = MAX_EXACT_SEARCH_STATES;
+        self.budget = MAX_EXACT_SEARCH_COST;
+        self.taken.clear();
+        self.taken.resize(self.last_slot.len(), false);
         for i in 0..self.reach[0].len() {
             let start = self.reach[0][i];
             self.used.clear();
             self.used.push(start);
+            let start_idx = self.position_idx(start);
+            self.taken[start_idx] = true;
             if self.place_from(0, start, gaps) {
                 return true;
             }
+            self.taken[start_idx] = false;
         }
         false
     }
@@ -768,9 +820,12 @@ impl SpanMatcher {
         if next == gaps.len() + 1 {
             return true;
         }
-        if self.budget == 0 {
+        // Building the state costs one step per taken position.
+        let Some(budget) = self.budget.checked_sub(self.used.len() + 1) else {
+            self.budget = 0;
             return false;
-        }
+        };
+        self.budget = budget;
         // Only taken positions that a later slot could want shape the outcome.
         let mut relevant: Vec<u32> = self
             .used
@@ -783,23 +838,28 @@ impl SpanMatcher {
         if self.failed.contains(&state) {
             return false;
         }
-        self.budget -= 1;
         let reach = u64::from(gaps[slot]) + 1;
         let lo = u64::from(position).saturating_sub(reach);
         let hi = u64::from(position) + reach;
-        let mut idx = self.reach[next].partition_point(|&q| u64::from(q) < lo);
-        while let Some(&candidate) = self.reach[next].get(idx) {
-            if u64::from(candidate) > hi {
-                break;
-            }
-            idx += 1;
-            if candidate == position || self.used.contains(&candidate) {
+        let first = self.reach[next].partition_point(|&q| u64::from(q) < lo);
+        let end = self.reach[next].partition_point(|&q| u64::from(q) <= hi);
+        let Some(budget) = self.budget.checked_sub(end - first) else {
+            self.budget = 0;
+            return false;
+        };
+        self.budget = budget;
+        for idx in first..end {
+            let candidate = self.reach[next][idx];
+            let candidate_idx = self.position_idx(candidate);
+            if self.taken[candidate_idx] {
                 continue;
             }
             self.used.push(candidate);
+            self.taken[candidate_idx] = true;
             if self.place_from(next, candidate, gaps) {
                 return true;
             }
+            self.taken[candidate_idx] = false;
             self.used.pop();
         }
         self.failed.insert(state);
@@ -807,8 +867,12 @@ impl SpanMatcher {
     }
 
     fn last_slot_of(&self, position: u32) -> usize {
-        let idx = self.last_slot.partition_point(|&(p, _)| p < position);
-        self.last_slot[idx].1
+        self.last_slot[self.position_idx(position)].1
+    }
+
+    /// Index in `last_slot` of a reachable position.
+    fn position_idx(&self, position: u32) -> usize {
+        self.last_slot.partition_point(|&(p, _)| p < position)
     }
 }
 
@@ -962,9 +1026,11 @@ mod tests {
     use std::sync::Arc;
     use std::time::{Duration, Instant};
 
+    use tantivy_fst::automaton::AlwaysMatch;
+
     use super::{
         AutomatonTermSource, ExactTermSource, SpanMatcher, SpanMode, SpanQuery, SpanTermSource,
-        MAX_EXACT_SEARCH_STATES, MAX_UNORDERED_SLOTS,
+        MAX_EXACT_SEARCH_COST, MAX_UNORDERED_SLOTS,
     };
     use crate::collector::{Count, DocSetCollector};
     use crate::query::{EnableScoring, FuzzyTermQuery, PhraseQuery, Query};
@@ -1445,7 +1511,7 @@ mod tests {
         let start = Instant::now();
         assert!(!matcher.matches(&positions, &mode));
         assert_eq!(matcher.budget, 0);
-        assert!(matcher.failed.len() <= MAX_EXACT_SEARCH_STATES);
+        assert!(retained_positions(&matcher) <= MAX_EXACT_SEARCH_COST);
         assert!(
             start.elapsed() < Duration::from_secs(10),
             "{:?}",
@@ -1481,6 +1547,7 @@ mod tests {
             r#"{"json": {"k": "hello world"}}"#,
             r#"{"json": {"x": "hello world"}}"#,
             r#"{"json": {"k": "hello", "x": "world"}}"#,
+            r#"{"json": {"k": "hello world", "n": 1}}"#,
         ] {
             writer.add_document(TantivyDocument::parse_json(&schema, doc).unwrap())?;
         }
@@ -1495,16 +1562,25 @@ mod tests {
         };
         let query =
             SpanQuery::new(json, json_exact("k", "hello")).then_within(0, json_exact("k", "world"));
-        assert_eq!(search(&index, &query)?, vec![1]);
+        assert_eq!(search(&index, &query)?, vec![1, 4]);
         let query =
             SpanQuery::new(json, json_exact("k", "hello")).then_within(1, json_exact("k", "world"));
-        assert_eq!(search(&index, &query)?, vec![0, 1]);
+        assert_eq!(search(&index, &query)?, vec![0, 1, 4]);
+        // A number has no positions: it matches no slot.
+        let mut number = Term::from_field_json_path(json, "n", false);
+        number.append_type_and_fast_value(1i64);
+        let query = SpanQuery::new(json, json_exact("k", "hello"))
+            .then_within(5, Arc::new(ExactTermSource::new(number)));
+        assert!(search(&index, &query)?.is_empty());
+        let any_term = Arc::new(AutomatonTermSource::new(json, AlwaysMatch));
+        let query = SpanQuery::new(json, json_exact("k", "hello")).then_within(5, any_term);
+        assert_eq!(search(&index, &query)?, vec![0, 1, 4]);
 
         let fuzzy = FuzzyTermQuery::new(json_term("k", "wrld"), 1, true);
         let world =
             AutomatonTermSource::new_for_json_path(&json_term("k", "wrld"), fuzzy.automaton()?)?;
         let query = SpanQuery::new(json, json_exact("k", "hello")).then_within(1, Arc::new(world));
-        assert_eq!(search(&index, &query)?, vec![0, 1]);
+        assert_eq!(search(&index, &query)?, vec![0, 1, 4]);
         let path_only = Term::from_field_json_path(json, "k", false);
         assert!(AutomatonTermSource::new_for_json_path(&path_only, fuzzy.automaton()?).is_ok());
         assert!(matches!(
@@ -1570,5 +1646,36 @@ mod tests {
             ordered: false,
         };
         assert!(SpanMatcher::default().matches(&positions, &mode));
+    }
+
+    fn retained_positions(matcher: &SpanMatcher) -> usize {
+        matcher
+            .failed
+            .iter()
+            .map(|(_, _, taken)| taken.len() + 1)
+            .sum()
+    }
+
+    #[test]
+    fn unordered_exact_search_memory_of_deep_states() {
+        // Two clusters one slot short, too far apart to chain: the failed
+        // states lie deep, each one remembering hundreds of positions.
+        let num_slots = 512;
+        let cluster = num_slots as u32 - 1;
+        let clusters: Vec<u32> = (0..cluster).chain(10_000..10_000 + cluster).collect();
+        let positions = vec![clusters; num_slots];
+        let mode = SpanMode::Sequence {
+            gaps: vec![cluster; num_slots - 1],
+            ordered: false,
+        };
+        let mut matcher = SpanMatcher::default();
+        let start = Instant::now();
+        assert!(!matcher.matches(&positions, &mode));
+        assert!(retained_positions(&matcher) <= MAX_EXACT_SEARCH_COST);
+        assert!(
+            start.elapsed() < Duration::from_secs(10),
+            "{:?}",
+            start.elapsed()
+        );
     }
 }
