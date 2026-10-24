@@ -70,7 +70,11 @@ const MAX_UNORDERED_SLOTS: usize = 1024;
 ///         self.0[0].field()
 ///     }
 ///
-///     fn match_term_infos(&self, reader: &SegmentReader) -> tantivy::Result<Vec<TermInfo>> {
+///     fn match_term_infos(
+///         &self,
+///         reader: &SegmentReader,
+///         _max_terms: usize,
+///     ) -> tantivy::Result<Vec<TermInfo>> {
 ///         let inverted_index = reader.inverted_index(self.field())?;
 ///         let mut term_infos = Vec::new();
 ///         for term in &self.0 {
@@ -113,8 +117,13 @@ pub trait SpanTermSource: Send + Sync + 'static {
     /// The term infos of the terms of [`SpanTermSource::field`] that this
     /// source matches in `reader`'s segment.
     /// They must be indexed with positions: on a JSON field, only string
-    /// values are.
-    fn match_term_infos(&self, reader: &SegmentReader) -> crate::Result<Vec<TermInfo>>;
+    /// values are. More than `max_terms` terms fail the query, so a source
+    /// may stop after `max_terms + 1`.
+    fn match_term_infos(
+        &self,
+        reader: &SegmentReader,
+        max_terms: usize,
+    ) -> crate::Result<Vec<TermInfo>>;
 
     /// Passes the terms known before searching to `visitor`, as
     /// [`Query::query_terms`] does. Sources that only know their terms per
@@ -140,7 +149,11 @@ impl SpanTermSource for ExactTermSource {
         self.term.field()
     }
 
-    fn match_term_infos(&self, reader: &SegmentReader) -> crate::Result<Vec<TermInfo>> {
+    fn match_term_infos(
+        &self,
+        reader: &SegmentReader,
+        _max_terms: usize,
+    ) -> crate::Result<Vec<TermInfo>> {
         if self.term.typ() == Type::Json && !is_json_str_key(self.term.serialized_value_bytes()) {
             return Ok(Vec::new());
         }
@@ -222,7 +235,11 @@ where
         self.field
     }
 
-    fn match_term_infos(&self, reader: &SegmentReader) -> crate::Result<Vec<TermInfo>> {
+    fn match_term_infos(
+        &self,
+        reader: &SegmentReader,
+        max_terms: usize,
+    ) -> crate::Result<Vec<TermInfo>> {
         let is_json = reader
             .schema()
             .get_field_entry(self.field)
@@ -239,7 +256,7 @@ where
         }
         let mut stream = stream_builder.into_stream()?;
         let mut term_infos = Vec::new();
-        while stream.advance() {
+        while term_infos.len() <= max_terms && stream.advance() {
             if !is_json || is_json_str_key(stream.key()) {
                 term_infos.push(stream.value().clone());
             }
@@ -498,16 +515,18 @@ impl Weight for SpanWeight {
         let mut unions = Vec::with_capacity(self.slots.len());
         let mut num_terms = 0;
         for slot in &self.slots {
-            let term_infos = slot.match_term_infos(reader)?;
+            let max_terms = self.max_expansions as usize - num_terms;
+            let term_infos = slot.match_term_infos(reader, max_terms)?;
             if term_infos.is_empty() {
                 return Ok(Box::new(EmptyScorer));
             }
-            num_terms += term_infos.len();
-            if num_terms > self.max_expansions as usize {
+            if term_infos.len() > max_terms {
                 return Err(TantivyError::InvalidArgument(format!(
-                    "Span query exceeded max expansions {num_terms}"
+                    "Span query exceeded max expansions {}",
+                    self.max_expansions
                 )));
             }
+            num_terms += term_infos.len();
             unions.push(<RegexPhraseWeight>::get_union_from_term_infos(
                 &term_infos,
                 reader,
@@ -1532,6 +1551,21 @@ mod tests {
             search(&index, &query),
             Err(TantivyError::InvalidArgument(msg)) if msg.contains("max expansions")
         ));
+        // A source stops one term past its limit.
+        let searcher = index.reader()?.searcher();
+        let any_term = AutomatonTermSource::new(f, AlwaysMatch);
+        assert_eq!(
+            any_term
+                .match_term_infos(searcher.segment_reader(0), 1)?
+                .len(),
+            2
+        );
+        assert_eq!(
+            any_term
+                .match_term_infos(searcher.segment_reader(0), 9)?
+                .len(),
+            3
+        );
         Ok(())
     }
 
