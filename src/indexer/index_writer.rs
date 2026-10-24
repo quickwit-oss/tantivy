@@ -308,7 +308,11 @@ impl<D: Document> IndexWriter<D> {
 
         let current_opstamp = index.load_metas()?.opstamp;
 
-        let stamper = Stamper::new(current_opstamp);
+        // The last commit used `current_opstamp` itself, so the first operation gets the next
+        // one, as it would have in the writer that made that commit. Segments purged by that
+        // commit have `current_opstamp` as their delete opstamp, and a merge targeting it would
+        // otherwise skip a delete sharing that opstamp.
+        let stamper = Stamper::new(current_opstamp + 1);
 
         let segment_updater = SegmentUpdater::create(
             index.clone(),
@@ -523,8 +527,10 @@ impl<D: Document> IndexWriter<D> {
     pub fn delete_all_documents(&self) -> crate::Result<Opstamp> {
         // Delete segments
         self.segment_updater.remove_all_segments();
-        // Return new stamp - reverted stamp
-        self.stamper.revert(self.committed_opstamp);
+        // Revert the stamper to the first opstamp after the last commit, as in `IndexWriter::new`.
+        // Reverting to the commit opstamp itself would give the next operation an opstamp
+        // below a pending delete issued earlier in this writer, which would then delete it.
+        self.stamper.revert(self.committed_opstamp + 1);
         Ok(self.committed_opstamp)
     }
 
@@ -842,7 +848,7 @@ mod tests {
     use crate::directory::error::LockError;
     use crate::error::*;
     use crate::indexer::index_writer::MEMORY_BUDGET_NUM_BYTES_MIN;
-    use crate::indexer::{IndexWriterOptions, NoMergePolicy};
+    use crate::indexer::{IndexWriterOptions, LogMergePolicy, NoMergePolicy};
     use crate::query::{BooleanQuery, Occur, Query, QueryParser, TermQuery};
     use crate::schema::{
         self, Facet, FacetOptions, IndexRecordOption, IpAddrOptions, JsonObjectOptions,
@@ -865,7 +871,8 @@ mod tests {
 
     #[test]
     fn test_operations_group() {
-        // an operations group with 2 items should cause 3 opstamps 0, 1, and 2.
+        // an operations group with 2 items should cause 3 opstamps 1, 2, and 3.
+        // Opstamp 0 is the one of the commit that created the index.
         let mut schema_builder = schema::Schema::builder();
         let text_field = schema_builder.add_text_field("text", TEXT);
         let index = Index::create_in_ram(schema_builder.build());
@@ -875,7 +882,7 @@ mod tests {
             UserOperation::Add(doc!(text_field=>"b")),
         ];
         let batch_opstamp1 = index_writer.run(operations).unwrap();
-        assert_eq!(batch_opstamp1, 2u64);
+        assert_eq!(batch_opstamp1, 3u64);
     }
 
     #[test]
@@ -978,10 +985,10 @@ mod tests {
         let index_writer: IndexWriter = index.writer_for_tests().unwrap();
         let operations1 = vec![];
         let batch_opstamp1 = index_writer.run(operations1).unwrap();
-        assert_eq!(batch_opstamp1, 0u64);
+        assert_eq!(batch_opstamp1, 1u64);
         let operations2 = vec![];
         let batch_opstamp2 = index_writer.run(operations2).unwrap();
-        assert_eq!(batch_opstamp2, 1u64);
+        assert_eq!(batch_opstamp2, 2u64);
     }
 
     #[test]
@@ -1193,6 +1200,49 @@ mod tests {
     }
 
     #[test]
+    fn test_delete_from_new_writer_survives_merge() -> crate::Result<()> {
+        let mut schema_builder = schema::Schema::builder();
+        let id_field = schema_builder.add_u64_field("id", INDEXED);
+        let index = Index::create_in_ram(schema_builder.build());
+        {
+            let mut index_writer: IndexWriter = index.writer_for_tests()?;
+            index_writer.set_merge_policy(Box::<NoMergePolicy>::default());
+            for id in 1..=4u64 {
+                index_writer.add_document(doc!(id_field => id))?;
+            }
+            index_writer.commit()?;
+            // This commit deletes a document of its own segment, so that segment gets the
+            // commit opstamp as its delete opstamp. The segment keeps live documents, so it is
+            // still there when the merge below ends.
+            index_writer.add_document(doc!(id_field => 10u64))?;
+            index_writer.add_document(doc!(id_field => 11u64))?;
+            index_writer.add_document(doc!(id_field => 99u64))?;
+            index_writer.delete_term(Term::from_field_u64(id_field, 99u64));
+            index_writer.commit()?;
+        }
+        // The first operation of a new writer is a delete. Adding a segment starts a merge of
+        // the two committed segments, which targets the last commit opstamp. The delete must
+        // still reach the old copy of the document.
+        let mut index_writer: IndexWriter = index.writer_for_tests()?;
+        let mut merge_policy = LogMergePolicy::default();
+        merge_policy.set_min_num_segments(2);
+        index_writer.set_merge_policy(Box::new(merge_policy));
+        index_writer.delete_term(Term::from_field_u64(id_field, 10u64));
+        index_writer.add_document(doc!(id_field => 10u64))?;
+        index_writer.commit()?;
+        index_writer.wait_merging_threads()?;
+
+        assert!(index.searchable_segment_ids()?.len() < 3);
+        let searcher = index.reader()?.searcher();
+        let term_query = TermQuery::new(
+            Term::from_field_u64(id_field, 10u64),
+            IndexRecordOption::Basic,
+        );
+        assert_eq!(searcher.search(&term_query, &Count)?, 1);
+        Ok(())
+    }
+
+    #[test]
     fn test_prepare_with_commit_message() -> crate::Result<()> {
         let mut schema_builder = schema::Schema::builder();
         let text_field = schema_builder.add_text_field("text", TEXT);
@@ -1313,7 +1363,8 @@ mod tests {
 
         // delete_all_documents the index
         let clear_tstamp = index_writer.delete_all_documents().unwrap();
-        assert_eq!(clear_tstamp, add_tstamp);
+        // the opstamp of the commit that created the index
+        assert_eq!(clear_tstamp, 0u64);
 
         // commit the clear command - now documents aren't available
         let second_commit = index_writer.commit();
@@ -1342,6 +1393,28 @@ mod tests {
                 .unwrap(),
             0
         );
+    }
+
+    #[test]
+    fn test_delete_all_documents_keeps_doc_added_after_pending_delete() -> crate::Result<()> {
+        let mut schema_builder = schema::Schema::builder();
+        let text_field = schema_builder.add_text_field("text", TEXT);
+        let index = Index::create_in_ram(schema_builder.build());
+        let mut index_writer: IndexWriter = index.writer_for_tests()?;
+        // The delete stays in the delete queue after `delete_all_documents`. The document
+        // added after the clear must not get an opstamp below it.
+        index_writer.delete_term(Term::from_field_text(text_field, "a"));
+        index_writer.delete_all_documents()?;
+        index_writer.add_document(doc!(text_field => "a"))?;
+        index_writer.commit()?;
+
+        let searcher = index.reader()?.searcher();
+        let term_query = TermQuery::new(
+            Term::from_field_text(text_field, "a"),
+            IndexRecordOption::Basic,
+        );
+        assert_eq!(searcher.search(&term_query, &Count)?, 1);
+        Ok(())
     }
 
     #[test]
