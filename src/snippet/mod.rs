@@ -103,7 +103,7 @@ impl FragmentCandidate {
     fn try_add_token(&mut self, token: &Token, terms: &BTreeMap<String, Score>) {
         self.stop_offset = self.stop_offset.max(token.offset_to);
 
-        if let Some(&score) = terms.get(&token.text.to_lowercase()) {
+        if let Some(&score) = terms.get(&token.text) {
             self.score += score;
             self.highlighted.push(token.offset_from..token.offset_to);
         }
@@ -399,6 +399,8 @@ pub struct SnippetGenerator {
 
 impl SnippetGenerator {
     /// Creates a new snippet generator
+    ///
+    /// `terms_text` holds the terms as `tokenizer` produces them.
     pub fn new(
         terms_text: BTreeMap<String, Score>,
         tokenizer: TextAnalyzer,
@@ -521,7 +523,7 @@ Survey in 2016, 2017, and 2018."#;
     #[test]
     fn test_snippet() {
         let terms = btreemap! {
-            String::from("rust") => 1.0,
+            String::from("Rust") => 1.0,
             String::from("language") => 0.9
         };
         let fragments = search_fragments(
@@ -571,7 +573,7 @@ Survey in 2016, 2017, and 2018."#;
     fn test_snippet_scored_fragment() {
         {
             let terms = btreemap! {
-                String::from("rust") =>1.0,
+                String::from("Rust") =>1.0,
                 String::from("language") => 0.9
             };
             let fragments = search_fragments(
@@ -590,7 +592,7 @@ Survey in 2016, 2017, and 2018."#;
         }
         {
             let terms = btreemap! {
-                String::from("rust") =>0.9,
+                String::from("Rust") =>0.9,
                 String::from("language") => 1.0
             };
             let fragments = search_fragments(
@@ -860,7 +862,7 @@ Survey in 2016, 2017, and 2018."#;
 
     #[test]
     fn test_snippet_generator_custom_highlighted_elements() {
-        let terms = btreemap! { String::from("rust") => 1.0, String::from("language") => 0.9 };
+        let terms = btreemap! { String::from("Rust") => 1.0, String::from("language") => 0.9 };
         let fragments = search_fragments(
             &mut From::from(SimpleTokenizer::default()),
             TEST_TEXT,
@@ -879,6 +881,20 @@ Survey in 2016, 2017, and 2018."#;
             "<q class=\"super\">Rust</q> is a systems programming <q class=\"super\">language</q> \
              sponsored by\nMozilla which describes it as a &quot;safe"
         );
+    }
+
+    #[test]
+    fn test_snippet_highlights_term_with_exact_case() {
+        let text = "foo Baz baz";
+        let terms = btreemap! { String::from("Baz") => 1.0 };
+        let fragments = search_fragments(
+            &mut From::from(SimpleTokenizer::default()),
+            text,
+            &terms,
+            100,
+        );
+        let snippet = select_best_fragment_combination(&fragments[..], text);
+        assert_eq!(snippet.to_html(), "foo <b>Baz</b> baz");
     }
 
     #[test]
