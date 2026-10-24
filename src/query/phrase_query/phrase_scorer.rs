@@ -351,6 +351,10 @@ impl<TPostings: Postings> PhraseScorer<TPostings> {
     /// A scorer over `term_postings` (each with its offset in the phrase),
     /// positioned on the first match. If `similarity_weight_opt` is None,
     /// then scoring is disabled (every match scores 1).
+    ///
+    /// # Panics
+    ///
+    /// If `term_postings` has fewer than two postings. A phrase of one term is a term query.
     pub fn new(
         term_postings: Vec<(usize, TPostings)>,
         similarity_weight_opt: Option<Bm25Weight>,
