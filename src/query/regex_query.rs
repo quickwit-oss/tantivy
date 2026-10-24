@@ -71,6 +71,9 @@ impl fmt::Debug for RegexQuery {
         if let Some(sink) = &self.matched_terms_sink {
             debug_struct.field("matched_terms_sink", sink);
         }
+        if let Some(cap) = &self.max_expansions {
+            debug_struct.field("max_expansions", cap);
+        }
         debug_struct.finish()
     }
 }
@@ -101,6 +104,12 @@ impl RegexQuery {
 
     /// Uses at most `cap` matching terms per segment: the shortest, then the most frequent.
     /// See [`AutomatonWeight::set_max_expansions`].
+    ///
+    /// Unlike [`RegexPhraseQuery::set_max_expansions`], which returns an error past its limit,
+    /// this keeps the selected terms and leaves the others out; the sink, if any, is then marked
+    /// truncated.
+    ///
+    /// [`RegexPhraseQuery::set_max_expansions`]: crate::query::RegexPhraseQuery::set_max_expansions
     pub fn set_max_expansions(&mut self, cap: usize) {
         self.max_expansions = Some(cap);
     }

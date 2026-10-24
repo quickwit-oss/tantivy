@@ -188,6 +188,12 @@ where
     /// `cap` terms are held in memory at a time.
     ///
     /// A cap of `0` matches no document; the sink is then marked truncated if any term matched.
+    ///
+    /// Unlike [`RegexPhraseQuery::set_max_expansions`], which returns an error past its limit,
+    /// this keeps the selected terms and leaves the others out; the sink, if any, is then marked
+    /// truncated.
+    ///
+    /// [`RegexPhraseQuery::set_max_expansions`]: crate::query::RegexPhraseQuery::set_max_expansions
     pub fn set_max_expansions(&mut self, cap: usize) {
         self.max_expansions = Some(cap);
     }
