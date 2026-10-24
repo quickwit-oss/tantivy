@@ -1,4 +1,5 @@
 use std::clone::Clone;
+use std::fmt;
 use std::sync::Arc;
 
 use tantivy_fst::Regex;
@@ -53,11 +54,24 @@ use crate::schema::Field;
 /// # }
 /// # assert!(test().is_ok());
 /// ```
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct RegexQuery {
     regex: Arc<Regex>,
     field: Field,
     matched_terms_sink: Option<MatchedTermsSink>,
+}
+
+impl fmt::Debug for RegexQuery {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let mut debug_struct = f.debug_struct("RegexQuery");
+        debug_struct
+            .field("regex", &self.regex)
+            .field("field", &self.field);
+        if let Some(sink) = &self.matched_terms_sink {
+            debug_struct.field("matched_terms_sink", sink);
+        }
+        debug_struct.finish()
+    }
 }
 
 impl RegexQuery {

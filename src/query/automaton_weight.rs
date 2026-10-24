@@ -117,6 +117,9 @@ where
     }
 
     /// Create a new AutomationWeight for a json path
+    ///
+    /// `json_path_bytes` is a JSON path ending with its end-of-path byte, as it starts the value
+    /// of a JSON [`Term`](crate::Term).
     pub fn new_for_json_path<IntoArcA: Into<Arc<A>>>(
         field: Field,
         automaton: IntoArcA,
