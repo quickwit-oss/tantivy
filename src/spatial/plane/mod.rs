@@ -4,12 +4,24 @@ pub mod crosser;
 pub mod math;
 
 use crate::spatial::s2cell_id::S2CellId;
-use crate::spatial::s2coords::st_to_ij;
+use crate::spatial::s2coords::{ij_to_st_min, st_to_ij};
 use crate::spatial::surface::Surface;
 
 /// Implementation of a planar surface.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Plane;
+
+#[inline]
+fn uv_to_ij(u: f64) -> i32 {
+    let i = st_to_ij(Plane::uv_to_st(u));
+    // Correct rounding is monotone and fixes grid boundaries, so rounding
+    // u + 1 can only move the index up by one. Equality belongs to the upper cell.
+    if i > 0 && u < Plane::st_to_uv(ij_to_st_min(i)) {
+        i - 1
+    } else {
+        i
+    }
+}
 
 impl Surface for Plane {
     const DIMENSIONS: usize = 2;
@@ -89,8 +101,8 @@ impl Surface for Plane {
 
     #[inline]
     fn cell_id_from_point(point: &Self::Point) -> S2CellId {
-        let i = st_to_ij(Self::uv_to_st(point[0]));
-        let j = st_to_ij(Self::uv_to_st(point[1]));
+        let i = uv_to_ij(point[0]);
+        let j = uv_to_ij(point[1]);
         S2CellId::from_face_ij(0, i, j)
     }
 
@@ -99,3 +111,7 @@ impl Surface for Plane {
         math::point_in_polygon(point, ring)
     }
 }
+
+#[cfg(test)]
+#[path = "../tests/plane_cell_tests.rs"]
+mod tests;
