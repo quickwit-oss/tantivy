@@ -4,7 +4,7 @@ use std::sync::Arc;
 use tantivy_fst::Regex;
 
 use crate::error::TantivyError;
-use crate::query::{AutomatonWeight, EnableScoring, Query, Weight};
+use crate::query::{AutomatonWeight, EnableScoring, MatchedTermsSink, Query, Weight};
 use crate::schema::Field;
 
 /// A Regex Query matches all of the documents
@@ -57,6 +57,7 @@ use crate::schema::Field;
 pub struct RegexQuery {
     regex: Arc<Regex>,
     field: Field,
+    matched_terms_sink: Option<MatchedTermsSink>,
 }
 
 impl RegexQuery {
@@ -72,11 +73,22 @@ impl RegexQuery {
         RegexQuery {
             regex: regex.into(),
             field,
+            matched_terms_sink: None,
         }
     }
 
+    /// Records the terms this query matches in the term dictionary into `sink` while the search
+    /// runs. See [`MatchedTermsSink`].
+    pub fn set_matched_terms_sink(&mut self, sink: MatchedTermsSink) {
+        self.matched_terms_sink = Some(sink);
+    }
+
     fn specialized_weight(&self) -> AutomatonWeight<Regex> {
-        AutomatonWeight::new(self.field, self.regex.clone())
+        let mut weight = AutomatonWeight::new(self.field, self.regex.clone());
+        if let Some(sink) = &self.matched_terms_sink {
+            weight.set_matched_terms_sink(sink.clone());
+        }
+        weight
     }
 }
 
@@ -93,7 +105,9 @@ mod test {
     use tantivy_fst::Regex;
 
     use super::RegexQuery;
-    use crate::collector::TopDocs;
+    use crate::collector::{Count, TopDocs};
+    use crate::indexer::NoMergePolicy;
+    use crate::query::MatchedTermsSink;
     use crate::schema::{Field, Schema, TEXT};
     use crate::{assert_nearly_equals, Index, IndexReader, IndexWriter};
 
@@ -180,6 +194,44 @@ mod test {
         let matching_zero = RegexQuery::from_regex(r2, field);
 
         verify_regex_query(matching_one, matching_zero, reader);
+        Ok(())
+    }
+
+    #[test]
+    pub fn test_regex_query_matched_terms_sink_multiple_segments() -> crate::Result<()> {
+        let mut schema_builder = Schema::builder();
+        let field = schema_builder.add_text_field("text", TEXT);
+        let mut index = Index::create_in_ram(schema_builder.build());
+        index.set_multithread_executor(2)?;
+        let mut index_writer: IndexWriter = index.writer_for_tests()?;
+        index_writer.set_merge_policy(Box::new(NoMergePolicy));
+        for segment_words in [["japan", "korea"], ["japan", "jamaica"], ["china", "chile"]] {
+            for word in segment_words {
+                index_writer.add_document(doc!(field => word))?;
+            }
+            index_writer.commit()?;
+        }
+        let searcher = index.reader()?.searcher();
+        assert_eq!(searcher.segment_readers().len(), 3);
+
+        let mut query = RegexQuery::from_pattern("ja.*", field)?;
+        let sink = MatchedTermsSink::new();
+        query.set_matched_terms_sink(sink.clone());
+        assert_eq!(searcher.search(&query, &Count)?, 3);
+        // "japan" matched in two segments and is recorded once
+        assert_eq!(sink.len(), 2);
+        assert_eq!(format!("{sink:?}"), "MatchedTermsSink { len: 2 }");
+        // searching again does not add duplicates
+        assert_eq!(searcher.search(&query, &Count)?, 3);
+        assert_eq!(
+            sink.take_bytes(),
+            vec![b"jamaica".to_vec(), b"japan".to_vec()]
+        );
+        assert!(sink.is_empty());
+
+        // a query without a sink matches the same documents
+        let query = RegexQuery::from_pattern("ja.*", field)?;
+        assert_eq!(searcher.search(&query, &Count)?, 3);
         Ok(())
     }
 
