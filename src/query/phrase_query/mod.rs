@@ -256,6 +256,45 @@ pub(crate) mod tests {
     }
 
     #[test]
+    pub fn test_phrase_slop_matches_same_docs_with_and_without_scoring() -> crate::Result<()> {
+        // The slop spent between earlier terms of the phrase has to be accounted for
+        // when scoring is disabled too. Otherwise `Count` (or a filter) matches
+        // documents that `TopDocs` never returns.
+        let index = create_index(&["a x b x c", "a b c", "a h d", "a x b c"])?;
+        let text_field = index.schema().get_field("text").unwrap();
+        let searcher = index.reader()?.searcher();
+        let matching_docs = |slop: u32, texts: &[&str], with_scoring: bool| -> Vec<DocId> {
+            let terms: Vec<Term> = texts
+                .iter()
+                .map(|text| Term::from_field_text(text_field, text))
+                .collect();
+            let mut phrase_query = PhraseQuery::new(terms);
+            phrase_query.set_slop(slop);
+            let collector = if with_scoring {
+                &TEST_COLLECTOR_WITH_SCORE
+            } else {
+                &TEST_COLLECTOR_WITHOUT_SCORE
+            };
+            searcher
+                .search(&phrase_query, collector)
+                .unwrap()
+                .docs()
+                .iter()
+                .map(|doc_address| doc_address.doc_id)
+                .collect()
+        };
+        for (slop, texts, expected) in [
+            (1, &["a", "b", "c"][..], vec![1, 3]),
+            (2, &["a", "b", "c"][..], vec![0, 1, 3]),
+            (1, &["a", "d", "h"][..], vec![]),
+        ] {
+            assert_eq!(matching_docs(slop, texts, true), expected);
+            assert_eq!(matching_docs(slop, texts, false), expected);
+        }
+        Ok(())
+    }
+
+    #[test]
     pub fn test_phrase_score_with_slop_ordering() -> crate::Result<()> {
         let index = create_index(&[
             "a e b e c",
