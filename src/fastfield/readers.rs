@@ -384,6 +384,7 @@ mod tests {
     use columnar::ColumnType;
 
     use crate::schema::{JsonObjectOptions, Schema, FAST};
+    use crate::tokenizer::RAW_TOKENIZER_NAME;
     use crate::{Index, IndexWriter, TantivyDocument};
 
     #[test]
@@ -394,7 +395,7 @@ mod tests {
         schema_builder.add_json_field(
             "json_expand_dots_enabled",
             JsonObjectOptions::default()
-                .set_fast(None)
+                .set_fast(RAW_TOKENIZER_NAME)
                 .set_expand_dots_enabled(),
         );
         let dynamic_field = schema_builder.add_json_field("_dyna", FAST);

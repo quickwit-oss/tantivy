@@ -7,6 +7,7 @@ use std::io;
 use std::net::Ipv6Addr;
 use std::sync::Arc;
 
+pub use merge_dict_column::compute_merged_term_ord_mapping;
 pub use merge_mapping::{MergeRowOrder, ShuffleMergeOrder, StackMergeOrder};
 
 use super::writer::ColumnarSerializer;

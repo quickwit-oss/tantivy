@@ -89,6 +89,14 @@ impl<'a> EnableScoring<'a> {
     pub fn is_scoring_enabled(&self) -> bool {
         matches!(self, EnableScoring::Enabled { .. })
     }
+
+    /// Returns an equivalent context with scoring disabled.
+    pub(crate) fn scoring_disabled(self) -> Self {
+        match self {
+            EnableScoring::Enabled { searcher, .. } => Self::disabled_from_searcher(searcher),
+            disabled @ EnableScoring::Disabled { .. } => disabled,
+        }
+    }
 }
 
 /// The `Query` trait defines a set of documents and a scoring method

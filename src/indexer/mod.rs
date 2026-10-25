@@ -8,23 +8,22 @@
 pub(crate) mod delete_queue;
 pub(crate) mod path_to_unordered_id;
 
-pub(crate) mod doc_id_mapping;
+pub mod doc_id_mapping;
 mod doc_opstamp_mapping;
 mod flat_map_with_buffer;
 pub(crate) mod index_writer;
 pub(crate) mod index_writer_status;
 pub(crate) mod indexing_term;
 mod log_merge_policy;
-mod merge_index_test;
 mod merge_operation;
 pub(crate) mod merge_policy;
 pub(crate) mod merger;
+mod merger_sorted_index_test;
 pub(crate) mod operation;
 pub(crate) mod prepared_commit;
 mod segment_entry;
 mod segment_manager;
 mod segment_register;
-pub(crate) mod segment_serializer;
 pub(crate) mod segment_updater;
 pub(crate) mod segment_writer;
 pub(crate) mod single_segment_index_writer;
@@ -33,6 +32,7 @@ mod stamper;
 use crossbeam_channel as channel;
 use smallvec::SmallVec;
 
+pub use self::doc_id_mapping::DocIdMapping;
 pub use self::index_writer::{advance_deletes, IndexWriter, IndexWriterOptions};
 pub use self::log_merge_policy::LogMergePolicy;
 pub use self::merge_operation::MergeOperation;
@@ -40,7 +40,6 @@ pub use self::merge_policy::{MergeCandidate, MergePolicy, NoMergePolicy};
 pub use self::operation::{AddOperation, DeleteOperation, UserOperation};
 pub use self::prepared_commit::PreparedCommit;
 pub use self::segment_entry::SegmentEntry;
-pub(crate) use self::segment_serializer::SegmentSerializer;
 pub use self::segment_updater::{merge_filtered_segments, merge_indices};
 pub use self::segment_writer::SegmentWriter;
 pub use self::single_segment_index_writer::SingleSegmentIndexWriter;
@@ -71,6 +70,7 @@ mod tests_mmap {
     use crate::index::FieldMetadata;
     use crate::query::{AllQuery, QueryParser};
     use crate::schema::{JsonObjectOptions, Schema, Type, FAST, INDEXED, STORED, TEXT};
+    use crate::tokenizer::RAW_TOKENIZER_NAME;
     use crate::{Index, IndexWriter, Term};
 
     #[test]
@@ -198,7 +198,7 @@ mod tests_mmap {
         let index = Index::create_in_ram(schema_builder.build());
         let mut index_writer = index.writer_for_tests().unwrap();
         index_writer
-            .add_document(doc!(field=>json!({format!("{field_name_in}"): "test1", format!("num{field_name_in}"): 10})))
+            .add_document(doc!(field=>json!({field_name_in.to_string(): "test1", format!("num{field_name_in}"): 10})))
             .unwrap();
         index_writer
             .add_document(doc!(field=>json!({format!("a{field_name_in}"): "test2"})))
@@ -452,8 +452,9 @@ mod tests_mmap {
     fn test_json_fields_metadata(expanded_dots: bool, one_segment: bool) {
         use pretty_assertions::assert_eq;
         let mut schema_builder = Schema::builder();
-        let json_options: JsonObjectOptions =
-            JsonObjectOptions::from(TEXT).set_fast(None).set_stored();
+        let json_options: JsonObjectOptions = JsonObjectOptions::from(TEXT)
+            .set_fast(RAW_TOKENIZER_NAME)
+            .set_stored();
         let json_options = if expanded_dots {
             json_options.set_expand_dots_enabled()
         } else {
@@ -635,8 +636,9 @@ mod tests_mmap {
         /// affect the field name itself.
         use pretty_assertions::assert_eq;
         let mut schema_builder = Schema::builder();
-        let json_options: JsonObjectOptions =
-            JsonObjectOptions::from(TEXT).set_fast(None).set_stored();
+        let json_options: JsonObjectOptions = JsonObjectOptions::from(TEXT)
+            .set_fast(RAW_TOKENIZER_NAME)
+            .set_stored();
         // let json_options = json_options.set_expand_dots_enabled();
         let json_field_shadow = schema_builder.add_json_field("json.shadow", json_options.clone());
         let json_field = schema_builder.add_json_field("json", json_options.clone());

@@ -1,14 +1,11 @@
 use columnar::{Column, ColumnType};
-use rustc_hash::FxHashMap;
 
-use crate::aggregation::agg_data::{
-    build_segment_agg_collectors, AggRefNode, AggregationsSegmentCtx,
-};
+use crate::aggregation::agg_data::AggregationsSegmentCtx;
 use crate::aggregation::bucket::term_agg::TermsAggregation;
-use crate::aggregation::cached_sub_aggs::{CachedSubAggs, HighCardCachedSubAggs};
+use crate::aggregation::buffered_sub_aggs::{BufferedSubAggs, HighCardBufferedSubAggs};
 use crate::aggregation::intermediate_agg_result::{
     IntermediateAggregationResult, IntermediateAggregationResults, IntermediateBucketResult,
-    IntermediateKey, IntermediateTermBucketEntry, IntermediateTermBucketResult,
+    IntermediateTermBucketEntry, IntermediateTermBucketResult,
 };
 use crate::aggregation::segment_agg_result::{BucketIdProvider, SegmentAggregationCollector};
 use crate::aggregation::BucketId;
@@ -20,14 +17,14 @@ use crate::aggregation::BucketId;
 /// - The field is multi-valued and we therefore have multiple columns
 /// - The field is not text and missing is provided as string (we cannot use the numeric missing
 ///   value optimization)
-#[derive(Default)]
-pub struct MissingTermAggReqData {
+#[derive(Default, Debug)]
+pub(crate) struct MissingTermAggReqData {
     /// The accessors to check for existence of a value.
-    pub accessors: Vec<(Column<u64>, ColumnType)>,
+    pub(crate) accessors: Vec<(Column<u64>, ColumnType)>,
     /// The name of the aggregation.
-    pub name: String,
+    pub(crate) name: String,
     /// The original terms aggregation request.
-    pub req: TermsAggregation,
+    pub(crate) req: TermsAggregation,
 }
 
 impl MissingTermAggReqData {
@@ -46,35 +43,23 @@ struct MissingCount {
 /// The specialized missing term aggregation.
 #[derive(Default, Debug)]
 pub struct TermMissingAgg {
-    accessor_idx: usize,
-    sub_agg: Option<HighCardCachedSubAggs>,
+    req_data: MissingTermAggReqData,
+    sub_agg: Option<HighCardBufferedSubAggs>,
     /// Idx = parent bucket id, Value = missing count for that bucket
     missing_count_per_bucket: Vec<MissingCount>,
     bucket_id_provider: BucketIdProvider,
 }
 impl TermMissingAgg {
     pub(crate) fn new(
-        agg_data: &mut AggregationsSegmentCtx,
-        node: &AggRefNode,
-    ) -> crate::Result<Self> {
-        let has_sub_aggregations = !node.children.is_empty();
-        let accessor_idx = node.idx_in_req_data;
-        let sub_agg = if has_sub_aggregations {
-            let sub_aggregation = build_segment_agg_collectors(agg_data, &node.children)?;
-            Some(sub_aggregation)
-        } else {
-            None
-        };
-
-        let sub_agg = sub_agg.map(CachedSubAggs::new);
-        let bucket_id_provider = BucketIdProvider::default();
-
-        Ok(Self {
-            accessor_idx,
-            sub_agg,
+        req_data: MissingTermAggReqData,
+        sub_agg: Option<Box<dyn SegmentAggregationCollector>>,
+    ) -> Self {
+        Self {
+            req_data,
+            sub_agg: sub_agg.map(BufferedSubAggs::new),
             missing_count_per_bucket: Vec::new(),
-            bucket_id_provider,
-        })
+            bucket_id_provider: BucketIdProvider::default(),
+        }
     }
 }
 
@@ -86,19 +71,16 @@ impl SegmentAggregationCollector for TermMissingAgg {
         parent_bucket_id: BucketId,
     ) -> crate::Result<()> {
         self.prepare_max_bucket(parent_bucket_id, agg_data)?;
-        let req_data = agg_data.get_missing_term_req_data(self.accessor_idx);
+        let req_data = &self.req_data;
         let term_agg = &req_data.req;
         let missing = term_agg
             .missing
             .as_ref()
             .expect("TermMissingAgg collector, but no missing found in agg req")
             .clone();
-        let mut entries: FxHashMap<IntermediateKey, IntermediateTermBucketEntry> =
-            Default::default();
-
         let missing_count = &self.missing_count_per_bucket[parent_bucket_id as usize];
         let mut missing_entry = IntermediateTermBucketEntry {
-            doc_count: missing_count.missing_count,
+            doc_count: missing_count.missing_count as u64,
             sub_aggregation: Default::default(),
         };
         if let Some(sub_agg) = &mut self.sub_agg {
@@ -108,13 +90,14 @@ impl SegmentAggregationCollector for TermMissingAgg {
                 .add_intermediate_aggregation_result(agg_data, &mut res, missing_count.bucket_id)?;
             missing_entry.sub_aggregation = res;
         }
-        entries.insert(missing.into(), missing_entry);
+        let entries = vec![(missing.into(), missing_entry)];
 
         let bucket = IntermediateBucketResult::Terms {
             buckets: IntermediateTermBucketResult {
                 entries,
                 sum_other_doc_count: 0,
                 doc_count_error_upper_bound: 0,
+                ..Default::default()
             },
         };
 
@@ -133,7 +116,7 @@ impl SegmentAggregationCollector for TermMissingAgg {
         agg_data: &mut AggregationsSegmentCtx,
     ) -> crate::Result<()> {
         let bucket = &mut self.missing_count_per_bucket[parent_bucket_id as usize];
-        let req_data = agg_data.get_missing_term_req_data(self.accessor_idx);
+        let req_data = &self.req_data;
 
         for doc in docs {
             let doc = *doc;
@@ -176,6 +159,17 @@ impl SegmentAggregationCollector for TermMissingAgg {
             sub_agg.flush(agg_data)?;
         }
         Ok(())
+    }
+
+    fn compute_metric_value(
+        &self,
+        _bucket_id: BucketId,
+        _sub_agg_name: &str,
+        _sub_agg_property: &str,
+        _agg_data: &AggregationsSegmentCtx,
+    ) -> Option<f64> {
+        // TODO: forward to `sub_agg` for nested order paths (`missing_agg>metric`).
+        None
     }
 }
 

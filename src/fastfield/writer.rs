@@ -4,9 +4,10 @@ use columnar::{ColumnarWriter, NumericalValue};
 use common::{DateTimePrecision, JsonPathWriter};
 use tokenizer_api::Token;
 
+use crate::indexer::doc_id_mapping::DocIdMapping;
 use crate::schema::document::{Document, ReferenceValue, ReferenceValueLeaf, Value};
 use crate::schema::{value_type_to_column_type, Field, FieldType, Schema, Type};
-use crate::tokenizer::{TextAnalyzer, TokenizerManager};
+use crate::tokenizer::{TextAnalyzer, TokenizerManager, RAW_TOKENIZER_NAME};
 use crate::{DocId, TantivyError};
 
 /// Only index JSON down to a depth of 20.
@@ -51,32 +52,43 @@ impl FastFieldsWriter {
             if !field_entry.field_type().is_fast() {
                 continue;
             }
+            if matches!(field_entry.field_type(), FieldType::TieBreaker) {
+                columnar_writer.record_tie_breaker_column(field_entry.name());
+                continue;
+            }
             fast_field_names[field_id.field_id() as usize] = Some(field_entry.name().to_string());
             let value_type = field_entry.field_type().value_type();
             if let FieldType::Date(date_options) = field_entry.field_type() {
                 date_precisions[field_id.field_id() as usize] = date_options.get_precision();
             }
             if let FieldType::JsonObject(json_object_options) = field_entry.field_type() {
-                if let Some(tokenizer_name) = json_object_options.get_fast_field_tokenizer_name() {
-                    let text_analyzer = tokenizer_manager.get(tokenizer_name).ok_or_else(|| {
-                        TantivyError::InvalidArgument(format!(
-                            "Tokenizer {tokenizer_name:?} not found"
-                        ))
-                    })?;
-                    per_field_tokenizer[field_id.field_id() as usize] = Some(text_analyzer);
+                if let Some(json_text_fast_field_option) = &json_object_options.fast {
+                    let tokenizer_name = json_text_fast_field_option.tokenizer.as_str();
+                    if tokenizer_name != RAW_TOKENIZER_NAME {
+                        let text_analyzer =
+                            tokenizer_manager.get(tokenizer_name).ok_or_else(|| {
+                                TantivyError::InvalidArgument(format!(
+                                    "Tokenizer {tokenizer_name:?} not found"
+                                ))
+                            })?;
+                        per_field_tokenizer[field_id.field_id() as usize] = Some(text_analyzer);
+                    }
                 }
-
                 expand_dots[field_id.field_id() as usize] =
                     json_object_options.is_expand_dots_enabled();
             }
             if let FieldType::Str(text_options) = field_entry.field_type() {
-                if let Some(tokenizer_name) = text_options.get_fast_field_tokenizer_name() {
-                    let text_analyzer = tokenizer_manager.get(tokenizer_name).ok_or_else(|| {
-                        TantivyError::InvalidArgument(format!(
-                            "Tokenizer {tokenizer_name:?} not found"
-                        ))
-                    })?;
-                    per_field_tokenizer[field_id.field_id() as usize] = Some(text_analyzer);
+                if let Some(fast_field_text_options) = &text_options.fast {
+                    let tokenizer_name = fast_field_text_options.tokenizer.as_str();
+                    if tokenizer_name != RAW_TOKENIZER_NAME {
+                        let text_analyzer =
+                            tokenizer_manager.get(tokenizer_name).ok_or_else(|| {
+                                TantivyError::InvalidArgument(format!(
+                                    "Tokenizer `{tokenizer_name}` not found"
+                                ))
+                            })?;
+                        per_field_tokenizer[field_id.field_id() as usize] = Some(text_analyzer);
+                    }
                 }
             }
 
@@ -103,6 +115,16 @@ impl FastFieldsWriter {
     /// The memory used (inclusive childs)
     pub fn mem_usage(&self) -> usize {
         self.columnar_writer.mem_usage()
+    }
+
+    pub(crate) fn sort_order(
+        &self,
+        sort_field: &str,
+        num_docs: DocId,
+        reversed: bool,
+    ) -> Vec<DocId> {
+        self.columnar_writer
+            .sort_order(sort_field, num_docs, reversed)
     }
 
     /// Indexes all of the fastfields of a new document.
@@ -192,6 +214,11 @@ impl FastFieldsWriter {
                 ReferenceValueLeaf::Geometry(_) => {
                     panic!("Geometry fields should not be routed to fast field writer")
                 }
+                // Custom fields are never fast (`is_fast() == false`), so they are not registered
+                // in `fast_field_names` and `add_doc_value` returns early above.
+                ReferenceValueLeaf::Custom(_) => {
+                    unreachable!("the fast field writer does not support custom field types")
+                }
             },
             ReferenceValue::Array(val) => {
                 // TODO: Check this is the correct behaviour we want.
@@ -225,9 +252,16 @@ impl FastFieldsWriter {
 
     /// Serializes all of the `FastFieldWriter`s by pushing them in
     /// order to the fast field serializer.
-    pub fn serialize(mut self, wrt: &mut dyn io::Write) -> io::Result<()> {
+    pub fn serialize(
+        &mut self,
+        wrt: &mut dyn io::Write,
+        doc_id_map_opt: Option<&DocIdMapping>,
+    ) -> io::Result<()> {
         let num_docs = self.num_docs;
-        self.columnar_writer.serialize(num_docs, wrt)?;
+        let old_to_new_row_ids =
+            doc_id_map_opt.map(|doc_id_mapping| doc_id_mapping.old_to_new_ids());
+        self.columnar_writer
+            .serialize(num_docs, old_to_new_row_ids, wrt)?;
         Ok(())
     }
 }
@@ -326,6 +360,9 @@ fn record_json_value_to_columnar_writer<'a, V: Value<'a>>(
             ReferenceValueLeaf::Geometry(_) => {
                 unimplemented!("Geometry support in dynamic fields is not yet implemented")
             }
+            ReferenceValueLeaf::Custom(_) => {
+                unimplemented!("the JSON field does not support custom field types")
+            }
         },
         ReferenceValue::Array(elements) => {
             for el in elements {
@@ -357,9 +394,24 @@ mod tests {
     use columnar::{Column, ColumnarReader, ColumnarWriter, StrColumn};
     use common::JsonPathWriter;
 
-    use super::record_json_value_to_columnar_writer;
+    use super::{record_json_value_to_columnar_writer, FastFieldsWriter};
     use crate::fastfield::writer::JSON_DEPTH_LIMIT;
+    use crate::schema::{Schema, FAST};
     use crate::DocId;
+
+    #[test]
+    fn test_raw_fast_fields_bypass_tokenizer() {
+        let mut schema_builder = Schema::builder();
+        let text_field = schema_builder.add_text_field("text", FAST);
+        let json_field = schema_builder.add_json_field("json", FAST);
+        let schema = schema_builder.build();
+
+        // `from_schema` uses an empty tokenizer manager, so this also verifies that the raw
+        // tokenizer is not looked up.
+        let fast_fields_writer = FastFieldsWriter::from_schema(&schema).unwrap();
+        assert!(fast_fields_writer.per_field_tokenizer[text_field.field_id() as usize].is_none());
+        assert!(fast_fields_writer.per_field_tokenizer[json_field.field_id() as usize].is_none());
+    }
 
     fn test_columnar_from_jsons_aux(
         json_docs: &[serde_json::Value],
@@ -380,7 +432,7 @@ mod tests {
         }
         let mut buffer = Vec::new();
         columnar_writer
-            .serialize(json_docs.len() as DocId, &mut buffer)
+            .serialize(json_docs.len() as DocId, None, &mut buffer)
             .unwrap();
         ColumnarReader::open(buffer).unwrap()
     }

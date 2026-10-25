@@ -18,9 +18,9 @@ use crate::index::Index;
 use crate::json_utils::convert_to_fast_value_and_append_to_json_term;
 use crate::query::range_query::{is_type_valid_for_fastfield_range_query, RangeQuery};
 use crate::query::{
-    AllQuery, BooleanQuery, BoostQuery, ConstScoreQuery, EmptyQuery, FuzzyTermQuery, Occur,
-    PhrasePrefixQuery, PhraseQuery, Query, RegexQuery, SpatialPredicate, SpatialQuery, TermQuery,
-    TermSetQuery,
+    AllQuery, BooleanQuery, BoostQuery, ConstScoreQuery, EmptyQuery, ExistsQuery, FuzzyTermQuery,
+    Occur, PhrasePrefixQuery, PhraseQuery, Query, RegexQuery, SpatialPredicate, SpatialQuery,
+    TermQuery, TermSetQuery,
 };
 use crate::schema::{
     Facet, FacetParseError, Field, FieldType, IndexRecordOption, IntoIpv6Addr, JsonObjectOptions,
@@ -184,6 +184,10 @@ fn trim_ast(logical_ast: LogicalAst) -> Option<LogicalAst> {
 /// * date values: The query parser supports rfc3339 formatted dates. For example
 ///   `"2002-10-02T15:00:00.05Z"` or `some_date_field:[2002-10-02T15:00:00Z TO
 ///   2002-10-02T18:00:00Z}`
+///
+/// * exists query: `field:*` will match documents that contain a non-null value in the specified
+///   field. The field must be configured as a fast field. For JSON fields, values in subpaths also
+///   count as existing.
 ///
 /// * all docs query: A plain `*` will match all documents in the index.
 ///
@@ -464,7 +468,7 @@ impl QueryParser {
                 let val: u64 = u64::from_str(phrase)?;
                 Ok(Term::from_field_u64(field, val))
             }
-            FieldType::I64(_) => {
+            FieldType::I64(_) | FieldType::TieBreaker => {
                 let val: i64 = i64::from_str(phrase)?;
                 Ok(Term::from_field_i64(field, val))
             }
@@ -538,6 +542,11 @@ impl QueryParser {
             FieldType::Spatial(_) => Err(QueryParserError::UnsupportedQuery(
                 "Spatial queries are not yet supported in text query parser".to_string(),
             )),
+            // Custom fields are neither indexed nor fast, so the guard above returns
+            // `FieldNotIndexed` before this match.
+            FieldType::Custom(_) => {
+                unreachable!("the query parser does not support custom field types")
+            }
         }
     }
 
@@ -616,6 +625,8 @@ impl QueryParser {
                 field,
                 json_path,
                 phrase,
+                slop,
+                prefix,
                 &self.tokenizer_manager,
                 json_options,
             ),
@@ -642,6 +653,11 @@ impl QueryParser {
                 "Spatial queries are not yet supported for field '{}'",
                 field_name
             ))),
+            // These fields are not indexed, so the `is_indexed()` guard above returns
+            // `FieldNotIndexed` before this match.
+            FieldType::TieBreaker | FieldType::Custom(_) => {
+                unreachable!("the query parser does not support this field type")
+            }
         }
     }
 
@@ -877,11 +893,9 @@ impl QueryParser {
                 let logical_ast = LogicalAst::Leaf(Box::new(LogicalLiteral::Set { elements }));
                 (Some(logical_ast), errors)
             }
-            UserInputLeaf::Exists { .. } => (
-                None,
-                vec![QueryParserError::UnsupportedQuery(
-                    "Range query need to target a specific field.".to_string(),
-                )],
+            UserInputLeaf::Exists { field } => (
+                Some(LogicalAst::Leaf(Box::new(LogicalLiteral::Exists { field }))),
+                Vec::new(),
             ),
             UserInputLeaf::Spatial {
                 field,
@@ -1098,6 +1112,7 @@ fn convert_literal_to_query(
                 ))
             }
         }
+        LogicalLiteral::Exists { field } => Box::new(ExistsQuery::new(field, true)),
     }
 }
 
@@ -1141,11 +1156,14 @@ fn generate_literals_for_str(
     }))
 }
 
+#[expect(clippy::too_many_arguments)]
 fn generate_literals_for_json_object(
     field_name: &str,
     field: Field,
     json_path: &str,
     phrase: &str,
+    slop: u32,
+    prefix: bool,
     tokenizer_manager: &TokenizerManager,
     json_options: &JsonObjectOptions,
 ) -> Result<Vec<LogicalLiteral>, QueryParserError> {
@@ -1182,6 +1200,12 @@ fn generate_literals_for_json_object(
     });
 
     if positions_and_terms.len() <= 1 {
+        if prefix {
+            return Err(QueryParserError::PhrasePrefixRequiresAtLeastTwoTerms {
+                phrase: phrase.to_owned(),
+                tokenizer: text_options.tokenizer().to_owned(),
+            });
+        }
         for (_, term) in positions_and_terms {
             logical_literals.push(LogicalLiteral::Term(term));
         }
@@ -1194,8 +1218,8 @@ fn generate_literals_for_json_object(
     }
     logical_literals.push(LogicalLiteral::Phrase {
         terms: positions_and_terms,
-        slop: 0,
-        prefix: false,
+        slop,
+        prefix,
     });
     Ok(logical_literals)
 }
@@ -1295,9 +1319,11 @@ fn convert_to_query_with_filters(
 #[cfg(test)]
 mod test {
     use matches::assert_matches;
+    use proptest::prelude::*;
 
     use super::super::logical_ast::*;
     use super::{QueryParser, QueryParserError};
+    use crate::collector::Count;
     use crate::query::Query;
     use crate::schema::{
         FacetOptions, Field, IndexRecordOption, Schema, Term, TextFieldIndexing, TextOptions, FAST,
@@ -1358,6 +1384,31 @@ mod test {
 
     fn make_query_parser() -> QueryParser {
         make_query_parser_with_default_fields(&["title", "text"])
+    }
+
+    proptest! {
+        #[test]
+        fn test_query_parser_does_not_panic_after_match_all(
+            suffix in prop::sample::select(vec!['\u{b}', '\u{c}', '\u{85}'])
+        ) {
+            let query_parser = make_query_parser();
+            let query = format!("*{suffix}");
+            prop_assert!(query_parser.parse_query(&query).is_err());
+            let (_, errors) = query_parser.parse_query_lenient(&query);
+            prop_assert!(!errors.is_empty());
+        }
+
+        #[test]
+        fn test_lenient_query_parser_makes_progress_in_invalid_sets(
+            field in proptest::option::of("[a-z]{1,4}"),
+            invalid_char in prop::sample::select(vec!['\0', '\u{b}', '\u{c}', '\u{7f}']),
+        ) {
+            let query_parser = make_query_parser();
+            let field = field.map(|field| format!("{field}:")).unwrap_or_default();
+            let query = format!("{field}IN [{invalid_char}");
+            let (_, errors) = query_parser.parse_query_lenient(&query);
+            prop_assert!(!errors.is_empty());
+        }
     }
 
     fn parse_query_to_logical_ast_with_default_fields(
@@ -2228,6 +2279,82 @@ mod test {
     }
 
     #[test]
+    pub fn test_phrase_prefix_on_json_field() {
+        let query_parser = make_query_parser();
+        let query = query_parser
+            .parse_query("json.attr:\"big bad wo\"*")
+            .unwrap();
+        assert_eq!(
+            format!("{query:?}"),
+            "PhrasePrefixQuery { field: Field(14), phrase_terms: [(0, Term(field=14, type=Json, \
+             path=attr, type=Str, \"big\")), (1, Term(field=14, type=Json, path=attr, type=Str, \
+             \"bad\"))], prefix: (2, Term(field=14, type=Json, path=attr, type=Str, \"wo\")), \
+             max_expansions: 50 }"
+        );
+    }
+
+    #[test]
+    pub fn test_phrase_prefix_too_short_on_json_field() {
+        let err = parse_query_to_logical_ast("json.attr:\"wo\"*", true).unwrap_err();
+        assert_eq!(
+            err,
+            QueryParserError::PhrasePrefixRequiresAtLeastTwoTerms {
+                phrase: "wo".to_owned(),
+                tokenizer: "default".to_owned()
+            }
+        );
+    }
+
+    #[test]
+    pub fn test_phrase_slop_on_json_field() {
+        test_parse_query_to_logical_ast_helper(
+            "json.attr:\"a b\"~2",
+            r#""[(0, Term(field=14, type=Json, path=attr, type=Str, "a")), (1, Term(field=14, type=Json, path=attr, type=Str, "b"))]"~2"#,
+            false,
+        );
+    }
+
+    #[test]
+    fn test_phrase_prefix_and_slop_on_json_field_with_documents() -> crate::Result<()> {
+        use serde_json::json;
+
+        use crate::collector::Count;
+
+        let mut schema_builder = Schema::builder();
+        let json = schema_builder.add_json_field("json", TEXT);
+        let schema = schema_builder.build();
+        let index = Index::create_in_ram(schema);
+
+        let mut index_writer = index.writer_for_tests()?;
+        index_writer.add_document(doc!(json => json!({"attr": "big bad wolf"})))?;
+        index_writer.add_document(doc!(json => json!({"attr": "big bad world"})))?;
+        index_writer.add_document(doc!(json => json!({"attr": "big bad"})))?;
+        index_writer.add_document(doc!(json => json!({"attr": "small bad wolf"})))?;
+        index_writer.add_document(doc!(json => json!({"attr": "big angry bad wolf"})))?;
+        index_writer.commit()?;
+
+        let query_parser = QueryParser::for_index(&index, Vec::new());
+        let searcher = index.reader()?.searcher();
+
+        // Phrase prefix: matches "big bad wolf" and "big bad world", but not "big bad" (no term
+        // after the phrase to expand) nor "small bad wolf" (phrase does not match).
+        let phrase_prefix = query_parser.parse_query("json.attr:\"big bad wo\"*")?;
+        assert_eq!(searcher.search(&*phrase_prefix, &Count)?, 2);
+
+        // Without the trailing `*` the same input is an exact phrase and matches nothing.
+        let exact_phrase = query_parser.parse_query("json.attr:\"big bad wo\"")?;
+        assert_eq!(searcher.search(&*exact_phrase, &Count)?, 0);
+
+        // Slop: "big angry bad wolf" only matches "big bad" once a slop of 1 is allowed.
+        let phrase = query_parser.parse_query("json.attr:\"big bad\"")?;
+        assert_eq!(searcher.search(&*phrase, &Count)?, 3);
+        let phrase_slop = query_parser.parse_query("json.attr:\"big bad\"~1")?;
+        assert_eq!(searcher.search(&*phrase_slop, &Count)?, 4);
+
+        Ok(())
+    }
+
+    #[test]
     pub fn test_term_set_query() {
         test_parse_query_to_logical_ast_helper(
             "title: IN [a b cd]",
@@ -2746,5 +2873,58 @@ mod test {
                 assert_eq!(format!("{query:?}"), format!("{expected:?}"), "{text}");
             }
         }
+    }
+
+    #[test]
+    pub fn test_exists() {
+        test_parse_query_to_logical_ast_helper("title:*", "Exists(title)", false);
+    }
+
+    #[test]
+    fn test_exists_query_with_documents() -> crate::Result<()> {
+        let mut schema_builder = Schema::builder();
+        let fast = schema_builder.add_u64_field("fast", FAST);
+        let json = schema_builder.add_json_field("json", TEXT | FAST);
+        let not_fast = schema_builder.add_text_field("not_fast", TEXT);
+        let schema = schema_builder.build();
+        let index = Index::create_in_ram(schema);
+
+        let mut index_writer = index.writer_for_tests()?;
+        index_writer.add_document(doc!(
+            fast => 1u64,
+            json => json!({"nested": {"value": true}}),
+            not_fast => "present",
+        ))?;
+        index_writer.add_document(doc!(json => json!({"other": 2u64})))?;
+        index_writer.add_document(doc!(json => json!({"nested": null})))?;
+        index_writer.add_document(doc!())?;
+        index_writer.commit()?;
+
+        let query_parser = QueryParser::for_index(&index, Vec::new());
+        let searcher = index.reader()?.searcher();
+
+        let fast_exists = query_parser.parse_query("fast:*")?;
+        assert_eq!(searcher.search(&*fast_exists, &Count)?, 1);
+
+        // JSON exists queries include non-null values in subpaths. The document containing only a
+        // null value and the empty document do not match.
+        let json_exists = query_parser.parse_query("json:*")?;
+        assert_eq!(searcher.search(&*json_exists, &Count)?, 2);
+        let nested_exists = query_parser.parse_query("json.nested:*")?;
+        assert_eq!(searcher.search(&*nested_exists, &Count)?, 1);
+
+        let fast_does_not_exist = query_parser.parse_query("* NOT fast:*")?;
+        assert_eq!(searcher.search(&*fast_does_not_exist, &Count)?, 3);
+
+        let not_fast_exists = query_parser.parse_query("not_fast:*")?;
+        assert_eq!(
+            searcher
+                .search(&*not_fast_exists, &Count)
+                .unwrap_err()
+                .to_string(),
+            "Schema error: 'Field not_fast is not a fast field.'"
+        );
+
+        Ok(())
     }
 }

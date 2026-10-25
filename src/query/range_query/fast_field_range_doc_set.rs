@@ -3,6 +3,7 @@ use std::ops::RangeInclusive;
 
 use columnar::Column;
 
+use crate::docset::SeekDangerResult;
 use crate::{DocId, DocSet, TERMINATED};
 
 /// Helper to have a cursor over a vec of docids
@@ -184,6 +185,37 @@ impl<T: Send + Sync + PartialOrd + Copy + Debug + 'static> DocSet for RangeDocSe
         doc
     }
 
+    /// `seek_danger` only needs to answer whether `target` itself matches, so it does a cheap
+    /// point lookup on the column instead of scanning forward to materialize the next match (the
+    /// expensive part of a regular `seek`).
+    fn seek_danger(&mut self, target: DocId) -> SeekDangerResult {
+        // Covers `target == TERMINATED` and any target past the last doc: no match is possible.
+        if target >= self.column.num_docs() {
+            return SeekDangerResult::SeekLowerBound(TERMINATED);
+        }
+
+        if self.is_last_seek_distance_large(target) {
+            self.reset_fetch_range();
+        }
+        self.last_seek_pos_opt = Some(target);
+
+        let is_match = self
+            .column
+            .values_for_doc(target)
+            .any(|value| self.value_range.contains(&value));
+        if is_match {
+            // Leave the docset in a valid state positioned on `target`, so `doc()` returns it and a
+            // following `advance()` resumes the scan right after it.
+            self.loaded_docs.get_cleared_data().push(target);
+            self.next_fetch_start = target + 1;
+            SeekDangerResult::Found
+        } else {
+            // `target` is not in the docset. The next match is strictly greater than `target`, so
+            // `target + 1` is a valid lower bound. We may leave the docset in an invalid state.
+            SeekDangerResult::SeekLowerBound(target + 1)
+        }
+    }
+
     fn size_hint(&self) -> u32 {
         // TODO: Implement a better size hint
         self.column.num_docs() / 10
@@ -209,12 +241,148 @@ impl<T: Send + Sync + PartialOrd + Copy + Debug + 'static> DocSet for RangeDocSe
 
 #[cfg(test)]
 mod tests {
-    use std::ops::Bound;
+    use std::ops::{Bound, RangeInclusive};
 
+    use columnar::Column;
+
+    use super::RangeDocSet;
     use crate::collector::Count;
     use crate::directory::RamDirectory;
+    use crate::docset::{SeekDangerResult, TERMINATED};
     use crate::query::RangeQuery;
-    use crate::{schema, IndexBuilder, TantivyDocument, Term};
+    use crate::{schema, DocSet, Index, IndexBuilder, TantivyDocument, Term};
+
+    /// Builds a single-segment index where doc `i` carries `values_for_doc(i)` in a u64 fast
+    /// field, then returns its column so we can drive a `RangeDocSet` directly.
+    fn build_u64_column(
+        num_docs: usize,
+        values_for_doc: impl Fn(usize) -> Vec<u64>,
+    ) -> Column<u64> {
+        let mut schema_builder = schema::SchemaBuilder::new();
+        let value_field = schema_builder.add_u64_field("value", schema::FAST);
+        let index = Index::create_in_ram(schema_builder.build());
+        {
+            let mut writer = index.writer_for_tests().unwrap();
+            for i in 0..num_docs {
+                let mut doc = TantivyDocument::new();
+                for v in values_for_doc(i) {
+                    doc.add_u64(value_field, v);
+                }
+                writer.add_document(doc).unwrap();
+            }
+            writer.commit().unwrap();
+        }
+        let searcher = index.reader().unwrap().searcher();
+        assert_eq!(searcher.segment_readers().len(), 1);
+        searcher
+            .segment_reader(0)
+            .fast_fields()
+            .u64("value")
+            .unwrap()
+    }
+
+    fn range_docset(
+        value_range: RangeInclusive<u64>,
+        num_docs: usize,
+        values_for_doc: impl Fn(usize) -> Vec<u64>,
+    ) -> RangeDocSet<u64> {
+        RangeDocSet::new(value_range, build_u64_column(num_docs, values_for_doc))
+    }
+
+    #[test]
+    fn seek_danger_found_leaves_valid_state() {
+        // Even docs match the range, odd docs do not.
+        let mut docset = range_docset(0..=0, 100, |i| vec![(i % 2) as u64]);
+
+        // Matching target: `Found`, and the docset is positioned exactly on it.
+        assert_eq!(docset.seek_danger(10), SeekDangerResult::Found);
+        assert_eq!(docset.doc(), 10);
+        // A following advance resumes the scan right after the found doc.
+        assert_eq!(docset.advance(), 12);
+        assert_eq!(docset.doc(), 12);
+    }
+
+    #[test]
+    fn seek_danger_miss_returns_lower_bound() {
+        let mut docset = range_docset(0..=0, 100, |i| vec![(i % 2) as u64]);
+
+        // Odd target does not match: lower bound is strictly greater than the target and never
+        // skips past the next real match (here doc 12, the first even doc after 11).
+        match docset.seek_danger(11) {
+            SeekDangerResult::SeekLowerBound(lower_bound) => {
+                assert!(lower_bound > 11);
+                assert!(lower_bound <= 12);
+            }
+            SeekDangerResult::Found => panic!("11 should not match"),
+        }
+        // After a miss we may be in an invalid state; another seek_danger recovers it.
+        assert_eq!(docset.seek_danger(12), SeekDangerResult::Found);
+        assert_eq!(docset.doc(), 12);
+    }
+
+    #[test]
+    fn seek_danger_terminated_and_out_of_bounds() {
+        let mut docset = range_docset(0..=0, 10, |i| vec![(i % 2) as u64]);
+        assert_eq!(
+            docset.seek_danger(TERMINATED),
+            SeekDangerResult::SeekLowerBound(TERMINATED)
+        );
+        // A target past the last doc has no possible match either.
+        assert_eq!(
+            docset.seek_danger(10),
+            SeekDangerResult::SeekLowerBound(TERMINATED)
+        );
+    }
+
+    #[test]
+    fn seek_danger_multivalued() {
+        // Doc `i` holds values [i, i+1]; the range {5} matches docs 4 and 5.
+        let mut docset = range_docset(5..=5, 20, |i| vec![i as u64, i as u64 + 1]);
+
+        assert_eq!(docset.seek_danger(4), SeekDangerResult::Found);
+        assert_eq!(docset.doc(), 4);
+        assert_eq!(docset.advance(), 5);
+        // No further match after doc 5.
+        assert_eq!(docset.advance(), TERMINATED);
+    }
+
+    #[test]
+    fn seek_danger_matches_seek() {
+        // Cross-check seek_danger against the true next match for every target, on a column with a
+        // few sparse matches.
+        let matches = [3u32, 7, 50, 51, 99];
+        let num_docs = 100;
+        let values_for_doc = |i: usize| {
+            vec![if matches.contains(&(i as u32)) {
+                1u64
+            } else {
+                0u64
+            }]
+        };
+
+        for target in 0..num_docs as u32 {
+            // The first matching doc greater than or equal to `target`, i.e. what `seek` returns.
+            let expected = matches
+                .iter()
+                .copied()
+                .find(|&m| m >= target)
+                .unwrap_or(TERMINATED);
+
+            let mut danger = range_docset(1..=1, num_docs, values_for_doc);
+            match danger.seek_danger(target) {
+                SeekDangerResult::Found => {
+                    assert_eq!(expected, target, "target {target} reported Found");
+                    assert_eq!(danger.doc(), target);
+                }
+                SeekDangerResult::SeekLowerBound(lower_bound) => {
+                    assert_ne!(expected, target, "target {target} should have been Found");
+                    assert!(lower_bound > target);
+                    // The lower bound must never skip past the true next match.
+                    assert!(lower_bound <= expected);
+                }
+            }
+        }
+    }
 
     #[test]
     fn range_query_fast_optional_field_minimum() {

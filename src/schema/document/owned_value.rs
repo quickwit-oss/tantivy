@@ -51,6 +51,8 @@ pub enum OwnedValue {
     Object(Vec<(String, Self)>),
     /// IpV6 Address. Internally there is no IpV4, it needs to be converted to `Ipv6Addr`.
     IpAddr(Ipv6Addr),
+    /// Opaque payload of a plugin-defined custom field.
+    Custom(Vec<u8>),
     /// A GeoRust multi-polygon.
     Geometry(Geometry<Plane>),
 }
@@ -83,7 +85,8 @@ impl OwnedValue {
             OwnedValue::Array(_) => 10,
             OwnedValue::Object(_) => 11,
             OwnedValue::IpAddr(_) => 12,
-            OwnedValue::Geometry(_) => 13,
+            OwnedValue::Custom(_) => 13,
+            OwnedValue::Geometry(_) => 14,
         }
     }
 }
@@ -105,6 +108,7 @@ impl<'a> Value<'a> for &'a OwnedValue {
             OwnedValue::Facet(val) => ReferenceValueLeaf::Facet(val.encoded_str()).into(),
             OwnedValue::Bytes(val) => ReferenceValueLeaf::Bytes(val).into(),
             OwnedValue::IpAddr(val) => ReferenceValueLeaf::IpAddr(*val).into(),
+            OwnedValue::Custom(val) => ReferenceValueLeaf::Custom(val).into(),
             OwnedValue::Array(array) => ReferenceValue::Array(array.iter()),
             OwnedValue::Object(object) => ReferenceValue::Object(ObjectMapIter(object.iter())),
             OwnedValue::Geometry(geometry) => {
@@ -238,6 +242,10 @@ impl serde::Serialize for OwnedValue {
                 }
             }
             OwnedValue::Array(ref array) => array.serialize(serializer),
+            // Custom payloads are opaque; render them as base64 for display/debug. They never
+            // round-trip through serde (they are populated programmatically), so this is lossy
+            // by design.
+            OwnedValue::Custom(ref bytes) => serializer.serialize_str(&BASE64.encode(bytes)),
             OwnedValue::Geometry(ref geometry) => geometry.to_geojson().serialize(serializer),
         }
     }
@@ -326,6 +334,7 @@ impl<'a, V: Value<'a>> From<ReferenceValue<'a, V>> for OwnedValue {
                 ReferenceValueLeaf::IpAddr(val) => OwnedValue::IpAddr(val),
                 ReferenceValueLeaf::Bool(val) => OwnedValue::Bool(val),
                 ReferenceValueLeaf::PreTokStr(val) => OwnedValue::PreTokStr(*val.clone()),
+                ReferenceValueLeaf::Custom(val) => OwnedValue::Custom(val.to_vec()),
                 ReferenceValueLeaf::Geometry(val) => OwnedValue::Geometry(*val.clone()),
             },
             ReferenceValue::Array(val) => {
@@ -436,12 +445,12 @@ impl From<serde_json::Value> for OwnedValue {
             }
             serde_json::Value::String(text) => {
                 if can_be_rfc3339_date_time(&text) {
-                    match OffsetDateTime::parse(&text, &Rfc3339) {
-                        Ok(dt) => {
-                            let dt_utc = dt.to_offset(time::UtcOffset::UTC);
-                            Self::Date(DateTime::from_utc(dt_utc))
-                        }
-                        Err(_) => Self::Str(text),
+                    match OffsetDateTime::parse(&text, &Rfc3339)
+                        .ok()
+                        .and_then(|dt| DateTime::try_from_utc(dt.to_offset(time::UtcOffset::UTC)))
+                    {
+                        Some(dt) => Self::Date(dt),
+                        None => Self::Str(text),
                     }
                 } else {
                     Self::Str(text)
@@ -541,5 +550,22 @@ mod tests {
         // The time zone information gets lost by conversion into `Value::Date` and
         // implicitly becomes UTC.
         assert_eq!(serialized_value_json, r#""1996-12-20T01:39:57Z""#);
+    }
+
+    #[test]
+    fn test_from_json_out_of_range_date_is_str() {
+        for text in ["1601-01-01T00:00:00Z", "9999-12-31T23:59:59Z"] {
+            assert_eq!(
+                OwnedValue::from(serde_json::json!(text)),
+                OwnedValue::Str(text.to_string())
+            );
+        }
+        let in_range = "2026-06-30T17:20:27Z";
+        assert_eq!(
+            OwnedValue::from(serde_json::json!(in_range)),
+            OwnedValue::Date(DateTime::from_utc(
+                OffsetDateTime::parse(in_range, &Rfc3339).unwrap()
+            ))
+        );
     }
 }

@@ -23,7 +23,10 @@ fn create_index(path: &str) {
 fn create_format() {
     let version = INDEX_FORMAT_VERSION.to_string();
     let file_path = path_for_version(&version);
-    if PathBuf::from(file_path.clone()).exists() {
+    if PathBuf::from(file_path.clone())
+        .try_exists()
+        .expect("Failed to check whether the compatibility index exists")
+    {
         return;
     }
     create_index(&file_path);

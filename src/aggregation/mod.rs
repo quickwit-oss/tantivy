@@ -133,7 +133,7 @@ mod agg_limits;
 pub mod agg_req;
 pub mod agg_result;
 pub mod bucket;
-pub(crate) mod cached_sub_aggs;
+pub(crate) mod buffered_sub_aggs;
 mod collector;
 mod date;
 mod error;
@@ -141,7 +141,19 @@ pub mod intermediate_agg_result;
 pub mod metric;
 
 mod segment_agg_result;
+mod value_source;
+use std::cmp::Ordering;
 use std::fmt::Display;
+use std::sync::Arc;
+
+#[cfg(feature = "jitexpr")]
+pub(crate) use value_source::jitexpr_value_source;
+pub(crate) use value_source::ColumnBlockAccessor;
+#[cfg(feature = "jitexpr")]
+pub use value_source::JitExprValueSourceProvider;
+pub use value_source::{
+    ValueSource, ValueSourceDictionary, ValueSourceProvider, ValueSourceRegistry,
+};
 
 #[cfg(test)]
 mod agg_tests;
@@ -180,18 +192,31 @@ pub type BucketId = u32;
 /// This struct holds shared resources needed during aggregation execution:
 /// - `limits`: Memory and bucket limits for the aggregation
 /// - `tokenizers`: TokenizerManager for parsing query strings in filter aggregations
+/// - `value_sources`: Named computed columns that aggregations may read instead of a fast field
 #[derive(Clone, Default)]
 pub struct AggContextParams {
     /// Aggregation limits (memory and bucket count)
     pub limits: AggregationLimitsGuard,
     /// Tokenizer manager for query string parsing
     pub tokenizers: TokenizerManager,
+    /// Computed columns registered by name, resolved in preference to a fast field.
+    pub value_sources: Arc<ValueSourceRegistry>,
 }
 
 impl AggContextParams {
     /// Create new aggregation context parameters
     pub fn new(limits: AggregationLimitsGuard, tokenizers: TokenizerManager) -> Self {
-        Self { limits, tokenizers }
+        Self {
+            limits,
+            tokenizers,
+            value_sources: Arc::new(ValueSourceRegistry::default()),
+        }
+    }
+
+    /// Attaches named computed columns, which aggregation requests address as field names.
+    pub fn with_value_sources(mut self, value_sources: Arc<ValueSourceRegistry>) -> Self {
+        self.value_sources = value_sources;
+        self
     }
 }
 
@@ -295,7 +320,7 @@ where D: Deserializer<'de> {
 /// The serialized key is used in a `HashMap`.
 pub type SerializedKey = String;
 
-#[derive(Clone, Debug, Serialize, Deserialize, PartialOrd)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 /// The key to identify a bucket.
 ///
 /// The order is important, with serde untagged, that we try to deserialize into i64 first.
@@ -311,6 +336,35 @@ pub enum Key {
     F64(f64),
 }
 impl Eq for Key {}
+
+impl Ord for Key {
+    fn cmp(&self, other: &Self) -> Ordering {
+        match (self, other) {
+            (Self::Str(left), Self::Str(right)) => left.cmp(right),
+            (Self::I64(left), Self::I64(right)) => left.cmp(right),
+            (Self::U64(left), Self::U64(right)) => left.cmp(right),
+            (Self::F64(left), Self::F64(right)) => left.total_cmp(right),
+            // Keep the variant order from the previous derived `PartialOrd` implementation.
+            (left, right) => key_variant_ord(left).cmp(&key_variant_ord(right)),
+        }
+    }
+}
+
+impl PartialOrd for Key {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+fn key_variant_ord(key: &Key) -> u8 {
+    match key {
+        Key::Str(_) => 0,
+        Key::I64(_) => 1,
+        Key::U64(_) => 2,
+        Key::F64(_) => 3,
+    }
+}
+
 impl std::hash::Hash for Key {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
         core::mem::discriminant(self).hash(state);
@@ -403,6 +457,7 @@ pub(crate) fn f64_to_fastfield_u64(val: f64, field_type: &ColumnType) -> Option<
 
 #[cfg(test)]
 mod tests {
+    use std::collections::BTreeSet;
     use std::net::Ipv6Addr;
 
     use columnar::DateTime;
@@ -414,7 +469,22 @@ mod tests {
     use crate::indexer::NoMergePolicy;
     use crate::query::{AllQuery, TermQuery};
     use crate::schema::{IndexRecordOption, Schema, TextFieldIndexing, FAST, STRING};
+    use crate::tokenizer::RAW_TOKENIZER_NAME;
     use crate::{Index, IndexWriter, Term};
+
+    #[test]
+    fn key_order_is_total_and_consistent_with_equality() {
+        let negative_zero = Key::F64(-0.0);
+        let positive_zero = Key::F64(0.0);
+        assert_ne!(negative_zero, positive_zero);
+        assert_eq!(negative_zero.cmp(&positive_zero), Ordering::Less);
+
+        let nan = Key::F64(f64::from_bits(0x7ff8_0000_0000_0001));
+        assert_eq!(nan.cmp(&nan), Ordering::Equal);
+
+        let keys = BTreeSet::from([negative_zero, positive_zero, nan]);
+        assert_eq!(keys.len(), 3);
+    }
 
     pub fn get_test_index_with_num_docs(
         merge_segments: bool,
@@ -509,7 +579,7 @@ mod tests {
                     .set_index_option(IndexRecordOption::Basic)
                     .set_fieldnorms(false),
             )
-            .set_fast(None)
+            .set_fast(RAW_TOKENIZER_NAME)
             .set_stored();
         let text_field = schema_builder.add_text_field("text", text_fieldtype.clone());
         let text_field_id = schema_builder.add_text_field("text_id", text_fieldtype);
@@ -564,7 +634,7 @@ mod tests {
             .set_indexing_options(
                 TextFieldIndexing::default().set_index_option(IndexRecordOption::WithFreqs),
             )
-            .set_fast(Some("raw"))
+            .set_fast(RAW_TOKENIZER_NAME)
             .set_stored();
         let text_field = schema_builder.add_text_field("text", text_fieldtype);
         let date_field = schema_builder.add_date_field("date", FAST);

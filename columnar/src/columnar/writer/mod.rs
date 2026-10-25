@@ -3,6 +3,7 @@ mod column_writers;
 mod serializer;
 mod value_index;
 
+use std::collections::HashSet;
 use std::io;
 use std::net::Ipv6Addr;
 
@@ -44,7 +45,7 @@ struct SpareBuffers {
 /// columnar_writer.record_str(1u32 /* doc id */, "product_name", "Apple");
 /// columnar_writer.record_numerical(0u32 /* doc id */, "price", 10.5f64); //< uh oh we ended up mixing integer and floats.
 /// let mut wrt: Vec<u8> =  Vec::new();
-/// columnar_writer.serialize(2u32, &mut wrt).unwrap();
+/// columnar_writer.serialize(2u32, None, &mut wrt).unwrap();
 /// ```
 #[derive(Default)]
 pub struct ColumnarWriter {
@@ -54,6 +55,7 @@ pub struct ColumnarWriter {
     ip_addr_field_hash_map: ArenaHashMap,
     bytes_field_hash_map: ArenaHashMap,
     str_field_hash_map: ArenaHashMap,
+    generated_tie_breaker_columns: HashSet<Vec<u8>>,
     arena: MemoryArena,
     // Dictionaries used to store dictionary-encoded values.
     dictionaries: Vec<DictionaryBuilder>,
@@ -74,6 +76,68 @@ impl ColumnarWriter {
                 .iter()
                 .map(|dict| dict.mem_usage())
                 .sum::<usize>()
+    }
+
+    /// Returns the list of doc ids from 0..num_docs sorted by the `sort_field`
+    /// column.
+    ///
+    /// If the column is multivalued, use the first value for scoring.
+    /// If no value is associated to a specific row, the document is assigned
+    /// the lowest possible score.
+    ///
+    /// The sort applied is stable.
+    ///
+    /// The sort_field has to be a schema field (not a json path): we rely on the fact that
+    /// all values have the same numerical type in `collect_numerical_sort_order`.
+    pub fn sort_order(&self, sort_field: &str, num_docs: RowId, reversed: bool) -> Vec<u32> {
+        let sort_field_bytes = sort_field.as_bytes();
+        let mut symbols_buffer = Vec::new();
+        if let Some(numerical_col_writer) = self
+            .numerical_field_hash_map
+            .get::<NumericalColumnWriter>(sort_field_bytes)
+        {
+            return collect_numerical_sort_order(
+                numerical_col_writer.operation_iterator(&self.arena, None, &mut symbols_buffer),
+                num_docs,
+                reversed,
+            );
+        }
+        // Datetime columns store a plain `ColumnWriter` (not a `NumericalColumnWriter`), with
+        // `NumericalValue::I64` values.
+        if let Some(datetime_col_writer) = self
+            .datetime_field_hash_map
+            .get::<ColumnWriter>(sort_field_bytes)
+        {
+            return collect_numerical_sort_order(
+                datetime_col_writer.operation_iterator::<NumericalValue>(
+                    &self.arena,
+                    None,
+                    &mut symbols_buffer,
+                ),
+                num_docs,
+                reversed,
+            );
+        }
+        let str_or_bytes_column_opt = self
+            .str_field_hash_map
+            .get::<StrOrBytesColumnWriter>(sort_field_bytes)
+            .or_else(|| {
+                self.bytes_field_hash_map
+                    .get::<StrOrBytesColumnWriter>(sort_field_bytes)
+            });
+        let Some(str_or_bytes_column) = str_or_bytes_column_opt else {
+            return Vec::new();
+        };
+        let dictionary_builder = &self.dictionaries[str_or_bytes_column.dictionary_id as usize];
+        let term_id_mapping = dictionary_builder.build_term_id_mapping(&self.arena);
+        collect_sort_order_from_ops(
+            str_or_bytes_column.operation_iterator(&self.arena, None, &mut symbols_buffer),
+            num_docs,
+            reversed,
+            |uid| Some(term_id_mapping.to_ord(uid).0),
+            None,
+            |a, b| a.cmp(b),
+        )
     }
 
     /// Records a column type. This is useful to bypass the coercion process,
@@ -146,6 +210,13 @@ impl ColumnarWriter {
                 |column_opt: Option<ColumnWriter>| column_opt.unwrap_or_default(),
             ),
         }
+    }
+
+    /// Registers a full `i64` column whose values are generated when this writer is serialized.
+    pub fn record_tie_breaker_column(&mut self, column_name: &str) {
+        self.record_column_type(column_name, ColumnType::I64, false);
+        self.generated_tie_breaker_columns
+            .insert(column_name.as_bytes().to_vec());
     }
 
     pub fn record_numerical<T: Into<NumericalValue> + Copy>(
@@ -246,7 +317,12 @@ impl ColumnarWriter {
             },
         );
     }
-    pub fn serialize(&mut self, num_docs: RowId, wrt: &mut dyn io::Write) -> io::Result<()> {
+    pub fn serialize(
+        &mut self,
+        num_docs: RowId,
+        old_to_new_row_ids: Option<&[RowId]>,
+        wrt: &mut dyn io::Write,
+    ) -> io::Result<()> {
         let mut serializer = ColumnarSerializer::new(wrt);
 
         let mut columns: Vec<(&[u8], ColumnType, Addr)> = self
@@ -303,7 +379,11 @@ impl ColumnarWriter {
                     serialize_bool_column(
                         cardinality,
                         num_docs,
-                        column_writer.operation_iterator(arena, &mut symbol_byte_buffer),
+                        column_writer.operation_iterator(
+                            arena,
+                            old_to_new_row_ids,
+                            &mut symbol_byte_buffer,
+                        ),
                         buffers,
                         &mut column_serializer,
                     )?;
@@ -317,7 +397,11 @@ impl ColumnarWriter {
                     serialize_ip_addr_column(
                         cardinality,
                         num_docs,
-                        column_writer.operation_iterator(arena, &mut symbol_byte_buffer),
+                        column_writer.operation_iterator(
+                            arena,
+                            old_to_new_row_ids,
+                            &mut symbol_byte_buffer,
+                        ),
                         buffers,
                         &mut column_serializer,
                     )?;
@@ -342,8 +426,11 @@ impl ColumnarWriter {
                         num_docs,
                         str_or_bytes_column_writer.sort_values_within_row,
                         dictionary_builder,
-                        str_or_bytes_column_writer
-                            .operation_iterator(arena, &mut symbol_byte_buffer),
+                        str_or_bytes_column_writer.operation_iterator(
+                            arena,
+                            old_to_new_row_ids,
+                            &mut symbol_byte_buffer,
+                        ),
                         buffers,
                         &self.arena,
                         &mut column_serializer,
@@ -351,20 +438,31 @@ impl ColumnarWriter {
                     column_serializer.finalize()?;
                 }
                 ColumnType::F64 | ColumnType::I64 | ColumnType::U64 => {
-                    let numerical_column_writer: NumericalColumnWriter =
-                        self.numerical_field_hash_map.read(addr);
-                    let cardinality = numerical_column_writer.cardinality(num_docs);
                     let mut column_serializer =
                         serializer.start_serialize_column(column_name, column_type);
-                    let numerical_type = column_type.numerical_type().unwrap();
-                    serialize_numerical_column(
-                        cardinality,
-                        num_docs,
-                        numerical_type,
-                        numerical_column_writer.operation_iterator(arena, &mut symbol_byte_buffer),
-                        buffers,
-                        &mut column_serializer,
-                    )?;
+                    if self.generated_tie_breaker_columns.contains(column_name) {
+                        crate::column::serialize_generated_tie_breaker_column(
+                            num_docs,
+                            &mut column_serializer,
+                        )?;
+                    } else {
+                        let numerical_column_writer: NumericalColumnWriter =
+                            self.numerical_field_hash_map.read(addr);
+                        let cardinality = numerical_column_writer.cardinality(num_docs);
+                        let numerical_type = column_type.numerical_type().unwrap();
+                        serialize_numerical_column(
+                            cardinality,
+                            num_docs,
+                            numerical_type,
+                            numerical_column_writer.operation_iterator(
+                                arena,
+                                old_to_new_row_ids,
+                                &mut symbol_byte_buffer,
+                            ),
+                            buffers,
+                            &mut column_serializer,
+                        )?;
+                    }
                     column_serializer.finalize()?;
                 }
                 ColumnType::DateTime => {
@@ -376,7 +474,11 @@ impl ColumnarWriter {
                         cardinality,
                         num_docs,
                         NumericalType::I64,
-                        column_writer.operation_iterator(arena, &mut symbol_byte_buffer),
+                        column_writer.operation_iterator(
+                            arena,
+                            old_to_new_row_ids,
+                            &mut symbol_byte_buffer,
+                        ),
                         buffers,
                         &mut column_serializer,
                     )?;
@@ -387,6 +489,84 @@ impl ColumnarWriter {
         serializer.finalize(num_docs)?;
         Ok(())
     }
+}
+
+/// Returns the sort order of a numerical or datetime column, given its operations.
+///
+/// # Hidden contract
+///
+/// For this to make sense, all numerical value emitted have to be of the same type.
+fn collect_numerical_sort_order(
+    ops: impl Iterator<Item = ColumnOperation<NumericalValue>>,
+    num_docs: RowId,
+    reversed: bool,
+) -> Vec<u32> {
+    collect_sort_order_from_ops(
+        ops,
+        num_docs,
+        reversed,
+        |numerical_value| {
+            Some(match numerical_value {
+                NumericalValue::U64(val_u64) => val_u64.to_u64(),
+                NumericalValue::I64(val_i64) => val_i64.to_u64(),
+                NumericalValue::F64(val_f64) => val_f64.to_u64(),
+            })
+        },
+        // None for missing values. Option<u64> sorts None < Some(_),
+        // placing nulls before non-null values.
+        None,
+        |a, b| a.cmp(b),
+    )
+}
+
+/// Shared sorting pattern for both numeric and Str/Bytes sort fields.
+///
+/// Iterates column operations, fills gaps for missing docs with `default_key`, converts each value
+/// to a sort key via `value_to_key`, then sorts by the key using `cmp_keys`. Returns the doc ids
+/// in sorted order.
+fn collect_sort_order_from_ops<V, K: Clone>(
+    ops: impl Iterator<Item = ColumnOperation<V>>,
+    num_docs: RowId,
+    reversed: bool,
+    value_to_key: impl Fn(V) -> K,
+    default_key: K,
+    cmp_keys: impl Fn(&K, &K) -> std::cmp::Ordering,
+) -> Vec<u32> {
+    let mut doc_sort_keys: Vec<(K, RowId)> = Vec::with_capacity(num_docs as usize);
+    let mut start_doc_check_fill: RowId = 0;
+    let mut current_doc_opt: Option<RowId> = None;
+
+    for op in ops {
+        match op {
+            ColumnOperation::NewDoc(doc) => {
+                current_doc_opt = Some(doc);
+            }
+            ColumnOperation::Value(val) => {
+                if let Some(current_doc) = current_doc_opt {
+                    // Fill gaps since the last doc with the default key.
+                    doc_sort_keys.extend(
+                        (start_doc_check_fill..current_doc).map(|doc| (default_key.clone(), doc)),
+                    );
+                    start_doc_check_fill = current_doc + 1;
+                    // For multivalued fields, only the first value is used.
+                    current_doc_opt = None;
+
+                    doc_sort_keys.push((value_to_key(val), current_doc));
+                }
+            }
+        }
+    }
+    // Fill remaining docs at the tail.
+    doc_sort_keys.extend((start_doc_check_fill..num_docs).map(|doc| (default_key.clone(), doc)));
+
+    doc_sort_keys.sort_by(|(left_key, _), (right_key, _)| {
+        let cmp = cmp_keys(left_key, right_key);
+        if reversed { cmp.reverse() } else { cmp }
+    });
+    doc_sort_keys
+        .into_iter()
+        .map(|(_sort_key, doc)| doc)
+        .collect()
 }
 
 // Serialize [Dictionary, Column, dictionary num bytes U32::LE]
@@ -689,7 +869,7 @@ mod tests {
         assert_eq!(column_writer.get_cardinality(3), Cardinality::Full);
         let mut buffer = Vec::new();
         let symbols: Vec<ColumnOperation<NumericalValue>> = column_writer
-            .operation_iterator(&arena, &mut buffer)
+            .operation_iterator(&arena, None, &mut buffer)
             .collect();
         assert_eq!(symbols.len(), 6);
         assert!(matches!(symbols[0], ColumnOperation::NewDoc(0u32)));
@@ -718,7 +898,7 @@ mod tests {
         assert_eq!(column_writer.get_cardinality(3), Cardinality::Optional);
         let mut buffer = Vec::new();
         let symbols: Vec<ColumnOperation<NumericalValue>> = column_writer
-            .operation_iterator(&arena, &mut buffer)
+            .operation_iterator(&arena, None, &mut buffer)
             .collect();
         assert_eq!(symbols.len(), 4);
         assert!(matches!(symbols[0], ColumnOperation::NewDoc(1u32)));
@@ -741,7 +921,7 @@ mod tests {
         assert_eq!(column_writer.get_cardinality(2), Cardinality::Optional);
         let mut buffer = Vec::new();
         let symbols: Vec<ColumnOperation<NumericalValue>> = column_writer
-            .operation_iterator(&arena, &mut buffer)
+            .operation_iterator(&arena, None, &mut buffer)
             .collect();
         assert_eq!(symbols.len(), 2);
         assert!(matches!(symbols[0], ColumnOperation::NewDoc(0u32)));
@@ -760,7 +940,7 @@ mod tests {
         assert_eq!(column_writer.get_cardinality(1), Cardinality::Multivalued);
         let mut buffer = Vec::new();
         let symbols: Vec<ColumnOperation<NumericalValue>> = column_writer
-            .operation_iterator(&arena, &mut buffer)
+            .operation_iterator(&arena, None, &mut buffer)
             .collect();
         assert_eq!(symbols.len(), 3);
         assert!(matches!(symbols[0], ColumnOperation::NewDoc(0u32)));

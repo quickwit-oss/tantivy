@@ -131,7 +131,7 @@ pub trait ValueDeserializer<'de> {
     /// Attempts to deserialize a pre-tokenized string value from the deserializer.
     fn deserialize_pre_tokenized_string(self) -> Result<PreTokenizedString, DeserializeError>;
 
-    /// HUSH
+    /// Deserialize a stored geometry.
     fn deserialize_geometry(self) -> Result<Geometry<Plane>, DeserializeError>;
 
     /// Attempts to deserialize the value using a given visitor.
@@ -171,7 +171,7 @@ pub enum ValueType {
     /// A JSON object value. Deprecated.
     #[deprecated(note = "We keep this for backwards compatibility, use Object instead")]
     JSONObject,
-    /// HUSH
+    /// Spatial geometry.
     Geometry,
 }
 

@@ -8,6 +8,7 @@ use std::sync::Arc;
 
 use common::BinarySerializable;
 pub use dictionary_encoded::{BytesColumn, StrColumn};
+pub(crate) use serialize::serialize_generated_tie_breaker_column;
 pub use serialize::{
     open_column_bytes, open_column_str, open_column_u64, open_column_u128,
     open_column_u128_as_compact_u64, serialize_column_mappable_to_u64,
@@ -46,10 +47,8 @@ impl<T: PartialOrd + Default> Column<T> {
 
 impl<T: MonotonicallyMappableToU64> Column<T> {
     pub fn to_u64_monotonic(self) -> Column<u64> {
-        let values = Arc::new(monotonic_map_column(
-            self.values,
-            StrictlyMonotonicMappingToInternal::<T>::new(),
-        ));
+        let values =
+            monotonic_map_column(self.values, StrictlyMonotonicMappingToInternal::<T>::new());
         Column {
             index: self.index,
             values,

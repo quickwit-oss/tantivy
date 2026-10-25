@@ -221,17 +221,29 @@ impl IntermediateExtendedStats {
         }
         let new_count = self.intermediate_stats.count + other.intermediate_stats.count;
         let delta = other.mean - self.mean;
-        self.sum_of_squares += other.sum_of_squares
-            + delta
-                * delta
-                * self.intermediate_stats.count as f64
-                * other.intermediate_stats.count as f64
-                / new_count as f64;
-        self.mean = (self.intermediate_stats.sum + other.intermediate_stats.sum) / new_count as f64;
-        self.sum_of_squares_elastic += other.sum_of_squares_elastic;
-        self.delta_sum_for_squares_elastic += other.delta_sum_for_squares_elastic;
+        // Reduce the counts first: `delta² * n_a * n_b` can overflow even when the correction
+        // `delta² * n_a * n_b / n` is finite.
+        let count_factor = self.intermediate_stats.count as f64
+            * other.intermediate_stats.count as f64
+            / new_count as f64;
+        self.sum_of_squares += other.sum_of_squares + delta * (delta * count_factor);
+        // kahan algorithm for sum_of_squares_elastic
+        let y = other.sum_of_squares_elastic
+            - (self.delta_sum_for_squares_elastic + other.delta_sum_for_squares_elastic);
+        let t = self.sum_of_squares_elastic + y;
+        if t.is_finite() {
+            self.delta_sum_for_squares_elastic = (t - self.sum_of_squares_elastic) - y;
+            self.sum_of_squares_elastic = t;
+        } else {
+            // A partial sum overflowed, and its correction is NaN: drop the compensation, which
+            // would otherwise turn the infinite sum into NaN.
+            self.sum_of_squares_elastic += other.sum_of_squares_elastic;
+            self.delta_sum_for_squares_elastic = 0.0;
+        }
         self.intermediate_stats
             .merge_fruits(other.intermediate_stats);
+        // Derive the mean from the compensated sum so `avg` stays consistent with `sum / count`.
+        self.mean = self.intermediate_stats.sum / new_count as f64;
     }
 
     /// Computes the final stats value.
@@ -315,27 +327,57 @@ impl IntermediateExtendedStats {
         self.sum_of_squares_elastic = t;
         self.update_variance(value);
     }
+
+    /// Collects a block of values into `LANES` independent accumulators combined with
+    /// [`Self::merge_fruits`], breaking the serial dependency chain of [`Self::collect`].
+    #[inline]
+    fn collect_block(&mut self, vals: &[u64], field_type: ColumnType) {
+        const LANES: usize = 4;
+
+        // Below two values per lane, the setup and merge overhead outweighs the gain.
+        if vals.len() < LANES * 2 {
+            for &val in vals {
+                self.collect(f64_from_fastfield_u64(val, field_type));
+            }
+            return;
+        }
+        // The lanes must carry `self.sigma`: `merge_fruits` replaces an empty `self` wholesale.
+        let mut lanes: [IntermediateExtendedStats; LANES] =
+            std::array::from_fn(|_| Self::with_sigma(Some(self.sigma)));
+
+        let (chunks, remainder) = vals.as_chunks::<LANES>();
+
+        for chunk in chunks {
+            for lane in 0..LANES {
+                lanes[lane].collect(f64_from_fastfield_u64(chunk[lane], field_type));
+            }
+        }
+        for &val in remainder {
+            lanes[0].collect(f64_from_fastfield_u64(val, field_type));
+        }
+        for lane in lanes {
+            self.merge_fruits(lane);
+        }
+    }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Debug)]
 pub(crate) struct SegmentExtendedStatsCollector {
     name: String,
     missing: Option<u64>,
-    field_type: ColumnType,
-    accessor: columnar::Column<u64>,
+    accessor: Box<dyn ValueSource>,
     buckets: Vec<IntermediateExtendedStats>,
     sigma: Option<f64>,
 }
 
 impl SegmentExtendedStatsCollector {
-    pub fn from_req(req: &MetricAggReqData, sigma: Option<f64>) -> Self {
+    pub(crate) fn from_req(req: MetricAggReqData, sigma: Option<f64>) -> Self {
         let missing = req
             .missing
-            .and_then(|val| f64_to_fastfield_u64(val, &req.field_type));
+            .and_then(|val| f64_to_fastfield_u64(val, &req.accessor.column_type()));
         Self {
-            name: req.name.clone(),
-            field_type: req.field_type,
-            accessor: req.accessor.clone(),
+            name: req.name,
+            accessor: req.accessor,
             missing,
             buckets: vec![IntermediateExtendedStats::with_sigma(sigma); 16],
             sigma,
@@ -373,13 +415,13 @@ impl SegmentAggregationCollector for SegmentExtendedStatsCollector {
     ) -> crate::Result<()> {
         let mut extended_stats = self.buckets[parent_bucket_id as usize].clone();
 
-        agg_data
-            .column_block_accessor
-            .fetch_block_with_missing(docs, &self.accessor, self.missing);
-        for val in agg_data.column_block_accessor.iter_vals() {
-            let val1 = f64_from_fastfield_u64(val, self.field_type);
-            extended_stats.collect(val1);
-        }
+        agg_data.column_block_accessor.fetch_block_with_missing(
+            docs,
+            &mut *self.accessor,
+            self.missing,
+        );
+        let field_type = self.accessor.column_type();
+        extended_stats.collect_block(agg_data.column_block_accessor.values(), field_type);
 
         // store back
         self.buckets[parent_bucket_id as usize] = extended_stats;
@@ -398,6 +440,26 @@ impl SegmentAggregationCollector for SegmentExtendedStatsCollector {
             });
         }
         Ok(())
+    }
+
+    fn compute_metric_value(
+        &self,
+        bucket_id: BucketId,
+        sub_agg_name: &str,
+        sub_agg_property: &str,
+        _agg_data: &AggregationsSegmentCtx,
+    ) -> Option<f64> {
+        if self.name != sub_agg_name {
+            return None;
+        }
+        let extended = self.buckets.get(bucket_id as usize)?;
+        // Finalize is a pure read of accumulators — calling it here for the cutoff sort
+        // doesn't disturb the eventual intermediate result.
+        extended
+            .finalize()
+            .get_value(sub_agg_property)
+            .ok()
+            .flatten()
     }
 }
 
@@ -655,6 +717,89 @@ mod tests {
         );
 
         Ok(())
+    }
+
+    #[test]
+    fn test_aggregation_extended_stats_with_sigma_block() -> crate::Result<()> {
+        // Enough values in a single segment to go through `collect_block`'s lanes.
+        let values: Vec<f64> = (1..=10).map(|val| val as f64).collect();
+
+        let index = get_test_index_from_values(true, &values)?;
+
+        let agg_req: Aggregations = serde_json::from_value(json!({
+            "my_stats": {
+                "extended_stats": {
+                    "field": "score_f64",
+                    "sigma": 1.5
+                },
+            }
+        }))
+        .unwrap();
+
+        let collector = AggregationCollector::from_aggs(agg_req, Default::default());
+
+        let reader = index.reader()?;
+        let searcher = reader.searcher();
+        let agg_res: AggregationResults = searcher.search(&AllQuery, &collector).unwrap();
+
+        let get = |prop: &str| {
+            agg_res
+                .get_value_from_aggregation("my_stats", prop)
+                .unwrap()
+                .unwrap()
+        };
+        assert_eq!(get("count"), 10.0);
+        assert_eq!(get("min"), 1.0);
+        assert_eq!(get("max"), 10.0);
+        assert_eq!(get("sum"), 55.0);
+        assert_nearly_equals!(get("avg"), 5.5, EPSILON_FOR_TEST);
+        assert_nearly_equals!(get("sum_of_squares"), 385.0, EPSILON_FOR_TEST);
+        assert_nearly_equals!(get("variance_population"), 8.25, EPSILON_FOR_TEST);
+        assert_nearly_equals!(get("variance_sampling"), 82.5 / 9.0, EPSILON_FOR_TEST);
+        assert_nearly_equals!(
+            get("std_deviation_bounds.upper"),
+            5.5 + 1.5 * 8.25f64.sqrt(),
+            EPSILON_FOR_TEST
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_extended_stats_collect_block_no_merge_overflow() {
+        // Lanes 0 and 1 hold [4e153, 4e153] and [-4e153, -4e153]: merging them must not compute
+        // `delta² * n_a * n_b` (2.56e308) before dividing by `n`, as the result (6.4e307) is
+        // finite.
+        let field_type = columnar::ColumnType::F64;
+        let vals: Vec<u64> = [4e153, -4e153, 0.0, 0.0, 4e153, -4e153, 0.0, 0.0]
+            .into_iter()
+            .map(|val| crate::aggregation::f64_to_fastfield_u64(val, &field_type).unwrap())
+            .collect();
+
+        let mut stats = IntermediateExtendedStats::with_sigma(None);
+        stats.collect_block(&vals, field_type);
+        let stats = stats.finalize();
+
+        assert_eq!(stats.count, 8);
+        assert_eq!(stats.sum, 0.0);
+        assert_eq!(stats.avg, Some(0.0));
+        assert_nearly_equals!(stats.variance.unwrap(), 8e306, 8e306 * EPSILON_FOR_TEST);
+    }
+
+    #[test]
+    fn test_extended_stats_collect_block_keeps_infinite_sum_of_squares() {
+        // The last lane's square sum overflows to +∞ with a NaN correction: merging it must
+        // report +∞, as the value-by-value fold does, not NaN.
+        let field_type = columnar::ColumnType::F64;
+        let vals: Vec<u64> = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 2e154]
+            .into_iter()
+            .map(|val| crate::aggregation::f64_to_fastfield_u64(val, &field_type).unwrap())
+            .collect();
+
+        let mut stats = IntermediateExtendedStats::with_sigma(None);
+        stats.collect_block(&vals, field_type);
+
+        assert_eq!(stats.finalize().sum_of_squares, Some(f64::INFINITY));
     }
 
     #[test]

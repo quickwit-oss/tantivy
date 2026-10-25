@@ -304,7 +304,9 @@ impl StoreReader {
         let mut curr_checkpoint = checkpoint_block_iter.next();
         let mut curr_block = curr_checkpoint
             .as_ref()
-            .map(|checkpoint| self.read_block(checkpoint).map_err(|e| e.kind())); // map error in order to enable cloning
+            .map(|checkpoint| self.read_block(checkpoint).map_err(|e| e.kind())); // map error in
+                                                                                  // order to enable
+                                                                                  // cloning
         let mut doc_pos = 0;
         (0..last_doc_id)
             .filter_map(move |doc_id| {

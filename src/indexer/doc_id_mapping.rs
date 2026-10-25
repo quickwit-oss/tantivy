@@ -1,19 +1,29 @@
 //! This module is used when sorting the index by a property, e.g.
 //! to get mappings from old doc_id to new doc_id and vice versa, after sorting
+use std::convert::Infallible;
+use std::error::Error;
 
-use common::ReadOnlyBitSet;
+use common::{BitSet, ReadOnlyBitSet};
+use unwrap_infallible::UnwrapInfallible;
 
-use crate::DocAddress;
+use super::SegmentWriter;
+use crate::schema::{Field, Schema};
+use crate::{DocAddress, DocId, IndexSortByField, TantivyError};
 
+/// Describes how source segment document IDs are mapped into a merged segment.
 #[derive(Copy, Clone, Eq, PartialEq)]
 pub enum MappingType {
+    /// Source segments are concatenated without omitting any documents.
     Stacked,
+    /// Source segments are concatenated while deleted documents are omitted.
     StackedWithDeletes,
+    /// Documents are reordered instead of preserving source segment order.
+    Shuffled,
 }
 
 /// Struct to provide mapping from new doc_id to old doc_id and segment.
 #[derive(Clone)]
-pub(crate) struct SegmentDocIdMapping {
+pub struct SegmentDocIdMapping {
     pub(crate) new_doc_id_to_old_doc_addr: Vec<DocAddress>,
     pub(crate) alive_bitsets: Vec<Option<ReadOnlyBitSet>>,
     mapping_type: MappingType,
@@ -32,6 +42,7 @@ impl SegmentDocIdMapping {
         }
     }
 
+    /// Returns how source document IDs are arranged in the merged segment.
     pub fn mapping_type(&self) -> MappingType {
         self.mapping_type
     }
@@ -42,5 +53,768 @@ impl SegmentDocIdMapping {
     /// in the list of merged segments.
     pub(crate) fn iter_old_doc_addrs(&self) -> impl Iterator<Item = DocAddress> + '_ {
         self.new_doc_id_to_old_doc_addr.iter().copied()
+    }
+
+    /// This flags means the segments are simply stacked in the order of their ordinal.
+    /// e.g. [(0, 1), .. (n, 1), (0, 2)..., (m, 2)]
+    ///
+    /// The different segment may present some deletes, in which case it is expressed by skipping a
+    /// `DocId`. [(0, 1), (0, 3)] <--- here doc_id=0 and doc_id=1 have been deleted
+    ///
+    /// Being trivial is equivalent to having the `new_doc_id_to_old_doc_addr` array sorted.
+    ///
+    /// This allows for some optimization.
+    pub(crate) fn is_trivial(&self) -> bool {
+        match self.mapping_type {
+            MappingType::Stacked | MappingType::StackedWithDeletes => true,
+            MappingType::Shuffled => false,
+        }
+    }
+}
+
+/// Struct to provide mapping from old doc_id to new doc_id and vice versa within a segment.
+pub struct DocIdMapping {
+    new_doc_id_to_old: Vec<DocId>,
+    old_doc_id_to_new: Vec<DocId>,
+}
+
+impl DocIdMapping {
+    /// Creates a `DocIdMapping` from a mapping of new doc ids to old doc ids, with permutation
+    /// validation. The mapping is validated by checking that every old doc id appears exactly
+    /// once in the mapping. I.e., doc ids must be consecutive from `0` to
+    /// `new_doc_id_to_old.len() - 1`, inclusive.
+    pub fn new_permutation(new_doc_id_to_old: Vec<DocId>) -> crate::Result<Self> {
+        let max_doc = new_doc_id_to_old.len() as DocId;
+        let mut seen_doc_ids: BitSet = BitSet::with_max_value(max_doc);
+
+        Self::from_new_id_to_old_id_inner(new_doc_id_to_old, |old_doc_id| {
+            if old_doc_id >= max_doc || !seen_doc_ids.insert(old_doc_id) {
+                return Err(TantivyError::InvalidArgument(
+                    "Mapping must be a permutation of the segment doc ids".to_string(),
+                ));
+            }
+            Ok::<(), TantivyError>(())
+        })
+    }
+
+    /// Creates a `DocIdMapping` from a mapping of new doc ids to old doc ids.
+    pub(crate) fn from_new_id_to_old_id(new_doc_id_to_old: Vec<DocId>) -> Self {
+        Self::from_new_id_to_old_id_inner(new_doc_id_to_old, |_| Ok::<(), Infallible>(()))
+            .unwrap_infallible()
+    }
+
+    fn from_new_id_to_old_id_inner<E: Error>(
+        new_doc_id_to_old: Vec<DocId>,
+        mut validate: impl FnMut(DocId) -> Result<(), E>,
+    ) -> Result<Self, E> {
+        let max_doc = new_doc_id_to_old.len();
+        let old_max_doc = new_doc_id_to_old
+            .iter()
+            .cloned()
+            .max()
+            .map(|n| n + 1)
+            .unwrap_or(0);
+        let mut old_doc_id_to_new = vec![0; old_max_doc as usize];
+        for i in 0..max_doc {
+            (validate)(new_doc_id_to_old[i])?;
+            old_doc_id_to_new[new_doc_id_to_old[i] as usize] = i as DocId;
+        }
+        Ok(DocIdMapping {
+            new_doc_id_to_old,
+            old_doc_id_to_new,
+        })
+    }
+
+    /// Returns the new doc_id for the old doc_id
+    pub(crate) fn get_new_doc_id(&self, doc_id: DocId) -> DocId {
+        self.old_doc_id_to_new[doc_id as usize]
+    }
+
+    /// Iiterate over old doc_ids in order of the new doc_ids
+    pub(crate) fn iter_old_doc_ids(&self) -> impl Iterator<Item = DocId> + Clone + '_ {
+        self.new_doc_id_to_old.iter().copied()
+    }
+
+    /// Returns the new doc_ids in order of the old doc_ids
+    pub(crate) fn old_to_new_ids(&self) -> &[DocId] {
+        &self.old_doc_id_to_new[..]
+    }
+
+    /// Remaps a given array to the new doc ids.
+    pub(crate) fn remap<T: Copy>(&self, els: &[T]) -> Vec<T> {
+        self.new_doc_id_to_old
+            .iter()
+            .map(|old_doc| els[*old_doc as usize])
+            .collect()
+    }
+
+    /// Returns the number of documents in the mapping.
+    pub(crate) fn len(&self) -> usize {
+        // new_doc_id_to_old and old_doc_id_to_new have the same length by construction.
+        self.new_doc_id_to_old.len()
+    }
+}
+
+#[cfg(test)]
+impl DocIdMapping {
+    /// returns the old doc_id for the new doc_id
+    fn get_old_doc_id(&self, doc_id: DocId) -> DocId {
+        self.new_doc_id_to_old[doc_id as usize]
+    }
+}
+
+pub(crate) fn expect_field_id_for_sort_field(
+    schema: &Schema,
+    sort_by_field: &IndexSortByField,
+) -> crate::Result<Field> {
+    schema.get_field(&sort_by_field.field).map_err(|_| {
+        TantivyError::InvalidArgument(format!(
+            "field to sort index by not found: {:?}",
+            sort_by_field.field
+        ))
+    })
+}
+
+// Generates a document mapping in the form of [index new doc_id] -> old doc_id
+// TODO detect if field is already sorted and discard mapping
+pub(crate) fn get_doc_id_mapping_from_field(
+    sort_by_field: IndexSortByField,
+    segment_writer: &SegmentWriter,
+) -> crate::Result<DocIdMapping> {
+    let schema = segment_writer.segment.schema();
+    expect_field_id_for_sort_field(&schema, &sort_by_field)?; // for now expect
+    let new_doc_id_to_old = segment_writer.fast_fields.writer().sort_order(
+        sort_by_field.field.as_str(),
+        segment_writer.max_doc(),
+        sort_by_field.order.is_desc(),
+    );
+    // create new doc_id to old doc_id index (used in fast_field_writers)
+    Ok(DocIdMapping::from_new_id_to_old_id(new_doc_id_to_old))
+}
+
+#[cfg(test)]
+mod tests_indexsorting {
+    use common::DateTime;
+
+    use crate::collector::TopDocs;
+    use crate::directory::{Directory, RamDirectory};
+    use crate::index::SegmentComponent;
+    use crate::indexer::doc_id_mapping::DocIdMapping;
+    use crate::indexer::NoMergePolicy;
+    use crate::query::QueryParser;
+    use crate::schema::*;
+    use crate::{
+        DocAddress, Index, IndexBuilder, IndexSettings, IndexSortByField, Order, TantivyError,
+    };
+
+    fn create_test_index(
+        index_settings: Option<IndexSettings>,
+        text_field_options: TextOptions,
+    ) -> crate::Result<Index> {
+        let mut schema_builder = Schema::builder();
+
+        let my_text_field = schema_builder.add_text_field("text_field", text_field_options);
+        let my_string_field = schema_builder.add_text_field("string_field", STRING | STORED);
+        let my_number =
+            schema_builder.add_u64_field("my_number", NumericOptions::default().set_fast());
+
+        let multi_numbers =
+            schema_builder.add_u64_field("multi_numbers", NumericOptions::default().set_fast());
+
+        let schema = schema_builder.build();
+        let mut index_builder = Index::builder().schema(schema);
+        if let Some(settings) = index_settings {
+            index_builder = index_builder.settings(settings);
+        }
+        let index = index_builder.create_in_ram()?;
+
+        let mut index_writer = index.writer_for_tests()?;
+        index_writer.add_document(doc!(my_number=>40_u64))?;
+        index_writer.add_document(
+            doc!(my_number=>20_u64, multi_numbers => 5_u64, multi_numbers => 6_u64),
+        )?;
+        index_writer.add_document(doc!(my_number=>100_u64))?;
+        index_writer.add_document(
+            doc!(my_number=>10_u64, my_string_field=> "blublub", my_text_field => "some text"),
+        )?;
+        index_writer.add_document(doc!(my_number=>30_u64, multi_numbers => 3_u64 ))?;
+        index_writer.commit()?;
+        Ok(index)
+    }
+    fn get_text_options() -> TextOptions {
+        TextOptions::default().set_indexing_options(
+            TextFieldIndexing::default().set_index_option(IndexRecordOption::Basic),
+        )
+    }
+    #[test]
+    fn test_sort_index_test_text_field() -> crate::Result<()> {
+        // there are different serializers for different settings in postings/recorder.rs
+        // test remapping for all of them
+        let options = vec![
+            get_text_options(),
+            get_text_options().set_indexing_options(
+                TextFieldIndexing::default().set_index_option(IndexRecordOption::WithFreqs),
+            ),
+            get_text_options().set_indexing_options(
+                TextFieldIndexing::default()
+                    .set_index_option(IndexRecordOption::WithFreqsAndPositions),
+            ),
+        ];
+
+        for option in options {
+            // let options = get_text_options();
+            // no index_sort
+            let index = create_test_index(None, option.clone())?;
+            let my_text_field = index.schema().get_field("text_field").unwrap();
+            let searcher = index.reader()?.searcher();
+
+            let query = QueryParser::for_index(&index, vec![my_text_field]).parse_query("text")?;
+            let top_docs: Vec<(f32, DocAddress)> =
+                searcher.search(&query, &TopDocs::with_limit(3).order_by_score())?;
+            assert_eq!(
+                top_docs.iter().map(|el| el.1.doc_id).collect::<Vec<_>>(),
+                vec![3]
+            );
+
+            // sort by field asc
+            let index = create_test_index(
+                Some(IndexSettings {
+                    sort_by_field: Some(IndexSortByField {
+                        field: "my_number".to_string(),
+                        order: Order::Asc,
+                    }),
+                    ..Default::default()
+                }),
+                option.clone(),
+            )?;
+            let my_text_field = index.schema().get_field("text_field").unwrap();
+            let reader = index.reader()?;
+            let searcher = reader.searcher();
+
+            let query = QueryParser::for_index(&index, vec![my_text_field]).parse_query("text")?;
+            let top_docs: Vec<(f32, DocAddress)> =
+                searcher.search(&query, &TopDocs::with_limit(3).order_by_score())?;
+            assert_eq!(
+                top_docs.iter().map(|el| el.1.doc_id).collect::<Vec<_>>(),
+                vec![0]
+            );
+
+            // test new field norm mapping
+            {
+                let my_text_field = index.schema().get_field("text_field").unwrap();
+                let fieldnorm_reader = searcher
+                    .segment_reader(0)
+                    .get_fieldnorms_reader(my_text_field)?;
+                assert_eq!(fieldnorm_reader.fieldnorm(0), 2); // some text
+                assert_eq!(fieldnorm_reader.fieldnorm(1), 0);
+            }
+            // sort by field desc
+            let index = create_test_index(
+                Some(IndexSettings {
+                    sort_by_field: Some(IndexSortByField {
+                        field: "my_number".to_string(),
+                        order: Order::Desc,
+                    }),
+                    ..Default::default()
+                }),
+                option.clone(),
+            )?;
+            let my_string_field = index.schema().get_field("text_field").unwrap();
+            let searcher = index.reader()?.searcher();
+
+            let query =
+                QueryParser::for_index(&index, vec![my_string_field]).parse_query("text")?;
+            let top_docs: Vec<(f32, DocAddress)> =
+                searcher.search(&query, &TopDocs::with_limit(3).order_by_score())?;
+            assert_eq!(
+                top_docs.iter().map(|el| el.1.doc_id).collect::<Vec<_>>(),
+                vec![4]
+            );
+            // test new field norm mapping
+            {
+                let my_text_field = index.schema().get_field("text_field").unwrap();
+                let fieldnorm_reader = searcher
+                    .segment_reader(0)
+                    .get_fieldnorms_reader(my_text_field)?;
+                assert_eq!(fieldnorm_reader.fieldnorm(0), 0);
+                assert_eq!(fieldnorm_reader.fieldnorm(1), 0);
+                assert_eq!(fieldnorm_reader.fieldnorm(2), 0);
+                assert_eq!(fieldnorm_reader.fieldnorm(3), 0);
+                assert_eq!(fieldnorm_reader.fieldnorm(4), 2); // some text
+            }
+        }
+        Ok(())
+    }
+    #[test]
+    fn test_sort_index_get_documents() -> crate::Result<()> {
+        // default baseline
+        let index = create_test_index(None, get_text_options())?;
+        let my_string_field = index.schema().get_field("string_field").unwrap();
+        let searcher = index.reader()?.searcher();
+        {
+            assert!(searcher
+                .doc::<TantivyDocument>(DocAddress::new(0, 0))?
+                .get_first(my_string_field)
+                .is_none());
+            assert_eq!(
+                searcher
+                    .doc::<TantivyDocument>(DocAddress::new(0, 3))?
+                    .get_first(my_string_field)
+                    .unwrap()
+                    .as_str(),
+                Some("blublub")
+            );
+        }
+        // sort by field asc
+        let index = create_test_index(
+            Some(IndexSettings {
+                sort_by_field: Some(IndexSortByField {
+                    field: "my_number".to_string(),
+                    order: Order::Asc,
+                }),
+                ..Default::default()
+            }),
+            get_text_options(),
+        )?;
+        let my_string_field = index.schema().get_field("string_field").unwrap();
+        let searcher = index.reader()?.searcher();
+        {
+            assert_eq!(
+                searcher
+                    .doc::<TantivyDocument>(DocAddress::new(0, 0))?
+                    .get_first(my_string_field)
+                    .unwrap()
+                    .as_str(),
+                Some("blublub")
+            );
+            let doc = searcher.doc::<TantivyDocument>(DocAddress::new(0, 4))?;
+            assert!(doc.get_first(my_string_field).is_none());
+        }
+        // sort by field desc
+        let index = create_test_index(
+            Some(IndexSettings {
+                sort_by_field: Some(IndexSortByField {
+                    field: "my_number".to_string(),
+                    order: Order::Desc,
+                }),
+                ..Default::default()
+            }),
+            get_text_options(),
+        )?;
+        let my_string_field = index.schema().get_field("string_field").unwrap();
+        let searcher = index.reader()?.searcher();
+        {
+            let doc = searcher.doc::<TantivyDocument>(DocAddress::new(0, 4))?;
+            assert_eq!(
+                doc.get_first(my_string_field).unwrap().as_str(),
+                Some("blublub")
+            );
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn test_sort_index_test_string_field() -> crate::Result<()> {
+        let index = create_test_index(None, get_text_options())?;
+        let my_string_field = index.schema().get_field("string_field").unwrap();
+        let searcher = index.reader()?.searcher();
+
+        let query = QueryParser::for_index(&index, vec![my_string_field]).parse_query("blublub")?;
+        let top_docs: Vec<(f32, DocAddress)> =
+            searcher.search(&query, &TopDocs::with_limit(3).order_by_score())?;
+        assert_eq!(
+            top_docs.iter().map(|el| el.1.doc_id).collect::<Vec<_>>(),
+            vec![3]
+        );
+
+        let index = create_test_index(
+            Some(IndexSettings {
+                sort_by_field: Some(IndexSortByField {
+                    field: "my_number".to_string(),
+                    order: Order::Asc,
+                }),
+                ..Default::default()
+            }),
+            get_text_options(),
+        )?;
+        let my_string_field = index.schema().get_field("string_field").unwrap();
+        let reader = index.reader()?;
+        let searcher = reader.searcher();
+
+        let query = QueryParser::for_index(&index, vec![my_string_field]).parse_query("blublub")?;
+        let top_docs: Vec<(f32, DocAddress)> =
+            searcher.search(&query, &TopDocs::with_limit(3).order_by_score())?;
+        assert_eq!(
+            top_docs.iter().map(|el| el.1.doc_id).collect::<Vec<_>>(),
+            vec![0]
+        );
+
+        // test new field norm mapping
+        {
+            let my_text_field = index.schema().get_field("text_field").unwrap();
+            let fieldnorm_reader = searcher
+                .segment_reader(0)
+                .get_fieldnorms_reader(my_text_field)?;
+            assert_eq!(fieldnorm_reader.fieldnorm(0), 2); // some text
+            assert_eq!(fieldnorm_reader.fieldnorm(1), 0);
+        }
+        // sort by field desc
+        let index = create_test_index(
+            Some(IndexSettings {
+                sort_by_field: Some(IndexSortByField {
+                    field: "my_number".to_string(),
+                    order: Order::Desc,
+                }),
+                ..Default::default()
+            }),
+            get_text_options(),
+        )?;
+        let my_string_field = index.schema().get_field("string_field").unwrap();
+        let searcher = index.reader()?.searcher();
+
+        let query = QueryParser::for_index(&index, vec![my_string_field]).parse_query("blublub")?;
+        let top_docs: Vec<(f32, DocAddress)> =
+            searcher.search(&query, &TopDocs::with_limit(3).order_by_score())?;
+        assert_eq!(
+            top_docs.iter().map(|el| el.1.doc_id).collect::<Vec<_>>(),
+            vec![4]
+        );
+        // test new field norm mapping
+        {
+            let my_text_field = index.schema().get_field("text_field").unwrap();
+            let fieldnorm_reader = searcher
+                .segment_reader(0)
+                .get_fieldnorms_reader(my_text_field)?;
+            assert_eq!(fieldnorm_reader.fieldnorm(0), 0);
+            assert_eq!(fieldnorm_reader.fieldnorm(1), 0);
+            assert_eq!(fieldnorm_reader.fieldnorm(2), 0);
+            assert_eq!(fieldnorm_reader.fieldnorm(3), 0);
+            assert_eq!(fieldnorm_reader.fieldnorm(4), 2); // some text
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn test_sort_index_fast_field() -> crate::Result<()> {
+        let index = create_test_index(
+            Some(IndexSettings {
+                sort_by_field: Some(IndexSortByField {
+                    field: "my_number".to_string(),
+                    order: Order::Asc,
+                }),
+                ..Default::default()
+            }),
+            get_text_options(),
+        )?;
+        assert_eq!(
+            index.settings().sort_by_field.as_ref().unwrap().field,
+            "my_number".to_string()
+        );
+
+        let searcher = index.reader()?.searcher();
+        assert_eq!(searcher.segment_readers().len(), 1);
+        let segment_reader = searcher.segment_reader(0);
+        let fast_fields = segment_reader.fast_fields();
+
+        let fast_field = fast_fields
+            .u64("my_number")
+            .unwrap()
+            .first_or_default_col(999);
+        assert_eq!(fast_field.get_val(0), 10u64);
+        assert_eq!(fast_field.get_val(1), 20u64);
+        assert_eq!(fast_field.get_val(2), 30u64);
+
+        let multifield = fast_fields.u64("multi_numbers").unwrap();
+        let vals: Vec<u64> = multifield.values_for_doc(0u32).collect();
+        assert_eq!(vals, &[] as &[u64]);
+        let vals: Vec<_> = multifield.values_for_doc(1u32).collect();
+        assert_eq!(vals, &[5, 6]);
+
+        let vals: Vec<_> = multifield.values_for_doc(2u32).collect();
+        assert_eq!(vals, &[3]);
+        Ok(())
+    }
+
+    #[test]
+    fn test_with_sort_by_date_field() -> crate::Result<()> {
+        let mut schema_builder = Schema::builder();
+        let date_field = schema_builder.add_date_field("date", INDEXED | STORED | FAST);
+        let schema = schema_builder.build();
+
+        let settings = IndexSettings {
+            sort_by_field: Some(IndexSortByField {
+                field: "date".to_string(),
+                order: Order::Desc,
+            }),
+            ..Default::default()
+        };
+
+        let index = Index::builder()
+            .schema(schema)
+            .settings(settings)
+            .create_in_ram()?;
+        let mut index_writer = index.writer_for_tests()?;
+        index_writer.set_merge_policy(Box::new(NoMergePolicy));
+
+        index_writer.add_document(doc!(
+            date_field => DateTime::from_timestamp_secs(1000),
+        ))?;
+        index_writer.add_document(doc!(
+            date_field => DateTime::from_timestamp_secs(999),
+        ))?;
+        index_writer.add_document(doc!(
+            date_field => DateTime::from_timestamp_secs(1001),
+        ))?;
+        index_writer.commit()?;
+
+        let searcher = index.reader()?.searcher();
+        assert_eq!(searcher.segment_readers().len(), 1);
+        let segment_reader = searcher.segment_reader(0);
+        let fast_fields = segment_reader.fast_fields();
+
+        let fast_field = fast_fields
+            .date("date")
+            .unwrap()
+            .first_or_default_col(DateTime::from_timestamp_secs(0));
+        assert_eq!(fast_field.get_val(0), DateTime::from_timestamp_secs(1001));
+        assert_eq!(fast_field.get_val(1), DateTime::from_timestamp_secs(1000));
+        assert_eq!(fast_field.get_val(2), DateTime::from_timestamp_secs(999));
+        Ok(())
+    }
+
+    #[test]
+    fn test_single_segment_index_writer_with_doc_id_mapping() -> crate::Result<()> {
+        let mut schema_builder = Schema::builder();
+        let text_field = schema_builder.add_text_field("text", TEXT | STORED);
+        let schema = schema_builder.build();
+        let settings = IndexSettings {
+            manual_doc_id_mapping: true,
+            ..Default::default()
+        };
+        let mut single_segment_index_writer = Index::builder()
+            .schema(schema)
+            .settings(settings)
+            .single_segment_index_writer(RamDirectory::default(), 15_000_000)?;
+
+        single_segment_index_writer.add_document(doc!(text_field=>"alpha beta"))?;
+        single_segment_index_writer.add_document(doc!())?;
+        single_segment_index_writer.add_document(doc!(text_field=>"gamma"))?;
+
+        let mapping = DocIdMapping::new_permutation(vec![2, 1, 0])?;
+        let index = single_segment_index_writer.finalize_with_doc_id_mapping(&mapping)?;
+
+        let searcher = index.reader()?.searcher();
+        let segment_reader = searcher.segment_reader(0);
+        let fieldnorm_reader = segment_reader.get_fieldnorms_reader(text_field)?;
+
+        assert_eq!(fieldnorm_reader.fieldnorm(0), 1);
+        assert_eq!(fieldnorm_reader.fieldnorm(1), 0);
+        assert_eq!(fieldnorm_reader.fieldnorm(2), 2);
+
+        let doc_0 = searcher.doc::<TantivyDocument>(DocAddress::new(0, 0))?;
+        assert_eq!(
+            doc_0.get_first(text_field).and_then(|val| val.as_str()),
+            Some("gamma")
+        );
+        let doc_1 = searcher.doc::<TantivyDocument>(DocAddress::new(0, 1))?;
+        assert!(doc_1.get_first(text_field).is_none());
+        let doc_2 = searcher.doc::<TantivyDocument>(DocAddress::new(0, 2))?;
+        assert_eq!(
+            doc_2.get_first(text_field).and_then(|val| val.as_str()),
+            Some("alpha beta")
+        );
+
+        assert!(!index.settings().manual_doc_id_mapping);
+        let segment_metas = index.searchable_segment_metas()?;
+        let segment_meta = &segment_metas[0];
+        let temp_store_path = segment_meta.relative_path(SegmentComponent::TempStore);
+        assert!(
+            !crate::index::list_segment_files(std::slice::from_ref(segment_meta), &[])
+                .contains(&temp_store_path)
+        );
+        assert!(!index.directory().exists(&temp_store_path)?);
+
+        let mut index_writer = index.writer_for_tests()?;
+        index_writer.add_document(doc!(text_field=>"delta"))?;
+        index_writer.commit()?;
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_single_segment_index_writer_with_sort_by_field_untracks_tempstore() -> crate::Result<()>
+    {
+        let mut schema_builder = Schema::builder();
+        let sort_field = schema_builder.add_u64_field("sort", FAST | STORED);
+        let schema = schema_builder.build();
+        let sort_field_name = schema.get_field_entry(sort_field).name().to_string();
+        let settings = IndexSettings {
+            sort_by_field: Some(IndexSortByField {
+                field: sort_field_name,
+                order: Order::Asc,
+            }),
+            ..Default::default()
+        };
+        let mut single_segment_index_writer = Index::builder()
+            .schema(schema)
+            .settings(settings)
+            .single_segment_index_writer(RamDirectory::default(), 15_000_000)?;
+
+        single_segment_index_writer.add_document(doc!(sort_field=>2u64))?;
+        single_segment_index_writer.add_document(doc!(sort_field=>1u64))?;
+        let index = single_segment_index_writer.finalize()?;
+
+        let segment_metas = index.searchable_segment_metas()?;
+        let segment_meta = &segment_metas[0];
+        let temp_store_path = segment_meta.relative_path(SegmentComponent::TempStore);
+        assert!(
+            !crate::index::list_segment_files(std::slice::from_ref(segment_meta), &[])
+                .contains(&temp_store_path)
+        );
+        assert!(!index.directory().exists(&temp_store_path)?);
+        Ok(())
+    }
+
+    #[test]
+    fn test_single_segment_index_writer_finalize_rejects_manual_doc_id_mapping() -> crate::Result<()>
+    {
+        let mut schema_builder = Schema::builder();
+        let text_field = schema_builder.add_text_field("text", TEXT | STORED);
+        let schema = schema_builder.build();
+        let settings = IndexSettings {
+            manual_doc_id_mapping: true,
+            ..Default::default()
+        };
+        let mut single_segment_index_writer = Index::builder()
+            .schema(schema)
+            .settings(settings)
+            .single_segment_index_writer(RamDirectory::default(), 15_000_000)?;
+
+        single_segment_index_writer.add_document(doc!(text_field=>"alpha"))?;
+
+        let error = single_segment_index_writer.finalize().unwrap_err();
+        assert!(matches!(error, TantivyError::InvalidArgument(_)));
+        Ok(())
+    }
+
+    #[test]
+    fn test_index_builder_rejects_manual_doc_id_mapping_with_sort_by_field() {
+        let mut schema_builder = Schema::builder();
+        schema_builder.add_text_field("text", TEXT | STORED);
+        let sort_field = schema_builder.add_u64_field("sort", STORED | FAST);
+        let schema = schema_builder.build();
+        let sort_field_name = schema.get_field_entry(sort_field).name().to_string();
+        let settings = IndexSettings {
+            manual_doc_id_mapping: true,
+            sort_by_field: Some(IndexSortByField {
+                field: sort_field_name,
+                order: Order::Asc,
+            }),
+            ..Default::default()
+        };
+
+        let error = Index::builder()
+            .schema(schema)
+            .settings(settings)
+            .create_in_ram()
+            .unwrap_err();
+        assert!(matches!(error, TantivyError::InvalidArgument(_)));
+    }
+
+    #[test]
+    fn test_index_builder_rejects_tie_breaker_sort_by_field() {
+        for order in [Order::Asc, Order::Desc] {
+            let mut schema_builder = Schema::builder();
+            schema_builder.add_tie_breaker_field("tie");
+            let schema = schema_builder.build();
+            let settings = IndexSettings {
+                sort_by_field: Some(IndexSortByField {
+                    field: "tie".to_string(),
+                    order,
+                }),
+                ..Default::default()
+            };
+
+            let error = Index::builder()
+                .schema(schema)
+                .settings(settings)
+                .create_in_ram()
+                .unwrap_err();
+            assert!(matches!(error, TantivyError::InvalidArgument(_)));
+        }
+    }
+
+    #[test]
+    fn test_doc_mapping() {
+        let doc_mapping = DocIdMapping::from_new_id_to_old_id(vec![3, 2, 5]);
+        assert_eq!(doc_mapping.get_old_doc_id(0), 3);
+        assert_eq!(doc_mapping.get_old_doc_id(1), 2);
+        assert_eq!(doc_mapping.get_old_doc_id(2), 5);
+        assert_eq!(doc_mapping.get_new_doc_id(0), 0);
+        assert_eq!(doc_mapping.get_new_doc_id(1), 0);
+        assert_eq!(doc_mapping.get_new_doc_id(2), 1);
+        assert_eq!(doc_mapping.get_new_doc_id(3), 0);
+        assert_eq!(doc_mapping.get_new_doc_id(4), 0);
+        assert_eq!(doc_mapping.get_new_doc_id(5), 2);
+    }
+
+    #[test]
+    fn test_doc_mapping_new_permutation_rejects_out_of_range() {
+        let result = DocIdMapping::new_permutation(vec![5, 0]);
+        assert!(matches!(result, Err(TantivyError::InvalidArgument(_)),));
+    }
+
+    #[test]
+    fn test_doc_mapping_new_permutation_rejects_duplicates() {
+        let result = DocIdMapping::new_permutation(vec![0, 1, 0]);
+        assert!(matches!(result, Err(TantivyError::InvalidArgument(_)),));
+    }
+
+    #[test]
+    fn test_doc_mapping_remap() {
+        let doc_mapping = DocIdMapping::from_new_id_to_old_id(vec![2, 8, 3]);
+        assert_eq!(
+            &doc_mapping.remap(&[0, 1000, 2000, 3000, 4000, 5000, 6000, 7000, 8000]),
+            &[2000, 8000, 3000]
+        );
+    }
+
+    #[test]
+    fn test_text_sort() -> crate::Result<()> {
+        let mut schema_builder = SchemaBuilder::new();
+        let id_field = schema_builder.add_text_field("id", STRING | FAST | STORED);
+        schema_builder.add_text_field("name", TEXT | STORED);
+
+        let index = IndexBuilder::new()
+            .schema(schema_builder.build())
+            .settings(IndexSettings {
+                sort_by_field: Some(IndexSortByField {
+                    field: "id".to_string(),
+                    order: Order::Asc,
+                }),
+                ..Default::default()
+            })
+            .create_in_ram()?;
+
+        let mut index_writer = index.writer_for_tests()?;
+        index_writer.add_document(doc!(id_field => "z"))?;
+        index_writer.add_document(doc!(id_field => "a"))?;
+        index_writer.add_document(doc!(id_field => "m"))?;
+        index_writer.commit()?;
+
+        let searcher = index.reader()?.searcher();
+        let segment_reader = searcher.segment_reader(0);
+        let str_col = segment_reader.fast_fields().str("id")?.unwrap();
+        let mut values = Vec::new();
+        for doc in 0..segment_reader.max_doc() {
+            if let Some(ord) = str_col.ords().first(doc) {
+                let mut s = String::new();
+                str_col.ord_to_str(ord, &mut s)?;
+                values.push(s);
+            }
+        }
+        assert_eq!(values, vec!["a", "m", "z"]);
+
+        Ok(())
     }
 }

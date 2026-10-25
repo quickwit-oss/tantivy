@@ -9,7 +9,7 @@ use crate::index::SegmentReader;
 use crate::postings::TermInfo;
 use crate::query::{BitSetDocSet, ConstScorer, Explanation, Scorer, Weight};
 use crate::schema::{Field, IndexRecordOption};
-use crate::termdict::{TermDictionary, TermStreamer};
+use crate::termdict::{TermDictionary, TermStreamer, WithoutKeys};
 use crate::{DocId, Score, TantivyError};
 
 /// A weight struct for Fuzzy Term and Regex Queries
@@ -52,9 +52,10 @@ where
     fn automaton_stream<'a>(
         &'a self,
         term_dict: &'a TermDictionary,
-    ) -> io::Result<TermStreamer<'a, &'a A>> {
+    ) -> io::Result<TermStreamer<'a, &'a A, WithoutKeys>> {
         let automaton: &A = &self.automaton;
-        let mut term_stream_builder = term_dict.search(automaton);
+        // Matching terms are only used for their `TermInfo`.
+        let mut term_stream_builder = term_dict.search(automaton).without_keys();
 
         if let Some(json_path_bytes) = &self.json_path_bytes {
             term_stream_builder = term_stream_builder.ge(json_path_bytes);

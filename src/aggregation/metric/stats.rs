@@ -124,11 +124,21 @@ impl IntermediateStats {
     pub fn merge_fruits(&mut self, other: IntermediateStats) {
         self.count += other.count;
 
-        // kahan algorithm for sum
-        let y = other.sum - (self.delta + other.delta);
-        let t = self.sum + y;
-        self.delta = (t - self.sum) - y;
-        self.sum = t;
+        // Add the sums, then fold the pending compensations into the result, both with an
+        // error-free TwoSum, and keep the exact remainder as the residual for the next addition.
+        // Folding the compensations into `other.sum` first would round them away whenever they
+        // are smaller than half its ULP.
+        let (sum, err) = two_sum(self.sum, other.sum);
+        let (sum, residual) = two_sum(sum, err - (self.delta + other.delta));
+        if sum.is_finite() {
+            self.sum = sum;
+            self.delta = -residual;
+        } else {
+            // The sum overflowed, and its error terms are NaN: drop the compensation, which would
+            // otherwise turn the infinite sum into NaN.
+            self.sum += other.sum;
+            self.delta = 0.0;
+        }
 
         self.min = self.min.min(other.min);
         self.max = self.max.max(other.max);
@@ -198,23 +208,28 @@ pub enum StatsType {
 }
 
 fn create_collector<const TYPE_ID: u8>(
-    req: &MetricAggReqData,
+    req: MetricAggReqData,
 ) -> Box<dyn SegmentAggregationCollector> {
+    let column_opt = req
+        .accessor
+        .as_physical_column()
+        .map(|column| (column.clone(), req.accessor.column_type()));
     Box::new(SegmentStatsCollector::<TYPE_ID> {
-        name: req.name.clone(),
+        name: req.name,
         collecting_for: req.collecting_for,
         is_number_or_date_type: req.is_number_or_date_type,
         missing_u64: req.missing_u64,
-        accessor: req.accessor.clone(),
+        column_opt,
+        accessor: req.accessor,
         buckets: vec![IntermediateStats::default()],
     })
 }
 
 /// Build a concrete `SegmentStatsCollector` depending on the column type.
 pub(crate) fn build_segment_stats_collector(
-    req: &MetricAggReqData,
+    req: MetricAggReqData,
 ) -> crate::Result<Box<dyn SegmentAggregationCollector>> {
-    match req.field_type {
+    match req.accessor.column_type() {
         ColumnType::I64 => Ok(create_collector::<{ ColumnType::I64 as u8 }>(req)),
         ColumnType::U64 => Ok(create_collector::<{ ColumnType::U64 as u8 }>(req)),
         ColumnType::F64 => Ok(create_collector::<{ ColumnType::F64 as u8 }>(req)),
@@ -227,10 +242,16 @@ pub(crate) fn build_segment_stats_collector(
 }
 
 #[repr(C)]
-#[derive(Clone, Debug)]
+#[derive(Debug)]
 pub(crate) struct SegmentStatsCollector<const COLUMN_TYPE_ID: u8> {
     pub(crate) missing_u64: Option<u64>,
-    pub(crate) accessor: Column<u64>,
+    pub(crate) accessor: Box<dyn ValueSource>,
+    /// The physical column backing `accessor`, if any, resolved once at construction.
+    ///
+    /// `collect` is called once per bucket, often with a single doc (e.g. under a
+    /// high-cardinality terms agg), so a per-call virtual dispatch through `accessor` is
+    /// measurable.
+    pub(crate) column_opt: Option<(Column<u64>, ColumnType)>,
     pub(crate) is_number_or_date_type: bool,
     pub(crate) buckets: Vec<IntermediateStats>,
     pub(crate) name: String,
@@ -266,7 +287,7 @@ impl<const COLUMN_TYPE_ID: u8> SegmentAggregationCollector
                 return Err(TantivyError::InvalidArgument(format!(
                     "Unsupported stats type for stats aggregation: {:?}",
                     self.collecting_for
-                )))
+                )));
             }
         };
 
@@ -285,26 +306,41 @@ impl<const COLUMN_TYPE_ID: u8> SegmentAggregationCollector
         docs: &[crate::DocId],
         agg_data: &mut AggregationsSegmentCtx,
     ) -> crate::Result<()> {
+        // Fast path: the caller hands us a single doc, which is the dominant case when a metric
+        // sub-agg sits under a high-cardinality bucket agg. Streaming straight from the column
+        // skips the block accessor's buffers entirely.
+        // Only valid without a missing value: `values_for_doc` yields nothing for a doc without a
+        // value, so the substitute would be silently dropped.
+        // Also only valid over a materialized column: `values_for_doc` is per-document random
+        // access, which a computed source cannot offer. Those fall through to the block path
+        // below, which is semantically identical.
         // TODO: remove once we fetch all values for all bucket ids in one go
-        if docs.len() == 1 && self.missing_u64.is_none() {
-            collect_stats::<COLUMN_TYPE_ID>(
-                &mut self.buckets[parent_bucket_id as usize],
-                self.accessor.values_for_doc(docs[0]),
-                self.is_number_or_date_type,
-            )?;
-
-            return Ok(());
+        if let Some(column_source) = &mut self.column_opt {
+            if docs.len() == 1 && self.missing_u64.is_none() {
+                collect_stats::<COLUMN_TYPE_ID>(
+                    &mut self.buckets[parent_bucket_id as usize],
+                    column_source.0.values_for_doc(docs[0]),
+                    self.is_number_or_date_type,
+                )?;
+                return Ok(());
+            }
+            agg_data.column_block_accessor.fetch_block_with_missing(
+                docs,
+                column_source,
+                self.missing_u64,
+            );
+        } else {
+            agg_data.column_block_accessor.fetch_block_with_missing(
+                docs,
+                &mut *self.accessor,
+                self.missing_u64,
+            );
         }
-        agg_data.column_block_accessor.fetch_block_with_missing(
-            docs,
-            &self.accessor,
-            self.missing_u64,
-        );
-        collect_stats::<COLUMN_TYPE_ID>(
+        collect_stats_slice::<COLUMN_TYPE_ID>(
             &mut self.buckets[parent_bucket_id as usize],
-            agg_data.column_block_accessor.iter_vals(),
+            agg_data.column_block_accessor.values(),
             self.is_number_or_date_type,
-        )?;
+        );
 
         Ok(())
     }
@@ -321,6 +357,103 @@ impl<const COLUMN_TYPE_ID: u8> SegmentAggregationCollector
         }
         Ok(())
     }
+
+    fn compute_metric_value(
+        &self,
+        bucket_id: BucketId,
+        sub_agg_name: &str,
+        sub_agg_property: &str,
+        _agg_data: &AggregationsSegmentCtx,
+    ) -> Option<f64> {
+        if self.name != sub_agg_name {
+            return None;
+        }
+        let stats = self.buckets.get(bucket_id as usize)?;
+        // The property depends on what we're collecting:
+        //   - StatsType::Stats exposes count/sum/min/max/avg via dotted property.
+        //   - Single-value kinds (Sum/Count/Min/Max/Average) expect an empty property and return
+        //     the value they were configured to collect.
+        let prop = match self.collecting_for {
+            StatsType::Stats if !sub_agg_property.is_empty() => sub_agg_property,
+            StatsType::Sum if sub_agg_property.is_empty() => "sum",
+            StatsType::Count if sub_agg_property.is_empty() => "count",
+            StatsType::Max if sub_agg_property.is_empty() => "max",
+            StatsType::Min if sub_agg_property.is_empty() => "min",
+            StatsType::Average if sub_agg_property.is_empty() => "avg",
+            _ => return None,
+        };
+        match prop {
+            "count" => Some(stats.count as f64),
+            "sum" => Some(stats.sum),
+            "min" if stats.count > 0 => Some(stats.min),
+            "max" if stats.count > 0 => Some(stats.max),
+            "avg" if stats.count > 0 => Some(stats.sum / stats.count as f64),
+            _ => None,
+        }
+    }
+}
+
+/// Error-free transformation of `a + b`: returns `(s, e)` with `s = fl(a + b)` and
+/// `a + b = s + e` exactly, whatever the magnitudes of `a` and `b`.
+#[inline]
+fn two_sum(a: f64, b: f64) -> (f64, f64) {
+    let s = a + b;
+    let b_rounded = s - a;
+    let e = (a - (s - b_rounded)) + (b - b_rounded);
+    (s, e)
+}
+
+/// Collects a block of values into `LANES` independent Kahan accumulators merged back into
+/// `stats`, breaking the serial dependency chain of [`IntermediateStats::collect`].
+#[inline]
+fn collect_stats_slice<const COLUMN_TYPE_ID: u8>(
+    stats: &mut IntermediateStats,
+    vals: &[u64],
+    is_number_or_date_type: bool,
+) {
+    if !is_number_or_date_type {
+        // Non-numeric: only the presence of a value matters, as if collecting `0.0` for each.
+        if !vals.is_empty() {
+            stats.count += vals.len() as u64;
+            stats.min = stats.min.min(0.0);
+            stats.max = stats.max.max(0.0);
+        }
+        return;
+    }
+    const LANES: usize = 4;
+
+    // Below two values per lane, the setup and merge overhead outweighs the gain.
+    if vals.len() < LANES * 2 {
+        for &val in vals {
+            stats.collect(convert_to_f64::<COLUMN_TYPE_ID>(val));
+        }
+        return;
+    }
+    let mut lanes: [IntermediateStats; LANES] = Default::default();
+
+    let (chunks, remainder) = vals.as_chunks::<LANES>();
+
+    for chunk in chunks {
+        for lane in 0..LANES {
+            lanes[lane].collect(convert_to_f64::<COLUMN_TYPE_ID>(chunk[lane]));
+        }
+    }
+    for &val in remainder {
+        lanes[0].collect(convert_to_f64::<COLUMN_TYPE_ID>(val));
+    }
+    // Combine the lanes in a tree, off the bucket's dependency chain, then merge the result into
+    // `stats` once: four serial `merge_fruits` per block would dominate the block's latency.
+    let [l0, l1, l2, l3] = lanes;
+    let (sum01, err01) = two_sum(l0.sum, l1.sum);
+    let (sum23, err23) = two_sum(l2.sum, l3.sum);
+    let (sum, err) = two_sum(sum01, sum23);
+    stats.merge_fruits(IntermediateStats {
+        count: l0.count + l1.count + l2.count + l3.count,
+        sum,
+        delta: (l0.delta + l1.delta + l2.delta + l3.delta) - (err01 + err23 + err),
+        min: l0.min.min(l1.min).min(l2.min.min(l3.min)),
+        max: l0.max.max(l1.max).max(l2.max.max(l3.max)),
+    });
 }
 
 #[inline]
@@ -357,6 +490,63 @@ mod tests {
     use crate::query::{AllQuery, TermQuery};
     use crate::schema::{IndexRecordOption, Schema, FAST};
     use crate::{Index, IndexWriter, Term};
+
+    #[test]
+    fn test_collect_stats_slice_keeps_lane_compensation() {
+        // Lane 0 holds [1e16, 1.0]: its sum stays 1e16 with a -1 compensation, below half the ULP
+        // of 1e16. Merging the lane must not round that compensation away.
+        const F64: u8 = columnar::ColumnType::F64 as u8;
+        let vals: Vec<u64> = [1e16, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0]
+            .into_iter()
+            .map(|val| {
+                crate::aggregation::f64_to_fastfield_u64(val, &columnar::ColumnType::F64).unwrap()
+            })
+            .collect();
+
+        let mut stats = super::IntermediateStats::default();
+        super::collect_stats_slice::<F64>(&mut stats, &vals, true);
+        let stats = stats.finalize();
+
+        // Same correctly rounded sum as the value-by-value Kahan fold.
+        assert_eq!(stats.sum, 10_000_000_000_000_008.0);
+        assert_eq!(stats.avg, Some(10_000_000_000_000_008.0 / 8.0));
+    }
+
+    #[test]
+    fn test_collect_stats_slice_does_not_reapply_kahan_residual() {
+        // The Kahan residual left by the last addition is not part of the sum: subtracting it
+        // again would report -17.700000000000003.
+        const F64: u8 = columnar::ColumnType::F64 as u8;
+        let vals: Vec<u64> = [-7.8, -9.9]
+            .into_iter()
+            .map(|val| {
+                crate::aggregation::f64_to_fastfield_u64(val, &columnar::ColumnType::F64).unwrap()
+            })
+            .collect();
+
+        let mut stats = super::IntermediateStats::default();
+        super::collect_stats_slice::<F64>(&mut stats, &vals, true);
+
+        assert_eq!(stats.finalize().sum, -17.7);
+    }
+
+    #[test]
+    fn test_collect_stats_slice_keeps_infinite_sum() {
+        // Lanes 0 and 1 hold 1e308 each: their merge overflows to +∞, with NaN error terms that
+        // must not turn the sum into NaN.
+        const F64: u8 = columnar::ColumnType::F64 as u8;
+        let vals: Vec<u64> = [1e308, 1e308, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+            .into_iter()
+            .map(|val| {
+                crate::aggregation::f64_to_fastfield_u64(val, &columnar::ColumnType::F64).unwrap()
+            })
+            .collect();
+
+        let mut stats = super::IntermediateStats::default();
+        super::collect_stats_slice::<F64>(&mut stats, &vals, true);
+
+        assert_eq!(stats.finalize().sum, f64::INFINITY);
+    }
 
     #[test]
     fn test_aggregation_stats_empty_index() -> crate::Result<()> {
@@ -427,6 +617,51 @@ mod tests {
                 "sum": 10.0
             })
         );
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_aggregation_stats_block() -> crate::Result<()> {
+        // Enough values in a single segment to go through `collect_stats_slice`'s lanes, with a
+        // non-empty remainder holding the max.
+        let values = vec![3.0, -7.0, 5.0, 1.0, 9.0, 2.0, 8.0, 4.0, 6.0, 42.0];
+
+        let index = get_test_index_from_values(true, &values)?;
+
+        let agg_req: Aggregations = serde_json::from_value(json!({
+            "stats": {
+                "stats": {
+                    "field": "score_f64",
+                },
+            },
+            "count_str": {
+                "value_count": {
+                    "field": "string_id",
+                },
+            }
+        }))
+        .unwrap();
+
+        let collector = AggregationCollector::from_aggs(agg_req, Default::default());
+
+        let reader = index.reader()?;
+        let searcher = reader.searcher();
+        let agg_res: AggregationResults = searcher.search(&AllQuery, &collector).unwrap();
+
+        let res: Value = serde_json::from_str(&serde_json::to_string(&agg_res)?)?;
+        assert_eq!(
+            res["stats"],
+            json!({
+                "avg": 7.3,
+                "count": 10,
+                "max": 42.0,
+                "min": -7.0,
+                "sum": 73.0
+            })
+        );
+        // Non-numeric column: only the presence of values is collected.
+        assert_eq!(res["count_str"], json!({ "value": 10.0 }));
 
         Ok(())
     }
@@ -601,6 +836,64 @@ mod tests {
         );
 
         Ok(())
+    }
+
+    #[test]
+    fn test_stats_negative_missing_on_u64_column() {
+        let mut schema_builder = Schema::builder();
+        let number = schema_builder.add_u64_field("number", FAST);
+        let index = Index::create_in_ram(schema_builder.build());
+        let mut index_writer: IndexWriter = index.writer_for_tests().unwrap();
+        index_writer.add_document(doc!(number => 5u64)).unwrap();
+        index_writer.add_document(doc!()).unwrap();
+        index_writer.commit().unwrap();
+
+        let agg_req: Aggregations = serde_json::from_value(json!({
+            "my_stats": { "stats": { "field": "number", "missing": -1.0 } }
+        }))
+        .unwrap();
+        let res = exec_request_with_query(agg_req, &index, None).unwrap();
+
+        // The doc without a value counts as -1, which a `u64` column cannot represent.
+        assert_eq!(
+            res["my_stats"],
+            json!({
+                "avg": 2.0,
+                "count": 2,
+                "max": 5.0,
+                "min": -1.0,
+                "sum": 4.0
+            })
+        );
+    }
+
+    #[test]
+    fn test_stats_fractional_missing_on_i64_column() {
+        let mut schema_builder = Schema::builder();
+        let delta = schema_builder.add_i64_field("delta", FAST);
+        let index = Index::create_in_ram(schema_builder.build());
+        let mut index_writer: IndexWriter = index.writer_for_tests().unwrap();
+        index_writer.add_document(doc!(delta => -3i64)).unwrap();
+        index_writer.add_document(doc!()).unwrap();
+        index_writer.commit().unwrap();
+
+        let agg_req: Aggregations = serde_json::from_value(json!({
+            "my_stats": { "stats": { "field": "delta", "missing": 2.5 } }
+        }))
+        .unwrap();
+        let res = exec_request_with_query(agg_req, &index, None).unwrap();
+
+        // The doc without a value counts as 2.5, which an `i64` column cannot represent.
+        assert_eq!(
+            res["my_stats"],
+            json!({
+                "avg": -0.25,
+                "count": 2,
+                "max": 2.5,
+                "min": -3.0,
+                "sum": -0.5
+            })
+        );
     }
 
     #[test]

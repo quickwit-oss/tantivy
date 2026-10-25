@@ -23,6 +23,19 @@ impl BucketIdProvider {
 }
 
 /// A SegmentAggregationCollector is used to collect aggregation results.
+///
+/// # Document ordering
+///
+/// For each bucket, submitted document IDs must be strictly increasing across all
+/// calls to [`Self::collect`] and [`Self::collect_multiple`]. A document may be
+/// submitted to different buckets, but only once to any given bucket. Submissions
+/// to different buckets do not need to be ordered relative to each other.
+///
+/// Bucket collectors may buffer submissions across calls and combine them into
+/// one child collector call without sorting or deduplicating. Downstream value
+/// loading requires ascending, duplicate-free document IDs for contiguous-range
+/// decoding and ordered missing-value handling. Ordering only within each call
+/// is therefore insufficient.
 pub trait SegmentAggregationCollector: Debug {
     fn add_intermediate_aggregation_result(
         &mut self,
@@ -31,7 +44,14 @@ pub trait SegmentAggregationCollector: Debug {
         parent_bucket_id: BucketId,
     ) -> crate::Result<()>;
 
-    /// Note: The caller needs to call `prepare_max_bucket` before calling `collect`.
+    /// Collect docs for one bucket.
+    ///
+    /// `docs` must be strictly increasing. Its first document ID, if any, must be
+    /// greater than every document ID previously submitted to `parent_bucket_id`
+    /// through either collection method. See the trait's document ordering contract.
+    ///
+    /// The caller must call `prepare_max_bucket` for at least `parent_bucket_id`
+    /// before collecting.
     fn collect(
         &mut self,
         parent_bucket_id: BucketId,
@@ -42,7 +62,15 @@ pub trait SegmentAggregationCollector: Debug {
     /// Collect docs for multiple buckets in one call.
     /// Minimizes dynamic dispatch overhead when collecting many buckets.
     ///
-    /// Note: The caller needs to call `prepare_max_bucket` before calling `collect`.
+    /// `bucket_ids` and `docs` must have equal lengths; each aligned pair is one
+    /// submission. For each bucket ID, document IDs must be strictly increasing
+    /// in submission order, including across nonconsecutive runs and previous
+    /// calls to either collection method. A document may appear for different
+    /// buckets; no ordering is required between different buckets. See the trait's
+    /// document ordering contract.
+    ///
+    /// The caller must call `prepare_max_bucket` for at least the largest submitted
+    /// bucket ID before collecting.
     fn collect_multiple(
         &mut self,
         bucket_ids: &[BucketId],
@@ -76,6 +104,31 @@ pub trait SegmentAggregationCollector: Debug {
     fn flush(&mut self, _agg_data: &mut AggregationsSegmentCtx) -> crate::Result<()> {
         Ok(())
     }
+
+    /// Compute the segment-level metric value of the named direct-child metric for `bucket_id`.
+    ///
+    /// Used by parent term aggs that order by a sub-aggregation: the parent sorts on
+    /// this value and cuts off at segment time, matching the approximation tradeoff
+    /// Elasticsearch makes for any sub-agg ordering.
+    ///
+    /// `sub_agg_property` is the dotted suffix (e.g. `"sum"` in `mystats.sum`); empty when
+    /// the metric is a single-value kind such as cardinality.
+    ///
+    /// Returns `None` only on name mismatch, unknown property, or empty bucket. Implementations
+    /// may finalize their per-bucket state (e.g. compute a percentile from a sketch); calls
+    /// must be idempotent so the final intermediate result is unaffected.
+    ///
+    /// No default impl on purpose: every collector must decide explicitly whether it
+    /// produces a metric value, forwards into children (single-bucket aggs), or rejects
+    /// the lookup. A silent `None` default would let a parent term agg's cutoff sort all
+    /// buckets to the same key and drop arbitrary winners.
+    fn compute_metric_value(
+        &self,
+        bucket_id: BucketId,
+        sub_agg_name: &str,
+        sub_agg_property: &str,
+        agg_data: &AggregationsSegmentCtx,
+    ) -> Option<f64>;
 }
 
 #[derive(Default)]
@@ -136,5 +189,22 @@ impl SegmentAggregationCollector for GenericSegmentAggregationResultsCollector {
             collector.prepare_max_bucket(max_bucket, agg_data)?;
         }
         Ok(())
+    }
+
+    fn compute_metric_value(
+        &self,
+        bucket_id: BucketId,
+        sub_agg_name: &str,
+        sub_agg_property: &str,
+        agg_data: &AggregationsSegmentCtx,
+    ) -> Option<f64> {
+        for agg in &self.aggs {
+            if let Some(value) =
+                agg.compute_metric_value(bucket_id, sub_agg_name, sub_agg_property, agg_data)
+            {
+                return Some(value);
+            }
+        }
+        None
     }
 }

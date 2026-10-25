@@ -36,6 +36,9 @@ pub enum LogicalLiteral {
         coordinates: Vec<[f64; 2]>,
         inner_query: Option<Box<LogicalAst>>,
     },
+    Exists {
+        field: String,
+    },
 }
 
 #[derive(Clone)]
@@ -188,6 +191,7 @@ impl fmt::Debug for LogicalLiteral {
                     )
                 }
             }
+            LogicalLiteral::Exists { ref field } => write!(formatter, "Exists({field})"),
         }
     }
 }

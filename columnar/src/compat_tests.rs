@@ -27,7 +27,7 @@ fn generate_columnar(num_docs: u32, value_offset: u64) -> Vec<u8> {
     }
 
     let mut wrt: Vec<u8> = Vec::new();
-    columnar_writer.serialize(num_docs, &mut wrt).unwrap();
+    columnar_writer.serialize(num_docs, None, &mut wrt).unwrap();
 
     wrt
 }
@@ -37,7 +37,10 @@ fn generate_columnar(num_docs: u32, value_offset: u64) -> Vec<u8> {
 fn create_format() {
     let version = CURRENT_VERSION.to_string();
     let file_path = path_for_version(&version);
-    if PathBuf::from(file_path.clone()).exists() {
+    if PathBuf::from(file_path.clone())
+        .try_exists()
+        .expect("Failed to check whether the compatibility columnar file exists")
+    {
         return;
     }
     let columnar = generate_columnar(NUM_DOCS, 0);

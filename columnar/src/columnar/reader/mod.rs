@@ -218,7 +218,7 @@ impl ColumnarReader {
 mod tests {
     use common::json_path_writer::JSON_PATH_SEGMENT_SEP;
 
-    use crate::{ColumnType, ColumnarReader, ColumnarWriter};
+    use crate::{ColumnType, ColumnarReader, ColumnarWriter, DynamicColumn};
 
     #[test]
     fn test_list_columns() {
@@ -226,7 +226,7 @@ mod tests {
         columnar_writer.record_column_type("col1", ColumnType::Str, false);
         columnar_writer.record_column_type("col2", ColumnType::U64, false);
         let mut buffer = Vec::new();
-        columnar_writer.serialize(1, &mut buffer).unwrap();
+        columnar_writer.serialize(1, None, &mut buffer).unwrap();
         let columnar = ColumnarReader::open(buffer).unwrap();
         let columns = columnar.list_columns().unwrap();
         assert_eq!(columns.len(), 2);
@@ -237,12 +237,31 @@ mod tests {
     }
 
     #[test]
+    fn test_generated_tie_breaker_column() {
+        let mut columnar_writer = ColumnarWriter::default();
+        columnar_writer.record_tie_breaker_column("tie");
+        let mut buffer = Vec::new();
+        columnar_writer.serialize(1_025, None, &mut buffer).unwrap();
+
+        let columnar = ColumnarReader::open(buffer).unwrap();
+        let handles = columnar.read_columns("tie").unwrap();
+        assert_eq!(handles[0].column_type, ColumnType::I64);
+        let DynamicColumn::I64(column) = handles[0].open().unwrap() else {
+            panic!("expected an i64 tie-breaker column");
+        };
+        assert_eq!(column.index.get_cardinality(), crate::Cardinality::Full);
+        for doc in 1..1_025 {
+            assert_eq!(column.first(doc), Some(column.first(doc - 1).unwrap() + 1));
+        }
+    }
+
+    #[test]
     fn test_list_columns_strict_typing_prevents_coercion() {
         let mut columnar_writer = ColumnarWriter::default();
         columnar_writer.record_column_type("count", ColumnType::U64, false);
         columnar_writer.record_numerical(1, "count", 1u64);
         let mut buffer = Vec::new();
-        columnar_writer.serialize(2, &mut buffer).unwrap();
+        columnar_writer.serialize(2, None, &mut buffer).unwrap();
         let columnar = ColumnarReader::open(buffer).unwrap();
         let columns = columnar.list_columns().unwrap();
         assert_eq!(columns.len(), 1);
@@ -256,7 +275,7 @@ mod tests {
         columnar_writer.record_column_type("col", ColumnType::U64, false);
         columnar_writer.record_numerical(1, "col", 1u64);
         let mut buffer = Vec::new();
-        columnar_writer.serialize(2, &mut buffer).unwrap();
+        columnar_writer.serialize(2, None, &mut buffer).unwrap();
         let columnar = ColumnarReader::open(buffer).unwrap();
         {
             let columns = columnar.read_columns("col").unwrap();
@@ -285,7 +304,7 @@ mod tests {
         columnar_writer.record_str(1, "col1", "hello");
         columnar_writer.record_str(0, "col2", "hello");
         let mut buffer = Vec::new();
-        columnar_writer.serialize(2, &mut buffer).unwrap();
+        columnar_writer.serialize(2, None, &mut buffer).unwrap();
 
         let columnar = ColumnarReader::open(buffer).unwrap();
         {

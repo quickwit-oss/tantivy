@@ -14,11 +14,9 @@ use itertools::Itertools;
 use tantivy_fst::Automaton;
 use tantivy_fst::automaton::AlwaysMatch;
 
-use crate::sstable_index_v3::SSTableIndexV3Empty;
+use crate::delta::DeltaKeyComparator;
 use crate::streamer::{Streamer, StreamerBuilder};
-use crate::{
-    BlockAddr, DeltaReader, Reader, SSTable, SSTableIndex, SSTableIndexV3, TermOrdinal, VoidSSTable,
-};
+use crate::{BlockAddr, DeltaReader, Reader, SSTable, SSTableIndex, TermOrdinal, VoidSSTable};
 
 /// An SSTable is a sorted map that associates sorted `&[u8]` keys
 /// to any kind of typed values.
@@ -119,8 +117,14 @@ impl<TSSTable: SSTable> Dictionary<TSSTable> {
             ));
             let data = blocks
                 .map(|block_addr| {
-                    self.sstable_slice
-                        .read_bytes_slice_async(block_addr.byte_range)
+                    let first_ordinal = block_addr.first_ordinal;
+                    async move {
+                        let bytes = self
+                            .sstable_slice
+                            .read_bytes_slice_async(block_addr.byte_range)
+                            .await?;
+                        io::Result::Ok((bytes, first_ordinal))
+                    }
                 })
                 .buffered(5)
                 .try_collect::<Vec<_>>()
@@ -145,7 +149,12 @@ impl<TSSTable: SSTable> Dictionary<TSSTable> {
             // merging across holes
             let blocks = self.get_block_iterator_for_range_and_automaton(key_range, automaton, 0);
             let data = blocks
-                .map(|block_addr| self.sstable_slice.read_bytes_slice(block_addr.byte_range))
+                .map(|block_addr| {
+                    let first_ordinal = block_addr.first_ordinal;
+                    self.sstable_slice
+                        .read_bytes_slice(block_addr.byte_range)
+                        .map(|bytes| (bytes, first_ordinal))
+                })
                 .collect::<Result<Vec<_>, _>>()?;
             Ok(DeltaReader::from_multiple_blocks(data))
         }
@@ -288,33 +297,7 @@ impl<TSSTable: SSTable> Dictionary<TSSTable> {
         let (sstable_slice, index_slice) = main_slice.split(index_offset as usize);
         let sstable_index_bytes = index_slice.read_bytes()?;
 
-        let sstable_index = match version {
-            2 => SSTableIndex::V2(
-                crate::sstable_index_v2::SSTableIndex::load(sstable_index_bytes).map_err(|_| {
-                    io::Error::new(io::ErrorKind::InvalidData, "SSTable corruption")
-                })?,
-            ),
-            3 => {
-                let (sstable_index_bytes, mut footerv3_len_bytes) = sstable_index_bytes.rsplit(8);
-                let store_offset = u64::deserialize(&mut footerv3_len_bytes)?;
-                if store_offset != 0 {
-                    SSTableIndex::V3(
-                        SSTableIndexV3::load(sstable_index_bytes, store_offset).map_err(|_| {
-                            io::Error::new(io::ErrorKind::InvalidData, "SSTable corruption")
-                        })?,
-                    )
-                } else {
-                    // if store_offset is zero, there is no index, so we build a pseudo-index
-                    // assuming a single block of sstable covering everything.
-                    SSTableIndex::V3Empty(SSTableIndexV3Empty::load(index_offset as usize))
-                }
-            }
-            _ => {
-                return Err(io::Error::other(format!(
-                    "Unsupported sstable version, expected one of [2, 3], found {version}"
-                )));
-            }
-        };
+        let sstable_index = SSTableIndex::open(version, index_offset, sstable_index_bytes)?;
 
         Ok(Dictionary {
             sstable_slice,
@@ -374,41 +357,19 @@ impl<TSSTable: SSTable> Dictionary<TSSTable> {
     ) -> io::Result<TermOrdHit> {
         let mut term_ord = 0;
         let key_bytes = key.as_ref();
-        let mut ok_bytes = 0;
+        let mut key_comparator = DeltaKeyComparator::new();
         while sstable_delta_reader.advance()? {
-            let prefix_len = sstable_delta_reader.common_prefix_len();
-            let suffix = sstable_delta_reader.suffix();
-
-            match prefix_len.cmp(&ok_bytes) {
-                Ordering::Less => return Ok(TermOrdHit::Next(term_ord)), /* popped bytes already matched => too far */
-                Ordering::Equal => (),
-                Ordering::Greater => {
-                    // the ok prefix is less than current entry prefix => continue to next elem
+            match key_comparator.compare(
+                key_bytes,
+                sstable_delta_reader.common_prefix_len(),
+                sstable_delta_reader.suffix(),
+            ) {
+                Ordering::Less => {
                     term_ord += 1;
-                    continue;
                 }
+                Ordering::Equal => return Ok(TermOrdHit::Exact(term_ord)),
+                Ordering::Greater => return Ok(TermOrdHit::Next(term_ord)),
             }
-
-            // we have ok_bytes byte of common prefix, check if this key adds more
-            for (key_byte, suffix_byte) in key_bytes[ok_bytes..].iter().zip(suffix) {
-                match suffix_byte.cmp(key_byte) {
-                    Ordering::Less => break,          // byte too small
-                    Ordering::Equal => ok_bytes += 1, // new matching
-                    // byte
-                    Ordering::Greater => return Ok(TermOrdHit::Next(term_ord)), // too far
-                }
-            }
-
-            if ok_bytes == key_bytes.len() {
-                if prefix_len + suffix.len() == ok_bytes {
-                    return Ok(TermOrdHit::Exact(term_ord));
-                } else {
-                    // current key is a prefix of current element, not a match
-                    return Ok(TermOrdHit::Next(term_ord));
-                }
-            }
-
-            term_ord += 1;
         }
 
         Ok(TermOrdHit::Next(term_ord))
@@ -512,21 +473,28 @@ impl<TSSTable: SSTable> Dictionary<TSSTable> {
     /// Returns the terms for a _sorted_ list of term ordinals.
     ///
     /// Returns true if and only if all terms have been found.
-    pub fn sorted_ords_to_term_cb<F: FnMut(&[u8]) -> io::Result<()>>(
+    pub fn sorted_ords_to_term_cb(
         &self,
-        mut ords: impl Iterator<Item = TermOrdinal>,
-        mut cb: F,
+        ords: &[TermOrdinal],
+        mut cb: impl FnMut(&[u8]),
     ) -> io::Result<bool> {
+        assert!(ords.is_sorted());
+        let mut ords = ords.iter().copied();
         let Some(mut ord) = ords.next() else {
             return Ok(true);
         };
 
         // Open the block for the first ordinal.
         let mut bytes = Vec::new();
-        let mut current_block_addr = self.sstable_index.get_block_with_ord(ord);
+        let (mut current_block_addr, block_id) = self.sstable_index.get_and_locate_with_ord(ord);
         let mut current_sstable_delta_reader =
             self.sstable_delta_reader_block(current_block_addr.clone())?;
         let mut current_block_ordinal = current_block_addr.first_ordinal;
+        let mut current_block_end_bound = self
+            .sstable_index
+            .get_block(block_id + 1)
+            .map(|block_addr| block_addr.first_ordinal)
+            .unwrap_or(u64::MAX);
 
         loop {
             // move to the ord inside the current block
@@ -538,33 +506,38 @@ impl<TSSTable: SSTable> Dictionary<TSSTable> {
                 bytes.extend_from_slice(current_sstable_delta_reader.suffix());
                 current_block_ordinal += 1;
             }
-            cb(&bytes)?;
+            cb(&bytes);
 
             // fetch the next ordinal
-            let Some(next_ord) = ords.next() else {
-                return Ok(true);
+            let next_ord = loop {
+                let Some(next_ord) = ords.next() else {
+                    return Ok(true);
+                };
+                if next_ord == ord {
+                    // This is the same ordinal, let's just call the callback directly.
+                    cb(&bytes);
+                } else {
+                    // we checked it was sorted beforehands
+                    debug_assert!(next_ord > ord);
+                    break next_ord;
+                }
             };
 
-            // advance forward if the new ord is different than the one we just processed
-            //
-            // this allows the input TermOrdinal iterator to contain duplicates, so long as it's
-            // still sorted
-            if next_ord < ord {
-                panic!("Ordinals were not sorted: received {next_ord} after {ord}");
-            } else if next_ord > ord {
-                // check if block changed for new term_ord
-                let new_block_addr = self.sstable_index.get_block_with_ord(next_ord);
-                if new_block_addr != current_block_addr {
-                    current_block_addr = new_block_addr;
-                    current_block_ordinal = current_block_addr.first_ordinal;
-                    current_sstable_delta_reader =
-                        self.sstable_delta_reader_block(current_block_addr.clone())?;
-                    bytes.clear();
-                }
-                ord = next_ord;
-            } else {
-                // The next ord is equal to the previous ord: no need to seek or advance.
+            if next_ord >= current_block_end_bound {
+                let (new_block_addr, block_id) =
+                    self.sstable_index.get_and_locate_with_ord(next_ord);
+                current_block_addr = new_block_addr;
+                current_block_ordinal = current_block_addr.first_ordinal;
+                current_sstable_delta_reader =
+                    self.sstable_delta_reader_block(current_block_addr.clone())?;
+                bytes.clear();
+                current_block_end_bound = self
+                    .sstable_index
+                    .get_block(block_id + 1)
+                    .map(|block_addr| block_addr.first_ordinal)
+                    .unwrap_or(u64::MAX)
             }
+            ord = next_ord;
         }
     }
 
@@ -671,8 +644,8 @@ mod tests {
     use common::OwnedBytes;
 
     use super::Dictionary;
-    use crate::MonotonicU64SSTable;
     use crate::dictionary::TermOrdHit;
+    use crate::{MonotonicU64SSTable, TermOrdinal};
 
     #[derive(Debug)]
     struct PermissionedHandle {
@@ -935,25 +908,24 @@ mod tests {
     }
 
     #[test]
-    fn test_ords_term() {
+    fn test_sorted_ords_to_term() {
         let (dic, _slice) = make_test_sstable();
 
         // Single term
         let mut terms = Vec::new();
         assert!(
-            dic.sorted_ords_to_term_cb(100_000..100_001, |term| {
+            dic.sorted_ords_to_term_cb(&[100_000], |term| {
                 terms.push(term.to_vec());
-                Ok(())
             })
             .unwrap()
         );
         assert_eq!(terms, vec![format!("{:05X}", 100_000).into_bytes(),]);
         // Single term
         let mut terms = Vec::new();
+        let ords: Vec<TermOrdinal> = (100_001..100_002).collect();
         assert!(
-            dic.sorted_ords_to_term_cb(100_001..100_002, |term| {
+            dic.sorted_ords_to_term_cb(&ords, |term| {
                 terms.push(term.to_vec());
-                Ok(())
             })
             .unwrap()
         );
@@ -961,9 +933,8 @@ mod tests {
         // both terms
         let mut terms = Vec::new();
         assert!(
-            dic.sorted_ords_to_term_cb(100_000..100_002, |term| {
+            dic.sorted_ords_to_term_cb(&[100_000, 100_001], |term| {
                 terms.push(term.to_vec());
-                Ok(())
             })
             .unwrap()
         );
@@ -976,10 +947,10 @@ mod tests {
         );
         // Test cross block
         let mut terms = Vec::new();
+        let ords: Vec<TermOrdinal> = (98653..=98655).collect();
         assert!(
-            dic.sorted_ords_to_term_cb(98653..=98655, |term| {
+            dic.sorted_ords_to_term_cb(&ords, |term| {
                 terms.push(term.to_vec());
-                Ok(())
             })
             .unwrap()
         );
@@ -989,6 +960,43 @@ mod tests {
                 format!("{:05X}", 98653).into_bytes(),
                 format!("{:05X}", 98654).into_bytes(),
                 format!("{:05X}", 98655).into_bytes(),
+            ]
+        );
+        // redundant
+        let mut terms = Vec::new();
+        let ords: Vec<TermOrdinal> = vec![1, 1, 2];
+        assert!(
+            dic.sorted_ords_to_term_cb(&ords, |term| {
+                terms.push(term.to_vec());
+            })
+            .unwrap()
+        );
+        assert_eq!(
+            terms,
+            vec![
+                format!("{:05X}", 1).into_bytes(),
+                format!("{:05X}", 1).into_bytes(),
+                format!("{:05X}", 2).into_bytes(),
+            ]
+        );
+        // redundant cross block
+        let mut terms = Vec::new();
+        let ords: Vec<TermOrdinal> = vec![98653, 98653, 98654, 98654, 98655, 98655];
+        assert!(
+            dic.sorted_ords_to_term_cb(&ords, |term| {
+                terms.push(term.to_vec());
+            })
+            .unwrap()
+        );
+        assert_eq!(
+            terms,
+            vec![
+                format!("{:05X}", 98_653).into_bytes(),
+                format!("{:05X}", 98_653).into_bytes(),
+                format!("{:05X}", 98_654).into_bytes(),
+                format!("{:05X}", 98_654).into_bytes(),
+                format!("{:05X}", 98_655).into_bytes(),
+                format!("{:05X}", 98_655).into_bytes(),
             ]
         );
     }
@@ -1106,5 +1114,39 @@ mod tests {
         assert!(stream.advance());
         assert_eq!(stream.key(), &[0, 255, 12]);
         assert!(!stream.advance());
+    }
+
+    #[test]
+    fn test_search_term_ord_is_the_dictionary_ordinal_not_a_scan_counter() {
+        // An automaton prunes the blocks it cannot match, so the stream never reads the terms
+        // in them. `term_ord()` must still report the term's ordinal in the whole dictionary;
+        // counting advances alone reports its position among the blocks actually scanned, which
+        // silently mislabels terms for any caller that resolves ordinals back to terms.
+        let (dict, _) = make_test_sstable();
+
+        // Matches exactly one key, far enough in that everything before it is pruned.
+        let late_key = b"3FFFE";
+        let expected_ord: TermOrdinal = 0x3FFFE;
+        assert_eq!(dict.term_ord(late_key).unwrap(), Some(expected_ord));
+
+        let pattern = tantivy_fst::Regex::new("3FFFE").unwrap();
+        let mut stream = dict.search(pattern).into_stream().unwrap();
+        assert!(stream.advance());
+        assert_eq!(stream.key(), late_key);
+        assert_eq!(stream.term_ord(), expected_ord);
+        assert!(!stream.advance());
+
+        // The ordinal a match reports must round-trip back to that same match, for every match
+        // of a pattern whose hits are spread across several pruned-apart blocks.
+        let pattern = tantivy_fst::Regex::new("[0-3]FFFF").unwrap();
+        let mut stream = dict.search(pattern).into_stream().unwrap();
+        let mut seen = 0;
+        while stream.advance() {
+            let key = stream.key().to_vec();
+            let ord = stream.term_ord();
+            assert_eq!(dict.term_ord(&key).unwrap(), Some(ord), "key {key:?}");
+            seen += 1;
+        }
+        assert_eq!(seen, 3); // 0FFFF, 1FFFF, 2FFFF — the dictionary stops below 3FFFF
     }
 }

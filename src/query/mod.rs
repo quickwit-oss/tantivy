@@ -7,6 +7,9 @@ mod boost_query;
 mod const_score_query;
 mod disjunction;
 mod disjunction_max_query;
+/// A query evaluated by a [`doc_predicate_query::DocPredicate`] against each
+/// document of a segment.
+pub mod doc_predicate_query;
 mod empty_query;
 mod exclude;
 mod exist_query;
@@ -30,6 +33,8 @@ mod union;
 mod weight;
 
 #[cfg(test)]
+mod seek_danger_tests;
+#[cfg(test)]
 mod vec_docset;
 
 pub(crate) mod score_combiner;
@@ -47,9 +52,7 @@ pub use self::empty_query::{EmptyQuery, EmptyScorer, EmptyWeight};
 pub use self::exclude::{Exclude, ExclusionSet};
 pub use self::exist_query::ExistsQuery;
 pub use self::explanation::Explanation;
-#[cfg(test)]
-pub(crate) use self::fuzzy_query::DfaWrapper;
-pub use self::fuzzy_query::FuzzyTermQuery;
+pub use self::fuzzy_query::{DfaWrapper, FuzzyTermQuery};
 pub use self::intersection::{intersect_scorers, Intersection};
 pub use self::more_like_this::{MoreLikeThisQuery, MoreLikeThisQueryBuilder};
 pub use self::phrase_prefix_query::PhrasePrefixQuery;
@@ -100,7 +103,7 @@ mod tests {
         assert_eq!(do_search("(a OR b) AND C"), vec![2, 1]);
         // The intersection code has special code for more than 2 intersections
         // left, right + others
-        // The will place the union in the "others" insersection to that seek_into_the_danger_zone
+        // The will place the union in the "others" intersection to that seek_danger
         // is called
         assert_eq!(
             do_search("(a OR b) AND (c OR a) AND (b OR c)"),

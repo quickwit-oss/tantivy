@@ -47,10 +47,10 @@ pub mod merge;
 mod streamer;
 pub mod value;
 
-mod sstable_index_v3;
-pub use sstable_index_v3::{BlockAddr, SSTableIndex, SSTableIndexBuilder, SSTableIndexV3};
-mod sstable_index_v2;
+mod index;
+pub use index::{BlockAddr, SSTableIndex, SSTableIndexBuilder};
 pub(crate) mod vint;
+pub use common::{KeyTracking, WithoutKeys};
 pub use dictionary::{Dictionary, TermOrdHit};
 pub use streamer::{Streamer, StreamerBuilder};
 
@@ -71,7 +71,7 @@ const SSTABLE_VERSION: u32 = 3;
 
 /// Given two byte string returns the length of
 /// the longest common prefix.
-fn common_prefix_len(left: &[u8], right: &[u8]) -> usize {
+pub(crate) fn common_prefix_len(left: &[u8], right: &[u8]) -> usize {
     left.iter()
         .cloned()
         .zip(right.iter().cloned())

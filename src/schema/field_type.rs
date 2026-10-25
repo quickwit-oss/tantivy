@@ -12,6 +12,7 @@ use super::ip_options::IpAddrOptions;
 use super::spatial_options::SpatialOptions;
 use super::IntoIpv6Addr;
 use crate::schema::bytes_options::BytesOptions;
+use crate::schema::custom_options::CustomOptions;
 use crate::schema::facet_options::FacetOptions;
 use crate::schema::{
     DateOptions, Facet, IndexRecordOption, JsonObjectOptions, NumericOptions, OwnedValue,
@@ -46,6 +47,15 @@ pub enum ValueParsingError {
     InvalidBase64 { base64: String },
 }
 
+/// Custom field types cannot be parsed from JSON: their byte payload is opaque to tantivy.
+/// Populate them programmatically with [`add_custom`](crate::TantivyDocument::add_custom).
+fn custom_not_json_error(json: JsonValue) -> ValueParsingError {
+    ValueParsingError::TypeError {
+        expected: "a custom-typed value (populate via add_custom, not JSON)",
+        json,
+    }
+}
+
 /// Type of the value that a field can take.
 ///
 /// Contrary to FieldType, this does
@@ -73,7 +83,11 @@ pub enum Type {
     Json = b'j',
     /// IpAddr
     IpAddr = b'p',
-    /// Spatial
+    /// A plugin-defined custom type. Opaque to the built-ins; see [`CustomOptions`].
+    ///
+    /// [`CustomOptions`]: crate::schema::CustomOptions
+    Custom = b'c',
+    /// Spatial geometry.
     Spatial = b't',
 }
 
@@ -92,7 +106,7 @@ impl From<ColumnType> for Type {
     }
 }
 
-const ALL_TYPES: [Type; 10] = [
+const ALL_TYPES: [Type; 12] = [
     Type::Str,
     Type::U64,
     Type::I64,
@@ -103,6 +117,8 @@ const ALL_TYPES: [Type; 10] = [
     Type::Bytes,
     Type::Json,
     Type::IpAddr,
+    Type::Custom,
+    Type::Spatial,
 ];
 
 impl Type {
@@ -143,6 +159,7 @@ impl Type {
             Type::Bytes => "Bytes",
             Type::Json => "Json",
             Type::IpAddr => "IpAddr",
+            Type::Custom => "Custom",
             Type::Spatial => "Spatial",
         }
     }
@@ -162,6 +179,8 @@ impl Type {
             b'b' => Some(Type::Bytes),
             b'j' => Some(Type::Json),
             b'p' => Some(Type::IpAddr),
+            b'c' => Some(Type::Custom),
+            b't' => Some(Type::Spatial),
             _ => None,
         }
     }
@@ -178,6 +197,10 @@ pub enum FieldType {
     Str(TextOptions),
     /// Unsigned 64-bits integers field type configuration
     U64(NumericOptions),
+    /// Generated tie-breaker field, exposed as an `i64` fast field.
+    ///
+    /// Values are almost always distinct, but not guaranteed to be unique across segments.
+    TieBreaker,
     /// Signed 64-bits integers 64 field type configuration
     I64(NumericOptions),
     /// 64-bits float 64 field type configuration
@@ -194,7 +217,11 @@ pub enum FieldType {
     JsonObject(JsonObjectOptions),
     /// IpAddr field
     IpAddr(IpAddrOptions),
-    /// Spatial field
+    /// A plugin-defined field type. Opaque to the built-ins; populated via
+    /// [`add_custom`](crate::TantivyDocument::add_custom) and consumed by a
+    /// [`SegmentPlugin`](crate::SegmentPlugin).
+    Custom(CustomOptions),
+    /// Spatial field configuration.
     Spatial(SpatialOptions),
 }
 
@@ -204,7 +231,7 @@ impl FieldType {
         match *self {
             FieldType::Str(_) => Type::Str,
             FieldType::U64(_) => Type::U64,
-            FieldType::I64(_) => Type::I64,
+            FieldType::I64(_) | FieldType::TieBreaker => Type::I64,
             FieldType::F64(_) => Type::F64,
             FieldType::Bool(_) => Type::Bool,
             FieldType::Date(_) => Type::Date,
@@ -212,8 +239,14 @@ impl FieldType {
             FieldType::Bytes(_) => Type::Bytes,
             FieldType::JsonObject(_) => Type::Json,
             FieldType::IpAddr(_) => Type::IpAddr,
+            FieldType::Custom(_) => Type::Custom,
             FieldType::Spatial(_) => Type::Spatial,
         }
+    }
+
+    /// returns true if this is a plugin-defined custom field
+    pub fn is_custom(&self) -> bool {
+        matches!(self, FieldType::Custom(_))
     }
 
     /// returns true if this is an json field
@@ -254,7 +287,7 @@ impl FieldType {
             FieldType::Bytes(ref bytes_options) => bytes_options.is_indexed(),
             FieldType::JsonObject(ref json_object_options) => json_object_options.is_indexed(),
             FieldType::IpAddr(ref ip_addr_options) => ip_addr_options.is_indexed(),
-            FieldType::Spatial(ref _spatial_options) => false,
+            FieldType::TieBreaker | FieldType::Custom(_) | FieldType::Spatial(_) => false,
         }
     }
 
@@ -269,6 +302,7 @@ impl FieldType {
             FieldType::JsonObject(json_object_options) => json_object_options
                 .get_text_indexing_options()
                 .map(|text_indexing| text_indexing.index_option()),
+            FieldType::Spatial(_) => None,
             field_type => {
                 if field_type.is_indexed() {
                     Some(IndexRecordOption::Basic)
@@ -292,6 +326,8 @@ impl FieldType {
             FieldType::IpAddr(ref ip_addr_options) => ip_addr_options.is_fast(),
             FieldType::Facet(_) => true,
             FieldType::JsonObject(ref json_object_options) => json_object_options.is_fast(),
+            FieldType::TieBreaker => true,
+            FieldType::Custom(_) => false,
             FieldType::Spatial(_) => false,
         }
     }
@@ -312,7 +348,7 @@ impl FieldType {
             FieldType::Bytes(ref bytes_options) => bytes_options.fieldnorms(),
             FieldType::JsonObject(ref _json_object_options) => false,
             FieldType::IpAddr(ref ip_addr_options) => ip_addr_options.fieldnorms(),
-            FieldType::Spatial(_) => false,
+            FieldType::TieBreaker | FieldType::Custom(_) | FieldType::Spatial(_) => false,
         }
     }
 
@@ -364,8 +400,7 @@ impl FieldType {
                     None
                 }
             }
-            FieldType::Spatial(_) => None, /* Geometry types cannot be indexed in the inverted
-                                            * index. */
+            FieldType::TieBreaker | FieldType::Custom(_) | FieldType::Spatial(_) => None,
         }
     }
 
@@ -377,102 +412,113 @@ impl FieldType {
     /// is not enabled.
     pub fn value_from_json(&self, json: JsonValue) -> Result<OwnedValue, ValueParsingError> {
         match json {
-            JsonValue::String(field_text) => {
-                match self {
-                    FieldType::Date(_) => {
-                        let dt_with_fixed_tz = OffsetDateTime::parse(&field_text, &Rfc3339)
-                            .map_err(|_err| ValueParsingError::TypeError {
+            JsonValue::String(field_text) => match self {
+                FieldType::Date(_) => {
+                    let dt_with_fixed_tz =
+                        OffsetDateTime::parse(&field_text, &Rfc3339).map_err(|_err| {
+                            ValueParsingError::TypeError {
                                 expected: "rfc3339 format",
-                                json: JsonValue::String(field_text),
-                            })?;
-                        Ok(DateTime::from_utc(dt_with_fixed_tz).into())
-                    }
-                    FieldType::Str(_) => Ok(OwnedValue::Str(field_text)),
-                    FieldType::U64(opt) => {
-                        if opt.should_coerce() {
-                            Ok(OwnedValue::U64(field_text.parse().map_err(|_| {
-                                ValueParsingError::TypeError {
-                                    expected: "a u64 or a u64 as string",
-                                    json: JsonValue::String(field_text),
-                                }
-                            })?))
-                        } else {
-                            Err(ValueParsingError::TypeError {
-                                expected: "a u64",
-                                json: JsonValue::String(field_text),
-                            })
-                        }
-                    }
-                    FieldType::I64(opt) => {
-                        if opt.should_coerce() {
-                            Ok(OwnedValue::I64(field_text.parse().map_err(|_| {
-                                ValueParsingError::TypeError {
-                                    expected: "a i64 or a i64 as string",
-                                    json: JsonValue::String(field_text),
-                                }
-                            })?))
-                        } else {
-                            Err(ValueParsingError::TypeError {
-                                expected: "a i64",
-                                json: JsonValue::String(field_text),
-                            })
-                        }
-                    }
-                    FieldType::F64(opt) => {
-                        if opt.should_coerce() {
-                            Ok(OwnedValue::F64(field_text.parse().map_err(|_| {
-                                ValueParsingError::TypeError {
-                                    expected: "a f64 or a f64 as string",
-                                    json: JsonValue::String(field_text),
-                                }
-                            })?))
-                        } else {
-                            Err(ValueParsingError::TypeError {
-                                expected: "a f64",
-                                json: JsonValue::String(field_text),
-                            })
-                        }
-                    }
-                    FieldType::Bool(opt) => {
-                        if opt.should_coerce() {
-                            Ok(OwnedValue::Bool(field_text.parse().map_err(|_| {
-                                ValueParsingError::TypeError {
-                                    expected: "a i64 or a bool as string",
-                                    json: JsonValue::String(field_text),
-                                }
-                            })?))
-                        } else {
-                            Err(ValueParsingError::TypeError {
-                                expected: "a boolean",
-                                json: JsonValue::String(field_text),
-                            })
-                        }
-                    }
-                    FieldType::Facet(_) => Ok(OwnedValue::Facet(Facet::from(&field_text))),
-                    FieldType::Bytes(_) => BASE64
-                        .decode(&field_text)
-                        .map(OwnedValue::Bytes)
-                        .map_err(|_| ValueParsingError::InvalidBase64 { base64: field_text }),
-                    FieldType::JsonObject(_) => Err(ValueParsingError::TypeError {
-                        expected: "a json object",
-                        json: JsonValue::String(field_text),
-                    }),
-                    FieldType::IpAddr(_) => {
-                        let ip_addr: IpAddr = IpAddr::from_str(&field_text).map_err(|err| {
-                            ValueParsingError::ParseError {
-                                error: err.to_string(),
-                                json: JsonValue::String(field_text),
+                                json: JsonValue::String(field_text.clone()),
                             }
                         })?;
-
-                        Ok(OwnedValue::IpAddr(ip_addr.into_ipv6_addr()))
-                    }
-                    FieldType::Spatial(_) => Err(ValueParsingError::TypeError {
-                        expected: "spatial field parsing not implemented",
-                        json: JsonValue::String(field_text),
-                    }),
+                    let dt = DateTime::try_from_utc(dt_with_fixed_tz).ok_or(
+                        ValueParsingError::OverflowError {
+                            expected: "date between 1677-09-21 and 2262-04-11",
+                            json: JsonValue::String(field_text),
+                        },
+                    )?;
+                    Ok(dt.into())
                 }
-            }
+                FieldType::Str(_) => Ok(OwnedValue::Str(field_text)),
+                FieldType::U64(opt) => {
+                    if opt.should_coerce() {
+                        Ok(OwnedValue::U64(field_text.parse().map_err(|_| {
+                            ValueParsingError::TypeError {
+                                expected: "a u64 or a u64 as string",
+                                json: JsonValue::String(field_text),
+                            }
+                        })?))
+                    } else {
+                        Err(ValueParsingError::TypeError {
+                            expected: "a u64",
+                            json: JsonValue::String(field_text),
+                        })
+                    }
+                }
+                FieldType::I64(opt) => {
+                    if opt.should_coerce() {
+                        Ok(OwnedValue::I64(field_text.parse().map_err(|_| {
+                            ValueParsingError::TypeError {
+                                expected: "a i64 or a i64 as string",
+                                json: JsonValue::String(field_text),
+                            }
+                        })?))
+                    } else {
+                        Err(ValueParsingError::TypeError {
+                            expected: "a i64",
+                            json: JsonValue::String(field_text),
+                        })
+                    }
+                }
+                FieldType::F64(opt) => {
+                    if opt.should_coerce() {
+                        Ok(OwnedValue::F64(field_text.parse().map_err(|_| {
+                            ValueParsingError::TypeError {
+                                expected: "a f64 or a f64 as string",
+                                json: JsonValue::String(field_text),
+                            }
+                        })?))
+                    } else {
+                        Err(ValueParsingError::TypeError {
+                            expected: "a f64",
+                            json: JsonValue::String(field_text),
+                        })
+                    }
+                }
+                FieldType::Bool(opt) => {
+                    if opt.should_coerce() {
+                        Ok(OwnedValue::Bool(field_text.parse().map_err(|_| {
+                            ValueParsingError::TypeError {
+                                expected: "a i64 or a bool as string",
+                                json: JsonValue::String(field_text),
+                            }
+                        })?))
+                    } else {
+                        Err(ValueParsingError::TypeError {
+                            expected: "a boolean",
+                            json: JsonValue::String(field_text),
+                        })
+                    }
+                }
+                FieldType::Facet(_) => Ok(OwnedValue::Facet(Facet::from(&field_text))),
+                FieldType::Bytes(_) => BASE64
+                    .decode(&field_text)
+                    .map(OwnedValue::Bytes)
+                    .map_err(|_| ValueParsingError::InvalidBase64 { base64: field_text }),
+                FieldType::JsonObject(_) => Err(ValueParsingError::TypeError {
+                    expected: "a json object",
+                    json: JsonValue::String(field_text),
+                }),
+                FieldType::IpAddr(_) => {
+                    let ip_addr: IpAddr = IpAddr::from_str(&field_text).map_err(|err| {
+                        ValueParsingError::ParseError {
+                            error: err.to_string(),
+                            json: JsonValue::String(field_text),
+                        }
+                    })?;
+
+                    Ok(OwnedValue::IpAddr(ip_addr.into_ipv6_addr()))
+                }
+                FieldType::TieBreaker => Err(ValueParsingError::TypeError {
+                    expected: "a generated tie-breaker field",
+                    json: JsonValue::String(field_text),
+                }),
+                FieldType::Custom(_) => Err(custom_not_json_error(JsonValue::String(field_text))),
+                FieldType::Spatial(_) => Err(ValueParsingError::TypeError {
+                    expected: "a GeoJSON geometry",
+                    json: JsonValue::String(field_text),
+                }),
+            },
             JsonValue::Number(field_val_num) => match self {
                 FieldType::I64(_) | FieldType::Date(_) => {
                     if let Some(field_val_i64) = field_val_num.as_i64() {
@@ -530,8 +576,15 @@ impl FieldType {
                     expected: "a string with an ip addr",
                     json: JsonValue::Number(field_val_num),
                 }),
+                FieldType::TieBreaker => Err(ValueParsingError::TypeError {
+                    expected: "a generated tie-breaker field",
+                    json: JsonValue::Number(field_val_num),
+                }),
+                FieldType::Custom(_) => {
+                    Err(custom_not_json_error(JsonValue::Number(field_val_num)))
+                }
                 FieldType::Spatial(_) => Err(ValueParsingError::TypeError {
-                    expected: "spatial field parsing not implemented",
+                    expected: "a GeoJSON geometry",
                     json: JsonValue::Number(field_val_num),
                 }),
             },
@@ -718,6 +771,19 @@ mod tests {
         let date = OwnedValue::from(doc.get_first(date_field).unwrap());
         // Time zone is converted to UTC
         assert_eq!("Date(2019-10-12T05:20:50.52Z)", format!("{date:?}"));
+    }
+
+    #[test]
+    fn test_deserialize_json_date_out_of_range() {
+        let date_type = FieldType::Date(Default::default());
+        assert!(matches!(
+            date_type.value_from_json(json!("1601-01-01T00:00:00Z")),
+            Err(ValueParsingError::OverflowError { .. })
+        ));
+        assert!(matches!(
+            date_type.value_from_json(json!("9999-12-31T23:59:59Z")),
+            Err(ValueParsingError::OverflowError { .. })
+        ));
     }
 
     #[test]

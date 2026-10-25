@@ -2,13 +2,14 @@
 
 mod block_search;
 
-pub(crate) use self::block_search::branchless_binary_search;
+pub(crate) use self::block_search::search_block;
 
 mod block_segment_postings;
 pub(crate) mod compression;
 mod indexing_context;
 mod json_postings_writer;
 mod loaded_postings;
+mod merger;
 mod per_field_postings_writer;
 mod postings;
 mod postings_writer;
@@ -20,6 +21,7 @@ mod skip;
 mod term_info;
 
 pub(crate) use loaded_postings::LoadedPostings;
+pub(crate) use merger::{next_mapped_doc, PostingsMerger};
 pub(crate) use stacker::compute_table_memory_size;
 
 pub use self::block_segment_postings::BlockSegmentPostings;
@@ -63,8 +65,8 @@ pub(crate) mod tests {
         let text_field = schema_builder.add_text_field("text", TEXT);
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema);
-        let mut segment = index.new_segment();
-        let mut posting_serializer = InvertedIndexSerializer::open(&mut segment)?;
+        let segment = index.new_segment();
+        let mut posting_serializer = InvertedIndexSerializer::open(&segment)?;
         let mut field_serializer = posting_serializer.new_field(text_field, 120 * 4, None)?;
         field_serializer.new_term("abc".as_bytes(), 12u32, true)?;
         for doc_id in 0u32..120u32 {

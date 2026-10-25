@@ -120,6 +120,7 @@ mod field_entry;
 mod field_type;
 
 mod bytes_options;
+mod custom_options;
 mod date_time_options;
 mod field;
 mod flags;
@@ -134,6 +135,7 @@ mod text_options;
 use columnar::ColumnType;
 
 pub use self::bytes_options::BytesOptions;
+pub use self::custom_options::CustomOptions;
 pub use self::date_time_options::{DateOptions, DateTimePrecision, DATE_TIME_PRECISION_INDEXED};
 pub use self::document::{DocParsingError, Document, OwnedValue, TantivyDocument, Value};
 pub(crate) use self::facet::FACET_SEP_BYTE;
@@ -175,6 +177,7 @@ pub(crate) fn value_type_to_column_type(typ: Type) -> Option<ColumnType> {
         Type::IpAddr => Some(ColumnType::IpAddr),
         Type::Json => None,
         Type::Spatial => None,
+        Type::Custom => None,
     }
 }
 

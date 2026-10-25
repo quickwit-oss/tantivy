@@ -7,9 +7,8 @@
 use common::BitSet;
 
 use crate::query::explanation::does_not_match;
-use crate::query::{BitSetDocSet, Explanation, Query, Scorer, Weight};
+use crate::query::{BitSetDocSet, EmptyScorer, Explanation, Query, Scorer, Weight};
 use crate::schema::{Field, FieldType};
-use crate::spatial::cell_index_reader::CellIndexReader;
 use crate::spatial::geometry::Geometry;
 use crate::spatial::plane::Plane;
 use crate::spatial::spatial_index_manager::PreparedSpatialQuery;
@@ -154,6 +153,9 @@ impl Weight for SpatialWeight {
         reader: &crate::SegmentReader,
         boost: crate::Score,
     ) -> crate::Result<Box<dyn super::Scorer>> {
+        if reader.max_doc() == 0 {
+            return Ok(Box::new(EmptyScorer));
+        }
         let spatial_reader = match reader.spatial_fields().get_field(self.field)? {
             Some(reader) => reader,
             None => {

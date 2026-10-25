@@ -146,6 +146,11 @@ impl SkipReader {
         skip_reader
     }
 
+    #[inline(always)]
+    pub fn has_remaining_docs(&self) -> bool {
+        self.remaining_docs != 0
+    }
+
     pub fn reset(&mut self, data: OwnedBytes, doc_freq: u32) {
         self.last_doc_in_block = if doc_freq >= COMPRESSION_BLOCK_SIZE as u32 {
             0
@@ -180,6 +185,12 @@ impl SkipReader {
 
     pub(crate) fn last_doc_in_block(&self) -> DocId {
         self.last_doc_in_block
+    }
+
+    /// Number of docs from the start of the current block to the end of the postings
+    /// (i.e. the current block plus every block after it).
+    pub(crate) fn remaining_docs(&self) -> u32 {
+        self.remaining_docs
     }
 
     pub fn position_offset(&self) -> u64 {

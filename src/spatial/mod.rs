@@ -70,3 +70,6 @@ pub mod writer;
 pub mod xor;
 
 pub use geometry::Geometry;
+
+#[cfg(test)]
+mod lifecycle_tests;

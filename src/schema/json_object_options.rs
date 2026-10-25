@@ -2,7 +2,7 @@ use std::ops::BitOr;
 
 use serde::{Deserialize, Serialize};
 
-use super::text_options::{FastFieldTextOptions, TokenizerName};
+use super::text_options::{merge_fast_field_options, FastFieldTextOptions};
 use crate::schema::flags::{FastFlag, SchemaFlagList, StoredFlag};
 use crate::schema::{TextFieldIndexing, TextOptions};
 
@@ -15,7 +15,9 @@ pub struct JsonObjectOptions {
     // Text will use the TextFieldIndexing setting for indexing.
     indexing: Option<TextFieldIndexing>,
     // Store all field as fast fields with an optional tokenizer for text.
-    fast: FastFieldTextOptions,
+    #[serde(default)]
+    #[serde(with = "super::text_options::fast_field_text_options_serde")]
+    pub(crate) fast: Option<FastFieldTextOptions>,
     /// tantivy will generate paths to the different nodes of the json object
     /// both in:
     /// - the inverted index (for the terms)
@@ -61,22 +63,16 @@ impl JsonObjectOptions {
     /// to be treated as fast fields.
     #[inline]
     pub fn is_fast(&self) -> bool {
-        matches!(self.fast, FastFieldTextOptions::IsEnabled(true))
-            || matches!(
-                &self.fast,
-                FastFieldTextOptions::EnabledWithTokenizer { with_tokenizer: _ }
-            )
+        self.fast.is_some()
     }
 
-    /// Returns true if and only if the value is a fast field.
+    /// Returns the tokenizer used for the fast field, if the json object
+    /// is a fast field and a tokenizer was configured for it.
     #[inline]
     pub fn get_fast_field_tokenizer_name(&self) -> Option<&str> {
-        match &self.fast {
-            FastFieldTextOptions::IsEnabled(true) | FastFieldTextOptions::IsEnabled(false) => None,
-            FastFieldTextOptions::EnabledWithTokenizer {
-                with_tokenizer: tokenizer,
-            } => Some(tokenizer.name()),
-        }
+        self.fast
+            .as_ref()
+            .map(|fast_field_options| fast_field_options.tokenizer.as_str())
     }
 
     /// Returns `true` iff dots in json keys should be expanded.
@@ -126,8 +122,7 @@ impl JsonObjectOptions {
     /// Access time are similar to a random lookup in an array.
     /// Text fast fields will have the term ids stored in the fast field.
     ///
-    /// The effective cardinality depends on the tokenizer. Without a tokenizer, the text will be
-    /// stored as is, which equals to the "raw" tokenizer. The tokenizer can be used to apply
+    /// The effective cardinality depends on the tokenizer. The tokenizer can be used to apply
     /// normalization like lower case.
     /// The passed tokenizer_name must be available on the fast field tokenizer manager.
     /// `Index::fast_field_tokenizer`.
@@ -136,15 +131,9 @@ impl JsonObjectOptions {
     /// [`TermDictionary::ord_to_term()`](crate::termdict::TermDictionary::ord_to_term)
     /// from the dictionary.
     #[must_use]
-    pub fn set_fast(mut self, tokenizer_name: Option<&str>) -> Self {
-        if let Some(tokenizer) = tokenizer_name {
-            let tokenizer = TokenizerName::from_name(tokenizer);
-            self.fast = FastFieldTextOptions::EnabledWithTokenizer {
-                with_tokenizer: tokenizer,
-            }
-        } else {
-            self.fast = FastFieldTextOptions::IsEnabled(true);
-        }
+    pub fn set_fast(mut self, tokenizer_name: impl ToString) -> Self {
+        let tokenizer = tokenizer_name.to_string();
+        self.fast = Some(FastFieldTextOptions { tokenizer });
         self
     }
 
@@ -161,7 +150,7 @@ impl From<StoredFlag> for JsonObjectOptions {
         JsonObjectOptions {
             stored: true,
             indexing: None,
-            fast: FastFieldTextOptions::default(),
+            fast: None,
             expand_dots_enabled: false,
         }
     }
@@ -172,7 +161,7 @@ impl From<FastFlag> for JsonObjectOptions {
         JsonObjectOptions {
             stored: false,
             indexing: None,
-            fast: FastFieldTextOptions::IsEnabled(true),
+            fast: Some(FastFieldTextOptions::default()),
             expand_dots_enabled: false,
         }
     }
@@ -192,7 +181,7 @@ impl<T: Into<JsonObjectOptions>> BitOr<T> for JsonObjectOptions {
         JsonObjectOptions {
             indexing: self.indexing.or(other.indexing),
             stored: self.stored | other.stored,
-            fast: self.fast | other.fast,
+            fast: merge_fast_field_options(self.fast, other.fast),
             expand_dots_enabled: self.expand_dots_enabled | other.expand_dots_enabled,
         }
     }
@@ -224,6 +213,7 @@ impl From<TextOptions> for JsonObjectOptions {
 mod tests {
     use super::*;
     use crate::schema::{FAST, STORED, TEXT};
+    use crate::tokenizer::RAW_TOKENIZER_NAME;
 
     #[test]
     fn test_json_options() {
@@ -257,5 +247,22 @@ mod tests {
             assert!(!json_options.is_indexed());
             assert!(json_options.is_fast());
         }
+    }
+
+    #[test]
+    fn test_fast_serde() {
+        let disabled: JsonObjectOptions =
+            serde_json::from_str(r#"{ "stored": false, "indexing": null, "fast": false }"#)
+                .unwrap();
+        assert!(!disabled.is_fast());
+
+        let enabled: JsonObjectOptions =
+            serde_json::from_str(r#"{ "stored": false, "indexing": null, "fast": true }"#).unwrap();
+        assert!(enabled.is_fast());
+        assert_eq!(enabled.fast.as_ref().unwrap().tokenizer, RAW_TOKENIZER_NAME);
+        assert_eq!(
+            serde_json::to_value(enabled).unwrap()["fast"],
+            serde_json::json!(true)
+        );
     }
 }

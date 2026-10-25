@@ -1,6 +1,6 @@
 [package]
 name = "tantivy"
-version = "0.26.0"
+version = "0.27.0"
 authors = ["Paul Masurel <paul.masurel@gmail.com>"]
 license = "MIT"
 categories = ["database-implementations", "data-structures"]
@@ -11,12 +11,12 @@ repository = "https://github.com/quickwit-oss/tantivy"
 readme = "README.md"
 keywords = ["search", "information", "retrieval"]
 edition = "2021"
-rust-version = "1.86"
+rust-version = "1.88"
 exclude = ["benches/*.json", "benches/*.txt"]
 
 [dependencies]
 oneshot = "0.1.13"
-base64 = "0.22.0"
+base64 = "0.23.0"
 byteorder = "1.4.3"
 crc32fast = "1.3.2"
 once_cell = "1.10.0"
@@ -27,8 +27,8 @@ regex = { version = "1.5.5", default-features = false, features = [
 aho-corasick = "1.0"
 tantivy-fst = "0.5"
 memmap2 = { version = "0.9.0", optional = true }
-lz4_flex = { version = "0.13", default-features = false, optional = true }
-zstd = { version = "0.13", optional = true, default-features = false }
+lz4_flex = { version = "0.14", default-features = false, optional = true }
+zstd = { version = "0.14", optional = true, default-features = false }
 tempfile = { version = "3.12.0", optional = true }
 log = "0.4.16"
 serde = { version = "1.0.219", features = ["derive"] }
@@ -37,7 +37,26 @@ fs4 = { version = "0.13.1", optional = true }
 levenshtein_automata = "0.2.1"
 uuid = { version = "1.0.0", features = ["v4", "serde"] }
 crossbeam-channel = "0.5.4"
-rust-stemmers = { version = "1.2.0", optional = true }
+frostem = { version = "1.20260804.0", optional = true, default-features = false, features = [
+    "arabic",
+    "danish",
+    "dutch",
+    "english",
+    "finnish",
+    "french",
+    "german",
+    "greek",
+    "hungarian",
+    "italian",
+    "norwegian",
+    "portuguese",
+    "romanian",
+    "russian",
+    "spanish",
+    "swedish",
+    "tamil",
+    "turkish",
+] }
 downcast-rs = "2.0.1"
 bitpacking = { version = "0.9.3", default-features = false, features = [
     "bitpacker4x",
@@ -50,7 +69,7 @@ fail = { version = "0.5.0", optional = true }
 time = { version = "0.3.47", features = ["serde-well-known"] }
 smallvec = "1.8.0"
 rayon = "1.5.2"
-lru = "0.16.3"
+lru = "0.18.2"
 fastdivide = "0.4.0"
 itertools = "0.14.0"
 measure_time = "0.9.0"
@@ -58,15 +77,20 @@ arc-swap = "1.5.0"
 bon = "3.3.1"
 i_triangle = "0.38.0"
 
-columnar = { version = "0.6", path = "./columnar", package = "tantivy-columnar" }
-sstable = { version = "0.6", path = "./sstable", package = "tantivy-sstable", optional = true }
-stacker = { version = "0.6", path = "./stacker", package = "tantivy-stacker" }
-query-grammar = { version = "0.25.0", path = "./query-grammar", package = "tantivy-query-grammar" }
-tantivy-bitpacker = { version = "0.9", path = "./bitpacker" }
-common = { version = "0.10", path = "./common/", package = "tantivy-common" }
-tokenizer-api = { version = "0.6", path = "./tokenizer-api", package = "tantivy-tokenizer-api" }
+# EXPERIMENTAL. The API is likely to change in the near future.
+jitexpr = { version = "0.1", path = "./jitexpr", optional = true }
+# Used by the jitexpr value source to intern the computed terms.
+hashbrown = { version = "0.17", default-features = false, optional = true }
+
+columnar = { version = "0.27", path = "./columnar", package = "tantivy-columnar" }
+sstable = { version = "0.27", path = "./sstable", package = "tantivy-sstable", optional = true }
+stacker = { version = "0.27", path = "./stacker", package = "tantivy-stacker" }
+query-grammar = { version = "0.27", path = "./query-grammar", package = "tantivy-query-grammar" }
+tantivy-bitpacker = { version = "0.27", path = "./bitpacker" }
+common = { version = "0.27", path = "./common/", package = "tantivy-common" }
+tokenizer-api = { version = "0.7", path = "./tokenizer-api", package = "tantivy-tokenizer-api" }
 sketches-ddsketch = { version = "0.4", features = ["use_serde"] }
-datasketches = "0.2.0"
+datasketches = { version = "0.5.0", features = ["hll"] }
 futures-util = { version = "0.3.28", optional = true }
 futures-channel = { version = "0.3.28", optional = true }
 fnv = "1.0.7"
@@ -75,12 +99,14 @@ num-rational = "0.4"
 num-traits = "0.2"
 robust = "1"
 typetag = "0.2.21"
+unwrap-infallible = "1.0.0"
+serde-tuple-vec-map = "1.0.1"
 
 [target.'cfg(windows)'.dependencies]
 winapi = "0.3.9"
 
 [dev-dependencies]
-binggan = "0.14.2"
+binggan = "0.17.0"
 rand = "0.9"
 maplit = "1.0.2"
 matches = "0.1.9"
@@ -97,7 +123,7 @@ postcard = { version = "1.0.4", features = [
 ], default-features = false }
 
 [target.'cfg(not(windows))'.dev-dependencies]
-criterion = { version = "0.5", default-features = false }
+criterion = { version = "0.8", default-features = false }
 
 [dev-dependencies.fail]
 version = "0.5.0"
@@ -119,7 +145,7 @@ overflow-checks = true
 
 [features]
 default = ["mmap", "stopwords", "lz4-compression", "columnar-zstd-compression", "stemmer"]
-stemmer = ["rust-stemmers"]
+stemmer = ["frostem"]
 mmap = ["fs4", "tempfile", "memmap2"]
 stopwords = []
 
@@ -133,6 +159,7 @@ failpoints = ["fail", "fail/failpoints"]
 unstable = []                            # useful for benches.
 
 quickwit = ["sstable", "futures-util", "futures-channel"]
+jitexpr = ["dep:jitexpr", "dep:hashbrown"]
 
 # Compares only the hash of a string when indexing data.
 # Increases indexing speed, but may lead to extremely rare missing terms, when there's a hash collision.
@@ -149,6 +176,7 @@ members = [
     "sstable",
     "tokenizer-api",
     "columnar",
+    "jitexpr",
 ]
 
 # Following the "fail" crate best practises, we isolate
@@ -162,6 +190,10 @@ members = [
 name = "failpoints"
 path = "tests/failpoints/mod.rs"
 required-features = ["failpoints"]
+
+[[example]]
+name = "aggregation_jitexpr"
+required-features = ["jitexpr"]
 
 [[bench]]
 name = "analyzer"
@@ -177,6 +209,10 @@ harness = false
 
 [[bench]]
 name = "exists_json"
+harness = false
+
+[[bench]]
+name = "exists_query"
 harness = false
 
 [[bench]]
@@ -205,4 +241,12 @@ harness = false
 
 [[bench]]
 name = "regex_all_terms"
+harness = false
+
+[[bench]]
+name = "query_parser_nested"
+harness = false
+
+[[bench]]
+name = "intersection_bench"
 harness = false

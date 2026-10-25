@@ -17,7 +17,7 @@ fn make_columnar<T: Into<NumericalValue> + HasAssociatedColumnType + Copy>(
     }
     let mut buffer: Vec<u8> = Vec::new();
     dataframe_writer
-        .serialize(vals.len() as RowId, &mut buffer)
+        .serialize(vals.len() as RowId, None, &mut buffer)
         .unwrap();
     ColumnarReader::open(buffer).unwrap()
 }
@@ -68,6 +68,51 @@ fn test_group_columns_with_required_column() {
         group_columns_for_merge(columnars, &[("numbers".to_string(), ColumnType::U64)]).unwrap();
     assert_eq!(column_map.len(), 1);
     assert!(column_map.contains_key(&("numbers".to_string(), ColumnTypeCategory::Numerical)));
+}
+
+#[test]
+fn test_merge_generated_tie_breaker_columns_stays_small() {
+    fn make_tie_breaker_columnar(num_docs: u32) -> ColumnarReader {
+        let mut writer = ColumnarWriter::default();
+        writer.record_tie_breaker_column("tie");
+        let mut buffer = Vec::new();
+        writer.serialize(num_docs, None, &mut buffer).unwrap();
+        assert!(
+            buffer.len() <= 128,
+            "input columnar is {} bytes",
+            buffer.len()
+        );
+        ColumnarReader::open(buffer).unwrap()
+    }
+
+    let columnars: Vec<ColumnarReader> =
+        (0..4).map(|_| make_tie_breaker_columnar(250_000)).collect();
+    let columnar_refs: Vec<&ColumnarReader> = columnars.iter().collect();
+    let mut buffer = Vec::new();
+    merge_columnar(
+        &columnar_refs,
+        &[("tie".to_string(), ColumnType::I64)],
+        StackMergeOrder::stack(&columnar_refs).into(),
+        &mut buffer,
+    )
+    .unwrap();
+
+    assert!(
+        buffer.len() <= 45_000,
+        "merged columnar is {} bytes",
+        buffer.len()
+    );
+    let merged = ColumnarReader::open(buffer).unwrap();
+    let DynamicColumn::I64(column) = merged.read_columns("tie").unwrap()[0].open().unwrap() else {
+        panic!("expected an i64 tie-breaker column");
+    };
+    assert_eq!(merged.num_docs(), 1_000_000);
+    assert_eq!(column.get_cardinality(), Cardinality::Full);
+    for split_start in (0..1_000_000).step_by(250_000) {
+        for doc in split_start + 1..split_start + 250_000 {
+            assert_eq!(column.first(doc), Some(column.first(doc - 1).unwrap() + 1));
+        }
+    }
 }
 
 #[test]
@@ -143,7 +188,9 @@ fn make_numerical_columnar_multiple_columns(
         .max()
         .unwrap_or(0u32);
     let mut buffer: Vec<u8> = Vec::new();
-    dataframe_writer.serialize(num_rows, &mut buffer).unwrap();
+    dataframe_writer
+        .serialize(num_rows, None, &mut buffer)
+        .unwrap();
     ColumnarReader::open(buffer).unwrap()
 }
 
@@ -166,7 +213,9 @@ fn make_byte_columnar_multiple_columns(
         }
     }
     let mut buffer: Vec<u8> = Vec::new();
-    dataframe_writer.serialize(num_rows, &mut buffer).unwrap();
+    dataframe_writer
+        .serialize(num_rows, None, &mut buffer)
+        .unwrap();
     ColumnarReader::open(buffer).unwrap()
 }
 
@@ -185,7 +234,9 @@ fn make_text_columnar_multiple_columns(columns: &[(&str, &[&[&str]])]) -> Column
         .max()
         .unwrap_or(0u32);
     let mut buffer: Vec<u8> = Vec::new();
-    dataframe_writer.serialize(num_rows, &mut buffer).unwrap();
+    dataframe_writer
+        .serialize(num_rows, None, &mut buffer)
+        .unwrap();
     ColumnarReader::open(buffer).unwrap()
 }
 
@@ -544,7 +595,7 @@ fn build_columnar(spec: &ColumnarSpec) -> ColumnarReader {
     }
 
     let mut buffer = Vec::new();
-    writer.serialize(max_row_id + 1, &mut buffer).unwrap();
+    writer.serialize(max_row_id + 1, None, &mut buffer).unwrap();
     ColumnarReader::open(buffer).unwrap()
 }
 

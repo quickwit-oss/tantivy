@@ -55,7 +55,7 @@ pub struct InvertedIndexSerializer {
 
 impl InvertedIndexSerializer {
     /// Open a new `InvertedIndexSerializer` for the given segment
-    pub fn open(segment: &mut Segment) -> crate::Result<InvertedIndexSerializer> {
+    pub fn open(segment: &Segment) -> crate::Result<InvertedIndexSerializer> {
         use crate::index::SegmentComponent::{Positions, Postings, Terms};
         let inv_index_serializer = InvertedIndexSerializer {
             terms_write: CompositeWrite::wrap(segment.open_write(Terms)?),
@@ -222,7 +222,7 @@ impl<'a, W: Write> FieldSerializer<'a, W> {
     /// using `VInt` encoding.
     pub fn close_term(&mut self) -> io::Result<()> {
         crate::fail_point!("FieldSerializer::close_term", |msg: Option<String>| {
-            Err(io::Error::new(io::ErrorKind::Other, format!("{msg:?}")))
+            Err(io::Error::other(format!("{msg:?}")))
         });
 
         if !self.term_open {
@@ -249,7 +249,6 @@ impl<'a, W: Write> FieldSerializer<'a, W> {
         if let Some(positions_serializer) = self.positions_serializer_opt {
             positions_serializer.close()?;
         }
-        self.postings_write.flush()?;
         self.term_dictionary_builder.finish()?;
         Ok(())
     }

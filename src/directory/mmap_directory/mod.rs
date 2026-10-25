@@ -241,7 +241,10 @@ impl MmapDirectory {
     fn open_impl_to_avoid_monomorphization(
         directory_path: &Path,
     ) -> Result<MmapDirectory, OpenDirectoryError> {
-        if !directory_path.exists() {
+        let directory_exists = directory_path.try_exists().map_err(|io_err| {
+            OpenDirectoryError::wrap_io_error(io_err, directory_path.to_owned())
+        })?;
+        if !directory_exists {
             return Err(OpenDirectoryError::DoesNotExist(PathBuf::from(
                 directory_path,
             )));
@@ -254,9 +257,14 @@ impl MmapDirectory {
             {
                 // `canonicalize` returns "Incorrect function" (error code 1)
                 // for virtual drives (network drives, ramdisk, etc.).
-                if io_err.raw_os_error() == Some(1) && directory_path.exists() {
-                    // Should call `std::path::absolute` when it is stabilised.
-                    return Ok(directory_path);
+                if io_err.raw_os_error() == Some(1) {
+                    let directory_exists = directory_path.try_exists().map_err(|io_err| {
+                        OpenDirectoryError::wrap_io_error(io_err, directory_path.clone())
+                    })?;
+                    if directory_exists {
+                        // Should call `std::path::absolute` when it is stabilised.
+                        return Ok(directory_path);
+                    }
                 }
             }
 
@@ -311,7 +319,7 @@ impl Drop for ReleaseLockFile {
 }
 
 /// This Write wraps a File, but has the specificity of
-/// call `sync_all` on flush.
+/// calling `sync_all` on terminate.
 struct SafeFileWriter(File);
 
 impl SafeFileWriter {
@@ -424,17 +432,13 @@ impl Directory for MmapDirectory {
             .create_new(true)
             .open(full_path);
 
-        let mut file = open_res.map_err(|io_err| {
+        let file = open_res.map_err(|io_err| {
             if io_err.kind() == io::ErrorKind::AlreadyExists {
                 OpenWriteError::FileAlreadyExists(path.to_path_buf())
             } else {
                 OpenWriteError::wrap_io_error(io_err, path.to_path_buf())
             }
         })?;
-
-        // making sure the file is created.
-        file.flush()
-            .map_err(|io_error| OpenWriteError::wrap_io_error(io_error, path.to_path_buf()))?;
 
         // Note we actually do not sync the parent directory here.
         //
@@ -551,10 +555,11 @@ mod tests {
         // In that case the directory returns a SharedVecSlice.
         let mmap_directory = MmapDirectory::create_from_tempdir().unwrap();
         let path = PathBuf::from("test");
-        {
-            let mut w = mmap_directory.open_write(&path).unwrap();
-            w.flush().unwrap();
-        }
+        mmap_directory
+            .open_write(&path)
+            .unwrap()
+            .terminate()
+            .unwrap();
         let readonlymap = mmap_directory.open_read(&path).unwrap();
         assert_eq!(readonlymap.len(), 0);
     }
@@ -570,12 +575,10 @@ mod tests {
         let paths: Vec<PathBuf> = (0..num_paths)
             .map(|i| PathBuf::from(&*format!("file_{i}")))
             .collect();
-        {
-            for path in &paths {
-                let mut w = mmap_directory.open_write(path).unwrap();
-                w.write_all(content).unwrap();
-                w.flush().unwrap();
-            }
+        for path in &paths {
+            let mut w = mmap_directory.open_write(path).unwrap();
+            w.write_all(content).unwrap();
+            w.terminate().unwrap();
         }
 
         let mut keep = vec![];
@@ -675,9 +678,10 @@ mod tests {
             reader.reload().unwrap();
             let num_segments = reader.searcher().segment_readers().len();
             assert!(num_segments <= 4);
-            let num_components_except_deletes_and_tempstore =
-                crate::index::SegmentComponent::iterator().len() - 1;
-            let max_num_mmapped = num_components_except_deletes_and_tempstore * num_segments;
+            // Built-in segment components excluding the delete file (no deletes here):
+            // postings, positions, fast fields, field norms, terms, store, temp store.
+            let max_components_per_segment = 7;
+            let max_num_mmapped = max_components_per_segment * num_segments;
             assert_eventually(|| {
                 let num_mmapped = mmap_directory.get_cache_info().mmapped.len();
                 if num_mmapped > max_num_mmapped {

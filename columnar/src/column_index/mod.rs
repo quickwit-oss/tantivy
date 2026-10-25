@@ -11,13 +11,13 @@ mod serialize;
 use std::ops::Range;
 
 pub use merge::merge_column_index;
+pub use multivalued_index::MultiValueIndex;
 pub(crate) use multivalued_index::SerializableMultivalueIndex;
 pub use optional_index::{OptionalIndex, Set};
 pub use serialize::{
     SerializableColumnIndex, SerializableOptionalIndex, open_column_index, serialize_column_index,
 };
 
-use crate::column_index::multivalued_index::MultiValueIndex;
 use crate::{Cardinality, DocId, RowId};
 
 #[derive(Clone, Debug)]
@@ -107,12 +107,7 @@ impl ColumnIndex {
                 row_ids.extend_from_slice(doc_ids);
             }
             ColumnIndex::Optional(optional_index) => {
-                for doc_id in doc_ids {
-                    if let Some(row_id) = optional_index.rank_if_exists(*doc_id) {
-                        doc_ids_out.push(*doc_id);
-                        row_ids.push(row_id);
-                    }
-                }
+                optional_index.rank_if_exists_batch(doc_ids, doc_ids_out, row_ids);
             }
             ColumnIndex::Multivalued(multivalued_index) => {
                 for doc_id in doc_ids {

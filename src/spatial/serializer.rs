@@ -7,6 +7,7 @@ use std::io;
 use std::io::Write;
 
 use crate::directory::{CompositeWrite, WritePtr};
+use crate::index::{Segment, SegmentComponent};
 use crate::schema::Field;
 use crate::spatial::clip_options::ClipOptions;
 use crate::spatial::clipper::Clipper;
@@ -25,6 +26,16 @@ pub struct SpatialSerializer {
 }
 
 impl SpatialSerializer {
+    pub(crate) fn for_segment(segment: &Segment) -> crate::Result<Option<Self>> {
+        if !segment.schema().contains_spatial_field() {
+            return Ok(None);
+        }
+        let cells = segment.open_write(SegmentComponent::SpatialCells)?;
+        let edges = segment.open_write(SegmentComponent::SpatialEdges)?;
+        let doc_ids = segment.open_write(SegmentComponent::SpatialDocIds)?;
+        Ok(Some(Self::new(cells, edges, doc_ids)?))
+    }
+
     /// Create the serializer from three write pointers (cells, edges, doc IDs).
     pub fn new(
         cells_write: WritePtr,

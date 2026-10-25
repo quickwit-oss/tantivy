@@ -1,7 +1,6 @@
-use std::io::Write;
 use std::path::Path;
 
-use common::CountingWriter;
+use common::{CountingWriter, TerminatingWrite};
 
 use super::*;
 use crate::directory::{Directory, RamDirectory};
@@ -44,7 +43,7 @@ impl<S: Surface> Fixture<S> {
             edges.insert(set);
         }
         edges.finish();
-        write.flush().unwrap();
+        write.terminate().unwrap();
         Self {
             sets,
             cells: cells.finish(),

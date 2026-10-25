@@ -64,6 +64,14 @@ impl SpatialReaders {
         }
     }
 
+    pub(crate) fn component_space_usage(&self, schema: &Schema) -> [(&str, PerFieldSpaceUsage); 3] {
+        [
+            ("cells", self.cells.space_usage(schema)),
+            ("edges", self.edges.space_usage(schema)),
+            ("docids", self.doc_ids.space_usage(schema)),
+        ]
+    }
+
     /// Return a break down of the space usage per field.
     pub fn space_usage(&self, schema: &Schema) -> PerFieldSpaceUsage {
         self.cells.space_usage(schema)

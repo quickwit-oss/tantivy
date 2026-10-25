@@ -1,7 +1,7 @@
 use std::borrow::Cow;
 use std::mem;
 
-use rust_stemmers::Algorithm;
+use frostem::Algorithm;
 use serde::{Deserialize, Serialize};
 
 use super::{Token, TokenFilter, TokenStream, Tokenizer};
@@ -101,7 +101,7 @@ impl<T: Tokenizer> Tokenizer for StemmerFilter<T> {
     type TokenStream<'a> = StemmerTokenStream<T::TokenStream<'a>>;
 
     fn token_stream<'a>(&'a mut self, text: &'a str) -> Self::TokenStream<'a> {
-        let stemmer = rust_stemmers::Stemmer::create(self.stemmer_algorithm);
+        let stemmer = frostem::Stemmer::new(self.stemmer_algorithm);
         StemmerTokenStream {
             tail: self.inner.token_stream(text),
             stemmer,
@@ -112,7 +112,7 @@ impl<T: Tokenizer> Tokenizer for StemmerFilter<T> {
 
 pub struct StemmerTokenStream<T> {
     tail: T,
-    stemmer: rust_stemmers::Stemmer,
+    stemmer: frostem::Stemmer,
     buffer: String,
 }
 
@@ -149,7 +149,9 @@ mod tests {
 
     use super::*;
     use crate::tokenizer::tests::assert_token;
-    use crate::tokenizer::{LowerCaser, SimpleTokenizer, TextAnalyzer, TokenizerManager};
+    use crate::tokenizer::{
+        LowerCaser, RawTokenizer, SimpleTokenizer, TextAnalyzer, TokenizerManager,
+    };
 
     #[test]
     fn test_en_stem() {
@@ -197,5 +199,19 @@ mod tests {
         assert_token(&tokens[0], 0, "καλημερ", 0, 16);
         assert_token(&tokens[1], 1, "χαρουμεν", 18, 36);
         assert_token(&tokens[2], 2, "φορολογουμεν", 37, 63);
+    }
+
+    /// Regression for a multibyte Greek suffix that could panic in the
+    /// unmaintained `rust-stemmers` 1.2.0 Greek implementation after the
+    /// stemmer shortened a word using stale UTF-8 byte offsets.
+    #[test]
+    fn test_greek_stemmer_handles_multibyte_suffixes() {
+        let mut analyzer = TextAnalyzer::builder(RawTokenizer::default())
+            .filter(Stemmer::new(Language::Greek))
+            .build();
+        let mut stream = analyzer.token_stream("αντιθετε");
+
+        assert!(stream.advance());
+        assert_eq!(stream.token().text, "ανετ");
     }
 }

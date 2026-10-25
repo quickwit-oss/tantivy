@@ -1,11 +1,11 @@
 use tantivy::collector::TopDocs;
 use tantivy::query::SpatialQuery;
-use tantivy::schema::{Schema, Value, SPATIAL, STORED, TEXT};
+use tantivy::schema::{Schema, Value, SPHERE, STORED, TEXT};
 use tantivy::{Index, IndexWriter, TantivyDocument};
 fn main() -> tantivy::Result<()> {
     let mut schema_builder = Schema::builder();
     schema_builder.add_json_field("properties", STORED | TEXT);
-    schema_builder.add_spatial_field("geometry", STORED | SPATIAL);
+    schema_builder.add_spatial_field("geometry", STORED | SPHERE);
     let schema = schema_builder.build();
     let index = Index::create_in_ram(schema.clone());
     let mut index_writer: IndexWriter = index.writer(50_000_000)?;
@@ -24,7 +24,7 @@ fn main() -> tantivy::Result<()> {
                 "gnis:feature_id":"1267426",
                 "name":"Hosmer",
                 "place":"city",
-                "source":"TIGER/Line® 2008 Place Shapefiles (http://www.census.gov/geo/www/tiger/)",
+                "source":"TIGER/Line\u00ae 2008 Place Shapefiles (http://www.census.gov/geo/www/tiger/)",
                 "wikidata":"Q2442118",
                 "wikipedia":"en:Hosmer, South Dakota"
             }
@@ -37,7 +37,7 @@ fn main() -> tantivy::Result<()> {
     let searcher = reader.searcher();
     let field = schema.get_field("geometry").unwrap();
     let query = SpatialQuery::from_bounds(field, [[-99.49, 45.56], [-99.45, 45.59]]);
-    let hits = searcher.search(&query, &TopDocs::with_limit(10))?;
+    let hits = searcher.search(&query, &TopDocs::with_limit(10).order_by_score())?;
     for (_score, doc_address) in &hits {
         let retrieved_doc: TantivyDocument = searcher.doc(*doc_address)?;
         if let Some(field_value) = retrieved_doc.get_first(field) {

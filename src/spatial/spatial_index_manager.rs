@@ -113,10 +113,12 @@ pub trait SpatialFieldWriter: Send {
     fn mem_usage(&self) -> usize;
 
     /// Serialize accumulated geometry to the cell index and edge index.
+    /// If supplied, `old_to_new` maps each input document ID to its final ID.
     fn serialize(
         self: Box<Self>,
         cells_write: &mut CountingWriter<WritePtr>,
         edges_write: &mut CountingWriter<WritePtr>,
+        old_to_new: Option<&[DocId]>,
     ) -> io::Result<()>;
 }
 
@@ -433,19 +435,26 @@ impl<S: Surface + Send + 'static> SpatialFieldWriter for SurfaceFieldWriter<S> {
         self: Box<Self>,
         cells_write: &mut CountingWriter<WritePtr>,
         edges_write: &mut CountingWriter<WritePtr>,
+        old_to_new: Option<&[DocId]>,
     ) -> io::Result<()> {
-        if self.sets.is_empty() {
+        let mut sets = self.sets;
+        if let Some(old_to_new) = old_to_new {
+            for set in &mut sets {
+                set.doc_id = old_to_new[set.doc_id as usize];
+            }
+        }
+        if sets.is_empty() {
             return Ok(());
         }
 
         let builder = Clipper::new(ClipOptions::default());
-        let cell_index = builder.build(&self.sets);
+        let cell_index = builder.build(&sets);
 
         cell_index.write(cells_write);
         cells_write.flush()?;
 
         let mut edge_writer = EdgeWriter::<S>::new(edges_write, EDGE_SKIP_INTERVAL);
-        for set in &self.sets {
+        for set in &sets {
             edge_writer.insert(set);
         }
         edge_writer.finish();

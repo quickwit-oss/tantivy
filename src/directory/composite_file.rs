@@ -183,7 +183,6 @@ impl CompositeFile {
 #[cfg(test)]
 mod test {
 
-    use std::io::Write;
     use std::path::Path;
 
     use common::{BinarySerializable, VInt};
@@ -201,10 +200,8 @@ mod test {
             let mut composite_write = CompositeWrite::wrap(w);
             let mut write_0 = composite_write.for_field(Field::from_field_id(0u32));
             VInt(32431123u64).serialize(&mut write_0)?;
-            write_0.flush()?;
             let mut write_4 = composite_write.for_field(Field::from_field_id(4u32));
             VInt(2).serialize(&mut write_4)?;
-            write_4.flush()?;
             composite_write.close()?;
         }
         {
@@ -243,13 +240,10 @@ mod test {
             let mut composite_write = CompositeWrite::wrap(w);
             let mut write = composite_write.for_field_with_idx(Field::from_field_id(1u32), 0);
             VInt(32431123u64).serialize(&mut write)?;
-            write.flush()?;
-            let write = composite_write.for_field_with_idx(Field::from_field_id(1u32), 1);
-            write.flush()?;
+            composite_write.for_field_with_idx(Field::from_field_id(1u32), 1);
 
             let mut write = composite_write.for_field_with_idx(Field::from_field_id(0u32), 0);
             VInt(1_000_000).serialize(&mut write)?;
-            write.flush()?;
 
             composite_write.close()?;
         }

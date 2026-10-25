@@ -47,6 +47,9 @@ impl TinySet {
         TinySet(val)
     }
 
+    /// An empty `TinySet` constant.
+    pub const EMPTY: TinySet = TinySet(0u64);
+
     /// Returns an empty `TinySet`.
     #[inline]
     pub fn empty() -> TinySet {
@@ -153,7 +156,22 @@ impl TinySet {
             None
         } else {
             let lowest = self.0.trailing_zeros();
-            self.0 ^= TinySet::singleton(lowest).0;
+            // Kernighan's trick: `n &= n - 1` clears the lowest set bit
+            // without depending on `lowest`. This lets the CPU execute
+            // `trailing_zeros` and the bit-clear in parallel instead of
+            // serializing them.
+            //
+            // The previous form `self.0 ^= 1 << lowest` needs the result of
+            // `trailing_zeros` before it can shift, creating a dependency chain:
+            //   ARM64: rbit → clz → lsl → eor
+            //   x86:   tzcnt → btc
+            //
+            // With Kernighan's trick the clear path is independent of the count:
+            //   ARM64: sub → and  (trailing_zeros runs in parallel)
+            //   x86:   blsr       (tzcnt runs in parallel)
+            //
+            // https://godbolt.org/z/fnfrP1T5f
+            self.0 &= self.0 - 1;
             Some(lowest)
         }
     }
@@ -263,12 +281,16 @@ impl BitSet {
     }
 
     /// Inserts an element in the `BitSet`
+    ///
+    /// Returns true if the set changed.
     #[inline]
-    pub fn insert(&mut self, el: u32) {
+    pub fn insert(&mut self, el: u32) -> bool {
         // we do not check saturated els.
         let higher = el / 64u32;
         let lower = el % 64u32;
-        self.len += u64::from(self.tinysets[higher as usize].insert_mut(lower));
+        let changed = self.tinysets[higher as usize].insert_mut(lower);
+        self.len += u64::from(changed);
+        changed
     }
 
     /// Inserts an element in the `BitSet`
@@ -355,8 +377,8 @@ impl ReadOnlyBitSet {
     /// Iterate the tinyset on the fly from serialized data.
     #[inline]
     fn iter_tinysets(&self) -> impl Iterator<Item = TinySet> + '_ {
-        self.data.chunks_exact(8).map(move |chunk| {
-            let tinyset: TinySet = TinySet::deserialize(chunk.try_into().unwrap());
+        self.data.as_chunks::<8>().0.iter().map(move |&chunk| {
+            let tinyset: TinySet = TinySet::deserialize(chunk);
             tinyset
         })
     }
