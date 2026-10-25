@@ -23,13 +23,15 @@ pub fn parse_footer(footer_bytes: [u8; VERSION_FOOTER_NUM_BYTES]) -> Result<Vers
     Version::try_from_bytes(footer_bytes[0..4].try_into().unwrap())
 }
 
-pub const CURRENT_VERSION: Version = Version::V2;
+pub const CURRENT_VERSION: Version = Version::V3;
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
 #[repr(u32)]
 pub enum Version {
     V1 = 1u32,
     V2 = 2u32,
+    /// Adds blockwise linear V2 numeric columns (codec 3).
+    V3 = 3u32,
 }
 
 impl Display for Version {
@@ -37,6 +39,7 @@ impl Display for Version {
         match self {
             Version::V1 => write!(f, "v1"),
             Version::V2 => write!(f, "v2"),
+            Version::V3 => write!(f, "v3"),
         }
     }
 }
@@ -51,6 +54,7 @@ impl Version {
         match code {
             1u32 => Ok(Version::V1),
             2u32 => Ok(Version::V2),
+            3u32 => Ok(Version::V3),
             _ => Err(InvalidData),
         }
     }
@@ -65,7 +69,14 @@ mod tests {
     #[test]
     fn test_footer_deserialization() {
         let parsed_version: Version = parse_footer(footer()).unwrap();
-        assert_eq!(Version::V2, parsed_version);
+        assert_eq!(Version::V3, parsed_version);
+    }
+
+    #[test]
+    fn test_unknown_version_rejected() {
+        let mut bytes = footer();
+        bytes[..4].copy_from_slice(&4u32.to_le_bytes());
+        assert!(parse_footer(bytes).is_err());
     }
 
     #[test]
@@ -83,6 +94,6 @@ mod tests {
                 valid_versions.insert(i);
             }
         }
-        assert_eq!(valid_versions.len(), 2);
+        assert_eq!(valid_versions, HashSet::from([1, 2, 3]));
     }
 }

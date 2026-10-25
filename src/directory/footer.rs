@@ -175,6 +175,25 @@ mod tests {
     use crate::directory::{FileSlice, OwnedBytes};
 
     #[test]
+    fn test_index_format_compatibility() {
+        use crate::{INDEX_FORMAT_OLDEST_SUPPORTED_VERSION, INDEX_FORMAT_VERSION};
+
+        let mut footer = Footer::new(123);
+        assert_eq!(footer.version.index_format_version, 8);
+        for version in INDEX_FORMAT_OLDEST_SUPPORTED_VERSION..=INDEX_FORMAT_VERSION {
+            footer.version.index_format_version = version;
+            assert!(footer.is_compatible().is_ok());
+        }
+        for version in [
+            INDEX_FORMAT_OLDEST_SUPPORTED_VERSION - 1,
+            INDEX_FORMAT_VERSION + 1,
+        ] {
+            footer.version.index_format_version = version;
+            assert!(footer.is_compatible().is_err());
+        }
+    }
+
+    #[test]
     fn test_deserialize_footer() {
         let mut buf: Vec<u8> = vec![];
         let footer = Footer::new(123);

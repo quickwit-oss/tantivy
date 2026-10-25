@@ -29,6 +29,19 @@ impl ColumnValues for LinearReader {
         interpoled_val.wrapping_add(bitpacked_diff)
     }
 
+    fn get_range(&self, start: u64, output: &mut [u64]) {
+        self.linear_params
+            .bit_unpacker
+            .get_range(start as u32, &self.data, output);
+        for (i, value) in output.iter_mut().enumerate() {
+            *value = self
+                .linear_params
+                .line
+                .eval(start as u32 + i as u32)
+                .wrapping_add(*value);
+        }
+    }
+
     #[inline(always)]
     fn min_value(&self) -> u64 {
         self.stats.min_value

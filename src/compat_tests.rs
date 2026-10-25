@@ -58,6 +58,14 @@ fn test_format_7() {
     assert_date_time_precision(&index, DateTimePrecision::Nanoseconds);
 }
 
+/// feature flag quickwit uses a different dictionary type
+#[test]
+#[cfg(not(feature = "quickwit"))]
+fn test_format_8() {
+    let index = Index::open_in_dir(path_for_version("8")).expect("Failed to open index");
+    assert_date_time_precision(&index, DateTimePrecision::Nanoseconds);
+}
+
 #[cfg(not(feature = "quickwit"))]
 fn assert_date_time_precision(index: &Index, doc_store_precision: DateTimePrecision) {
     use collector::TopDocs;

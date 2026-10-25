@@ -101,9 +101,6 @@ where
             positions,
         )
     }
-
-    // We voluntarily do not implement get_range as it yields a regression,
-    // and we do not have any specialized implementation anyway.
 }
 
 #[cfg(test)]
