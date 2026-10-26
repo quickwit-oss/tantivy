@@ -53,19 +53,11 @@ pub struct PlainBytesColumn {
     inner: Arc<PlainBytesColumnInner>,
 }
 
-pub struct PlainBytesColumnInner {
+struct PlainBytesColumnInner {
     column_index: ColumnIndex,
     block_index: PlainBlockIndex,
     /// The blocks, read lazily, one at a time.
     blocks: FileSlice,
-}
-
-impl Deref for PlainBytesColumn {
-    type Target = PlainBytesColumnInner;
-
-    fn deref(&self) -> &PlainBytesColumnInner {
-        &self.inner
-    }
 }
 
 impl fmt::Debug for PlainBytesColumn {
@@ -135,7 +127,7 @@ impl PlainBytesColumn {
 
     /// Returns the index mapping docs to value idxs.
     pub fn column_index(&self) -> &ColumnIndex {
-        &self.column_index
+        &self.inner.column_index
     }
 
     pub fn into_column_index(self) -> ColumnIndex {
@@ -147,40 +139,41 @@ impl PlainBytesColumn {
     }
 
     pub fn get_cardinality(&self) -> Cardinality {
-        self.column_index.get_cardinality()
+        self.inner.column_index.get_cardinality()
     }
 
     /// Returns the number of values in the column.
     pub fn num_values(&self) -> u32 {
-        self.block_index.num_values()
+        self.inner.block_index.num_values()
     }
 
     /// Returns the number of docs in the column.
     pub fn num_docs(&self) -> u32 {
         // A full column has one value per doc.
-        self.column_index
+        self.inner
+            .column_index
             .num_docs()
             .unwrap_or_else(|| self.num_values())
     }
 
     /// Returns the number of blocks in the column.
     pub fn num_blocks(&self) -> u32 {
-        self.block_index.num_blocks()
+        self.inner.block_index.num_blocks()
     }
 
     /// Returns the range of the blocks holding the values of `doc`.
     ///
     /// The range is empty if `doc` has no value. The values of a doc can span several blocks.
     pub fn block_range_for_doc(&self, doc: DocId) -> Range<u32> {
-        let value_range = self.column_index.value_row_ids(doc);
+        let value_range = self.inner.column_index.value_row_ids(doc);
         if value_range.is_empty() {
             return 0..0;
         }
-        let first_block = self.block_index.block_containing(value_range.start);
+        let first_block = self.inner.block_index.block_containing(value_range.start);
         if value_range.len() == 1 {
             return first_block..first_block + 1;
         }
-        let last_block = self.block_index.block_containing(value_range.end - 1);
+        let last_block = self.inner.block_index.block_containing(value_range.end - 1);
         first_block..last_block + 1
     }
 
@@ -195,11 +188,12 @@ impl PlainBytesColumn {
     }
 
     fn load_block(&self, block_id: u32) -> io::Result<PlainBlock> {
-        let byte_range = self.block_index.byte_range(block_id);
+        let byte_range = self.inner.block_index.byte_range(block_id);
         let block_bytes = self
+            .inner
             .blocks
             .read_bytes_slice(byte_range.start as usize..byte_range.end as usize)?;
-        let num_values = self.block_index.value_range(block_id).len() as u32;
+        let num_values = self.inner.block_index.value_range(block_id).len() as u32;
         Ok(PlainBlock::open(block_bytes, num_values))
     }
 }
@@ -265,7 +259,7 @@ impl PlainValueReader {
     ///
     /// Precondition: `value_idx < self.column.num_values()`.
     fn load_block_for_value(&mut self, value_idx: RowId) -> io::Result<()> {
-        let block_index = &self.column.block_index;
+        let block_index = &self.column.inner.block_index;
         // Fast path: values are usually read in increasing order.
         if let Some(current_block_id) = self.current_block_id() {
             if block_index
@@ -309,7 +303,8 @@ impl PlainValueReader {
             .current_block
             .as_ref()
             .expect("load_block_for_value sets the current block");
-        let slot = value_idx - self.column.block_index.value_range(*current_block_id).start;
+        let block_index = &self.column.inner.block_index;
+        let slot = value_idx - block_index.value_range(*current_block_id).start;
         current_block.append_value(slot, &mut self.codes_buffer, output);
         Ok(())
     }
@@ -336,7 +331,7 @@ impl PlainValueReader {
     ///
     /// Returns false if `doc` has no value.
     pub fn append_first_value(&mut self, doc: DocId, output: &mut Vec<u8>) -> io::Result<bool> {
-        let value_range = self.column.column_index.value_row_ids(doc);
+        let value_range = self.column.inner.column_index.value_row_ids(doc);
         if value_range.is_empty() {
             return Ok(false);
         }
@@ -350,7 +345,7 @@ impl PlainValueReader {
         doc: DocId,
         mut callback: impl FnMut(&[u8]),
     ) -> io::Result<()> {
-        let value_range = self.column.column_index.value_row_ids(doc);
+        let value_range = self.column.inner.column_index.value_row_ids(doc);
         let mut value_buffer = std::mem::take(&mut self.value_buffer);
         for value_idx in value_range {
             value_buffer.clear();
