@@ -34,15 +34,17 @@ mod iterable;
 pub(crate) mod utils;
 mod value;
 
-pub use column::{BytesColumn, Column, StrColumn};
+pub use column::{
+    BytesColumn, Column, PlainBytesColumn, PlainStrColumn, PlainValueReader, StrColumn,
+};
 pub use column_index::ColumnIndex;
 pub use column_values::{
     ColumnValues, EmptyColumnValues, MonotonicallyMappableToU64, MonotonicallyMappableToU128,
 };
 pub use columnar::{
     CURRENT_VERSION, ColumnType, ColumnarReader, ColumnarWriter, HasAssociatedColumnType,
-    MergeRowOrder, ShuffleMergeOrder, StackMergeOrder, Version, compute_merged_term_ord_mapping,
-    merge_columnar,
+    MergeRowOrder, ShuffleMergeOrder, StackMergeOrder, StrColumnCodec, Version,
+    compute_merged_term_ord_mapping, merge_columnar,
 };
 use sstable::VoidSSTable;
 pub use value::{NumericalType, NumericalValue};

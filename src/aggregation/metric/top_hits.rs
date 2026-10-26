@@ -329,6 +329,28 @@ impl TopHitsAggregationReq {
                             .values_for_doc(doc_id)
                             .map(FastFieldValue::Date)
                             .collect::<Vec<_>>(),
+                        DynamicColumn::PlainBytes(accessor) => {
+                            let mut values = Vec::new();
+                            accessor
+                                .reader()
+                                .for_each_value(doc_id, |value| {
+                                    values.push(FastFieldValue::Bytes(value.to_vec()))
+                                })
+                                .expect("could not read plain column");
+                            values
+                        }
+                        DynamicColumn::PlainStr(accessor) => {
+                            let mut values = Vec::new();
+                            let mut reader = accessor.reader();
+                            for value_idx in accessor.column_index().value_row_ids(doc_id) {
+                                let mut value = String::new();
+                                reader
+                                    .append_str_value(value_idx, &mut value)
+                                    .expect("could not read plain column");
+                                values.push(FastFieldValue::Str(value));
+                            }
+                            values
+                        }
                     })
                     .collect();
 

@@ -5,7 +5,7 @@ use common::file_slice::FileSlice;
 use common::json_path_writer::JSON_PATH_SEGMENT_SEP;
 use sstable::{Dictionary, RangeSSTable};
 
-use crate::columnar::{ColumnType, format_version};
+use crate::columnar::{ColumnType, StrColumnCodec, format_version, parse_column_key_code};
 use crate::dynamic_column::DynamicColumnHandle;
 use crate::{RowId, Version};
 
@@ -49,6 +49,23 @@ impl fmt::Debug for ColumnarReader {
     }
 }
 
+/// Parses the last byte of a column key.
+///
+/// Plain-encoded columns are only valid in a columnar whose version allows them.
+fn parse_column_code(
+    column_code: u8,
+    format_version: Version,
+) -> io::Result<(ColumnType, StrColumnCodec)> {
+    let (column_type, codec) = parse_column_key_code(column_code)
+        .map_err(|_| io_invalid_data(format!("Unknown column code `{column_code}`")))?;
+    if codec == StrColumnCodec::Plain && !format_version.allows_plain_codec() {
+        return Err(io_invalid_data(format!(
+            "Plain-encoded column code `{column_code}` in a columnar of version {format_version}"
+        )));
+    }
+    Ok((column_type, codec))
+}
+
 /// Functions by both the async/sync code listing columns.
 /// It takes a stream from the column sstable and return the list of
 /// `DynamicColumn` available in it.
@@ -63,13 +80,13 @@ fn read_all_columns_in_stream(
         let Some(column_code) = key_bytes.last().copied() else {
             return Err(io_invalid_data("Empty column name.".to_string()));
         };
-        let column_type = ColumnType::try_from_code(column_code)
-            .map_err(|_| io_invalid_data(format!("Unknown column code `{column_code}`")))?;
+        let (column_type, codec) = parse_column_code(column_code, format_version)?;
         let range = stream.value();
         let file_slice = column_data.slice(range.start as usize..range.end as usize);
         let dynamic_column_handle = DynamicColumnHandle {
             file_slice,
             column_type,
+            codec,
             format_version,
         };
         results.push(dynamic_column_handle);
@@ -131,9 +148,8 @@ impl ColumnarReader {
                 let column_code: u8 = key_bytes.last().cloned().unwrap();
                 // TODO Error Handling. The API gets quite ugly when returning the error here, so
                 // instead we could just check the first N columns upfront.
-                let column_type: ColumnType = ColumnType::try_from_code(column_code)
-                    .map_err(|_| io_invalid_data(format!("Unknown column code `{column_code}`")))
-                    .unwrap();
+                let (column_type, codec) =
+                    parse_column_code(column_code, self.format_version).unwrap();
                 let range = stream.value().clone();
                 let column_name =
                 // The last two bytes are respectively the 0u8 separator and the column_type.
@@ -144,6 +160,7 @@ impl ColumnarReader {
                 let column_handle = DynamicColumnHandle {
                     file_slice,
                     column_type,
+                    codec,
                     format_version: self.format_version,
                 };
                 Some((column_name, column_handle))
