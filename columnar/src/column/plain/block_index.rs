@@ -119,6 +119,17 @@ impl PlainBlockIndex {
         if block_index.value_start(0) != 0 || block_index.byte_start(0) != 0 {
             return Err(invalid_data("plain block index does not start at 0"));
         }
+        // Blocks are never empty: both value and byte starts are strictly increasing.
+        // `block_containing` relies on it (binary search), and so do the range computations.
+        for entry_id in 1..=num_blocks {
+            if block_index.value_start(entry_id) <= block_index.value_start(entry_id - 1)
+                || block_index.byte_start(entry_id) <= block_index.byte_start(entry_id - 1)
+            {
+                return Err(invalid_data(
+                    "plain block index starts are not strictly increasing",
+                ));
+            }
+        }
         Ok(block_index)
     }
 
@@ -219,5 +230,44 @@ mod tests {
         let mut buffer = Vec::new();
         builder_for_test(&[3, 1, 65_536, 2]).serialize(&mut buffer);
         assert_eq!(buffer.len(), 4 + 5 * 4 + 5 * 8);
+    }
+
+    /// Serializes a block index with the given entries, without checking them.
+    ///
+    /// Precondition: `value_starts.len() == byte_starts.len()`.
+    fn serialize_raw(value_starts: &[u32], byte_starts: &[u64]) -> OwnedBytes {
+        let num_blocks = value_starts.len() as u32 - 1;
+        let mut buffer: Vec<u8> = Vec::with_capacity(4 + value_starts.len() * 12);
+        buffer.extend_from_slice(&num_blocks.to_le_bytes());
+        for value_start in value_starts {
+            buffer.extend_from_slice(&value_start.to_le_bytes());
+        }
+        for byte_start in byte_starts {
+            buffer.extend_from_slice(&byte_start.to_le_bytes());
+        }
+        OwnedBytes::new(buffer)
+    }
+
+    #[test]
+    fn test_open_valid_block_index() {
+        let block_index = PlainBlockIndex::open(serialize_raw(&[0, 3, 4], &[0, 100, 201])).unwrap();
+        assert_eq!(block_index.num_blocks(), 2);
+        assert_eq!(block_index.value_range(1), 3..4);
+    }
+
+    #[test]
+    fn test_open_non_increasing_value_starts_is_an_error() {
+        // Decreasing.
+        assert!(PlainBlockIndex::open(serialize_raw(&[0, 3, 2], &[0, 100, 201])).is_err());
+        // Equal: an empty block.
+        assert!(PlainBlockIndex::open(serialize_raw(&[0, 3, 3], &[0, 100, 201])).is_err());
+    }
+
+    #[test]
+    fn test_open_non_increasing_byte_starts_is_an_error() {
+        // Decreasing.
+        assert!(PlainBlockIndex::open(serialize_raw(&[0, 3, 4], &[0, 100, 50])).is_err());
+        // Equal: an empty block.
+        assert!(PlainBlockIndex::open(serialize_raw(&[0, 3, 4], &[0, 100, 100])).is_err());
     }
 }
