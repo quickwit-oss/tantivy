@@ -214,6 +214,36 @@ fn intersection_exists_with_slop(
     false
 }
 
+/// Returns true if a position in `right_positions` is within `max_slop` of a position in
+/// `left_positions`, once the slop already spent to reach that left position (`left_slops`)
+/// is accounted for.
+///
+/// Unlike `intersection_count_with_carrying_slop`, this does not assume that the carried slop
+/// grows with the position, so it checks every left position.
+///
+/// `left_slops` is allowed to be empty, which equals to a slop of 0 so far.
+fn intersection_exists_with_carrying_slop(
+    left_positions: &[u32],
+    left_slops: &[u8],
+    right_positions: &[u32],
+    max_slop: u32,
+) -> bool {
+    left_positions
+        .iter()
+        .enumerate()
+        .any(|(left_index, &left_val)| {
+            let slop_so_far = left_slops.get(left_index).copied().unwrap_or(0) as u32;
+            let Some(budget) = max_slop.checked_sub(slop_so_far) else {
+                return false;
+            };
+            let lower = left_val.saturating_sub(budget);
+            let right_index = right_positions.partition_point(|&right_val| right_val < lower);
+            right_positions
+                .get(right_index)
+                .is_some_and(|&right_val| right_val <= left_val.saturating_add(budget))
+        })
+}
+
 /// Intersection variant for multi term searches that keeps track of slop so far.
 ///
 /// In contrast to the regular algorithm this solves some issues:
@@ -457,7 +487,12 @@ impl<TPostings: Postings> PhraseScorer<TPostings> {
 
     fn phrase_match(&mut self) -> bool {
         if self.similarity_weight_opt.is_some() {
-            let count = self.compute_phrase_count();
+            let mut count = self.compute_phrase_count();
+            if count == 0 && self.has_slop() && self.num_terms > 2 && self.last_term_matches() {
+                // The carrying-slop count is a greedy approximation and can miss a match that
+                // exists. Matching must not depend on whether scoring is enabled.
+                count = 1;
+            }
             self.phrase_count = count;
             count > 0u32
         } else {
@@ -467,19 +502,20 @@ impl<TPostings: Postings> PhraseScorer<TPostings> {
 
     fn phrase_exists(&mut self) -> bool {
         self.compute_phrase_match();
+        self.last_term_matches()
+    }
+
+    /// Checks whether the last term matches one of the candidate positions computed by
+    /// `compute_phrase_match`.
+    fn last_term_matches(&self) -> bool {
         if self.has_slop() {
             if self.num_terms > 2 {
-                // `left_slops` holds the slop already spent on the previous terms, so the
-                // last term has to be matched the same way `compute_phrase_count` does.
-                intersection_count_with_carrying_slop(
-                    &mut self.left_positions,
-                    &mut self.left_slops,
+                intersection_exists_with_carrying_slop(
+                    &self.left_positions,
+                    &self.left_slops,
                     &self.right_positions[..],
                     self.slop,
-                    false,
-                    &mut self.positions_buffer,
-                    &mut self.slops_buffer,
-                ) > 0
+                )
             } else {
                 intersection_exists_with_slop(
                     &self.left_positions,

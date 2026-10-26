@@ -295,6 +295,26 @@ pub(crate) mod tests {
     }
 
     #[test]
+    pub fn test_phrase_slop_match_missed_by_greedy_count() -> crate::Result<()> {
+        // `c a b` matches `"a b c"~3`, but the greedy carrying-slop count skips it.
+        let index = create_index(&["b x a c a b"])?;
+        let scores = test_query(3, &index, vec!["a", "b", "c"]);
+        assert_eq!(scores.len(), 1);
+        let text_field = index.schema().get_field("text").unwrap();
+        let mut phrase_query = PhraseQuery::new(
+            ["a", "b", "c"]
+                .iter()
+                .map(|text| Term::from_field_text(text_field, text))
+                .collect(),
+        );
+        phrase_query.set_slop(3);
+        let searcher = index.reader()?.searcher();
+        let docs = searcher.search(&phrase_query, &TEST_COLLECTOR_WITHOUT_SCORE)?;
+        assert_eq!(docs.docs().len(), 1);
+        Ok(())
+    }
+
+    #[test]
     pub fn test_phrase_score_with_slop_ordering() -> crate::Result<()> {
         let index = create_index(&[
             "a e b e c",
