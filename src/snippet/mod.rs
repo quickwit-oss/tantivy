@@ -224,7 +224,11 @@ fn search_fragments(
     let mut fragment = FragmentCandidate::new(0);
     let mut fragments: Vec<FragmentCandidate> = vec![];
     while let Some(next) = token_stream.next() {
-        if (next.offset_to - fragment.start_offset) > max_num_chars {
+        // Offsets are in bytes, and a char is at least one byte, so the chars
+        // only need to be counted once the fragment is longer than `max_num_chars` bytes.
+        if (next.offset_to - fragment.start_offset) > max_num_chars
+            && text[fragment.start_offset..next.offset_to].chars().count() > max_num_chars
+        {
             if fragment.score > 0.0 {
                 fragments.push(fragment)
             };
@@ -608,6 +612,28 @@ Survey in 2016, 2017, and 2018."#;
             let snippet = select_best_fragment_combination(&fragments[..], TEST_TEXT);
             assert_eq!(snippet.to_html(), "programming <b>language</b>")
         }
+    }
+
+    #[test]
+    fn test_snippet_max_num_chars_counts_chars_not_bytes() {
+        // Every Cyrillic letter takes 2 bytes in UTF-8.
+        let text = "русский текст русский текст";
+        let terms = btreemap! { String::from("текст") => 1.0 };
+        let fragments = search_fragments(
+            &mut From::from(SimpleTokenizer::default()),
+            text,
+            &terms,
+            20,
+        );
+        assert_eq!(fragments.len(), 2);
+        for fragment in &fragments {
+            let fragment_text = &text[fragment.start_offset..fragment.stop_offset];
+            assert!(fragment_text.chars().count() <= 20);
+        }
+        let snippet = select_best_fragment_combination(&fragments[..], text);
+        // "русский текст" is 13 chars (25 bytes), so it fits within 20 chars.
+        assert_eq!(snippet.fragment, "русский текст");
+        assert_eq!(snippet.to_html(), "русский <b>текст</b>");
     }
 
     #[test]
