@@ -1,3 +1,5 @@
+use common::TinySet;
+
 use crate::docset::DocSet;
 use crate::fieldnorm::FieldNormReader;
 use crate::postings::{BlockSegmentPostings, FreqReadingOption, Postings, SegmentPostings};
@@ -133,11 +135,9 @@ impl DocSet for TermScorer {
         self.postings.size_hint()
     }
 
-    // TODO
-    // It is probably possible to optimize fill_bitset_block for TermScorer,
-    // working directly with the blocks, enabling vectorization.
-    // I did not manage to get a performance improvement on Mac ARM,
-    // and do not have access to x86 to investigate.
+    fn fill_bitset_window(&mut self, min_doc: DocId, mask: &mut [TinySet]) -> DocId {
+        self.postings.fill_bitset_window(min_doc, mask)
+    }
 }
 
 impl Scorer for TermScorer {

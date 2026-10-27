@@ -13,6 +13,10 @@ pub trait ScoreCombiner: Default + Clone + Send + Copy + 'static {
     /// see every matching term, so it must not be pruned this way.
     const SUPPORTS_BLOCK_WAND: bool = false;
 
+    /// Whether `update` reads per-document scores. Bulk bitset fill for
+    /// COUNT is valid when this is false.
+    const NEEDS_PER_DOC_SCORES: bool = true;
+
     /// Aggregates the score combiner with the given scorer.
     ///
     /// The `ScoreCombiner` may decide to call `.scorer.score()`
@@ -34,6 +38,8 @@ pub trait ScoreCombiner: Default + Clone + Send + Copy + 'static {
 pub struct DoNothingCombiner;
 
 impl ScoreCombiner for DoNothingCombiner {
+    const NEEDS_PER_DOC_SCORES: bool = false;
+
     fn update<TScorer: Scorer>(&mut self, _scorer: &mut TScorer) {}
 
     fn clear(&mut self) {}
