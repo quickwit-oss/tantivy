@@ -303,6 +303,8 @@ impl IndexBuilder {
     }
 
     fn validate(&self) -> crate::Result<()> {
+        #[cfg(feature = "quickwit")]
+        self.index_settings.validate_max_inline_docs()?;
         if let Some(schema) = self.schema.as_ref() {
             if self.index_settings.manual_doc_id_mapping
                 && self.index_settings.sort_by_field.is_some()

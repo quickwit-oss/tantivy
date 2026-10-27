@@ -3,7 +3,7 @@ use std::io;
 use common::json_path_writer::JSON_END_OF_PATH;
 use common::{BinarySerializable, ByteCount};
 #[cfg(feature = "quickwit")]
-use common::{BitSet, VInt};
+use common::{BitSet, HasLen, VInt};
 #[cfg(feature = "quickwit")]
 use futures_util::{FutureExt, StreamExt, TryStreamExt};
 #[cfg(feature = "quickwit")]
@@ -19,23 +19,36 @@ use crate::termdict::TermDictionary;
 #[cfg(feature = "quickwit")]
 use crate::Executor;
 
+// Merge gaps up to this size before spending the additional postings byte budget.
+// Dictionary reads use this threshold alone.
 #[cfg(feature = "quickwit")]
-// This is how many bytes we can hope to receive during a TTFB from S3 (~80MiB/s, 50ms).
-const MERGE_HOLES_UNDER_BYTES: usize = (80 * 1024 * 1024 * 50) / 1000;
+const INITIAL_MERGE_GAP_BYTES: usize = 512 * 1024;
+
+// Minimum allowance for extra bytes used to reduce postings requests.
+#[cfg(feature = "quickwit")]
+const MIN_EXTRA_POSTINGS_BYTES: usize = 2 * 1024 * 1024;
 
 #[cfg(feature = "quickwit")]
 fn send_coalesced_posting_ranges(
     posting_ranges: impl Iterator<Item = std::ops::Range<usize>>,
     sender: futures_channel::mpsc::UnboundedSender<std::ops::Range<usize>>,
 ) -> io::Result<()> {
-    let merged_posting_ranges = posting_ranges.coalesce(|range1, range2| {
-        if range1.end + MERGE_HOLES_UNDER_BYTES >= range2.start {
-            Ok(range1.start..range2.end)
-        } else {
-            Err((range1, range2))
-        }
-    });
-    for posting_range in merged_posting_ranges {
+    let mut posting_ranges: Vec<_> = posting_ranges
+        .filter(|range| !range.is_empty())
+        .coalesce(|left, right| {
+            if right.start.saturating_sub(left.end) <= INITIAL_MERGE_GAP_BYTES {
+                Ok(left.start..left.end.max(right.end))
+            } else {
+                Err((left, right))
+            }
+        })
+        .collect();
+    let initial_bytes: usize = posting_ranges.iter().map(|range| range.len()).sum();
+    // Minimize requests, spending at most 25% more bytes or 2 MiB, whichever is larger.
+    // Preserve the initial merges so the request count can only decrease.
+    let extra_bytes = (initial_bytes / 4).max(MIN_EXTRA_POSTINGS_BYTES);
+    common::merge_ranges_with_byte_budget(&mut posting_ranges, extra_bytes);
+    for posting_range in posting_ranges {
         sender
             .unbounded_send(posting_range)
             .map_err(|_| io::Error::other("failed to send posting range back"))?;
@@ -203,6 +216,10 @@ impl InvertedIndexReader {
         term_info: &TermInfo,
         block_postings: &mut BlockSegmentPostings,
     ) -> io::Result<()> {
+        if let Some(postings) = &term_info.short_postings {
+            block_postings.reset_short_postings(postings);
+            return Ok(());
+        }
         let postings_slice = self
             .postings_file_slice
             .slice(term_info.postings_range.clone());
@@ -234,6 +251,13 @@ impl InvertedIndexReader {
         term_info: &TermInfo,
         requested_option: IndexRecordOption,
     ) -> io::Result<BlockSegmentPostings> {
+        if let Some(postings) = &term_info.short_postings {
+            return Ok(BlockSegmentPostings::from_short_postings(
+                postings,
+                self.record_option,
+                requested_option,
+            ));
+        }
         let postings_data = self
             .postings_file_slice
             .slice(term_info.postings_range.clone());
@@ -259,11 +283,15 @@ impl InvertedIndexReader {
         let block_postings = self.read_block_postings_from_terminfo(term_info, option)?;
         let position_reader = {
             if option.has_positions() {
-                let positions_data = self
-                    .positions_file_slice
-                    .read_bytes_slice(term_info.positions_range.clone())?;
-                let position_reader = PositionReader::open(positions_data)?;
-                Some(position_reader)
+                if let Some(postings) = &term_info.short_postings {
+                    (!postings.position_deltas.is_empty())
+                        .then(|| PositionReader::from_short_postings(postings.clone()))
+                } else {
+                    let positions_data = self
+                        .positions_file_slice
+                        .read_bytes_slice(term_info.positions_range.clone())?;
+                    Some(PositionReader::open(positions_data)?)
+                }
             } else {
                 None
             }
@@ -358,6 +386,25 @@ impl InvertedIndexReader {
         Ok(iter)
     }
 
+    async fn warm_postings_and_positions(
+        &self,
+        postings_range: std::ops::Range<usize>,
+        positions_range: std::ops::Range<usize>,
+        with_positions: bool,
+    ) -> io::Result<()> {
+        futures_util::future::try_join_all(
+            [
+                (&self.postings_file_slice, postings_range, true),
+                (&self.positions_file_slice, positions_range, with_positions),
+            ]
+            .into_iter()
+            .filter(|(_, range, enabled)| *enabled && !range.is_empty())
+            .map(|(file, range, _)| file.read_bytes_slice_async(range)),
+        )
+        .await?;
+        Ok(())
+    }
+
     /// Warmup a block postings given a `Term`.
     /// This method is for an advanced usage only.
     ///
@@ -365,17 +412,12 @@ impl InvertedIndexReader {
     pub async fn warm_postings(&self, term: &Term, with_positions: bool) -> io::Result<bool> {
         let term_info_opt: Option<TermInfo> = self.get_term_info_async(term).await?;
         if let Some(term_info) = term_info_opt {
-            let postings = self
-                .postings_file_slice
-                .read_bytes_slice_async(term_info.postings_range.clone());
-            if with_positions {
-                let positions = self
-                    .positions_file_slice
-                    .read_bytes_slice_async(term_info.positions_range.clone());
-                futures_util::future::try_join(postings, positions).await?;
-            } else {
-                postings.await?;
-            }
+            self.warm_postings_and_positions(
+                term_info.postings_range,
+                term_info.positions_range,
+                with_positions,
+            )
+            .await?;
             Ok(true)
         } else {
             Ok(false)
@@ -407,34 +449,24 @@ impl InvertedIndexReader {
         let positions_range =
             first_terminfo.positions_range.start..last_terminfo.positions_range.end;
 
-        let postings = self
-            .postings_file_slice
-            .read_bytes_slice_async(postings_range);
-        if with_positions {
-            let positions = self
-                .positions_file_slice
-                .read_bytes_slice_async(positions_range);
-            futures_util::future::try_join(postings, positions).await?;
-        } else {
-            postings.await?;
-        }
+        self.warm_postings_and_positions(postings_range, positions_range, with_positions)
+            .await?;
         Ok(true)
     }
 
     async fn download_posting_ranges(
         &self,
         posting_ranges: futures_channel::mpsc::UnboundedReceiver<std::ops::Range<usize>>,
-    ) -> io::Result<bool> {
-        let slices_downloaded = posting_ranges
+    ) -> io::Result<()> {
+        posting_ranges
             .map(|posting_range| {
                 self.postings_file_slice
                     .read_bytes_slice_async(posting_range)
                     .map(|result| result.map(|_slice| ()))
             })
             .buffer_unordered(5)
-            .try_collect::<Vec<()>>()
-            .await?;
-        Ok(!slices_downloaded.is_empty())
+            .try_collect::<()>()
+            .await
     }
 
     /// Warmup a block postings given a range of `Term`s.
@@ -455,11 +487,12 @@ impl InvertedIndexReader {
     where
         A::State: Clone,
     {
-        // We build a first iterator to download everything. Simply calling the function already
-        // download everything we need from the sstable, but doesn't start iterating over it.
-        let _term_info_iter = self
-            .get_term_range_async(.., automaton.clone(), None, MERGE_HOLES_UNDER_BYTES)
-            .await?;
+        // Download dictionary blocks and check for a match, including inline-only terms.
+        let terms_found = self
+            .get_term_range_async(.., automaton.clone(), None, INITIAL_MERGE_GAP_BYTES)
+            .await?
+            .next()
+            .is_some();
 
         let (sender, posting_ranges_to_load_stream) = futures_channel::mpsc::unbounded();
         let termdict = self.termdict.clone();
@@ -483,12 +516,12 @@ impl InvertedIndexReader {
         };
         let task_handle = executor(Box::new(cpu_bound_task));
 
-        let (_, postings_found) = futures_util::future::try_join(
+        futures_util::future::try_join(
             task_handle,
             self.download_posting_ranges(posting_ranges_to_load_stream),
         )
         .await?;
-        Ok(postings_found)
+        Ok(terms_found)
     }
 
     /// Warms postings for one automaton and returns a bitset of matching document IDs.
@@ -509,7 +542,7 @@ impl InvertedIndexReader {
         let term_info_stream = self
             .termdict
             .search(&automaton)
-            .into_stream_async_merging_holes(MERGE_HOLES_UNDER_BYTES)
+            .into_stream_async_merging_holes(INITIAL_MERGE_GAP_BYTES)
             .await?;
         drop(term_info_stream);
 
@@ -518,24 +551,34 @@ impl InvertedIndexReader {
         let cpu_bound_task = move || {
             let mut stream = termdict.search(automaton).without_keys().into_stream()?;
             let mut encoded_terminfo = Vec::new();
+            let mut bitset = BitSet::with_max_value(max_doc);
             let mut previous_end = 0;
-            let posting_ranges = std::iter::from_fn(|| {
+            let posting_ranges = std::iter::from_fn(|| loop {
                 let info = stream.next_without_key()?;
+                if let Some(postings) = &info.short_postings {
+                    for &doc in &postings.doc_ids {
+                        bitset.insert(doc);
+                    }
+                    continue;
+                }
                 let range = info.postings_range.clone();
+                if range.is_empty() {
+                    continue;
+                }
                 // Retain only what decoding postings needs, avoiding another dictionary scan.
                 VInt((range.start - previous_end) as u64).serialize_into_vec(&mut encoded_terminfo);
                 VInt(range.len() as u64).serialize_into_vec(&mut encoded_terminfo);
                 VInt(u64::from(info.doc_freq)).serialize_into_vec(&mut encoded_terminfo);
                 previous_end = range.end;
-                Some(range)
+                return Some(range);
             });
             send_coalesced_posting_ranges(posting_ranges, posting_range_sender)?;
-            Ok(encoded_terminfo)
+            Ok((encoded_terminfo, bitset))
         };
         let task_handle = executor.spawn_blocking(cpu_bound_task).map(|result| {
             result.map_err(|_| io::Error::other("automaton warmup task panicked"))?
         });
-        let (encoded_terminfo, _) = futures_util::future::try_join(
+        let ((encoded_terminfo, mut bitset), _) = futures_util::future::try_join(
             task_handle,
             self.download_posting_ranges(posting_range_receiver),
         )
@@ -544,7 +587,6 @@ impl InvertedIndexReader {
         let postings_file_slice = self.postings_file_slice.clone();
         let record_option = self.record_option;
         let cpu_bound_task = move || {
-            let mut bitset = BitSet::with_max_value(max_doc);
             let mut data = encoded_terminfo.as_slice();
             let mut previous_end = 0;
             while !data.is_empty() {
@@ -579,8 +621,11 @@ impl InvertedIndexReader {
     /// If you know which terms to pre-load, prefer using [`Self::warm_postings`] or
     /// [`Self::warm_postings`] instead.
     pub async fn warm_postings_full(&self, with_positions: bool) -> io::Result<()> {
-        self.postings_file_slice.read_bytes_async().await?;
-        if with_positions {
+        self.termdict.warm_up_dictionary().await?;
+        if !self.postings_file_slice.is_empty() {
+            self.postings_file_slice.read_bytes_async().await?;
+        }
+        if with_positions && !self.positions_file_slice.is_empty() {
             self.positions_file_slice.read_bytes_async().await?;
         }
         Ok(())
@@ -598,11 +643,148 @@ impl InvertedIndexReader {
 
 #[cfg(all(test, feature = "quickwit"))]
 mod tests {
+    use std::ops::Range;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    use std::sync::Arc;
+
+    use common::HasLen;
+    use tantivy_fst::automaton::AlwaysMatch;
     use tantivy_fst::Regex;
 
+    use super::{send_coalesced_posting_ranges, InvertedIndexReader};
+    use crate::directory::{FileHandle, FileSlice, OwnedBytes};
     use crate::query::BitSetDocSet;
     use crate::schema::{Schema, STRING};
     use crate::{DocSet, Executor, Index, IndexWriter, TERMINATED};
+
+    #[derive(Debug)]
+    struct ReadCounter {
+        file: FileSlice,
+        reads: Arc<AtomicUsize>,
+    }
+
+    impl HasLen for ReadCounter {
+        fn len(&self) -> usize {
+            self.file.len()
+        }
+    }
+
+    impl FileHandle for ReadCounter {
+        fn read_bytes(&self, range: Range<usize>) -> std::io::Result<OwnedBytes> {
+            assert!(!range.is_empty(), "empty external read");
+            self.reads.fetch_add(1, Ordering::Relaxed);
+            self.file.read_bytes_slice(range)
+        }
+
+        fn read_bytes_async<'life0, 'async_trait>(
+            &'life0 self,
+            range: Range<usize>,
+        ) -> futures_util::future::BoxFuture<'async_trait, std::io::Result<OwnedBytes>>
+        where
+            'life0: 'async_trait,
+            Self: 'async_trait,
+        {
+            // shortcut: RAM-backed test files, forward async reads if testing remote storage.
+            Box::pin(async move { self.read_bytes(range) })
+        }
+    }
+
+    fn count_external_reads(reader: &InvertedIndexReader) -> (InvertedIndexReader, Arc<AtomicUsize>) {
+        let reads = Arc::new(AtomicUsize::new(0));
+        let wrap = |file: &FileSlice| {
+            FileSlice::new(Arc::new(ReadCounter {
+                file: file.clone(),
+                reads: reads.clone(),
+            }))
+        };
+        let reader = InvertedIndexReader {
+            termdict: reader.termdict.clone(),
+            postings_file_slice: wrap(&reader.postings_file_slice),
+            positions_file_slice: wrap(&reader.positions_file_slice),
+            record_option: reader.record_option,
+            total_num_tokens: reader.total_num_tokens,
+        };
+        (reader, reads)
+    }
+
+    #[test]
+    fn test_postings_byte_budget_minimizes_requests() {
+        // Four lists with gaps of 1000, 700, and 900 KiB. The 2 MiB allowance buys
+        // the two cheapest gaps. Larger lists get a 25% allowance that buys all three.
+        for (list_bytes, expected_requests, gap_bytes) in
+            [(1, 2, 1600 * 1024), (4 * 1024 * 1024, 1, 2600 * 1024)]
+        {
+            let mut input = vec![0..0, 0..list_bytes];
+            for gap in [1000, 700, 900] {
+                let start = input.last().unwrap().end + gap * 1024;
+                input.push(start..start + list_bytes);
+            }
+            let (sender, receiver) = futures_channel::mpsc::unbounded();
+            send_coalesced_posting_ranges(input.into_iter(), sender).unwrap();
+            let ranges =
+                futures::executor::block_on(futures_util::StreamExt::collect::<Vec<_>>(receiver));
+            assert_eq!(ranges.len(), expected_requests);
+            assert_eq!(
+                ranges.iter().map(Range::len).sum::<usize>(),
+                4 * list_bytes + gap_bytes
+            );
+        }
+    }
+
+    #[test]
+    fn test_inline_postings_reads_and_warmups_skip_external_files() -> crate::Result<()> {
+        use crate::postings::Postings;
+        use crate::schema::{IndexRecordOption, Term, TEXT};
+
+        let mut schema = Schema::builder();
+        let field = schema.add_text_field("field", TEXT);
+        let mut index = Index::create_in_ram(schema.build());
+        index.settings_mut().max_inline_docs = 8;
+        let mut writer: IndexWriter = index.writer_for_tests()?;
+        writer.add_document(doc!(field => "apple apple banana"))?;
+        writer.add_document(doc!(field => "banana berry"))?;
+        writer.commit()?;
+        let searcher = index.reader()?.searcher();
+        let reader = searcher.segment_reader(0).inverted_index(field)?;
+        let (reader, reads) = count_external_reads(&reader);
+        let apple = Term::from_field_text(field, "apple");
+        let banana = Term::from_field_text(field, "banana");
+        let info = reader.get_term_info(&apple)?.unwrap();
+        assert!(info.short_postings.is_some());
+        let mut postings =
+            reader.read_postings_from_terminfo(&info, IndexRecordOption::WithFreqsAndPositions)?;
+        assert_eq!(postings.doc(), 0);
+        assert_eq!(postings.term_freq(), 2);
+        let mut positions = Vec::new();
+        postings.positions(&mut positions);
+        assert_eq!(positions, [0, 1]);
+        assert_eq!(postings.advance(), TERMINATED);
+        let mut block =
+            reader.read_block_postings_from_terminfo(&info, IndexRecordOption::WithFreqs)?;
+        reader.reset_block_postings_from_terminfo(
+            &reader.get_term_info(&banana)?.unwrap(),
+            &mut block,
+        )?;
+        assert_eq!(block.docs(), [0, 1]);
+        assert_eq!(block.freqs(), [1, 1]);
+        futures::executor::block_on(async {
+            assert!(reader.warm_postings(&apple, true).await?);
+            assert!(reader.warm_postings_range(apple..=banana, None, true).await?);
+            assert!(!reader.warm_postings_range(.., Some(0), true).await?);
+            assert!(
+                reader
+                    .warm_postings_automaton(AlwaysMatch, |task| async move { task() })
+                    .await?
+            );
+            let bitset = reader
+                .warm_postings_automaton_with_bitset(AlwaysMatch, 2, &Executor::single_thread())
+                .await?;
+            assert_eq!(bitset.len(), 2);
+            reader.warm_postings_full(true).await
+        })?;
+        assert_eq!(reads.load(Ordering::Relaxed), 0);
+        Ok(())
+    }
 
     #[test]
     fn test_warm_postings_automaton_with_bitset() -> crate::Result<()> {
@@ -622,6 +804,7 @@ mod tests {
         let searcher = index.reader()?.searcher();
         let segment_reader = searcher.segment_reader(0);
         let inverted_index = segment_reader.inverted_index(field)?;
+        let (inverted_index, _) = count_external_reads(&inverted_index);
         let executor = Executor::multi_thread(1, "warmup-test-")?;
         for (pattern, expected) in [
             ("b.*", vec![0, 2]),
@@ -645,6 +828,15 @@ mod tests {
             }
             assert_eq!(docs, expected);
         }
+        futures::executor::block_on(async {
+            assert!(
+                inverted_index
+                    .warm_postings_automaton(AlwaysMatch, |task| async move { task() })
+                    .await?
+            );
+            assert!(inverted_index.warm_postings_range(.., None, true).await?);
+            inverted_index.warm_postings_full(true).await
+        })?;
         Ok(())
     }
 
@@ -660,6 +852,9 @@ mod tests {
                 &executor,
             ))?;
         assert_eq!(bitset.len(), 0);
+        assert!(!futures::executor::block_on(
+            inverted_index.warm_postings_automaton(AlwaysMatch, |task| async move { task() },)
+        )?);
         Ok(())
     }
 }

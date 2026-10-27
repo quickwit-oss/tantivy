@@ -54,7 +54,9 @@ pub use common::{KeyTracking, WithoutKeys};
 pub use dictionary::{Dictionary, TermOrdHit};
 pub use streamer::{Streamer, StreamerBuilder};
 
+mod block_parts;
 mod block_reader;
+pub use block_parts::encode_block_parts;
 use common::{BinarySerializable, OwnedBytes};
 use value::{VecU32ValueReader, VecU32ValueWriter};
 
@@ -250,6 +252,18 @@ where
         }
     }
 
+    /// Creates a writer using the supplied value writer.
+    pub fn with_value_writer(wrt: W, value_writer: TValueWriter) -> Self {
+        let mut writer = Self::new(wrt);
+        writer.delta_writer.value_writer = value_writer;
+        writer
+    }
+
+    /// Returns the value writer.
+    pub fn value_writer(&self) -> &TValueWriter {
+        &self.delta_writer.value_writer
+    }
+
     /// Set the target block length.
     ///
     /// The delta part of a block will generally be slightly larger than the requested `block_len`,
@@ -345,6 +359,7 @@ where
             );
             self.first_ordinal_of_the_block = self.num_terms;
         }
+        let version = self.delta_writer.version;
         let mut wrt = self.delta_writer.finish();
         // add a final empty block as an end marker
         wrt.write_all(&0u32.to_le_bytes())?;
@@ -356,7 +371,7 @@ where
         wrt.write_all(&offset.to_le_bytes())?;
         wrt.write_all(&self.num_terms.to_le_bytes())?;
 
-        SSTABLE_VERSION.serialize(&mut wrt)?;
+        version.serialize(&mut wrt)?;
 
         let wrt = wrt.finish();
         Ok(wrt.into_inner()?)

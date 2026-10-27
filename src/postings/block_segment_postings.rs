@@ -5,7 +5,7 @@ use common::VInt;
 use crate::directory::{FileSlice, OwnedBytes};
 use crate::fieldnorm::FieldNormReader;
 use crate::postings::compression::{BlockDecoder, VIntDecoder, COMPRESSION_BLOCK_SIZE};
-use crate::postings::{BlockInfo, FreqReadingOption, SkipReader};
+use crate::postings::{BlockInfo, FreqReadingOption, ShortPostings, SkipReader};
 use crate::query::Bm25Weight;
 use crate::schema::IndexRecordOption;
 use crate::{DocId, Score, TERMINATED};
@@ -27,6 +27,8 @@ pub struct BlockSegmentPostings {
     block_loaded: bool,
     freq_decoder: BlockDecoder,
     freq_reading_option: FreqReadingOption,
+    record_option: IndexRecordOption,
+    requested_option: IndexRecordOption,
     block_max_score_cache: Option<Score>,
     doc_freq: u32,
     data: OwnedBytes,
@@ -71,6 +73,8 @@ fn decode_vint_block(
                 num_vint_docs,
                 TERMINATED,
             );
+        } else {
+            freq_decoder.set_values(&[], 1);
         }
     }
 }
@@ -97,46 +101,49 @@ impl BlockSegmentPostings {
     pub(crate) fn open(
         doc_freq: u32,
         data: FileSlice,
-        mut record_option: IndexRecordOption,
+        record_option: IndexRecordOption,
         requested_option: IndexRecordOption,
     ) -> io::Result<BlockSegmentPostings> {
-        let bytes = data.read_bytes()?;
-        let (skip_data_opt, postings_data) = split_into_skips_and_postings(doc_freq, bytes)?;
-        let skip_reader = match skip_data_opt {
-            Some(skip_data) => {
-                let block_count = doc_freq as usize / COMPRESSION_BLOCK_SIZE;
-                // 8 is the minimum size of a block with frequency (can be more if pos are stored
-                // too)
-                if skip_data.len() < 8 * block_count {
-                    // the field might be encoded with frequency, but this term in particular isn't.
-                    // This can happen for JSON field with term frequencies:
-                    // - text terms are encoded with term freqs.
-                    // - numerical terms are encoded without term freqs.
-                    record_option = IndexRecordOption::Basic;
-                }
-                SkipReader::new(skip_data, doc_freq, record_option)
-            }
-            None => SkipReader::new(OwnedBytes::empty(), doc_freq, record_option),
-        };
+        let mut block = Self::empty();
+        block.record_option = record_option;
+        block.requested_option = requested_option;
+        block.reset(doc_freq, data.read_bytes()?)?;
+        Ok(block)
+    }
 
-        let freq_reading_option = match (record_option, requested_option) {
-            (IndexRecordOption::Basic, _) => FreqReadingOption::NoFreq,
-            (_, IndexRecordOption::Basic) => FreqReadingOption::SkipFreq,
-            (_, _) => FreqReadingOption::ReadFreq,
-        };
+    /// Opens a single partial block from postings decoded by the term dictionary.
+    pub(crate) fn from_short_postings(
+        postings: &ShortPostings,
+        record_option: IndexRecordOption,
+        requested_option: IndexRecordOption,
+    ) -> Self {
+        let mut block = Self::empty();
+        block.record_option = record_option;
+        block.requested_option = requested_option;
+        block.reset_short_postings(postings);
+        block
+    }
 
-        let mut block_segment_postings = BlockSegmentPostings {
-            doc_decoder: BlockDecoder::with_val(TERMINATED),
-            block_loaded: false,
-            freq_decoder: BlockDecoder::with_val(1),
-            freq_reading_option,
-            block_max_score_cache: None,
-            doc_freq,
-            data: postings_data,
-            skip_reader,
-        };
-        block_segment_postings.load_block();
-        Ok(block_segment_postings)
+    pub(crate) fn reset_short_postings(&mut self, postings: &ShortPostings) {
+        debug_assert!((1..=32).contains(&postings.doc_ids.len()));
+        debug_assert!(
+            postings.term_freqs.is_empty() || postings.doc_ids.len() == postings.term_freqs.len()
+        );
+        self.data = OwnedBytes::empty();
+        self.doc_freq = postings.doc_ids.len() as u32;
+        self.set_freq_reading_option(
+            self.record_option.has_freq() && !postings.term_freqs.is_empty(),
+        );
+        self.skip_reader
+            .reset(OwnedBytes::empty(), self.doc_freq, self.record_option);
+        self.doc_decoder.set_values(&postings.doc_ids, TERMINATED);
+        if let FreqReadingOption::ReadFreq = self.freq_reading_option {
+            self.freq_decoder.set_values(&postings.term_freqs, 1);
+        } else {
+            self.freq_decoder.set_values(&[], 1);
+        }
+        self.block_max_score_cache = None;
+        self.block_loaded = true;
     }
 
     /// Returns the block_max_score for the current block.
@@ -152,7 +159,10 @@ impl BlockSegmentPostings {
         if let Some(score) = self.block_max_score_cache {
             return score;
         }
-        if let Some(skip_reader_max_score) = self.skip_reader.block_max_score(bm25_weight) {
+        if let (FreqReadingOption::ReadFreq, Some(skip_reader_max_score)) = (
+            self.freq_reading_option,
+            self.skip_reader.block_max_score(bm25_weight),
+        ) {
             // if we are on a full block, the skip reader should have the block max information
             // for us
             self.block_max_score_cache = Some(skip_reader_max_score);
@@ -162,10 +172,9 @@ impl BlockSegmentPostings {
         // If it is actually loaded, we can compute block max manually.
         if self.block_is_loaded() {
             let docs = self.doc_decoder.output_array().iter().cloned();
-            let freqs = self.freq_decoder.output_array().iter().cloned();
-            let bm25_scores = docs.zip(freqs).map(|(doc, term_freq)| {
+            let bm25_scores = docs.enumerate().map(|(i, doc)| {
                 let fieldnorm_id = fieldnorm_reader.fieldnorm_id(doc);
-                bm25_weight.score(fieldnorm_id, term_freq)
+                bm25_weight.score(fieldnorm_id, self.freq(i))
             });
             let block_max_score = max_score(bm25_scores).unwrap_or(0.0);
             self.block_max_score_cache = Some(block_max_score);
@@ -180,6 +189,15 @@ impl BlockSegmentPostings {
 
     pub(crate) fn freq_reading_option(&self) -> FreqReadingOption {
         self.freq_reading_option
+    }
+
+    // Selects frequency reading from the term's stored data and the requested option.
+    fn set_freq_reading_option(&mut self, has_freqs: bool) {
+        self.freq_reading_option = match (has_freqs, self.requested_option) {
+            (false, _) => FreqReadingOption::NoFreq,
+            (_, IndexRecordOption::Basic) => FreqReadingOption::SkipFreq,
+            (_, _) => FreqReadingOption::ReadFreq,
+        };
     }
 
     // Resets the block segment postings on another position
@@ -198,11 +216,15 @@ impl BlockSegmentPostings {
         self.data = postings_data;
         self.block_max_score_cache = None;
         self.block_loaded = false;
-        if let Some(skip_data) = skip_data_opt {
-            self.skip_reader.reset(skip_data, doc_freq);
-        } else {
-            self.skip_reader.reset(OwnedBytes::empty(), doc_freq);
+        let mut record_option = self.record_option;
+        let skip_data = skip_data_opt.unwrap_or_else(OwnedBytes::empty);
+        // JSON numeric terms omit frequencies even when the field records them.
+        if skip_data.len() < 8 * (doc_freq as usize / COMPRESSION_BLOCK_SIZE) {
+            record_option = IndexRecordOption::Basic;
         }
+        self.set_freq_reading_option(record_option.has_freq());
+        self.skip_reader.reset(skip_data, doc_freq, record_option);
+        self.freq_decoder.set_values(&[], 1);
         self.doc_freq = doc_freq;
         self.load_block();
         Ok(())
@@ -405,6 +427,8 @@ impl BlockSegmentPostings {
             block_loaded: true,
             freq_decoder: BlockDecoder::with_val(1),
             freq_reading_option: FreqReadingOption::NoFreq,
+            record_option: IndexRecordOption::Basic,
+            requested_option: IndexRecordOption::Basic,
             block_max_score_cache: None,
             doc_freq: 0,
             data: OwnedBytes::empty(),
@@ -429,6 +453,137 @@ mod tests {
     use crate::postings::SegmentPostings;
     use crate::schema::{IndexRecordOption, Schema, Term, INDEXED};
     use crate::DocId;
+
+    #[test]
+    fn test_short_postings_seek_positions_and_score() {
+        use std::sync::Arc;
+
+        use crate::fieldnorm::FieldNormReader;
+        use crate::positions::PositionReader;
+        use crate::postings::ShortPostings;
+        use crate::query::Bm25Weight;
+
+        let short = Arc::new(ShortPostings {
+            doc_ids: vec![1, 3, 8],
+            term_freqs: vec![2, 1, 3],
+            position_deltas: vec![0, 2, 5, 1, 2, 4],
+        });
+        let mut block = BlockSegmentPostings::from_short_postings(
+            &short,
+            IndexRecordOption::WithFreqsAndPositions,
+            IndexRecordOption::WithFreqsAndPositions,
+        );
+        assert_eq!(block.doc_freq(), 3);
+        assert_eq!(block.docs(), [1, 3, 8]);
+        assert_eq!(block.rank(3), 1);
+        assert_eq!(block.rank(9), 3);
+        let norms = FieldNormReader::for_test(&[10; 9]);
+        let weight = Bm25Weight::for_one_term(3, 9, 10.0);
+        let expected = short
+            .doc_ids
+            .iter()
+            .zip(&short.term_freqs)
+            .map(|(&doc, &freq)| weight.score(norms.fieldnorm_id(doc), freq))
+            .fold(0.0, f32::max);
+        assert_eq!(block.block_max_score(&norms, &weight), expected);
+        let mut without_freqs = BlockSegmentPostings::from_short_postings(
+            &ShortPostings {
+                doc_ids: short.doc_ids.clone(),
+                ..Default::default()
+            },
+            IndexRecordOption::WithFreqs,
+            IndexRecordOption::WithFreqs,
+        );
+        let expected = short
+            .doc_ids
+            .iter()
+            .map(|&doc| weight.score(norms.fieldnorm_id(doc), 1))
+            .fold(0.0, f32::max);
+        assert!(expected > 0.0);
+        assert_eq!(without_freqs.block_max_score(&norms, &weight), expected);
+        assert!(without_freqs.freqs().is_empty());
+        let mut postings = SegmentPostings::from_block_postings(
+            block,
+            Some(PositionReader::from_short_postings(short.clone())),
+        );
+        let mut positions = Vec::new();
+        postings.positions(&mut positions);
+        assert_eq!(positions, [0, 2]);
+        assert_eq!(postings.seek(2), 3);
+        postings.positions(&mut positions);
+        assert_eq!(positions, [5]);
+        let mut cloned = postings.clone();
+        assert_eq!(cloned.advance(), 8);
+        cloned.positions(&mut positions);
+        assert_eq!(positions, [1, 3, 7]);
+        assert_eq!(cloned.advance(), TERMINATED);
+        assert_eq!(postings.doc(), 3);
+
+        for (option, freq) in [(IndexRecordOption::Basic, 1), (IndexRecordOption::WithFreqs, 2)] {
+            let mut block = BlockSegmentPostings::from_short_postings(
+                &short,
+                IndexRecordOption::WithFreqs,
+                option,
+            );
+            assert_eq!(block.freq(0), freq);
+            block.advance();
+            assert!(block.docs().is_empty());
+            assert_eq!(block.doc(0), TERMINATED);
+            block.reset_short_postings(&short);
+            assert_eq!(block.docs(), [1, 3, 8]);
+            assert_eq!(block.seek(9), 3);
+            assert_eq!(block.doc(3), TERMINATED);
+        }
+    }
+
+    #[test]
+    fn test_reset_between_short_and_external_postings() {
+        use crate::directory::OwnedBytes;
+        use crate::postings::serializer::PostingsSerializer;
+        use crate::postings::ShortPostings;
+
+        let short = ShortPostings {
+            doc_ids: vec![2, 7],
+            term_freqs: vec![3, 2],
+            position_deltas: Vec::new(),
+        };
+        let mut block = BlockSegmentPostings::from_short_postings(
+            &short,
+            IndexRecordOption::WithFreqs,
+            IndexRecordOption::WithFreqs,
+        );
+        let mut serializer = PostingsSerializer::new(0.0, IndexRecordOption::WithFreqs, None);
+        serializer.new_term(260, true);
+        for doc in 0..260 {
+            serializer.write_doc(doc, 4);
+        }
+        let mut data = Vec::new();
+        serializer.close_term(260, &mut data).unwrap();
+        for _ in 0..2 {
+            block.reset(260, OwnedBytes::new(data.clone())).unwrap();
+            assert_eq!(block.doc_freq(), 260);
+            let idx = block.seek(259);
+            assert_eq!(block.doc(idx), 259);
+            assert_eq!(block.freq(idx), 4);
+            block.reset_short_postings(&short);
+            assert_eq!(block.doc_freq(), 2);
+            assert_eq!(block.docs(), [2, 7]);
+            assert_eq!(block.freqs(), [3, 2]);
+            assert_eq!(block.position_offset(), 0);
+            assert_eq!(block.rank(8), 2);
+        }
+        let mut serializer = PostingsSerializer::new(0.0, IndexRecordOption::Basic, None);
+        serializer.new_term(1, false);
+        serializer.write_doc(9, 0);
+        let mut data = Vec::new();
+        serializer.close_term(1, &mut data).unwrap();
+        block.reset(1, OwnedBytes::new(data)).unwrap();
+        assert_eq!(block.docs(), [9]);
+        assert!(block.freqs().is_empty());
+        assert_eq!(block.freq(0), 1);
+        block.reset_short_postings(&short);
+        assert_eq!(block.freqs(), [3, 2]);
+    }
 
     #[test]
     fn test_empty_segment_postings() {

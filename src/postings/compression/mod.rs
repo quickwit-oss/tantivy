@@ -98,6 +98,13 @@ impl BlockDecoder {
         }
     }
 
+    /// Initializes a partial block from decoded values and pads the remaining entries.
+    pub(crate) fn set_values(&mut self, values: &[u32], padding: u32) {
+        self.output.fill(padding);
+        self.output[..values.len()].copy_from_slice(values);
+        self.output_len = values.len();
+    }
+
     /// Decompress block of sorted integers.
     ///
     /// `strict_delta` depends on what encoding was used. Older version of tantivy never use strict

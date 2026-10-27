@@ -37,7 +37,7 @@ pub type TermOrdinal = u64;
 use std::io;
 
 use common::file_slice::FileSlice;
-use common::BinarySerializable;
+use common::{BinarySerializable, HasLen};
 pub use common::{KeyTracking, WithoutKeys};
 use tantivy_fst::Automaton;
 
@@ -48,11 +48,21 @@ use self::termdict::{
 pub use self::termdict::{TermMerger, TermStreamer};
 use crate::postings::TermInfo;
 
+#[cfg(feature = "quickwit")]
+pub(crate) fn validate_max_inline_docs(maximum: u32) -> Result<u32, &'static str> {
+    match maximum {
+        0..=32 => Ok(maximum),
+        _ => Err("max_inline_docs must be in 0..=32"),
+    }
+}
+
 #[derive(Debug, Eq, PartialEq)]
 #[repr(u32)]
 enum DictionaryType {
     Fst = 1,
     SSTable = 2,
+    SSTableWithPostings = 3,
+    SSTableWithInlineDocLimit = 4,
 }
 
 impl TryFrom<u32> for DictionaryType {
@@ -62,6 +72,8 @@ impl TryFrom<u32> for DictionaryType {
         match value {
             1 => Ok(DictionaryType::Fst),
             2 => Ok(DictionaryType::SSTable),
+            3 => Ok(DictionaryType::SSTableWithPostings),
+            4 => Ok(DictionaryType::SSTableWithInlineDocLimit),
             _ => Err("Invalid value for DictionaryType"),
         }
     }
@@ -71,7 +83,7 @@ impl TryFrom<u32> for DictionaryType {
 const CURRENT_TYPE: DictionaryType = DictionaryType::Fst;
 
 #[cfg(feature = "quickwit")]
-const CURRENT_TYPE: DictionaryType = DictionaryType::SSTable;
+const CURRENT_TYPE: DictionaryType = DictionaryType::SSTableWithInlineDocLimit;
 
 // TODO in the future this should become an enum of supported dictionaries
 /// A TermDictionary wrapping either an FST based dictionary or a SSTable based one.
@@ -81,20 +93,47 @@ pub struct TermDictionary(InnerTermDict);
 impl TermDictionary {
     /// Opens a `TermDictionary`.
     pub fn open(file: FileSlice) -> io::Result<Self> {
-        let (main_slice, dict_type) = file.split_from_end(4);
-        let mut dict_type = dict_type.read_bytes()?;
-        let dict_type = u32::deserialize(&mut dict_type)?;
+        if file.len() < 4 {
+            return Err(io::Error::new(
+                io::ErrorKind::UnexpectedEof,
+                "missing dictionary type",
+            ));
+        }
+        let trailer = file.slice(file.len().saturating_sub(5)..).read_bytes()?;
+        let (main_slice, _) = file.split_from_end(4);
+        let dict_type = u32::deserialize(&mut &trailer[trailer.len() - 4..])?;
         let dict_type = DictionaryType::try_from(dict_type).map_err(|_| {
             io::Error::other(format!("Unsupported dictionary type, found {dict_type}"))
         })?;
 
-        if dict_type != CURRENT_TYPE {
+        let legacy_sstable = cfg!(feature = "quickwit")
+            && matches!(
+                dict_type,
+                DictionaryType::SSTable | DictionaryType::SSTableWithPostings
+            );
+        if dict_type != CURRENT_TYPE && !legacy_sstable {
             return Err(io::Error::other(format!(
                 "Unsupported dictionary type, compiled tantivy with {CURRENT_TYPE:?}, but got \
                  {dict_type:?}",
             )));
         }
 
+        #[cfg(feature = "quickwit")]
+        {
+            let (sstable, maximum) = match dict_type {
+                DictionaryType::SSTableWithInlineDocLimit => {
+                    let maximum = u8::deserialize(&mut &trailer[..trailer.len() - 4])?;
+                    (main_slice.split_from_end(1).0, maximum)
+                }
+                DictionaryType::SSTableWithPostings => (main_slice, 8),
+                _ => (main_slice, 0),
+            };
+            InnerTermDict::open(sstable)?
+                .with_value_config(maximum)
+                .map(TermDictionary)
+                .map_err(|err| io::Error::new(io::ErrorKind::InvalidData, err))
+        }
+        #[cfg(not(feature = "quickwit"))]
         InnerTermDict::open(main_slice).map(TermDictionary)
     }
 
@@ -190,10 +229,26 @@ impl<W: io::Write> TermDictionaryBuilder<W> {
         InnerTermDictBuilder::create(w).map(TermDictionaryBuilder)
     }
 
+    /// Creates a dictionary embedding lists of at most `max_inline_docs` documents.
+    /// Accepts 0 through 32. Zero disables embedding.
+    #[cfg(feature = "quickwit")]
+    pub fn create_with_max_inline_docs(w: W, max_inline_docs: u32) -> io::Result<Self> {
+        Ok(Self(InnerTermDictBuilder::with_value_writer(
+            w,
+            termdict::TermInfoBlock::new(max_inline_docs)?,
+        )))
+    }
+
     /// Inserts a `(key, value)` pair in the term dictionary.
     ///
     /// *Keys have to be inserted in order.*
     pub fn insert<K: AsRef<[u8]>>(&mut self, key_ref: K, value: &TermInfo) -> io::Result<()> {
+        if !cfg!(feature = "quickwit") && value.short_postings.is_some() {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "short postings require an SSTable",
+            ));
+        }
         self.0.insert(key_ref, value)
     }
 
@@ -212,13 +267,23 @@ impl<W: io::Write> TermDictionaryBuilder<W> {
     ///
     /// Horribly dangerous internal API. See `.insert_key(...)`.
     pub fn insert_value(&mut self, term_info: &TermInfo) -> io::Result<()> {
+        if !cfg!(feature = "quickwit") && term_info.short_postings.is_some() {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "short postings require an SSTable",
+            ));
+        }
         self.0.insert_value(term_info)
     }
 
     /// Finalize writing the builder, and returns the underlying
     /// `Write` object.
     pub fn finish(self) -> io::Result<W> {
+        #[cfg(feature = "quickwit")]
+        let max_inline_docs = self.0.value_writer().max_inline_docs;
         let mut writer = self.0.finish()?;
+        #[cfg(feature = "quickwit")]
+        writer.write_all(&[max_inline_docs as u8])?;
         (CURRENT_TYPE as u32).serialize(&mut writer)?;
         Ok(writer)
     }

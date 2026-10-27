@@ -17,6 +17,8 @@ mod recorder;
 mod segment_postings;
 /// Serializer module for the inverted index
 pub mod serializer;
+#[cfg(all(test, feature = "quickwit"))]
+mod short_postings_tests;
 mod skip;
 mod term_info;
 
@@ -32,7 +34,7 @@ pub(crate) use self::postings_writer::{serialize_postings, IndexingPosition, Pos
 pub use self::segment_postings::SegmentPostings;
 pub use self::serializer::{FieldSerializer, InvertedIndexSerializer};
 pub(crate) use self::skip::{BlockInfo, SkipReader};
-pub use self::term_info::TermInfo;
+pub use self::term_info::{ShortPostings, TermInfo};
 
 #[expect(clippy::enum_variant_names)]
 #[derive(Debug, PartialEq, Clone, Copy, Eq)]

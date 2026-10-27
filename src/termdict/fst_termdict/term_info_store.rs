@@ -88,6 +88,7 @@ impl TermInfoBlockMeta {
             doc_freq,
             postings_range: postings_start_offset..postings_end_offset,
             positions_range: positions_start_offset..positions_end_offset,
+            short_postings: None,
         }
     }
 }
@@ -325,6 +326,7 @@ mod tests {
                 doc_freq: 512,
                 postings_range: 51..57,
                 positions_range: 110..134,
+                short_postings: None,
             },
             doc_freq_nbits: 10,
             postings_offset_nbits: 5,
@@ -347,6 +349,7 @@ mod tests {
                 doc_freq: i as u32,
                 postings_range: offset(i)..offset(i + 1),
                 positions_range: offset(i) * 3..offset(i + 1) * 3,
+                short_postings: None,
             };
             store_writer.write_term_info(&term_info)?;
             term_infos.push(term_info);

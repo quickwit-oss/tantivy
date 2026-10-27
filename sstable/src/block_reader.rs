@@ -92,19 +92,21 @@ impl BlockReader {
                 }
                 _ => self.reader.read_u32() as usize,
             };
-            if block_len <= 1 {
+            if block_len == 0 {
                 return Ok(false);
             }
-            let compress = self.reader.read_u8();
-            let block_len = block_len - 1;
-
             if self.reader.len() < block_len {
                 return Err(io::Error::new(
                     io::ErrorKind::UnexpectedEof,
                     "failed to read block content",
                 ));
             }
-            if compress == 1 {
+            let compress = self.reader.read_u8();
+            let block_len = block_len - 1;
+            if compress == 2 {
+                crate::block_parts::decode_block_parts(&self.reader[..block_len], &mut self.buffer)?;
+                self.reader.advance(block_len);
+            } else if compress == 1 {
                 #[cfg(feature = "zstd-compression")]
                 {
                     let required_capacity =
@@ -122,9 +124,14 @@ impl BlockReader {
                         "zstd-compression feature is not enabled",
                     ));
                 }
-            } else {
+            } else if compress == 0 {
                 self.buffer.resize(block_len, 0u8);
                 self.reader.read_exact(&mut self.buffer[..])?;
+            } else {
+                return Err(io::Error::new(
+                    io::ErrorKind::InvalidData,
+                    "unknown block encoding flag",
+                ));
             }
 
             return Ok(true);

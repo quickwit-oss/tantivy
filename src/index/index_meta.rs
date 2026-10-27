@@ -250,6 +250,36 @@ pub struct IndexSettings {
     #[serde(default = "default_docstore_blocksize")]
     /// The size of each block that will be compressed and written to disk
     pub docstore_blocksize: usize,
+    /// Maximum documents per posting list stored in the term dictionary (default 0 disables it).
+    #[cfg(feature = "quickwit")]
+    #[serde(
+        default,
+        deserialize_with = "deserialize_max_inline_docs",
+        skip_serializing_if = "is_zero"
+    )]
+    pub max_inline_docs: u32,
+}
+
+#[cfg(feature = "quickwit")]
+fn is_zero(value: &u32) -> bool {
+    *value == 0
+}
+
+#[cfg(feature = "quickwit")]
+fn deserialize_max_inline_docs<'de, D: serde::Deserializer<'de>>(
+    deserializer: D,
+) -> Result<u32, D::Error> {
+    crate::termdict::validate_max_inline_docs(u32::deserialize(deserializer)?)
+        .map_err(serde::de::Error::custom)
+}
+
+#[cfg(feature = "quickwit")]
+impl IndexSettings {
+    pub(crate) fn validate_max_inline_docs(&self) -> crate::Result<()> {
+        crate::termdict::validate_max_inline_docs(self.max_inline_docs)
+            .map(|_| ())
+            .map_err(|err| crate::TantivyError::InvalidArgument(err.to_string()))
+    }
 }
 
 /// Must be a function to be compatible with serde defaults
@@ -265,6 +295,8 @@ impl Default for IndexSettings {
             docstore_compression: Compressor::default(),
             docstore_blocksize: default_docstore_blocksize(),
             docstore_compress_dedicated_thread: true,
+            #[cfg(feature = "quickwit")]
+            max_inline_docs: 0,
         }
     }
 }
@@ -592,6 +624,8 @@ mod tests {
                 }),
                 docstore_blocksize: 1_000_000,
                 docstore_compress_dedicated_thread: true,
+                #[cfg(feature = "quickwit")]
+                max_inline_docs: 0,
             },
             persisted_custom_extensions: Vec::new(),
             segments: Vec::new(),
@@ -647,6 +681,50 @@ mod tests {
         );
     }
 
+    #[cfg(feature = "quickwit")]
+    #[test]
+    fn test_max_inline_docs_settings() {
+        assert_eq!(
+            serde_json::from_str::<IndexSettings>("{}").unwrap(),
+            IndexSettings::default()
+        );
+        for max_inline_docs in [0, 8, 32] {
+            let settings: IndexSettings = serde_json::from_value(serde_json::json!({
+                "max_inline_docs": max_inline_docs
+            }))
+            .unwrap();
+            assert_eq!(settings.max_inline_docs, max_inline_docs);
+            let json = serde_json::to_value(&settings).unwrap();
+            assert_eq!(json.get("max_inline_docs").is_some(), max_inline_docs != 0);
+            assert_eq!(
+                serde_json::from_value::<IndexSettings>(json).unwrap(),
+                settings
+            );
+        }
+        assert!(serde_json::from_str::<IndexSettings>(r#"{"max_inline_docs":33}"#).is_err());
+        let settings = IndexSettings {
+            max_inline_docs: 33,
+            ..Default::default()
+        };
+        let directory = crate::directory::RamDirectory::create();
+        assert!(
+            crate::Index::create(directory.clone(), Schema::builder().build(), settings).is_err()
+        );
+        assert!(!crate::Index::exists(&directory).unwrap());
+
+        let mut metas = IndexMeta::with_schema(Schema::builder().build());
+        crate::indexer::segment_updater::save_metas(&metas, &directory).unwrap();
+        metas.index_settings.max_inline_docs = 33;
+        assert!(crate::indexer::segment_updater::save_metas(&metas, &directory).is_err());
+        assert_eq!(
+            crate::Index::open(directory)
+                .unwrap()
+                .settings()
+                .max_inline_docs,
+            0
+        );
+    }
+
     #[test]
     #[cfg(feature = "lz4-compression")]
     fn test_index_settings_default() {
@@ -660,7 +738,9 @@ mod tests {
                 manual_doc_id_mapping: false,
                 docstore_compression: Compressor::default(),
                 docstore_compress_dedicated_thread: true,
-                docstore_blocksize: 16_384
+                docstore_blocksize: 16_384,
+                #[cfg(feature = "quickwit")]
+                max_inline_docs: 0,
             }
         );
         {

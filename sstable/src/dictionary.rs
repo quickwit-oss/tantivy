@@ -16,6 +16,7 @@ use tantivy_fst::automaton::AlwaysMatch;
 
 use crate::delta::DeltaKeyComparator;
 use crate::streamer::{Streamer, StreamerBuilder};
+use crate::value::ValueReader;
 use crate::{BlockAddr, DeltaReader, Reader, SSTable, SSTableIndex, TermOrdinal, VoidSSTable};
 
 /// An SSTable is a sorted map that associates sorted `&[u8]` keys
@@ -43,6 +44,7 @@ pub struct Dictionary<TSSTable: SSTable = VoidSSTable> {
     pub sstable_index: SSTableIndex,
     num_bytes: ByteCount,
     num_terms: u64,
+    value_config: u8,
     phantom_data: PhantomData<TSSTable>,
 }
 
@@ -94,7 +96,9 @@ impl<TSSTable: SSTable> Dictionary<TSSTable> {
         block_addr: BlockAddr,
     ) -> io::Result<Reader<TSSTable::ValueReader>> {
         let data = self.sstable_slice.read_bytes_slice(block_addr.byte_range)?;
-        Ok(TSSTable::reader(data))
+        let mut reader = TSSTable::reader(data);
+        reader.delta_reader = reader.delta_reader.with_value_config(self.value_config)?;
+        Ok(reader)
     }
 
     pub(crate) async fn sstable_delta_reader_for_key_range_async(
@@ -108,7 +112,7 @@ impl<TSSTable: SSTable> Dictionary<TSSTable> {
         if match_all {
             let slice = self.file_slice_for_range(key_range, limit);
             let data = slice.read_bytes_async().await?;
-            Ok(TSSTable::delta_reader(data))
+            TSSTable::delta_reader(data).with_value_config(self.value_config)
         } else {
             let blocks = stream::iter(self.get_block_iterator_for_range_and_automaton(
                 key_range,
@@ -129,7 +133,7 @@ impl<TSSTable: SSTable> Dictionary<TSSTable> {
                 .buffered(5)
                 .try_collect::<Vec<_>>()
                 .await?;
-            Ok(DeltaReader::from_multiple_blocks(data))
+            DeltaReader::from_multiple_blocks(data).with_value_config(self.value_config)
         }
     }
 
@@ -143,7 +147,7 @@ impl<TSSTable: SSTable> Dictionary<TSSTable> {
         if match_all {
             let slice = self.file_slice_for_range(key_range, limit);
             let data = slice.read_bytes()?;
-            Ok(TSSTable::delta_reader(data))
+            TSSTable::delta_reader(data).with_value_config(self.value_config)
         } else {
             // if operations are sync, we assume latency is almost null, and there is no point in
             // merging across holes
@@ -156,7 +160,7 @@ impl<TSSTable: SSTable> Dictionary<TSSTable> {
                         .map(|bytes| (bytes, first_ordinal))
                 })
                 .collect::<Result<Vec<_>, _>>()?;
-            Ok(DeltaReader::from_multiple_blocks(data))
+            DeltaReader::from_multiple_blocks(data).with_value_config(self.value_config)
         }
     }
 
@@ -165,7 +169,7 @@ impl<TSSTable: SSTable> Dictionary<TSSTable> {
         block_addr: BlockAddr,
     ) -> io::Result<DeltaReader<TSSTable::ValueReader>> {
         let data = self.sstable_slice.read_bytes_slice(block_addr.byte_range)?;
-        Ok(TSSTable::delta_reader(data))
+        TSSTable::delta_reader(data).with_value_config(self.value_config)
     }
 
     pub(crate) async fn sstable_delta_reader_block_async(
@@ -176,7 +180,7 @@ impl<TSSTable: SSTable> Dictionary<TSSTable> {
             .sstable_slice
             .read_bytes_slice_async(block_addr.byte_range)
             .await?;
-        Ok(TSSTable::delta_reader(data))
+        TSSTable::delta_reader(data).with_value_config(self.value_config)
     }
 
     /// This function returns a file slice covering a set of sstable blocks
@@ -304,8 +308,16 @@ impl<TSSTable: SSTable> Dictionary<TSSTable> {
             sstable_index,
             num_bytes,
             num_terms,
+            value_config: 0,
             phantom_data: PhantomData,
         })
+    }
+
+    /// Validates a value-format parameter and applies it to every value reader.
+    pub fn with_value_config(mut self, config: u8) -> io::Result<Self> {
+        TSSTable::ValueReader::default().configure(config)?;
+        self.value_config = config;
+        Ok(self)
     }
 
     /// Creates a term dictionary from the supplied bytes.

@@ -13,7 +13,69 @@ fn make_term_info(term_ord: u64) -> TermInfo {
         doc_freq: term_ord as u32,
         postings_range: offset(term_ord)..offset(term_ord + 1),
         positions_range: offset(term_ord) * 2..offset(term_ord + 1) * 2,
+        short_postings: None,
     }
+}
+
+#[cfg(feature = "quickwit")]
+#[test]
+fn test_short_postings_dictionary_legacy_versions_and_invalid_trailers() -> io::Result<()> {
+    use std::sync::Arc;
+
+    use crate::postings::ShortPostings;
+
+    let external = make_term_info(9);
+    let mut builder = TermDictionaryBuilder::create(Vec::new())?;
+    builder.insert(b"legacy", &external)?;
+    let mut legacy = builder.finish()?;
+    assert_eq!(&legacy[legacy.len() - 5..], &[0, 4, 0, 0, 0]);
+    // External-only blocks retain the original SSTable representation.
+    legacy.remove(legacy.len() - 5);
+    let trailer = legacy.len() - 4;
+    legacy[trailer..].copy_from_slice(&2u32.to_le_bytes());
+    assert_eq!(
+        TermDictionary::open(FileSlice::from(legacy))?.get(b"legacy")?,
+        Some(external)
+    );
+
+    let short = TermInfo {
+        doc_freq: 1,
+        short_postings: Some(Arc::new(ShortPostings {
+            doc_ids: vec![42],
+            term_freqs: vec![1],
+            position_deltas: vec![17],
+        })),
+        ..TermInfo::default()
+    };
+    let mut builder = TermDictionaryBuilder::create_with_max_inline_docs(Vec::new(), 8)?;
+    builder.insert(b"short", &short)?;
+    let mut bytes = builder.finish()?;
+    let trailer = bytes.len() - 4;
+    assert_eq!(&bytes[trailer - 1..], &[8, 4, 0, 0, 0]);
+    assert_eq!(
+        TermDictionary::open(FileSlice::from(bytes.clone()))?.get(b"short")?,
+        Some(short.clone())
+    );
+    let mut legacy = bytes.clone();
+    legacy.remove(trailer - 1);
+    legacy[trailer - 1..].copy_from_slice(&3u32.to_le_bytes());
+    assert_eq!(
+        TermDictionary::open(FileSlice::from(legacy))?.get(b"short")?,
+        Some(short)
+    );
+    let mut invalid = bytes.clone();
+    invalid[trailer - 1] = 33;
+    assert!(TermDictionary::open(FileSlice::from(invalid)).is_err());
+    let mut disabled = bytes.clone();
+    disabled[trailer - 1] = 0;
+    assert!(TermDictionary::open(FileSlice::from(disabled))?
+        .get(b"short")
+        .is_err());
+    bytes[trailer..].copy_from_slice(&5u32.to_le_bytes());
+    assert!(TermDictionary::open(FileSlice::from(bytes)).is_err());
+    assert!(TermDictionary::open(FileSlice::from(vec![0; 3])).is_err());
+    assert!(TermDictionary::open(FileSlice::from(4u32.to_le_bytes().to_vec())).is_err());
+    Ok(())
 }
 
 #[test]

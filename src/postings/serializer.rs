@@ -1,9 +1,10 @@
 use std::cmp::Ordering;
 use std::io::{self, Write};
+use std::sync::Arc;
 
 use common::{BinarySerializable, CountingWriter, VInt};
 
-use super::TermInfo;
+use super::{ShortPostings, TermInfo};
 use crate::directory::{CompositeWrite, WritePtr};
 use crate::fieldnorm::FieldNormReader;
 use crate::index::Segment;
@@ -51,17 +52,24 @@ pub struct InvertedIndexSerializer {
     postings_write: CompositeWrite<WritePtr>,
     positions_write: CompositeWrite<WritePtr>,
     schema: Schema,
+    max_inline_docs: u32,
 }
 
 impl InvertedIndexSerializer {
     /// Open a new `InvertedIndexSerializer` for the given segment
     pub fn open(segment: &Segment) -> crate::Result<InvertedIndexSerializer> {
         use crate::index::SegmentComponent::{Positions, Postings, Terms};
+        #[cfg(feature = "quickwit")]
+        segment.index().settings().validate_max_inline_docs()?;
         let inv_index_serializer = InvertedIndexSerializer {
             terms_write: CompositeWrite::wrap(segment.open_write(Terms)?),
             postings_write: CompositeWrite::wrap(segment.open_write(Postings)?),
             positions_write: CompositeWrite::wrap(segment.open_write(Positions)?),
             schema: segment.schema(),
+            #[cfg(feature = "quickwit")]
+            max_inline_docs: segment.index().settings().max_inline_docs,
+            #[cfg(not(feature = "quickwit"))]
+            max_inline_docs: 0,
         };
         Ok(inv_index_serializer)
     }
@@ -91,6 +99,7 @@ impl InvertedIndexSerializer {
             postings_write,
             positions_write,
             fieldnorm_reader,
+            self.max_inline_docs,
         )
     }
 
@@ -110,6 +119,8 @@ pub struct FieldSerializer<'a, W: Write = WritePtr> {
     postings_serializer: PostingsSerializer,
     positions_serializer_opt: Option<PositionSerializer<&'a mut CountingWriter<W>>>,
     current_term_info: TermInfo,
+    buffered_positions: Vec<u32>,
+    max_inline_docs: u32,
     term_open: bool,
     postings_write: &'a mut CountingWriter<W>,
     postings_start_offset: u64,
@@ -117,6 +128,7 @@ pub struct FieldSerializer<'a, W: Write = WritePtr> {
 
 impl<'a, W: Write> FieldSerializer<'a, W> {
     /// Creates a new `FieldSerializer` for the given field type.
+    /// Lists up to `max_inline_docs` documents are inlined in SSTable dictionaries.
     pub fn create(
         index_record_option: IndexRecordOption,
         total_num_tokens: u64,
@@ -124,9 +136,19 @@ impl<'a, W: Write> FieldSerializer<'a, W> {
         postings_write: &'a mut CountingWriter<W>,
         positions_write: &'a mut CountingWriter<W>,
         fieldnorm_reader: Option<FieldNormReader>,
+        max_inline_docs: u32,
     ) -> io::Result<FieldSerializer<'a, W>> {
+        #[cfg(feature = "quickwit")]
+        let term_dictionary_builder = TermDictionaryBuilder::create_with_max_inline_docs(
+            term_dictionary_write,
+            max_inline_docs,
+        )?;
+        #[cfg(not(feature = "quickwit"))]
+        let (term_dictionary_builder, max_inline_docs) = {
+            let _ = max_inline_docs;
+            (TermDictionaryBuilder::create(term_dictionary_write)?, 0)
+        };
         total_num_tokens.serialize(postings_write)?;
-        let term_dictionary_builder = TermDictionaryBuilder::create(term_dictionary_write)?;
         let average_fieldnorm = fieldnorm_reader
             .as_ref()
             .map(|ff_reader| total_num_tokens as Score / ff_reader.num_docs() as Score)
@@ -145,6 +167,8 @@ impl<'a, W: Write> FieldSerializer<'a, W> {
             postings_serializer,
             positions_serializer_opt,
             current_term_info: TermInfo::default(),
+            buffered_positions: Vec::new(),
+            max_inline_docs,
             term_open: false,
             postings_write,
             postings_start_offset,
@@ -167,6 +191,7 @@ impl<'a, W: Write> FieldSerializer<'a, W> {
             doc_freq: 0,
             postings_range: addr..addr,
             positions_range: positions_start..positions_start,
+            short_postings: None,
         }
     }
 
@@ -210,15 +235,22 @@ impl<'a, W: Write> FieldSerializer<'a, W> {
     pub fn write_doc(&mut self, doc_id: DocId, term_freq: u32, position_deltas: &[u32]) {
         self.current_term_info.doc_freq += 1;
         self.postings_serializer.write_doc(doc_id, term_freq);
-        if let Some(ref mut positions_serializer) = self.positions_serializer_opt.as_mut() {
+        if let Some(positions_serializer) = self.positions_serializer_opt.as_mut() {
             assert_eq!(term_freq as usize, position_deltas.len());
-            positions_serializer.write_positions_delta(position_deltas);
+            if self.current_term_info.doc_freq <= self.max_inline_docs {
+                self.buffered_positions.extend_from_slice(position_deltas);
+            } else {
+                positions_serializer.write_positions_delta(&self.buffered_positions);
+                self.buffered_positions.clear();
+                positions_serializer.write_positions_delta(position_deltas);
+            }
         }
     }
 
     /// Finish the serialization for this term postings.
     ///
-    /// If the current block is incomplete, it needs to be encoded
+    /// Lists within the inline document limit are stored in the term dictionary.
+    /// Otherwise, if the current block is incomplete, it needs to be encoded
     /// using `VInt` encoding.
     pub fn close_term(&mut self) -> io::Result<()> {
         crate::fail_point!("FieldSerializer::close_term", |msg: Option<String>| {
@@ -229,13 +261,26 @@ impl<'a, W: Write> FieldSerializer<'a, W> {
             return Ok(());
         };
 
-        self.postings_serializer
-            .close_term(self.current_term_info.doc_freq, self.postings_write)?;
-        self.current_term_info.postings_range.end = self.postings_offset();
-        if let Some(positions_serializer) = self.positions_serializer_opt.as_mut() {
-            positions_serializer.close_term()?;
-            self.current_term_info.positions_range.end =
-                positions_serializer.written_bytes() as usize;
+        if (1..=self.max_inline_docs).contains(&self.current_term_info.doc_freq) {
+            let block = &self.postings_serializer.block;
+            self.current_term_info.short_postings = Some(Arc::new(ShortPostings {
+                doc_ids: block.doc_ids().to_vec(),
+                term_freqs: if self.postings_serializer.term_has_freq {
+                    block.term_freqs().to_vec()
+                } else {
+                    Vec::new()
+                },
+                position_deltas: std::mem::take(&mut self.buffered_positions),
+            }));
+        } else {
+            self.postings_serializer
+                .close_term(self.current_term_info.doc_freq, self.postings_write)?;
+            self.current_term_info.postings_range.end = self.postings_offset();
+            if let Some(positions_serializer) = self.positions_serializer_opt.as_mut() {
+                positions_serializer.close_term()?;
+                self.current_term_info.positions_range.end =
+                    positions_serializer.written_bytes() as usize;
+            }
         }
         self.term_dictionary_builder
             .insert_value(&self.current_term_info)?;
@@ -482,5 +527,159 @@ impl PostingsSerializer {
     fn clear(&mut self) {
         self.block.clear();
         self.last_doc_id_encoded = 0;
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_field_serializer_short_postings() -> io::Result<()> {
+        for (mode, record_term_freq, known_doc_freq, max_inline_docs) in itertools::iproduct!(
+            [
+                IndexRecordOption::Basic,
+                IndexRecordOption::WithFreqs,
+                IndexRecordOption::WithFreqsAndPositions,
+            ],
+            [false, true],
+            [false, true],
+            [0, 1, 8, 9, 16, 32, 33]
+        ) {
+            let mut terms = CountingWriter::wrap(Vec::new());
+            let mut postings = CountingWriter::wrap(Vec::new());
+            let mut positions = CountingWriter::wrap(Vec::new());
+            let serializer = FieldSerializer::create(
+                mode,
+                0,
+                &mut terms,
+                &mut postings,
+                &mut positions,
+                None,
+                max_inline_docs,
+            );
+            if cfg!(feature = "quickwit") && max_inline_docs == 33 {
+                assert_eq!(
+                    serializer.err().unwrap().kind(),
+                    io::ErrorKind::InvalidInput
+                );
+                assert_eq!(terms.written_bytes(), 0);
+                assert_eq!(postings.written_bytes(), 0);
+                assert_eq!(positions.written_bytes(), 0);
+                continue;
+            }
+            let mut serializer = serializer?;
+            let mut expected_postings = Vec::new();
+            let mut expected_positions = Vec::new();
+            let mut position_serializer = PositionSerializer::new(&mut expected_positions);
+
+            // End with short lists to check cumulative offsets and resetting after an external
+            // list.
+            let count = max_inline_docs.max(1);
+            let counts = [1, count, max_inline_docs + 1, 127, 128, 129, 1, count];
+            for (term, count) in counts.into_iter().enumerate() {
+                let doc_freq = if known_doc_freq { count } else { 0 };
+                if !record_term_freq && !known_doc_freq {
+                    serializer.new_term_without_freq(&term.to_be_bytes())?;
+                } else {
+                    serializer.new_term(&term.to_be_bytes(), doc_freq, record_term_freq)?;
+                }
+                let embed = cfg!(feature = "quickwit") && count <= max_inline_docs;
+                let postings_start = expected_postings.len();
+                let positions_start = position_serializer.written_bytes() as usize;
+                let mut ordinary = PostingsSerializer::new(0.0, mode, None);
+                ordinary.new_term(doc_freq, record_term_freq);
+                let mut expected = ShortPostings::default();
+                for doc in 0..count {
+                    let doc_id = doc * 3;
+                    // Include a full positions block among the first eight buffered documents.
+                    let freq = if record_term_freq {
+                        if doc % 4 == 3 {
+                            128
+                        } else {
+                            doc % 3 + 1
+                        }
+                    } else {
+                        0 // JSON numeric terms in a positions-enabled field use zero here.
+                    };
+                    let deltas: Vec<u32> = (0..freq).map(|position| position % 5).collect();
+                    serializer.write_doc(doc_id, freq, &deltas);
+                    expected.doc_ids.push(doc_id);
+                    if mode.has_freq() && record_term_freq {
+                        expected.term_freqs.push(freq);
+                    }
+                    if mode.has_positions() {
+                        expected.position_deltas.extend_from_slice(&deltas);
+                    }
+                    if !embed {
+                        ordinary.write_doc(doc_id, freq);
+                        if mode.has_positions() {
+                            position_serializer.write_positions_delta(&deltas);
+                        }
+                    }
+                }
+                serializer.close_term()?;
+                // Closing twice must not emit data or duplicate a dictionary value.
+                serializer.close_term()?;
+                let info = &serializer.current_term_info;
+                assert_eq!(info.doc_freq, count);
+                if embed {
+                    assert_eq!(info.short_postings.as_deref(), Some(&expected));
+                } else {
+                    assert!(info.short_postings.is_none());
+                    ordinary.close_term(count, &mut expected_postings)?;
+                    if mode.has_positions() {
+                        position_serializer.close_term()?;
+                    }
+                }
+                assert_eq!(info.postings_range, postings_start..expected_postings.len());
+                assert_eq!(
+                    info.positions_range,
+                    positions_start..position_serializer.written_bytes() as usize
+                );
+            }
+            serializer.close()?;
+            position_serializer.close()?;
+            assert_eq!(&postings.finish()[8..], expected_postings);
+            assert_eq!(positions.finish(), expected_positions);
+        }
+        Ok(())
+    }
+
+    #[cfg(feature = "quickwit")]
+    #[test]
+    fn test_invalid_inline_cutoff_writes_nothing() {
+        let mut index = crate::Index::create_in_ram(Schema::builder().build());
+        index.settings_mut().max_inline_docs = 33;
+        let files_before = index.directory().list_managed_files();
+        assert!(InvertedIndexSerializer::open(&index.new_segment()).is_err());
+        assert_eq!(index.directory().list_managed_files(), files_before);
+    }
+
+    #[cfg(feature = "quickwit")]
+    #[test]
+    fn test_short_postings_reserved_bits() {
+        for (option, freq, deltas) in [
+            (IndexRecordOption::WithFreqs, 1 << 31, vec![]),
+            (IndexRecordOption::WithFreqsAndPositions, 1, vec![1 << 31]),
+        ] {
+            let mut terms = CountingWriter::wrap(Vec::new());
+            let mut postings = CountingWriter::wrap(Vec::new());
+            let mut positions = CountingWriter::wrap(Vec::new());
+            let mut serializer = FieldSerializer::create(
+                option,
+                0,
+                &mut terms,
+                &mut postings,
+                &mut positions,
+                None,
+                8,
+            )
+            .unwrap();
+            serializer.new_term(b"term", 0, true).unwrap();
+            serializer.write_doc(0, freq, &deltas);
+            let error = serializer.close().unwrap_err();
+            assert_eq!(error.kind(), io::ErrorKind::InvalidData);
+        }
     }
 }

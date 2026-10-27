@@ -37,6 +37,8 @@ const PANIC_CAUGHT: &str = "Panic caught in merge thread";
 ///
 /// This method is not part of tantivy's public API
 pub(crate) fn save_metas(metas: &IndexMeta, directory: &dyn Directory) -> crate::Result<()> {
+    #[cfg(feature = "quickwit")]
+    metas.index_settings.validate_max_inline_docs()?;
     debug!("save metas");
     let mut buffer = serde_json::to_vec_pretty(metas)?;
     // Just adding a new line at the end of the buffer.

@@ -21,6 +21,11 @@ pub trait ValueReader: Default {
     /// via a call to `ValueReader::read`.
     fn value(&self, idx: usize) -> &Self::Value;
 
+    /// Applies a dictionary's value-format parameter. Ignored by readers without configuration.
+    fn configure(&mut self, _config: u8) -> io::Result<()> {
+        Ok(())
+    }
+
     /// Loads a block.
     ///
     /// Returns the number of bytes that were read.
@@ -41,8 +46,16 @@ pub trait ValueWriter: Default {
     /// Serializes the accumulated values into the output buffer.
     fn serialize_block(&self, output: &mut Vec<u8>);
 
-    /// Clears the `ValueWriter`. After a call to clear, the `ValueWriter`
-    /// should behave like a fresh `ValueWriter::default()`.
+    /// Optionally serializes a block body containing values, keys, and its encoding flag.
+    ///
+    /// Returns `true` when `buffer` contains the body to write. Returning `false`
+    /// leaves `buffer` unchanged and lets the caller combine `serialize_block` output with keys.
+    /// The caller supplies an empty buffer and writes the block length separately.
+    fn serialize_block_with_keys(&self, _keys: &[u8], _buffer: &mut Vec<u8>) -> io::Result<bool> {
+        Ok(false)
+    }
+
+    /// Clears accumulated values, preserving the writer's configuration.
     fn clear(&mut self);
 }
 

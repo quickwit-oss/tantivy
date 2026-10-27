@@ -206,6 +206,12 @@ impl BinarySerializable for VInt {
         loop {
             match bytes.next() {
                 Some(Ok(b)) => {
+                    if shift == 63 && !(STOP_BIT..=STOP_BIT + 1).contains(&b) {
+                        return Err(io::Error::new(
+                            io::ErrorKind::InvalidData,
+                            "VInt exceeds u64",
+                        ));
+                    }
                     result |= u64::from(b % 128u8) << shift;
                     if b >= STOP_BIT {
                         return Ok(VInt(result));
@@ -243,6 +249,20 @@ mod tests {
         }
         let serdeser_val = VInt::deserialize(&mut &v[..]).unwrap();
         assert_eq!(val, serdeser_val.0);
+    }
+
+    #[test]
+    fn test_vint_overflow() {
+        for bytes in [
+            vec![0; 11],
+            [vec![0; 9], vec![130]].concat(),
+            [vec![127; 9], vec![255]].concat(),
+        ] {
+            assert_eq!(
+                VInt::deserialize(&mut bytes.as_slice()).unwrap_err().kind(),
+                std::io::ErrorKind::InvalidData
+            );
+        }
     }
 
     #[test]

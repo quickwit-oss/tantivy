@@ -151,7 +151,7 @@ impl SkipReader {
         self.remaining_docs != 0
     }
 
-    pub fn reset(&mut self, data: OwnedBytes, doc_freq: u32) {
+    pub fn reset(&mut self, data: OwnedBytes, doc_freq: u32, skip_info: IndexRecordOption) {
         self.last_doc_in_block = if doc_freq >= COMPRESSION_BLOCK_SIZE as u32 {
             0
         } else {
@@ -159,6 +159,7 @@ impl SkipReader {
         };
         self.last_doc_in_previous_block = 0u32;
         self.owned_read = data;
+        self.skip_info = skip_info;
         self.block_info = BlockInfo::VInt { num_docs: doc_freq };
         self.byte_offset = 0;
         self.remaining_docs = doc_freq;

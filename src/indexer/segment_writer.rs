@@ -545,7 +545,8 @@ mod tests {
             TermInfo {
                 doc_freq: 1,
                 postings_range: 2..4,
-                positions_range: 2..5
+                positions_range: 2..5,
+                short_postings: None,
             }
         );
         let mut postings = inv_index
@@ -584,7 +585,8 @@ mod tests {
             TermInfo {
                 doc_freq: 1,
                 postings_range: 0..1,
-                positions_range: 0..0
+                positions_range: 0..0,
+                short_postings: None,
             }
         );
         let mut postings = inv_index

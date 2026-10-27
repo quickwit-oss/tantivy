@@ -109,6 +109,7 @@ mod bench {
             doc_freq: term_ord as u32,
             postings_range: offset(term_ord)..offset(term_ord + 1),
             positions_range: offset(term_ord)..offset(term_ord + 1),
+            short_postings: None,
         }
     }
 

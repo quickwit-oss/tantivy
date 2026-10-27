@@ -91,10 +91,11 @@ where W: io::Write
 {
     block: Vec<u8>,
     write: CountingWriter<BufWriter<W>>,
-    value_writer: TValueWriter,
+    pub(crate) value_writer: TValueWriter,
     // Only here to avoid allocations.
     stateless_buffer: Vec<u8>,
     block_len: usize,
+    pub(crate) version: u32,
 }
 
 impl<W, TValueWriter> DeltaWriter<W, TValueWriter>
@@ -109,6 +110,7 @@ where
             value_writer: TValueWriter::default(),
             stateless_buffer: Vec::new(),
             block_len: BLOCK_LEN,
+            version: crate::SSTABLE_VERSION,
         }
     }
 
@@ -123,12 +125,25 @@ where
         let start_offset = self.write.written_bytes() as usize;
 
         let buffer: &mut Vec<u8> = &mut self.stateless_buffer;
-        self.value_writer.serialize_block(buffer);
-        self.value_writer.clear();
+        let uses_block_parts = self
+            .value_writer
+            .serialize_block_with_keys(&self.block, buffer)?;
+        if !uses_block_parts {
+            self.value_writer.serialize_block(buffer);
+            self.value_writer.clear();
+        }
 
         let block_len = buffer.len() + self.block.len();
 
-        if cfg!(feature = "zstd-compression") && block_len > 2048 {
+        if uses_block_parts {
+            let body_len = u32::try_from(buffer.len()).map_err(|_| {
+                io::Error::new(io::ErrorKind::InvalidInput, "block body exceeds u32 length")
+            })?;
+            self.write.write_all(&body_len.to_le_bytes())?;
+            self.write.write_all(buffer)?;
+            self.version = 4;
+            self.value_writer.clear();
+        } else if cfg!(feature = "zstd-compression") && block_len > 2048 {
             #[cfg(feature = "zstd-compression")]
             {
                 buffer.extend_from_slice(&self.block);
@@ -231,6 +246,11 @@ where TValueReader: value::ValueReader
             value_reader: TValueReader::default(),
             block_reader: BlockReader::from_multiple_blocks(reader),
         }
+    }
+
+    pub(crate) fn with_value_config(mut self, config: u8) -> io::Result<Self> {
+        self.value_reader.configure(config)?;
+        Ok(self)
     }
 
     /// The first term ordinal of the slice just moved to, returned once per slice.

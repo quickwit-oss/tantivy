@@ -28,7 +28,7 @@ impl SSTableIndex {
                     io::Error::new(io::ErrorKind::InvalidData, "SSTable corruption")
                 })?)
             }
-            3 => {
+            3 | 4 => {
                 let (index_bytes, mut footerv3_len_bytes) = index_bytes.rsplit(8);
                 let store_offset = u64::deserialize(&mut footerv3_len_bytes)?;
                 if store_offset != 0 {
@@ -43,7 +43,7 @@ impl SSTableIndex {
             }
             _ => {
                 return Err(io::Error::other(format!(
-                    "Unsupported sstable version, expected one of [2, 3], found {version}"
+                    "Unsupported sstable version, expected one of [2, 3, 4], found {version}"
                 )));
             }
         };
