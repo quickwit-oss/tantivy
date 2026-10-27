@@ -22,8 +22,8 @@ use crate::directory::error::{
     DeleteError, LockError, OpenDirectoryError, OpenReadError, OpenWriteError,
 };
 use crate::directory::{
-    AntiCallToken, Directory, DirectoryLock, FileHandle, Lock, OwnedBytes, TerminatingWrite,
-    WatchCallback, WatchHandle, WritePtr,
+    AntiCallToken, Directory, DirectoryLock, FileHandle, Lock, OwnedBytes, RamDirectory,
+    TerminatingWrite, WatchCallback, WatchHandle, WritePtr, TEMP_SUFFIX,
 };
 
 pub type ArcBytes = Arc<dyn Deref<Target = [u8]> + Send + Sync + 'static>;
@@ -86,18 +86,15 @@ struct MmapCache {
 }
 
 impl MmapCache {
-    fn new() -> MmapCache {
+    /// `config` is only read on unix, where madvise is available.
+    #[cfg_attr(not(unix), allow(unused_variables))]
+    fn new(config: &MmapDirectoryConfig) -> MmapCache {
         MmapCache {
             counters: CacheCounters::default(),
             cache: HashMap::default(),
             #[cfg(unix)]
-            madvice_opt: None,
+            madvice_opt: config.madvice,
         }
-    }
-
-    #[cfg(unix)]
-    fn set_advice(&mut self, madvice: Advice) {
-        self.madvice_opt = Some(madvice);
     }
 
     fn get_info(&self) -> CacheInfo {
@@ -150,6 +147,34 @@ impl MmapCache {
     }
 }
 
+/// Configures the behavior of a [`MmapDirectory`].
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct MmapDirectoryConfig {
+    /// If true, the temporary file (e.g. `<segment_id>.store.temp`) is held in an
+    /// in-RAM directory embedded in the [`MmapDirectory`], rather than being written
+    /// to disk.
+    pub temp_in_ram: bool,
+    /// If false, the [`MmapDirectory`] never issues any `fsync`.
+    /// Use at your own risk.
+    pub fsync: bool,
+    /// Advice passed to `madvise` for every file mmapped by this directory.
+    ///
+    /// Only available on unix, as `madvise` is.
+    #[cfg(unix)]
+    pub madvice: Option<Advice>,
+}
+
+impl Default for MmapDirectoryConfig {
+    fn default() -> MmapDirectoryConfig {
+        MmapDirectoryConfig {
+            temp_in_ram: false,
+            fsync: true,
+            #[cfg(unix)]
+            madvice: None,
+        }
+    }
+}
+
 /// Directory storing data in files, read via mmap.
 ///
 /// The Mmap object are cached to limit the
@@ -172,15 +197,38 @@ struct MmapDirectoryInner {
     mmap_cache: RwLock<MmapCache>,
     _temp_directory: Option<TempDir>,
     watcher: FileWatcher,
+    config: MmapDirectoryConfig,
+    /// Holds the temporary docstore files when `config.temp_store_in_ram` is set.
+    /// Left empty otherwise.
+    temp_directory_opt: Option<RamDirectory>,
 }
 
 impl MmapDirectoryInner {
     fn new(root_path: PathBuf, temp_directory: Option<TempDir>) -> MmapDirectoryInner {
+        MmapDirectoryInner::new_with_config(
+            root_path,
+            temp_directory,
+            MmapDirectoryConfig::default(),
+        )
+    }
+
+    fn new_with_config(
+        root_path: PathBuf,
+        temp_directory: Option<TempDir>,
+        config: MmapDirectoryConfig,
+    ) -> MmapDirectoryInner {
+        let temp_directory_opt = if config.temp_in_ram {
+            Some(RamDirectory::create())
+        } else {
+            None
+        };
         MmapDirectoryInner {
-            mmap_cache: RwLock::new(MmapCache::new()),
+            mmap_cache: RwLock::new(MmapCache::new(&config)),
             _temp_directory: temp_directory,
             watcher: FileWatcher::new(&root_path.join(*META_FILEPATH)),
             root_path,
+            config,
+            temp_directory_opt,
         }
     }
 
@@ -190,14 +238,24 @@ impl MmapDirectoryInner {
 }
 
 impl fmt::Debug for MmapDirectory {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "MmapDirectory({:?})", self.inner.root_path)
     }
 }
 
 impl MmapDirectory {
     fn new(root_path: PathBuf, temp_directory: Option<TempDir>) -> MmapDirectory {
-        let inner = MmapDirectoryInner::new(root_path, temp_directory);
+        MmapDirectory {
+            inner: Arc::new(MmapDirectoryInner::new(root_path, temp_directory)),
+        }
+    }
+
+    fn new_with_config(
+        root_path: PathBuf,
+        temp_directory: Option<TempDir>,
+        config: MmapDirectoryConfig,
+    ) -> MmapDirectory {
+        let inner = MmapDirectoryInner::new_with_config(root_path, temp_directory, config);
         MmapDirectory {
             inner: Arc::new(inner),
         }
@@ -216,6 +274,22 @@ impl MmapDirectory {
         ))
     }
 
+    /// Creates a new MmapDirectory in a temporary directory, with a given configuration.
+    ///
+    /// This is mostly useful to test the MmapDirectory itself.
+    /// For your unit tests, prefer the RamDirectory.
+    pub fn create_from_tempdir_with_config(
+        config: MmapDirectoryConfig,
+    ) -> Result<MmapDirectory, OpenDirectoryError> {
+        let tempdir = TempDir::new()
+            .map_err(|io_err| OpenDirectoryError::FailedToCreateTempDir(Arc::new(io_err)))?;
+        Ok(MmapDirectory::new_with_config(
+            tempdir.path().to_path_buf(),
+            Some(tempdir),
+            config,
+        ))
+    }
+
     /// Opens a MmapDirectory in a directory, with a given access pattern.
     ///
     /// This is only supported on unix platforms.
@@ -224,9 +298,11 @@ impl MmapDirectory {
         directory_path: impl AsRef<Path>,
         madvice: Advice,
     ) -> Result<MmapDirectory, OpenDirectoryError> {
-        let dir = Self::open_impl_to_avoid_monomorphization(directory_path.as_ref())?;
-        dir.inner.mmap_cache.write().unwrap().set_advice(madvice);
-        Ok(dir)
+        let config = MmapDirectoryConfig {
+            madvice: Some(madvice),
+            ..MmapDirectoryConfig::default()
+        };
+        MmapDirectory::open_with_config(directory_path, config)
     }
 
     /// Opens a MmapDirectory in a directory.
@@ -234,12 +310,27 @@ impl MmapDirectory {
     /// Returns an error if the `directory_path` does not
     /// exist or if it is not a directory.
     pub fn open(directory_path: impl AsRef<Path>) -> Result<MmapDirectory, OpenDirectoryError> {
-        Self::open_impl_to_avoid_monomorphization(directory_path.as_ref())
+        Self::open_impl_to_avoid_monomorphization(
+            directory_path.as_ref(),
+            MmapDirectoryConfig::default(),
+        )
+    }
+
+    /// Opens a MmapDirectory in a directory, with a given configuration.
+    ///
+    /// Returns an error if the `directory_path` does not
+    /// exist or if it is not a directory.
+    pub fn open_with_config(
+        directory_path: impl AsRef<Path>,
+        config: MmapDirectoryConfig,
+    ) -> Result<MmapDirectory, OpenDirectoryError> {
+        Self::open_impl_to_avoid_monomorphization(directory_path.as_ref(), config)
     }
 
     #[inline(never)]
     fn open_impl_to_avoid_monomorphization(
         directory_path: &Path,
+        config: MmapDirectoryConfig,
     ) -> Result<MmapDirectory, OpenDirectoryError> {
         let directory_exists = directory_path.try_exists().map_err(|io_err| {
             OpenDirectoryError::wrap_io_error(io_err, directory_path.to_owned())
@@ -275,13 +366,40 @@ impl MmapDirectory {
                 directory_path,
             )));
         }
-        Ok(MmapDirectory::new(canonical_path, None))
+        Ok(MmapDirectory::new_with_config(canonical_path, None, config))
     }
 
     /// Joins a relative_path to the directory `root_path`
     /// to create a proper complete `filepath`.
     fn resolve_path(&self, relative_path: &Path) -> PathBuf {
         self.inner.root_path.join(relative_path)
+    }
+
+    /// Returns the configuration of this directory.
+    pub fn config(&self) -> MmapDirectoryConfig {
+        self.inner.config
+    }
+
+    /// Returns the embedded RAM directory holding `path`, if `path` is a temporary
+    /// docstore file and `config.temp_store_in_ram` is set.
+    fn ram_directory_for(&self, path: &Path) -> Option<&RamDirectory> {
+        let temp_dir = self.inner.temp_directory_opt.as_ref()?;
+        let file_name: &str = path.file_name()?.to_str()?;
+        if !file_name.ends_with(TEMP_SUFFIX) {
+            return None;
+        }
+        Some(temp_dir)
+    }
+
+    /// Returns the memory used by the temporary docstore files held in RAM.
+    ///
+    /// Always 0 if `config.temp_store_in_ram` is not set.
+    pub fn temp_store_mem_usage(&self) -> usize {
+        if let Some(temp_dir) = &self.inner.temp_directory_opt {
+            temp_dir.total_mem_usage()
+        } else {
+            0
+        }
     }
 
     /// Returns some statistical information
@@ -319,18 +437,15 @@ impl Drop for ReleaseLockFile {
 }
 
 /// This Write wraps a File, but has the specificity of
-/// calling `sync_all` on terminate.
-struct SafeFileWriter(File);
-
-impl SafeFileWriter {
-    fn new(file: File) -> SafeFileWriter {
-        SafeFileWriter(file)
-    }
+/// calling `sync_data` on terminate, unless fsyncing is disabled.
+struct SafeFileWriter {
+    file: File,
+    fsync: bool,
 }
 
 impl Write for SafeFileWriter {
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
-        self.0.write(buf)
+        self.file.write(buf)
     }
 
     fn flush(&mut self) -> io::Result<()> {
@@ -340,8 +455,10 @@ impl Write for SafeFileWriter {
 
 impl TerminatingWrite for SafeFileWriter {
     fn terminate_ref(&mut self, _: AntiCallToken) -> io::Result<()> {
-        self.0.flush()?;
-        self.0.sync_data()?;
+        self.file.flush()?;
+        if self.fsync {
+            self.file.sync_data()?;
+        }
         Ok(())
     }
 }
@@ -358,8 +475,17 @@ impl Deref for MmapArc {
 }
 unsafe impl StableDeref for MmapArc {}
 
-/// Writes a file in an atomic manner.
+/// Writes a file in an atomic manner, fsyncing its content before the rename.
+#[cfg(test)]
 pub(crate) fn atomic_write(path: &Path, content: &[u8]) -> io::Result<()> {
+    atomic_write_opt_fsync(path, content, true)
+}
+
+/// Writes a file in an atomic manner.
+///
+/// If `fsync` is false, the temporary file is not fsynced before being persisted:
+/// the rename remains atomic, but the content may be lost on a crash.
+fn atomic_write_opt_fsync(path: &Path, content: &[u8], fsync: bool) -> io::Result<()> {
     // We create the temporary file in the same directory as the target file.
     // Indeed the canonical temp directory and the target file might sit in different
     // filesystem, in which case the atomic write may actually not work.
@@ -372,7 +498,9 @@ pub(crate) fn atomic_write(path: &Path, content: &[u8]) -> io::Result<()> {
     let mut tempfile = tempfile::Builder::new().tempfile_in(parent_path)?;
     tempfile.write_all(content)?;
     tempfile.flush()?;
-    tempfile.as_file_mut().sync_data()?;
+    if fsync {
+        tempfile.as_file_mut().sync_data()?;
+    }
     tempfile.into_temp_path().persist(path)?;
     Ok(())
 }
@@ -380,6 +508,9 @@ pub(crate) fn atomic_write(path: &Path, content: &[u8]) -> io::Result<()> {
 impl Directory for MmapDirectory {
     fn get_file_handle(&self, path: &Path) -> Result<Arc<dyn FileHandle>, OpenReadError> {
         debug!("Open Read {path:?}");
+        if let Some(ram_directory) = self.ram_directory_for(path) {
+            return ram_directory.get_file_handle(path);
+        }
         let full_path = self.resolve_path(path);
 
         let mut mmap_cache = self.inner.mmap_cache.write().map_err(|_| {
@@ -402,6 +533,9 @@ impl Directory for MmapDirectory {
     /// Any entry associated with the path in the mmap will be
     /// removed before the file is deleted.
     fn delete(&self, path: &Path) -> Result<(), DeleteError> {
+        if let Some(ram_directory) = self.ram_directory_for(path) {
+            return ram_directory.delete(path);
+        }
         let full_path = self.resolve_path(path);
         fs::remove_file(full_path).map_err(|e| {
             if e.kind() == io::ErrorKind::NotFound {
@@ -417,6 +551,9 @@ impl Directory for MmapDirectory {
     }
 
     fn exists(&self, path: &Path) -> Result<bool, OpenReadError> {
+        if let Some(ram_directory) = self.ram_directory_for(path) {
+            return ram_directory.exists(path);
+        }
         let full_path = self.resolve_path(path);
         full_path
             .try_exists()
@@ -425,6 +562,9 @@ impl Directory for MmapDirectory {
 
     fn open_write(&self, path: &Path) -> Result<WritePtr, OpenWriteError> {
         debug!("Open Write {path:?}");
+        if let Some(ram_directory) = self.ram_directory_for(path) {
+            return ram_directory.open_write(path);
+        }
         let full_path = self.resolve_path(path);
 
         let open_res = OpenOptions::new()
@@ -444,15 +584,17 @@ impl Directory for MmapDirectory {
         //
         // A newly created file, may, in some case, be created and even flushed to disk.
         // and then lost...
-        //
-        // The file will only be durably written after we terminate AND
-        // sync_directory() is called.
-
-        let writer = SafeFileWriter::new(file);
+        let writer = SafeFileWriter {
+            file: file,
+            fsync: self.inner.config.fsync,
+        };
         Ok(BufWriter::new(Box::new(writer)))
     }
 
     fn atomic_read(&self, path: &Path) -> Result<Vec<u8>, OpenReadError> {
+        if let Some(ram_directory) = self.ram_directory_for(path) {
+            return ram_directory.atomic_read(path);
+        }
         let full_path = self.resolve_path(path);
         let mut buffer = Vec::new();
         match File::open(full_path) {
@@ -474,8 +616,11 @@ impl Directory for MmapDirectory {
 
     fn atomic_write(&self, path: &Path, content: &[u8]) -> io::Result<()> {
         debug!("Atomic Write {path:?}");
+        if let Some(ram_directory) = self.ram_directory_for(path) {
+            return ram_directory.atomic_write(path, content);
+        }
         let full_path = self.resolve_path(path);
-        atomic_write(&full_path, content)?;
+        atomic_write_opt_fsync(&full_path, content, self.inner.config.fsync)?;
         Ok(())
     }
 
@@ -515,6 +660,9 @@ impl Directory for MmapDirectory {
 
     #[cfg(not(windows))]
     fn sync_directory(&self) -> Result<(), io::Error> {
+        if !self.inner.config.fsync {
+            return Ok(());
+        }
         let mut open_opts = OpenOptions::new();
 
         // Linux needs read to be set, otherwise returns EINVAL
@@ -541,6 +689,125 @@ mod tests {
     use crate::indexer::LogMergePolicy;
     use crate::schema::{Schema, SchemaBuilder, TEXT};
     use crate::{Index, IndexSettings, IndexWriter, ReloadPolicy};
+
+    #[test]
+    fn test_temp_store_suffix_matches_segment_component() {
+        use crate::index::{SegmentComponent, SegmentId, SegmentMetaInventory};
+        let inventory = SegmentMetaInventory::default();
+        let segment_meta = inventory.new_segment_meta(SegmentId::generate_random(), 10);
+        let temp_store_path: PathBuf = segment_meta.relative_path(SegmentComponent::TempStore);
+        assert!(temp_store_path
+            .file_name()
+            .unwrap()
+            .to_str()
+            .unwrap()
+            .ends_with(TEMP_SUFFIX));
+    }
+
+    #[test]
+    fn test_temp_store_on_disk_by_default() {
+        let mmap_directory = MmapDirectory::create_from_tempdir().unwrap();
+        assert!(!mmap_directory.config().temp_in_ram);
+        let path = PathBuf::from("0123456789abcdef.store.temp");
+        let mut writer = mmap_directory.open_write(&path).unwrap();
+        writer.write_all(b"temp store payload").unwrap();
+        writer.terminate().unwrap();
+        assert!(mmap_directory.inner.root_path.join(&path).exists());
+        assert_eq!(mmap_directory.temp_store_mem_usage(), 0);
+    }
+
+    #[test]
+    fn test_temp_store_in_ram() {
+        let config = MmapDirectoryConfig {
+            temp_in_ram: true,
+            ..Default::default()
+        };
+        let mmap_directory = MmapDirectory::create_from_tempdir_with_config(config).unwrap();
+        let temp_store_path = PathBuf::from("0123456789abcdef.store.temp");
+        let regular_path = PathBuf::from("0123456789abcdef.store");
+
+        let mut writer = mmap_directory.open_write(&temp_store_path).unwrap();
+        writer.write_all(b"temp store payload").unwrap();
+        writer.terminate().unwrap();
+
+        let mut writer = mmap_directory.open_write(&regular_path).unwrap();
+        writer.write_all(b"store payload").unwrap();
+        writer.terminate().unwrap();
+
+        // The temp store never reaches the disk, while the regular store does.
+        assert!(!mmap_directory
+            .inner
+            .root_path
+            .join(&temp_store_path)
+            .exists());
+        assert!(mmap_directory.inner.root_path.join(&regular_path).exists());
+        assert!(mmap_directory.temp_store_mem_usage() > 0);
+
+        assert!(mmap_directory.exists(&temp_store_path).unwrap());
+        assert_eq!(
+            mmap_directory.atomic_read(&temp_store_path).unwrap(),
+            b"temp store payload"
+        );
+        assert_eq!(
+            mmap_directory.open_read(&temp_store_path).unwrap().len(),
+            b"temp store payload".len()
+        );
+
+        mmap_directory.delete(&temp_store_path).unwrap();
+        assert!(!mmap_directory.exists(&temp_store_path).unwrap());
+        assert_eq!(mmap_directory.temp_store_mem_usage(), 0);
+    }
+
+    #[test]
+    fn test_index_with_temp_store_in_ram_and_no_fsync() {
+        let config = MmapDirectoryConfig {
+            temp_in_ram: true,
+            fsync: false,
+            ..Default::default()
+        };
+        let mmap_directory = MmapDirectory::create_from_tempdir_with_config(config).unwrap();
+        let root_path = mmap_directory.inner.root_path.clone();
+        let mut schema_builder: SchemaBuilder = Schema::builder();
+        let text_field = schema_builder.add_text_field("text", TEXT);
+        // The index is sorted, so that the temporary docstore actually gets written and
+        // read back to remap the doc ids.
+        let id_field = schema_builder.add_u64_field("id", crate::schema::FAST);
+        let schema = schema_builder.build();
+        let index = Index::create(
+            mmap_directory.clone(),
+            schema,
+            IndexSettings {
+                sort_by_field: Some(crate::IndexSortByField {
+                    field: "id".to_string(),
+                    order: crate::Order::Asc,
+                }),
+                ..IndexSettings::default()
+            },
+        )
+        .unwrap();
+        let mut index_writer: IndexWriter = index.writer_for_tests().unwrap();
+        for doc_id in 0..10u64 {
+            index_writer
+                .add_document(doc!(text_field=>"abc", id_field=>9 - doc_id))
+                .unwrap();
+        }
+        index_writer.commit().unwrap();
+
+        let reader = index.reader().unwrap();
+        assert_eq!(reader.searcher().num_docs(), 10);
+
+        // No temporary docstore file was ever created on disk.
+        let temp_store_files: Vec<PathBuf> = fs::read_dir(&root_path)
+            .unwrap()
+            .map(|dir_entry| dir_entry.unwrap().path())
+            .filter(|path| {
+                path.file_name()
+                    .and_then(|file_name| file_name.to_str())
+                    .is_some_and(|file_name| file_name.ends_with(TEMP_SUFFIX))
+            })
+            .collect();
+        assert!(temp_store_files.is_empty(), "{temp_store_files:?}");
+    }
 
     #[test]
     fn test_open_non_existent_path() {
