@@ -110,7 +110,8 @@ impl<T: Send + Sync + PartialOrd + Copy + Debug + 'static> RangeDocSet<T> {
     /// check if the distance between the seek calls is large
     fn is_last_seek_distance_large(&self, new_seek: DocId) -> bool {
         if let Some(last_seek_pos) = self.last_seek_pos_opt {
-            (new_seek - last_seek_pos) >= 128
+            // `seek_danger` can be called with a lower target, for example from `Exclude`.
+            new_seek < last_seek_pos || new_seek - last_seek_pos >= 128
         } else {
             true
         }
@@ -318,6 +319,16 @@ mod tests {
         // After a miss we may be in an invalid state; another seek_danger recovers it.
         assert_eq!(docset.seek_danger(12), SeekDangerResult::Found);
         assert_eq!(docset.doc(), 12);
+    }
+
+    #[test]
+    fn seek_danger_target_below_last_seek() {
+        let mut docset = range_docset(0..=0, 100, |i| vec![(i % 2) as u64]);
+
+        assert_eq!(docset.seek(40), 40);
+        // `Exclude` may probe a candidate below the last seek position.
+        assert_eq!(docset.seek_danger(10), SeekDangerResult::Found);
+        assert_eq!(docset.doc(), 10);
     }
 
     #[test]

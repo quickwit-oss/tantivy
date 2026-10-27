@@ -15,7 +15,7 @@ use super::doc_predicate_query::{DocPredicateQuery, FunctionPredicate};
 use super::*;
 use crate::docset::SeekDangerResult;
 use crate::schema::{Field, IndexRecordOption, Schema, FAST, TEXT};
-use crate::{DocId, DocSet, Index, Searcher, SegmentReader, Term, TERMINATED};
+use crate::{DocId, DocSet, Index, Score, Searcher, SegmentReader, Term, TERMINATED};
 
 #[derive(Clone, Copy, Debug)]
 enum Kind {
@@ -206,6 +206,7 @@ fn scorer(expr: &Expr, scoring: bool) -> Box<dyn Scorer> {
 
 /// The oracle uses only advance. After a miss, the tested scorer receives ONLY
 /// seek_danger, with strictly increasing targets; even doc() is forbidden.
+/// Targets are sent twice, once like an intersection driver and once like `Exclude`.
 fn check(mut make: impl FnMut() -> Box<dyn Scorer>, targets: &[DocId]) {
     let mut reference = make();
     let mut expected = Vec::new();
@@ -213,13 +214,29 @@ fn check(mut make: impl FnMut() -> Box<dyn Scorer>, targets: &[DocId]) {
         expected.push((reference.doc(), reference.score()));
         reference.advance();
     }
-    let mut tested = make();
+    check_targets(make(), &expected, targets, false);
+    check_targets(make(), &expected, targets, true);
+}
+
+/// With `exclusion`, every target is sent as is: the scorer is probed behind its
+/// initial doc and behind the lower bounds it returned, as `ExclusionSet::contains` does.
+/// Otherwise, targets are clamped to the initial doc and to the returned lower bounds.
+fn check_targets(
+    mut tested: Box<dyn Scorer>,
+    expected: &[(DocId, Score)],
+    targets: &[DocId],
+    exclusion: bool,
+) {
     let mut lower_bound = tested.doc();
     let mut previous_target = None;
     for &requested_target in targets {
         // Respect the returned lower bound, just like an intersection driver.
         // In particular, do not probe behind a scorer that has sought ahead.
-        let target = requested_target.max(lower_bound);
+        let target = if exclusion {
+            requested_target
+        } else {
+            requested_target.max(lower_bound)
+        };
         if previous_target == Some(target) {
             continue;
         }
