@@ -159,6 +159,22 @@ pub fn write_u32_vint<W: io::Write + ?Sized>(val: u32, writer: &mut W) -> io::Re
     writer.write_all(data)
 }
 
+/// Zig-zag encodes a signed integer into an unsigned integer.
+///
+/// Small-magnitude values (whether positive or negative) map to small
+/// unsigned values, which makes them cheap to encode as a [`VInt`].
+/// This is the same encoding used by protobuf and by the columnar crate.
+#[inline]
+pub fn zig_zag_encode(n: i64) -> u64 {
+    ((n << 1) ^ (n >> 63)) as u64
+}
+
+/// Reverses [`zig_zag_encode`].
+#[inline]
+pub fn zig_zag_decode(n: u64) -> i64 {
+    ((n >> 1) as i64) ^ (-((n & 1) as i64))
+}
+
 impl VInt {
     pub fn val(&self) -> u64 {
         self.0
@@ -226,7 +242,32 @@ impl BinarySerializable for VInt {
 #[cfg(test)]
 mod tests {
 
-    use super::{BinarySerializable, VInt, serialize_vint_u32};
+    use super::{BinarySerializable, VInt, serialize_vint_u32, zig_zag_decode, zig_zag_encode};
+
+    #[test]
+    fn test_zig_zag_roundtrip() {
+        for val in [
+            0,
+            1,
+            -1,
+            2,
+            -2,
+            42,
+            -42,
+            i64::MAX,
+            i64::MIN,
+            i64::MAX - 1,
+            i64::MIN + 1,
+        ] {
+            assert_eq!(zig_zag_decode(zig_zag_encode(val)), val);
+        }
+        // Small-magnitude values (positive or negative) encode to small unsigned
+        // values, which is the whole point of the transform.
+        assert_eq!(zig_zag_encode(0), 0);
+        assert_eq!(zig_zag_encode(-1), 1);
+        assert_eq!(zig_zag_encode(1), 2);
+        assert_eq!(zig_zag_encode(-2), 3);
+    }
 
     fn aux_test_vint(val: u64) {
         let mut v = [14u8; 10];
