@@ -121,6 +121,21 @@ fn get_block_size(block_num: u32) -> u16 {
     (1u32 << exp) as u16
 }
 
+/// Total size of the blocks preceding block `block_num`, i.e. blocks
+/// `FIRST_BLOCK_NUM + 1..block_num`.
+///
+/// Precondition: `block_num >= FIRST_BLOCK_NUM + 1`.
+#[inline]
+fn full_blocks_len(block_num: u32) -> usize {
+    // Sizes double up to 2^15, then stay at 2^15.
+    const FIRST_BLOCK_SIZE: usize = 1 << (FIRST_BLOCK_NUM + 1);
+    if block_num <= 15 {
+        (1usize << block_num) - FIRST_BLOCK_SIZE
+    } else {
+        (1usize << 15) - FIRST_BLOCK_SIZE + (block_num as usize - 15) * (1usize << 15)
+    }
+}
+
 impl ExpUnrolledLinkedList {
     #[inline(always)]
     pub fn increment_num_blocks(&mut self) {
@@ -138,16 +153,24 @@ impl ExpUnrolledLinkedList {
         ExpUnrolledLinkedListWriter { eull: self, arena }
     }
 
-    pub fn read_to_end(&self, arena: &MemoryArena, output: &mut Vec<u8>) {
-        let mut addr = self.head;
-        if addr.is_null() {
-            return;
+    /// Returns an iterator over the chunks of data stored in the list, in write order.
+    ///
+    /// Each chunk is the used part of one block. Concatenating the chunks gives the
+    /// same bytes as `read_to_end`.
+    #[inline]
+    pub fn iter_chunks<'a>(&self, arena: &'a MemoryArena) -> ExpUnrolledLinkedListChunks<'a> {
+        if self.head.is_null() {
+            return ExpUnrolledLinkedListChunks {
+                arena,
+                current: &[],
+                next_addr: Addr::null_pointer(),
+                block_num: self.block_num,
+                last_block_num: self.block_num,
+                last_block_len: 0,
+            };
         }
 
-        // Calculate last block length with bounds checking to prevent underflow
         let block_size = get_block_size(self.block_num) as usize;
-        let last_block_len = block_size.saturating_sub(self.remaining_cap as usize);
-
         // Safety check: if remaining_cap > block_size, the metadata is corrupted
         assert!(
             self.remaining_cap as usize <= block_size,
@@ -160,26 +183,149 @@ impl ExpUnrolledLinkedList {
             self.head,
             self.tail
         );
+        let last_block_len = block_size - self.remaining_cap as usize;
 
-        // Full Blocks (iterate through all blocks except the last one)
         // Note: Blocks are numbered starting from FIRST_BLOCK_NUM+1 (=3) after first allocation
-        for block_num in FIRST_BLOCK_NUM + 1..self.block_num {
-            let cap = get_block_size(block_num) as usize;
-            let data = arena.slice(addr, cap);
-            output.extend_from_slice(data);
-            addr = arena.read(addr.offset(cap as u32));
-        }
-        // Last Block
-        let data = arena.slice(addr, last_block_len);
-        output.extend_from_slice(data);
+        let mut chunks = ExpUnrolledLinkedListChunks {
+            arena,
+            current: &[],
+            next_addr: Addr::null_pointer(),
+            block_num: FIRST_BLOCK_NUM + 1,
+            last_block_num: self.block_num,
+            last_block_len,
+        };
+        chunks.load_block(self.head);
+        chunks
+    }
+
+    pub fn read_to_end(&self, arena: &MemoryArena, output: &mut Vec<u8>) {
+        // Size of all allocated blocks minus the unused capacity of the last one.
+        // Also 0 for an empty list (block_num == FIRST_BLOCK_NUM, remaining_cap == 0).
+        // `saturating_sub` because corrupted metadata is only detected later, in `iter_chunks`.
+        let len = full_blocks_len(self.block_num + 1).saturating_sub(self.remaining_cap as usize);
+        output.reserve(len);
+        self.iter_chunks(arena).read_to_end(output);
     }
 }
+
+/// Iterator over the chunks of an `ExpUnrolledLinkedList`.
+///
+/// All blocks but the last one are full. The last block is only partially used.
+pub struct ExpUnrolledLinkedListChunks<'a> {
+    arena: &'a MemoryArena,
+    // Unread part of the current block.
+    // Empty if and only if the iterator is exhausted: blocks are never empty, and
+    // a block is replaced by the next one as soon as it is fully read.
+    current: &'a [u8],
+    // Address of the block following the current one.
+    // Only valid if `block_num < last_block_num`.
+    next_addr: Addr,
+    // Number of the current block.
+    block_num: u32,
+    // Number of the last block (the one `tail` points into).
+    last_block_num: u32,
+    // Number of bytes used in the last block.
+    last_block_len: usize,
+}
+
+impl<'a> ExpUnrolledLinkedListChunks<'a> {
+    /// Appends all the remaining chunks to `output`.
+    ///
+    /// Same result as extending `output` with each chunk, but faster for lists
+    /// with few blocks: this loop avoids the per-chunk overhead of `next()`.
+    #[inline]
+    pub fn read_to_end(self, output: &mut Vec<u8>) {
+        output.extend_from_slice(self.current);
+        if self.block_num == self.last_block_num {
+            return;
+        }
+        let mut addr = self.next_addr;
+        // Full blocks. The last bytes of each block hold the address of the next block.
+        for block_num in self.block_num + 1..self.last_block_num {
+            let cap = get_block_size(block_num) as usize;
+            output.extend_from_slice(self.arena.slice(addr, cap));
+            addr = self.arena.read(addr.offset(cap as u32));
+        }
+        // Last block
+        output.extend_from_slice(self.arena.slice(addr, self.last_block_len));
+    }
+
+    /// Appends the next `len` bytes to `output` and advances past them.
+    ///
+    /// Panics if fewer than `len` bytes remain.
+    pub(crate) fn read_exact_into(&mut self, mut len: usize, output: &mut Vec<u8>) {
+        output.reserve(len);
+        while len > 0 {
+            assert!(
+                !self.current.is_empty(),
+                "read_exact_into: {len} bytes missing at the end of the list"
+            );
+            let next_chunk_len = len.min(self.current.len());
+            let (head, tail) = self.current.split_at(next_chunk_len);
+            output.extend_from_slice(head);
+            len -= next_chunk_len;
+            self.current = tail;
+            if self.current.is_empty() {
+                self.advance_block();
+            }
+        }
+    }
+
+    /// Makes the block at `addr`, numbered `self.block_num`, the current block.
+    #[inline]
+    fn load_block(&mut self, addr: Addr) {
+        if self.block_num == self.last_block_num {
+            self.current = self.arena.slice(addr, self.last_block_len);
+            return;
+        }
+        // Full block. Its last bytes hold the address of the next block.
+        let cap = get_block_size(self.block_num) as usize;
+        self.current = self.arena.slice(addr, cap);
+        self.next_addr = self.arena.read(addr.offset(cap as u32));
+    }
+
+    /// Moves to the next block. Does nothing after the last block, leaving
+    /// `current` empty.
+    ///
+    /// Precondition: `current` is empty.
+    #[inline]
+    fn advance_block(&mut self) {
+        if self.block_num == self.last_block_num {
+            return;
+        }
+        self.block_num += 1;
+        self.load_block(self.next_addr);
+    }
+}
+
+impl<'a> Iterator for ExpUnrolledLinkedListChunks<'a> {
+    type Item = &'a [u8];
+
+    #[inline(always)]
+    fn next(&mut self) -> Option<&'a [u8]> {
+        if self.current.is_empty() {
+            return None;
+        }
+        let data = std::mem::take(&mut self.current);
+        self.advance_block();
+        Some(data)
+    }
+}
+
+impl std::iter::FusedIterator for ExpUnrolledLinkedListChunks<'_> {}
 
 #[cfg(test)]
 mod tests {
     use common::{read_u32_vint, write_u32_vint};
 
     use super::*;
+
+    fn eull_with_data(data: &[u8]) -> (MemoryArena, ExpUnrolledLinkedList) {
+        let mut arena = MemoryArena::default();
+        let mut eull = ExpUnrolledLinkedList::default();
+        eull.writer(&mut arena).extend_from_slice(data);
+        (arena, eull)
+    }
 
     #[test]
     fn test_eull_empty() {
@@ -252,6 +398,25 @@ mod tests {
             result.push(read_u32_vint(&mut remaining));
         }
         assert_eq!(&result[..], &data[..]);
+    }
+
+    #[test]
+    fn test_eull_iter_chunks() {
+        let (arena, eull) = eull_with_data(&[]);
+        assert_eq!(eull.iter_chunks(&arena).count(), 0);
+        let data: Vec<u8> = (0..100u8).collect();
+        let (arena, eull) = eull_with_data(&data);
+        let chunks: Vec<&[u8]> = eull.iter_chunks(&arena).collect();
+        // Blocks have size 8, 16, 32, 64.
+        let chunk_lens: Vec<usize> = chunks.iter().map(|chunk| chunk.len()).collect();
+        assert_eq!(&chunk_lens[..], &[8, 16, 32, 44]);
+        assert_eq!(chunks.concat(), data);
+        // `read_to_end` on a partially consumed iterator appends the remaining chunks.
+        let mut chunks_iter = eull.iter_chunks(&arena);
+        assert_eq!(chunks_iter.next().unwrap(), &data[..8]);
+        let mut buffer = Vec::new();
+        chunks_iter.read_to_end(&mut buffer);
+        assert_eq!(buffer, &data[8..]);
     }
 
     #[test]
@@ -342,6 +507,78 @@ mod tests {
         // Verify data integrity on a sample
         for i in 0..bytes_per_write {
             assert_eq!(buffer[i], (i % 256) as u8);
+        }
+    }
+
+    #[test]
+    fn test_read_exact_into() {
+        let data: Vec<u8> = (0..100u8).collect();
+        let (arena, eull) = eull_with_data(&data);
+        // Blocks have size 8, 16, 32, 64 (44 used).
+        let mut chunks_iter = eull.iter_chunks(&arena);
+        let mut buffer = Vec::new();
+        // Within the first block.
+        chunks_iter.read_exact_into(3, &mut buffer);
+        assert_eq!(buffer, &data[..3]);
+        // Up to the exact end of the first block.
+        chunks_iter.read_exact_into(5, &mut buffer);
+        assert_eq!(buffer, &data[..8]);
+        // Across the second and third block.
+        chunks_iter.read_exact_into(20, &mut buffer);
+        assert_eq!(buffer, &data[..28]);
+        chunks_iter.read_exact_into(0, &mut buffer);
+        assert_eq!(buffer, &data[..28]);
+        // `next()` returns the rest of the current block.
+        assert_eq!(chunks_iter.next().unwrap(), &data[28..56]);
+        // Bytes skipped by `next()` are not read again.
+        chunks_iter.read_exact_into(4, &mut buffer);
+        assert_eq!(&buffer[28..], &data[56..60]);
+        // `read_to_end` appends the rest.
+        chunks_iter.read_to_end(&mut buffer);
+        assert_eq!(&buffer[32..], &data[60..]);
+    }
+
+    #[test]
+    fn test_read_exact_into_consumes_len_bytes() {
+        // List lengths around block boundaries (blocks of 8, 16, 32, ... bytes).
+        for data_len in [1usize, 7, 8, 9, 23, 24, 25, 100, 1_000, 50_000] {
+            // 251 is prime: the pattern does not line up with block sizes.
+            let data: Vec<u8> = (0..data_len).map(|i| (i % 251) as u8).collect();
+            let (arena, eull) = eull_with_data(&data);
+            for step in [1usize, 2, 3, 5, 7, 8, 13, 64, 1_000] {
+                let mut chunks_iter = eull.iter_chunks(&arena);
+                let mut buffer = Vec::new();
+                let mut pos = 0;
+                while pos < data_len {
+                    let len = step.min(data_len - pos);
+                    chunks_iter.read_exact_into(len, &mut buffer);
+                    pos += len;
+                    // Also checks the position: a wrong position appends wrong bytes.
+                    assert_eq!(buffer, &data[..pos], "data_len={data_len} step={step}");
+                }
+                assert!(chunks_iter.next().is_none());
+            }
+        }
+    }
+
+    #[test]
+    #[should_panic(expected = "read_exact_into: 1 bytes missing")]
+    fn test_read_exact_into_too_long() {
+        let (arena, eull) = eull_with_data(&[1u8, 2, 3]);
+        eull.iter_chunks(&arena).read_exact_into(4, &mut Vec::new());
+    }
+
+    #[test]
+    fn test_full_blocks_len() {
+        for block_num in FIRST_BLOCK_NUM + 1..40 {
+            let expected: usize = (FIRST_BLOCK_NUM + 1..block_num)
+                .map(|block_num| get_block_size(block_num) as usize)
+                .sum();
+            assert_eq!(
+                full_blocks_len(block_num),
+                expected,
+                "block_num={block_num}"
+            );
         }
     }
 
