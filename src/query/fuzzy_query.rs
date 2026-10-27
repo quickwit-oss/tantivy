@@ -1,8 +1,10 @@
+use std::fmt;
+
 use levenshtein_automata::{Distance, LevenshteinAutomatonBuilder, DFA};
 use once_cell::sync::OnceCell;
 use tantivy_fst::Automaton;
 
-use crate::query::{AutomatonWeight, EnableScoring, Query, Weight};
+use crate::query::{AutomatonWeight, EnableScoring, MatchedTermsSink, Query, Weight};
 use crate::schema::{Term, Type};
 use crate::TantivyError::InvalidArgument;
 
@@ -80,7 +82,7 @@ impl Automaton for DfaWrapper {
 /// }
 /// # assert!(example().is_ok());
 /// ```
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct FuzzyTermQuery {
     /// What term are we searching
     term: Term,
@@ -90,6 +92,22 @@ pub struct FuzzyTermQuery {
     transposition_cost_one: bool,
     /// is a starts with query
     prefix: bool,
+    matched_terms_sink: Option<MatchedTermsSink>,
+}
+
+impl fmt::Debug for FuzzyTermQuery {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let mut debug_struct = f.debug_struct("FuzzyTermQuery");
+        debug_struct
+            .field("term", &self.term)
+            .field("distance", &self.distance)
+            .field("transposition_cost_one", &self.transposition_cost_one)
+            .field("prefix", &self.prefix);
+        if let Some(sink) = &self.matched_terms_sink {
+            debug_struct.field("matched_terms_sink", sink);
+        }
+        debug_struct.finish()
+    }
 }
 
 impl FuzzyTermQuery {
@@ -100,6 +118,7 @@ impl FuzzyTermQuery {
             distance,
             transposition_cost_one,
             prefix: false,
+            matched_terms_sink: None,
         }
     }
 
@@ -110,7 +129,14 @@ impl FuzzyTermQuery {
             distance,
             transposition_cost_one,
             prefix: true,
+            matched_terms_sink: None,
         }
+    }
+
+    /// Records the terms this query matches in the term dictionary into `sink` while the search
+    /// runs. See [`MatchedTermsSink`].
+    pub fn set_matched_terms_sink(&mut self, sink: MatchedTermsSink) {
+        self.matched_terms_sink = Some(sink);
     }
 
     /// Returns the automaton this query matches terms with.
@@ -181,15 +207,15 @@ impl FuzzyTermQuery {
 
     fn specialized_weight(&self) -> crate::Result<AutomatonWeight<DfaWrapper>> {
         let automaton = self.automaton()?;
-        if let Some((json_path_bytes, _)) = self.term.value().as_json() {
-            Ok(AutomatonWeight::new_for_json_path(
-                self.term.field(),
-                automaton,
-                json_path_bytes,
-            ))
+        let mut weight = if let Some((json_path_bytes, _)) = self.term.value().as_json() {
+            AutomatonWeight::new_for_json_path(self.term.field(), automaton, json_path_bytes)
         } else {
-            Ok(AutomatonWeight::new(self.term.field(), automaton))
+            AutomatonWeight::new(self.term.field(), automaton)
+        };
+        if let Some(sink) = &self.matched_terms_sink {
+            weight.set_matched_terms_sink(sink.clone());
         }
+        Ok(weight)
     }
 }
 
@@ -204,7 +230,7 @@ mod test {
     use super::FuzzyTermQuery;
     use crate::collector::{Count, TopDocs};
     use crate::indexer::NoMergePolicy;
-    use crate::query::QueryParser;
+    use crate::query::{MatchedTermsSink, QueryParser};
     use crate::schema::{Schema, STORED, TEXT};
     use crate::{assert_nearly_equals, Index, IndexWriter, TantivyDocument, Term};
 
@@ -283,11 +309,15 @@ mod test {
         // shall not match the first document due to json path mismatch
         {
             let term = get_json_path_term("attributes.aa:japan")?;
-            let fuzzy_query = FuzzyTermQuery::new(term, 2, true);
+            let mut fuzzy_query = FuzzyTermQuery::new(term, 2, true);
+            let sink = MatchedTermsSink::new();
+            fuzzy_query.set_matched_terms_sink(sink.clone());
             let top_docs =
                 searcher.search(&fuzzy_query, &TopDocs::with_limit(2).order_by_score())?;
             assert_eq!(top_docs.len(), 1, "Expected only 1 document");
             assert_eq!(top_docs[0].1.doc_id, 1, "Expected the second document");
+            // the JSON path and the type code are not part of the recorded terms
+            assert_eq!(sink.take_strings(), vec!["japan".to_string()]);
         }
 
         // shall match the first document because Levenshtein distance is 1 (substitute 'o' with
@@ -343,6 +373,18 @@ mod test {
             assert_eq!(top_docs.len(), 1, "Expected only 1 document");
             let (score, _) = top_docs[0];
             assert_nearly_equals!(1.0, score);
+        }
+
+        // a sink records the matched terms, and only those
+        {
+            let term = Term::from_field_text(country_field, "japon");
+            let mut fuzzy_query = FuzzyTermQuery::new(term, 1, true);
+            let sink = MatchedTermsSink::new();
+            fuzzy_query.set_matched_terms_sink(sink.clone());
+            let top_docs =
+                searcher.search(&fuzzy_query, &TopDocs::with_limit(2).order_by_score())?;
+            assert_eq!(top_docs.len(), 1, "Expected only 1 document");
+            assert_eq!(sink.take_strings(), vec!["japan".to_string()]);
         }
 
         // fails because non-prefix Levenshtein distance is more than 1 (add 'a' and 'n')
