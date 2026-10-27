@@ -21,6 +21,8 @@ downcast-rs = "2.0.1"
 rand = "0.9"
 # OnPair16 string compression, used by the plain codec of Str and Bytes columns.
 onpair = "0.2.1"
+# SIMD unpacking and prefix sum of the token ends of OnPair16 blocks.
+bitpacking = { version = "0.9.3", default-features = false, features = ["bitpacker4x"] }
 
 [dev-dependencies]
 proptest = "1"
@@ -62,6 +64,10 @@ harness = false
 
 [[bench]]
 name = "bench_multivalue_docids"
+harness = false
+
+[[bench]]
+name = "bench_plain_block"
 harness = false
 
 [features]

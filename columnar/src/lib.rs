@@ -37,6 +37,8 @@ mod value;
 pub use column::{
     BytesColumn, Column, PlainBytesColumn, PlainStrColumn, PlainValueReader, StrColumn,
 };
+#[doc(hidden)]
+pub use column::{DictOffsetsBuffer, PlainBlock, encode_plain_block};
 pub use column_index::ColumnIndex;
 pub use column_values::{
     ColumnValues, EmptyColumnValues, MonotonicallyMappableToU64, MonotonicallyMappableToU128,

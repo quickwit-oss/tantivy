@@ -29,7 +29,8 @@ use common::file_slice::FileSlice;
 #[cfg_attr(not(test), allow(unused_imports))]
 pub(crate) use serializer::PlainColumnSerializer;
 
-use self::block::PlainBlock;
+#[doc(hidden)]
+pub use self::block::{DictOffsetsBuffer, PlainBlock, encode_block};
 use self::block_index::PlainBlockIndex;
 use crate::column_index::{ColumnIndex, open_column_index};
 use crate::{Cardinality, DocId, RowId, Version};
@@ -182,19 +183,29 @@ impl PlainBytesColumn {
         PlainValueReader {
             column: self.clone(),
             current_block: None,
+            dict_offsets_buffer: None,
             codes_buffer: Vec::new(),
             value_buffer: Vec::new(),
         }
     }
 
-    fn load_block(&self, block_id: u32) -> io::Result<PlainBlock> {
+    /// Loads the block `block_id`. See `PlainBlock::open` for `dict_offsets_buffer`.
+    fn load_block(
+        &self,
+        block_id: u32,
+        dict_offsets_buffer: &mut Option<DictOffsetsBuffer>,
+    ) -> io::Result<PlainBlock> {
         let byte_range = self.inner.block_index.byte_range(block_id);
         let block_bytes = self
             .inner
             .blocks
             .read_bytes_slice(byte_range.start as usize..byte_range.end as usize)?;
         let num_values = self.inner.block_index.value_range(block_id).len() as u32;
-        Ok(PlainBlock::open(block_bytes, num_values))
+        Ok(PlainBlock::open(
+            block_bytes,
+            num_values,
+            dict_offsets_buffer,
+        ))
     }
 }
 
@@ -245,6 +256,10 @@ pub struct PlainValueReader {
     column: PlainBytesColumn,
     /// The id of the last block read, and the block.
     current_block: Option<(u32, PlainBlock)>,
+    /// Allocation reused by the OnPair16 blocks: moved into a block when it is loaded, and back
+    /// when the block is replaced.
+    /// `None` until the first OnPair16 block is loaded.
+    dict_offsets_buffer: Option<DictOffsetsBuffer>,
     codes_buffer: Vec<u16>,
     value_buffer: Vec<u8>,
 }
@@ -260,25 +275,37 @@ impl PlainValueReader {
     /// Precondition: `value_idx < self.column.num_values()`.
     fn load_block_for_value(&mut self, value_idx: RowId) -> io::Result<()> {
         let block_index = &self.column.inner.block_index;
-        // Fast path: values are usually read in increasing order.
-        if let Some(current_block_id) = self.current_block_id() {
-            if block_index
-                .value_range(current_block_id)
-                .contains(&value_idx)
+        let block_id = match self.current_block_id() {
+            Some(current_block_id)
+                if block_index
+                    .value_range(current_block_id)
+                    .contains(&value_idx) =>
             {
                 return Ok(());
             }
-            let next_block_id = current_block_id + 1;
-            if next_block_id < block_index.num_blocks()
-                && block_index.value_range(next_block_id).contains(&value_idx)
+            // Fast path: values are usually read in increasing order.
+            Some(current_block_id)
+                if current_block_id + 1 < block_index.num_blocks()
+                    && block_index
+                        .value_range(current_block_id + 1)
+                        .contains(&value_idx) =>
             {
-                let block = self.column.load_block(next_block_id)?;
-                self.current_block = Some((next_block_id, block));
-                return Ok(());
+                current_block_id + 1
             }
+            _ => block_index.block_containing(value_idx),
+        };
+        self.replace_current_block(block_id)
+    }
+
+    /// Loads the block `block_id` as the current block, reusing the allocation of the previous
+    /// current block.
+    fn replace_current_block(&mut self, block_id: u32) -> io::Result<()> {
+        if let Some((_, previous_block)) = self.current_block.take() {
+            previous_block.recycle(&mut self.dict_offsets_buffer);
         }
-        let block_id = block_index.block_containing(value_idx);
-        let block = self.column.load_block(block_id)?;
+        let block = self
+            .column
+            .load_block(block_id, &mut self.dict_offsets_buffer)?;
         self.current_block = Some((block_id, block));
         Ok(())
     }
