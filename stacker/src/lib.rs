@@ -12,7 +12,7 @@ mod memory_arena;
 mod shared_arena_hashmap;
 
 pub use self::arena_hashmap::ArenaHashMap;
-pub use self::expull::ExpUnrolledLinkedList;
+pub use self::expull::{ExpUnrolledLinkedList, ExpUnrolledLinkedListChunks};
 pub use self::memory_arena::{Addr, MemoryArena};
 pub use self::shared_arena_hashmap::{SharedArenaHashMap, compute_table_memory_size};
 

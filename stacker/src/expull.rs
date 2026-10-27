@@ -253,7 +253,7 @@ impl<'a> ExpUnrolledLinkedListChunks<'a> {
     /// Appends the next `len` bytes to `output` and advances past them.
     ///
     /// Panics if fewer than `len` bytes remain.
-    pub(crate) fn read_exact_into(&mut self, mut len: usize, output: &mut Vec<u8>) {
+    pub fn read_exact_into(&mut self, mut len: usize, output: &mut Vec<u8>) {
         output.reserve(len);
         while len > 0 {
             assert!(
