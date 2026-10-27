@@ -1,5 +1,6 @@
 mod merge_dict_column;
 mod merge_mapping;
+mod merge_plain_column;
 mod term_merger;
 
 use std::collections::{BTreeMap, HashSet};
@@ -13,9 +14,12 @@ pub use merge_mapping::{MergeRowOrder, ShuffleMergeOrder, StackMergeOrder};
 use super::writer::ColumnarSerializer;
 use crate::column::{serialize_column_mappable_to_u64, serialize_column_mappable_to_u128};
 use crate::column_values::MergedColumnValues;
-use crate::columnar::ColumnarReader;
 use crate::columnar::merge::merge_dict_column::merge_bytes_or_str_column;
+use crate::columnar::merge::merge_plain_column::{
+    PlainMergeInput, merge_plain_bytes_or_str_column,
+};
 use crate::columnar::writer::CompatibleNumericalTypes;
+use crate::columnar::{ColumnarReader, StrColumnCodec, column_key_code};
 use crate::dynamic_column::DynamicColumn;
 use crate::{
     BytesColumn, Column, ColumnIndex, ColumnType, ColumnValues, DynamicColumnHandle, NumericalType,
@@ -30,7 +34,9 @@ use crate::{
 ///
 /// See also [README.md].
 ///
-/// The ordering has to match the ordering of the variants in [ColumnType].
+/// The merged columns are sorted by key before being serialized (see
+/// `column_key_code_lower_bound`): the ordering of the categories does not need to match the
+/// ordering of the column key codes.
 #[derive(Copy, Clone, Eq, PartialOrd, Ord, PartialEq, Hash, Debug)]
 pub(crate) enum ColumnTypeCategory {
     Numerical,
@@ -80,31 +86,82 @@ pub fn merge_columnar(
     merge_row_order: MergeRowOrder,
     output: &mut impl io::Write,
 ) -> io::Result<()> {
+    let required_columns_with_codecs: Vec<(String, ColumnType, StrColumnCodec)> = required_columns
+        .iter()
+        .map(|(column_name, column_type)| {
+            (
+                column_name.clone(),
+                *column_type,
+                StrColumnCodec::Dictionary,
+            )
+        })
+        .collect();
+    merge_columnar_with_codecs(
+        columnar_readers,
+        &required_columns_with_codecs,
+        merge_row_order,
+        output,
+    )
+}
+
+/// Same as [`merge_columnar`], with the codec of the required `Str` and `Bytes` columns.
+///
+/// A merged `Str` or `Bytes` column uses the plain codec if it is required with the plain
+/// codec, or if one of the merged columns uses it. Otherwise, it is dictionary encoded.
+pub fn merge_columnar_with_codecs(
+    columnar_readers: &[&ColumnarReader],
+    required_columns: &[(String, ColumnType, StrColumnCodec)],
+    merge_row_order: MergeRowOrder,
+    output: &mut impl io::Write,
+) -> io::Result<()> {
     let mut serializer = ColumnarSerializer::new(output);
     let num_docs_per_columnar = columnar_readers
         .iter()
         .map(|reader| reader.num_docs())
         .collect::<Vec<u32>>();
 
-    let columns_to_merge = group_columns_for_merge(columnar_readers, required_columns)?;
+    let columns_to_merge = group_columns_for_merge_with_codecs(columnar_readers, required_columns)?;
+    // Columns must be serialized in the order of their keys. The key code of a plain column
+    // sorts after all of the other column types, so the category order is not enough.
+    let mut columns_to_merge: Vec<((String, ColumnTypeCategory), GroupedColumnsHandle)> =
+        columns_to_merge.into_iter().collect();
+    columns_to_merge.sort_by_cached_key(
+        |((column_name, column_type_category), grouped_columns)| {
+            let key_code_lower_bound = column_key_code_lower_bound(
+                *column_type_category,
+                grouped_columns.codec_after_merge(),
+            );
+            (column_name.clone(), key_code_lower_bound)
+        },
+    );
     for res in columns_to_merge {
-        let ((column_name, _column_type_category), grouped_columns) = res;
-        let grouped_columns = grouped_columns.open(&merge_row_order)?;
+        let ((column_name, _column_type_category), grouped_columns_handle) = res;
+        let codec_after_merge = grouped_columns_handle.codec_after_merge();
+        let grouped_columns = grouped_columns_handle.open(&merge_row_order)?;
         if grouped_columns.is_empty() {
             continue;
         }
 
         let column_type_after_merge = grouped_columns.column_type_after_merge();
+        let codec = if matches!(column_type_after_merge, ColumnType::Str | ColumnType::Bytes) {
+            codec_after_merge
+        } else {
+            StrColumnCodec::Dictionary
+        };
         let mut columns = grouped_columns.columns;
         // Make sure the number of columns is the same as the number of columnar readers.
         // Or num_docs_per_columnar would be incorrect.
         assert_eq!(columns.len(), columnar_readers.len());
         coerce_columns(column_type_after_merge, &mut columns)?;
 
-        let mut column_serializer =
-            serializer.start_serialize_column(column_name.as_bytes(), column_type_after_merge);
+        let mut column_serializer = serializer.start_serialize_column_with_codec(
+            column_name.as_bytes(),
+            column_type_after_merge,
+            codec,
+        );
         merge_column(
             column_type_after_merge,
+            codec,
             &num_docs_per_columnar,
             columns,
             &merge_row_order,
@@ -115,6 +172,31 @@ pub fn merge_columnar(
 
     serializer.finalize(merge_row_order.num_rows())?;
     Ok(())
+}
+
+/// Returns the smallest key code a merged column of `column_type_category` can have.
+///
+/// The numerical type of a merged numerical column is only known once the columns are opened.
+/// All of the numerical key codes are smaller than the key codes of the other categories, so the
+/// order does not depend on it.
+fn column_key_code_lower_bound(
+    column_type_category: ColumnTypeCategory,
+    str_codec: StrColumnCodec,
+) -> u8 {
+    match column_type_category {
+        ColumnTypeCategory::Numerical => {
+            column_key_code(ColumnType::I64, StrColumnCodec::Dictionary)
+        }
+        ColumnTypeCategory::Bytes => column_key_code(ColumnType::Bytes, str_codec),
+        ColumnTypeCategory::Str => column_key_code(ColumnType::Str, str_codec),
+        ColumnTypeCategory::Bool => column_key_code(ColumnType::Bool, StrColumnCodec::Dictionary),
+        ColumnTypeCategory::IpAddr => {
+            column_key_code(ColumnType::IpAddr, StrColumnCodec::Dictionary)
+        }
+        ColumnTypeCategory::DateTime => {
+            column_key_code(ColumnType::DateTime, StrColumnCodec::Dictionary)
+        }
+    }
 }
 
 fn dynamic_column_to_u64_monotonic(dynamic_column: DynamicColumn) -> Option<Column<u64>> {
@@ -134,6 +216,7 @@ fn dynamic_column_to_u64_monotonic(dynamic_column: DynamicColumn) -> Option<Colu
 
 fn merge_column(
     column_type: ColumnType,
+    codec: StrColumnCodec,
     num_docs_per_column: &[u32],
     columns_to_merge: Vec<Option<DynamicColumn>>,
     merge_row_order: &MergeRowOrder,
@@ -199,6 +282,38 @@ fn merge_column(
 
             serialize_column_mappable_to_u128(merged_column_index, &merge_column_values, wrt)?;
         }
+        ColumnType::Bytes | ColumnType::Str if codec == StrColumnCodec::Plain => {
+            let mut column_indexes: Vec<ColumnIndex> = Vec::with_capacity(columns_to_merge.len());
+            let mut inputs: Vec<Option<PlainMergeInput>> =
+                Vec::with_capacity(columns_to_merge.len());
+            for (i, dynamic_column_opt) in columns_to_merge.into_iter().enumerate() {
+                let input_opt: Option<PlainMergeInput> = match dynamic_column_opt {
+                    Some(DynamicColumn::PlainStr(plain_str_column)) => {
+                        Some(PlainMergeInput::plain(&plain_str_column))
+                    }
+                    Some(DynamicColumn::PlainBytes(plain_bytes_column)) => {
+                        Some(PlainMergeInput::plain(&plain_bytes_column))
+                    }
+                    Some(DynamicColumn::Str(str_column)) => {
+                        Some(PlainMergeInput::Dictionary(str_column.into()))
+                    }
+                    Some(DynamicColumn::Bytes(bytes_column)) => {
+                        Some(PlainMergeInput::Dictionary(bytes_column))
+                    }
+                    _ => None,
+                };
+                match &input_opt {
+                    Some(input) => column_indexes.push(input.column_index().clone()),
+                    None => column_indexes.push(ColumnIndex::Empty {
+                        num_docs: num_docs_per_column[i],
+                    }),
+                }
+                inputs.push(input_opt);
+            }
+            let merged_column_index =
+                crate::column_index::merge_column_index(&column_indexes[..], merge_row_order);
+            merge_plain_bytes_or_str_column(merged_column_index, inputs, merge_row_order, wrt)?;
+        }
         ColumnType::Bytes | ColumnType::Str => {
             let mut column_indexes: Vec<ColumnIndex> = Vec::with_capacity(columns_to_merge.len());
             let mut bytes_columns: Vec<Option<BytesColumn>> =
@@ -214,9 +329,11 @@ fn merge_column(
                         bytes_columns.push(Some(bytes_column));
                     }
                     Some(DynamicColumn::PlainStr(_) | DynamicColumn::PlainBytes(_)) => {
+                        // `codec_after_merge` is plain as soon as one input is plain.
                         return Err(io::Error::new(
                             io::ErrorKind::InvalidInput,
-                            "merging plain-encoded columns is not supported",
+                            "a plain-encoded column cannot be merged into a dictionary encoded \
+                             column",
                         ));
                     }
                     _ => {
@@ -278,6 +395,8 @@ impl GroupedColumns {
 
 struct GroupedColumnsHandle {
     required_column_type: Option<ColumnType>,
+    /// Plain if the column is required with the plain codec.
+    required_codec: StrColumnCodec,
     columns: Vec<Option<DynamicColumnHandle>>,
 }
 
@@ -285,7 +404,25 @@ impl GroupedColumnsHandle {
     fn new(num_columnars: usize) -> Self {
         GroupedColumnsHandle {
             required_column_type: None,
+            required_codec: StrColumnCodec::Dictionary,
             columns: vec![None; num_columnars],
+        }
+    }
+
+    /// Returns the codec of the merged column, if it is a `Str` or `Bytes` column.
+    ///
+    /// The plain codec wins: dictionary encoded columns can be converted into plain-encoded
+    /// columns, not the other way around.
+    fn codec_after_merge(&self) -> StrColumnCodec {
+        let has_plain_column = self
+            .columns
+            .iter()
+            .flatten()
+            .any(|column_handle| column_handle.str_codec() == Some(StrColumnCodec::Plain));
+        if has_plain_column || self.required_codec == StrColumnCodec::Plain {
+            StrColumnCodec::Plain
+        } else {
+            StrColumnCodec::Dictionary
         }
     }
     fn open(self, merge_row_order: &MergeRowOrder) -> io::Result<GroupedColumns> {
@@ -317,8 +454,15 @@ impl GroupedColumnsHandle {
         self.columns[columnar_id] = Some(column);
     }
 
-    /// Force the existence of a column, as well as its type.
-    fn require_type(&mut self, required_type: ColumnType) -> io::Result<()> {
+    /// Force the existence of a column, as well as its type and its codec.
+    fn require_type(
+        &mut self,
+        required_type: ColumnType,
+        required_codec: StrColumnCodec,
+    ) -> io::Result<()> {
+        if required_codec == StrColumnCodec::Plain {
+            self.required_codec = StrColumnCodec::Plain;
+        }
         if let Some(existing_required_type) = self.required_column_type {
             if existing_required_type == required_type {
                 // This was just a duplicate in the `required_columns`.
@@ -403,19 +547,46 @@ fn is_empty_after_merge(
     }
 }
 
+/// Same as [`group_columns_for_merge_with_codecs`], with dictionary encoded required columns.
+#[cfg(test)]
+fn group_columns_for_merge(
+    columnar_readers: &[&ColumnarReader],
+    required_columns: &[(String, ColumnType)],
+) -> io::Result<BTreeMap<(String, ColumnTypeCategory), GroupedColumnsHandle>> {
+    let required_columns_with_codecs: Vec<(String, ColumnType, StrColumnCodec)> = required_columns
+        .iter()
+        .map(|(column_name, column_type)| {
+            (
+                column_name.clone(),
+                *column_type,
+                StrColumnCodec::Dictionary,
+            )
+        })
+        .collect();
+    group_columns_for_merge_with_codecs(columnar_readers, &required_columns_with_codecs)
+}
+
 /// Iterates over the columns of the columnar readers, grouped by column name.
 /// Key functionality is that `open` of the Columns is done lazy per group.
-fn group_columns_for_merge<'a>(
+fn group_columns_for_merge_with_codecs<'a>(
     columnar_readers: &'a [&'a ColumnarReader],
-    required_columns: &'a [(String, ColumnType)],
+    required_columns: &'a [(String, ColumnType, StrColumnCodec)],
 ) -> io::Result<BTreeMap<(String, ColumnTypeCategory), GroupedColumnsHandle>> {
     let mut columns: BTreeMap<(String, ColumnTypeCategory), GroupedColumnsHandle> = BTreeMap::new();
 
-    for &(ref column_name, column_type) in required_columns {
+    for &(ref column_name, column_type, codec) in required_columns {
+        if codec == StrColumnCodec::Plain
+            && !matches!(column_type, ColumnType::Str | ColumnType::Bytes)
+        {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "the plain codec is only supported for str and bytes columns",
+            ));
+        }
         columns
             .entry((column_name.clone(), column_type.into()))
             .or_insert_with(|| GroupedColumnsHandle::new(columnar_readers.len()))
-            .require_type(column_type)?;
+            .require_type(column_type, codec)?;
     }
 
     for (columnar_id, columnar_reader) in columnar_readers.iter().enumerate() {

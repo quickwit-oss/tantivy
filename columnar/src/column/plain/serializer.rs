@@ -1,6 +1,3 @@
-// Only used by tests until the columnar writer supports the plain codec.
-#![cfg_attr(not(test), allow(dead_code))]
-
 use std::io;
 
 use super::block::encode_block;
