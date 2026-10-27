@@ -12,7 +12,7 @@ pub const TEST_COLLECTOR_WITH_SCORE: TestCollector = TestCollector {
 };
 
 pub const TEST_COLLECTOR_WITHOUT_SCORE: TestCollector = TestCollector {
-    compute_score: true,
+    compute_score: false,
 };
 
 #[test]
