@@ -6,7 +6,7 @@ Tantivy Upcoming Release
 - `DynamicColumn` has new `PlainStr` and `PlainBytes` variants; exhaustive matches on `DynamicColumn` need new arms [#3179](https://github.com/quickwit-oss/tantivy/pull/3179)(@fulmicoton-dd)
 
 ## Features/Improvements
-- `TermDictionary::term_info_from_ord` returns the `TermInfo` of a term ordinal without a key lookup (@Arturus)
+- `TermDictionary::term_info_from_ord` returns the `TermInfo` of a term ordinal without a key lookup [#3219](https://github.com/quickwit-oss/tantivy/pull/3219)(@Arturus)
 
 
 Tantivy 0.27.0
