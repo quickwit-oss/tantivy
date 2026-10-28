@@ -1,23 +1,43 @@
 use crate::docset::{DocSet, TERMINATED};
 use crate::postings::Postings;
-use crate::DocId;
+use crate::query::score_combiner::{DoNothingCombiner, ScoreCombiner};
+use crate::query::Scorer;
+use crate::{DocId, Score};
 
 /// A `SimpleUnion` is a `DocSet` that is the union of multiple `DocSet`.
 /// Unlike `BufferedUnion`, it doesn't do any horizon precomputation.
 ///
 /// For that reason SimpleUnion is a good choice for queries that skip a lot.
-pub struct SimpleUnion<TDocSet> {
+pub struct SimpleUnion<TDocSet, TScoreCombiner = DoNothingCombiner> {
     docsets: Vec<TDocSet>,
+    score_combiner: TScoreCombiner,
     doc: DocId,
 }
 
-impl<TDocSet: DocSet> SimpleUnion<TDocSet> {
-    pub(crate) fn build(mut docsets: Vec<TDocSet>) -> SimpleUnion<TDocSet> {
+impl<TDocSet: DocSet> SimpleUnion<TDocSet, DoNothingCombiner> {
+    pub(crate) fn build(docsets: Vec<TDocSet>) -> Self {
+        Self::build_with_combiner(docsets, DoNothingCombiner)
+    }
+}
+
+impl<TScorer: Scorer, TScoreCombiner: ScoreCombiner> SimpleUnion<TScorer, TScoreCombiner> {
+    pub(crate) fn build_scored(
+        scorers: Vec<TScorer>,
+        score_combiner_fn: impl FnOnce() -> TScoreCombiner,
+    ) -> Self {
+        Self::build_with_combiner(scorers, score_combiner_fn())
+    }
+}
+
+impl<TDocSet: DocSet, TScoreCombiner> SimpleUnion<TDocSet, TScoreCombiner> {
+    fn build_with_combiner(mut docsets: Vec<TDocSet>, score_combiner: TScoreCombiner) -> Self {
         docsets.retain(|docset| docset.doc() != TERMINATED);
-        let mut docset = SimpleUnion { docsets, doc: 0 };
-
+        let mut docset = SimpleUnion {
+            docsets,
+            score_combiner,
+            doc: 0,
+        };
         docset.initialize_first_doc_id();
-
         docset
     }
 
@@ -44,7 +64,9 @@ impl<TDocSet: DocSet> SimpleUnion<TDocSet> {
     }
 }
 
-impl<TDocSet: Postings> Postings for SimpleUnion<TDocSet> {
+impl<TDocSet: Postings, TScoreCombiner: Send + 'static> Postings
+    for SimpleUnion<TDocSet, TScoreCombiner>
+{
     fn term_freq(&self) -> u32 {
         let mut term_freq = 0;
         for docset in &self.docsets {
@@ -68,7 +90,7 @@ impl<TDocSet: Postings> Postings for SimpleUnion<TDocSet> {
     }
 }
 
-impl<TDocSet: DocSet> DocSet for SimpleUnion<TDocSet> {
+impl<TDocSet: DocSet, TScoreCombiner: Send> DocSet for SimpleUnion<TDocSet, TScoreCombiner> {
     fn advance(&mut self) -> DocId {
         self.advance_to_next();
         self.doc
@@ -113,5 +135,20 @@ impl<TDocSet: DocSet> DocSet for SimpleUnion<TDocSet> {
             count += 1;
         }
         count
+    }
+}
+
+impl<TScorer: Scorer, TScoreCombiner: ScoreCombiner> Scorer
+    for SimpleUnion<TScorer, TScoreCombiner>
+{
+    fn score(&mut self) -> Score {
+        self.score_combiner.clear();
+        // Child order determines floating-point accumulation order, as in BufferedUnionScorer.
+        for scorer in &mut self.docsets {
+            if scorer.doc() == self.doc {
+                self.score_combiner.update(scorer);
+            }
+        }
+        self.score_combiner.score()
     }
 }
