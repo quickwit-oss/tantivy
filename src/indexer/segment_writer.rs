@@ -5,6 +5,7 @@ use crate::index::{InvertedIndexPluginWriter, Segment};
 use crate::plugin::{PluginWriter, PluginWriterContext};
 use crate::schema::document::{Document, ErasedDocument};
 use crate::schema::Schema;
+use crate::spatial::plugin::SpatialPluginWriter;
 use crate::store::StorePluginWriter;
 use crate::{DocId, Opstamp, TantivyError};
 
@@ -33,6 +34,7 @@ pub struct SegmentWriter {
     pub(crate) inverted_index: InvertedIndexPluginWriter,
     pub(crate) fast_fields: FastFieldsPluginWriter,
     pub(crate) store_writer: StorePluginWriter,
+    pub(crate) spatial: SpatialPluginWriter,
     custom_plugins: Vec<Box<dyn PluginWriter>>,
     pub(crate) doc_opstamps: Vec<Opstamp>,
     schema: Schema,
@@ -57,6 +59,7 @@ impl SegmentWriter {
         let inverted_index = InvertedIndexPluginWriter::new(&ctx)?;
         let fast_fields = FastFieldsPluginWriter::new(&ctx)?;
         let store_writer = StorePluginWriter::new(&ctx)?;
+        let spatial = SpatialPluginWriter::new(&ctx);
         let custom_plugins = segment
             .index()
             .custom_plugins()
@@ -69,6 +72,7 @@ impl SegmentWriter {
             inverted_index,
             fast_fields,
             store_writer,
+            spatial,
             custom_plugins,
             doc_opstamps: Vec::with_capacity(1_000),
             schema,
@@ -144,11 +148,13 @@ impl SegmentWriter {
     }
 
     fn finalize_inner(self, mapping: Option<&DocIdMapping>) -> crate::Result<Vec<u64>> {
-        // Serialize in write order: inverted index, fast fields, store, then custom plugins.
+        // Serialize in write order: inverted index, fast fields, store, spatial, then custom
+        // plugins.
         let segment = &self.segment;
         Box::new(self.inverted_index).serialize(segment, mapping)?;
         Box::new(self.fast_fields).serialize(segment, mapping)?;
         Box::new(self.store_writer).serialize(segment, mapping)?;
+        Box::new(self.spatial).serialize(segment, mapping)?;
         for writer in self.custom_plugins {
             writer.serialize(segment, mapping)?;
         }
@@ -163,6 +169,7 @@ impl SegmentWriter {
         self.inverted_index.mem_usage()
             + self.fast_fields.mem_usage()
             + self.store_writer.mem_usage()
+            + self.spatial.mem_usage()
             + self
                 .custom_plugins
                 .iter()
@@ -185,6 +192,8 @@ impl SegmentWriter {
         self.inverted_index.index_document(doc_id, &document)?;
         self.fast_fields.index_document(&document)?;
         self.store_writer.store(&document, &self.schema)?;
+        self.spatial
+            .index_document(doc_id, &document, &self.schema)?;
 
         // Custom plugins are trait objects, so they take the document type-erased. Leaves stay
         // borrowed; a plugin that knows the concrete type recovers it for free via `as_any`.

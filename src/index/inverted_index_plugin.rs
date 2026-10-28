@@ -392,7 +392,7 @@ impl InvertedIndexPluginWriter {
                     }
                 }
                 // These fields are not indexed; the `is_indexed()` guard above skips them.
-                FieldType::TieBreaker | FieldType::Custom(_) => {
+                FieldType::TieBreaker | FieldType::Custom(_) | FieldType::Spatial(_) => {
                     unreachable!("the inverted index does not support this field type")
                 }
             }

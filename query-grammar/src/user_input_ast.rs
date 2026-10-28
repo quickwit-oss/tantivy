@@ -5,6 +5,24 @@ use serde::Serialize;
 
 use crate::Occur;
 
+/// The spatial predicate kind, shared between parser and formatter.
+#[derive(PartialEq, Eq, Hash, Clone, Debug, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum SpatialPredicateKind {
+    Intersects,
+    /// The field's geometry contains the query's: `$contains`.
+    Contains,
+    /// The field's geometry lies inside the query polygon: `$within` with a polygon and no
+    /// distance.
+    CoveredBy,
+    Within(ordered_float::OrderedFloat<f64>),
+    Between(
+        ordered_float::OrderedFloat<f64>,
+        ordered_float::OrderedFloat<f64>,
+    ),
+    Knn(usize),
+}
+
 #[derive(PartialEq, Eq, Hash, Clone, Serialize)]
 #[serde(tag = "type")]
 #[serde(rename_all = "snake_case")]
@@ -26,6 +44,16 @@ pub enum UserInputLeaf {
     Regex {
         field: Option<String>,
         pattern: String,
+    },
+    Spatial {
+        field: Option<String>,
+        predicate: SpatialPredicateKind,
+        coordinates: Vec<(
+            ordered_float::OrderedFloat<f64>,
+            ordered_float::OrderedFloat<f64>,
+        )>,
+        /// If set, this spatial predicate is a join. The string is the inner query text.
+        inner_query: Option<String>,
     },
 }
 
@@ -52,6 +80,17 @@ impl UserInputLeaf {
                 None => UserInputLeaf::All,
             },
             UserInputLeaf::Regex { field: _, pattern } => UserInputLeaf::Regex { field, pattern },
+            UserInputLeaf::Spatial {
+                field: _,
+                predicate,
+                coordinates,
+                inner_query,
+            } => UserInputLeaf::Spatial {
+                field,
+                predicate,
+                coordinates,
+                inner_query,
+            },
         }
     }
 
@@ -68,7 +107,8 @@ impl UserInputLeaf {
             UserInputLeaf::Range { field, .. } if field.is_none() => *field = Some(default_field),
             UserInputLeaf::Set { field, .. } if field.is_none() => *field = Some(default_field),
             UserInputLeaf::Regex { field, .. } if field.is_none() => *field = Some(default_field),
-            _ => (), // field was already set, do nothing
+            UserInputLeaf::Spatial { .. } => (),
+            _ => (),
         }
     }
 }
@@ -117,6 +157,39 @@ impl Debug for UserInputLeaf {
                 }
                 // TODO properly escape pattern (in case of \")
                 write!(formatter, "/{pattern}/")
+            }
+            UserInputLeaf::Spatial {
+                field,
+                predicate,
+                coordinates,
+                inner_query,
+            } => {
+                if let Some(field) = field {
+                    write!(formatter, "\"{field}\":")?;
+                }
+                match predicate {
+                    SpatialPredicateKind::Intersects => write!(formatter, "$intersects(")?,
+                    SpatialPredicateKind::Contains => write!(formatter, "$contains(")?,
+                    SpatialPredicateKind::CoveredBy => write!(formatter, "$within(")?,
+                    SpatialPredicateKind::Within(radius) => {
+                        write!(formatter, "$within({}rad, ", radius.0)?
+                    }
+                    SpatialPredicateKind::Between(inner, outer) => {
+                        write!(formatter, "$between({}rad, {}rad, ", inner.0, outer.0)?
+                    }
+                    SpatialPredicateKind::Knn(k) => write!(formatter, "$knn({k}, ")?,
+                }
+                // A join has an inner query in place of coordinates.
+                if let Some(inner_query) = inner_query {
+                    write!(formatter, "$query({inner_query})")?;
+                }
+                for (i, (lon, lat)) in coordinates.iter().enumerate() {
+                    if i > 0 {
+                        write!(formatter, ", ")?;
+                    }
+                    write!(formatter, "{} {}", lon.0, lat.0)?;
+                }
+                write!(formatter, ")")
             }
         }
     }
