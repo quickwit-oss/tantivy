@@ -20,9 +20,9 @@ Different values from a document can map to the same bucket key. For example, pr
 
     (10, x), (10, y), (10, x), (10, y)
 
-Composite translates named sources into a multi-terms aggregation and exposes its results through the composite API.
+A source in the composite API is a named grouping rule: a field, a mapping such as terms or histogram intervals, and sort and missing-value settings. For example, grouping by product terms and price intervals of 10 can produce the key `{product: "shoe", price_band: 20}`. Composite translates these rules into a multi-terms aggregation and exposes its results through the composite API.
 
-Multi-terms maps each source's column values to source sort values, which encode sort direction and missing-value placement. Terms values also encode column position. `DocumentSortValues` buffers these values and their document IDs, deduplicating values across a source's physical columns for each document before combining values from different sources into bucket keys. Histogram and date-histogram values deduplicate after bucket mapping. Multi-terms applies exclusive pagination and stores the first page of keys.
+Multi-terms maps each grouping rule's column values to bucket sort values, which encode sort direction and missing-value placement. Terms values also encode column position. `DocumentBucketValues` buffers these values and their document IDs, deduplicating values across a grouping rule's physical columns for each document before combining values from different rules into bucket keys. Histogram and date-histogram values deduplicate after bucket mapping. Multi-terms applies exclusive pagination and stores the first page of keys.
 
 Pagination filtering happens before candidate selection, including bounds absent from dictionaries or not exactly representable by numeric columns. Ordered expansion retains at most `size + 1` combinations per document at each stage: enough to fill the page even if the one prefix equal to `after` has no qualifying suffix. Bucket storage retains only `size` keys per parent bucket.
 

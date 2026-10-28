@@ -1,4 +1,4 @@
-//! Map column values to source sort values and retain the first page of bucket keys.
+//! Map column values to bucket sort values and retain the first page of bucket keys.
 
 use std::cmp::Ordering;
 
@@ -15,17 +15,20 @@ use crate::aggregation::segment_agg_result::BucketIdProvider;
 use crate::aggregation::{BucketId, ColumnBlockAccessor};
 use crate::{DocId, TantivyError};
 
-/// A source value encoded to sort by column position, requested direction, and missing-value
-/// placement. Each source contributes a value to the bucket key.
-/// Positions 0 and 255 place missing values first or last. Columns occupy 1..=254.
-/// Descending values are bit-flipped.
+/// A bucket value encoded to sort in the requested order.
+/// Each grouping rule (called a source in the composite API) contributes a value to the bucket key.
+/// For example, grouping prices into intervals of 10 maps price 23 to bucket value 20.
+/// This stores the bucket index 2 with sort encoding applied. Resolving the key recovers 20.
+///
+/// Values sort by column position, then encoded value. Positions 0 and 255 place missing values
+/// first or last. Columns occupy 1..=254. Descending values are bit-flipped.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Default, Hash)]
-pub(super) struct SourceSortValue {
+pub(super) struct BucketSortValue {
     column_position: u8,
     encoded_value: u64,
 }
 
-impl SourceSortValue {
+impl BucketSortValue {
     fn encode_value(value: u64, column_index: usize, order: Order) -> Self {
         Self {
             column_position: column_index as u8 + 1,
@@ -45,22 +48,24 @@ impl SourceSortValue {
 }
 
 pub(super) const MAX_SOURCES: usize = 16;
-impl<const S: usize> AggregationMapKey for [SourceSortValue; S] {}
+impl<const S: usize> AggregationMapKey for [BucketSortValue; S] {}
 
-/// Packs source sort values into an array used as a bucket key.
+/// Packs bucket sort values into an array used as a bucket key.
+/// For example, grouping by product and price interval produces an array of two encoded values
+/// representing a key such as `{product: "shoe", price_band: 20}`.
 #[derive(Clone, Debug)]
-pub(super) struct SourceSortValueArrayPacking<const S: usize>;
+pub(super) struct BucketSortValueArrayPacking<const S: usize>;
 
-impl<const S: usize> TuplePacking for SourceSortValueArrayPacking<S> {
-    type Value = SourceSortValue;
-    type Key = [SourceSortValue; S];
+impl<const S: usize> TuplePacking for BucketSortValueArrayPacking<S> {
+    type Value = BucketSortValue;
+    type Key = [BucketSortValue; S];
 
     fn new_key(&self) -> Self::Key {
-        [SourceSortValue::default(); S]
+        [BucketSortValue::default(); S]
     }
 
     fn clear_key(&self, _key: &mut Self::Key) {
-        // Each source's value is overwritten before the key prefix is compared or collected.
+        // Each grouping rule's value is overwritten before the key prefix is compared or collected.
     }
 
     fn push(&self, key: &mut Self::Key, field_idx: usize, value: Self::Value) {
@@ -72,14 +77,14 @@ impl<const S: usize> TuplePacking for SourceSortValueArrayPacking<S> {
     }
 }
 
-/// Buckets for the first `size` keys in source order.
+/// Buckets for the first `size` keys in the requested sort order.
 #[derive(Debug)]
 pub(super) struct KeyPageBuckets<const S: usize> {
-    map: ArrayHeapMap<SourceSortValue, Bucket, S>,
+    map: ArrayHeapMap<BucketSortValue, Bucket, S>,
     size: usize,
 }
 
-impl<const S: usize> MultiTermsBuckets<[SourceSortValue; S]> for KeyPageBuckets<S> {
+impl<const S: usize> MultiTermsBuckets<[BucketSortValue; S]> for KeyPageBuckets<S> {
     type ChildBucketId = BucketId;
     const SORTED_BY_KEY: bool = false;
 
@@ -99,13 +104,13 @@ impl<const S: usize> MultiTermsBuckets<[SourceSortValue; S]> for KeyPageBuckets<
         self.map.memory_consumption()
     }
 
-    fn into_vec(self) -> Vec<([SourceSortValue; S], Bucket)> {
+    fn into_vec(self) -> Vec<([BucketSortValue; S], Bucket)> {
         self.map.into_iter().collect()
     }
 
     fn count_tuple(
         &mut self,
-        key: &[SourceSortValue; S],
+        key: &[BucketSortValue; S],
         bucket_id_provider: &mut BucketIdProvider,
     ) -> Option<BucketId> {
         let bucket = self.map.get_or_insert_with(key, self.size, || Bucket {
@@ -117,23 +122,26 @@ impl<const S: usize> MultiTermsBuckets<[SourceSortValue; S]> for KeyPageBuckets<
     }
 }
 
-/// Buffers for one source's sort values and their document IDs.
+/// Holds document IDs and the bucket values produced by one grouping rule.
+/// For example, with price interval 10, document 7's prices `[12, 15]` both map to bucket 10,
+/// and document 8's price `[25]` maps to bucket 20. After deduplication, `document_ids` is `[7, 8]`
+/// and `sort_values` holds the encoded bucket values for `[10, 20]`.
 #[derive(Debug, Default)]
-pub(super) struct DocumentSortValues {
-    /// Document IDs paired with source sort values for sorting and deduplication.
-    document_values: Vec<(DocId, SourceSortValue)>,
+pub(super) struct DocumentBucketValues {
+    /// Document IDs paired with bucket sort values for sorting and deduplication.
+    document_values: Vec<(DocId, BucketSortValue)>,
     /// Document IDs corresponding to the output sort values.
     /// Left empty when a single column supplies one value per input document.
     document_ids: Vec<DocId>,
     /// Sort values returned for the requested documents, deduplicated per document.
-    sort_values: Vec<SourceSortValue>,
+    sort_values: Vec<BucketSortValue>,
 }
 
-impl SourceValue for SourceSortValue {
+impl SourceValue for BucketSortValue {
     const ENCODES_KEY_ORDER: bool = true;
-    type Buffer = DocumentSortValues;
+    type Buffer = DocumentBucketValues;
 
-    fn buffer_memory_consumption(buffer: &DocumentSortValues) -> usize {
+    fn buffer_memory_consumption(buffer: &DocumentBucketValues) -> usize {
         buffer.document_values.capacity() * std::mem::size_of::<(DocId, Self)>()
             + buffer.document_ids.capacity() * std::mem::size_of::<DocId>()
             + buffer.sort_values.capacity() * std::mem::size_of::<Self>()
@@ -143,7 +151,7 @@ impl SourceValue for SourceSortValue {
         req: &MultiTermsAggReqData,
         field: usize,
         docs: &[DocId],
-        buffer: &'a mut DocumentSortValues,
+        buffer: &'a mut DocumentBucketValues,
         block: &'a mut ColumnBlockAccessor,
     ) -> crate::Result<DocumentValues<'a, Self>> {
         let source = &req.key_page.as_ref().expect("key page configured").sources[field];
@@ -157,7 +165,7 @@ impl SourceValue for SourceSortValue {
                 for &value in block.values() {
                     buffer
                         .sort_values
-                        .push(map_source_sort_value(source, column_index, value)?);
+                        .push(map_bucket_sort_value(source, column_index, value)?);
                 }
                 return Ok(DocumentValues {
                     docids: None,
@@ -168,10 +176,10 @@ impl SourceValue for SourceSortValue {
             for (doc, value) in block.iter_docid_vals(docs) {
                 buffer
                     .document_values
-                    .push((doc, map_source_sort_value(source, column_index, value)?));
+                    .push((doc, map_bucket_sort_value(source, column_index, value)?));
             }
         }
-        // Histogram mapping can give different column values the same source sort value,
+        // Histogram mapping can give different column values the same bucket sort value,
         // including values from different physical columns.
         buffer.document_values.sort_unstable();
         buffer.document_values.dedup();
@@ -298,16 +306,16 @@ impl KeyPage {
     }
 }
 
-/// Maps a column value to a source sort value before deduplication.
+/// Maps a column value to a bucket sort value before deduplication.
 #[inline(always)]
-fn map_source_sort_value(
+fn map_bucket_sort_value(
     source: &BucketSource,
     column_index: usize,
     value: u64,
-) -> crate::Result<SourceSortValue> {
+) -> crate::Result<BucketSortValue> {
     let bucket = match source.mapping {
         BucketKeyMapping::Terms => {
-            return Ok(SourceSortValue::encode_value(
+            return Ok(BucketSortValue::encode_value(
                 value,
                 column_index,
                 source.order,
@@ -347,7 +355,7 @@ fn map_source_sort_value(
             }
         }
     };
-    Ok(SourceSortValue::encode_value(
+    Ok(BucketSortValue::encode_value(
         bucket.to_u64(),
         0,
         source.order,
@@ -456,7 +464,7 @@ mod tests {
         let mut collector =
             SegmentMultiTermsCollector::<_, KeyPageBuckets<3>, HighCardSubAggBuffer>::new(
                 request.build_multi_terms_segment_request("page", reader)?,
-                SourceSortValueArrayPacking::<3>,
+                BucketSortValueArrayPacking::<3>,
                 0,
                 None,
             );
@@ -488,7 +496,7 @@ mod tests {
         let mut collector =
             SegmentMultiTermsCollector::<_, KeyPageBuckets<3>, HighCardSubAggBuffer>::new(
                 request.build_multi_terms_segment_request("page", reader)?,
-                SourceSortValueArrayPacking::<3>,
+                BucketSortValueArrayPacking::<3>,
                 0,
                 None,
             );
