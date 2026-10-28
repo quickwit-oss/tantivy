@@ -645,7 +645,7 @@ impl<TScoreCombiner: ScoreCombiner + Sync> Weight for BooleanWeight<TScoreCombin
                     for_each_docset_buffered(&mut term_scorer, &mut buffer, callback);
                 } else {
                     let mut union_scorer =
-                        BufferedUnionScorer::build(term_scorers, &self.score_combiner_fn, num_docs);
+                        BufferedUnionScorer::build(term_scorers, || DoNothingCombiner, num_docs);
                     for_each_docset_buffered(&mut union_scorer, &mut buffer, callback);
                 }
             }
@@ -720,10 +720,11 @@ fn is_include_occur(occur: Occur) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use super::create_aligned_scorers_for_intersection;
-    use crate::query::{EmptyScorer, EnableScoring, Query, TermQuery, Weight};
+    use super::{create_aligned_scorers_for_intersection, BooleanWeight};
+    use crate::query::score_combiner::ScoreCombiner;
+    use crate::query::{EmptyScorer, EnableScoring, Occur, Query, Scorer, TermQuery, Weight};
     use crate::schema::{Field, IndexRecordOption, Schema, TEXT};
-    use crate::{Index, Searcher, Term, TERMINATED};
+    use crate::{Index, Score, Searcher, Term, TERMINATED};
 
     fn test_index() -> crate::Result<(Index, Field)> {
         let mut schema_builder = Schema::builder();
@@ -748,6 +749,52 @@ mod tests {
     ) -> crate::Result<Box<dyn Weight>> {
         TermQuery::new(Term::from_field_text(field, term), IndexRecordOption::Basic)
             .weight(EnableScoring::disabled_from_searcher(searcher))
+    }
+
+    #[test]
+    fn test_for_each_no_score_term_union_skips_scoring() -> crate::Result<()> {
+        #[derive(Default, Clone, Copy)]
+        struct PanicOnScoreCombiner;
+
+        impl ScoreCombiner for PanicOnScoreCombiner {
+            fn update<TScorer: Scorer>(&mut self, _scorer: &mut TScorer) {
+                panic!("unscored traversal must not combine scores");
+            }
+
+            fn clear(&mut self) {}
+
+            fn score(&self) -> Score {
+                panic!("unscored traversal must not compute scores");
+            }
+        }
+
+        let (index, text) = test_index()?;
+        let searcher = index.reader()?.searcher();
+        // Reading frequencies selects the specialized term-union dispatch.
+        let weights = ["a", "b"]
+            .into_iter()
+            .map(|term| {
+                let weight = TermQuery::new(
+                    Term::from_field_text(text, term),
+                    IndexRecordOption::WithFreqs,
+                )
+                .weight(EnableScoring::enabled_from_searcher(&searcher))?;
+                Ok((Occur::Should, weight))
+            })
+            .collect::<crate::Result<Vec<_>>>()?;
+        let weight = BooleanWeight::with_minimum_number_should_match(
+            weights,
+            1,
+            true,
+            Box::new(PanicOnScoreCombiner::default),
+        );
+        let mut docs = Vec::new();
+        weight.for_each_no_score(searcher.segment_reader(0), &mut |batch| {
+            docs.extend_from_slice(batch);
+        })?;
+
+        assert_eq!(docs, [0, 1, 2, 4, 5, 6, 7, 8]);
+        Ok(())
     }
 
     #[test]
