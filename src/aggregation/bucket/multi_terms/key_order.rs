@@ -4,7 +4,7 @@ use std::cmp::Ordering;
 
 use columnar::{ColumnType, MonotonicallyMappableToU64};
 
-use super::collector::{DocumentValues, SourceValue, TupleBuckets};
+use super::collector::{DocumentValues, MultiTermsBuckets, SourceValue};
 use super::map::ArrayHeapMap;
 use super::sources::{BucketKeyMapping, BucketSource, DateInterval, KeyPage, SourceAfterKey};
 use super::{calendar_interval, MultiTermsAggReqData, TuplePacking};
@@ -77,12 +77,16 @@ pub(super) struct KeyPageBuckets<const S: usize> {
     size: usize,
 }
 
-impl<const S: usize> TupleBuckets<[OrderedKeyComponent; S]> for KeyPageBuckets<S> {
+impl<const S: usize> MultiTermsBuckets<[OrderedKeyComponent; S]> for KeyPageBuckets<S> {
     type ChildBucketId = BucketId;
     const SORTED_BY_KEY: bool = false;
 
-    fn new(req: &MultiTermsAggReqData, _map_init_value: u64, _ids: &mut BucketIdProvider) -> Self {
-        let page = req.key_page.as_ref().expect("key page configured");
+    fn new(
+        request: &MultiTermsAggReqData,
+        _key_limit: u64,
+        _bucket_id_provider: &mut BucketIdProvider,
+    ) -> Self {
+        let page = request.key_page.as_ref().expect("key page configured");
         Self {
             map: ArrayHeapMap::default(),
             size: page.size,
@@ -100,11 +104,11 @@ impl<const S: usize> TupleBuckets<[OrderedKeyComponent; S]> for KeyPageBuckets<S
     fn count_tuple(
         &mut self,
         key: &[OrderedKeyComponent; S],
-        ids: &mut BucketIdProvider,
+        bucket_id_provider: &mut BucketIdProvider,
     ) -> Option<BucketId> {
         let bucket = self.map.get_or_insert_with(key, self.size, || Bucket {
             count: 0,
-            bucket_id: ids.next_bucket_id(),
+            bucket_id: bucket_id_provider.next_bucket_id(),
         })?;
         bucket.count += 1;
         Some(bucket.bucket_id)

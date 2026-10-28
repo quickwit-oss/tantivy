@@ -31,30 +31,54 @@ impl<V: Copy> DocumentValues<'_, V> {
     }
 }
 
-/// Stores and counts buckets for tuples of field values; rejects tuples whose buckets are not
-/// retained.
-pub(crate) trait TupleBuckets<K>: Debug + 'static {
-    /// Identifies the bucket for child aggregations; `()` when no identifier is needed.
+/// Stores buckets for multi-terms aggregation and counts documents for each combination of field
+/// values. Implementations may retain all combinations or a page of keys in source order.
+pub(crate) trait MultiTermsBuckets<TupleKey>: Debug + 'static {
+    /// Bucket ID used by child aggregations, or `()` when there are no children.
     type ChildBucketId: BucketIdSlot;
 
+    /// Whether `into_vec` returns buckets in ascending key order.
     const SORTED_BY_KEY: bool;
 
-    fn new(req: &MultiTermsAggReqData, map_init_value: u64, ids: &mut BucketIdProvider) -> Self;
+    /// Creates bucket storage for the request. `key_limit` sizes storage as described by
+    /// [`TermAggregationMap::new`]. Page-of-keys storage uses the request's page size instead.
+    fn new(
+        request: &MultiTermsAggReqData,
+        key_limit: u64,
+        bucket_id_provider: &mut BucketIdProvider,
+    ) -> Self;
+
+    /// Estimates storage memory consumption in bytes.
     fn memory_consumption(&self) -> usize;
-    fn count_tuple(&mut self, key: &K, ids: &mut BucketIdProvider) -> Option<Self::ChildBucketId>;
-    fn into_vec(self) -> Vec<(K, Bucket<Self::ChildBucketId>)>;
+
+    /// Increments the tuple's count and returns its child bucket ID.
+    /// Returns `None` when the tuple falls outside the retained page of keys.
+    fn count_tuple(
+        &mut self,
+        key: &TupleKey,
+        bucket_id_provider: &mut BucketIdProvider,
+    ) -> Option<Self::ChildBucketId>;
+
+    /// Consumes storage and returns keys paired with their buckets.
+    fn into_vec(self) -> Vec<(TupleKey, Bucket<Self::ChildBucketId>)>;
 }
 
-impl<K: AggregationMapKey, M: TermAggregationMap<K>> TupleBuckets<K> for M {
-    type ChildBucketId = M::Slot;
+impl<TupleKey: AggregationMapKey, BucketMap: TermAggregationMap<TupleKey>>
+    MultiTermsBuckets<TupleKey> for BucketMap
+{
+    type ChildBucketId = <BucketMap as TermAggregationMap<TupleKey>>::ChildBucketId;
 
-    const SORTED_BY_KEY: bool = M::SORTED_BY_KEY;
+    const SORTED_BY_KEY: bool = BucketMap::SORTED_BY_KEY;
 
-    fn new(_req: &MultiTermsAggReqData, map_init_value: u64, ids: &mut BucketIdProvider) -> Self {
-        M::new(map_init_value, ids)
+    fn new(
+        _request: &MultiTermsAggReqData,
+        key_limit: u64,
+        bucket_id_provider: &mut BucketIdProvider,
+    ) -> Self {
+        BucketMap::new(key_limit, bucket_id_provider)
     }
 
-    fn into_vec(self) -> Vec<(K, Bucket<Self::ChildBucketId>)> {
+    fn into_vec(self) -> Vec<(TupleKey, Bucket<Self::ChildBucketId>)> {
         TermAggregationMap::into_vec(self)
     }
 
@@ -63,8 +87,12 @@ impl<K: AggregationMapKey, M: TermAggregationMap<K>> TupleBuckets<K> for M {
     }
 
     #[inline]
-    fn count_tuple(&mut self, key: &K, ids: &mut BucketIdProvider) -> Option<Self::ChildBucketId> {
-        Some(self.term_entry(key.clone(), ids))
+    fn count_tuple(
+        &mut self,
+        key: &TupleKey,
+        bucket_id_provider: &mut BucketIdProvider,
+    ) -> Option<Self::ChildBucketId> {
+        Some(self.term_entry(key.clone(), bucket_id_provider))
     }
 }
 

@@ -10,7 +10,7 @@ use std::fmt::Debug;
 use std::net::Ipv6Addr;
 use std::sync::Arc;
 
-use collector::{DocumentValues, SourceValue, TupleBuckets};
+use collector::{DocumentValues, MultiTermsBuckets, SourceValue};
 use columnar::column_values::CompactSpaceU64Accessor;
 use columnar::{
     Column, ColumnType, Dictionary, MonotonicallyMappableToU128, MonotonicallyMappableToU64,
@@ -418,7 +418,7 @@ impl<K, B: BucketIdSlot> GetDocCount for MultiTermsBucketEntry<K, B> {
 struct SegmentMultiTermsCollector<Packing, BucketMap, Buffer>
 where
     Packing: TuplePacking,
-    BucketMap: TupleBuckets<Packing::Key>,
+    BucketMap: MultiTermsBuckets<Packing::Key>,
     Buffer: SubAggBuffer,
 {
     /// One bucket map per parent bucket (for nested aggs).
@@ -428,10 +428,9 @@ where
     req_data: MultiTermsAggReqData,
     field_value_buffer: <Packing::Value as SourceValue>::Buffer,
     packing: Packing,
-    /// Argument used when creating another map for a nested parent bucket. For a dense Vec map
-    /// this is the number of keys; for paged/hash maps it is the maximum packed key (or
-    /// ignored).
-    map_init_value: u64,
+    /// Key limit for creating maps under parent buckets: exclusive for vector sizing,
+    /// inclusive for page-directory sizing. Hash maps and key pages ignore it.
+    key_limit: u64,
     /// Computed once because column cardinality is immutable within a segment.
     all_fields_full: bool,
     /// Partial keys for the current block, grouped by document.
@@ -642,17 +641,17 @@ pub(crate) fn build_segment_multi_terms_collector(
 impl<Packing, BucketMap, Buffer> SegmentMultiTermsCollector<Packing, BucketMap, Buffer>
 where
     Packing: TuplePacking,
-    BucketMap: TupleBuckets<Packing::Key>,
+    BucketMap: MultiTermsBuckets<Packing::Key>,
     Buffer: SubAggBuffer,
 {
     fn new(
         req_data: MultiTermsAggReqData,
         packing: Packing,
-        map_init_value: u64,
+        key_limit: u64,
         sub_agg: Option<Box<dyn SegmentAggregationCollector>>,
     ) -> Self {
         let mut bucket_id_provider = BucketIdProvider::default();
-        let buckets = BucketMap::new(&req_data, map_init_value, &mut bucket_id_provider);
+        let buckets = BucketMap::new(&req_data, key_limit, &mut bucket_id_provider);
         let all_fields_full = req_data.all_fields_full();
         Self {
             parent_buckets: vec![buckets],
@@ -661,7 +660,7 @@ where
             req_data,
             field_value_buffer: Default::default(),
             packing,
-            map_init_value,
+            key_limit,
             all_fields_full,
             keys_buf: Vec::new(),
             alive_docs: Vec::new(),
@@ -791,7 +790,7 @@ where
 }
 
 impl MultiTermsAggReqData {
-    fn build_bucket_result<Packing: TuplePacking, BucketMap: TupleBuckets<Packing::Key>>(
+    fn build_bucket_result<Packing: TuplePacking, BucketMap: MultiTermsBuckets<Packing::Key>>(
         &self,
         packing: &Packing,
         sub_agg_collector: Option<&mut dyn SegmentAggregationCollector>,
@@ -894,7 +893,7 @@ impl<Packing, BucketMap, Buffer> SegmentAggregationCollector
     for SegmentMultiTermsCollector<Packing, BucketMap, Buffer>
 where
     Packing: TuplePacking,
-    BucketMap: TupleBuckets<Packing::Key>,
+    BucketMap: MultiTermsBuckets<Packing::Key>,
     Buffer: SubAggBuffer,
 {
     fn add_intermediate_aggregation_result(
@@ -1010,7 +1009,7 @@ where
         while self.parent_buckets.len() <= max_bucket as usize {
             self.parent_buckets.push(BucketMap::new(
                 &self.req_data,
-                self.map_init_value,
+                self.key_limit,
                 &mut self.bucket_id_provider,
             ));
         }
@@ -1177,19 +1176,16 @@ fn box_multi_terms_collector<Buffer, Packing, BucketMap>(
     sub_agg: Option<Box<dyn SegmentAggregationCollector>>,
     req_data: MultiTermsAggReqData,
     packing: Packing,
-    map_init_value: u64,
+    key_limit: u64,
     charge_initial_map_memory: bool,
 ) -> crate::Result<Box<dyn SegmentAggregationCollector>>
 where
     Buffer: SubAggBuffer + 'static,
     Packing: TuplePacking,
-    BucketMap: TupleBuckets<Packing::Key>,
+    BucketMap: MultiTermsBuckets<Packing::Key>,
 {
     let collector = SegmentMultiTermsCollector::<Packing, BucketMap, Buffer>::new(
-        req_data,
-        packing,
-        map_init_value,
-        sub_agg,
+        req_data, packing, key_limit, sub_agg,
     );
     if charge_initial_map_memory {
         req.context
