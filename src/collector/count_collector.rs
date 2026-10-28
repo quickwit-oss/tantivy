@@ -79,6 +79,10 @@ impl SegmentCollector for SegmentCountCollector {
         self.count += 1;
     }
 
+    fn collect_block(&mut self, docs: &[DocId]) {
+        self.count += docs.len();
+    }
+
     fn harvest(self) -> usize {
         self.count
     }
@@ -87,11 +91,62 @@ impl SegmentCollector for SegmentCountCollector {
 #[cfg(test)]
 mod tests {
     use super::{Count, SegmentCountCollector};
-    use crate::collector::{Collector, SegmentCollector};
+    use crate::collector::{Collector, MultiCollector, SegmentCollector};
+    use crate::docset::COLLECT_BLOCK_BUFFER_LEN;
+    use crate::query::AllQuery;
+    use crate::schema::Schema;
+    use crate::Index;
 
     #[test]
     fn test_count_collect_does_not_requires_scoring() {
         assert!(!Count.requires_scoring());
+    }
+
+    #[test]
+    fn test_segment_count_collector_blocks() {
+        let mut collector = SegmentCountCollector::default();
+        collector.collect_block(&[]);
+        assert_eq!(collector.count, 0);
+        collector.collect_block(&[1, 4, 9]);
+        assert_eq!(collector.count, 3);
+        collector.collect_block(&[1, 4, 9]);
+        assert_eq!(collector.count, 6);
+        collector.collect_block(&[]);
+        assert_eq!(collector.harvest(), 6);
+    }
+
+    #[test]
+    fn test_segment_count_collector_scalar_and_blocks() {
+        let mut collector = SegmentCountCollector::default();
+        collector.collect(0, 1.0);
+        collector.collect_block(&[1, 2, 3]);
+        collector.collect(4, 1.0);
+        collector.collect_block(&[]);
+        collector.collect_block(&[5]);
+        assert_eq!(collector.harvest(), 6);
+    }
+
+    #[test]
+    fn test_count_unscored_compositions() -> crate::Result<()> {
+        let index = Index::create_in_ram(Schema::builder().build());
+        let mut writer = index.writer_for_tests()?;
+        let num_docs = COLLECT_BLOCK_BUFFER_LEN * 2 + 3;
+        for _ in 0..num_docs {
+            writer.add_document(doc!())?;
+        }
+        writer.commit()?;
+        let searcher = index.reader()?.searcher();
+
+        assert_eq!(searcher.search(&AllQuery, &Count)?, num_docs);
+        assert_eq!(
+            searcher.search(&AllQuery, &(Count, Count))?,
+            (num_docs, num_docs)
+        );
+        let mut collectors = MultiCollector::new();
+        let count = collectors.add_collector(Count);
+        let mut fruit = searcher.search(&AllQuery, &collectors)?;
+        assert_eq!(count.extract(&mut fruit), num_docs);
+        Ok(())
     }
 
     #[test]
