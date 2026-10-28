@@ -75,6 +75,7 @@ itertools = "0.14.0"
 measure_time = "0.9.0"
 arc-swap = "1.5.0"
 bon = "3.3.1"
+i_triangle = "0.38.0"
 
 # EXPERIMENTAL. The API is likely to change in the near future.
 jitexpr = { version = "0.1", path = "./jitexpr", optional = true }
@@ -93,6 +94,10 @@ datasketches = { version = "0.5.0", features = ["hll"] }
 futures-util = { version = "0.3.28", optional = true }
 futures-channel = { version = "0.3.28", optional = true }
 fnv = "1.0.7"
+num-bigint = "0.4"
+num-rational = "0.4"
+num-traits = "0.2"
+robust = "1"
 typetag = "0.2.21"
 unwrap-infallible = "1.0.0"
 serde-tuple-vec-map = "1.0.1"

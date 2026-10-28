@@ -3,6 +3,8 @@ use std::net::Ipv6Addr;
 
 use common::DateTime;
 
+use crate::spatial::geometry::Geometry;
+use crate::spatial::plane::Plane;
 use crate::tokenizer::PreTokenizedString;
 
 /// A single field value.
@@ -114,6 +116,12 @@ pub trait Value<'a>: Send + Sync + Debug {
             None
         }
     }
+
+    #[inline]
+    /// Returns an owned geometry if this is a geometry value.
+    fn as_geometry(&self) -> Option<Box<Geometry<Plane>>> {
+        self.as_leaf().and_then(|leaf| leaf.into_geometry())
+    }
 }
 
 /// A enum representing a leaf value for tantivy to index.
@@ -142,6 +150,8 @@ pub enum ReferenceValueLeaf<'a> {
     Bool(bool),
     /// Pre-tokenized str type,
     PreTokStr(Box<PreTokenizedString>),
+    /// Spatial geometry.
+    Geometry(Box<Geometry<Plane>>),
     /// Opaque payload of a plugin-defined custom field. Distinct from [`Bytes`](Self::Bytes) so
     /// the built-ins leave it alone and a consuming plugin can recognize it.
     Custom(&'a [u8]),
@@ -228,6 +238,9 @@ impl<'a, T: Value<'a> + ?Sized> From<ReferenceValueLeaf<'a>> for ReferenceValue<
             ReferenceValueLeaf::Bool(val) => ReferenceValue::Leaf(ReferenceValueLeaf::Bool(val)),
             ReferenceValueLeaf::PreTokStr(val) => {
                 ReferenceValue::Leaf(ReferenceValueLeaf::PreTokStr(val))
+            }
+            ReferenceValueLeaf::Geometry(val) => {
+                ReferenceValue::Leaf(ReferenceValueLeaf::Geometry(val))
             }
             ReferenceValueLeaf::Custom(val) => {
                 ReferenceValue::Leaf(ReferenceValueLeaf::Custom(val))
@@ -338,6 +351,16 @@ impl<'a> ReferenceValueLeaf<'a> {
     /// If the Value is a facet, returns the associated facet. Returns None otherwise.
     pub fn as_facet(&self) -> Option<&'a str> {
         if let Self::Facet(val) = self {
+            Some(val)
+        } else {
+            None
+        }
+    }
+
+    #[inline]
+    /// Takes the geometry if this is a geometry value.
+    pub fn into_geometry(self) -> Option<Box<Geometry<Plane>>> {
+        if let Self::Geometry(val) = self {
             Some(val)
         } else {
             None
@@ -475,5 +498,11 @@ where V: Value<'a>
     /// Returns true if the Value is an object.
     pub fn is_object(&self) -> bool {
         matches!(self, Self::Object(_))
+    }
+
+    #[inline]
+    /// Takes the geometry if this is a geometry value.
+    pub fn into_geometry(self) -> Option<Box<Geometry<Plane>>> {
+        self.into_leaf().and_then(|leaf| leaf.into_geometry())
     }
 }

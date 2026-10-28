@@ -16,6 +16,7 @@ use crate::index::{Index, InvertedIndexReader, Segment, SegmentComponent, Segmen
 use crate::json_utils::json_path_sep_to_dot;
 use crate::schema::{Field, IndexRecordOption, Schema, Type};
 use crate::space_usage::{ComponentSpaceUsage, SegmentSpaceUsage};
+use crate::spatial::reader::SpatialReaders;
 use crate::store::StoreReader;
 use crate::termdict::TermDictionary;
 use crate::{DocId, Opstamp};
@@ -46,6 +47,7 @@ pub struct SegmentReader {
     positions_composite: CompositeFile,
     fast_fields_readers: FastFieldReaders,
     fieldnorm_readers: FieldNormReaders,
+    spatial_readers: SpatialReaders,
 
     store_file: FileSlice,
     alive_bitset_opt: Option<AliveBitSet>,
@@ -98,6 +100,11 @@ impl SegmentReader {
     /// May panic if the index is corrupted.
     pub fn fast_fields(&self) -> &FastFieldReaders {
         &self.fast_fields_readers
+    }
+
+    /// Returns the spatial field readers for this segment.
+    pub fn spatial_fields(&self) -> &SpatialReaders {
+        &self.spatial_readers
     }
 
     /// Accessor to the `FacetReader` associated with a given `Field`.
@@ -179,6 +186,14 @@ impl SegmentReader {
         let fast_fields_readers = FastFieldReaders::open(fast_fields_data, schema.clone())?;
         let fieldnorm_data = segment.open_read(SegmentComponent::FieldNorms)?;
         let fieldnorm_readers = FieldNormReaders::open(fieldnorm_data)?;
+        let spatial_readers = if schema.contains_spatial_field() {
+            let cells_data = segment.open_read(SegmentComponent::SpatialCells)?;
+            let edges_data = segment.open_read(SegmentComponent::SpatialEdges)?;
+            let doc_ids_data = segment.open_read(SegmentComponent::SpatialDocIds)?;
+            SpatialReaders::open(cells_data, edges_data, doc_ids_data)?
+        } else {
+            SpatialReaders::empty()
+        };
 
         let original_bitset = if segment.meta().has_deletes() {
             let alive_doc_file_slice = segment.open_read(SegmentComponent::Delete)?;
@@ -205,6 +220,7 @@ impl SegmentReader {
             postings_composite,
             fast_fields_readers,
             fieldnorm_readers,
+            spatial_readers,
             segment_id: segment.id(),
             delete_opstamp: segment.meta().delete_opstamp(),
             store_file,
@@ -462,7 +478,7 @@ impl SegmentReader {
     ///
     /// The per-component usage is assembled from each registered plugin's
     /// [`SegmentPlugin::space_usage`](crate::plugin::SegmentPlugin::space_usage), plus
-    /// the non-plugin `deletes` entry (the alive bitset).
+    /// the native spatial files and `deletes` entry (the alive bitset).
     pub fn space_usage(&self) -> io::Result<SegmentSpaceUsage> {
         let mut components: BTreeMap<String, ComponentSpaceUsage> = BTreeMap::new();
         for plugin in self.index.all_plugins() {
@@ -470,6 +486,9 @@ impl SegmentReader {
                 .space_usage(self)
                 .map_err(|err| io::Error::other(err.to_string()))?;
             components.extend(plugin_usage);
+        }
+        for (name, usage) in self.spatial_readers.component_space_usage(self.schema()) {
+            components.insert(name.to_string(), ComponentSpaceUsage::PerField(usage));
         }
         let deletes = self
             .alive_bitset_opt
@@ -497,6 +516,9 @@ impl SegmentReader {
             SegmentComponent::FastFields => ".fast".to_string(),
             SegmentComponent::FieldNorms => ".fieldnorm".to_string(),
             SegmentComponent::Delete => format!(".{}.del", self.delete_opstamp().unwrap_or(0)),
+            SegmentComponent::SpatialCells => ".cells".to_string(),
+            SegmentComponent::SpatialEdges => ".edges".to_string(),
+            SegmentComponent::SpatialDocIds => ".docids".to_string(),
             SegmentComponent::Custom(ext) => format!(".{ext}"),
         });
         PathBuf::from(path)

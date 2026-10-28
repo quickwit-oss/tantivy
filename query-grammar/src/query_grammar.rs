@@ -8,12 +8,14 @@ use nom::bytes::complete::tag;
 use nom::character::complete::{
     anychar, char, digit1, multispace0, multispace1, none_of, one_of, satisfy, u32,
 };
-use nom::combinator::{eof, map, map_res, opt, peek, recognize, value, verify};
+use nom::combinator::{cut, eof, map, map_res, opt, peek, recognize, value, verify};
 use nom::error::{Error, ErrorKind};
 use nom::multi::{many0, many1, separated_list0};
 use nom::sequence::{delimited, preceded, separated_pair, terminated, tuple};
 
-use super::user_input_ast::{UserInputAst, UserInputBound, UserInputLeaf, UserInputLiteral};
+use super::user_input_ast::{
+    SpatialPredicateKind, UserInputAst, UserInputBound, UserInputLeaf, UserInputLiteral,
+};
 use crate::Occur;
 use crate::infallible::*;
 use crate::user_input_ast::Delimiter;
@@ -364,6 +366,232 @@ fn exists_infallible(inp: &str) -> JResult<&str, UserInputAst> {
     Ok((inp, (exists, Vec::new())))
 }
 
+/// Parse a float that may be negative. Returns the f64 value.
+fn spatial_float(inp: &str) -> IResult<&str, f64> {
+    map_res(
+        recognize(tuple((
+            opt(char('-')),
+            digit1,
+            opt(tuple((char('.'), digit1))),
+        ))),
+        |s: &str| s.parse::<f64>(),
+    )(inp)
+}
+
+/// Earth radius in miles.
+const EARTH_RADIUS_MI: f64 = 3958.8;
+/// Earth radius in kilometers.
+const EARTH_RADIUS_KM: f64 = 6371.0;
+/// Earth radius in meters.
+const EARTH_RADIUS_M: f64 = 6_371_000.0;
+/// Earth radius in feet.
+const EARTH_RADIUS_FT: f64 = 20_902_464.0;
+
+/// Parse a distance with unit: 50mi, 75km, 200ft, 1000m, 0.5rad.
+fn spatial_distance(inp: &str) -> IResult<&str, f64> {
+    let (inp, value) = spatial_float(inp)?;
+    let (inp, unit) = alt((tag("mi"), tag("km"), tag("ft"), tag("m"), tag("rad")))(inp)?;
+    let radians = match unit {
+        "mi" => value / EARTH_RADIUS_MI,
+        "km" => value / EARTH_RADIUS_KM,
+        "ft" => value / EARTH_RADIUS_FT,
+        "m" => value / EARTH_RADIUS_M,
+        "rad" => value,
+        _ => unreachable!(),
+    };
+    Ok((inp, radians))
+}
+
+fn query_arg_start(inp: &str) -> IResult<&str, ()> {
+    value(
+        (),
+        tuple((tag("$query"), multispace0, char('('), multispace0)),
+    )(inp)
+}
+
+fn query_arg(inp: &str) -> IResult<&str, UserInputAst> {
+    let (inp, _) = query_arg_start(inp)?;
+    cut(delimited(
+        multispace0,
+        alt((value(UserInputAst::empty_query(), peek(char(')'))), ast)),
+        char(')'),
+    ))(inp)
+}
+
+fn query_arg_infallible(inp: &str) -> JResult<&str, Option<UserInputAst>> {
+    let (inp, _) = query_arg_start(inp).expect("query argument precondition");
+    if let Some(inp) = inp.strip_prefix(')') {
+        return Ok((inp, (Some(UserInputAst::empty_query()), Vec::new())));
+    }
+    let (inp, (inner, mut errors)) = ast_infallible(inp)?;
+    let (inp, _) = space0_infallible(inp)?;
+    let (inp, (closing, mut closing_errors)) =
+        opt_i_err(char(')'), "expected ')' after $query")(inp)?;
+    errors.append(&mut closing_errors);
+    if closing.is_none() && !inp.is_empty() {
+        // The child boundary is unknown. Do not parse its remainder as outer terms.
+        return Ok(("", (None, errors)));
+    }
+    Ok((inp, (Some(inner), errors)))
+}
+
+fn spatial_start(inp: &str) -> IResult<&str, &str> {
+    terminated(
+        alt((
+            tag("$intersects"),
+            tag("$contains"),
+            tag("$within"),
+            tag("$between"),
+            tag("$knn"),
+        )),
+        tuple((multispace0, char('('), multispace0)),
+    )(inp)
+}
+
+fn spatial_comma(inp: &str) -> IResult<&str, char> {
+    delimited(multispace0, char(','), multispace0)(inp)
+}
+
+fn spatial_parameters<'a>(inp: &'a str, name: &str) -> IResult<&'a str, SpatialPredicateKind> {
+    match name {
+        "$intersects" => Ok((inp, SpatialPredicateKind::Intersects)),
+        "$contains" => Ok((inp, SpatialPredicateKind::Contains)),
+        "$within" => map(terminated(spatial_distance, spatial_comma), |radius| {
+            SpatialPredicateKind::Within(radius.into())
+        })(inp),
+        "$between" => map(
+            tuple((
+                terminated(spatial_distance, spatial_comma),
+                terminated(spatial_distance, spatial_comma),
+            )),
+            |(inner, outer)| SpatialPredicateKind::Between(inner.into(), outer.into()),
+        )(inp),
+        "$knn" => map(terminated(u32, spatial_comma), |k| {
+            SpatialPredicateKind::Knn(k as usize)
+        })(inp),
+        _ => unreachable!(),
+    }
+}
+
+fn spatial_coordinates<'a>(
+    inp: &'a str,
+    predicate: &SpatialPredicateKind,
+) -> IResult<&'a str, Vec<(f64, f64)>> {
+    let coord_pair = separated_pair(spatial_float, multispace1, spatial_float);
+    if matches!(
+        predicate,
+        SpatialPredicateKind::Intersects | SpatialPredicateKind::Contains
+    ) {
+        verify(
+            separated_list0(spatial_comma, coord_pair),
+            |pairs: &Vec<_>| pairs.len() >= 3,
+        )(inp)
+    } else {
+        map(coord_pair, |pair| vec![pair])(inp)
+    }
+}
+
+/// Parse a spatial predicate: $intersects, $contains, $within, $between, or $knn.
+fn spatial(inp: &str) -> IResult<&str, UserInputLeaf> {
+    let (inp, name) = spatial_start(inp)?;
+    cut(|inp| {
+        let (inp, predicate) = spatial_parameters(inp, name)?;
+        let (inp, coordinates, inner_query) =
+            if !matches!(predicate, SpatialPredicateKind::Knn(_)) && query_arg_start(inp).is_ok() {
+                let (inp, inner) = query_arg(inp)?;
+                (inp, Vec::new(), Some(Box::new(inner)))
+            } else {
+                let (inp, coordinates) = spatial_coordinates(inp, &predicate)?;
+                (inp, coordinates, None)
+            };
+        let (inp, _) = tuple((multispace0, char(')')))(inp)?;
+        Ok((
+            inp,
+            UserInputLeaf::Spatial {
+                field: None,
+                predicate,
+                coordinates: coordinates
+                    .into_iter()
+                    .map(|(lon, lat)| (lon.into(), lat.into()))
+                    .collect(),
+                inner_query,
+            },
+        ))
+    })(inp)
+}
+
+fn spatial_failure<'a>(
+    error: nom::Err<Error<&'a str>>,
+    message: &str,
+) -> JResult<&'a str, Option<UserInputLeaf>> {
+    let pos = match error {
+        nom::Err::Error(error) | nom::Err::Failure(error) => error.input.len(),
+        nom::Err::Incomplete(_) => unreachable!(),
+    };
+    // Do not reinterpret malformed spatial data as outer terms.
+    Ok((
+        "",
+        (
+            None,
+            vec![LenientErrorInternal {
+                pos,
+                message: message.to_string(),
+            }],
+        ),
+    ))
+}
+
+fn spatial_infallible(inp: &str) -> JResult<&str, Option<UserInputLeaf>> {
+    let (inp, name) = spatial_start(inp).expect("spatial precondition");
+    let (inp, predicate) = match spatial_parameters(inp, name) {
+        Ok(parsed) => parsed,
+        Err(error) => return spatial_failure(error, "invalid spatial parameters"),
+    };
+    let (inp, coordinates, inner_query, errors) =
+        if !matches!(predicate, SpatialPredicateKind::Knn(_)) && query_arg_start(inp).is_ok() {
+            let (inp, (inner, errors)) = query_arg_infallible(inp)?;
+            let Some(inner) = inner else {
+                return Ok((inp, (None, errors)));
+            };
+            (inp, Vec::new(), Some(Box::new(inner)), errors)
+        } else {
+            let (inp, coordinates) = match terminated(
+                |inp| spatial_coordinates(inp, &predicate),
+                peek(preceded(multispace0, char(')'))),
+            )(inp)
+            {
+                Ok(parsed) => parsed,
+                Err(error) => return spatial_failure(error, "invalid spatial coordinates"),
+            };
+            (inp, coordinates, None, Vec::new())
+        };
+    let (closing_input, _) = space0_infallible(inp)?;
+    let (after_closing, (closing, mut closing_errors)) =
+        opt_i_err(char(')'), "expected ')' after spatial predicate")(closing_input)?;
+    let inp = if closing.is_some() {
+        after_closing
+    } else {
+        inp
+    };
+    let mut errors = errors;
+    errors.append(&mut closing_errors);
+    Ok((
+        inp,
+        (
+            Some(UserInputLeaf::Spatial {
+                field: None,
+                predicate,
+                coordinates: coordinates
+                    .into_iter()
+                    .map(|(lon, lat)| (lon.into(), lat.into()))
+                    .collect(),
+                inner_query,
+            }),
+            errors,
+        ),
+    ))
+}
+
 fn literal(inp: &str) -> IResult<&str, UserInputAst> {
     // * alone is already parsed by our caller, so if `exists` succeed, we can be confident
     // something (a field name) got parsed before
@@ -371,7 +599,7 @@ fn literal(inp: &str) -> IResult<&str, UserInputAst> {
         map(
             tuple((
                 opt(field_name),
-                alt((range, set, exists, regex, term_or_phrase)),
+                alt((range, set, exists, regex, spatial, term_or_phrase)),
             )),
             |(field_name, leaf): (Option<String>, UserInputLeaf)| leaf.set_field(field_name).into(),
         ),
@@ -397,6 +625,13 @@ fn literal_no_group_infallible(inp: &str) -> JResult<&str, Option<UserInputAst>>
                     (
                         value((), peek(one_of("/"))),
                         map(regex_infallible, |(regex, errs)| (Some(regex), errs)),
+                    ),
+                    (
+                        value(
+                            (),
+                            peek(|inp| spatial_start(inp).map_err(|error| error.map(|_| ()))),
+                        ),
+                        spatial_infallible,
                     ),
                 ),
                 delimited_infallible(space0_infallible, term_or_phrase_infallible, nothing),
@@ -1155,6 +1390,23 @@ pub fn parse_to_ast_lenient(query_str: &str) -> (UserInputAst, Vec<LenientError>
 }
 
 fn rewrite_ast(mut input: UserInputAst) -> UserInputAst {
+    match &mut input {
+        UserInputAst::Boost(child, _) => {
+            let inner = std::mem::replace(child.as_mut(), UserInputAst::empty_query());
+            **child = rewrite_ast(inner);
+        }
+        UserInputAst::Leaf(leaf) => {
+            if let UserInputLeaf::Spatial {
+                inner_query: Some(child),
+                ..
+            } = &mut **leaf
+            {
+                let inner = std::mem::replace(child.as_mut(), UserInputAst::empty_query());
+                **child = rewrite_ast(inner);
+            }
+        }
+        UserInputAst::Clause(_) => {}
+    }
     if let UserInputAst::Clause(sub_clauses) = &mut input {
         // call rewrite_ast recursively on children clauses if applicable
         let mut new_clauses = Vec::with_capacity(sub_clauses.len());
@@ -1210,6 +1462,12 @@ mod test {
     // assert_eq!(super::occur_symbol("+")?, ("", Occur::Must));
     // Ok(())
     // }
+
+    #[test]
+    fn test_spatial_parser_direct() {
+        let result = spatial("$intersects(1.0 2.0, 3.0 4.0, 5.0 6.0)");
+        assert!(result.is_ok(), "spatial parser failed: {:?}", result);
+    }
 
     #[test]
     fn test_positive_float_number() {

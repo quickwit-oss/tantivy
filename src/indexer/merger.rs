@@ -8,7 +8,9 @@ use crate::fastfield::{AliveBitSet, FastFieldNotAvailableError};
 use crate::index::{builtin_plugins, Segment, SegmentReader};
 use crate::indexer::doc_id_mapping::{MappingType, SegmentDocIdMapping};
 use crate::plugin::{PluginMergeContext, SegmentPlugin};
-use crate::schema::{Schema, Type};
+use crate::schema::{FieldType, Schema, Type};
+use crate::spatial::serializer::SpatialSerializer;
+use crate::spatial::spatial_index_manager::{MergeSource, SpatialIndexManager};
 use crate::termdict::TermOrdinal;
 use crate::{DocAddress, DocId, IndexSettings, IndexSortByField, Order, SegmentOrdinal};
 
@@ -57,6 +59,7 @@ pub struct IndexMerger {
     pub(crate) readers: Vec<SegmentReader>,
     max_doc: u32,
     custom_plugins: Vec<Arc<dyn SegmentPlugin>>,
+    spatial_manager: SpatialIndexManager,
 }
 
 impl IndexMerger {
@@ -122,6 +125,12 @@ impl IndexMerger {
         segments: &[Segment],
         alive_bitset_opt: Vec<Option<AliveBitSet>>,
     ) -> crate::Result<IndexMerger> {
+        let spatial_manager = segments
+            .first()
+            .expect("a merge requires at least one source segment")
+            .index()
+            .spatial_indices()
+            .clone();
         let mut readers = vec![];
         for (segment, new_alive_bitset_opt) in segments.iter().zip(alive_bitset_opt) {
             if segment.meta().num_docs() > 0 {
@@ -172,6 +181,7 @@ impl IndexMerger {
             readers,
             max_doc,
             custom_plugins,
+            spatial_manager,
         })
     }
 
@@ -501,6 +511,99 @@ impl IndexMerger {
         ))
     }
 
+    pub(crate) fn spatial_manager(&self) -> &SpatialIndexManager {
+        &self.spatial_manager
+    }
+
+    fn write_spatial_fields(
+        &self,
+        target_segment: &Segment,
+        doc_id_mapping: &SegmentDocIdMapping,
+    ) -> crate::Result<()> {
+        let Some(spatial_serializer) = SpatialSerializer::for_segment(target_segment)? else {
+            return Ok(());
+        };
+        let (mut cells_composite, mut edges_composite, mut doc_ids_composite) =
+            spatial_serializer.into_composite_writes();
+
+        // Map source document IDs to their IDs in the merged segment.
+        let mut doc_id_inverse: Vec<Vec<Option<DocId>>> = Vec::new();
+        for reader in &self.readers {
+            doc_id_inverse.push(vec![None; reader.max_doc() as usize]);
+        }
+        for (new_doc_id, old_addr) in doc_id_mapping.iter_old_doc_addrs().enumerate() {
+            doc_id_inverse[old_addr.segment_ord as usize][old_addr.doc_id as usize] =
+                Some(new_doc_id as DocId);
+        }
+
+        for (field, field_entry) in self.schema.fields() {
+            let spatial_opts = match field_entry.field_type() {
+                FieldType::Spatial(opts) => opts,
+                _ => continue,
+            };
+
+            let spatial_index = self
+                .spatial_manager
+                .get(spatial_opts.spatial_index_name())
+                .unwrap_or_else(|| {
+                    panic!(
+                        "spatial index '{}' not registered",
+                        spatial_opts.spatial_index_name()
+                    )
+                });
+
+            // Collect spatial readers so they live long enough for the byte slices.
+            let mut spatial_readers = Vec::new();
+            for reader in &self.readers {
+                spatial_readers.push(reader.spatial_fields().get_field(field)?);
+            }
+
+            let sources: Vec<MergeSource> = spatial_readers
+                .iter()
+                .enumerate()
+                .map(|(i, sr)| {
+                    let (cells, edges) = match sr {
+                        Some(r) => (r.cells_bytes(), r.edges_bytes()),
+                        None => (&[][..], &[][..]),
+                    };
+                    MergeSource {
+                        cells_bytes: cells,
+                        edges_bytes: edges,
+                        segment_name: self.readers[i].segment_id().uuid_string(),
+                    }
+                })
+                .collect();
+
+            let cells_out = cells_composite.for_field(field);
+            let edges_out = edges_composite.for_field(field);
+            let doc_ids_out = doc_ids_composite.for_field(field);
+
+            let merge_start = std::time::Instant::now();
+
+            let result = spatial_index.merge_field(
+                &sources,
+                &doc_id_mapping.alive_bitsets,
+                cells_out,
+                edges_out,
+                doc_ids_out,
+                &doc_id_inverse,
+            )?;
+
+            let elapsed = merge_start.elapsed();
+            eprintln!(
+                "spatial merge: {} output geometries, {} cells, {:.2}s",
+                result.geometry_count,
+                result.cell_count,
+                elapsed.as_secs_f64()
+            );
+        }
+
+        cells_composite.close()?;
+        edges_composite.close()?;
+        doc_ids_composite.close()?;
+        Ok(())
+    }
+
     /// Writes the merged segment into `target_segment`.
     ///
     /// Each plugin's [`SegmentPlugin::merge`] opens and closes its own serializers,
@@ -519,6 +622,8 @@ impl IndexMerger {
         } else {
             self.get_doc_id_from_concatenated_data()?
         };
+
+        self.write_spatial_fields(target_segment, &doc_id_mapping)?;
 
         // Merge plugins in write order (matching `Index::all_plugins`):
         // inverted index, then fast_fields, store, and custom plugins.

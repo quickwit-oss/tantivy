@@ -231,6 +231,8 @@ pub fn merge_filtered_segments<T: Into<Box<dyn Directory>>>(
         target_settings.clone(),
     )?;
 
+    merged_index.set_spatial_indices(merger.spatial_manager().clone());
+
     // Carry the merger's custom plugins onto the merged index (built-ins come for free) and
     // record their extensions as the merged index's required set; without this the first GC
     // drops the merged files.

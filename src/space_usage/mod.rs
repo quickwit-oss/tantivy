@@ -134,6 +134,9 @@ impl SegmentSpaceUsage {
             Terms => TERMDICT,
             Store | TempStore => STORE,
             Delete => DELETES,
+            SpatialCells => "cells",
+            SpatialEdges => "edges",
+            SpatialDocIds => "docids",
             Custom(ext) => ext.as_str(),
         };
         self.components
@@ -177,6 +180,11 @@ impl SegmentSpaceUsage {
             Some(ComponentSpaceUsage::PerField(usage)) => usage,
             _ => &EMPTY_PER_FIELD,
         }
+    }
+
+    /// Space usage for spatial cells.
+    pub fn spatial(&self) -> &PerFieldSpaceUsage {
+        self.per_field("cells")
     }
 
     /// Space usage for stored documents

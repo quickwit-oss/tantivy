@@ -9,6 +9,7 @@ use serde_json::Value as JsonValue;
 use thiserror::Error;
 
 use super::ip_options::IpAddrOptions;
+use super::spatial_options::SpatialOptions;
 use super::IntoIpv6Addr;
 use crate::schema::bytes_options::BytesOptions;
 use crate::schema::custom_options::CustomOptions;
@@ -17,6 +18,7 @@ use crate::schema::{
     DateOptions, Facet, IndexRecordOption, JsonObjectOptions, NumericOptions, OwnedValue,
     TextFieldIndexing, TextOptions,
 };
+use crate::spatial::geometry::Geometry;
 use crate::time::format_description::well_known::Rfc3339;
 use crate::time::OffsetDateTime;
 use crate::tokenizer::PreTokenizedString;
@@ -85,6 +87,8 @@ pub enum Type {
     ///
     /// [`CustomOptions`]: crate::schema::CustomOptions
     Custom = b'c',
+    /// Spatial geometry.
+    Spatial = b't',
 }
 
 impl From<ColumnType> for Type {
@@ -102,7 +106,7 @@ impl From<ColumnType> for Type {
     }
 }
 
-const ALL_TYPES: [Type; 11] = [
+const ALL_TYPES: [Type; 12] = [
     Type::Str,
     Type::U64,
     Type::I64,
@@ -114,6 +118,7 @@ const ALL_TYPES: [Type; 11] = [
     Type::Json,
     Type::IpAddr,
     Type::Custom,
+    Type::Spatial,
 ];
 
 impl Type {
@@ -155,6 +160,7 @@ impl Type {
             Type::Json => "Json",
             Type::IpAddr => "IpAddr",
             Type::Custom => "Custom",
+            Type::Spatial => "Spatial",
         }
     }
 
@@ -174,6 +180,7 @@ impl Type {
             b'j' => Some(Type::Json),
             b'p' => Some(Type::IpAddr),
             b'c' => Some(Type::Custom),
+            b't' => Some(Type::Spatial),
             _ => None,
         }
     }
@@ -214,6 +221,8 @@ pub enum FieldType {
     /// [`add_custom`](crate::TantivyDocument::add_custom) and consumed by a
     /// [`SegmentPlugin`](crate::SegmentPlugin).
     Custom(CustomOptions),
+    /// Spatial field configuration.
+    Spatial(SpatialOptions),
 }
 
 impl FieldType {
@@ -231,6 +240,7 @@ impl FieldType {
             FieldType::JsonObject(_) => Type::Json,
             FieldType::IpAddr(_) => Type::IpAddr,
             FieldType::Custom(_) => Type::Custom,
+            FieldType::Spatial(_) => Type::Spatial,
         }
     }
 
@@ -277,7 +287,7 @@ impl FieldType {
             FieldType::Bytes(ref bytes_options) => bytes_options.is_indexed(),
             FieldType::JsonObject(ref json_object_options) => json_object_options.is_indexed(),
             FieldType::IpAddr(ref ip_addr_options) => ip_addr_options.is_indexed(),
-            FieldType::TieBreaker | FieldType::Custom(_) => false,
+            FieldType::TieBreaker | FieldType::Custom(_) | FieldType::Spatial(_) => false,
         }
     }
 
@@ -292,6 +302,7 @@ impl FieldType {
             FieldType::JsonObject(json_object_options) => json_object_options
                 .get_text_indexing_options()
                 .map(|text_indexing| text_indexing.index_option()),
+            FieldType::Spatial(_) => None,
             field_type => {
                 if field_type.is_indexed() {
                     Some(IndexRecordOption::Basic)
@@ -317,6 +328,7 @@ impl FieldType {
             FieldType::JsonObject(ref json_object_options) => json_object_options.is_fast(),
             FieldType::TieBreaker => true,
             FieldType::Custom(_) => false,
+            FieldType::Spatial(_) => false,
         }
     }
 
@@ -336,7 +348,7 @@ impl FieldType {
             FieldType::Bytes(ref bytes_options) => bytes_options.fieldnorms(),
             FieldType::JsonObject(ref _json_object_options) => false,
             FieldType::IpAddr(ref ip_addr_options) => ip_addr_options.fieldnorms(),
-            FieldType::TieBreaker | FieldType::Custom(_) => false,
+            FieldType::TieBreaker | FieldType::Custom(_) | FieldType::Spatial(_) => false,
         }
     }
 
@@ -388,7 +400,7 @@ impl FieldType {
                     None
                 }
             }
-            FieldType::TieBreaker | FieldType::Custom(_) => None,
+            FieldType::TieBreaker | FieldType::Custom(_) | FieldType::Spatial(_) => None,
         }
     }
 
@@ -502,6 +514,10 @@ impl FieldType {
                     json: JsonValue::String(field_text),
                 }),
                 FieldType::Custom(_) => Err(custom_not_json_error(JsonValue::String(field_text))),
+                FieldType::Spatial(_) => Err(ValueParsingError::TypeError {
+                    expected: "a GeoJSON geometry",
+                    json: JsonValue::String(field_text),
+                }),
             },
             JsonValue::Number(field_val_num) => match self {
                 FieldType::I64(_) | FieldType::Date(_) => {
@@ -567,6 +583,10 @@ impl FieldType {
                 FieldType::Custom(_) => {
                     Err(custom_not_json_error(JsonValue::Number(field_val_num)))
                 }
+                FieldType::Spatial(_) => Err(ValueParsingError::TypeError {
+                    expected: "a GeoJSON geometry",
+                    json: JsonValue::Number(field_val_num),
+                }),
             },
             JsonValue::Object(json_map) => match self {
                 FieldType::Str(_) => {
@@ -582,6 +602,14 @@ impl FieldType {
                     }
                 }
                 FieldType::JsonObject(_) => Ok(OwnedValue::from(json_map)),
+                FieldType::Spatial(_) => Ok(OwnedValue::Geometry(
+                    Geometry::from_geojson(&json_map).map_err(|e| {
+                        ValueParsingError::ParseError {
+                            error: format!("{:?}", e),
+                            json: JsonValue::Object(json_map),
+                        }
+                    })?,
+                )),
                 _ => Err(ValueParsingError::TypeError {
                     expected: self.value_type().name(),
                     json: JsonValue::Object(json_map),
