@@ -770,13 +770,20 @@ fn is_include_occur(occur: Occur) -> bool {
 
 #[cfg(test)]
 mod tests {
+    use proptest::prelude::*;
+
     use super::{
         create_aligned_scorers_for_intersection, into_box_scorer, scorer_union,
-        union_strategy_for_estimated_hits, SpecializedScorer, UnionStrategy,
+        union_strategy_for_estimated_hits, UnionStrategy,
     };
-    use crate::query::{EmptyScorer, EnableScoring, Query, TermQuery, Weight};
+    use crate::query::score_combiner::ScoreCombiner;
+    use crate::query::union::SimpleUnion;
+    use crate::query::{
+        BufferedUnionScorer, ConstScorer, DisjunctionMaxCombiner, EmptyScorer, EnableScoring,
+        Query, Scorer, SumCombiner, TermQuery, VecDocSet, Weight,
+    };
     use crate::schema::{Field, IndexRecordOption, Schema, TEXT};
-    use crate::{Index, Searcher, Term, TERMINATED};
+    use crate::{DocId, DocSet, Index, Score, Searcher, Term, TERMINATED};
 
     fn test_index() -> crate::Result<(Index, Field)> {
         let mut schema_builder = Schema::builder();
@@ -803,57 +810,148 @@ mod tests {
             .weight(EnableScoring::disabled_from_searcher(searcher))
     }
 
-    #[test]
-    fn test_union_density_threshold() {
-        use UnionStrategy::{Buffered, Simple};
-        for (hits, docs, expected) in [
-            (0, 0, Buffered),
-            (0, 1, Simple),
-            (127, 4_096, Simple),
-            (128, 4_096, Simple),
-            (129, 4_096, Buffered),
-            (1, 31, Buffered),
-            (1, 32, Simple),
-            (u32::MAX / 32, u32::MAX, Simple),
-            (u32::MAX / 32 + 1, u32::MAX, Buffered),
-            (u32::MAX, u32::MAX, Buffered),
-        ] {
-            assert_eq!(union_strategy_for_estimated_hits(hits, docs), expected);
+    // Compare actual dispatch and both implementations against the sorted union of docs.
+    fn check_union<T: ScoreCombiner>(
+        postings: &[(Vec<DocId>, Score)],
+        operations: &[(bool, u32)],
+        sparse: bool,
+        combiner: impl Fn() -> T,
+    ) {
+        let make_scorers = || {
+            postings
+                .iter()
+                .map(|(docs, score)| {
+                    Box::new(ConstScorer::new(VecDocSet::from(docs.clone()), *score))
+                        as Box<dyn Scorer>
+                })
+                .collect::<Vec<_>>()
+        };
+        let mut docs: Vec<_> = postings
+            .iter()
+            .flat_map(|(docs, _)| docs.iter().copied())
+            .collect();
+        docs.sort_unstable();
+        docs.dedup();
+        // Exhaustive traversal checks every score. Mixed traversal checks seek/advance state.
+        for mixed in [false, true] {
+            let dispatched = into_box_scorer(
+                scorer_union(make_scorers(), &combiner, 8_192),
+                &combiner,
+                8_192,
+            );
+            assert_eq!(dispatched.is::<SimpleUnion<Box<dyn Scorer>, T>>(), sparse);
+            assert_eq!(
+                dispatched.is::<BufferedUnionScorer<Box<dyn Scorer>, T>>(),
+                !sparse
+            );
+            let mut candidates: [Box<dyn Scorer>; 2] = [
+                dispatched,
+                Box::new(SimpleUnion::build_scored(make_scorers(), &combiner)),
+            ];
+            let mut buffered = BufferedUnionScorer::build(make_scorers(), &combiner, 8_192);
+            let mut expected = VecDocSet::from(docs.clone());
+            let mut operations = operations.iter();
+            while expected.doc() != TERMINATED {
+                assert_eq!(buffered.doc(), expected.doc());
+                for candidate in &mut candidates {
+                    assert_eq!(candidate.doc(), expected.doc());
+                    // Scoring is repeatable and leaves the cursor in place.
+                    assert_eq!(candidate.score(), buffered.score());
+                    assert_eq!(candidate.score(), buffered.score());
+                    assert_eq!(candidate.doc(), expected.doc());
+                }
+                let (seek, delta) = if mixed {
+                    operations.next().copied().unwrap_or((false, 0))
+                } else {
+                    (false, 0)
+                };
+                let target = expected.doc() + delta;
+                let next = if seek {
+                    expected.seek(target)
+                } else {
+                    expected.advance()
+                };
+                assert_eq!(
+                    if seek {
+                        buffered.seek(target)
+                    } else {
+                        buffered.advance()
+                    },
+                    next
+                );
+                for candidate in &mut candidates {
+                    assert_eq!(
+                        if seek {
+                            candidate.seek(target)
+                        } else {
+                            candidate.advance()
+                        },
+                        next
+                    );
+                    assert_eq!(candidate.doc(), next);
+                }
+            }
+            assert_eq!(buffered.doc(), TERMINATED);
+            for candidate in &mut candidates {
+                assert_eq!(candidate.doc(), TERMINATED);
+                assert_eq!(candidate.seek(TERMINATED), TERMINATED);
+                assert_eq!(candidate.advance(), TERMINATED);
+            }
         }
     }
 
-    #[test]
-    fn test_term_union_preserves_frequency_and_single_term_specialization() -> crate::Result<()> {
-        use crate::query::term_query::TermScorer;
-        use crate::query::SumCombiner;
-
-        let (index, text) = test_index()?;
-        let searcher = index.reader()?.searcher();
-        let reader = searcher.segment_reader(0);
-        for record_option in [IndexRecordOption::Basic, IndexRecordOption::WithFreqs] {
-            for count in [1, 2] {
-                let scorers = ["a", "b"][..count]
-                    .iter()
-                    .map(|term| {
-                        TermQuery::new(Term::from_field_text(text, term), record_option)
-                            .weight(EnableScoring::enabled_from_searcher(&searcher))?
-                            .scorer(reader, 1.0)
-                    })
-                    .collect::<crate::Result<Vec<_>>>()?;
-                let specialized = scorer_union(scorers, SumCombiner::default, reader.num_docs());
-                // ReadFreq remains a prerequisite for Block-WAND, including its
-                // single-term specialization. Basic postings take ordinary traversal.
-                assert_eq!(
-                    matches!(&specialized, SpecializedScorer::TermUnion { .. }),
-                    record_option == IndexRecordOption::WithFreqs
+    proptest! {
+        #[test]
+        fn test_union_density_and_scoring(
+            primary in prop::collection::btree_set(0u32..8_192, 400..512),
+            children in prop::collection::vec(prop::collection::btree_set(0u32..8_192, 0..24), 1..5),
+            sparse_len in 0usize..24,
+            overlap in 0u32..8_192,
+            scores in prop::collection::vec(prop_oneof![
+                -1_000f32..1_000f32, Just(0.0), Just(1e20), Just(-1e20)
+            ], 6),
+            tie_breaker in 0f32..=1f32,
+            operations in prop::collection::vec(
+                (any::<bool>(), prop_oneof![Just(0u32), 1u32..128, 4_096u32..8_193]), 1..40
+            ),
+            num_docs in prop_oneof![Just(0u32), Just(u32::MAX), any::<u32>()],
+        ) {
+            // Generated boundaries also exercise zero segments and overflow-sized estimates.
+            for hits in [num_docs / 32, num_docs / 32 + 1] {
+                prop_assert_eq!(
+                    union_strategy_for_estimated_hits(hits, num_docs),
+                    if num_docs > 0 && hits <= num_docs / 32 {
+                        UnionStrategy::Simple
+                    } else {
+                        UnionStrategy::Buffered
+                    }
                 );
-                let scorer = into_box_scorer(specialized, SumCombiner::default, reader.num_docs());
-                if count == 1 {
-                    assert!(scorer.is::<TermScorer>());
+            }
+            // Every case exercises both sides of 1/32, with fewer than 620 stored doc IDs.
+            for sparse in [true, false] {
+                let mut lists = vec![primary.iter().copied().take(
+                    if sparse { sparse_len } else { primary.len() }
+                ).collect::<Vec<_>>()];
+                // Reach a later window even with sparse postings. Other children can exhaust earlier.
+                if !lists[0].is_empty() {
+                    lists[0].push(8_191);
                 }
+                lists.extend(children.iter().map(|docs| docs.iter().copied().collect()));
+                let mut postings = vec![(Vec::new(), 0.0)];
+                for (mut docs, score) in lists.into_iter().zip(&scores) {
+                    if !docs.is_empty() {
+                        docs.push(overlap);
+                        docs.sort_unstable();
+                        docs.dedup();
+                    }
+                    postings.push((docs, *score));
+                }
+                check_union(&postings, &operations, sparse, SumCombiner::default);
+                check_union(&postings, &operations, sparse, || {
+                    DisjunctionMaxCombiner::with_tie_breaker(tie_breaker)
+                });
             }
         }
-        Ok(())
     }
 
     #[test]

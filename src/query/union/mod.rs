@@ -16,11 +16,9 @@ mod tests {
     use super::{SimpleUnion, *};
     use crate::docset::{DocSet, SeekDangerResult, TERMINATED};
     use crate::postings::tests::test_skip_against_unoptimized;
-    use crate::query::score_combiner::{
-        DisjunctionMaxCombiner, DoNothingCombiner, ScoreCombiner, SumCombiner,
-    };
+    use crate::query::score_combiner::DoNothingCombiner;
     use crate::query::union::bitset_union::BitSetPostingUnion;
-    use crate::query::{BitSetDocSet, ConstScorer, Scorer, VecDocSet};
+    use crate::query::{BitSetDocSet, ConstScorer, VecDocSet};
     use crate::{tests, DocId};
 
     fn vec_doc_set_from_docs_list(
@@ -54,56 +52,6 @@ mod tests {
             vec_doc_set_from_docs_list(docs_list).collect::<Vec<VecDocSet>>(),
         ))
     }
-    fn assert_scored_simple_union_parity<TScoreCombiner: ScoreCombiner>(
-        make_combiner: impl Fn() -> TScoreCombiner,
-    ) {
-        let make_scorers = || {
-            vec![
-                ConstScorer::new(VecDocSet::from(vec![]), 42.0),
-                // Exhaust this child before later windows. The remaining child order
-                // must stay stable, since (1e20 + -1e20) + 3 differs from 1e20 + (-1e20 + 3).
-                ConstScorer::new(VecDocSet::from(vec![1]), 0.0),
-                ConstScorer::new(VecDocSet::from(vec![1, 5, 4_097, 9_000]), 1.0e20),
-                ConstScorer::new(VecDocSet::from(vec![1, 2, 4_097, 9_000]), -1.0e20),
-                ConstScorer::new(VecDocSet::from(vec![1, 2, 7, 4_097, 9_000]), 3.0),
-                ConstScorer::new(VecDocSet::from(vec![8, 10_000]), 0.0),
-            ]
-        };
-        // Check sequential traversal and seeks within/across buffered horizons.
-        for targets in [vec![], vec![0, 1, 3, 4_096, 4_097, 8_000, 10_000, 10_001]] {
-            let mut simple = SimpleUnion::build_scored(make_scorers(), &make_combiner);
-            let mut buffered = BufferedUnionScorer::build(make_scorers(), &make_combiner, 10_001);
-            for target in targets {
-                assert_eq!(simple.seek(target), buffered.seek(target));
-                if simple.doc() != TERMINATED {
-                    assert_eq!(simple.score(), buffered.score());
-                    assert_eq!(simple.score(), buffered.score());
-                }
-            }
-            while simple.doc() != TERMINATED {
-                assert_eq!(simple.doc(), buffered.doc());
-                assert_eq!(simple.score(), buffered.score());
-                assert_eq!(simple.score(), buffered.score());
-                assert_eq!(simple.advance(), buffered.advance());
-            }
-            assert_eq!(buffered.doc(), TERMINATED);
-        }
-    }
-
-    #[test]
-    fn test_scored_simple_union_sum_parity() {
-        assert_scored_simple_union_parity(SumCombiner::default);
-    }
-
-    #[test]
-    fn test_scored_simple_union_dis_max_parity() {
-        for tie_breaker in [0.0, 0.3, 1.0] {
-            assert_scored_simple_union_parity(|| {
-                DisjunctionMaxCombiner::with_tie_breaker(tie_breaker)
-            });
-        }
-    }
-
     fn bitset_from_docs_list(docs_list: &[Vec<DocId>]) -> BitSetDocSet {
         let max_doc = docs_list
             .iter()
