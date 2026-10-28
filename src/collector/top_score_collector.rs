@@ -632,9 +632,22 @@ where
         self.append_doc(doc, sort_key);
     }
 
+    /// Push a new document to the top n, in any `DocId`/`DocAddress` order.
+    /// A document below the current threshold is ignored. One equal to it is kept, so that
+    /// truncation can keep the lower `DocId`/`DocAddress` of a tie.
+    #[inline]
+    pub(crate) fn push_unordered(&mut self, sort_key: TSortKey, doc: D) {
+        if let Some(last_median) = &self.threshold {
+            if self.comparator.compare(&sort_key, last_median) == Ordering::Less {
+                return;
+            }
+        }
+        self.append_doc(doc, sort_key);
+    }
+
     // Append a document to the top n.
     //
-    // At this point, we need to have established that the doc is above the threshold.
+    // At this point, we need to have established that the doc is not below the threshold.
     #[inline(always)]
     pub(crate) fn append_doc(&mut self, doc: D, sort_key: TSortKey) {
         if self.buffer.len() == self.buffer.capacity() {
@@ -823,6 +836,35 @@ mod tests {
             let mut computer: TopNComputer<_, _, ReverseComparator> = TopNComputer::new_with_comparator(limit, ReverseComparator);
             for (feature, doc) in &docs {
                 computer.push(*feature, *doc);
+            }
+            let mut comparable_docs: Vec<ComparableDoc<u64, u64>> =
+                docs.into_iter().map(|(sort_key, doc)| ComparableDoc { sort_key, doc }).collect();
+            crate::collector::sort_key::tests::sort_hits(&mut comparable_docs, Order::Asc);
+            comparable_docs.truncate(limit);
+            prop_assert_eq!(
+                computer.into_sorted_vec(),
+                comparable_docs,
+            );
+        }
+    }
+
+    proptest! {
+        #[test]
+        fn test_topn_computer_push_unordered_prop(
+          limit in 0..10_usize,
+          docs in proptest::collection::vec(0..5_u64, 0..100_usize)
+              .prop_map(|sort_keys| {
+                  sort_keys
+                      .into_iter()
+                      .enumerate()
+                      .map(|(doc, sort_key)| (sort_key, doc as u64))
+                      .collect::<Vec<_>>()
+              })
+              .prop_shuffle(),
+        ) {
+            let mut computer: TopNComputer<_, _, ReverseComparator> = TopNComputer::new_with_comparator(limit, ReverseComparator);
+            for (feature, doc) in &docs {
+                computer.push_unordered(*feature, *doc);
             }
             let mut comparable_docs: Vec<ComparableDoc<u64, u64>> =
                 docs.into_iter().map(|(sort_key, doc)| ComparableDoc { sort_key, doc }).collect();

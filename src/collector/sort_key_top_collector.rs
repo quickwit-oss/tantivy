@@ -81,14 +81,11 @@ fn merge_top_k<D: Ord, TSortKey: Clone + std::fmt::Debug, C: Comparator<TSortKey
     if doc_range.is_empty() {
         return Vec::new();
     }
-    // `TopNComputer` breaks ties in favor of the docs pushed first, so the docs must arrive
-    // in ascending order. A segment returns its top K in no particular order.
-    let mut sort_key_docs: Vec<(TSortKey, D)> = sort_key_docs.collect();
-    sort_key_docs.sort_unstable_by(|(_, left), (_, right)| left.cmp(right));
     let mut top_collector: TopNComputer<TSortKey, D, C> =
         TopNComputer::new_with_comparator(doc_range.end, comparator);
+    // A segment returns its top K in no particular order.
     for (sort_key, doc) in sort_key_docs {
-        top_collector.push(sort_key, doc);
+        top_collector.push_unordered(sort_key, doc);
     }
     top_collector
         .into_sorted_vec()
