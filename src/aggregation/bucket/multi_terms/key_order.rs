@@ -1,4 +1,4 @@
-//! Map column values to key components and retain the first page of keys in source order.
+//! Map column values to source sort values and retain the first page of bucket keys.
 
 use std::cmp::Ordering;
 
@@ -15,16 +15,17 @@ use crate::aggregation::segment_agg_result::BucketIdProvider;
 use crate::aggregation::{BucketId, ColumnBlockAccessor};
 use crate::{DocId, TantivyError};
 
-/// One bucket-key component, ordered by column position and value in source order.
-/// Positions 0 and 255 represent missing values; columns occupy 1..=254.
+/// A source value encoded to sort by column position, requested direction, and missing-value
+/// placement. Each source contributes a value to the bucket key.
+/// Positions 0 and 255 place missing values first or last. Columns occupy 1..=254.
 /// Descending values are bit-flipped.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Default, Hash)]
-pub(super) struct OrderedKeyComponent {
+pub(super) struct SourceSortValue {
     column_position: u8,
     encoded_value: u64,
 }
 
-impl OrderedKeyComponent {
+impl SourceSortValue {
     fn encode_value(value: u64, column_index: usize, order: Order) -> Self {
         Self {
             column_position: column_index as u8 + 1,
@@ -44,21 +45,22 @@ impl OrderedKeyComponent {
 }
 
 pub(super) const MAX_SOURCES: usize = 16;
-impl<const S: usize> AggregationMapKey for [OrderedKeyComponent; S] {}
+impl<const S: usize> AggregationMapKey for [SourceSortValue; S] {}
 
+/// Packs source sort values into an array used as a bucket key.
 #[derive(Clone, Debug)]
-pub(super) struct OrderedKeyPacking<const S: usize>;
+pub(super) struct SourceSortValueArrayPacking<const S: usize>;
 
-impl<const S: usize> TuplePacking for OrderedKeyPacking<S> {
-    type Value = OrderedKeyComponent;
-    type Key = [OrderedKeyComponent; S];
+impl<const S: usize> TuplePacking for SourceSortValueArrayPacking<S> {
+    type Value = SourceSortValue;
+    type Key = [SourceSortValue; S];
 
     fn new_key(&self) -> Self::Key {
-        [OrderedKeyComponent::default(); S]
+        [SourceSortValue::default(); S]
     }
 
     fn clear_key(&self, _key: &mut Self::Key) {
-        // Each component is overwritten before its prefix is compared or collected.
+        // Each source's value is overwritten before the key prefix is compared or collected.
     }
 
     fn push(&self, key: &mut Self::Key, field_idx: usize, value: Self::Value) {
@@ -73,11 +75,11 @@ impl<const S: usize> TuplePacking for OrderedKeyPacking<S> {
 /// Buckets for the first `size` keys in source order.
 #[derive(Debug)]
 pub(super) struct KeyPageBuckets<const S: usize> {
-    map: ArrayHeapMap<OrderedKeyComponent, Bucket, S>,
+    map: ArrayHeapMap<SourceSortValue, Bucket, S>,
     size: usize,
 }
 
-impl<const S: usize> MultiTermsBuckets<[OrderedKeyComponent; S]> for KeyPageBuckets<S> {
+impl<const S: usize> MultiTermsBuckets<[SourceSortValue; S]> for KeyPageBuckets<S> {
     type ChildBucketId = BucketId;
     const SORTED_BY_KEY: bool = false;
 
@@ -97,13 +99,13 @@ impl<const S: usize> MultiTermsBuckets<[OrderedKeyComponent; S]> for KeyPageBuck
         self.map.memory_consumption()
     }
 
-    fn into_vec(self) -> Vec<([OrderedKeyComponent; S], Bucket)> {
+    fn into_vec(self) -> Vec<([SourceSortValue; S], Bucket)> {
         self.map.into_iter().collect()
     }
 
     fn count_tuple(
         &mut self,
-        key: &[OrderedKeyComponent; S],
+        key: &[SourceSortValue; S],
         bucket_id_provider: &mut BucketIdProvider,
     ) -> Option<BucketId> {
         let bucket = self.map.get_or_insert_with(key, self.size, || Bucket {
@@ -115,77 +117,83 @@ impl<const S: usize> MultiTermsBuckets<[OrderedKeyComponent; S]> for KeyPageBuck
     }
 }
 
-/// Document IDs and mapped key components, deduplicated for each document.
+/// Buffers for one source's sort values and their document IDs.
 #[derive(Debug, Default)]
-pub(super) struct DocumentKeyComponents {
-    doc_components: Vec<(DocId, OrderedKeyComponent)>,
-    docids: Vec<DocId>,
-    values: Vec<OrderedKeyComponent>,
+pub(super) struct DocumentSortValues {
+    /// Document IDs paired with source sort values for sorting and deduplication.
+    document_values: Vec<(DocId, SourceSortValue)>,
+    /// Document IDs corresponding to the output sort values.
+    /// Left empty when a single column supplies one value per input document.
+    document_ids: Vec<DocId>,
+    /// Sort values returned for the requested documents, deduplicated per document.
+    sort_values: Vec<SourceSortValue>,
 }
 
-impl SourceValue for OrderedKeyComponent {
+impl SourceValue for SourceSortValue {
     const ENCODES_KEY_ORDER: bool = true;
-    type Buffer = DocumentKeyComponents;
+    type Buffer = DocumentSortValues;
 
-    fn buffer_memory_consumption(buffer: &DocumentKeyComponents) -> usize {
-        buffer.doc_components.capacity() * std::mem::size_of::<(DocId, Self)>()
-            + buffer.docids.capacity() * std::mem::size_of::<DocId>()
-            + buffer.values.capacity() * std::mem::size_of::<Self>()
+    fn buffer_memory_consumption(buffer: &DocumentSortValues) -> usize {
+        buffer.document_values.capacity() * std::mem::size_of::<(DocId, Self)>()
+            + buffer.document_ids.capacity() * std::mem::size_of::<DocId>()
+            + buffer.sort_values.capacity() * std::mem::size_of::<Self>()
     }
 
     fn fetch_field<'a>(
         req: &MultiTermsAggReqData,
         field: usize,
         docs: &[DocId],
-        buffer: &'a mut DocumentKeyComponents,
+        buffer: &'a mut DocumentSortValues,
         block: &'a mut ColumnBlockAccessor,
     ) -> crate::Result<DocumentValues<'a, Self>> {
         let source = &req.key_page.as_ref().expect("key page configured").sources[field];
-        buffer.doc_components.clear();
-        buffer.docids.clear();
-        buffer.values.clear();
+        buffer.document_values.clear();
+        buffer.document_ids.clear();
+        buffer.sort_values.clear();
         for (column_index, column) in source.columns.iter().enumerate() {
             block.fetch_block_with_missing(docs, &mut (&column.column, column.column_type), None);
-            // One aligned value per document cannot need deduplication after mapping.
+            // A single column with one value per document yields one sort value per document.
             if source.columns.len() == 1 && block.has_one_value_per_doc(docs) {
                 for &value in block.values() {
                     buffer
-                        .values
-                        .push(map_key_component(source, column_index, value)?);
+                        .sort_values
+                        .push(map_source_sort_value(source, column_index, value)?);
                 }
                 return Ok(DocumentValues {
                     docids: None,
-                    values: &buffer.values,
+                    values: &buffer.sort_values,
                     multivalued: false,
                 });
             }
             for (doc, value) in block.iter_docid_vals(docs) {
                 buffer
-                    .doc_components
-                    .push((doc, map_key_component(source, column_index, value)?));
+                    .document_values
+                    .push((doc, map_source_sort_value(source, column_index, value)?));
             }
         }
-        // Mapping can collapse distinct values, including values in different physical columns.
-        buffer.doc_components.sort_unstable();
-        buffer.doc_components.dedup();
-        let mut doc_components = buffer.doc_components.iter().peekable();
+        // Histogram mapping can give different column values the same source sort value,
+        // including values from different physical columns.
+        buffer.document_values.sort_unstable();
+        buffer.document_values.dedup();
+        let mut document_values = buffer.document_values.iter().peekable();
         let mut multivalued = false;
         for &doc in docs {
-            let start = buffer.values.len();
-            while let Some(&(_, value)) = doc_components.next_if(|(value_doc, _)| *value_doc == doc)
+            let start = buffer.sort_values.len();
+            while let Some(&(_, value)) =
+                document_values.next_if(|(value_doc, _)| *value_doc == doc)
             {
-                buffer.docids.push(doc);
-                buffer.values.push(value);
+                buffer.document_ids.push(doc);
+                buffer.sort_values.push(value);
             }
-            if start == buffer.values.len() && source.missing_bucket {
-                buffer.docids.push(doc);
-                buffer.values.push(Self::missing(source));
+            if start == buffer.sort_values.len() && source.missing_bucket {
+                buffer.document_ids.push(doc);
+                buffer.sort_values.push(Self::missing(source));
             }
-            multivalued |= buffer.values.len() - start > 1;
+            multivalued |= buffer.sort_values.len() - start > 1;
         }
         Ok(DocumentValues {
-            docids: Some(&buffer.docids),
-            values: &buffer.values,
+            docids: Some(&buffer.document_ids),
+            values: &buffer.sort_values,
             multivalued,
         })
     }
@@ -290,16 +298,16 @@ impl KeyPage {
     }
 }
 
-/// Maps one column value to a bucket-key component before deduplication.
+/// Maps a column value to a source sort value before deduplication.
 #[inline(always)]
-fn map_key_component(
+fn map_source_sort_value(
     source: &BucketSource,
     column_index: usize,
     value: u64,
-) -> crate::Result<OrderedKeyComponent> {
+) -> crate::Result<SourceSortValue> {
     let bucket = match source.mapping {
         BucketKeyMapping::Terms => {
-            return Ok(OrderedKeyComponent::encode_value(
+            return Ok(SourceSortValue::encode_value(
                 value,
                 column_index,
                 source.order,
@@ -339,7 +347,7 @@ fn map_key_component(
             }
         }
     };
-    Ok(OrderedKeyComponent::encode_value(
+    Ok(SourceSortValue::encode_value(
         bucket.to_u64(),
         0,
         source.order,
@@ -448,7 +456,7 @@ mod tests {
         let mut collector =
             SegmentMultiTermsCollector::<_, KeyPageBuckets<3>, HighCardSubAggBuffer>::new(
                 request.build_multi_terms_segment_request("page", reader)?,
-                OrderedKeyPacking::<3>,
+                SourceSortValueArrayPacking::<3>,
                 0,
                 None,
             );
@@ -462,9 +470,9 @@ mod tests {
             assert_eq!(collector.parent_buckets[0].map.size(), 2);
         }
         let page = collector.req_data.key_page.as_ref().unwrap();
-        let mut entries = collector.parent_buckets.pop().unwrap().into_vec();
-        entries.sort_unstable_by(|left, right| left.0.cmp(&right.0));
-        for ((key, bucket), suffix) in entries.into_iter().zip([0, 1]) {
+        let mut buckets = collector.parent_buckets.pop().unwrap().into_vec();
+        buckets.sort_unstable_by(|left, right| left.0.cmp(&right.0));
+        for ((key, bucket), suffix) in buckets.into_iter().zip([0, 1]) {
             assert_eq!(bucket.count, 130);
             assert_eq!(
                 page.resolve_key(&collector.packing, &key)?,
@@ -480,7 +488,7 @@ mod tests {
         let mut collector =
             SegmentMultiTermsCollector::<_, KeyPageBuckets<3>, HighCardSubAggBuffer>::new(
                 request.build_multi_terms_segment_request("page", reader)?,
-                OrderedKeyPacking::<3>,
+                SourceSortValueArrayPacking::<3>,
                 0,
                 None,
             );

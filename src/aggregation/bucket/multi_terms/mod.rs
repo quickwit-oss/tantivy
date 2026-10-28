@@ -16,7 +16,7 @@ use columnar::{
     Column, ColumnType, Dictionary, MonotonicallyMappableToU128, MonotonicallyMappableToU64,
     NumericalValue, StrColumn,
 };
-use key_order::{KeyPageBuckets, OrderedKeyPacking};
+use key_order::{KeyPageBuckets, SourceSortValueArrayPacking};
 use rustc_hash::FxHashMap;
 use serde::{Deserialize, Serialize};
 use smallvec::SmallVec;
@@ -303,9 +303,10 @@ fn fetch_field_block(
     block_accessor.has_one_value_per_doc(docs)
 }
 
-/// Packs tuples of field values into bucket keys and extracts their components.
+/// Packs field values into bucket keys and extracts values by field.
 ///
-/// Raw sources use a packed `u64` or [`MultiTermsKey`]; ordered sources retain typed components.
+/// Column values use a packed `u64` or [`MultiTermsKey`]. Key pagination uses arrays of
+/// [`key_order::SourceSortValue`] to encode each source's sort order.
 pub(crate) trait TuplePacking: Clone + Debug + 'static {
     type Value: SourceValue;
     type Key: AggregationMapKey + Ord;
@@ -622,7 +623,7 @@ pub(crate) fn build_segment_multi_terms_collector(
             ($($size:literal),+) => {
                 match req_data.num_fields() {
                     $($size => box_multi_terms_collector::<HighCardSubAggBuffer, _, KeyPageBuckets<$size>>(
-                        req, sub_agg, req_data, OrderedKeyPacking::<$size>, 0, true,
+                        req, sub_agg, req_data, SourceSortValueArrayPacking::<$size>, 0, true,
                     ),)+
                     _ => unreachable!("validated source count"),
                 }

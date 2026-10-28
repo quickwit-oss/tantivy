@@ -96,8 +96,9 @@ impl<TupleKey: AggregationMapKey, BucketMap: TermAggregationMap<TupleKey>>
     }
 }
 
-/// Loads source values as key components. Raw values borrow the column block;
-/// ordered values encode bucket values and, for terms, their column positions.
+/// Loads each source's values for constructing bucket keys.
+/// Column values borrow the column block. Source sort values encode the requested direction,
+/// missing-value placement, and, for terms, column position.
 pub(crate) trait SourceValue: Copy + Debug + 'static {
     /// Whether values encode the requested key order, including physical column position.
     const ENCODES_KEY_ORDER: bool;
