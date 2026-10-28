@@ -671,7 +671,6 @@ where
     fn get_memory_consumption(&self, parent_bucket_id: BucketId) -> usize {
         self.parent_buckets[parent_bucket_id as usize].memory_consumption()
             + self.keys_buf.capacity() * std::mem::size_of::<Packing::Key>()
-            + self.alive_docs.capacity() * std::mem::size_of::<DocId>()
             + self.doc_ids_per_partial_combination.capacity() * std::mem::size_of::<DocId>()
             + Packing::Value::buffer_memory_consumption(&self.field_value_buffer)
     }
