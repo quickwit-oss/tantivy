@@ -953,6 +953,50 @@ mod tests {
         assert_eq!(page_0, &page_2[..page_0.len()]);
     }
 
+    #[test]
+    fn test_top_collector_stable_sorting_with_ties_inside_a_segment() {
+        use crate::indexer::NoMergePolicy;
+        use crate::query::TermQuery;
+        use crate::schema::IndexRecordOption;
+        use crate::Term;
+
+        // Every "a" doc ties, and most limits cut through them. The merge fills its buffer
+        // partway through one segment's tied docs, so the docs it keeps must not depend on
+        // the order a segment returns its hits in.
+        let segments: [&[&str]; 3] = [
+            &["a"; 4],
+            &["a b"; 7],
+            &["a", "a", "a", "a", "a", "a", "a", "a", "a b"],
+        ];
+        let mut schema_builder = Schema::builder();
+        let text = schema_builder.add_text_field("text", TEXT);
+        let index = Index::create_in_ram(schema_builder.build());
+        let mut writer = index.writer_for_tests().unwrap();
+        writer.set_merge_policy(Box::new(NoMergePolicy));
+        for segment in segments {
+            for value in segment {
+                writer.add_document(doc!(text => *value)).unwrap();
+            }
+            writer.commit().unwrap();
+        }
+        let searcher = index.reader().unwrap().searcher();
+        let query = TermQuery::new(
+            Term::from_field_text(text, "a"),
+            IndexRecordOption::WithFreqs,
+        );
+        let top = |limit: usize| {
+            searcher
+                .search(&query, &TopDocs::with_limit(limit).order_by_score())
+                .unwrap()
+        };
+        let full = top(20);
+
+        assert_eq!(searcher.segment_readers().len(), 3);
+        for limit in 1..=full.len() {
+            assert_eq!(top(limit), full[..limit], "limit {limit}");
+        }
+    }
+
     proptest! {
         #![proptest_config(ProptestConfig::with_cases(20))]
         /// Build multiple segments with equal-scoring docs and verify stable ordering
