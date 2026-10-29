@@ -24,6 +24,7 @@ enum UnionStrategy {
 }
 
 const SPARSE_UNION_MAX_EXPECTED_HITS_PER_HORIZON: u64 = 128;
+const UNSCORED_ITERATION_MAX_EXPECTED_HITS_PER_HORIZON: u64 = 64;
 // SimpleUnion scans every child for each hit, even at low match density.
 const SIMPLE_UNION_MAX_CLAUSES: usize = 8;
 
@@ -31,12 +32,12 @@ fn union_strategy_for_estimated_hits(
     estimated_hits: u32,
     num_docs: u32,
     num_clauses: usize,
+    max_hits_per_horizon: u64,
 ) -> UnionStrategy {
     // This is a heuristic. The crossover also depends on seek patterns.
     if num_docs > 0
         && num_clauses <= SIMPLE_UNION_MAX_CLAUSES
-        && u64::from(estimated_hits) * 4_096
-            <= u64::from(num_docs) * SPARSE_UNION_MAX_EXPECTED_HITS_PER_HORIZON
+        && u64::from(estimated_hits) * 4_096 <= u64::from(num_docs) * max_hits_per_horizon
     {
         UnionStrategy::Simple
     } else {
@@ -119,7 +120,12 @@ where
         UnionStrategy::Buffered
     } else {
         let estimated_hits = estimate_union(scorers.iter().map(DocSet::size_hint), num_docs);
-        union_strategy_for_estimated_hits(estimated_hits, num_docs, scorers.len())
+        union_strategy_for_estimated_hits(
+            estimated_hits,
+            num_docs,
+            scorers.len(),
+            SPARSE_UNION_MAX_EXPECTED_HITS_PER_HORIZON,
+        )
     };
     {
         let is_all_term_queries = scorers.iter().all(|scorer| scorer.is::<TermScorer>());
@@ -128,27 +134,15 @@ where
                 .into_iter()
                 .map(|scorer| *(scorer.downcast::<TermScorer>().map_err(|_| ()).unwrap()))
                 .collect();
-            if scorers
-                .iter()
-                .all(|scorer| scorer.freq_reading_option() == FreqReadingOption::ReadFreq)
+            if scorers.len() == 1 && scorers[0].freq_reading_option() != FreqReadingOption::ReadFreq
             {
-                // Block wand is only available if we read frequencies.
-                // Retain even a single term so pruning can use single-term Block-WAND.
-                return SpecializedScorer::TermUnion {
-                    term_scorers: scorers,
-                    strategy,
-                };
-            } else if scorers.len() == 1 {
-                // Single TermScorer without freq reading — unwrap directly.
                 return SpecializedScorer::Other(Box::new(scorers.into_iter().next().unwrap()));
-            } else {
-                return SpecializedScorer::Other(build_union(
-                    scorers,
-                    strategy,
-                    score_combiner_fn,
-                    num_docs,
-                ));
             }
+            // Keep term scorers so collection can choose traversal and pruning can use Block-WAND.
+            return SpecializedScorer::TermUnion {
+                term_scorers: scorers,
+                strategy,
+            };
         }
     }
     SpecializedScorer::Other(build_union(scorers, strategy, score_combiner_fn, num_docs))
@@ -728,9 +722,27 @@ impl<TScoreCombiner: ScoreCombiner + Sync> Weight for BooleanWeight<TScoreCombin
                     let mut term_scorer = term_scorers.pop().unwrap();
                     for_each_docset_buffered(&mut term_scorer, &mut buffer, callback);
                 } else {
-                    let mut union_scorer =
-                        BufferedUnionScorer::build(term_scorers, &self.score_combiner_fn, num_docs);
-                    for_each_docset_buffered(&mut union_scorer, &mut buffer, callback);
+                    let estimated_hits =
+                        estimate_union(term_scorers.iter().map(DocSet::size_hint), num_docs);
+                    match union_strategy_for_estimated_hits(
+                        estimated_hits,
+                        num_docs,
+                        term_scorers.len(),
+                        UNSCORED_ITERATION_MAX_EXPECTED_HITS_PER_HORIZON,
+                    ) {
+                        UnionStrategy::Simple => {
+                            let mut union = SimpleUnion::build(term_scorers, num_docs);
+                            for_each_docset_buffered(&mut union, &mut buffer, callback);
+                        }
+                        UnionStrategy::Buffered => {
+                            let mut union = BufferedUnionScorer::build(
+                                term_scorers,
+                                DoNothingCombiner::default,
+                                num_docs,
+                            );
+                            for_each_docset_buffered(&mut union, &mut buffer, callback);
+                        }
+                    }
                 }
             }
             SpecializedScorer::TermIntersection(term_scorers) => {
@@ -771,7 +783,11 @@ impl<TScoreCombiner: ScoreCombiner + Sync> Weight for BooleanWeight<TScoreCombin
             // drive a combiner that sums. Anything else (dis_max) still needs
             // every matching term and falls back to the plain union.
             SpecializedScorer::TermUnion { term_scorers, .. } => {
-                if TScoreCombiner::SUPPORTS_BLOCK_WAND {
+                if TScoreCombiner::SUPPORTS_BLOCK_WAND
+                    && term_scorers
+                        .iter()
+                        .all(|scorer| scorer.freq_reading_option() == FreqReadingOption::ReadFreq)
+                {
                     super::block_wand(term_scorers, threshold, callback);
                 } else {
                     let mut union_scorer =
