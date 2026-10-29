@@ -96,10 +96,7 @@ impl InputColumn {
     ///
     /// Panics if the dictionary of a text column is corrupted.
     pub(super) fn load_block(&mut self, docs: &[DocId]) {
-        // `first_vals` does not write the entries of the docs without a value: we reset them.
-        self.first_values.clear();
-        self.first_values.resize(docs.len(), None);
-        self.column.first_vals(docs, &mut self.first_values);
+        self.load_block_values(docs);
         self.term_resolver.load(&self.first_values);
     }
 
