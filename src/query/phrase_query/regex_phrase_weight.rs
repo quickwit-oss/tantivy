@@ -10,6 +10,7 @@ use crate::postings::{LoadedPostings, Postings, SegmentPostings, TermInfo};
 use crate::query::bm25::Bm25Weight;
 use crate::query::explanation::does_not_match;
 use crate::query::union::{BitSetPostingUnion, SimpleUnion};
+use crate::query::weight::REFUTATION_COST_SCAN;
 use crate::query::{AutomatonWeight, BitSetDocSet, EmptyScorer, Explanation, Scorer, Weight};
 use crate::schema::{Field, IndexRecordOption};
 use crate::{DocId, DocSet, InvertedIndexReader, Score};
@@ -266,6 +267,10 @@ impl RegexPhraseWeight {
 }
 
 impl Weight for RegexPhraseWeight {
+    fn refutation_cost(&self) -> u64 {
+        REFUTATION_COST_SCAN
+    }
+
     fn scorer(&self, reader: &SegmentReader, boost: Score) -> crate::Result<Box<dyn Scorer>> {
         if let Some(scorer) = self.phrase_scorer(reader, boost)? {
             Ok(Box::new(scorer))
