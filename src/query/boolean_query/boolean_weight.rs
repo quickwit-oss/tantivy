@@ -100,6 +100,8 @@ where
 }
 
 /// num_docs is the number of documents in the segment.
+/// `may_seek` hints that the caller may skip matches with `seek`.
+/// It guides union selection. Both values preserve matching and scoring behavior.
 fn scorer_union<TScoreCombiner>(
     scorers: Vec<Box<dyn Scorer>>,
     score_combiner_fn: impl Fn() -> TScoreCombiner,
@@ -371,6 +373,8 @@ impl<TScoreCombiner: ScoreCombiner> BooleanWeight<TScoreCombiner> {
         }
     }
 
+    /// `may_seek` hints that the caller may skip matches with `seek`.
+    /// It guides union selection. Both values preserve matching and scoring behavior.
     fn complex_scorer<TComplexScoreCombiner: ScoreCombiner>(
         &self,
         reader: &SegmentReader,
