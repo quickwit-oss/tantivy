@@ -24,7 +24,6 @@ enum UnionStrategy {
 }
 
 const SPARSE_UNION_MAX_EXPECTED_HITS_PER_HORIZON: u64 = 128;
-const COUNT_UNION_MAX_EXPECTED_HITS_PER_HORIZON: u64 = 16;
 // SimpleUnion scans every child for each hit, even at low match density.
 const SIMPLE_UNION_MAX_CLAUSES: usize = 8;
 
@@ -32,12 +31,12 @@ fn union_strategy_for_estimated_hits(
     estimated_hits: u32,
     num_docs: u32,
     num_clauses: usize,
-    max_hits_per_horizon: u64,
 ) -> UnionStrategy {
     // This is a heuristic. The crossover also depends on seek patterns.
     if num_docs > 0
         && num_clauses <= SIMPLE_UNION_MAX_CLAUSES
-        && u64::from(estimated_hits) * 4_096 <= u64::from(num_docs) * max_hits_per_horizon
+        && u64::from(estimated_hits) * 4_096
+            <= u64::from(num_docs) * SPARSE_UNION_MAX_EXPECTED_HITS_PER_HORIZON
     {
         UnionStrategy::Simple
     } else {
@@ -105,7 +104,7 @@ fn scorer_union<TScoreCombiner>(
     scorers: Vec<Box<dyn Scorer>>,
     score_combiner_fn: impl Fn() -> TScoreCombiner,
     num_docs: u32,
-    max_hits_per_horizon: u64,
+    exhaustive: bool,
 ) -> SpecializedScorer
 where
     TScoreCombiner: ScoreCombiner,
@@ -114,13 +113,12 @@ where
     if scorers.len() == 1 && !scorers[0].is::<TermScorer>() {
         return SpecializedScorer::Other(scorers.into_iter().next().unwrap()); //< we checked the size beforehand
     }
-    let estimated_hits = estimate_union(scorers.iter().map(DocSet::size_hint), num_docs);
-    let strategy = union_strategy_for_estimated_hits(
-        estimated_hits,
-        num_docs,
-        scorers.len(),
-        max_hits_per_horizon,
-    );
+    let strategy = if exhaustive {
+        UnionStrategy::Buffered
+    } else {
+        let estimated_hits = estimate_union(scorers.iter().map(DocSet::size_hint), num_docs);
+        union_strategy_for_estimated_hits(estimated_hits, num_docs, scorers.len())
+    };
     {
         let is_all_term_queries = scorers.iter().all(|scorer| scorer.is::<TermScorer>());
         if is_all_term_queries {
@@ -378,6 +376,7 @@ impl<TScoreCombiner: ScoreCombiner> BooleanWeight<TScoreCombiner> {
         reader: &SegmentReader,
         boost: Score,
         score_combiner_fn: impl Fn() -> TComplexScoreCombiner,
+        exhaustive: bool,
     ) -> crate::Result<SpecializedScorer> {
         let num_docs = reader.num_docs();
 
@@ -427,6 +426,8 @@ impl<TScoreCombiner: ScoreCombiner> BooleanWeight<TScoreCombiner> {
             .minimum_number_should_match
             .saturating_sub(should_special_scorer_counts.num_all_scorers);
 
+        // MUST clauses can seek through the SHOULD union even during exhaustive collection.
+        let exhaustive = exhaustive && must_scorers.is_empty();
         let should_scorers: ShouldScorersCombinationMethod = {
             let num_of_should_scorers = should_scorers.len();
             if effective_minimum_number_should_match > num_of_should_scorers {
@@ -440,13 +441,13 @@ impl<TScoreCombiner: ScoreCombiner> BooleanWeight<TScoreCombiner> {
                     should_scorers,
                     &score_combiner_fn,
                     num_docs,
-                    SPARSE_UNION_MAX_EXPECTED_HITS_PER_HORIZON,
+                    exhaustive,
                 )),
                 1 => ShouldScorersCombinationMethod::Required(scorer_union(
                     should_scorers,
                     &score_combiner_fn,
                     num_docs,
-                    SPARSE_UNION_MAX_EXPECTED_HITS_PER_HORIZON,
+                    exhaustive,
                 )),
                 n if num_of_should_scorers == n => {
                     // When num_of_should_scorers equals the number of should clauses,
@@ -629,12 +630,12 @@ impl<TScoreCombiner: ScoreCombiner + Sync> Weight for BooleanWeight<TScoreCombin
                 weight.scorer(reader, boost)
             }
         } else if self.scoring_enabled {
-            self.complex_scorer(reader, boost, &self.score_combiner_fn)
+            self.complex_scorer(reader, boost, &self.score_combiner_fn, false)
                 .map(|specialized_scorer| {
                     into_box_scorer(specialized_scorer, &self.score_combiner_fn, num_docs)
                 })
         } else {
-            self.complex_scorer(reader, boost, DoNothingCombiner::default)
+            self.complex_scorer(reader, boost, DoNothingCombiner::default, false)
                 .map(|specialized_scorer| {
                     into_box_scorer(specialized_scorer, DoNothingCombiner::default, num_docs)
                 })
@@ -642,32 +643,8 @@ impl<TScoreCombiner: ScoreCombiner + Sync> Weight for BooleanWeight<TScoreCombin
     }
 
     fn count(&self, reader: &SegmentReader) -> crate::Result<u32> {
-        let should_weights = self.per_occur_weights.get(Occur::Should);
-        let mut scorer = if reader.alive_bitset().is_none()
-            && should_weights.len() >= 2
-            && self.minimum_number_should_match <= 1
-            && self.per_occur_weights.get(Occur::Must).is_empty()
-            && self.per_occur_weights.get(Occur::MustNot).is_empty()
-        {
-            // Bitset/popcount counting becomes worthwhile at a lower density than traversal.
-            // Child scorers retain density selection for nested queries that use seeking.
-            let scorers = should_weights
-                .iter()
-                .map(|weight| weight.scorer(reader, 1.0))
-                .collect::<crate::Result<Vec<_>>>()?;
-            if scorers.iter().any(|scorer| scorer.is::<AllScorer>()) {
-                return Ok(reader.num_docs());
-            }
-            let union = scorer_union(
-                scorers,
-                DoNothingCombiner::default,
-                reader.num_docs(),
-                COUNT_UNION_MAX_EXPECTED_HITS_PER_HORIZON,
-            );
-            into_box_scorer(union, DoNothingCombiner::default, reader.num_docs())
-        } else {
-            self.scorer(reader, 1.0)?
-        };
+        let scorer = self.complex_scorer(reader, 1.0, DoNothingCombiner::default, true)?;
+        let mut scorer = into_box_scorer(scorer, DoNothingCombiner::default, reader.num_docs());
         if let Some(alive_bitset) = reader.alive_bitset() {
             Ok(scorer.count(alive_bitset))
         } else {
@@ -700,20 +677,19 @@ impl<TScoreCombiner: ScoreCombiner + Sync> Weight for BooleanWeight<TScoreCombin
         reader: &SegmentReader,
         callback: &mut dyn FnMut(DocId, Score),
     ) -> crate::Result<()> {
-        let scorer = self.complex_scorer(reader, 1.0, &self.score_combiner_fn)?;
+        let scorer = self.complex_scorer(reader, 1.0, &self.score_combiner_fn, true)?;
         let num_docs = reader.num_docs();
         match scorer {
             SpecializedScorer::TermUnion {
-                mut term_scorers,
-                strategy,
+                mut term_scorers, ..
             } => {
                 if term_scorers.len() == 1 {
                     let mut term_scorer = term_scorers.pop().unwrap();
                     for_each_scorer(&mut term_scorer, callback);
                 } else {
                     let mut union_scorer =
-                        build_union(term_scorers, strategy, &self.score_combiner_fn, num_docs);
-                    for_each_scorer(union_scorer.as_mut(), callback);
+                        BufferedUnionScorer::build(term_scorers, &self.score_combiner_fn, num_docs);
+                    for_each_scorer(&mut union_scorer, callback);
                 }
             }
             SpecializedScorer::TermIntersection(term_scorers) => {
@@ -736,22 +712,21 @@ impl<TScoreCombiner: ScoreCombiner + Sync> Weight for BooleanWeight<TScoreCombin
         reader: &SegmentReader,
         callback: &mut dyn FnMut(&[DocId]),
     ) -> crate::Result<()> {
-        let scorer = self.complex_scorer(reader, 1.0, || DoNothingCombiner)?;
+        let scorer = self.complex_scorer(reader, 1.0, || DoNothingCombiner, true)?;
         let num_docs = reader.num_docs();
         let mut buffer = [0u32; COLLECT_BLOCK_BUFFER_LEN];
 
         match scorer {
             SpecializedScorer::TermUnion {
-                mut term_scorers,
-                strategy,
+                mut term_scorers, ..
             } => {
                 if term_scorers.len() == 1 {
                     let mut term_scorer = term_scorers.pop().unwrap();
                     for_each_docset_buffered(&mut term_scorer, &mut buffer, callback);
                 } else {
                     let mut union_scorer =
-                        build_union(term_scorers, strategy, &self.score_combiner_fn, num_docs);
-                    for_each_docset_buffered(union_scorer.as_mut(), &mut buffer, callback);
+                        BufferedUnionScorer::build(term_scorers, &self.score_combiner_fn, num_docs);
+                    for_each_docset_buffered(&mut union_scorer, &mut buffer, callback);
                 }
             }
             SpecializedScorer::TermIntersection(term_scorers) => {
@@ -785,22 +760,19 @@ impl<TScoreCombiner: ScoreCombiner + Sync> Weight for BooleanWeight<TScoreCombin
         reader: &SegmentReader,
         callback: &mut dyn FnMut(DocId, Score) -> Score,
     ) -> crate::Result<()> {
-        let scorer = self.complex_scorer(reader, 1.0, &self.score_combiner_fn)?;
+        let scorer = self.complex_scorer(reader, 1.0, &self.score_combiner_fn, true)?;
         let num_docs = reader.num_docs();
         match scorer {
             // Block-WAND scores by summing the matching terms, so it may only
             // drive a combiner that sums. Anything else (dis_max) still needs
             // every matching term and falls back to the plain union.
-            SpecializedScorer::TermUnion {
-                term_scorers,
-                strategy,
-            } => {
+            SpecializedScorer::TermUnion { term_scorers, .. } => {
                 if TScoreCombiner::SUPPORTS_BLOCK_WAND {
                     super::block_wand(term_scorers, threshold, callback);
                 } else {
                     let mut union_scorer =
-                        build_union(term_scorers, strategy, &self.score_combiner_fn, num_docs);
-                    for_each_pruning_scorer(union_scorer.as_mut(), threshold, callback);
+                        BufferedUnionScorer::build(term_scorers, &self.score_combiner_fn, num_docs);
+                    for_each_pruning_scorer(&mut union_scorer, threshold, callback);
                 }
             }
             // An intersection sums its term scores whatever the combiner:
@@ -875,19 +847,16 @@ mod tests {
                 Box::new(ConstScorer::new(docs, f32::from(*score))) as Box<dyn Scorer>
             }).collect::<Vec<_>>();
             // Vary segment size to exercise dense and sparse dispatch with the same postings.
-            for (num_docs, threshold) in [(256, 128), (16_384, 128), (256, 16), (16_384, 16)] {
+            for (num_docs, exhaustive) in [(256, false), (16_384, false), (256, true), (16_384, true)] {
                 let mut actual = into_box_scorer(
-                    scorer_union(make_scorers(), SumCombiner::default, num_docs, threshold),
+                    scorer_union(make_scorers(), SumCombiner::default, num_docs, exhaustive),
                     SumCombiner::default,
                     num_docs,
                 );
-                if postings.len() > super::SIMPLE_UNION_MAX_CLAUSES {
-                    prop_assert!(actual.is::<BufferedUnionScorer<Box<dyn Scorer>, SumCombiner>>());
-                }
                 let mut expected = BufferedUnionScorer::build(
                     make_scorers(), SumCombiner::default, num_docs,
                 );
-                if threshold == 16 {
+                if exhaustive {
                     prop_assert_eq!(actual.count_including_deleted(), expected.count_including_deleted());
                     continue;
                 }
