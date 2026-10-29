@@ -1,3 +1,4 @@
+#![doc = include_str!("../README.md")]
 #![allow(clippy::derive_partial_eq_without_eq)]
 
 use serde::Serialize;
