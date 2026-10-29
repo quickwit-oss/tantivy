@@ -7,6 +7,7 @@ use jitexpr::types::{VarType, VariableValue};
 
 use super::dynamic_term_dictionary::DynamicTermDictionary;
 use super::input_column::InputColumn;
+use crate::aggregation::agg_limits::MemoryConsumption;
 use crate::aggregation::f64_from_fastfield_u64;
 use crate::aggregation::value_source::{coerce_to_f64, ValueSource, ValueSourceDictionary};
 use crate::DocId;
@@ -183,6 +184,10 @@ impl ValueSource for JitExprValueSource {
         }
         Some(&self.term_dictionary)
     }
+
+    fn memory_consumption(&self) -> usize {
+        self.term_dictionary.memory_consumption()
+    }
 }
 
 /// A source with the same value for all of the docs.
@@ -253,6 +258,10 @@ impl ValueSource for ConstantValueSource {
             return None;
         }
         Some(&self.term_dictionary)
+    }
+
+    fn memory_consumption(&self) -> usize {
+        self.term_dictionary.memory_consumption()
     }
 }
 

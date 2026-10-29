@@ -94,6 +94,16 @@ pub trait ValueSource: std::fmt::Debug {
     fn term_dictionary(&self) -> Option<&dyn ValueSourceDictionary> {
         None
     }
+
+    /// Heap memory allocated by this source while loading values, in bytes.
+    ///
+    /// Sources backed by a physical column return 0: their memory belongs to the index, not to
+    /// the aggregation request. A computed source may allocate as values are loaded (e.g. the
+    /// term dictionary of a computed text source grows with every new term); the collectors
+    /// charge that growth against the aggregation memory limit.
+    fn memory_consumption(&self) -> usize {
+        0
+    }
 }
 
 /// Maps term ords of a `Str` [`ValueSource`] back into terms.
@@ -264,6 +274,10 @@ impl ValueSource for F64CoercedValueSource {
 
     fn to_f64(self: Box<Self>) -> Box<dyn ValueSource> {
         self
+    }
+
+    fn memory_consumption(&self) -> usize {
+        self.inner.memory_consumption()
     }
 }
 
