@@ -154,7 +154,7 @@ fn build_necessary_condition_docset(
                     build_necessary_condition_docset(condition, column_indexes, max_doc)
                 })
                 .collect();
-            Box::new(SimpleUnion::build(doc_sets))
+            Box::new(SimpleUnion::build(doc_sets, max_doc))
         }
     }
 }

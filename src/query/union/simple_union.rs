@@ -1,6 +1,7 @@
 use crate::docset::{DocSet, TERMINATED};
 use crate::postings::Postings;
 use crate::query::score_combiner::{DoNothingCombiner, ScoreCombiner};
+use crate::query::size_hint::estimate_union;
 use crate::query::Scorer;
 use crate::{DocId, Score};
 
@@ -12,11 +13,12 @@ pub struct SimpleUnion<TDocSet, TScoreCombiner = DoNothingCombiner> {
     docsets: Vec<TDocSet>,
     score_combiner: TScoreCombiner,
     doc: DocId,
+    num_docs: u32,
 }
 
 impl<TDocSet: DocSet> SimpleUnion<TDocSet, DoNothingCombiner> {
-    pub(crate) fn build(docsets: Vec<TDocSet>) -> Self {
-        Self::build_with_combiner(docsets, DoNothingCombiner)
+    pub(crate) fn build(docsets: Vec<TDocSet>, num_docs: u32) -> Self {
+        Self::build_with_combiner(docsets, DoNothingCombiner, num_docs)
     }
 }
 
@@ -24,18 +26,24 @@ impl<TScorer: Scorer, TScoreCombiner: ScoreCombiner> SimpleUnion<TScorer, TScore
     pub(crate) fn build_scored(
         scorers: Vec<TScorer>,
         score_combiner_fn: impl FnOnce() -> TScoreCombiner,
+        num_docs: u32,
     ) -> Self {
-        Self::build_with_combiner(scorers, score_combiner_fn())
+        Self::build_with_combiner(scorers, score_combiner_fn(), num_docs)
     }
 }
 
 impl<TDocSet: DocSet, TScoreCombiner> SimpleUnion<TDocSet, TScoreCombiner> {
-    fn build_with_combiner(mut docsets: Vec<TDocSet>, score_combiner: TScoreCombiner) -> Self {
+    fn build_with_combiner(
+        mut docsets: Vec<TDocSet>,
+        score_combiner: TScoreCombiner,
+        num_docs: u32,
+    ) -> Self {
         docsets.retain(|docset| docset.doc() != TERMINATED);
         let mut docset = SimpleUnion {
             docsets,
             score_combiner,
             doc: 0,
+            num_docs,
         };
         docset.initialize_first_doc_id();
         docset
@@ -114,12 +122,7 @@ impl<TDocSet: DocSet, TScoreCombiner: Send> DocSet for SimpleUnion<TDocSet, TSco
     }
 
     fn size_hint(&self) -> u32 {
-        // TODO: use estimate_union
-        self.docsets
-            .iter()
-            .map(|docset| docset.size_hint())
-            .max()
-            .unwrap_or(0u32)
+        estimate_union(self.docsets.iter().map(DocSet::size_hint), self.num_docs)
     }
 
     fn cost(&self) -> u64 {

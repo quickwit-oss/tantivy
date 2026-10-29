@@ -52,7 +52,11 @@ fn build_union<TScorer: Scorer, TScoreCombiner: ScoreCombiner>(
     num_docs: u32,
 ) -> Box<dyn Scorer> {
     match strategy {
-        UnionStrategy::Simple => Box::new(SimpleUnion::build_scored(scorers, score_combiner_fn)),
+        UnionStrategy::Simple => Box::new(SimpleUnion::build_scored(
+            scorers,
+            score_combiner_fn,
+            num_docs,
+        )),
         UnionStrategy::Buffered => Box::new(BufferedUnionScorer::build(
             scorers,
             score_combiner_fn,
@@ -826,7 +830,9 @@ fn is_include_occur(occur: Occur) -> bool {
 mod tests {
     use proptest::prelude::*;
 
-    use super::{create_aligned_scorers_for_intersection, into_box_scorer, scorer_union};
+    use super::{
+        create_aligned_scorers_for_intersection, into_box_scorer, scorer_union, SimpleUnion,
+    };
     use crate::query::{
         BufferedUnionScorer, ConstScorer, EmptyScorer, EnableScoring, Query, Scorer, SumCombiner,
         TermQuery, VecDocSet, Weight,
@@ -865,6 +871,7 @@ mod tests {
             postings in prop::collection::vec(
                 (prop::collection::btree_set(0u32..256, 0..32), 0u8..100), 2..20
             ),
+            hits_per_term in 1u32..=40,
         ) {
             let make_scorers = || postings.iter().map(|(docs, score)| {
                 let docs = VecDocSet::from(docs.iter().copied().collect::<Vec<_>>());
@@ -895,6 +902,34 @@ mod tests {
                 }
                 prop_assert_eq!(actual.doc(), TERMINATED);
             }
+            // Each sparse group has eight disjoint 0.4%-dense terms. The outer OR is dense.
+            let num_docs = hits_per_term * 250;
+            let mut groups = Vec::new();
+            for group in 0..8 {
+                let terms = (0..8).map(|term| {
+                    let start = (group * 8 + term) * hits_per_term;
+                    let docs = VecDocSet::from((start..start + hits_per_term).collect::<Vec<_>>());
+                    Box::new(ConstScorer::new(docs, 1.0)) as Box<dyn Scorer>
+                }).collect();
+                let inner = into_box_scorer(
+                    scorer_union(terms, SumCombiner::default, num_docs, 128),
+                    SumCombiner::default, num_docs,
+                );
+                prop_assert!(inner.is::<SimpleUnion<Box<dyn Scorer>, SumCombiner>>());
+                prop_assert_eq!(inner.size_hint(), super::estimate_union([hits_per_term; 8].into_iter(), num_docs));
+                groups.push(inner);
+            }
+            let mut outer = into_box_scorer(
+                scorer_union(groups, SumCombiner::default, num_docs, 128),
+                SumCombiner::default, num_docs,
+            );
+            prop_assert!(outer.is::<BufferedUnionScorer<Box<dyn Scorer>, SumCombiner>>());
+            for doc in 0..64 * hits_per_term {
+                prop_assert_eq!(outer.doc(), doc);
+                prop_assert_eq!(outer.score(), 1.0);
+                outer.advance();
+            }
+            prop_assert_eq!(outer.doc(), TERMINATED);
         }
     }
 
