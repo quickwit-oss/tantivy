@@ -22,6 +22,8 @@ Different values from a document can map to the same bucket key. For example, pr
 
 A source in the composite API is a named grouping rule: a field, a mapping such as terms or histogram intervals, and sort and missing-value settings. For example, grouping by product terms and price intervals of 10 can produce the key `{product: "shoe", price_band: 20}`. Composite translates these rules into a multi-terms aggregation and exposes its results through the composite API.
 
+`BucketKeyValue` represents one grouping rule's contribution to a bucket key. Terms can use a column's `u64` encoding directly. Composite grouping uses `BucketSortValue` to encode mapped bucket values for sorting. A grouping rule can read several physical columns for the same field.
+
 Multi-terms maps each grouping rule's column values to bucket sort values, which encode sort direction and missing-value placement. Terms values also encode column position. `DocumentBucketValues` buffers these values and their document IDs, deduplicating values across a grouping rule's physical columns for each document before combining values from different rules into bucket keys. Histogram and date-histogram values deduplicate after bucket mapping. Multi-terms applies exclusive pagination and stores the first page of keys.
 
 Pagination filtering happens before candidate selection, including bounds absent from dictionaries or not exactly representable by numeric columns. Ordered expansion retains at most `size + 1` combinations per document at each stage: enough to fill the page even if the one prefix equal to `after` has no qualifying suffix. Bucket storage retains only `size` keys per parent bucket.

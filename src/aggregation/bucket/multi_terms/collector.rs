@@ -1,4 +1,4 @@
-//! Source value representations and bucket storage for multi-terms.
+//! Values used to construct bucket keys and bucket storage for multi-terms.
 
 use std::fmt::Debug;
 
@@ -9,8 +9,11 @@ use crate::aggregation::segment_agg_result::BucketIdProvider;
 use crate::aggregation::ColumnBlockAccessor;
 use crate::DocId;
 
-/// One source's unique values for each document. Document IDs are ascending and grouped.
-/// An absent document-ID slice means values are positionally aligned with the input documents.
+/// One grouping rule's bucket key values, deduplicated per document.
+/// Document IDs are ascending, with each document's values grouped together.
+/// For example, document IDs `[7, 7, 8]` and values `[10, 20, 20]` assign two values to document 7
+/// and one to document 8. When `docids` is `None`, each input document has one value at the same
+/// position in `values`.
 pub(crate) struct DocumentValues<'a, V> {
     pub docids: Option<&'a [DocId]>,
     pub values: &'a [V],
@@ -32,7 +35,8 @@ impl<V: Copy> DocumentValues<'_, V> {
 }
 
 /// Stores buckets for multi-terms aggregation and counts documents for each combination of field
-/// values. Implementations may retain all combinations or a page of keys in source order.
+/// values. Implementations may retain all combinations or a page of keys in the requested sort
+/// order.
 pub(crate) trait MultiTermsBuckets<TupleKey>: Debug + 'static {
     /// Bucket ID used by child aggregations, or `()` when there are no children.
     type ChildBucketId: BucketIdSlot;
@@ -96,16 +100,29 @@ impl<TupleKey: AggregationMapKey, BucketMap: TermAggregationMap<TupleKey>>
     }
 }
 
-/// Loads each grouping rule's values for constructing bucket keys.
-/// Column values borrow the column block. Bucket sort values encode the requested direction,
-/// missing-value placement, and, for terms, column position.
-pub(crate) trait SourceValue: Copy + Debug + 'static {
-    /// Whether values encode the requested key order, including physical column position.
+/// A value contributed by one grouping rule to a bucket key.
+///
+/// For terms, `u64` holds the column's encoding of a field value. For example, an unsigned price
+/// of 23 contributes 23. These values borrow the column block during loading.
+/// [`super::key_order::BucketSortValue`] holds a mapped bucket value encoded for the requested
+/// sort order. For example, a price of 23 grouped into intervals of 10 contributes bucket 20,
+/// represented by the encoded bucket index 2. Loading can combine values from several columns
+/// for the same field, then deduplicate the mapped values per document.
+pub(crate) trait BucketKeyValue: Copy + Debug + 'static {
+    /// Whether comparing values follows the requested bucket key order, including missing values
+    /// and, for terms, column position.
     const ENCODES_KEY_ORDER: bool;
+
+    /// Storage used during loading in addition to the column block accessor.
+    /// `u64` borrows the accessor's values and uses `()`. Bucket sort values own their mapped
+    /// buffers.
     type Buffer: Debug + Default;
 
+    /// Bytes allocated by the buffer, measured by vector capacity.
     fn buffer_memory_consumption(buffer: &Self::Buffer) -> usize;
 
+    /// Loads one grouping rule's bucket key values for the requested documents.
+    /// Returned slices borrow the buffer or the column block accessor.
     fn fetch_field<'a>(
         req: &MultiTermsAggReqData,
         field: usize,
@@ -114,13 +131,17 @@ pub(crate) trait SourceValue: Copy + Debug + 'static {
         accessor: &'a mut ColumnBlockAccessor,
     ) -> crate::Result<DocumentValues<'a, Self>>;
 
+    /// Supplies a fallback when loading returned no values for this document and grouping rule.
+    /// Returns `None` when no fallback applies. Bucket sort values insert missing buckets during
+    /// loading, after checking all columns for the field.
     fn missing_value(req: &MultiTermsAggReqData, field: usize, doc: DocId) -> Option<Self>;
 
-    /// Column index and value before sort encoding, or None for a missing bucket.
+    /// Removes sort encoding and returns the column index and encoded column or bucket value.
+    /// Histogram buckets use column index 0. Returns `None` for a missing bucket.
     fn decode(self, order: Order) -> Option<(usize, u64)>;
 }
 
-impl SourceValue for u64 {
+impl BucketKeyValue for u64 {
     const ENCODES_KEY_ORDER: bool = false;
     type Buffer = ();
 

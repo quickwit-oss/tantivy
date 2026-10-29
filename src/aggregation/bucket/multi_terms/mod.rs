@@ -10,7 +10,7 @@ use std::fmt::Debug;
 use std::net::Ipv6Addr;
 use std::sync::Arc;
 
-use collector::{DocumentValues, MultiTermsBuckets, SourceValue};
+use collector::{BucketKeyValue, DocumentValues, MultiTermsBuckets};
 use columnar::column_values::CompactSpaceU64Accessor;
 use columnar::{
     Column, ColumnType, Dictionary, MonotonicallyMappableToU128, MonotonicallyMappableToU64,
@@ -303,12 +303,12 @@ fn fetch_field_block(
     block_accessor.has_one_value_per_doc(docs)
 }
 
-/// Packs field values into bucket keys and extracts values by field.
+/// Packs each grouping rule's values into bucket keys and extracts them by position.
 ///
 /// Column values use a packed `u64` or [`MultiTermsKey`]. Key pagination uses arrays of
 /// [`key_order::BucketSortValue`] to encode each grouping rule's sort order.
 pub(crate) trait TuplePacking: Clone + Debug + 'static {
-    type Value: SourceValue;
+    type Value: BucketKeyValue;
     type Key: AggregationMapKey + Ord;
 
     fn new_key(&self) -> Self::Key;
@@ -427,7 +427,7 @@ where
     sub_agg: Option<BufferedSubAggs<Buffer>>,
     bucket_id_provider: BucketIdProvider,
     req_data: MultiTermsAggReqData,
-    field_value_buffer: <Packing::Value as SourceValue>::Buffer,
+    field_value_buffer: <Packing::Value as BucketKeyValue>::Buffer,
     packing: Packing,
     /// Key limit for creating maps under parent buckets: exclusive for vector sizing,
     /// inclusive for page-directory sizing. Hash maps and key pages ignore it.

@@ -4,7 +4,7 @@ use std::cmp::Ordering;
 
 use columnar::{ColumnType, MonotonicallyMappableToU64};
 
-use super::collector::{DocumentValues, MultiTermsBuckets, SourceValue};
+use super::collector::{BucketKeyValue, DocumentValues, MultiTermsBuckets};
 use super::map::ArrayHeapMap;
 use super::sources::{BucketKeyMapping, BucketSource, DateInterval, KeyPage, SourceAfterKey};
 use super::{calendar_interval, MultiTermsAggReqData, TuplePacking};
@@ -137,7 +137,7 @@ pub(super) struct DocumentBucketValues {
     sort_values: Vec<BucketSortValue>,
 }
 
-impl SourceValue for BucketSortValue {
+impl BucketKeyValue for BucketSortValue {
     const ENCODES_KEY_ORDER: bool = true;
     type Buffer = DocumentBucketValues;
 
