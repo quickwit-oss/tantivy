@@ -23,10 +23,18 @@ enum UnionStrategy {
     Buffered,
 }
 
-fn union_strategy_for_estimated_hits(estimated_hits: u32, num_docs: u32) -> UnionStrategy {
-    // Use a simple union for at most 128 expected hits per 4,096-document buffer.
+const SPARSE_UNION_MAX_EXPECTED_HITS_PER_HORIZON: u64 = 128;
+const COUNT_UNION_MAX_EXPECTED_HITS_PER_HORIZON: u64 = 16;
+
+fn union_strategy_for_estimated_hits(
+    estimated_hits: u32,
+    num_docs: u32,
+    max_hits_per_horizon: u64,
+) -> UnionStrategy {
     // This is a heuristic. The crossover also depends on clause count and seek patterns.
-    if num_docs > 0 && u64::from(estimated_hits) * 4_096 <= u64::from(num_docs) * 128 {
+    if num_docs > 0
+        && u64::from(estimated_hits) * 4_096 <= u64::from(num_docs) * max_hits_per_horizon
+    {
         UnionStrategy::Simple
     } else {
         UnionStrategy::Buffered
@@ -89,6 +97,7 @@ fn scorer_union<TScoreCombiner>(
     scorers: Vec<Box<dyn Scorer>>,
     score_combiner_fn: impl Fn() -> TScoreCombiner,
     num_docs: u32,
+    max_hits_per_horizon: u64,
 ) -> SpecializedScorer
 where
     TScoreCombiner: ScoreCombiner,
@@ -98,7 +107,8 @@ where
         return SpecializedScorer::Other(scorers.into_iter().next().unwrap()); //< we checked the size beforehand
     }
     let estimated_hits = estimate_union(scorers.iter().map(DocSet::size_hint), num_docs);
-    let strategy = union_strategy_for_estimated_hits(estimated_hits, num_docs);
+    let strategy =
+        union_strategy_for_estimated_hits(estimated_hits, num_docs, max_hits_per_horizon);
     {
         let is_all_term_queries = scorers.iter().all(|scorer| scorer.is::<TermScorer>());
         if is_all_term_queries {
@@ -418,11 +428,13 @@ impl<TScoreCombiner: ScoreCombiner> BooleanWeight<TScoreCombiner> {
                     should_scorers,
                     &score_combiner_fn,
                     num_docs,
+                    SPARSE_UNION_MAX_EXPECTED_HITS_PER_HORIZON,
                 )),
                 1 => ShouldScorersCombinationMethod::Required(scorer_union(
                     should_scorers,
                     &score_combiner_fn,
                     num_docs,
+                    SPARSE_UNION_MAX_EXPECTED_HITS_PER_HORIZON,
                 )),
                 n if num_of_should_scorers == n => {
                     // When num_of_should_scorers equals the number of should clauses,
@@ -614,6 +626,40 @@ impl<TScoreCombiner: ScoreCombiner + Sync> Weight for BooleanWeight<TScoreCombin
                 .map(|specialized_scorer| {
                     into_box_scorer(specialized_scorer, DoNothingCombiner::default, num_docs)
                 })
+        }
+    }
+
+    fn count(&self, reader: &SegmentReader) -> crate::Result<u32> {
+        let should_weights = self.per_occur_weights.get(Occur::Should);
+        let mut scorer = if reader.alive_bitset().is_none()
+            && should_weights.len() >= 2
+            && self.minimum_number_should_match <= 1
+            && self.per_occur_weights.get(Occur::Must).is_empty()
+            && self.per_occur_weights.get(Occur::MustNot).is_empty()
+        {
+            // Bitset/popcount counting becomes worthwhile at a lower density than traversal.
+            // Child scorers retain density selection for nested queries that use seeking.
+            let scorers = should_weights
+                .iter()
+                .map(|weight| weight.scorer(reader, 1.0))
+                .collect::<crate::Result<Vec<_>>>()?;
+            if scorers.iter().any(|scorer| scorer.is::<AllScorer>()) {
+                return Ok(reader.num_docs());
+            }
+            let union = scorer_union(
+                scorers,
+                DoNothingCombiner::default,
+                reader.num_docs(),
+                COUNT_UNION_MAX_EXPECTED_HITS_PER_HORIZON,
+            );
+            into_box_scorer(union, DoNothingCombiner::default, reader.num_docs())
+        } else {
+            self.scorer(reader, 1.0)?
+        };
+        if let Some(alive_bitset) = reader.alive_bitset() {
+            Ok(scorer.count(alive_bitset))
+        } else {
+            Ok(scorer.count_including_deleted())
         }
     }
 
@@ -817,15 +863,19 @@ mod tests {
                 Box::new(ConstScorer::new(docs, f32::from(*score))) as Box<dyn Scorer>
             }).collect::<Vec<_>>();
             // Vary segment size to exercise dense and sparse dispatch with the same postings.
-            for num_docs in [256, 16_384] {
+            for (num_docs, threshold) in [(256, 128), (16_384, 128), (256, 16), (16_384, 16)] {
                 let mut actual = into_box_scorer(
-                    scorer_union(make_scorers(), SumCombiner::default, num_docs),
+                    scorer_union(make_scorers(), SumCombiner::default, num_docs, threshold),
                     SumCombiner::default,
                     num_docs,
                 );
                 let mut expected = BufferedUnionScorer::build(
                     make_scorers(), SumCombiner::default, num_docs,
                 );
+                if threshold == 16 {
+                    prop_assert_eq!(actual.count_including_deleted(), expected.count_including_deleted());
+                    continue;
+                }
                 while expected.doc() != TERMINATED {
                     prop_assert_eq!(actual.doc(), expected.doc());
                     prop_assert_eq!(actual.score(), expected.score());
