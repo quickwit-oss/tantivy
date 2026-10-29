@@ -61,6 +61,37 @@ impl InputColumn {
         self.var_type
     }
 
+    /// Returns the number of terms of the dictionary of a `Str` input, or `None` for the other
+    /// types.
+    pub(super) fn num_terms(&self) -> Option<usize> {
+        self.term_resolver.num_terms()
+    }
+
+    /// Loads the first value of each doc of `docs`, without resolving their terms.
+    ///
+    /// Afterwards, read the values with `first_value`, and their terms with `value_of`: `value`
+    /// must not be called before the next `load_block`.
+    pub(super) fn load_block_values(&mut self, docs: &[DocId]) {
+        // `first_vals` does not write the entries of the docs without a value: we reset them.
+        self.first_values.clear();
+        self.first_values.resize(docs.len(), None);
+        self.column.first_vals(docs, &mut self.first_values);
+    }
+
+    /// Returns the first value of `docs[doc_pos]` in its monotonic `u64` mapping (a term ord for
+    /// a `Str` input), for the `docs` of the last `load_block_values` call.
+    #[inline]
+    pub(super) fn first_value(&self, doc_pos: usize) -> Option<u64> {
+        self.first_values[doc_pos]
+    }
+
+    /// Returns the first value of `doc` in its monotonic `u64` mapping, without going through a
+    /// block.
+    #[inline]
+    pub(super) fn first_value_for_doc(&self, doc: DocId) -> Option<u64> {
+        self.column.first(doc)
+    }
+
     /// Loads the first value of each doc of `docs`.
     ///
     /// Panics if the dictionary of a text column is corrupted.
@@ -99,6 +130,18 @@ impl InputColumn {
         let Some(value) = self.column.first(doc) else {
             return VariableValue::none();
         };
+        self.value_of(value)
+    }
+
+    /// Returns the variable value of `value`, a value of the column in its monotonic `u64`
+    /// mapping. Resolves the term of a `Str` input outside of the block path.
+    ///
+    /// Invalidates the last `load_block` call: `value` must not be called before the next
+    /// `load_block`.
+    ///
+    /// Panics if the dictionary of a text column is corrupted.
+    #[inline]
+    pub(super) fn value_of(&mut self, value: u64) -> VariableValue<'_> {
         match self.var_type {
             VarType::Bool => VariableValue::from(bool::from_u64(value)),
             VarType::I64 => VariableValue::from(i64::from_u64(value)),

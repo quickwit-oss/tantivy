@@ -39,6 +39,15 @@ impl TermResolver {
         )))
     }
 
+    /// Returns the number of terms of the dictionary, or `None` if this is not a text input.
+    pub(super) fn num_terms(&self) -> Option<usize> {
+        match self {
+            TermResolver::None => None,
+            TermResolver::Full(all_terms) => Some(all_terms.num_terms()),
+            TermResolver::Cached(cached_terms) => Some(cached_terms.term_dictionary.num_terms()),
+        }
+    }
+
     /// Prepares the terms of `term_ords`, the term ords of a block.
     ///
     /// Panics if the dictionary is corrupted: `load_block` cannot return an error.

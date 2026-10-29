@@ -203,6 +203,11 @@ name = "agg_bench"
 harness = false
 
 [[bench]]
+name = "jitexpr_agg_bench"
+harness = false
+required-features = ["jitexpr"]
+
+[[bench]]
 name = "exists_json"
 harness = false
 
