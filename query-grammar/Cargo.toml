@@ -3,12 +3,12 @@ name = "tantivy-query-grammar"
 version = "0.27.0"
 authors = ["Paul Masurel <paul.masurel@gmail.com>"]
 license = "MIT"
-categories = ["database-implementations", "data-structures"]
-description = """Search engine library"""
+categories = ["parser-implementations", "database-implementations"]
+description = """Query string parser for the tantivy search engine"""
 homepage = "https://github.com/quickwit-oss/tantivy"
 repository = "https://github.com/quickwit-oss/tantivy"
 readme = "README.md"
-keywords = ["search", "information", "retrieval"]
+keywords = ["search", "query", "parser", "tantivy", "lucene"]
 edition = "2024"
 
 [dependencies]
