@@ -13,10 +13,7 @@ use crate::DocId;
 
 /// An expression of a single text input whose dictionary has at most this many terms gets its
 /// results memoized per input term ord, see [`TermOrdMemo`].
-#[cfg(not(test))]
 const TERM_ORD_MEMO_MAX_NUM_TERMS: usize = 1 << 16;
-#[cfg(test)]
-const TERM_ORD_MEMO_MAX_NUM_TERMS: usize = 4;
 
 /// The value source of a jitexpr expression on a segment.
 ///
@@ -60,16 +57,16 @@ pub(crate) struct JitExprValueSource {
 /// The results are the encoded results: `Str` results are interned when first evaluated, in the
 /// order of the docs, so term ords are assigned in the same first-seen order as without the memo.
 ///
-/// The memo takes 9 bytes per term of the input dictionary, allocated zeroed when the source is
-/// opened. It is limited to dictionaries of at most `TERM_ORD_MEMO_MAX_NUM_TERMS` terms: larger
-/// dictionaries tend to be identifiers, with few repeated terms.
+/// The memo has one slot per term of the input dictionary, plus one for the docs without a value:
+/// 9 bytes per slot, allocated zeroed when the source is opened. It is limited to dictionaries of
+/// at most `TERM_ORD_MEMO_MAX_NUM_TERMS` terms: larger dictionaries tend to be identifiers, with
+/// few repeated terms.
 struct TermOrdMemo {
-    /// `states[term_ord]` tells whether the result of `term_ord` is unknown, null, or a value.
+    /// `states[slot]` tells whether the result of `slot` is unknown, null, or a value. Slot 0 is
+    /// the input without a value, slot `term_ord + 1` the input term `term_ord`.
     states: Vec<u8>,
-    /// `values[term_ord]` is the result of `term_ord` if its state is `MEMO_VALUE`.
+    /// `values[slot]` is the result of `slot` if its state is `MEMO_VALUE`.
     values: Vec<u64>,
-    /// The result for a doc without an input value: `None` until evaluated.
-    null_input_result: Option<Option<u64>>,
 }
 
 const MEMO_UNKNOWN: u8 = 0;
@@ -79,48 +76,65 @@ const MEMO_VALUE: u8 = 2;
 impl TermOrdMemo {
     fn new(num_terms: usize) -> TermOrdMemo {
         TermOrdMemo {
-            states: vec![MEMO_UNKNOWN; num_terms],
-            values: vec![0; num_terms],
-            null_input_result: None,
+            states: vec![MEMO_UNKNOWN; num_terms + 1],
+            values: vec![0; num_terms + 1],
         }
     }
 
-    /// Returns the result for `input_value` if known: `Some(None)` for a null result.
+    /// Returns the result for `input_value`, computing it with `eval` the first time.
+    ///
+    /// Panics if `input_value` is not a term ord of the input dictionary.
     #[inline]
-    fn get(&self, input_value: Option<u64>) -> Option<Option<u64>> {
-        let Some(term_ord) = input_value else {
-            return self.null_input_result;
-        };
-        match self.states.get(term_ord as usize).copied() {
-            Some(MEMO_VALUE) => Some(Some(self.values[term_ord as usize])),
-            Some(MEMO_NULL) => Some(None),
-            // Unknown, or out of the dictionary (not memoized).
-            _ => None,
+    fn get_or_eval(
+        &mut self,
+        input_value: Option<u64>,
+        eval: impl FnOnce() -> Option<u64>,
+    ) -> Option<u64> {
+        let slot = input_value.map_or(0, |term_ord| term_ord as usize + 1);
+        match self.states[slot] {
+            MEMO_VALUE => return Some(self.values[slot]),
+            MEMO_NULL => return None,
+            _ => {}
         }
-    }
-
-    fn set(&mut self, input_value: Option<u64>, result: Option<u64>) {
-        let Some(term_ord) = input_value else {
-            self.null_input_result = Some(result);
-            return;
-        };
-        let Some(state) = self.states.get_mut(term_ord as usize) else {
-            return;
-        };
+        let result = eval();
         match result {
             Some(value) => {
-                *state = MEMO_VALUE;
-                self.values[term_ord as usize] = value;
+                self.states[slot] = MEMO_VALUE;
+                self.values[slot] = value;
             }
-            None => *state = MEMO_NULL,
+            None => self.states[slot] = MEMO_NULL,
         }
+        result
     }
 
     /// Forgets all of the results.
     fn clear(&mut self) {
         self.states.fill(MEMO_UNKNOWN);
-        self.null_input_result = None;
     }
+}
+
+/// Evaluates an expression of a single input on `input_value`, the value of `input` in its
+/// monotonic `u64` mapping, and returns the encoded result.
+///
+/// Precondition: `input` is the only input of `compiled_fn`, with the same type.
+fn eval_single_input(
+    compiled_fn: &mut CompiledFnCtx,
+    args: &mut VersatileBuffer<VariableValue<'static>>,
+    term_dictionary: &mut DynamicTermDictionary,
+    input: &mut InputColumn,
+    input_value: Option<u64>,
+) -> Option<u64> {
+    let result_type: VarType = compiled_fn.result_type();
+    let mut args = args.borrow::<VariableValue>();
+    args.push(match input_value {
+        Some(value) => input.value_of(value),
+        None => VariableValue::none(),
+    });
+    // SAFETY: `args` follow the compiled inputs, with their types (precondition). The string is
+    // borrowed from `input`, which is not modified during the call.
+    let result: VariableValue = unsafe { compiled_fn.call(&args) };
+    // SAFETY: `result` has the result type of the compiled function.
+    unsafe { encode_result(result, result_type, term_dictionary) }
 }
 
 impl JitExprValueSource {
@@ -155,10 +169,13 @@ impl JitExprValueSource {
         }
     }
 
-    /// Returns the encoded result for `input_value`, the value of the only input of a memoized
-    /// expression, evaluating the expression if the result is not memoized yet.
-    #[inline]
-    fn memoized_result(&mut self, input_value: Option<u64>) -> Option<u64> {
+    /// Evaluates the expression on `doc`, without going through `load_block`.
+    ///
+    /// Returns the value in the monotonic `u64` mapping (e.g. `true` is 1), or `None` if the
+    /// result is null.
+    ///
+    /// Panics if the dictionary of a text input is corrupted.
+    pub(crate) fn eval_single_doc(&mut self, doc: DocId) -> Option<u64> {
         let JitExprValueSource {
             compiled_fn,
             inputs,
@@ -167,45 +184,13 @@ impl JitExprValueSource {
             term_ord_memo,
             ..
         } = self;
-        let memo = term_ord_memo
-            .as_mut()
-            .expect("only called for a memoized expression");
-        if let Some(result) = memo.get(input_value) {
-            return result;
+        if let Some(memo) = term_ord_memo {
+            let input = &mut inputs[0];
+            let input_value = input.first_value_for_doc(doc);
+            return memo.get_or_eval(input_value, || {
+                eval_single_input(compiled_fn, args, term_dictionary, input, input_value)
+            });
         }
-        let result_type: VarType = compiled_fn.result_type();
-        let mut args = args.borrow::<VariableValue>();
-        args.push(match input_value {
-            Some(value) => inputs[0].value_of(value),
-            None => VariableValue::none(),
-        });
-        // SAFETY: `args` follow the compiled inputs, with their types (see `new`). The string is
-        // borrowed from `inputs`, which is not modified during the call.
-        let result: VariableValue = unsafe { compiled_fn.call(&args) };
-        // SAFETY: `result` has the result type of the compiled function.
-        let encoded: Option<u64> = unsafe { encode_result(result, result_type, term_dictionary) };
-        memo.set(input_value, encoded);
-        encoded
-    }
-
-    /// Evaluates the expression on `doc`, without going through `load_block`.
-    ///
-    /// Returns the value in the monotonic `u64` mapping (e.g. `true` is 1), or `None` if the
-    /// result is null.
-    ///
-    /// Panics if the dictionary of a text input is corrupted.
-    pub(crate) fn eval_single_doc(&mut self, doc: DocId) -> Option<u64> {
-        if self.term_ord_memo.is_some() {
-            let input_value = self.inputs[0].first_value_for_doc(doc);
-            return self.memoized_result(input_value);
-        }
-        let JitExprValueSource {
-            compiled_fn,
-            inputs,
-            term_dictionary,
-            args,
-            ..
-        } = self;
         let result_type: VarType = compiled_fn.result_type();
         let mut args = args.borrow::<VariableValue>();
         // Each input is borrowed once: the values can borrow their input.
@@ -255,48 +240,49 @@ impl ValueSource for JitExprValueSource {
     ) -> Cardinality {
         values.clear();
         docids.clear();
-        if self.term_ord_memo.is_some() {
-            // Terms are only resolved for the term ords evaluated for the first time.
-            self.inputs[0].load_block_values(docs);
-            for (doc_pos, &doc) in docs.iter().enumerate() {
-                let input_value = self.inputs[0].first_value(doc_pos);
-                if let Some(value) = self.memoized_result(input_value) {
-                    values.push(value);
-                    docids.push(doc);
-                }
-            }
-            return if values.len() == docs.len() {
-                Cardinality::Full
-            } else {
-                Cardinality::Optional
-            };
-        }
-        for input in &mut self.inputs {
-            input.load_block(docs);
-        }
         let JitExprValueSource {
             compiled_fn,
             inputs,
             term_dictionary,
             args,
+            term_ord_memo,
             ..
         } = self;
-        let result_type: VarType = compiled_fn.result_type();
-        let mut args = args.borrow::<VariableValue>();
-        for (doc_pos, &doc) in docs.iter().enumerate() {
-            args.clear();
-            for input in inputs.iter() {
-                args.push(input.value(doc_pos));
+        if let Some(memo) = term_ord_memo {
+            let input = &mut inputs[0];
+            // Terms are only resolved for the term ords evaluated for the first time.
+            input.load_block_values(docs);
+            for (doc_pos, &doc) in docs.iter().enumerate() {
+                let input_value = input.first_value(doc_pos);
+                let value_opt = memo.get_or_eval(input_value, || {
+                    eval_single_input(compiled_fn, args, term_dictionary, input, input_value)
+                });
+                if let Some(value) = value_opt {
+                    values.push(value);
+                    docids.push(doc);
+                }
             }
-            // SAFETY: `args` follow the compiled inputs, with their types (see `new`). The strings
-            // are borrowed from `inputs`, which are not modified during the call.
-            let result: VariableValue = unsafe { compiled_fn.call(&args) };
-            // SAFETY: `result` has the result type of the compiled function.
-            let value_opt: Option<u64> =
-                unsafe { encode_result(result, result_type, term_dictionary) };
-            if let Some(value) = value_opt {
-                values.push(value);
-                docids.push(doc);
+        } else {
+            for input in inputs.iter_mut() {
+                input.load_block(docs);
+            }
+            let result_type: VarType = compiled_fn.result_type();
+            let mut args = args.borrow::<VariableValue>();
+            for (doc_pos, &doc) in docs.iter().enumerate() {
+                args.clear();
+                for input in inputs.iter() {
+                    args.push(input.value(doc_pos));
+                }
+                // SAFETY: `args` follow the compiled inputs, with their types (see `new`). The
+                // strings are borrowed from `inputs`, which are not modified during the call.
+                let result: VariableValue = unsafe { compiled_fn.call(&args) };
+                // SAFETY: `result` has the result type of the compiled function.
+                let value_opt: Option<u64> =
+                    unsafe { encode_result(result, result_type, term_dictionary) };
+                if let Some(value) = value_opt {
+                    values.push(value);
+                    docids.push(doc);
+                }
             }
         }
         if values.len() == docs.len() {
@@ -622,7 +608,6 @@ mod tests {
 
     #[test]
     fn test_term_ord_memo_is_limited_to_a_single_small_text_input() {
-        // At most `TERM_ORD_MEMO_MAX_NUM_TERMS` (4 in tests) terms.
         let small = create_index(&["b", "a", "b", "c"], &[]);
         assert!(open_variable_source(&small, "(UPPER label)")
             .term_ord_memo
@@ -637,7 +622,19 @@ mod tests {
                 .term_ord_memo
                 .is_none()
         );
-        let large = create_index(&["a", "b", "c", "d", "e"], &[]);
+        // One term more than `TERM_ORD_MEMO_MAX_NUM_TERMS`, in a single segment: the minimal
+        // memory budget of `create_index` would split the docs.
+        let mut schema_builder = Schema::builder();
+        let label = schema_builder.add_text_field("label", STRING | FAST);
+        let large = Index::create_in_ram(schema_builder.build());
+        let mut writer = large.writer_with_num_threads(1, 100_000_000).unwrap();
+        for term_pos in 0..=TERM_ORD_MEMO_MAX_NUM_TERMS {
+            writer
+                .add_document(doc!(label => format!("label{term_pos}")))
+                .unwrap();
+        }
+        writer.commit().unwrap();
+        assert_eq!(large.searchable_segment_ids().unwrap().len(), 1);
         assert!(open_variable_source(&large, "(UPPER label)")
             .term_ord_memo
             .is_none());
