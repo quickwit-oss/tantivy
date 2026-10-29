@@ -25,14 +25,18 @@ enum UnionStrategy {
 
 const SPARSE_UNION_MAX_EXPECTED_HITS_PER_HORIZON: u64 = 128;
 const COUNT_UNION_MAX_EXPECTED_HITS_PER_HORIZON: u64 = 16;
+// SimpleUnion scans every child for each hit, even at low match density.
+const SIMPLE_UNION_MAX_CLAUSES: usize = 8;
 
 fn union_strategy_for_estimated_hits(
     estimated_hits: u32,
     num_docs: u32,
+    num_clauses: usize,
     max_hits_per_horizon: u64,
 ) -> UnionStrategy {
-    // This is a heuristic. The crossover also depends on clause count and seek patterns.
+    // This is a heuristic. The crossover also depends on seek patterns.
     if num_docs > 0
+        && num_clauses <= SIMPLE_UNION_MAX_CLAUSES
         && u64::from(estimated_hits) * 4_096 <= u64::from(num_docs) * max_hits_per_horizon
     {
         UnionStrategy::Simple
@@ -107,8 +111,12 @@ where
         return SpecializedScorer::Other(scorers.into_iter().next().unwrap()); //< we checked the size beforehand
     }
     let estimated_hits = estimate_union(scorers.iter().map(DocSet::size_hint), num_docs);
-    let strategy =
-        union_strategy_for_estimated_hits(estimated_hits, num_docs, max_hits_per_horizon);
+    let strategy = union_strategy_for_estimated_hits(
+        estimated_hits,
+        num_docs,
+        scorers.len(),
+        max_hits_per_horizon,
+    );
     {
         let is_all_term_queries = scorers.iter().all(|scorer| scorer.is::<TermScorer>());
         if is_all_term_queries {
@@ -855,7 +863,7 @@ mod tests {
         #[test]
         fn test_union_density_and_scoring(
             postings in prop::collection::vec(
-                (prop::collection::btree_set(0u32..256, 0..32), 0u8..100), 2..8
+                (prop::collection::btree_set(0u32..256, 0..32), 0u8..100), 2..20
             ),
         ) {
             let make_scorers = || postings.iter().map(|(docs, score)| {
@@ -869,6 +877,9 @@ mod tests {
                     SumCombiner::default,
                     num_docs,
                 );
+                if postings.len() > super::SIMPLE_UNION_MAX_CLAUSES {
+                    prop_assert!(actual.is::<BufferedUnionScorer<Box<dyn Scorer>, SumCombiner>>());
+                }
                 let mut expected = BufferedUnionScorer::build(
                     make_scorers(), SumCombiner::default, num_docs,
                 );
