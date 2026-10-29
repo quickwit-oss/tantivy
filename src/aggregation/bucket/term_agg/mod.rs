@@ -612,10 +612,10 @@ impl<B: BucketIdSlot> Bucket<B> {
     }
 }
 
-/// A key accepted by a [`TermAggregationMap`].
+/// A bucket key that reports the memory consumed by its heap allocations.
 ///
-/// The map allocation already includes the inline key object. Implementations report only heap
-/// allocations owned indirectly by the key, such as a spilled `SmallVec`.
+/// The map accounts for memory stored inline with the key. Implementations report heap
+/// allocations owned by the key, such as a spilled `SmallVec`.
 pub(crate) trait AggregationMapKey: Clone + Debug + Eq + Hash + 'static {
     fn heap_memory_usage(&self) -> usize {
         0
@@ -624,32 +624,34 @@ pub(crate) trait AggregationMapKey: Clone + Debug + Eq + Hash + 'static {
 
 impl AggregationMapKey for u64 {}
 
-/// Abstraction over the storage used for aggregation buckets (counts plus a [`BucketIdSlot`]).
+/// Maps term keys to buckets containing counts and IDs for child aggregations.
 ///
-/// Terms aggregations use the default `u64` key. Multi-terms reuses the same abstraction with
-/// either a packed `u64` or a composite key.
+/// Terms aggregations use `u64` keys. Multi-terms uses packed `u64` keys or tuples.
 pub(crate) trait TermAggregationMap<K: AggregationMapKey = u64>:
     Clone + Debug + 'static
 {
-    /// The per-bucket id slot: [`BucketId`] with sub aggregations, `()` without (see
-    /// [`BucketIdSlot`]).
-    type Slot: BucketIdSlot;
+    /// Bucket ID used by child aggregations, or `()` when there are no children.
+    type ChildBucketId: BucketIdSlot;
 
-    /// Whether `into_vec` returns entries already sorted by key, ascending.
+    /// Whether `into_vec` returns buckets in ascending key order.
     const SORTED_BY_KEY: bool;
 
-    /// Create a new instance. Dense and paged maps interpret `map_init_value` as their key-domain
-    /// bound; hash maps ignore it.
-    fn new(map_init_value: u64, bucket_id_provider: &mut BucketIdProvider) -> Self;
+    /// Creates bucket storage. `key_limit` is exclusive for vector sizing and inclusive for
+    /// page-directory sizing. Hash maps ignore it.
+    fn new(key_limit: u64, bucket_id_provider: &mut BucketIdProvider) -> Self;
 
-    /// Estimate the memory consumption of this struct in bytes.
+    /// Estimates storage memory consumption in bytes.
     fn get_memory_consumption(&self) -> usize;
 
-    /// Increments the count and returns the bucket id slot associated with `key`.
-    fn term_entry(&mut self, key: K, bucket_id_provider: &mut BucketIdProvider) -> Self::Slot;
+    /// Increments the count for `key` and returns its child bucket ID.
+    fn term_entry(
+        &mut self,
+        key: K,
+        bucket_id_provider: &mut BucketIdProvider,
+    ) -> Self::ChildBucketId;
 
-    /// Returns the aggregation as a vector of `(key, bucket)` pairs, in any order.
-    fn into_vec(self) -> Vec<(K, Bucket<Self::Slot>)>;
+    /// Consumes storage and returns keys paired with their buckets.
+    fn into_vec(self) -> Vec<(K, Bucket<Self::ChildBucketId>)>;
 }
 
 #[derive(Clone, Debug)]
@@ -737,7 +739,7 @@ pub(crate) struct PagedTermMap<B = BucketId> {
 }
 
 impl<B: BucketIdSlot> TermAggregationMap for PagedTermMap<B> {
-    type Slot = B;
+    type ChildBucketId = B;
 
     const SORTED_BY_KEY: bool = true;
 
@@ -807,7 +809,7 @@ impl<B: BucketIdSlot> TermAggregationMap for PagedTermMap<B> {
 }
 
 impl<K: AggregationMapKey, B: BucketIdSlot> TermAggregationMap<K> for HashMapTermBuckets<B, K> {
-    type Slot = B;
+    type ChildBucketId = B;
 
     const SORTED_BY_KEY: bool = false;
 
@@ -834,7 +836,7 @@ impl<K: AggregationMapKey, B: BucketIdSlot> TermAggregationMap<K> for HashMapTer
     }
 
     #[inline]
-    fn new(_map_init_value: u64, _bucket_id_provider: &mut BucketIdProvider) -> Self {
+    fn new(_key_limit: u64, _bucket_id_provider: &mut BucketIdProvider) -> Self {
         Self::default()
     }
 }
@@ -901,7 +903,7 @@ impl<B: BucketIdSlot, const LANES: usize> VecTermBuckets<B, LANES> {
 }
 
 impl<B: BucketIdSlot, const LANES: usize> TermAggregationMap for VecTermBuckets<B, LANES> {
-    type Slot = B;
+    type ChildBucketId = B;
 
     const SORTED_BY_KEY: bool = true;
 
@@ -962,7 +964,7 @@ pub(crate) struct LazyVecTermBuckets<B = BucketId> {
 }
 
 impl<B: BucketIdSlot> TermAggregationMap for LazyVecTermBuckets<B> {
-    type Slot = B;
+    type ChildBucketId = B;
 
     const SORTED_BY_KEY: bool = true;
 
@@ -995,7 +997,7 @@ impl<B: BucketIdSlot> TermAggregationMap for LazyVecTermBuckets<B> {
     }
 
     fn new(num_terms: u64, _bucket_id_provider: &mut BucketIdProvider) -> Self {
-        // Empty buckets; ids are assigned lazily in `term_entry`, so the provider is untouched.
+        // `term_entry` assigns IDs on the first occurrence of each key.
         let buckets = vec![Bucket::default(); num_terms as usize];
         LazyVecTermBuckets { buckets }
     }
@@ -1256,7 +1258,7 @@ where
         term_buckets: TermMap,
         agg_data: &AggregationsSegmentCtx,
     ) -> crate::Result<IntermediateBucketResult> {
-        let mut entries: Vec<(u64, Bucket<TermMap::Slot>)> = term_buckets.into_vec();
+        let mut entries: Vec<(u64, Bucket<TermMap::ChildBucketId>)> = term_buckets.into_vec();
 
         let segment_size = term_req.req.segment_size as usize;
 
@@ -1275,8 +1277,7 @@ where
                 // TODO: We could have a special collector, that keeps only TOP n results at any
                 // time.
                 if TermMap::SORTED_BY_KEY {
-                    // `into_vec` already returned entries sorted by ord ascending, we can just
-                    // revert if we want descending.
+                    // `into_vec` returns ascending term ordinals. Reverse for descending order.
                     if term_req.req.order.order == Order::Desc {
                         entries.reverse();
                     }
@@ -1401,7 +1402,7 @@ where
             // Sort by term ord
             entries.sort_unstable_by_key(|bucket| bucket.0);
 
-            let (term_ids, buckets): (Vec<u64>, Vec<Bucket<TermMap::Slot>>) =
+            let (term_ids, buckets): (Vec<u64>, Vec<Bucket<TermMap::ChildBucketId>>) =
                 entries.into_iter().unzip();
 
             let intermediate_entries: Vec<IntermediateTermBucketEntry> = buckets
