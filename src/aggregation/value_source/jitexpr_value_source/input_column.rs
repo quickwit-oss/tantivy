@@ -9,7 +9,7 @@ use crate::{DocId, TantivyError, COLLECT_BLOCK_BUFFER_LEN};
 
 /// A fast-field column bound to an input of the compiled expression.
 pub(super) struct InputColumn {
-    pub(super) var_type: VarType,
+    var_type: VarType,
     /// Values in their monotonic `u64` mapping. Term ords for a `Str` input. Its index tells
     /// which docs have a value.
     pub(super) column: Column<u64>,
@@ -54,6 +54,10 @@ impl InputColumn {
                 term_resolver: TermResolver::None,
             })
         }
+    }
+
+    pub(super) fn var_type(&self) -> VarType {
+        self.var_type
     }
 
     /// Returns the number of terms of the dictionary of a `Str` input, or `None` for the other
