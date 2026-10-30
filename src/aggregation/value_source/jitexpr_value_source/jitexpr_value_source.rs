@@ -41,9 +41,28 @@ pub(crate) struct JitExprValueSource {
     /// Reusable allocation for the arguments of `compiled_fn`, lent as a `Vec<VariableValue>` for
     /// each block.
     args: VersatileBuffer<VariableValue<'static>>,
-    /// The results per input term ord, for an expression of a single text input with a small
-    /// dictionary.
-    term_ord_results: Option<TermOrdResults>,
+    /// Whether the expression is evaluated once per doc, or once per input term ord.
+    evaluation: Evaluation,
+}
+
+/// How a [`JitExprValueSource`] evaluates its expression.
+enum Evaluation {
+    /// Once per doc.
+    PerDoc,
+    /// Once per term ord of the input, for an expression of a single text input whose
+    /// dictionary has at most `TERM_ORD_RESULTS_MAX_NUM_TERMS` terms.
+    PerTermOrd(TermOrdResults),
+}
+
+#[cfg(test)]
+impl Evaluation {
+    fn is_per_doc(&self) -> bool {
+        matches!(self, Evaluation::PerDoc)
+    }
+
+    fn is_per_term_ord(&self) -> bool {
+        matches!(self, Evaluation::PerTermOrd(_))
+    }
 }
 
 /// The results of an expression of a single text input, per term ord of the input.
@@ -58,20 +77,20 @@ pub(crate) struct JitExprValueSource {
 /// order of the docs, so term ords are assigned in the same first-seen order as without
 /// memoization.
 ///
-/// It has one slot per term of the input dictionary, plus one for the docs without a value:
-/// 9 bytes per slot, allocated zeroed when the source is opened. It is limited to dictionaries of
-/// at most `TERM_ORD_RESULTS_MAX_NUM_TERMS` terms: larger dictionaries tend to be identifiers, with
-/// few repeated terms.
-///
-/// Slot 0 holds the result for the docs without a value, which the expression can turn into a
-/// value (e.g. `IS_NULL`), and slot `term_ord + 1` the result for the input term `term_ord`. The
-/// slot of the docs without a value comes first so that a term ord out of the dictionary, i.e. a
-/// corrupted column, is out of bounds instead of reading that slot.
+/// It has one slot per term of the input dictionary, 9 bytes each, allocated zeroed when the
+/// source is opened, and a separate slot for the docs without a value, which the expression can
+/// still turn into a value (e.g. `IS_NULL`). It is limited to dictionaries of at most
+/// `TERM_ORD_RESULTS_MAX_NUM_TERMS` terms: larger dictionaries tend to be identifiers, with few
+/// repeated terms.
 struct TermOrdResults {
-    /// `states[slot]` tells whether the result of `slot` is unknown, null, or a value.
+    /// `states[term_ord]` tells whether the result of `term_ord` is unknown, null, or a value.
     states: Box<[u8]>,
-    /// `values[slot]` is the result of `slot` if its state is `RESULT_VALUE`.
+    /// `values[term_ord]` is the result of `term_ord` if its state is `RESULT_VALUE`.
     values: Box<[u64]>,
+    /// The state and the value of the result for the docs without a value, like `states` and
+    /// `values`.
+    no_value_state: u8,
+    no_value_value: u64,
 }
 
 const RESULT_UNKNOWN: u8 = 0;
@@ -80,13 +99,13 @@ const RESULT_VALUE: u8 = 2;
 
 impl TermOrdResults {
     fn new(num_terms: usize) -> TermOrdResults {
-        // One slot per term, plus the slot of the docs without a value.
-        let num_slots = num_terms + 1;
         // `vec!` of zeroes allocates zeroed memory, and its capacity is its length: converting it
         // to a boxed slice does not reallocate.
         TermOrdResults {
-            states: vec![RESULT_UNKNOWN; num_slots].into_boxed_slice(),
-            values: vec![0; num_slots].into_boxed_slice(),
+            states: vec![RESULT_UNKNOWN; num_terms].into_boxed_slice(),
+            values: vec![0; num_terms].into_boxed_slice(),
+            no_value_state: RESULT_UNKNOWN,
+            no_value_value: 0,
         }
     }
 
@@ -99,19 +118,25 @@ impl TermOrdResults {
         input_value: Option<u64>,
         eval: impl FnOnce() -> Option<u64>,
     ) -> Option<u64> {
-        let slot = input_value.map_or(0, |term_ord| term_ord as usize + 1);
-        match self.states[slot] {
-            RESULT_VALUE => return Some(self.values[slot]),
+        let (state, value) = match input_value {
+            Some(term_ord) => (
+                &mut self.states[term_ord as usize],
+                &mut self.values[term_ord as usize],
+            ),
+            None => (&mut self.no_value_state, &mut self.no_value_value),
+        };
+        match *state {
+            RESULT_VALUE => return Some(*value),
             RESULT_NULL => return None,
             _ => {}
         }
         let result = eval();
         match result {
-            Some(value) => {
-                self.states[slot] = RESULT_VALUE;
-                self.values[slot] = value;
+            Some(result_value) => {
+                *state = RESULT_VALUE;
+                *value = result_value;
             }
-            None => self.states[slot] = RESULT_NULL,
+            None => *state = RESULT_NULL,
         }
         result
     }
@@ -119,6 +144,7 @@ impl TermOrdResults {
     /// Forgets all of the results.
     fn clear(&mut self) {
         self.states.fill(RESULT_UNKNOWN);
+        self.no_value_state = RESULT_UNKNOWN;
     }
 }
 
@@ -161,12 +187,15 @@ impl JitExprValueSource {
             assert_eq!(compiled_input.r#type, input.var_type());
         }
         let num_inputs = inputs.len();
-        let term_ord_results = match inputs.as_slice() {
-            [input] => input
-                .num_terms()
-                .filter(|&num_terms| num_terms <= TERM_ORD_RESULTS_MAX_NUM_TERMS)
-                .map(TermOrdResults::new),
-            _ => None,
+        let evaluation = match inputs.as_slice() {
+            [input] => match input.num_terms() {
+                Some(num_terms) if num_terms <= TERM_ORD_RESULTS_MAX_NUM_TERMS => {
+                    Evaluation::PerTermOrd(TermOrdResults::new(num_terms))
+                }
+                // Not a text input, or a large dictionary.
+                _ => Evaluation::PerDoc,
+            },
+            _ => Evaluation::PerDoc,
         };
         JitExprValueSource {
             compiled_fn,
@@ -174,7 +203,7 @@ impl JitExprValueSource {
             inputs,
             term_dictionary: DynamicTermDictionary::default(),
             args: VersatileBuffer::with_capacity(num_inputs),
-            term_ord_results,
+            evaluation,
         }
     }
 
@@ -190,10 +219,10 @@ impl JitExprValueSource {
             inputs,
             term_dictionary,
             args,
-            term_ord_results,
+            evaluation,
             ..
         } = self;
-        if let Some(results) = term_ord_results {
+        if let Evaluation::PerTermOrd(results) = evaluation {
             let input = &mut inputs[0];
             let input_value = input.first_value_for_doc(doc);
             return results.get_or_eval(input_value, || {
@@ -254,10 +283,10 @@ impl ValueSource for JitExprValueSource {
             inputs,
             term_dictionary,
             args,
-            term_ord_results,
+            evaluation,
             ..
         } = self;
-        if let Some(results) = term_ord_results {
+        if let Evaluation::PerTermOrd(results) = evaluation {
             let input = &mut inputs[0];
             // Terms are only resolved for the term ords evaluated for the first time.
             input.load_block_values(docs);
@@ -318,7 +347,7 @@ impl ValueSource for JitExprValueSource {
         self.compiled_fn = coerced_fn.context();
         self.column_type = ColumnType::F64;
         // The memoized results are encoded for the previous result type.
-        if let Some(results) = &mut self.term_ord_results {
+        if let Evaluation::PerTermOrd(results) = &mut self.evaluation {
             results.clear();
         }
         self
@@ -619,17 +648,17 @@ mod tests {
     fn test_term_ord_results_is_limited_to_a_single_small_text_input() {
         let small = create_index(&["b", "a", "b", "c"], &[]);
         assert!(open_variable_source(&small, "(UPPER label)")
-            .term_ord_results
-            .is_some());
+            .evaluation
+            .is_per_term_ord());
         // A numeric input.
         assert!(open_variable_source(&small, "(ADD number 1u64)")
-            .term_ord_results
-            .is_none());
+            .evaluation
+            .is_per_doc());
         // Several inputs.
         assert!(
             open_variable_source(&small, r#"(IF (EQ number 1u64) label "x")"#)
-                .term_ord_results
-                .is_none()
+                .evaluation
+                .is_per_doc()
         );
         // One term more than `TERM_ORD_RESULTS_MAX_NUM_TERMS`, in a single segment: the minimal
         // memory budget of `create_index` would split the docs.
@@ -645,8 +674,8 @@ mod tests {
         writer.commit().unwrap();
         assert_eq!(large.searchable_segment_ids().unwrap().len(), 1);
         assert!(open_variable_source(&large, "(UPPER label)")
-            .term_ord_results
-            .is_none());
+            .evaluation
+            .is_per_doc());
     }
 
     #[test]
@@ -662,9 +691,9 @@ mod tests {
         let blocks: [&[DocId]; 3] = [&[0, 1, 2, 3], &[4, 5, 6], &[6, 0, 3, 1]];
         for expression in expressions {
             let mut memoized = open_variable_source(&index, expression);
-            assert!(memoized.term_ord_results.is_some(), "`{expression}`");
+            assert!(memoized.evaluation.is_per_term_ord(), "`{expression}`");
             let mut per_doc = open_variable_source(&index, expression);
-            per_doc.term_ord_results = None;
+            per_doc.evaluation = Evaluation::PerDoc;
             for docs in blocks {
                 assert_eq!(
                     load_block(&mut memoized, docs),
@@ -697,7 +726,7 @@ mod tests {
     fn test_term_ord_results_null_input() {
         let index = create_index(&["a", "b", "a"], &[1]);
         let mut source = open_variable_source(&index, "(IS_NULL label)");
-        assert!(source.term_ord_results.is_some());
+        assert!(source.evaluation.is_per_term_ord());
         // Doc 1 has no label. The second block only reads memoized results.
         for _ in 0..2 {
             let (cardinality, values, _) = load_block(&mut source, &[0, 1, 2]);
@@ -716,7 +745,7 @@ mod tests {
     fn test_to_f64_after_memoized_block() {
         let index = create_index(&["a", "b", "a"], &[]);
         let mut source = open_variable_source(&index, r#"(IF (EQ label "a") 1i64 2i64)"#);
-        assert!(source.term_ord_results.is_some());
+        assert!(source.evaluation.is_per_term_ord());
         // Memoizes the `i64` encodings.
         let (_, values, _) = load_block(&mut source, &[0, 1, 2]);
         let decoded: Vec<i64> = values.iter().map(|value| i64::from_u64(*value)).collect();
