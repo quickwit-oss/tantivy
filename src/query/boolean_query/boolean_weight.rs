@@ -1,7 +1,9 @@
 use std::cmp::Ordering;
 
+use common::BitSet;
+
 use super::occur_weights::OccurWeights;
-use crate::docset::{SeekDangerResult, COLLECT_BLOCK_BUFFER_LEN};
+use crate::docset::{DocSet, SeekDangerResult, COLLECT_BLOCK_BUFFER_LEN};
 use crate::index::SegmentReader;
 use crate::postings::FreqReadingOption;
 use crate::query::disjunction::Disjunction;
@@ -10,8 +12,8 @@ use crate::query::score_combiner::{DoNothingCombiner, ScoreCombiner};
 use crate::query::term_query::TermScorer;
 use crate::query::weight::{for_each_docset_buffered, for_each_pruning_scorer, for_each_scorer};
 use crate::query::{
-    intersect_scorers, AllScorer, BufferedUnionScorer, EmptyScorer, Exclude, Explanation, Occur,
-    RequiredOptionalScorer, Scorer, Weight,
+    intersect_scorers, AllScorer, BitSetDocSet, BufferedUnionScorer, ConstScorer, EmptyScorer,
+    Exclude, Explanation, Occur, RequiredOptionalScorer, Scorer, Weight,
 };
 use crate::{DocId, Score, TERMINATED};
 
@@ -70,11 +72,11 @@ where
             if scorers
                 .iter()
                 .all(|scorer| scorer.freq_reading_option() == FreqReadingOption::ReadFreq)
+                || std::any::TypeId::of::<TScoreCombiner>()
+                    == std::any::TypeId::of::<DoNothingCombiner>()
             {
-                // Block wand is only available if we read frequencies.
                 return SpecializedScorer::TermUnion(scorers);
             } else if scorers.len() == 1 {
-                // Single TermScorer without freq reading — unwrap directly.
                 return SpecializedScorer::Other(Box::new(scorers.into_iter().next().unwrap()));
             } else {
                 return SpecializedScorer::Other(Box::new(BufferedUnionScorer::build(
@@ -90,6 +92,41 @@ where
         score_combiner_fn,
         num_docs,
     )))
+}
+
+// Full traversal can amortize materialization. Nested scorers keep the seek-capable union.
+fn term_union(mut scorers: Vec<TermScorer>, reader: &SegmentReader) -> Box<dyn Scorer> {
+    if scorers.len() == 1 {
+        return Box::new(scorers.pop().unwrap());
+    }
+    let total_hits: u64 = scorers
+        .iter()
+        .map(|scorer| u64::from(scorer.size_hint()))
+        .sum();
+    let max_doc = u64::from(reader.max_doc());
+    // Sparse windows benefit from merging postings once. Tiny unions and dense matches do not.
+    if scorers.len() >= 8 && total_hits >= max_doc.div_ceil(4096) && total_hits <= max_doc / 8 {
+        let mut bitset = BitSet::with_max_value(reader.max_doc());
+        for mut scorer in scorers {
+            let first_doc = scorer.doc();
+            let postings = scorer.block_cursor();
+            while !postings.docs().is_empty() {
+                for &doc in postings.docs() {
+                    if doc >= first_doc {
+                        bitset.insert(doc);
+                    }
+                }
+                postings.advance();
+            }
+        }
+        Box::new(ConstScorer::new(BitSetDocSet::from(bitset), 1.0))
+    } else {
+        Box::new(BufferedUnionScorer::build(
+            scorers,
+            DoNothingCombiner::default,
+            reader.num_docs(),
+        ))
+    }
 }
 
 fn into_box_scorer<TScoreCombiner: ScoreCombiner>(
@@ -576,6 +613,19 @@ impl<TScoreCombiner: ScoreCombiner + Sync> Weight for BooleanWeight<TScoreCombin
         }
     }
 
+    fn count(&self, reader: &SegmentReader) -> crate::Result<u32> {
+        let scorer = self.complex_scorer(reader, 1.0, DoNothingCombiner::default)?;
+        let mut scorer = match scorer {
+            SpecializedScorer::TermUnion(scorers) => term_union(scorers, reader),
+            scorer => into_box_scorer(scorer, DoNothingCombiner::default, reader.num_docs()),
+        };
+        Ok(if let Some(alive) = reader.alive_bitset() {
+            scorer.count(alive)
+        } else {
+            scorer.count_including_deleted()
+        })
+    }
+
     fn explain(&self, reader: &SegmentReader, doc: DocId) -> crate::Result<Explanation> {
         let mut scorer = self.scorer(reader, 1.0)?;
         if scorer.seek(doc) != doc {
@@ -639,15 +689,9 @@ impl<TScoreCombiner: ScoreCombiner + Sync> Weight for BooleanWeight<TScoreCombin
         let mut buffer = [0u32; COLLECT_BLOCK_BUFFER_LEN];
 
         match scorer {
-            SpecializedScorer::TermUnion(mut term_scorers) => {
-                if term_scorers.len() == 1 {
-                    let mut term_scorer = term_scorers.pop().unwrap();
-                    for_each_docset_buffered(&mut term_scorer, &mut buffer, callback);
-                } else {
-                    let mut union_scorer =
-                        BufferedUnionScorer::build(term_scorers, &self.score_combiner_fn, num_docs);
-                    for_each_docset_buffered(&mut union_scorer, &mut buffer, callback);
-                }
+            SpecializedScorer::TermUnion(term_scorers) => {
+                let mut union_scorer = term_union(term_scorers, reader);
+                for_each_docset_buffered(&mut union_scorer, &mut buffer, callback);
             }
             SpecializedScorer::TermIntersection(term_scorers) => {
                 let boxed_scorers: Vec<Box<dyn Scorer>> = term_scorers
@@ -748,6 +792,79 @@ mod tests {
     ) -> crate::Result<Box<dyn Weight>> {
         TermQuery::new(Term::from_field_text(field, term), IndexRecordOption::Basic)
             .weight(EnableScoring::disabled_from_searcher(searcher))
+    }
+
+    #[test]
+    fn term_union_with_overlap_and_deletes() -> crate::Result<()> {
+        use crate::collector::{Count, DocSetCollector, TopDocs};
+        use crate::query::{BooleanQuery, ConstScoreQuery};
+        use crate::schema::STRING;
+
+        let mut schema = Schema::builder();
+        let text = schema.add_text_field("text", STRING);
+        let filter = schema.add_text_field("filter", STRING);
+        let deleted = schema.add_text_field("deleted", STRING);
+        let index = Index::create_in_ram(schema.build());
+        let mut writer = index.writer_for_tests()?;
+        for doc_id in 0..5000 {
+            let mut doc = crate::TantivyDocument::default();
+            if doc_id % 10 == 0 {
+                doc.add_text(text, format!("t{}", (doc_id / 10) % 8));
+                if doc_id % 100 == 0 {
+                    doc.add_text(text, format!("t{}", (doc_id / 10 + 1) % 8));
+                }
+            }
+            if doc_id % 30 == 0 {
+                doc.add_text(filter, "keep");
+            }
+            if doc_id < 4000 {
+                doc.add_text(deleted, "yes");
+            }
+            writer.add_document(doc)?;
+        }
+        writer.commit()?;
+        let terms: Vec<_> = (0..8)
+            .map(|i| Term::from_field_text(text, &format!("t{i}")))
+            .collect();
+        let query = ConstScoreQuery::new(
+            Box::new(BooleanQuery::union(
+                terms
+                    .into_iter()
+                    .map(|term| {
+                        Box::new(TermQuery::new(term, IndexRecordOption::WithFreqs))
+                            as Box<dyn Query>
+                    })
+                    .collect(),
+            )),
+            1.0,
+        );
+        let nested = BooleanQuery::intersection(vec![
+            Box::new(query.clone()),
+            Box::new(TermQuery::new(
+                Term::from_field_text(filter, "keep"),
+                IndexRecordOption::Basic,
+            )),
+        ]);
+        for (count, nested_count) in [(500, 167), (100, 33)] {
+            let searcher = index.reader()?.searcher();
+            let reader = searcher.segment_reader(0);
+            assert_eq!(reader.max_doc(), 5000);
+            assert_eq!(searcher.search(&query, &Count)?, count);
+            let docs = searcher.search(&query, &DocSetCollector)?;
+            assert_eq!(docs.len(), count);
+            assert!(docs.iter().all(|address| address.doc_id % 10 == 0));
+            let (actual_count, top_docs) =
+                searcher.search(&query, &(Count, TopDocs::with_limit(1000).order_by_score()))?;
+            assert_eq!(actual_count, count);
+            assert_eq!(top_docs.len(), count);
+            assert!(top_docs
+                .iter()
+                .all(|&(score, address)| score == 1.0 && docs.contains(&address)));
+            assert_eq!(searcher.search(&nested, &Count)?, nested_count);
+            writer.delete_term(Term::from_field_text(deleted, "yes"));
+            writer.commit()?;
+        }
+        Ok(())
     }
 
     #[test]

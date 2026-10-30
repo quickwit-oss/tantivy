@@ -33,11 +33,12 @@ impl From<BitSet> for BitSetDocSet {
         } else {
             docs.tinyset(0)
         };
+        let doc = if docs.max_value() == 0 { TERMINATED } else { 0 };
         let mut docset = BitSetDocSet {
             docs,
             cursor_bucket: 0,
             cursor_tinybitset: first_tiny_bitset,
-            doc: 0u32,
+            doc,
         };
         docset.advance();
         docset
@@ -47,6 +48,9 @@ impl From<BitSet> for BitSetDocSet {
 impl DocSet for BitSetDocSet {
     #[inline]
     fn advance(&mut self) -> DocId {
+        if self.doc == TERMINATED {
+            return TERMINATED;
+        }
         if let Some(lower) = self.cursor_tinybitset.pop_lowest() {
             self.doc = (self.cursor_bucket * 64u32) | lower;
             return self.doc;
@@ -80,6 +84,22 @@ impl DocSet for BitSetDocSet {
             }
             doc
         }
+    }
+
+    fn count_including_deleted(&mut self) -> u32 {
+        if self.doc == TERMINATED {
+            return 0;
+        }
+        let end_bucket = self.docs.max_value().div_ceil(64);
+        let count = 1
+            + self.cursor_tinybitset.len()
+            + (self.cursor_bucket + 1..end_bucket)
+                .map(|bucket| self.docs.tinyset(bucket).len())
+                .sum::<u32>();
+        self.cursor_bucket = end_bucket;
+        self.cursor_tinybitset.clear();
+        self.doc = TERMINATED;
+        count
     }
 
     /// Returns the current document
@@ -133,6 +153,24 @@ mod tests {
             remaining = bitset_docset.advance() != TERMINATED;
         }
         assert!(!remaining);
+    }
+
+    #[test]
+    fn count_consumes_remaining_documents() {
+        for max_doc in [0, 1, 63, 64, 65, 130] {
+            let docs: Vec<_> = (0..max_doc).step_by(2).collect();
+            for target in [0, 1, 63, 64, 65, 129, TERMINATED] {
+                let mut docset = create_docbitset(&docs, max_doc);
+                docset.seek(target);
+                assert_eq!(
+                    docset.count_including_deleted() as usize,
+                    docs.iter().filter(|&&doc| doc >= target).count()
+                );
+                assert_eq!(docset.doc(), TERMINATED);
+                assert_eq!(docset.count_including_deleted(), 0);
+                assert_eq!(docset.advance(), TERMINATED);
+            }
+        }
     }
 
     #[test]

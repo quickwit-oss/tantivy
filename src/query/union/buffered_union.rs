@@ -281,6 +281,7 @@ where
             }
         }
         self.bucket_idx = HORIZON_NUM_TINYBITSETS;
+        self.doc = TERMINATED;
         count
     }
 }

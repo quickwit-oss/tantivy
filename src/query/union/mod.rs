@@ -94,7 +94,10 @@ mod tests {
             count += 1;
         }
         assert_eq!(union_expected.advance(), TERMINATED);
-        assert_eq!(count, make_union().count_including_deleted());
+        let mut counted_union = make_union();
+        assert_eq!(count, counted_union.count_including_deleted());
+        assert_eq!(counted_union.doc(), TERMINATED);
+        assert_eq!(counted_union.count_including_deleted(), 0);
     }
 
     use proptest::prelude::*;

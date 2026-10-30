@@ -11,6 +11,8 @@ Tantivy 0.27.0
 
 ## Breaking change
 - MSRV is now 1.88.
+- `TermSetQuery` is removed. Use `BooleanQuery::union` with `TermQuery` children, wrapped in `ConstScoreQuery` for constant-score term unions. Sort and deduplicate terms first to preserve unique `query_terms` visits.
+- `BooleanQuery::new_multiterms_query` is deprecated and will be removed in Tantivy 0.29. Use `BooleanQuery::union` with `TermQuery` children instead.
 - `.set_fast(..)` now takes a &str. The same behavior as `.set_fast(None)` can be obtained with .set_fast(tantivy::tokenizer::RAW_TOKENIZER_NAME). [#3020](https://github.com/quickwit-oss/tantivy/pull/3020) [#3029](https://github.com/quickwit-oss/tantivy/pull/3029)(@fulmicoton @trinity-1686a)
 - Added the `FieldType::TieBreaker` variant; exhaustive matches on `FieldType` need a new arm.
 - Segment plugins add `Custom` variants to `FieldType`, `Type`, `OwnedValue`, `ReferenceValueLeaf` and `SegmentComponent`, and new `TantivyError` variants. `SegmentComponent` is no longer `Copy`, `SegmentSerializer` is removed and `IndexMerger::write` now takes a `&Segment` [#2993](https://github.com/quickwit-oss/tantivy/pull/2993)(@rebasedming)

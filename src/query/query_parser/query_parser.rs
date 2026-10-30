@@ -16,8 +16,8 @@ use crate::index::Index;
 use crate::json_utils::convert_to_fast_value_and_append_to_json_term;
 use crate::query::range_query::{is_type_valid_for_fastfield_range_query, RangeQuery};
 use crate::query::{
-    AllQuery, BooleanQuery, BoostQuery, EmptyQuery, ExistsQuery, FuzzyTermQuery, Occur,
-    PhrasePrefixQuery, PhraseQuery, Query, RegexQuery, TermQuery, TermSetQuery,
+    AllQuery, BooleanQuery, BoostQuery, ConstScoreQuery, EmptyQuery, ExistsQuery, FuzzyTermQuery,
+    Occur, PhrasePrefixQuery, PhraseQuery, Query, RegexQuery, TermQuery,
 };
 use crate::schema::{
     Facet, FacetParseError, Field, FieldType, IndexRecordOption, IntoIpv6Addr, JsonObjectOptions,
@@ -961,7 +961,22 @@ fn convert_literal_to_query(
             }
         }
         LogicalLiteral::Range { lower, upper } => Box::new(RangeQuery::new(lower, upper)),
-        LogicalLiteral::Set { elements, .. } => Box::new(TermSetQuery::new(elements)),
+        LogicalLiteral::Set { mut elements, .. } => {
+            elements.sort_unstable();
+            elements.dedup();
+            Box::new(ConstScoreQuery::new(
+                Box::new(BooleanQuery::union(
+                    elements
+                        .into_iter()
+                        .map(|term| {
+                            Box::new(TermQuery::new(term, IndexRecordOption::WithFreqs))
+                                as Box<dyn Query>
+                        })
+                        .collect(),
+                )),
+                1.0,
+            ))
+        }
         LogicalLiteral::All => Box::new(AllQuery),
         LogicalLiteral::Regex { pattern, field } => {
             Box::new(RegexQuery::from_regex(pattern, field))
