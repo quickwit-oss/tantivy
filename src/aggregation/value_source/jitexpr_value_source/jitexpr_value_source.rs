@@ -208,24 +208,28 @@ impl JitExprValueSource {
             evaluation,
             ..
         } = self;
-        if let Evaluation::PerTermOrd(results) = evaluation {
-            let input = &mut inputs[0];
-            let input_value = input.column.first(doc);
-            return results.get_or_eval(input_value, || {
-                eval_single_input(compiled_fn, args, term_dictionary, input, input_value)
-            });
+        match evaluation {
+            Evaluation::PerTermOrd(results) => {
+                let input = &mut inputs[0];
+                let input_value = input.column.first(doc);
+                results.get_or_eval(input_value, || {
+                    eval_single_input(compiled_fn, args, term_dictionary, input, input_value)
+                })
+            }
+            Evaluation::PerDoc => {
+                let result_type: VarType = compiled_fn.result_type();
+                let mut args = args.borrow::<VariableValue>();
+                // Each input is borrowed once: the values can borrow their input.
+                for input in inputs.iter_mut() {
+                    args.push(input.value_of(input.column.first(doc)));
+                }
+                // SAFETY: `args` follow the compiled inputs, with their types (see `new`). The
+                // strings are borrowed from `inputs`, which are not modified during the call.
+                let result: VariableValue = unsafe { compiled_fn.call(&args) };
+                // SAFETY: `result` has the result type of the compiled function.
+                unsafe { encode_result(result, result_type, term_dictionary) }
+            }
         }
-        let result_type: VarType = compiled_fn.result_type();
-        let mut args = args.borrow::<VariableValue>();
-        // Each input is borrowed once: the values can borrow their input.
-        for input in inputs.iter_mut() {
-            args.push(input.value_of(input.column.first(doc)));
-        }
-        // SAFETY: `args` follow the compiled inputs, with their types (see `new`). The strings
-        // are borrowed from `inputs`, which are not modified during the call.
-        let result: VariableValue = unsafe { compiled_fn.call(&args) };
-        // SAFETY: `result` has the result type of the compiled function.
-        unsafe { encode_result(result, result_type, term_dictionary) }
     }
 
     /// Returns the variable name and the column index of each input.
@@ -272,40 +276,43 @@ impl ValueSource for JitExprValueSource {
             evaluation,
             ..
         } = self;
-        if let Evaluation::PerTermOrd(results) = evaluation {
-            let input = &mut inputs[0];
-            // Terms are only resolved for the term ords evaluated for the first time.
-            input.load_block_values(docs);
-            for (doc_pos, &doc) in docs.iter().enumerate() {
-                let input_value = input.first_values[doc_pos];
-                let value_opt = results.get_or_eval(input_value, || {
-                    eval_single_input(compiled_fn, args, term_dictionary, input, input_value)
-                });
-                if let Some(value) = value_opt {
-                    values.push(value);
-                    docids.push(doc);
+        match evaluation {
+            Evaluation::PerTermOrd(results) => {
+                let input = &mut inputs[0];
+                // Terms are only resolved for the term ords evaluated for the first time.
+                input.load_block_values(docs);
+                for (doc_pos, &doc) in docs.iter().enumerate() {
+                    let input_value = input.first_values[doc_pos];
+                    let value_opt = results.get_or_eval(input_value, || {
+                        eval_single_input(compiled_fn, args, term_dictionary, input, input_value)
+                    });
+                    if let Some(value) = value_opt {
+                        values.push(value);
+                        docids.push(doc);
+                    }
                 }
             }
-        } else {
-            for input in inputs.iter_mut() {
-                input.load_block(docs);
-            }
-            let result_type: VarType = compiled_fn.result_type();
-            let mut args = args.borrow::<VariableValue>();
-            for (doc_pos, &doc) in docs.iter().enumerate() {
-                args.clear();
-                for input in inputs.iter() {
-                    args.push(input.value(doc_pos));
+            Evaluation::PerDoc => {
+                for input in inputs.iter_mut() {
+                    input.load_block(docs);
                 }
-                // SAFETY: `args` follow the compiled inputs, with their types (see `new`). The
-                // strings are borrowed from `inputs`, which are not modified during the call.
-                let result: VariableValue = unsafe { compiled_fn.call(&args) };
-                // SAFETY: `result` has the result type of the compiled function.
-                let value_opt: Option<u64> =
-                    unsafe { encode_result(result, result_type, term_dictionary) };
-                if let Some(value) = value_opt {
-                    values.push(value);
-                    docids.push(doc);
+                let result_type: VarType = compiled_fn.result_type();
+                let mut args = args.borrow::<VariableValue>();
+                for (doc_pos, &doc) in docs.iter().enumerate() {
+                    args.clear();
+                    for input in inputs.iter() {
+                        args.push(input.value(doc_pos));
+                    }
+                    // SAFETY: `args` follow the compiled inputs, with their types (see `new`). The
+                    // strings are borrowed from `inputs`, which are not modified during the call.
+                    let result: VariableValue = unsafe { compiled_fn.call(&args) };
+                    // SAFETY: `result` has the result type of the compiled function.
+                    let value_opt: Option<u64> =
+                        unsafe { encode_result(result, result_type, term_dictionary) };
+                    if let Some(value) = value_opt {
+                        values.push(value);
+                        docids.push(doc);
+                    }
                 }
             }
         }
@@ -333,8 +340,9 @@ impl ValueSource for JitExprValueSource {
         self.compiled_fn = coerced_fn.context();
         self.column_type = ColumnType::F64;
         // The memoized results are encoded for the previous result type.
-        if let Evaluation::PerTermOrd(results) = &mut self.evaluation {
-            results.clear();
+        match &mut self.evaluation {
+            Evaluation::PerTermOrd(results) => results.clear(),
+            Evaluation::PerDoc => {}
         }
         self
     }
