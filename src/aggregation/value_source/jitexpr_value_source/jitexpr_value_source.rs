@@ -11,6 +11,10 @@ use crate::aggregation::f64_from_fastfield_u64;
 use crate::aggregation::value_source::{coerce_to_f64, ValueSource, ValueSourceDictionary};
 use crate::DocId;
 
+/// An expression of a single text input whose dictionary has at most this many terms gets its
+/// results memoized per input term ord, see [`TermOrdResults`].
+const TERM_ORD_RESULTS_MAX_NUM_TERMS: usize = 65_536;
+
 /// The value source of a jitexpr expression on a segment.
 ///
 /// Each input takes the first value of the doc. A doc without a value for an input gets null for
@@ -23,6 +27,9 @@ use crate::DocId;
 ///
 /// Values use the monotonic `u64` mapping of fast fields. `Str` results are interned in a
 /// [`DynamicTermDictionary`] owned by the source: their values are term ords in first-seen order.
+///
+/// An expression of a single text input with a small dictionary is evaluated once per input
+/// term instead of once per doc, see [`TermOrdResults`].
 pub(crate) struct JitExprValueSource {
     compiled_fn: CompiledFnCtx,
     /// The column type of the result type of `compiled_fn`.
@@ -34,6 +41,121 @@ pub(crate) struct JitExprValueSource {
     /// Reusable allocation for the arguments of `compiled_fn`, lent as a `Vec<VariableValue>` for
     /// each block.
     args: VersatileBuffer<VariableValue<'static>>,
+    /// Whether the expression is evaluated once per doc, or once per input term ord.
+    evaluation: Evaluation,
+}
+
+/// How a [`JitExprValueSource`] evaluates its expression.
+enum Evaluation {
+    /// Once per doc.
+    PerDoc,
+    /// Once per term ord of the input, for an expression of a single text input whose
+    /// dictionary has at most `TERM_ORD_RESULTS_MAX_NUM_TERMS` terms.
+    PerTermOrd(TermOrdResults),
+}
+
+/// The results of an expression of a single text input, per term ord of the input.
+///
+/// jitexpr functions are deterministic, so the result of a doc only depends on the term of its
+/// input: the expression is evaluated on the first doc of each term, and later docs reuse the
+/// result. Text inputs are dictionary encoded and typically have few distinct terms per segment
+/// (service names, hosts, statuses), while evaluating the expression can be expensive (regular
+/// expressions).
+///
+/// The results are the encoded results: `Str` results are interned when first evaluated, in the
+/// order of the docs, so term ords are assigned in the same first-seen order as without
+/// memoization.
+///
+/// It has one slot per term of the input dictionary, 9 bytes each, allocated zeroed when the
+/// source is opened, and a separate slot for the docs without a value, which the expression can
+/// still turn into a value (e.g. `IS_NULL`). It is limited to dictionaries of at most
+/// `TERM_ORD_RESULTS_MAX_NUM_TERMS` terms: larger dictionaries tend to be identifiers, with few
+/// repeated terms.
+struct TermOrdResults {
+    /// `states[term_ord]` tells whether the result of `term_ord` is unknown, null, or a value.
+    states: Box<[u8]>,
+    /// `values[term_ord]` is the result of `term_ord` if its state is `RESULT_VALUE`.
+    values: Box<[u64]>,
+    /// The state and the value of the result for the docs without a value, like `states` and
+    /// `values`.
+    no_value_state: u8,
+    no_value_value: u64,
+}
+
+const RESULT_UNKNOWN: u8 = 0;
+const RESULT_NULL: u8 = 1;
+const RESULT_VALUE: u8 = 2;
+
+impl TermOrdResults {
+    fn new(num_terms: usize) -> TermOrdResults {
+        // `vec!` of zeroes allocates zeroed memory, and its capacity is its length: converting it
+        // to a boxed slice does not reallocate.
+        TermOrdResults {
+            states: vec![RESULT_UNKNOWN; num_terms].into_boxed_slice(),
+            values: vec![0; num_terms].into_boxed_slice(),
+            no_value_state: RESULT_UNKNOWN,
+            no_value_value: 0,
+        }
+    }
+
+    /// Returns the result for `input_value`, computing it with `eval` the first time.
+    ///
+    /// Panics if `input_value` is not a term ord of the input dictionary.
+    #[inline]
+    fn get_or_eval(
+        &mut self,
+        input_value: Option<u64>,
+        eval: impl FnOnce() -> Option<u64>,
+    ) -> Option<u64> {
+        let (state, value) = match input_value {
+            Some(term_ord) => (
+                &mut self.states[term_ord as usize],
+                &mut self.values[term_ord as usize],
+            ),
+            None => (&mut self.no_value_state, &mut self.no_value_value),
+        };
+        match *state {
+            RESULT_VALUE => return Some(*value),
+            RESULT_NULL => return None,
+            _ => {}
+        }
+        let result = eval();
+        match result {
+            Some(result_value) => {
+                *state = RESULT_VALUE;
+                *value = result_value;
+            }
+            None => *state = RESULT_NULL,
+        }
+        result
+    }
+
+    /// Forgets all of the results.
+    fn clear(&mut self) {
+        self.states.fill(RESULT_UNKNOWN);
+        self.no_value_state = RESULT_UNKNOWN;
+    }
+}
+
+/// Evaluates an expression of a single input on `input_value`, the value of `input` in its
+/// monotonic `u64` mapping, and returns the encoded result.
+///
+/// Precondition: `input` is the only input of `compiled_fn`, with the same type.
+fn eval_single_input(
+    compiled_fn: &mut CompiledFnCtx,
+    args: &mut VersatileBuffer<VariableValue<'static>>,
+    term_dictionary: &mut DynamicTermDictionary,
+    input: &mut InputColumn,
+    input_value: Option<u64>,
+) -> Option<u64> {
+    let result_type: VarType = compiled_fn.result_type();
+    let mut args = args.borrow::<VariableValue>();
+    args.push(input.value_of(input_value));
+    // SAFETY: `args` follow the compiled inputs, with their types (precondition). The string is
+    // borrowed from `input`, which is not modified during the call.
+    let result: VariableValue = unsafe { compiled_fn.call(&args) };
+    // SAFETY: `result` has the result type of the compiled function.
+    unsafe { encode_result(result, result_type, term_dictionary) }
 }
 
 impl JitExprValueSource {
@@ -51,12 +173,23 @@ impl JitExprValueSource {
             assert_eq!(compiled_input.r#type, input.var_type());
         }
         let num_inputs = inputs.len();
+        let evaluation = match inputs.as_slice() {
+            [input] => match input.num_terms() {
+                Some(num_terms) if num_terms <= TERM_ORD_RESULTS_MAX_NUM_TERMS => {
+                    Evaluation::PerTermOrd(TermOrdResults::new(num_terms))
+                }
+                // Not a text input, or a large dictionary.
+                _ => Evaluation::PerDoc,
+            },
+            _ => Evaluation::PerDoc,
+        };
         JitExprValueSource {
             compiled_fn,
             column_type,
             inputs,
             term_dictionary: DynamicTermDictionary::default(),
             args: VersatileBuffer::with_capacity(num_inputs),
+            evaluation,
         }
     }
 
@@ -72,19 +205,31 @@ impl JitExprValueSource {
             inputs,
             term_dictionary,
             args,
+            evaluation,
             ..
         } = self;
-        let result_type: VarType = compiled_fn.result_type();
-        let mut args = args.borrow::<VariableValue>();
-        // Each input is borrowed once: the values can borrow their input.
-        for input in inputs.iter_mut() {
-            args.push(input.value_for_doc(doc));
+        match evaluation {
+            Evaluation::PerTermOrd(results) => {
+                let input = &mut inputs[0];
+                let input_value = input.column.first(doc);
+                results.get_or_eval(input_value, || {
+                    eval_single_input(compiled_fn, args, term_dictionary, input, input_value)
+                })
+            }
+            Evaluation::PerDoc => {
+                let result_type: VarType = compiled_fn.result_type();
+                let mut args = args.borrow::<VariableValue>();
+                // Each input is borrowed once: the values can borrow their input.
+                for input in inputs.iter_mut() {
+                    args.push(input.value_of(input.column.first(doc)));
+                }
+                // SAFETY: `args` follow the compiled inputs, with their types (see `new`). The
+                // strings are borrowed from `inputs`, which are not modified during the call.
+                let result: VariableValue = unsafe { compiled_fn.call(&args) };
+                // SAFETY: `result` has the result type of the compiled function.
+                unsafe { encode_result(result, result_type, term_dictionary) }
+            }
         }
-        // SAFETY: `args` follow the compiled inputs, with their types (see `new`). The strings
-        // are borrowed from `inputs`, which are not modified during the call.
-        let result: VariableValue = unsafe { compiled_fn.call(&args) };
-        // SAFETY: `result` has the result type of the compiled function.
-        unsafe { encode_result(result, result_type, term_dictionary) }
     }
 
     /// Returns the variable name and the column index of each input.
@@ -94,7 +239,7 @@ impl JitExprValueSource {
             .iter()
             .zip(&self.inputs)
             .map(|(compiled_input, input)| {
-                (compiled_input.variable_name.as_ref(), input.column_index())
+                (compiled_input.variable_name.as_ref(), &input.column.index)
             })
     }
 }
@@ -123,32 +268,52 @@ impl ValueSource for JitExprValueSource {
     ) -> Cardinality {
         values.clear();
         docids.clear();
-        for input in &mut self.inputs {
-            input.load_block(docs);
-        }
         let JitExprValueSource {
             compiled_fn,
             inputs,
             term_dictionary,
             args,
+            evaluation,
             ..
         } = self;
-        let result_type: VarType = compiled_fn.result_type();
-        let mut args = args.borrow::<VariableValue>();
-        for (doc_pos, &doc) in docs.iter().enumerate() {
-            args.clear();
-            for input in inputs.iter() {
-                args.push(input.value(doc_pos));
+        match evaluation {
+            Evaluation::PerTermOrd(results) => {
+                let input = &mut inputs[0];
+                // Terms are only resolved for the term ords evaluated for the first time.
+                input.load_block_values(docs);
+                for (doc_pos, &doc) in docs.iter().enumerate() {
+                    let input_value = input.first_values[doc_pos];
+                    let value_opt = results.get_or_eval(input_value, || {
+                        eval_single_input(compiled_fn, args, term_dictionary, input, input_value)
+                    });
+                    if let Some(value) = value_opt {
+                        values.push(value);
+                        docids.push(doc);
+                    }
+                }
             }
-            // SAFETY: `args` follow the compiled inputs, with their types (see `new`). The strings
-            // are borrowed from `inputs`, which are not modified during the call.
-            let result: VariableValue = unsafe { compiled_fn.call(&args) };
-            // SAFETY: `result` has the result type of the compiled function.
-            let value_opt: Option<u64> =
-                unsafe { encode_result(result, result_type, term_dictionary) };
-            if let Some(value) = value_opt {
-                values.push(value);
-                docids.push(doc);
+            Evaluation::PerDoc => {
+                for input in inputs.iter_mut() {
+                    input.load_block(docs);
+                }
+                let result_type: VarType = compiled_fn.result_type();
+                let mut args = args.borrow::<VariableValue>();
+                for (doc_pos, &doc) in docs.iter().enumerate() {
+                    args.clear();
+                    for input in inputs.iter() {
+                        args.push(input.value(doc_pos));
+                    }
+                    // SAFETY: `args` follow the compiled inputs, with their types (see `new`). The
+                    // strings are borrowed from `inputs`, which are not modified during the call.
+                    let result: VariableValue = unsafe { compiled_fn.call(&args) };
+                    // SAFETY: `result` has the result type of the compiled function.
+                    let value_opt: Option<u64> =
+                        unsafe { encode_result(result, result_type, term_dictionary) };
+                    if let Some(value) = value_opt {
+                        values.push(value);
+                        docids.push(doc);
+                    }
+                }
             }
         }
         if values.len() == docs.len() {
@@ -174,6 +339,11 @@ impl ValueSource for JitExprValueSource {
         debug_assert!(coerced_fn.inputs() == self.compiled_fn.inputs());
         self.compiled_fn = coerced_fn.context();
         self.column_type = ColumnType::F64;
+        // The memoized results are encoded for the previous result type.
+        match &mut self.evaluation {
+            Evaluation::PerTermOrd(results) => results.clear(),
+            Evaluation::PerDoc => {}
+        }
         self
     }
 
@@ -452,6 +622,138 @@ mod tests {
             assert_eq!(single_doc_values, expected, "expression `{expression}`");
             assert_eq!(single_doc_values[2], None, "doc 2 has no value");
         }
+    }
+
+    fn open_variable_source(index: &Index, expression: &str) -> JitExprValueSource {
+        let provider =
+            JitExprValueSourceProvider::new(jitexpr::ast::deserialize(expression).unwrap())
+                .unwrap();
+        let searcher = index.reader().unwrap().searcher();
+        match provider
+            .open_segment(searcher.segment_reader(0), None)
+            .unwrap()
+        {
+            JitExprSegmentSource::Variable(source) => source,
+            _ => panic!("expected a variable source for `{expression}`"),
+        }
+    }
+
+    #[test]
+    fn test_term_ord_results_is_limited_to_a_single_small_text_input() {
+        let small = create_index(&["b", "a", "b", "c"], &[]);
+        assert!(matches!(
+            open_variable_source(&small, "(UPPER label)").evaluation,
+            Evaluation::PerTermOrd(_)
+        ));
+        // A numeric input.
+        assert!(matches!(
+            open_variable_source(&small, "(ADD number 1u64)").evaluation,
+            Evaluation::PerDoc
+        ));
+        // Several inputs.
+        assert!(matches!(
+            open_variable_source(&small, r#"(IF (EQ number 1u64) label "x")"#).evaluation,
+            Evaluation::PerDoc
+        ));
+        // One term more than `TERM_ORD_RESULTS_MAX_NUM_TERMS`, in a single segment: the minimal
+        // memory budget of `create_index` would split the docs.
+        let mut schema_builder = Schema::builder();
+        let label = schema_builder.add_text_field("label", STRING | FAST);
+        let large = Index::create_in_ram(schema_builder.build());
+        let mut writer = large.writer_with_num_threads(1, 100_000_000).unwrap();
+        for term_pos in 0..=TERM_ORD_RESULTS_MAX_NUM_TERMS {
+            writer
+                .add_document(doc!(label => format!("label{term_pos}")))
+                .unwrap();
+        }
+        writer.commit().unwrap();
+        assert_eq!(large.searchable_segment_ids().unwrap().len(), 1);
+        assert!(matches!(
+            open_variable_source(&large, "(UPPER label)").evaluation,
+            Evaluation::PerDoc
+        ));
+    }
+
+    #[test]
+    fn test_term_ord_results_matches_per_doc_evaluation() {
+        let index = create_index(&["b_1", "a_2", "b_1", "c", "a_2", "b_1", "c"], &[3, 5]);
+        let expressions = [
+            "(UPPER label)",
+            r#"(REGEXP_EXTRACT label "^([^_]+)_" 1u64)"#,
+            r#"(EQ label "b_1")"#,
+            "(IS_NULL label)",
+            r#"(IF (EQ label "a_2") 1i64 2i64)"#,
+        ];
+        let blocks: [&[DocId]; 3] = [&[0, 1, 2, 3], &[4, 5, 6], &[6, 0, 3, 1]];
+        for expression in expressions {
+            let mut memoized = open_variable_source(&index, expression);
+            assert!(
+                matches!(memoized.evaluation, Evaluation::PerTermOrd(_)),
+                "`{expression}`"
+            );
+            let mut per_doc = open_variable_source(&index, expression);
+            per_doc.evaluation = Evaluation::PerDoc;
+            for docs in blocks {
+                assert_eq!(
+                    load_block(&mut memoized, docs),
+                    load_block(&mut per_doc, docs),
+                    "`{expression}` on {docs:?}"
+                );
+            }
+            for doc in 0..7 {
+                assert_eq!(
+                    memoized.eval_single_doc(doc),
+                    per_doc.eval_single_doc(doc),
+                    "`{expression}` on doc {doc}"
+                );
+            }
+            if memoized.column_type == ColumnType::Str {
+                // Same terms, interned in the same first-seen order.
+                let num_terms = per_doc.term_dictionary.num_terms();
+                assert_eq!(memoized.term_dictionary.num_terms(), num_terms);
+                let all_ords: Vec<u64> = (0..num_terms).collect();
+                assert_eq!(
+                    terms(&memoized, &all_ords),
+                    terms(&per_doc, &all_ords),
+                    "`{expression}`"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn test_term_ord_results_null_input() {
+        let index = create_index(&["a", "b", "a"], &[1]);
+        let mut source = open_variable_source(&index, "(IS_NULL label)");
+        assert!(matches!(source.evaluation, Evaluation::PerTermOrd(_)));
+        // Doc 1 has no label. The second block only reads memoized results.
+        for _ in 0..2 {
+            let (cardinality, values, _) = load_block(&mut source, &[0, 1, 2]);
+            assert_eq!(cardinality, Cardinality::Full);
+            assert_eq!(values, vec![0, 1, 0]);
+        }
+        // A null result for a null input.
+        let mut source = open_variable_source(&index, "(UPPER label)");
+        let (cardinality, values, docids) = load_block(&mut source, &[0, 1, 2]);
+        assert_eq!(cardinality, Cardinality::Optional);
+        assert_eq!(values, vec![0, 0]);
+        assert_eq!(docids, vec![0, 2]);
+    }
+
+    #[test]
+    fn test_to_f64_after_memoized_block() {
+        let index = create_index(&["a", "b", "a"], &[]);
+        let mut source = open_variable_source(&index, r#"(IF (EQ label "a") 1i64 2i64)"#);
+        assert!(matches!(source.evaluation, Evaluation::PerTermOrd(_)));
+        // Memoizes the `i64` encodings.
+        let (_, values, _) = load_block(&mut source, &[0, 1, 2]);
+        let decoded: Vec<i64> = values.iter().map(|value| i64::from_u64(*value)).collect();
+        assert_eq!(decoded, vec![1, 2, 1]);
+        let mut source = Box::new(source).to_f64();
+        assert_eq!(source.column_type(), ColumnType::F64);
+        let (_, values, _) = load_block(&mut *source, &[0, 1, 2]);
+        let decoded: Vec<f64> = values.iter().map(|value| f64::from_u64(*value)).collect();
+        assert_eq!(decoded, vec![1.0, 2.0, 1.0]);
     }
 
     #[test]
