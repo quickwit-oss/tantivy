@@ -150,10 +150,7 @@ fn eval_single_input(
 ) -> Option<u64> {
     let result_type: VarType = compiled_fn.result_type();
     let mut args = args.borrow::<VariableValue>();
-    args.push(match input_value {
-        Some(value) => input.value_of(value),
-        None => VariableValue::none(),
-    });
+    args.push(input.value_of(input_value));
     // SAFETY: `args` follow the compiled inputs, with their types (precondition). The string is
     // borrowed from `input`, which is not modified during the call.
     let result: VariableValue = unsafe { compiled_fn.call(&args) };
@@ -173,7 +170,7 @@ impl JitExprValueSource {
         // Evaluating the function with inputs of the wrong type is undefined behavior.
         assert_eq!(compiled_fn.inputs().len(), inputs.len());
         for (compiled_input, input) in compiled_fn.inputs().iter().zip(&inputs) {
-            assert_eq!(compiled_input.r#type, input.var_type());
+            assert_eq!(compiled_input.r#type, input.var_type);
         }
         let num_inputs = inputs.len();
         let evaluation = match inputs.as_slice() {
@@ -213,7 +210,7 @@ impl JitExprValueSource {
         } = self;
         if let Evaluation::PerTermOrd(results) = evaluation {
             let input = &mut inputs[0];
-            let input_value = input.first_value_for_doc(doc);
+            let input_value = input.column.first(doc);
             return results.get_or_eval(input_value, || {
                 eval_single_input(compiled_fn, args, term_dictionary, input, input_value)
             });
@@ -222,7 +219,7 @@ impl JitExprValueSource {
         let mut args = args.borrow::<VariableValue>();
         // Each input is borrowed once: the values can borrow their input.
         for input in inputs.iter_mut() {
-            args.push(input.value_for_doc(doc));
+            args.push(input.value_of(input.column.first(doc)));
         }
         // SAFETY: `args` follow the compiled inputs, with their types (see `new`). The strings
         // are borrowed from `inputs`, which are not modified during the call.
@@ -238,7 +235,7 @@ impl JitExprValueSource {
             .iter()
             .zip(&self.inputs)
             .map(|(compiled_input, input)| {
-                (compiled_input.variable_name.as_ref(), input.column_index())
+                (compiled_input.variable_name.as_ref(), &input.column.index)
             })
     }
 }
@@ -280,7 +277,7 @@ impl ValueSource for JitExprValueSource {
             // Terms are only resolved for the term ords evaluated for the first time.
             input.load_block_values(docs);
             for (doc_pos, &doc) in docs.iter().enumerate() {
-                let input_value = input.first_value(doc_pos);
+                let input_value = input.first_values[doc_pos];
                 let value_opt = results.get_or_eval(input_value, || {
                     eval_single_input(compiled_fn, args, term_dictionary, input, input_value)
                 });

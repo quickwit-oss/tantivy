@@ -154,7 +154,7 @@ impl JitExprValueSourceProvider {
                 )));
             };
             let input = InputColumn::open(&handle)?;
-            if input.var_type() != compiled_input.r#type {
+            if input.var_type != compiled_input.r#type {
                 return Err(TantivyError::InternalError(format!(
                     "the compiled input `{}` expects {:?}, but its column has type {}",
                     compiled_input.variable_name,
