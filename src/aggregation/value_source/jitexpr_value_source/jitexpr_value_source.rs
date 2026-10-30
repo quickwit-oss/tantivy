@@ -170,7 +170,7 @@ impl JitExprValueSource {
         // Evaluating the function with inputs of the wrong type is undefined behavior.
         assert_eq!(compiled_fn.inputs().len(), inputs.len());
         for (compiled_input, input) in compiled_fn.inputs().iter().zip(&inputs) {
-            assert_eq!(compiled_input.r#type, input.var_type);
+            assert_eq!(compiled_input.r#type, input.var_type());
         }
         let num_inputs = inputs.len();
         let evaluation = match inputs.as_slice() {
