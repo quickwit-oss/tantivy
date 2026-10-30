@@ -79,7 +79,7 @@ impl DocPredicate for JitExprPredicate {
                 let const_bool = constant_source.value() == 1u64;
                 return Ok(ConstOrVariableSegmentPredicate::Const(const_bool));
             }
-            JitExprSegmentSource::Variable(value_source) => value_source,
+            JitExprSegmentSource::Variable(value_source) => *value_source,
         };
 
         // The presence of a variable is the presence of a value in the column of its input. A
