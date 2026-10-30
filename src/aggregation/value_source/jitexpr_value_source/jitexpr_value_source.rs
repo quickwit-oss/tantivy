@@ -13,7 +13,7 @@ use crate::DocId;
 
 /// An expression of a single text input whose dictionary has at most this many terms gets its
 /// results memoized per input term ord, see [`TermOrdResults`].
-const TERM_ORD_RESULTS_MAX_NUM_TERMS: usize = 1 << 16;
+const TERM_ORD_RESULTS_MAX_NUM_TERMS: usize = 65_536;
 
 /// The value source of a jitexpr expression on a segment.
 ///
