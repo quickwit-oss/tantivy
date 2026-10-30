@@ -54,17 +54,6 @@ enum Evaluation {
     PerTermOrd(TermOrdResults),
 }
 
-#[cfg(test)]
-impl Evaluation {
-    fn is_per_doc(&self) -> bool {
-        matches!(self, Evaluation::PerDoc)
-    }
-
-    fn is_per_term_ord(&self) -> bool {
-        matches!(self, Evaluation::PerTermOrd(_))
-    }
-}
-
 /// The results of an expression of a single text input, per term ord of the input.
 ///
 /// jitexpr functions are deterministic, so the result of a doc only depends on the term of its
@@ -647,19 +636,20 @@ mod tests {
     #[test]
     fn test_term_ord_results_is_limited_to_a_single_small_text_input() {
         let small = create_index(&["b", "a", "b", "c"], &[]);
-        assert!(open_variable_source(&small, "(UPPER label)")
-            .evaluation
-            .is_per_term_ord());
+        assert!(matches!(
+            open_variable_source(&small, "(UPPER label)").evaluation,
+            Evaluation::PerTermOrd(_)
+        ));
         // A numeric input.
-        assert!(open_variable_source(&small, "(ADD number 1u64)")
-            .evaluation
-            .is_per_doc());
+        assert!(matches!(
+            open_variable_source(&small, "(ADD number 1u64)").evaluation,
+            Evaluation::PerDoc
+        ));
         // Several inputs.
-        assert!(
-            open_variable_source(&small, r#"(IF (EQ number 1u64) label "x")"#)
-                .evaluation
-                .is_per_doc()
-        );
+        assert!(matches!(
+            open_variable_source(&small, r#"(IF (EQ number 1u64) label "x")"#).evaluation,
+            Evaluation::PerDoc
+        ));
         // One term more than `TERM_ORD_RESULTS_MAX_NUM_TERMS`, in a single segment: the minimal
         // memory budget of `create_index` would split the docs.
         let mut schema_builder = Schema::builder();
@@ -673,9 +663,10 @@ mod tests {
         }
         writer.commit().unwrap();
         assert_eq!(large.searchable_segment_ids().unwrap().len(), 1);
-        assert!(open_variable_source(&large, "(UPPER label)")
-            .evaluation
-            .is_per_doc());
+        assert!(matches!(
+            open_variable_source(&large, "(UPPER label)").evaluation,
+            Evaluation::PerDoc
+        ));
     }
 
     #[test]
@@ -691,7 +682,10 @@ mod tests {
         let blocks: [&[DocId]; 3] = [&[0, 1, 2, 3], &[4, 5, 6], &[6, 0, 3, 1]];
         for expression in expressions {
             let mut memoized = open_variable_source(&index, expression);
-            assert!(memoized.evaluation.is_per_term_ord(), "`{expression}`");
+            assert!(
+                matches!(memoized.evaluation, Evaluation::PerTermOrd(_)),
+                "`{expression}`"
+            );
             let mut per_doc = open_variable_source(&index, expression);
             per_doc.evaluation = Evaluation::PerDoc;
             for docs in blocks {
@@ -726,7 +720,7 @@ mod tests {
     fn test_term_ord_results_null_input() {
         let index = create_index(&["a", "b", "a"], &[1]);
         let mut source = open_variable_source(&index, "(IS_NULL label)");
-        assert!(source.evaluation.is_per_term_ord());
+        assert!(matches!(source.evaluation, Evaluation::PerTermOrd(_)));
         // Doc 1 has no label. The second block only reads memoized results.
         for _ in 0..2 {
             let (cardinality, values, _) = load_block(&mut source, &[0, 1, 2]);
@@ -745,7 +739,7 @@ mod tests {
     fn test_to_f64_after_memoized_block() {
         let index = create_index(&["a", "b", "a"], &[]);
         let mut source = open_variable_source(&index, r#"(IF (EQ label "a") 1i64 2i64)"#);
-        assert!(source.evaluation.is_per_term_ord());
+        assert!(matches!(source.evaluation, Evaluation::PerTermOrd(_)));
         // Memoizes the `i64` encodings.
         let (_, values, _) = load_block(&mut source, &[0, 1, 2]);
         let decoded: Vec<i64> = values.iter().map(|value| i64::from_u64(*value)).collect();
