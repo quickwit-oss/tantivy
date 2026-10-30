@@ -10,7 +10,7 @@
 use std::collections::HashSet;
 
 use tantivy::collector::TopDocs;
-use tantivy::query::BooleanQuery;
+use tantivy::query::{BooleanQuery, Query, TermQuery};
 use tantivy::schema::*;
 use tantivy::{doc, DocId, Index, IndexWriter, Score, SegmentReader};
 
@@ -57,10 +57,15 @@ fn main() -> tantivy::Result<()> {
             Facet::from("/ingredient/garlic"),
             Facet::from("/ingredient/mushroom"),
         ];
-        let query = BooleanQuery::new_multiterms_query(
+        let query = BooleanQuery::union(
             facets
                 .iter()
-                .map(|key| Term::from_facet(ingredient, key))
+                .map(|key| {
+                    Box::new(TermQuery::new(
+                        Term::from_facet(ingredient, key),
+                        IndexRecordOption::WithFreqs,
+                    )) as Box<dyn Query>
+                })
                 .collect(),
         );
         let top_docs_by_custom_score =

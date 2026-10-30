@@ -153,6 +153,10 @@ impl<TDocSet: DocSet> DocSet for ConstScorer<TDocSet> {
     fn cost(&self) -> u64 {
         self.docset.cost()
     }
+
+    fn count_including_deleted(&mut self) -> u32 {
+        self.docset.count_including_deleted()
+    }
 }
 
 impl<TDocSet: DocSet + 'static> Scorer for ConstScorer<TDocSet> {
