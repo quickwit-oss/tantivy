@@ -1,3 +1,12 @@
+Tantivy 0.28.0 (unreleased)
+================================
+
+## Breaking change
+- `TermSetQuery` is removed. Use `BooleanQuery::union` with `TermQuery` children, wrapped in `ConstScoreQuery` for constant-score term unions. Sort and deduplicate terms first to preserve unique `query_terms` visits.
+
+## Deprecations
+- `BooleanQuery::new_multiterms_query` is deprecated and will be removed in Tantivy 0.29. Use `BooleanQuery::union` with `TermQuery` children instead.
+
 Tantivy 0.27.0
 ================================
 

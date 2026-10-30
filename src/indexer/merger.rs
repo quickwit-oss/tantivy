@@ -553,7 +553,7 @@ mod tests {
     use crate::collector::{Count, FacetCollector};
     use crate::index::{Index, SegmentId};
     use crate::indexer::NoMergePolicy;
-    use crate::query::{AllQuery, BooleanQuery, EnableScoring, Scorer, TermQuery};
+    use crate::query::{AllQuery, BooleanQuery, EnableScoring, Query, Scorer, TermQuery};
     use crate::schema::{
         Facet, FacetOptions, IndexRecordOption, NumericOptions, TantivyDocument, Term,
         TextFieldIndexing, Value, INDEXED, TEXT,
@@ -566,6 +566,17 @@ mod tests {
 
     #[test]
     fn test_index_merger_no_deletes() -> crate::Result<()> {
+        let union_terms = |terms: Vec<Term>| {
+            BooleanQuery::union(
+                terms
+                    .into_iter()
+                    .map(|term| {
+                        Box::new(TermQuery::new(term, IndexRecordOption::WithFreqs))
+                            as Box<dyn Query>
+                    })
+                    .collect(),
+            )
+        };
         let mut schema_builder = schema::Schema::builder();
         let text_fieldtype = schema::TextOptions::default()
             .set_indexing_options(
@@ -626,7 +637,7 @@ mod tests {
             reader.reload()?;
             let searcher = reader.searcher();
             let get_doc_ids = |terms: Vec<Term>| {
-                let query = BooleanQuery::new_multiterms_query(terms);
+                let query = union_terms(terms);
                 searcher
                     .search(&query, &TEST_COLLECTOR_WITH_SCORE)
                     .map(|top_docs| top_docs.docs().to_vec())
@@ -698,11 +709,11 @@ mod tests {
 
             {
                 let get_fast_vals = |terms: Vec<Term>| {
-                    let query = BooleanQuery::new_multiterms_query(terms);
+                    let query = union_terms(terms);
                     searcher.search(&query, &FastFieldTestCollector::for_field("score"))
                 };
                 let get_fast_vals_bytes = |terms: Vec<Term>| {
-                    let query = BooleanQuery::new_multiterms_query(terms);
+                    let query = union_terms(terms);
                     searcher.search(
                         &query,
                         &BytesFastFieldTestCollector::for_field("score_bytes"),

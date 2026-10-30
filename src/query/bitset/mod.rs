@@ -33,11 +33,12 @@ impl From<BitSet> for BitSetDocSet {
         } else {
             docs.tinyset(0)
         };
+        let doc = if docs.max_value() == 0 { TERMINATED } else { 0 };
         let mut docset = BitSetDocSet {
             docs,
             cursor_bucket: 0,
             cursor_tinybitset: first_tiny_bitset,
-            doc: 0u32,
+            doc,
         };
         docset.advance();
         docset
@@ -47,6 +48,9 @@ impl From<BitSet> for BitSetDocSet {
 impl DocSet for BitSetDocSet {
     #[inline]
     fn advance(&mut self) -> DocId {
+        if self.doc == TERMINATED {
+            return TERMINATED;
+        }
         if let Some(lower) = self.cursor_tinybitset.pop_lowest() {
             self.doc = (self.cursor_bucket * 64u32) | lower;
             return self.doc;
@@ -80,6 +84,10 @@ impl DocSet for BitSetDocSet {
             }
             doc
         }
+    }
+
+    fn count_including_deleted(&mut self) -> u32 {
+        self.docs.len() as u32
     }
 
     /// Returns the current document

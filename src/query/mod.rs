@@ -25,7 +25,6 @@ mod range_query;
 mod regex_query;
 mod reqopt_scorer;
 mod scorer;
-mod set_query;
 mod size_hint;
 mod term_query;
 mod union;
@@ -64,7 +63,6 @@ pub use self::regex_query::RegexQuery;
 pub use self::reqopt_scorer::RequiredOptionalScorer;
 pub use self::score_combiner::{DisjunctionMaxCombiner, ScoreCombiner, SumCombiner};
 pub use self::scorer::Scorer;
-pub use self::set_query::TermSetQuery;
 pub use self::term_query::TermQuery;
 pub use self::union::BufferedUnionScorer;
 #[cfg(test)]

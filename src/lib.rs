@@ -393,7 +393,7 @@ pub mod tests {
     use crate::index::SegmentReader;
     use crate::merge_policy::NoMergePolicy;
     use crate::postings::Postings;
-    use crate::query::{BooleanQuery, QueryParser};
+    use crate::query::{BooleanQuery, Query, QueryParser, TermQuery};
     use crate::schema::*;
     use crate::{DateTime, DocAddress, Index, IndexWriter, ReloadPolicy};
 
@@ -881,7 +881,15 @@ pub mod tests {
         reader.reload()?;
         let searcher = reader.searcher();
         let get_doc_ids = |terms: Vec<Term>| {
-            let query = BooleanQuery::new_multiterms_query(terms);
+            let query = BooleanQuery::union(
+                terms
+                    .into_iter()
+                    .map(|term| {
+                        Box::new(TermQuery::new(term, IndexRecordOption::WithFreqs))
+                            as Box<dyn Query>
+                    })
+                    .collect(),
+            );
             searcher
                 .search(&query, &TEST_COLLECTOR_WITH_SCORE)
                 .map(|topdocs| topdocs.docs().to_vec())

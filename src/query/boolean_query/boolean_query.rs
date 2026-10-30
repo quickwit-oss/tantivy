@@ -1,4 +1,5 @@
 use super::boolean_weight::BooleanWeight;
+use crate::query::score_combiner::DoNothingCombiner;
 use crate::query::{EnableScoring, Occur, Query, SumCombiner, TermQuery, Weight};
 use crate::schema::{IndexRecordOption, Term};
 
@@ -160,12 +161,21 @@ impl Query for BooleanQuery {
             .iter()
             .map(|(occur, subquery)| Ok((*occur, subquery.weight(enable_scoring)?)))
             .collect::<crate::Result<_>>()?;
-        Ok(Box::new(BooleanWeight::with_minimum_number_should_match(
-            sub_weights,
-            self.minimum_number_should_match,
-            enable_scoring.is_scoring_enabled(),
-            Box::new(SumCombiner::default),
-        )))
+        if enable_scoring.is_scoring_enabled() {
+            Ok(Box::new(BooleanWeight::with_minimum_number_should_match(
+                sub_weights,
+                self.minimum_number_should_match,
+                true,
+                Box::new(SumCombiner::default),
+            )))
+        } else {
+            Ok(Box::new(BooleanWeight::with_minimum_number_should_match(
+                sub_weights,
+                self.minimum_number_should_match,
+                false,
+                Box::new(DoNothingCombiner::default),
+            )))
+        }
     }
 
     fn query_terms<'a>(&'a self, visitor: &mut dyn FnMut(&'a Term, bool)) {
@@ -241,6 +251,11 @@ impl BooleanQuery {
 
     /// Helper method to create a boolean query matching a given list of terms.
     /// The resulting query is a disjunction of the terms.
+    /// Will be removed in Tantivy 0.29. Use [`BooleanQuery::union`] instead.
+    #[deprecated(
+        since = "0.28.0",
+        note = "Use BooleanQuery::union instead. Will be removed in Tantivy 0.29."
+    )]
     pub fn new_multiterms_query(terms: Vec<Term>) -> BooleanQuery {
         let occur_term_queries: Vec<(Occur, Box<dyn Query>)> = terms
             .into_iter()

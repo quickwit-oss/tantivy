@@ -1,17 +1,20 @@
 use std::cmp::Ordering;
 
+use common::BitSet;
+
 use super::occur_weights::OccurWeights;
-use crate::docset::{SeekDangerResult, COLLECT_BLOCK_BUFFER_LEN};
+use crate::docset::{DocSet, SeekDangerResult, COLLECT_BLOCK_BUFFER_LEN};
 use crate::index::SegmentReader;
 use crate::postings::FreqReadingOption;
 use crate::query::disjunction::Disjunction;
 use crate::query::explanation::does_not_match;
 use crate::query::score_combiner::{DoNothingCombiner, ScoreCombiner};
+use crate::query::size_hint::estimate_union;
 use crate::query::term_query::TermScorer;
 use crate::query::weight::{for_each_docset_buffered, for_each_pruning_scorer, for_each_scorer};
 use crate::query::{
-    intersect_scorers, AllScorer, BufferedUnionScorer, EmptyScorer, Exclude, Explanation, Occur,
-    RequiredOptionalScorer, Scorer, Weight,
+    intersect_scorers, AllScorer, BitSetDocSet, BufferedUnionScorer, ConstScorer, EmptyScorer,
+    Exclude, Explanation, Occur, RequiredOptionalScorer, Scorer, Weight,
 };
 use crate::{DocId, Score, TERMINATED};
 
@@ -70,11 +73,11 @@ where
             if scorers
                 .iter()
                 .all(|scorer| scorer.freq_reading_option() == FreqReadingOption::ReadFreq)
+                || std::any::TypeId::of::<TScoreCombiner>()
+                    == std::any::TypeId::of::<DoNothingCombiner>()
             {
-                // Block wand is only available if we read frequencies.
                 return SpecializedScorer::TermUnion(scorers);
             } else if scorers.len() == 1 {
-                // Single TermScorer without freq reading — unwrap directly.
                 return SpecializedScorer::Other(Box::new(scorers.into_iter().next().unwrap()));
             } else {
                 return SpecializedScorer::Other(Box::new(BufferedUnionScorer::build(
@@ -90,6 +93,41 @@ where
         score_combiner_fn,
         num_docs,
     )))
+}
+
+// Full traversal can amortize materialization. Nested scorers keep the seek-capable union.
+fn term_union(mut scorers: Vec<TermScorer>, reader: &SegmentReader) -> Box<dyn Scorer> {
+    if scorers.len() == 1 {
+        return Box::new(scorers.pop().unwrap());
+    }
+    let max_doc = reader.max_doc();
+    let estimated_hits = estimate_union(scorers.iter().map(DocSet::size_hint), max_doc);
+    // Sparse windows benefit from merging postings once. Tiny unions and dense matches do not.
+    if scorers.len() >= 8
+        && estimated_hits >= max_doc.div_ceil(4096)
+        && estimated_hits <= max_doc / 8
+    {
+        let mut bitset = BitSet::with_max_value(reader.max_doc());
+        for mut scorer in scorers {
+            let first_doc = scorer.doc();
+            let postings = scorer.block_cursor();
+            while !postings.docs().is_empty() {
+                for &doc in postings.docs() {
+                    if doc >= first_doc {
+                        bitset.insert(doc);
+                    }
+                }
+                postings.advance();
+            }
+        }
+        Box::new(ConstScorer::new(BitSetDocSet::from(bitset), 1.0))
+    } else {
+        Box::new(BufferedUnionScorer::build(
+            scorers,
+            DoNothingCombiner::default,
+            reader.num_docs(),
+        ))
+    }
 }
 
 fn into_box_scorer<TScoreCombiner: ScoreCombiner>(
@@ -576,6 +614,19 @@ impl<TScoreCombiner: ScoreCombiner + Sync> Weight for BooleanWeight<TScoreCombin
         }
     }
 
+    fn count(&self, reader: &SegmentReader) -> crate::Result<u32> {
+        let scorer = self.complex_scorer(reader, 1.0, DoNothingCombiner::default)?;
+        let mut scorer = match scorer {
+            SpecializedScorer::TermUnion(scorers) => term_union(scorers, reader),
+            scorer => into_box_scorer(scorer, DoNothingCombiner::default, reader.num_docs()),
+        };
+        Ok(if let Some(alive) = reader.alive_bitset() {
+            scorer.count(alive)
+        } else {
+            scorer.count_including_deleted()
+        })
+    }
+
     fn explain(&self, reader: &SegmentReader, doc: DocId) -> crate::Result<Explanation> {
         let mut scorer = self.scorer(reader, 1.0)?;
         if scorer.seek(doc) != doc {
@@ -639,15 +690,9 @@ impl<TScoreCombiner: ScoreCombiner + Sync> Weight for BooleanWeight<TScoreCombin
         let mut buffer = [0u32; COLLECT_BLOCK_BUFFER_LEN];
 
         match scorer {
-            SpecializedScorer::TermUnion(mut term_scorers) => {
-                if term_scorers.len() == 1 {
-                    let mut term_scorer = term_scorers.pop().unwrap();
-                    for_each_docset_buffered(&mut term_scorer, &mut buffer, callback);
-                } else {
-                    let mut union_scorer =
-                        BufferedUnionScorer::build(term_scorers, &self.score_combiner_fn, num_docs);
-                    for_each_docset_buffered(&mut union_scorer, &mut buffer, callback);
-                }
+            SpecializedScorer::TermUnion(term_scorers) => {
+                let mut union_scorer = term_union(term_scorers, reader);
+                for_each_docset_buffered(&mut union_scorer, &mut buffer, callback);
             }
             SpecializedScorer::TermIntersection(term_scorers) => {
                 let boxed_scorers: Vec<Box<dyn Scorer>> = term_scorers
