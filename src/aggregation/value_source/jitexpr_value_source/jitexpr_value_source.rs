@@ -43,6 +43,16 @@ pub(crate) struct JitExprValueSource {
     args: VersatileBuffer<VariableValue<'static>>,
     /// Whether the expression is evaluated once per doc, or once per input term ord.
     evaluation: Evaluation,
+    /// Positions in `inputs` of the inputs without a value in some docs, that every doc producing
+    /// a value has a value for. `load_block` only evaluates the docs having a value for all of
+    /// them.
+    required_inputs: Vec<usize>,
+    /// Scratch buffers of `load_block`: the docs of the block having a value for the required
+    /// inputs...
+    present_docs: Vec<DocId>,
+    /// ... and the output of `ColumnIndex::docids_to_rowids`.
+    scratch_docs: Vec<DocId>,
+    scratch_row_ids: Vec<RowId>,
 }
 
 /// How a [`JitExprValueSource`] evaluates its expression.
@@ -137,6 +147,38 @@ impl TermOrdResults {
     }
 }
 
+/// Sets `present_docs` to the docs of `docs` having a value for each input of `required_inputs`,
+/// in the order of `docs`.
+///
+/// Batches the lookups in the column indexes, like the value sources of fast fields, instead of
+/// looking up each doc in each input.
+fn retain_docs_with_values(
+    docs: &[DocId],
+    inputs: &[InputColumn],
+    required_inputs: &[usize],
+    present_docs: &mut Vec<DocId>,
+    scratch_docs: &mut Vec<DocId>,
+    scratch_row_ids: &mut Vec<RowId>,
+) {
+    present_docs.clear();
+    present_docs.extend_from_slice(docs);
+    for &input_pos in required_inputs {
+        if present_docs.is_empty() {
+            return;
+        }
+        scratch_docs.clear();
+        scratch_row_ids.clear();
+        inputs[input_pos].column.index.docids_to_rowids(
+            present_docs,
+            scratch_docs,
+            scratch_row_ids,
+        );
+        // A multivalued column repeats a doc once per value.
+        scratch_docs.dedup();
+        std::mem::swap(present_docs, scratch_docs);
+    }
+}
+
 /// Evaluates an expression of a single input on `input_value`, the value of `input` in its
 /// monotonic `u64` mapping, and returns the encoded result.
 ///
@@ -159,13 +201,16 @@ fn eval_single_input(
 }
 
 impl JitExprValueSource {
-    /// Precondition: `column_type` is the column type of the result type of `compiled_fn`.
+    /// Precondition: `column_type` is the column type of the result type of `compiled_fn`, and
+    /// every doc for which the expression produces a value has a value for each input of
+    /// `required_inputs` (positions in `inputs`).
     ///
     /// Panics if `inputs` do not match the inputs of `compiled_fn`.
     pub(super) fn new(
         compiled_fn: CompiledFnCtx,
         column_type: ColumnType,
         inputs: Vec<InputColumn>,
+        mut required_inputs: Vec<usize>,
     ) -> JitExprValueSource {
         // Evaluating the function with inputs of the wrong type is undefined behavior.
         assert_eq!(compiled_fn.inputs().len(), inputs.len());
@@ -183,6 +228,9 @@ impl JitExprValueSource {
             },
             _ => Evaluation::PerDoc,
         };
+        // Every doc has a value for a full column: filtering on it is a no-op.
+        required_inputs
+            .retain(|&input_pos| !matches!(inputs[input_pos].column.index, ColumnIndex::Full));
         JitExprValueSource {
             compiled_fn,
             column_type,
@@ -190,6 +238,10 @@ impl JitExprValueSource {
             term_dictionary: DynamicTermDictionary::default(),
             args: VersatileBuffer::with_capacity(num_inputs),
             evaluation,
+            required_inputs,
+            present_docs: Vec::new(),
+            scratch_docs: Vec::new(),
+            scratch_row_ids: Vec::new(),
         }
     }
 
@@ -268,14 +320,33 @@ impl ValueSource for JitExprValueSource {
     ) -> Cardinality {
         values.clear();
         docids.clear();
+        let num_docs = docs.len();
         let JitExprValueSource {
             compiled_fn,
             inputs,
             term_dictionary,
             args,
             evaluation,
+            required_inputs,
+            present_docs,
+            scratch_docs,
+            scratch_row_ids,
             ..
         } = self;
+        // The other docs have no value: they are not evaluated, nor are their inputs read.
+        let docs: &[DocId] = if required_inputs.is_empty() {
+            docs
+        } else {
+            retain_docs_with_values(
+                docs,
+                inputs,
+                required_inputs,
+                present_docs,
+                scratch_docs,
+                scratch_row_ids,
+            );
+            present_docs
+        };
         match evaluation {
             Evaluation::PerTermOrd(results) => {
                 let input = &mut inputs[0];
@@ -316,7 +387,7 @@ impl ValueSource for JitExprValueSource {
                 }
             }
         }
-        if values.len() == docs.len() {
+        if values.len() == num_docs {
             // Each doc has exactly one value, in the order of `docs`.
             Cardinality::Full
         } else {
@@ -603,7 +674,7 @@ mod tests {
             let JitExprSegmentSource::Variable(mut source) = segment_source else {
                 panic!("expected a variable source for `{expression}`");
             };
-            let (cardinality, block_values, block_docids) = load_block(&mut source, &docs);
+            let (cardinality, block_values, block_docids) = load_block(&mut *source, &docs);
             let mut expected: Vec<Option<u64>> = vec![None; docs.len()];
             if cardinality.is_full() {
                 for (doc_pos, value) in block_values.iter().enumerate() {
@@ -633,7 +704,7 @@ mod tests {
             .open_segment(searcher.segment_reader(0), None)
             .unwrap()
         {
-            JitExprSegmentSource::Variable(source) => source,
+            JitExprSegmentSource::Variable(source) => *source,
             _ => panic!("expected a variable source for `{expression}`"),
         }
     }
@@ -738,6 +809,120 @@ mod tests {
         assert_eq!(cardinality, Cardinality::Optional);
         assert_eq!(values, vec![0, 0]);
         assert_eq!(docids, vec![0, 2]);
+    }
+
+    /// One segment: doc `i` has `a = docs[i].0` and `b = docs[i].1`, when present.
+    fn create_sparse_index(docs: &[(Option<u64>, Option<u64>)]) -> Index {
+        let mut schema_builder = Schema::builder();
+        let a = schema_builder.add_u64_field("a", FAST);
+        let b = schema_builder.add_u64_field("b", FAST);
+        let index = Index::create_in_ram(schema_builder.build());
+        let mut writer = index.writer_for_tests().unwrap();
+        for &(a_value, b_value) in docs {
+            let mut doc = crate::TantivyDocument::default();
+            if let Some(a_value) = a_value {
+                doc.add_u64(a, a_value);
+            }
+            if let Some(b_value) = b_value {
+                doc.add_u64(b, b_value);
+            }
+            writer.add_document(doc).unwrap();
+        }
+        writer.commit().unwrap();
+        index
+    }
+
+    #[test]
+    fn test_required_inputs() {
+        let sparse = create_sparse_index(&[
+            (Some(1), Some(10)),
+            (Some(2), None),
+            (None, Some(30)),
+            (None, None),
+        ]);
+        let num_required_inputs = |index: &Index, expression: &str| {
+            open_variable_source(index, expression)
+                .required_inputs
+                .len()
+        };
+        // Every input is required.
+        assert_eq!(num_required_inputs(&sparse, "(ADD a b)"), 2);
+        assert_eq!(num_required_inputs(&sparse, "(ADD a 1u64)"), 1);
+        // A null input produces a value.
+        assert_eq!(num_required_inputs(&sparse, "(IS_NULL a)"), 0);
+        // Either input can produce the value.
+        assert_eq!(num_required_inputs(&sparse, "(IF (IS_NULL a) b a)"), 0);
+        // A full column has a value for every doc: there is nothing to filter.
+        let full = create_sparse_index(&[(Some(1), Some(10)), (Some(2), None)]);
+        assert_eq!(num_required_inputs(&full, "(ADD a b)"), 1);
+    }
+
+    #[test]
+    fn test_presence_filter_matches_unfiltered_evaluation() {
+        let index = create_sparse_index(&[
+            (Some(1), Some(10)),
+            (Some(2), None),
+            (None, Some(30)),
+            (None, None),
+            (Some(5), Some(50)),
+            (Some(6), None),
+        ]);
+        let blocks: [&[DocId]; 5] = [&[0, 1, 2, 3, 4, 5], &[1, 2, 3], &[3], &[0, 4], &[]];
+        for expression in [
+            "(ADD a b)",
+            "(ADD a 1u64)",
+            "(IS_NULL a)",
+            "(IF (IS_NULL a) b a)",
+        ] {
+            let mut filtered = open_variable_source(&index, expression);
+            let mut unfiltered = open_variable_source(&index, expression);
+            unfiltered.required_inputs.clear();
+            for docs in blocks {
+                assert_eq!(
+                    load_block(&mut filtered, docs),
+                    load_block(&mut unfiltered, docs),
+                    "`{expression}` on {docs:?}"
+                );
+            }
+        }
+        // The docs having all of the required values are a full block.
+        let mut source = open_variable_source(&index, "(ADD a b)");
+        let (cardinality, values, _) = load_block(&mut source, &[0, 4]);
+        assert_eq!(cardinality, Cardinality::Full);
+        assert_eq!(values, vec![11, 55]);
+        let (cardinality, values, docids) = load_block(&mut source, &[1, 2, 3]);
+        assert_eq!(cardinality, Cardinality::Optional);
+        assert!(values.is_empty());
+        assert!(docids.is_empty());
+    }
+
+    #[test]
+    fn test_presence_filter_on_multivalued_text_input() {
+        let mut schema_builder = Schema::builder();
+        let tags = schema_builder.add_text_field("tags", STRING | FAST);
+        let index = Index::create_in_ram(schema_builder.build());
+        let mut writer = index.writer_for_tests().unwrap();
+        writer.add_document(doc!(tags => "b", tags => "a")).unwrap();
+        writer.add_document(doc!()).unwrap();
+        writer.add_document(doc!(tags => "c")).unwrap();
+        writer.add_document(doc!(tags => "a", tags => "c")).unwrap();
+        writer.commit().unwrap();
+        let mut filtered = open_variable_source(&index, "(UPPER tags)");
+        assert_eq!(filtered.required_inputs.len(), 1);
+        assert!(matches!(filtered.evaluation, Evaluation::PerTermOrd(_)));
+        let mut unfiltered = open_variable_source(&index, "(UPPER tags)");
+        unfiltered.required_inputs.clear();
+        for docs in [&[0, 1, 2, 3][..], &[1], &[0, 3]] {
+            assert_eq!(
+                load_block(&mut filtered, docs),
+                load_block(&mut unfiltered, docs),
+                "{docs:?}"
+            );
+        }
+        // One value per doc with tags: the first one.
+        let (_, values, docids) = load_block(&mut filtered, &[0, 1, 2, 3]);
+        assert_eq!(docids, vec![0, 2, 3]);
+        assert_eq!(values.len(), 3);
     }
 
     #[test]

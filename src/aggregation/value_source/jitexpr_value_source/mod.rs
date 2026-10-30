@@ -10,10 +10,10 @@ use std::sync::Arc;
 
 use columnar::{ColumnType, DynamicColumnHandle};
 use jitexpr::ast::{
-    infer_result_types, infer_types, infer_types_with_target, InferredTypeSet, TypeError,
-    UntypedExpr,
+    infer_result_types, infer_types, infer_types_with_target, required_presence, InferredTypeSet,
+    TypeError, UntypedExpr, VariablePresenceCondition,
 };
-use jitexpr::compile::CompiledFn;
+use jitexpr::compile::{CompiledFn, TypedVariable};
 use jitexpr::types::VarType;
 
 use self::input_column::InputColumn;
@@ -60,6 +60,9 @@ pub struct JitExprValueSourceProvider {
     expression: UntypedExpr,
     /// True if the expression can only return a string, whatever the column types.
     is_str_expression: bool,
+    /// A necessary condition on the presence of the variables for `expression` to produce a
+    /// value.
+    required_presence: VariablePresenceCondition,
 }
 
 impl JitExprValueSourceProvider {
@@ -67,9 +70,11 @@ impl JitExprValueSourceProvider {
     pub fn new(expression: UntypedExpr) -> Result<JitExprValueSourceProvider, TypeError> {
         infer_types(&expression)?;
         let is_str_expression = infer_result_types(&expression)? == InferredTypeSet::STRING;
+        let required_presence = required_presence(&expression);
         Ok(JitExprValueSourceProvider {
             expression,
             is_str_expression,
+            required_presence,
         })
     }
 
@@ -196,12 +201,44 @@ impl JitExprValueSourceProvider {
             }
             inputs.push(input);
         }
-        Ok(JitExprSegmentSource::Variable(JitExprValueSource::new(
-            compiled_fn.context(),
-            column_type,
-            inputs,
+        let required_inputs =
+            required_input_positions(&self.required_presence, compiled_fn.inputs());
+        Ok(JitExprSegmentSource::Variable(Box::new(
+            JitExprValueSource::new(compiled_fn.context(), column_type, inputs, required_inputs),
         )))
     }
+}
+
+/// Returns the positions of the inputs that every doc producing a value has a value for.
+///
+/// These are the variables required by `required_presence` itself, or by each branch of its
+/// top-level conjunction: a weaker necessary condition than `required_presence`, which skips its
+/// disjunctions. A required variable that is not an input of the compiled function is ignored,
+/// which only weakens the condition further, so the docs filtered out by the returned inputs never
+/// produce a value.
+fn required_input_positions(
+    required_presence: &VariablePresenceCondition,
+    compiled_inputs: &[TypedVariable],
+) -> Vec<usize> {
+    let required_variables: Vec<&str> = match required_presence {
+        VariablePresenceCondition::Present(variable_name) => vec![variable_name.as_ref()],
+        VariablePresenceCondition::All(conditions) => conditions
+            .iter()
+            .filter_map(|condition| match condition {
+                VariablePresenceCondition::Present(variable_name) => Some(variable_name.as_ref()),
+                _ => None,
+            })
+            .collect(),
+        _ => Vec::new(),
+    };
+    compiled_inputs
+        .iter()
+        .enumerate()
+        .filter(|(_, compiled_input)| {
+            required_variables.contains(&compiled_input.variable_name.as_ref())
+        })
+        .map(|(input_pos, _)| input_pos)
+        .collect()
 }
 
 /// The source of a jitexpr expression on a segment, returned by
@@ -212,7 +249,7 @@ pub(crate) enum JitExprSegmentSource {
     AlwaysNull(ColumnType),
     /// The expression does not depend on the doc, and is not null.
     Constant(ConstantValueSource),
-    Variable(JitExprValueSource),
+    Variable(Box<JitExprValueSource>),
 }
 
 impl ValueSourceProvider for JitExprValueSourceProvider {
@@ -228,7 +265,7 @@ impl ValueSourceProvider for JitExprValueSourceProvider {
                 empty_source(reader, column_type, allowed_column_types)
             }
             JitExprSegmentSource::Constant(constant_source) => Box::new(constant_source),
-            JitExprSegmentSource::Variable(value_source) => Box::new(value_source),
+            JitExprSegmentSource::Variable(value_source) => value_source,
         };
         Ok(Some(source))
     }
