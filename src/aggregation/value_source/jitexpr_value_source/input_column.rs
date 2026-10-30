@@ -1,8 +1,6 @@
 //! The fast-field columns bound to the inputs of a compiled jitexpr expression.
 
-use columnar::{
-    Column, ColumnIndex, DynamicColumn, DynamicColumnHandle, MonotonicallyMappableToU64,
-};
+use columnar::{Column, DynamicColumn, DynamicColumnHandle, MonotonicallyMappableToU64};
 use jitexpr::types::{VarType, VariableValue};
 
 use super::term_resolver::TermResolver;
@@ -11,11 +9,12 @@ use crate::{DocId, TantivyError, COLLECT_BLOCK_BUFFER_LEN};
 
 /// A fast-field column bound to an input of the compiled expression.
 pub(super) struct InputColumn {
-    var_type: VarType,
-    /// Values in their monotonic `u64` mapping. Term ords for a `Str` input.
-    column: Column<u64>,
+    pub(super) var_type: VarType,
+    /// Values in their monotonic `u64` mapping. Term ords for a `Str` input. Its index tells
+    /// which docs have a value.
+    pub(super) column: Column<u64>,
     /// `first_values[i]` is the first value of `docs[i]`, for the docs of the last block.
-    first_values: Vec<Option<u64>>,
+    pub(super) first_values: Vec<Option<u64>>,
     /// The terms of `first_values`. Not `TermResolver::None` if and only if `var_type` is `Str`.
     term_resolver: TermResolver,
 }
@@ -57,39 +56,22 @@ impl InputColumn {
         }
     }
 
-    pub(super) fn var_type(&self) -> VarType {
-        self.var_type
-    }
-
     /// Returns the number of terms of the dictionary of a `Str` input, or `None` for the other
     /// types.
     pub(super) fn num_terms(&self) -> Option<usize> {
         self.term_resolver.num_terms()
     }
 
-    /// Loads the first value of each doc of `docs`, without resolving their terms.
+    /// Loads the first value of each doc of `docs` in `first_values`, without resolving their
+    /// terms.
     ///
-    /// Afterwards, read the values with `first_value`, and their terms with `value_of`: `value`
-    /// must not be called before the next `load_block`.
+    /// Afterwards, resolve the terms with `value_of`: `value` must not be called before the next
+    /// `load_block`.
     pub(super) fn load_block_values(&mut self, docs: &[DocId]) {
         // `first_vals` does not write the entries of the docs without a value: we reset them.
         self.first_values.clear();
         self.first_values.resize(docs.len(), None);
         self.column.first_vals(docs, &mut self.first_values);
-    }
-
-    /// Returns the first value of `docs[doc_pos]` in its monotonic `u64` mapping (a term ord for
-    /// a `Str` input), for the `docs` of the last `load_block_values` call.
-    #[inline]
-    pub(super) fn first_value(&self, doc_pos: usize) -> Option<u64> {
-        self.first_values[doc_pos]
-    }
-
-    /// Returns the first value of `doc` in its monotonic `u64` mapping, without going through a
-    /// block.
-    #[inline]
-    pub(super) fn first_value_for_doc(&self, doc: DocId) -> Option<u64> {
-        self.column.first(doc)
     }
 
     /// Loads the first value of each doc of `docs`.
@@ -116,29 +98,18 @@ impl InputColumn {
         }
     }
 
-    /// Returns the value of `doc`, without going through `load_block`.
+    /// Returns the variable value of `value`, a value of the column in its monotonic `u64`
+    /// mapping, or null. Resolves the term of a `Str` input outside of the block path.
     ///
     /// Invalidates the last `load_block` call: `value` must not be called before the next
     /// `load_block`.
     ///
     /// Panics if the dictionary of a text column is corrupted.
     #[inline]
-    pub(super) fn value_for_doc(&mut self, doc: DocId) -> VariableValue<'_> {
-        let Some(value) = self.column.first(doc) else {
+    pub(super) fn value_of(&mut self, value: Option<u64>) -> VariableValue<'_> {
+        let Some(value) = value else {
             return VariableValue::none();
         };
-        self.value_of(value)
-    }
-
-    /// Returns the variable value of `value`, a value of the column in its monotonic `u64`
-    /// mapping. Resolves the term of a `Str` input outside of the block path.
-    ///
-    /// Invalidates the last `load_block` call: `value` must not be called before the next
-    /// `load_block`.
-    ///
-    /// Panics if the dictionary of a text column is corrupted.
-    #[inline]
-    pub(super) fn value_of(&mut self, value: u64) -> VariableValue<'_> {
         match self.var_type {
             VarType::Bool => VariableValue::from(bool::from_u64(value)),
             VarType::I64 => VariableValue::from(i64::from_u64(value)),
@@ -147,10 +118,5 @@ impl InputColumn {
             VarType::Str => VariableValue::from(self.term_resolver.term_for_ord(value)),
             VarType::None => VariableValue::none(),
         }
-    }
-
-    /// Returns the index of the column: which docs have a value.
-    pub(super) fn column_index(&self) -> &ColumnIndex {
-        &self.column.index
     }
 }
