@@ -62,12 +62,16 @@ pub(crate) struct JitExprValueSource {
 /// 9 bytes per slot, allocated zeroed when the source is opened. It is limited to dictionaries of
 /// at most `TERM_ORD_RESULTS_MAX_NUM_TERMS` terms: larger dictionaries tend to be identifiers, with
 /// few repeated terms.
+///
+/// Slot 0 holds the result for the docs without a value, which the expression can turn into a
+/// value (e.g. `IS_NULL`), and slot `term_ord + 1` the result for the input term `term_ord`. The
+/// slot of the docs without a value comes first so that a term ord out of the dictionary, i.e. a
+/// corrupted column, is out of bounds instead of reading that slot.
 struct TermOrdResults {
-    /// `states[slot]` tells whether the result of `slot` is unknown, null, or a value. Slot 0 is
-    /// the input without a value, slot `term_ord + 1` the input term `term_ord`.
-    states: Vec<u8>,
+    /// `states[slot]` tells whether the result of `slot` is unknown, null, or a value.
+    states: Box<[u8]>,
     /// `values[slot]` is the result of `slot` if its state is `RESULT_VALUE`.
-    values: Vec<u64>,
+    values: Box<[u64]>,
 }
 
 const RESULT_UNKNOWN: u8 = 0;
@@ -76,9 +80,13 @@ const RESULT_VALUE: u8 = 2;
 
 impl TermOrdResults {
     fn new(num_terms: usize) -> TermOrdResults {
+        // One slot per term, plus the slot of the docs without a value.
+        let num_slots = num_terms + 1;
+        // `vec!` of zeroes allocates zeroed memory, and its capacity is its length: converting it
+        // to a boxed slice does not reallocate.
         TermOrdResults {
-            states: vec![RESULT_UNKNOWN; num_terms + 1],
-            values: vec![0; num_terms + 1],
+            states: vec![RESULT_UNKNOWN; num_slots].into_boxed_slice(),
+            values: vec![0; num_slots].into_boxed_slice(),
         }
     }
 
