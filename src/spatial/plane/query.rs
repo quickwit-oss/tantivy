@@ -8,7 +8,7 @@ use super::source_bound;
 use crate::spatial::cell_index_reader::CellIndexReader;
 use crate::spatial::clip_options::ClipOptions;
 use crate::spatial::clipper::Clipper;
-use crate::spatial::edge_cache::EdgeCache;
+use crate::spatial::edge_resolver::EdgeResolver;
 use crate::spatial::geometry_set::{GeometryKind, GeometrySet};
 use crate::spatial::r2rect::R2Rect;
 use crate::spatial::shape_index::ShapeIndex;
@@ -68,13 +68,13 @@ impl PlaneQuery {
         &self,
         reader: &CellIndexReader<'_>,
         terms_filter: Option<&BitSet>,
-        edge_cache: &EdgeCache<'_, S>,
+        edge_resolver: &EdgeResolver<'_, S>,
         max_doc: u32,
         predicate: Predicate,
         first_only: bool,
     ) -> BitSet {
         let mut hits = BitSet::with_max_value(max_doc);
-        let mut seen = BitSet::with_max_value(edge_cache.geometry_count(0));
+        let mut seen = BitSet::with_max_value(edge_resolver.geometry_count(0));
         for query_cell in &self.index.cells {
             let query_interior = query_cell
                 .shapes
@@ -85,25 +85,24 @@ impl PlaneQuery {
             for position in start..end {
                 let cell = reader.cell_at(position);
                 for shape in &cell.shapes {
-                    let doc_id = edge_cache.doc_id_for(shape.geometry_id);
+                    if seen.contains(shape.geometry_id.1) {
+                        continue;
+                    }
+                    let doc_id = edge_resolver.doc_id_for(shape.geometry_id);
                     if hits.contains(doc_id)
                         || terms_filter.is_some_and(|filter| !filter.contains(doc_id))
                     {
                         continue;
                     }
-                    let entry = edge_cache.get(shape.geometry_id);
-                    if seen.contains(entry.head()) {
-                        continue;
-                    }
-                    let set = entry.geometry_set();
+                    let (head, set) = edge_resolver.read_geometry_set(shape.geometry_id);
                     let uniform_candidate = shape.contains_center && shape.edge_indices.is_empty();
                     let candidate_contains_query = uniform_candidate
                         && self.known_nonempty
                         && source_bound(&cell_bound_uv::<super::Plane>(cell.cell_id))
                             .contains(&self.bound);
                     let query_contains_candidate = query_interior
-                        && (shape.contains_center || has_lower_dimension(set))
-                        && query_bound.contains(&source_bounds(set));
+                        && (shape.contains_center || has_lower_dimension(&set))
+                        && query_bound.contains(&source_bounds(&set));
                     let certified = match predicate {
                         Predicate::Intersects => {
                             candidate_contains_query || query_contains_candidate
@@ -115,11 +114,13 @@ impl PlaneQuery {
                     // or a material certificate can admit the document.
                     let matched = certified
                         || evaluate(
-                            &PreparedOperand::new(Operand::new(set)),
+                            &PreparedOperand::new(Operand::new(&set)),
                             &self.operand,
                             predicate,
                         );
-                    seen.insert(entry.head());
+                    for member in 0..set.members.len() {
+                        seen.insert(head + member as u32);
+                    }
                     if matched {
                         hits.insert(doc_id);
                         if first_only {

@@ -12,6 +12,7 @@ use crate::query::{AllQuery, EnableScoring, Query, SpatialQuery};
 use crate::schema::{Field, Schema, SPHERE, STORED};
 use crate::spatial::cell_index_reader::CellIndexReader;
 use crate::spatial::edge_reader::EdgeReader;
+use crate::spatial::edge_writer::EDGE_FOOTER_BYTES;
 use crate::spatial::executor::{PlanNode, SpatialExecutor, SpatialRelation};
 use crate::spatial::geometry::Geometry;
 use crate::spatial::plane::Plane;
@@ -58,6 +59,40 @@ fn invalid_data<T>(result: io::Result<T>) {
     assert!(error.to_string().contains("rebuild the spatial index"));
 }
 
+fn old_plane_point_edges() -> Vec<u8> {
+    let mut bytes = Vec::new();
+    bytes.push(0x08);
+    bytes.extend_from_slice(&16u32.to_le_bytes());
+    bytes.extend_from_slice(&0u32.to_le_bytes());
+    bytes.extend_from_slice(&0.0f64.to_le_bytes());
+    bytes.extend_from_slice(&0.0f64.to_le_bytes());
+    bytes.extend_from_slice(&0u64.to_le_bytes());
+    bytes.extend_from_slice(&1u32.to_le_bytes());
+    bytes.extend_from_slice(&16u32.to_le_bytes());
+    bytes.extend_from_slice(&25u64.to_le_bytes());
+    bytes
+}
+
+fn old_fixed_directory_point_edges() -> Vec<u8> {
+    let mut bytes = vec![0; 16];
+    bytes.extend_from_slice(&0u64.to_le_bytes());
+    for field in [0u32, 1, 0, 1, 1, 0] {
+        bytes.extend_from_slice(&field.to_le_bytes());
+    }
+    for field in [0u32, 1, 0] {
+        bytes.extend_from_slice(&field.to_le_bytes());
+    }
+    bytes.extend_from_slice(&1u32.to_le_bytes());
+    bytes.extend_from_slice(&32u32.to_le_bytes());
+    bytes.extend_from_slice(&16u64.to_le_bytes());
+    bytes.extend_from_slice(&1u32.to_le_bytes());
+    bytes.extend_from_slice(&1u32.to_le_bytes());
+    bytes.extend_from_slice(&48u64.to_le_bytes());
+    bytes.extend_from_slice(b"TEDG");
+    bytes.extend_from_slice(&1u32.to_le_bytes());
+    bytes
+}
+
 #[test]
 fn test_cell_footer_rejects_old_and_malformed_payloads() {
     assert_eq!(empty_cells().len(), 20);
@@ -77,6 +112,73 @@ fn test_cell_footer_rejects_old_and_malformed_payloads() {
     assert!(error.contains("revision 91"));
     let old = CellIndexReader::open(&[0; 12]).err().unwrap().to_string();
     assert!(!old.contains("revision 0"));
+}
+
+#[test]
+fn test_edge_footer_rejects_old_payload() {
+    let old = old_plane_point_edges();
+    assert_eq!(old.len(), 49);
+    invalid_data(EdgeReader::<Plane>::open(&old));
+    let old = old_fixed_directory_point_edges();
+    assert_eq!(old.len(), 100);
+    invalid_data(EdgeReader::<Plane>::open(&old));
+    assert_eq!(EdgeReader::<Plane>::open(&[]).unwrap().geometry_count(), 0);
+}
+
+#[test]
+fn test_edge_footer_checks_array_boundaries() {
+    let bytes = serialize::<Plane>(&Geometry::Point([0.0, 0.0])).edges;
+    let footer = bytes.len() - EDGE_FOOTER_BYTES;
+    let mut wrong_header = bytes.clone();
+    wrong_header[footer + 4..footer + 8].copy_from_slice(&19u32.to_le_bytes());
+    let mut overflow = bytes.clone();
+    overflow[footer + 8..footer + 16].copy_from_slice(&u64::MAX.to_le_bytes());
+    let mut wrong_docs = bytes.clone();
+    wrong_docs[footer + 16..footer + 24].copy_from_slice(&0u64.to_le_bytes());
+    let mut wrong_directory = bytes.clone();
+    wrong_directory[footer + 32..footer + 40].copy_from_slice(&0u64.to_le_bytes());
+    for payload in [
+        bytes[..bytes.len() - 1].to_vec(),
+        wrong_header,
+        overflow,
+        wrong_docs,
+        wrong_directory,
+    ] {
+        invalid_data(EdgeReader::<Plane>::open(&payload));
+    }
+}
+
+#[test]
+fn test_edge_document_ranges_reject_invalid_starts() {
+    let point = Geometry::Point([0.0, 0.0]);
+    let bytes = serialize_values::<Plane>(&[(0, &point), (1, &point), (2, &point)]).edges;
+    let footer = bytes.len() - EDGE_FOOTER_BYTES;
+    let starts = u64::from_le_bytes(bytes[footer + 32..footer + 40].try_into().unwrap()) as usize;
+
+    for (slot, value) in [(0, 1u32), (3, 2)] {
+        let mut invalid = bytes.clone();
+        invalid[starts + slot * 4..starts + (slot + 1) * 4].copy_from_slice(&value.to_le_bytes());
+        invalid_data(EdgeReader::<Plane>::open(&invalid));
+    }
+    for (slot, value, doc) in [(1, 4u32, 0), (1, 3, 1), (2, 0, 1)] {
+        let mut invalid = bytes.clone();
+        invalid[starts + slot * 4..starts + (slot + 1) * 4].copy_from_slice(&value.to_le_bytes());
+        let reader = EdgeReader::<Plane>::open(&invalid).unwrap();
+        invalid_data(reader.value_heads(doc));
+        assert!(SurfaceIndex::<Plane>::new()
+            .value_heads(&invalid, doc, &mut Vec::new())
+            .is_err());
+    }
+
+    // The same directory span can describe three starts and no value heads.
+    let mut bytes = serialize::<Plane>(&point).edges;
+    let footer = bytes.len() - EDGE_FOOTER_BYTES;
+    bytes[footer + 24..footer + 28].copy_from_slice(&2u32.to_le_bytes());
+    bytes[footer + 28..footer + 32].copy_from_slice(&0u32.to_le_bytes());
+    let reader = EdgeReader::<Plane>::open(&bytes).unwrap();
+    invalid_data(reader.value_heads(0));
+    invalid_data(reader.value_heads(1));
+    assert_eq!(reader.value_heads(2).unwrap().count(), 0);
 }
 
 fn check_prepared_queries<S: Surface + Clone + Send + Sync + 'static>() {
@@ -147,11 +249,19 @@ struct Bytes {
 }
 
 fn serialize<S: Surface + Clone + Send + Sync + 'static>(geometry: &Geometry<Plane>) -> Bytes {
+    serialize_values::<S>(&[(0, geometry)])
+}
+
+fn serialize_values<S: Surface + Clone + Send + Sync + 'static>(
+    values: &[(u32, &Geometry<Plane>)],
+) -> Bytes {
     let directory = RamDirectory::create();
     let mut cells = CountingWriter::wrap(directory.open_write(Path::new("cells")).unwrap());
     let mut edges = CountingWriter::wrap(directory.open_write(Path::new("edges")).unwrap());
     let mut writer = SurfaceIndex::<S>::new().create_field_writer();
-    writer.add_geometry(0, geometry);
+    for &(doc, geometry) in values {
+        writer.add_geometry(doc, geometry);
+    }
     writer.serialize(&mut cells, &mut edges, None).unwrap();
     cells.terminate().unwrap();
     edges.terminate().unwrap();
@@ -253,7 +363,7 @@ fn test_merge_checks_every_source_before_pass_through() {
 
 fn doc_ids<S: Surface>(bytes: &Bytes) -> BTreeSet<u32> {
     let cells = CellIndexReader::open_with_doc_ids(&bytes.cells, &bytes.doc_ids).unwrap();
-    let edges = EdgeReader::<S>::open(&bytes.edges);
+    let edges = EdgeReader::<S>::open(&bytes.edges).unwrap();
     let mut sidecar = BTreeSet::new();
     cells.visit_doc_ids(0, cells.cell_count(), |id| {
         sidecar.insert(id);
@@ -270,7 +380,7 @@ fn doc_ids<S: Surface>(bytes: &Bytes) -> BTreeSet<u32> {
 
 fn check_merged_plane_partition(bytes: &Bytes) {
     let reader = CellIndexReader::open(&bytes.cells).unwrap();
-    let edges = EdgeReader::<Plane>::open(&bytes.edges);
+    let edges = EdgeReader::<Plane>::open(&bytes.edges).unwrap();
     let mut sets = Vec::new();
     let mut position = 0;
     while position < edges.geometry_count() {
@@ -293,6 +403,12 @@ fn check_merge_round_trip<S: Surface + Clone + Send + Sync + 'static>() {
     let b = serialize::<S>(&Geometry::MultiPoint(vec![[0.0, 0.0], [90.0, 45.0]]));
     let merged = merge::<S>(&[&a, &b], &[None, None], &[vec![Some(5)], vec![Some(2)]]).unwrap();
     assert_eq!(doc_ids::<S>(&merged), BTreeSet::from([2, 5]));
+    let edges = EdgeReader::<S>::open(&merged.edges).unwrap();
+    for doc_id in [2, 5] {
+        let heads = edges.value_heads(doc_id).unwrap().collect::<Vec<_>>();
+        assert_eq!(heads.len(), 1);
+        assert_eq!(edges.read_geometry_set(heads[0]).1.doc_id, doc_id);
+    }
     if S::EXACT_SUPPORT {
         check_merged_plane_partition(&merged);
     }
@@ -319,6 +435,76 @@ fn check_merge_round_trip<S: Surface + Clone + Send + Sync + 'static>() {
 fn test_merged_cells_edges_and_doc_ids_round_trip() {
     check_merge_round_trip::<Plane>();
     check_merge_round_trip::<Sphere>();
+}
+
+fn check_merge_value_directory<S: Surface + Clone + Send + Sync + 'static>() {
+    let empty = Geometry::Polygon(Vec::new());
+    let point = Geometry::Point([10.0, 10.0]);
+    let mixed = Geometry::GeometryCollection(vec![empty.clone(), Geometry::Point([-40.0, 40.0])]);
+    let a = serialize_values::<S>(&[(0, &point), (0, &empty), (1, &point)]);
+    let b = serialize_values::<S>(&[(0, &mixed), (1, &point)]);
+    assert_eq!(
+        EdgeReader::<S>::open(&a.edges)
+            .unwrap()
+            .value_heads(0)
+            .unwrap()
+            .count(),
+        2
+    );
+    let mut live = BitSet::with_max_value(2);
+    live.insert(0);
+    let merged = merge::<S>(
+        &[&a, &b],
+        &[
+            Some(ReadOnlyBitSet::from(&live)),
+            Some(ReadOnlyBitSet::from(&live)),
+        ],
+        &[vec![Some(4), None], vec![Some(2), None]],
+    )
+    .unwrap();
+    assert_eq!(doc_ids::<S>(&merged), BTreeSet::from([2, 4]));
+    let reader = EdgeReader::<S>::open(&merged.edges).unwrap();
+    assert_eq!(reader.geometry_count(), 3);
+    for (doc, count) in [(2, 2), (4, 1)] {
+        let heads = reader.value_heads(doc).unwrap().collect::<Vec<_>>();
+        assert_eq!(heads.len(), 1);
+        let (head, set) = reader.read_geometry_set(heads[0]);
+        assert_eq!(head, heads[0]);
+        assert_eq!(set.doc_id, doc);
+        assert_eq!(set.members.len(), count);
+        if doc == 2 {
+            assert!(set.members[0].vertices.is_empty());
+        }
+        for gid in head..head + count as u32 {
+            let member = reader.locate_entry(gid);
+            assert_eq!(
+                (member.doc_id, member.head, member.member_count),
+                (doc, head, count as u32)
+            );
+        }
+    }
+    for doc in [0, 1, 3, 5, u32::MAX] {
+        assert_eq!(reader.value_heads(doc).unwrap().count(), 0);
+    }
+    let mut live = BitSet::with_max_value(5);
+    live.insert(4);
+    let again = merge::<S>(
+        &[&merged],
+        &[Some(ReadOnlyBitSet::from(&live))],
+        &[vec![None, None, None, None, Some(0)]],
+    )
+    .unwrap();
+    assert_eq!(doc_ids::<S>(&again), BTreeSet::from([0]));
+    let reader = EdgeReader::<S>::open(&again.edges).unwrap();
+    assert_eq!(reader.geometry_count(), 1);
+    assert_eq!(reader.value_heads(0).unwrap().collect::<Vec<_>>(), vec![0]);
+    assert_eq!(reader.locate_entry(0).vertex_count(), 1);
+}
+
+#[test]
+fn test_merge_directory_preserves_empty_siblings_until_value_deletion() {
+    check_merge_value_directory::<Plane>();
+    check_merge_value_directory::<Sphere>();
 }
 
 fn index_with_payload(cells: &[u8], documents: u32) -> crate::Result<(Index, Field)> {

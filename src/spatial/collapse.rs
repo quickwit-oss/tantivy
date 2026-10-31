@@ -6,7 +6,7 @@ use std::collections::{BTreeMap, VecDeque};
 use rustc_hash::FxHashSet;
 
 use super::clipper::get_edge_max_level;
-use super::edge_cache::EdgeCache;
+use super::edge_resolver::EdgeResolver;
 use super::s2cell_id::S2CellId;
 use super::sphere::Sphere;
 use crate::spatial::clip_options::ClipOptions;
@@ -53,7 +53,7 @@ impl Level {
 /// short edge count stays under threshold. Produces (parent_id, cells) pairs for the merge stage.
 pub struct Collapse<'a, I: Iterator<Item = ShapeCell>> {
     inner: I,
-    edge_cache: &'a EdgeCache<'a, Sphere>,
+    edge_resolver: &'a EdgeResolver<'a, Sphere>,
     levels: Vec<Level>,
     queue: VecDeque<(S2CellId, Vec<ShapeCell>)>,
     last_face: Option<i32>,
@@ -64,13 +64,13 @@ pub struct Collapse<'a, I: Iterator<Item = ShapeCell>> {
 }
 
 impl<'a, I: Iterator<Item = ShapeCell>> Collapse<'a, I> {
-    /// Creates a new grouper over the given cell iterator with a shared edge cache.
-    pub fn new(inner: I, edge_cache: &'a EdgeCache<'a, Sphere>) -> Self {
+    /// Creates a new grouper over the given cell iterator with a shared edge resolver.
+    pub fn new(inner: I, edge_resolver: &'a EdgeResolver<'a, Sphere>) -> Self {
         let options = ClipOptions::default();
         let levels = S2CellId::MAX_LEVEL as usize + 1;
         Collapse {
             inner,
-            edge_cache,
+            edge_resolver,
             levels: (0..levels).map(|_| Level::new()).collect(),
             queue: VecDeque::new(),
             last_face: None,
@@ -97,7 +97,7 @@ impl<'a, I: Iterator<Item = ShapeCell>> Collapse<'a, I> {
                 continue;
             }
 
-            let entry = self.edge_cache.get(shape.geometry_id);
+            let entry = self.edge_resolver.locate(shape.geometry_id);
 
             let level_geometry = geometries
                 .entry(shape.geometry_id)

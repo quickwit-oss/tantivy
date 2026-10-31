@@ -38,7 +38,7 @@ impl<S: Surface> Fixture<S> {
         let directory = RamDirectory::create();
         let path = Path::new("edges");
         let mut write = CountingWriter::wrap(directory.open_write(path).unwrap());
-        let mut edges = EdgeWriter::new(&mut write, 16);
+        let mut edges = EdgeWriter::new(&mut write);
         for set in &sets {
             edges.insert(set);
         }
@@ -69,8 +69,9 @@ impl<S: Surface> Fixture<S> {
                 CellIndexReader::open(&self.cells).unwrap()
             };
             for terms_filter in [None, Some(&filter)] {
-                let mut cache = EdgeCache::new(vec![EdgeReader::<S>::open(&self.edges)], 100_000);
-                let hits = query.search(&reader, terms_filter, &mut cache, max_doc);
+                let mut resolver =
+                    EdgeResolver::new(vec![EdgeReader::<S>::open(&self.edges).unwrap()]);
+                let hits = query.search(&reader, terms_filter, &mut resolver, max_doc);
                 let actual: Vec<_> = (0..max_doc).filter(|&doc| hits.contains(doc)).collect();
                 assert_eq!(actual, expected, "sidecar {sidecar}");
             }
@@ -78,10 +79,10 @@ impl<S: Surface> Fixture<S> {
         for &doc in expected {
             filter.remove(doc);
         }
-        let mut cache = EdgeCache::new(vec![EdgeReader::<S>::open(&self.edges)], 100_000);
+        let mut resolver = EdgeResolver::new(vec![EdgeReader::<S>::open(&self.edges).unwrap()]);
         assert_eq!(
             query
-                .search(&self.reader(), Some(&filter), &mut cache, max_doc)
+                .search(&self.reader(), Some(&filter), &mut resolver, max_doc)
                 .len(),
             0
         );

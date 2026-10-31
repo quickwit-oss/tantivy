@@ -35,7 +35,7 @@ impl Fixture {
         let directory = RamDirectory::create();
         let path = Path::new("edges");
         let mut write = CountingWriter::wrap(directory.open_write(path).unwrap());
-        let mut writer = EdgeWriter::new(&mut write, 2);
+        let mut writer = EdgeWriter::new(&mut write);
         for set in &sets {
             writer.insert(set);
         }
@@ -50,8 +50,8 @@ impl Fixture {
 
     fn hits(&self, query: &PlaneQuery, predicate: Predicate) -> Vec<u32> {
         let reader = CellIndexReader::open(&self.cells).unwrap();
-        let cache = EdgeCache::<Plane>::new(vec![EdgeReader::open(&self.edges)], 100_000);
-        let hits = query.search(&reader, None, &cache, self.max_doc, predicate, false);
+        let resolver = EdgeResolver::<Plane>::new(vec![EdgeReader::open(&self.edges).unwrap()]);
+        let hits = query.search(&reader, None, &resolver, self.max_doc, predicate, false);
         (0..self.max_doc)
             .filter(|&doc| hits.contains(doc))
             .collect()
@@ -542,7 +542,7 @@ fn test_plane_whole_values_survive_merge_deletion_and_remapping() {
             vec![1]
         );
 
-        let reader = EdgeReader::<Plane>::open(&merged.edges);
+        let reader = EdgeReader::<Plane>::open(&merged.edges).unwrap();
         let restored = (0..reader.geometry_count())
             .find_map(|position| {
                 let (_, set) = reader.read_geometry_set(position);

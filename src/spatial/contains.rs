@@ -8,9 +8,9 @@ use super::cell_index_reader::CellIndexReader;
 use super::covering::{
     covering_contains_center, covering_split, crossing_parity, split_edges, CoveringCell,
 };
-use super::edge_cache::EdgeCache;
 use super::edge_crosser::EdgeCrosser;
 use super::edge_provider::EdgeProvider;
+use super::edge_resolver::EdgeResolver;
 use super::geometry_set::GeometrySet;
 use super::plane::query::PlaneQuery;
 use super::plane::Predicate;
@@ -54,24 +54,24 @@ impl<S: Surface> Contains<S> {
         &self,
         reader: &'a CellIndexReader<'a>,
         terms_filter: Option<&BitSet>,
-        edge_cache: &mut EdgeCache<'a, S>,
+        edge_resolver: &mut EdgeResolver<'a, S>,
         max_doc: u32,
     ) -> BitSet {
         if let Some(plane) = &self.plane {
             return plane.search(
                 reader,
                 terms_filter,
-                edge_cache,
+                edge_resolver,
                 max_doc,
                 Predicate::Contains,
                 false,
             );
         }
-        let geometry_count = edge_cache.geometry_count(0);
+        let geometry_count = edge_resolver.geometry_count(0);
         let mut seen = BitSet::with_max_value(geometry_count);
         let mut doc_ids = BitSet::with_max_value(max_doc);
 
-        let candidates = self.find_candidates(reader, terms_filter, edge_cache, &mut seen);
+        let candidates = self.find_candidates(reader, terms_filter, edge_resolver, &mut seen);
         if candidates.is_empty() {
             return doc_ids;
         }
@@ -80,7 +80,7 @@ impl<S: Surface> Contains<S> {
             doc_ids.insert(doc_id);
         }
 
-        self.exclude_by_crossings(reader, edge_cache, &candidates, &mut seen, &mut doc_ids);
+        self.exclude_by_crossings(reader, edge_resolver, &candidates, &mut seen, &mut doc_ids);
 
         doc_ids
     }
@@ -92,7 +92,7 @@ impl<S: Surface> Contains<S> {
         &self,
         reader: &'a CellIndexReader<'a>,
         terms_filter: Option<&BitSet>,
-        edge_cache: &mut EdgeCache<'a, S>,
+        edge_resolver: &mut EdgeResolver<'a, S>,
         seen: &mut BitSet,
     ) -> Vec<(u32, u32)> {
         let interior_cell = match self.find_interior_cell(reader) {
@@ -114,14 +114,15 @@ impl<S: Surface> Contains<S> {
                 }
                 seen.insert(gid);
 
-                let located = edge_cache.locate(clipped.geometry_id);
-                if !located.closed {
-                    continue;
-                }
+                let doc_id = edge_resolver.doc_id_for(clipped.geometry_id);
                 if let Some(filter) = terms_filter {
-                    if !filter.contains(located.doc_id) {
+                    if !filter.contains(doc_id) {
                         continue;
                     }
+                }
+                let located = edge_resolver.locate(clipped.geometry_id);
+                if !located.closed {
+                    continue;
                 }
 
                 if clipped.edge_indices.is_empty() {
@@ -136,7 +137,7 @@ impl<S: Surface> Contains<S> {
                 }
 
                 if let Some(doc_id) =
-                    self.split_to_interior(clipped, cell.cell_id, target_id, edge_cache)
+                    self.split_to_interior(clipped, cell.cell_id, target_id, edge_resolver)
                 {
                     candidates.push((gid, doc_id));
                 }
@@ -156,15 +157,15 @@ impl<S: Surface> Contains<S> {
         clipped: &ClippedShape,
         index_cell_id: S2CellId,
         target_id: S2CellId,
-        edge_cache: &mut EdgeCache<'a, S>,
+        edge_resolver: &mut EdgeResolver<'a, S>,
     ) -> Option<u32> {
         debug_assert!(index_cell_id.contains(target_id));
         let mut edges = clipped.edge_indices.clone();
-        let located = edge_cache.locate(clipped.geometry_id);
+        let located = edge_resolver.locate(clipped.geometry_id);
         let doc_id = located.doc_id;
 
         let get_edge = |idx: u32| {
-            let entry = edge_cache.locate(clipped.geometry_id);
+            let entry = edge_resolver.locate(clipped.geometry_id);
             entry.edge(idx)
         };
         let mut pcell = S2PaddedCell::<S>::new(index_cell_id, S::CELL_PADDING);
@@ -185,9 +186,8 @@ impl<S: Surface> Contains<S> {
             let child = S2PaddedCell::from_parent(&pcell, i, j);
             edges = std::mem::take(&mut child_edges[i][j]);
             if S::RING_ROLES {
-                contains_center = edge_cache
-                    .get(clipped.geometry_id)
-                    .edge_set()
+                contains_center = edge_resolver
+                    .locate(clipped.geometry_id)
                     .contains_point(&child.get_center());
             } else {
                 contains_center ^= crossing_parity::<S>(
@@ -285,7 +285,7 @@ impl<S: Surface> Contains<S> {
     fn exclude_by_crossings<'a>(
         &self,
         reader: &'a CellIndexReader<'a>,
-        edge_cache: &mut EdgeCache<'a, S>,
+        edge_resolver: &mut EdgeResolver<'a, S>,
         candidates: &[(u32, u32)],
         _seen: &mut BitSet,
         doc_ids: &mut BitSet,
@@ -301,7 +301,7 @@ impl<S: Surface> Contains<S> {
             (start, level)
         };
 
-        let geometry_count = edge_cache.geometry_count(0);
+        let geometry_count = edge_resolver.geometry_count(0);
         let mut candidate_gids = BitSet::with_max_value(geometry_count);
         for &(gid, _) in candidates {
             candidate_gids.insert(gid);
@@ -367,7 +367,7 @@ impl<S: Surface> Contains<S> {
                             continue;
                         }
 
-                        let located = edge_cache.locate(clipped.geometry_id);
+                        let located = edge_resolver.locate(clipped.geometry_id);
                         if located.vertex_count < 2 {
                             continue;
                         }
@@ -380,7 +380,7 @@ impl<S: Surface> Contains<S> {
                                 let qv0 = &query_vertices[qi];
                                 let qv1 = &query_vertices[qi + 1];
                                 if crosser.crossing_sign_two(qv0, qv1) > 0 {
-                                    let doc_id = edge_cache.doc_id_for(clipped.geometry_id);
+                                    let doc_id = edge_resolver.doc_id_for(clipped.geometry_id);
                                     doc_ids.remove(doc_id);
                                     candidate_gids.remove(gid);
                                     break;

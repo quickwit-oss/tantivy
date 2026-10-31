@@ -2,7 +2,7 @@
 //!
 //! Stores flattened polygon vertices for query-time crossing tests. Vertices stream through
 //! immediately on insert because merge cannot accumulate an entire segment's vertex data in
-//! memory. The skip list directory records every Nth geometry offset.
+//! memory. Separate offset and document arrays provide direct access by geometry ID.
 
 use std::io::Write;
 use std::marker::PhantomData;
@@ -18,21 +18,28 @@ use crate::spatial::surface::Surface;
 pub struct EdgeWriter<'a, S: Surface> {
     write: &'a mut CountingWriter<WritePtr>,
     offsets: Vec<u64>,
+    doc_ids: Vec<u32>,
+    value_heads: Vec<u32>,
     geometry_count: u32,
-    skip_interval: u32,
     base: u64,
     _surface: PhantomData<S>,
 }
 
+pub(crate) const EDGE_MEMBER_HEADER_BYTES: usize = 20;
+pub(crate) const EDGE_MAGIC: &[u8; 4] = b"TEDG";
+pub(crate) const EDGE_REVISION: u32 = 1;
+pub(crate) const EDGE_FOOTER_BYTES: usize = 48;
+
 impl<'a, S: Surface> EdgeWriter<'a, S> {
     /// Creates a new writer backed by the given output.
-    pub fn new(write: &'a mut CountingWriter<WritePtr>, skip_interval: u32) -> Self {
+    pub fn new(write: &'a mut CountingWriter<WritePtr>) -> Self {
         let base = write.written_bytes();
         EdgeWriter {
             write,
             offsets: Vec::new(),
+            doc_ids: Vec::new(),
+            value_heads: Vec::new(),
             geometry_count: 0,
-            skip_interval,
             base,
             _surface: PhantomData,
         }
@@ -40,55 +47,47 @@ impl<'a, S: Surface> EdgeWriter<'a, S> {
 
     /// Write all geometries for one document from a smashed GeometrySet.
     pub fn insert(&mut self, set: &GeometrySet<S>) {
-        for (member_idx, member) in set.members.iter().enumerate() {
+        let head = self.geometry_count;
+        let member_count = set.members.len() as u32;
+        if member_count > 0 {
+            self.value_heads.push(head);
+        }
+        for member in &set.members {
             let pos = self.write.written_bytes() - self.base;
-
-            if self.geometry_count % self.skip_interval == 0 {
-                self.offsets.push(pos);
-            }
-            self.geometry_count += 1;
-
-            let is_head = member_idx == 0;
-            let has_holes = member.ring_offsets.len() > 2;
-
-            let flags: u8 = (if member.closed { 0x01 } else { 0 })
+            let flags: u32 = (if member.closed { 0x01 } else { 0 })
                 | (if member.contains_hilbert_start {
                     0x02
                 } else {
                     0
                 })
-                | (if has_holes { 0x04 } else { 0 })
-                | (if is_head { 0x08 } else { 0 })
                 | (if member.kind == GeometryKind::LineString {
-                    0x10
+                    0x04
                 } else {
                     0
                 });
+            self.offsets.push(pos);
+            self.doc_ids.push(set.doc_id);
+            self.geometry_count += 1;
 
-            let ring_boundary_bytes = if has_holes {
-                (member.ring_offsets.len() - 2) * 4
-            } else {
-                0
-            };
-            let vertex_bytes = member.vertices.len() * S::DIMENSIONS * 8;
-            let data_bytes = (ring_boundary_bytes + vertex_bytes) as u32;
-
-            self.write.write_all(&[flags]).unwrap();
-            self.write.write_all(&data_bytes.to_le_bytes()).unwrap();
-            if is_head {
-                self.write.write_all(&set.doc_id.to_le_bytes()).unwrap();
+            for field in [
+                head,
+                member_count,
+                member.vertices.len() as u32,
+                member.ring_offsets.len().saturating_sub(1) as u32,
+                flags,
+            ] {
+                self.write.write_all(&field.to_le_bytes()).unwrap();
             }
 
-            if has_holes {
-                let hole_count = member.ring_offsets.len() - 2;
-                for (h, &offset) in member.ring_offsets[1..member.ring_offsets.len() - 1]
-                    .iter()
-                    .enumerate()
-                {
-                    let continuation = if h < hole_count - 1 { 0x80000000u32 } else { 0 };
-                    let entry = continuation | (offset as u32);
-                    self.write.write_all(&entry.to_le_bytes()).unwrap();
-                }
+            for &offset in member
+                .ring_offsets
+                .iter()
+                .skip(1)
+                .take(member.ring_offsets.len().saturating_sub(2))
+            {
+                self.write
+                    .write_all(&(offset as u32).to_le_bytes())
+                    .unwrap();
             }
 
             for v in &member.vertices {
@@ -104,20 +103,61 @@ impl<'a, S: Surface> EdgeWriter<'a, S> {
         self.geometry_count
     }
 
-    /// Write the skip list directory and footer.
+    /// Write the member and document directories and footer.
     pub fn finish(&mut self) {
-        let dir_offset = self.write.written_bytes() - self.base;
-
-        for &offset in &self.offsets {
+        let offsets_offset = self.write.written_bytes() - self.base;
+        // Release offsets before allocating the document grouping buffers.
+        for offset in std::mem::take(&mut self.offsets) {
             self.write.write_all(&offset.to_le_bytes()).unwrap();
+        }
+        let doc_ids_offset = self.write.written_bytes() - self.base;
+        for doc_id in &self.doc_ids {
+            self.write.write_all(&doc_id.to_le_bytes()).unwrap();
+        }
+
+        let doc_dir_offset = self.write.written_bytes() - self.base;
+        let doc_count = self
+            .value_heads
+            .iter()
+            .map(|&head| self.doc_ids[head as usize] + 1)
+            .max()
+            .unwrap_or(0);
+        let mut starts = vec![0u32; doc_count as usize + 1];
+        for &head in &self.value_heads {
+            starts[self.doc_ids[head as usize] as usize + 1] += 1;
+        }
+        for index in 1..starts.len() {
+            starts[index] += starts[index - 1];
+        }
+        // Persist the starts before reusing them as scatter cursors.
+        for start in &starts {
+            self.write.write_all(&start.to_le_bytes()).unwrap();
+        }
+        let value_count = self.value_heads.len() as u32;
+        let mut heads = vec![0u32; self.value_heads.len()];
+        for head in std::mem::take(&mut self.value_heads) {
+            let slot = &mut starts[self.doc_ids[head as usize] as usize];
+            heads[*slot as usize] = head;
+            *slot += 1;
+        }
+        drop(starts);
+        drop(std::mem::take(&mut self.doc_ids));
+        for head in heads {
+            self.write.write_all(&head.to_le_bytes()).unwrap();
         }
 
         self.write
             .write_all(&self.geometry_count.to_le_bytes())
             .unwrap();
         self.write
-            .write_all(&self.skip_interval.to_le_bytes())
+            .write_all(&(EDGE_MEMBER_HEADER_BYTES as u32).to_le_bytes())
             .unwrap();
-        self.write.write_all(&dir_offset.to_le_bytes()).unwrap();
+        self.write.write_all(&offsets_offset.to_le_bytes()).unwrap();
+        self.write.write_all(&doc_ids_offset.to_le_bytes()).unwrap();
+        self.write.write_all(&doc_count.to_le_bytes()).unwrap();
+        self.write.write_all(&value_count.to_le_bytes()).unwrap();
+        self.write.write_all(&doc_dir_offset.to_le_bytes()).unwrap();
+        self.write.write_all(EDGE_MAGIC).unwrap();
+        self.write.write_all(&EDGE_REVISION.to_le_bytes()).unwrap();
     }
 }

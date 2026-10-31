@@ -8,7 +8,7 @@ use crate::directory::{Directory, RamDirectory};
 use crate::spatial::cell_index_reader::CellIndexReader;
 use crate::spatial::clipper::Clipper;
 use crate::spatial::edge_reader::EdgeReader;
-use crate::spatial::edge_writer::EdgeWriter;
+use crate::spatial::edge_writer::{EdgeWriter, EDGE_FOOTER_BYTES};
 use crate::spatial::geometry::Geometry;
 use crate::spatial::geometry_set::{to_geometry_set, GeometrySet};
 use crate::spatial::plane::Plane;
@@ -37,7 +37,7 @@ fn test_plane_source_coordinates_and_member_types_round_trip() {
     .project::<Plane>();
     let set = to_geometry_set(&geometry, 7);
     let fixture = Fixture::new(vec![set], ShapeIndex { cells: Vec::new() });
-    let reader = EdgeReader::<Plane>::open(&fixture.edges);
+    let reader = EdgeReader::<Plane>::open(&fixture.edges).unwrap();
     for position in 0..5 {
         let (head, restored) = reader.read_geometry_set(position);
         assert_eq!(head, 0);
@@ -69,6 +69,62 @@ fn test_plane_source_coordinates_and_member_types_round_trip() {
     }
 }
 
+#[test]
+fn test_edge_directory_resolves_members_values_and_documents() {
+    let sets = vec![
+        to_geometry_set(&Geometry::<Plane>::Point([1.0, 2.0]), 3),
+        to_geometry_set(
+            &Geometry::<Plane>::MultiPoint(vec![[3.0, 4.0], [5.0, 6.0]]),
+            1,
+        ),
+        to_geometry_set(
+            &Geometry::<Plane>::LineString(vec![[7.0, 8.0], [9.0, 10.0]]),
+            3,
+        ),
+        to_geometry_set(&Geometry::<Plane>::GeometryCollection(Vec::new()), 3),
+    ];
+    let mut fixture = Fixture::new(sets, ShapeIndex { cells: Vec::new() });
+    let reader = EdgeReader::<Plane>::open(&fixture.edges).unwrap();
+
+    assert_eq!(
+        reader.value_heads(0).unwrap().collect::<Vec<_>>(),
+        Vec::<u32>::new()
+    );
+    assert_eq!(reader.value_heads(1).unwrap().collect::<Vec<_>>(), vec![1]);
+    assert_eq!(
+        reader.value_heads(2).unwrap().collect::<Vec<_>>(),
+        Vec::<u32>::new()
+    );
+    assert_eq!(
+        reader.value_heads(3).unwrap().collect::<Vec<_>>(),
+        vec![0, 3]
+    );
+
+    let first = reader.locate_entry(0);
+    assert_eq!((first.head, first.member_count, first.doc_id), (0, 1, 3));
+    let sibling = reader.locate_entry(2);
+    assert_eq!(
+        (sibling.head, sibling.member_count, sibling.doc_id),
+        (1, 2, 1)
+    );
+    assert_eq!(sibling.vertex(0), [5.0, 6.0]);
+
+    // Ownership lookup must not consult member offsets or payloads.
+    let footer = fixture.edges.len() - EDGE_FOOTER_BYTES;
+    let doc_ids_offset =
+        u64::from_le_bytes(fixture.edges[footer + 16..footer + 24].try_into().unwrap()) as usize;
+    fixture.edges[..doc_ids_offset].fill(0xff);
+    let reader = EdgeReader::<Plane>::open(&fixture.edges).unwrap();
+    assert_eq!(
+        (0..4).map(|gid| reader.doc_id_for(gid)).collect::<Vec<_>>(),
+        vec![3, 1, 1, 3]
+    );
+    assert_eq!(
+        reader.value_heads(3).unwrap().collect::<Vec<_>>(),
+        vec![0, 3]
+    );
+}
+
 impl<S: Surface> Fixture<S> {
     fn new(sets: Vec<GeometrySet<S>>, index: ShapeIndex) -> Self {
         let mut cells = CountingWriter::wrap(Vec::new());
@@ -76,7 +132,7 @@ impl<S: Surface> Fixture<S> {
         let directory = RamDirectory::create();
         let path = Path::new("edges");
         let mut write = CountingWriter::wrap(directory.open_write(path).unwrap());
-        let mut writer = EdgeWriter::new(&mut write, 16);
+        let mut writer = EdgeWriter::new(&mut write);
         for set in &sets {
             writer.insert(set);
         }
@@ -193,13 +249,17 @@ fn sponge<S: Surface>(id: S2CellId) -> SpongeCell<S> {
     SpongeCell::new(id, S2PaddedCell::<S>::new(id, S::CELL_PADDING).bound())
 }
 
-fn absorb<S: Surface>(sponge: &mut SpongeCell<S>, cell: &ShapeCell, cache: &EdgeCache<'_, S>) {
-    sponge.absorb_index_cell_anchors(cell, cache);
-    sponge.absorb_index_cell_edges(cell, cache);
+fn absorb<S: Surface>(
+    sponge: &mut SpongeCell<S>,
+    cell: &ShapeCell,
+    resolver: &EdgeResolver<'_, S>,
+) {
+    sponge.absorb_index_cell_anchors(cell, resolver);
+    sponge.absorb_index_cell_edges(cell, resolver);
 }
 
-fn split<S: Surface>(sponge: SpongeCell<S>, cache: &EdgeCache<'_, S>) -> Vec<SpongeCell<S>> {
-    coarse_split(sponge, cache, &mut 0, &mut 0, &[])
+fn split<S: Surface>(sponge: SpongeCell<S>, resolver: &EdgeResolver<'_, S>) -> Vec<SpongeCell<S>> {
+    coarse_split(sponge, resolver, &mut 0, &mut 0, &[])
         .into_iter()
         .map(|entry| match entry {
             HeapEntry::Sponge(s) => s,
@@ -242,17 +302,16 @@ fn test_plane_repeated_split_before_late_arrival() {
                 .iter()
                 .map(|f| CellIndexReader::open(&f.cells).unwrap())
                 .collect();
-            let cache = EdgeCache::<Plane>::new(
+            let resolver = EdgeResolver::<Plane>::new(
                 fixtures
                     .iter()
-                    .map(|f| EdgeReader::open(&f.edges))
+                    .map(|f| EdgeReader::open(&f.edges).unwrap())
                     .collect(),
-                1000,
             );
             let alive = vec![None, None, None];
             let mut merge = Interleaver::new(
                 readers.iter().map(|r| r.iter()).collect(),
-                &cache,
+                &resolver,
                 &alive,
                 vec![],
             );
@@ -317,18 +376,17 @@ fn test_plane_repeated_split_before_late_arrival() {
 #[test]
 fn test_plane_equal_cell_absorption_orders() {
     let fixtures = arrival_fixtures(false, false);
-    let cache = EdgeCache::<Plane>::new(
+    let resolver = EdgeResolver::<Plane>::new(
         fixtures
             .iter()
-            .map(|f| EdgeReader::open(&f.edges))
+            .map(|f| EdgeReader::open(&f.edges).unwrap())
             .collect(),
-        1000,
     );
     for source_first in [false, true] {
         let mut root = sponge::<Plane>(path(&[]));
-        absorb(&mut root, &fixtures[1].source_cell(0, 1), &cache);
-        absorb(&mut root, &fixtures[0].source_cell(0, 0), &cache);
-        let mut children = split(root, &cache);
+        absorb(&mut root, &fixtures[1].source_cell(0, 1), &resolver);
+        absorb(&mut root, &fixtures[0].source_cell(0, 0), &resolver);
+        let mut children = split(root, &resolver);
         let upper = children.remove(
             children
                 .iter()
@@ -337,18 +395,18 @@ fn test_plane_equal_cell_absorption_orders() {
         );
         let upper = if source_first {
             let mut incoming = sponge::<Plane>(path(&[2]));
-            absorb(&mut incoming, &fixtures[2].source_cell(0, 2), &cache);
+            absorb(&mut incoming, &fixtures[2].source_cell(0, 2), &resolver);
             incoming.absorb_sponge_cell_edges(&upper);
             incoming.absorb_sponge_cell_anchors(&upper);
             incoming
         } else {
             let mut upper = upper;
-            absorb(&mut upper, &fixtures[2].source_cell(0, 2), &cache);
+            absorb(&mut upper, &fixtures[2].source_cell(0, 2), &resolver);
             upper
         };
         check_counts(&upper);
         assert_eq!(upper.edge_count, 13);
-        let mut grandchildren = split(upper, &cache);
+        let mut grandchildren = split(upper, &resolver);
         for (child_id, source_indices, count) in
             [(path(&[2, 0]), [1, 2], 8), (path(&[2, 3]), [3, 4], 7)]
         {
@@ -357,7 +415,7 @@ fn test_plane_equal_cell_absorption_orders() {
                 .find(|s| s.cell_id == child_id)
                 .unwrap();
             for index in source_indices {
-                absorb(child, &fixtures[0].source_cell(index, 0), &cache);
+                absorb(child, &fixtures[0].source_cell(index, 0), &resolver);
             }
             check_counts(child);
             assert_eq!(child.edge_count, count);
@@ -381,7 +439,7 @@ fn test_plane_equal_cell_absorption_orders() {
         children.extend(grandchildren);
         let mut cells: Vec<_> = children
             .into_iter()
-            .map(|s| flatten(HeapEntry::Sponge(s), &cache).unwrap())
+            .map(|s| flatten(HeapEntry::Sponge(s), &resolver).unwrap())
             .collect();
         cells.sort_unstable_by_key(|c| c.cell_id);
         let members: Vec<_> = fixtures
@@ -403,23 +461,22 @@ fn test_plane_equal_cell_absorption_orders() {
 #[test]
 fn test_plane_containing_cell_absorbs_sponge() {
     let fixtures = arrival_fixtures(false, false);
-    let cache = EdgeCache::<Plane>::new(
+    let resolver = EdgeResolver::<Plane>::new(
         fixtures
             .iter()
-            .map(|f| EdgeReader::open(&f.edges))
+            .map(|f| EdgeReader::open(&f.edges).unwrap())
             .collect(),
-        1000,
     );
     for containing in [path(&[]), path(&[2])] {
         let mut child = sponge::<Plane>(path(&[2, 0]));
         for index in [1, 2] {
-            absorb(&mut child, &fixtures[0].source_cell(index, 0), &cache);
+            absorb(&mut child, &fixtures[0].source_cell(index, 0), &resolver);
         }
         check_counts(&child);
         let mut source = fixtures[2].source_cell(0, 2);
         source.cell_id = containing;
         let mut parent = sponge::<Plane>(source.cell_id);
-        absorb(&mut parent, &source, &cache);
+        absorb(&mut parent, &source, &resolver);
         parent.absorb_sponge_cell_edges(&child);
         parent.absorb_sponge_cell_anchors(&child);
         check_counts(&parent);
@@ -441,7 +498,7 @@ fn test_plane_containing_cell_absorbs_sponge() {
                 .count(),
             2
         );
-        let output = flatten(HeapEntry::Sponge(parent), &cache).unwrap();
+        let output = flatten(HeapEntry::Sponge(parent), &resolver).unwrap();
         let mut cells = Vec::new();
         if !containing.is_face() {
             cells.push(fixtures[0].source_cell(0, 0));
@@ -469,17 +526,16 @@ fn test_plane_corner_only_arrival() {
             .iter()
             .map(|f| CellIndexReader::open(&f.cells).unwrap())
             .collect();
-        let cache = EdgeCache::<Plane>::new(
+        let resolver = EdgeResolver::<Plane>::new(
             fixtures
                 .iter()
-                .map(|f| EdgeReader::open(&f.edges))
+                .map(|f| EdgeReader::open(&f.edges).unwrap())
                 .collect(),
-            1000,
         );
         let alive = vec![None, None, None];
         let mut merge = Interleaver::new(
             readers.iter().map(|r| r.iter()).collect(),
-            &cache,
+            &resolver,
             &alive,
             vec![],
         );
@@ -543,17 +599,16 @@ fn point_edge(gid: GeometryId) -> SpongeEdge<Plane> {
 #[test]
 fn test_plane_rejects_disjoint_stored_occurrence() {
     let fixtures = arrival_fixtures(false, false);
-    let cache = EdgeCache::<Plane>::new(
+    let resolver = EdgeResolver::<Plane>::new(
         fixtures
             .iter()
-            .map(|f| EdgeReader::open(&f.edges))
+            .map(|f| EdgeReader::open(&f.edges).unwrap())
             .collect(),
-        1000,
     );
     let mut source = fixtures[0].source_cell(0, 0);
     source.cell_id = path(&[3]);
     let mut target = sponge::<Plane>(source.cell_id);
-    assert!(catch_unwind(AssertUnwindSafe(|| absorb(&mut target, &source, &cache))).is_err());
+    assert!(catch_unwind(AssertUnwindSafe(|| absorb(&mut target, &source, &resolver))).is_err());
 
     let mut invalid = sponge::<Plane>(path(&[2, 2]));
     invalid.edges.push(point_edge((0, 0)));
@@ -562,7 +617,7 @@ fn test_plane_rejects_disjoint_stored_occurrence() {
         || target.absorb_sponge_cell_edges(&invalid)
     ))
     .is_err());
-    assert!(catch_unwind(AssertUnwindSafe(|| split(invalid, &cache))).is_err());
+    assert!(catch_unwind(AssertUnwindSafe(|| split(invalid, &resolver))).is_err());
 }
 
 #[test]
@@ -578,7 +633,7 @@ fn test_false_fine_anchor_checked_in_both_orders() {
         }
         assert!(catch_unwind(AssertUnwindSafe(|| split(
             s,
-            &EdgeCache::new(Vec::new(), 0)
+            &EdgeResolver::new(Vec::new())
         )))
         .is_err());
     }
@@ -594,7 +649,7 @@ fn test_split_rejects_mixed_or_duplicate_parent_anchors() {
         ];
         assert!(catch_unwind(AssertUnwindSafe(|| split(
             s,
-            &EdgeCache::new(Vec::new(), 0)
+            &EdgeResolver::new(Vec::new())
         )))
         .is_err());
     }
@@ -616,7 +671,7 @@ fn test_flatten_rejects_unmatched_edge_groups() {
         s.edges.sort_unstable_by_key(|e| e.geometry_id);
         assert!(catch_unwind(AssertUnwindSafe(|| flatten(
             HeapEntry::Sponge(s),
-            &EdgeCache::new(Vec::new(), 0)
+            &EdgeResolver::new(Vec::new())
         )))
         .is_err());
     }
@@ -646,16 +701,23 @@ fn test_sphere_drops_unanchored_conservative_extra() {
             fixtures.swap(0, 1);
         }
         let (g, h) = if reverse { (1, 0) } else { (0, 1) };
-        let cache = EdgeCache::<Sphere>::new(
+        let resolver = EdgeResolver::<Sphere>::new(
             fixtures
                 .iter()
-                .map(|f| EdgeReader::open(&f.edges))
+                .map(|f| EdgeReader::open(&f.edges).unwrap())
                 .collect(),
-            1000,
         );
         let mut root = sponge::<Sphere>(path(&[]));
-        absorb(&mut root, &fixtures[g as usize].source_cell(0, g), &cache);
-        absorb(&mut root, &fixtures[h as usize].source_cell(0, h), &cache);
+        absorb(
+            &mut root,
+            &fixtures[g as usize].source_cell(0, g),
+            &resolver,
+        );
+        absorb(
+            &mut root,
+            &fixtures[h as usize].source_cell(0, h),
+            &resolver,
+        );
         let edge = root.edges.iter().find(|e| e.geometry_id == (g, 0)).unwrap();
         let flat = FlatEdge {
             geometry_id: (g, 0),
@@ -672,14 +734,14 @@ fn test_sphere_drops_unanchored_conservative_extra() {
         clip_to_children(&clipped, &flat, &padded.middle(), &mut nominations);
         let (i, j) = padded.get_child_ij(2);
         assert_eq!(nominations[i][j].len(), 1);
-        let children = split(root, &cache);
+        let children = split(root, &resolver);
         let right = children.iter().find(|s| s.cell_id == path(&[2])).unwrap();
         assert_eq!(right.edges.len(), 1);
         assert_eq!(right.edge_count, 1);
         assert_eq!(right.edges[0].geometry_id, (h, 0));
         assert_eq!(right.anchors.len(), 1);
         for child in children {
-            flatten(HeapEntry::Sponge(child), &cache).unwrap();
+            flatten(HeapEntry::Sponge(child), &resolver).unwrap();
         }
     }
 }
@@ -693,17 +755,16 @@ fn test_plane_repeated_merge_and_deletion() {
             .iter()
             .map(|f| CellIndexReader::open(&f.cells).unwrap())
             .collect();
-        let cache = EdgeCache::<Plane>::new(
+        let resolver = EdgeResolver::<Plane>::new(
             fixtures
                 .iter()
-                .map(|f| EdgeReader::open(&f.edges))
+                .map(|f| EdgeReader::open(&f.edges).unwrap())
                 .collect(),
-            1000,
         );
         let alive = vec![None, None];
         let mut cells: Vec<_> = Interleaver::new(
             readers.iter().map(|r| r.iter()).collect(),
-            &cache,
+            &resolver,
             &alive,
             vec![],
         )
@@ -721,12 +782,11 @@ fn test_plane_repeated_merge_and_deletion() {
             .iter()
             .map(|f| CellIndexReader::open(&f.cells).unwrap())
             .collect();
-        let cache = EdgeCache::<Plane>::new(
+        let resolver = EdgeResolver::<Plane>::new(
             fixtures
                 .iter()
-                .map(|f| EdgeReader::open(&f.edges))
+                .map(|f| EdgeReader::open(&f.edges).unwrap())
                 .collect(),
-            1000,
         );
         let mut live = BitSet::with_max_value(3);
         live.insert(0);
@@ -740,7 +800,7 @@ fn test_plane_repeated_merge_and_deletion() {
         ];
         let cells: Vec<_> = Interleaver::new(
             readers.iter().map(|r| r.iter()).collect(),
-            &cache,
+            &resolver,
             &alive,
             vec![],
         )
@@ -761,7 +821,7 @@ fn test_plane_repeated_merge_and_deletion() {
         assert_partition(&cells, &members);
         for cell in &cells {
             for shape in &cell.shapes {
-                let doc = cache.doc_id_for(shape.geometry_id);
+                let doc = resolver.doc_id_for(shape.geometry_id);
                 assert!(doc < 3 && (!delete_points || doc != 1));
             }
         }
@@ -817,17 +877,16 @@ fn test_plane_merge_area_centers_and_holes() {
             .iter()
             .map(|f| CellIndexReader::open(&f.cells).unwrap())
             .collect();
-        let cache = EdgeCache::<Plane>::new(
+        let resolver = EdgeResolver::<Plane>::new(
             fixtures
                 .iter()
-                .map(|f| EdgeReader::open(&f.edges))
+                .map(|f| EdgeReader::open(&f.edges).unwrap())
                 .collect(),
-            1000,
         );
         let alive = vec![None, None];
         let cells: Vec<_> = Interleaver::new(
             readers.iter().map(|r| r.iter()).collect(),
-            &cache,
+            &resolver,
             &alive,
             vec![],
         )
@@ -876,7 +935,7 @@ fn test_plane_fine_anchor_group_keeps_both_centers() {
                 bound: R2Rect::from_point_pair(a, b),
             });
         }
-        let children = split(s, &EdgeCache::new(Vec::new(), 0));
+        let children = split(s, &EdgeResolver::new(Vec::new()));
         let child = children.iter().find(|s| s.cell_id == path(&[2])).unwrap();
         check_counts(child);
         assert_eq!(child.edge_count, 2);

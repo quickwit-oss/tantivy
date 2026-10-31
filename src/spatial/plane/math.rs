@@ -157,17 +157,23 @@ pub fn segments_cross(a: &[f64; 2], b: &[f64; 2], c: &[f64; 2], d: &[f64; 2]) ->
 /// for robust crossing decisions. Boundary points are classified as if displaced
 /// by (e, e^2) for positive symbolic e, matching PlaneEdgeCrosser.
 pub fn point_in_polygon(p: &[f64; 2], vertices: &[[f64; 2]]) -> bool {
-    if vertices.len() < 4 {
+    point_in_polygon_source(p, vertices.len(), |index| vertices[index])
+}
+
+/// Returns true if point P is inside a polygon supplied by indexed vertex access.
+pub fn point_in_polygon_source<F>(p: &[f64; 2], len: usize, vertex: F) -> bool
+where F: Fn(usize) -> [f64; 2] {
+    if len < 4 {
         return false;
     }
     let mut inside = false;
-    let n = vertices.len() - 1; // last vertex is the closure duplicate
+    let n = len - 1; // last vertex is the closure duplicate
     let mut j = n - 1;
     for i in 0..n {
-        let vi = &vertices[i];
-        let vj = &vertices[j];
+        let vi = vertex(i);
+        let vj = vertex(j);
         if (vi[1] > p[1]) != (vj[1] > p[1]) {
-            let orientation = orient2d_sign(vi, vj, p);
+            let orientation = orient2d_sign(&vi, &vj, p);
             // A boundary edge is left of the displaced point and crosses its leftward ray.
             if orientation == 0 || (orientation > 0) == (vi[1] > vj[1]) {
                 inside = !inside;

@@ -193,19 +193,21 @@ fn evaluate(
             for reader in segments {
                 let outer_bitset = outer_output.bitset_for(&reader.segment_id(), reader.max_doc());
                 let mut result_bitset = BitSet::with_max_value(reader.max_doc());
-                let mut visited = std::collections::HashSet::new();
                 if let Some(spatial) = reader.spatial_fields().get_field(*field)? {
-                    let cells = CellIndexReader::open(spatial.cells_bytes())?;
-                    for cell in cells.iter() {
-                        for shape in &cell.shapes {
-                            let (head, doc_id) = implementation
-                                .value_id(spatial.edges_bytes(), shape.geometry_id.1)?;
-                            if !outer_bitset.contains(doc_id)
-                                || result_bitset.contains(doc_id)
-                                || !visited.insert(head)
-                            {
-                                continue;
-                            }
+                    // Check the cell format even though outer values come from the document
+                    // directory.
+                    CellIndexReader::open(spatial.cells_bytes())?;
+                    let mut outer_docs = BitSetDocSet::from(outer_bitset);
+                    let mut value_heads = Vec::new();
+                    let mut doc_id = outer_docs.doc();
+                    while doc_id != TERMINATED {
+                        value_heads.clear();
+                        implementation.value_heads(
+                            spatial.edges_bytes(),
+                            doc_id,
+                            &mut value_heads,
+                        )?;
+                        for &head in &value_heads {
                             let query = implementation.prepare_join_query(
                                 spatial.edges_bytes(),
                                 head,
@@ -232,7 +234,11 @@ fn evaluate(
                                     }
                                 }
                             }
+                            if result_bitset.contains(doc_id) {
+                                break;
+                            }
                         }
+                        doc_id = outer_docs.advance();
                     }
                 }
                 results.insert(reader.segment_id(), SegmentResult::Match(result_bitset));

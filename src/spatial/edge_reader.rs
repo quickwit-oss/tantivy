@@ -1,28 +1,60 @@
 //! Edge index deserialization.
 //!
-//! Reads geometry entries from a byte slice, typically mmap'd segment data. The 16-byte footer
-//! locates the skip list directory. The directory provides random access by geometry position.
-//! Between skip list entries, a forward walk bridges the gap.
+//! Reads geometry entries from a byte slice, typically mmap'd segment data. The 48-byte footer
+//! locates separate member-offset and document-ID arrays indexed by geometry position.
 //!
-//! Geometry entry format per 004_edge_index.md:
-//!   flags (u8): bit 0 = closed, bit 1 = contains_hilbert_start, bit 2 = has_holes, bit 3 = is_head
-//!               bit 4 = line string (retained for collapsed chains)
-//!   len (u32): byte length of data section
-//!   Head: [flags] [len] [doc_id] [ring boundaries?] [vertex data]
-//!   Member: [flags] [len] [ring boundaries?] [vertex data]
+//! Each member has a fixed header containing its value head, counts and flags, followed by
+//! internal ring offsets and vertex coordinates. Document lookup does not read this payload.
 
+use std::io;
 use std::marker::PhantomData;
 
+use super::edge_writer::{EDGE_FOOTER_BYTES, EDGE_MAGIC, EDGE_MEMBER_HEADER_BYTES, EDGE_REVISION};
 use super::geometry_set::{EdgeSet, GeometryKind, GeometrySet};
 use super::surface::Surface;
+
+/// Iterates value heads from a document's mapped directory range.
+pub struct ValueHeads<'a> {
+    data: &'a [u8],
+}
+
+impl Iterator for ValueHeads<'_> {
+    type Item = u32;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.data.is_empty() {
+            return None;
+        }
+        let head = u32::from_le_bytes(self.data[..4].try_into().unwrap());
+        self.data = &self.data[4..];
+        Some(head)
+    }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        let len = self.data.len() / 4;
+        (len, Some(len))
+    }
+}
+
+impl ExactSizeIterator for ValueHeads<'_> {}
 
 /// A located geometry entry. Holds a reference to the raw vertex data in the mmap'd slice.
 /// Reads edges directly without allocation.
 pub struct LocatedEntry<'a, S: Surface> {
     /// The document id for this geometry.
     pub doc_id: u32,
+    /// The first member position of the owning value.
+    pub head: u32,
+    /// Number of members in the owning value.
+    pub member_count: u32,
+    /// The declared geometry kind.
+    pub kind: GeometryKind,
     /// Whether this geometry is a closed polygon.
     pub closed: bool,
+    /// Whether the Hilbert start lies inside this member.
+    pub contains_hilbert_start: bool,
+    /// Encoded internal ring boundaries.
+    ring_data: &'a [u8],
     /// Raw vertex bytes in the mmap'd slice.
     pub vertex_data: &'a [u8],
     /// Number of vertices.
@@ -31,17 +63,6 @@ pub struct LocatedEntry<'a, S: Surface> {
 }
 
 impl<'a, S: Surface> LocatedEntry<'a, S> {
-    /// Construct a located entry from its parts.
-    pub fn new(doc_id: u32, closed: bool, vertex_data: &'a [u8], vertex_count: usize) -> Self {
-        LocatedEntry {
-            doc_id,
-            closed,
-            vertex_data,
-            vertex_count,
-            _surface: PhantomData,
-        }
-    }
-
     /// Number of vertices in this geometry member.
     pub fn vertex_count(&self) -> usize {
         self.vertex_count
@@ -68,15 +89,61 @@ impl<'a, S: Surface> LocatedEntry<'a, S> {
         };
         (v0, v1)
     }
-}
 
-struct EntryHeader {
-    kind: GeometryKind,
-    data_len: u32,
-    closed: bool,
-    contains_hilbert_start: bool,
-    has_holes: bool,
-    is_head: bool,
+    /// Decode this member into its owned representation.
+    pub fn to_edge_set(&self) -> EdgeSet<S> {
+        let mut ring_offsets = vec![0];
+        for entry in self.ring_data.chunks_exact(4) {
+            ring_offsets.push(u32::from_le_bytes(entry.try_into().unwrap()) as usize);
+        }
+        ring_offsets.push(self.vertex_count);
+        EdgeSet {
+            kind: self.kind,
+            vertices: (0..self.vertex_count)
+                .map(|index| self.vertex(index))
+                .collect(),
+            closed: self.closed,
+            contains_hilbert_start: self.contains_hilbert_start,
+            ring_offsets,
+        }
+    }
+
+    /// Test polygon containment using this member's stored rings.
+    pub fn contains_point(&self, point: &S::Point) -> bool {
+        if !self.closed {
+            return false;
+        }
+        let mut start = 0;
+        let mut ring_index = 0;
+        let mut material = false;
+        for end in self
+            .ring_data
+            .chunks_exact(4)
+            .map(|entry| u32::from_le_bytes(entry.try_into().unwrap()) as usize)
+            .chain(std::iter::once(self.vertex_count))
+        {
+            let len = end - start;
+            let origin_inside = S::origin_inside_source(len, |index| self.vertex(start + index));
+            let inside = S::contains_point_source(
+                point,
+                len,
+                |index| self.vertex(start + index),
+                origin_inside,
+            );
+            if S::RING_ROLES {
+                material = if ring_index == 0 {
+                    inside
+                } else {
+                    material && !inside
+                };
+            } else {
+                material ^= inside;
+            }
+            start = end;
+            ring_index += 1;
+        }
+        material
+    }
 }
 
 /// Reads geometry entries from a serialized edge index segment. Pure deserialization with no
@@ -85,40 +152,98 @@ struct EntryHeader {
 pub struct EdgeReader<'a, S: Surface> {
     data: &'a [u8],
     geometry_count: u32,
-    skip_interval: u32,
-    dir_offset: u64,
+    offsets_offset: u64,
+    doc_ids_offset: u64,
+    doc_count: u32,
+    value_count: u32,
+    doc_dir_offset: u64,
     _surface: PhantomData<S>,
 }
 
 impl<'a, S: Surface> EdgeReader<'a, S> {
     /// Construct a reader from the raw bytes of an edge index segment.
-    pub fn open(data: &'a [u8]) -> Self {
-        if data.len() < 16 {
-            return EdgeReader {
+    pub fn open(data: &'a [u8]) -> io::Result<Self> {
+        if data.is_empty() {
+            return Ok(EdgeReader {
                 data,
                 geometry_count: 0,
-                skip_interval: 1,
-                dir_offset: 0,
+                offsets_offset: 0,
+                doc_ids_offset: 0,
+                doc_count: 0,
+                value_count: 0,
+                doc_dir_offset: 0,
                 _surface: PhantomData,
-            };
+            });
         }
         let n = data.len();
-        let dir_offset = u64::from_le_bytes(data[n - 8..n].try_into().unwrap());
-        let skip_interval = u32::from_le_bytes(data[n - 12..n - 8].try_into().unwrap());
-        let geometry_count = u32::from_le_bytes(data[n - 16..n - 12].try_into().unwrap());
+        if n < EDGE_FOOTER_BYTES || &data[n - 8..n - 4] != EDGE_MAGIC {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                "unrecognized spatial edge format; rebuild the spatial index",
+            ));
+        }
+        let revision = u32::from_le_bytes(data[n - 4..n].try_into().unwrap());
+        if revision != EDGE_REVISION {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                format!(
+                    "spatial edge revision {revision} is unsupported (expected {EDGE_REVISION}); \
+                     rebuild the spatial index"
+                ),
+            ));
+        }
+        let footer = n - EDGE_FOOTER_BYTES;
+        let geometry_count = u32::from_le_bytes(data[footer..footer + 4].try_into().unwrap());
+        let header_bytes = u32::from_le_bytes(data[footer + 4..footer + 8].try_into().unwrap());
+        let offsets_offset = u64::from_le_bytes(data[footer + 8..footer + 16].try_into().unwrap());
+        let doc_ids_offset = u64::from_le_bytes(data[footer + 16..footer + 24].try_into().unwrap());
+        let doc_count = u32::from_le_bytes(data[footer + 24..footer + 28].try_into().unwrap());
+        let value_count = u32::from_le_bytes(data[footer + 28..footer + 32].try_into().unwrap());
+        let doc_dir_offset = u64::from_le_bytes(data[footer + 32..footer + 40].try_into().unwrap());
+        let offsets_end = u64::from(geometry_count)
+            .checked_mul(8)
+            .and_then(|len| offsets_offset.checked_add(len));
+        let doc_ids_end = u64::from(geometry_count)
+            .checked_mul(4)
+            .and_then(|len| doc_ids_offset.checked_add(len));
+        let doc_dir_end = u64::from(doc_count)
+            .checked_add(1)
+            .and_then(|count| count.checked_add(u64::from(value_count)))
+            .and_then(|count| count.checked_mul(4))
+            .and_then(|len| doc_dir_offset.checked_add(len));
+        if header_bytes as usize != EDGE_MEMBER_HEADER_BYTES
+            || offsets_end != Some(doc_ids_offset)
+            || doc_ids_end != Some(doc_dir_offset)
+            || doc_dir_end != Some(footer as u64)
+        {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                "invalid spatial edge directory; rebuild the spatial index",
+            ));
+        }
 
-        EdgeReader {
+        let starts = doc_dir_offset as usize;
+        let final_start = starts + doc_count as usize * 4;
+        if u32::from_le_bytes(data[starts..starts + 4].try_into().unwrap()) != 0
+            || u32::from_le_bytes(data[final_start..final_start + 4].try_into().unwrap())
+                != value_count
+        {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                "invalid spatial document directory; rebuild the spatial index",
+            ));
+        }
+
+        Ok(EdgeReader {
             data,
             geometry_count,
-            skip_interval,
-            dir_offset,
+            offsets_offset,
+            doc_ids_offset,
+            doc_count,
+            value_count,
+            doc_dir_offset,
             _surface: PhantomData,
-        }
-    }
-
-    /// The raw data slice backing this reader.
-    pub fn data(&self) -> &'a [u8] {
-        self.data
+        })
     }
 
     /// Total number of geometry entries in this segment.
@@ -126,45 +251,32 @@ impl<'a, S: Surface> EdgeReader<'a, S> {
         self.geometry_count
     }
 
-    /// Return the value head and document owning a member, without decoding vertices.
-    pub fn value_id(&self, position: u32) -> (u32, u32) {
-        let (head, _, doc_id) = self.find_head(position);
-        (head, doc_id)
+    /// Return the value heads owned by a document.
+    pub fn value_heads(&self, doc_id: u32) -> io::Result<ValueHeads<'a>> {
+        if doc_id >= self.doc_count {
+            return Ok(ValueHeads {
+                data: &self.data[..0],
+            });
+        }
+        let starts = self.doc_dir_offset as usize;
+        let start = self.read_u32(starts + doc_id as usize * 4) as usize;
+        let end = self.read_u32(starts + (doc_id as usize + 1) * 4) as usize;
+        if start > end || end > self.value_count as usize {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                "invalid spatial document range; rebuild the spatial index",
+            ));
+        }
+        let heads = starts + (self.doc_count as usize + 1) * 4;
+        Ok(ValueHeads {
+            data: &self.data[heads + start * 4..heads + end * 4],
+        })
     }
 
     /// Resolve a geometry position to its doc_id without decoding vertices.
     pub fn doc_id_for(&self, position: u32) -> u32 {
-        let mut skip_index = (position / self.skip_interval) as usize;
-
-        loop {
-            let dir_entry = self.dir_offset as usize + skip_index * 8;
-            let mut current =
-                u64::from_le_bytes(self.data[dir_entry..dir_entry + 8].try_into().unwrap());
-            let start_pos = skip_index as u32 * self.skip_interval;
-            let mut doc_id: Option<u32> = None;
-
-            for i in 0..=(position - start_pos) {
-                let h = self.read_header(current);
-                if h.is_head {
-                    doc_id = Some(u32::from_le_bytes(
-                        self.data[current as usize + 5..current as usize + 9]
-                            .try_into()
-                            .unwrap(),
-                    ));
-                }
-                if start_pos + i == position {
-                    if let Some(id) = doc_id {
-                        return id;
-                    }
-                    break;
-                }
-                let advance = if h.is_head { 9 } else { 5 } + h.data_len as u64;
-                current += advance;
-            }
-
-            assert!(skip_index > 0, "doc_id_for: no head found");
-            skip_index -= 1;
-        }
+        assert!(position < self.geometry_count);
+        self.read_u32(self.doc_ids_offset as usize + position as usize * 4)
     }
 
     /// Read the full geometry set containing the given position. Returns (head_position, set). No
@@ -172,193 +284,61 @@ impl<'a, S: Surface> EdgeReader<'a, S> {
     pub fn read_geometry_set(&self, position: u32) -> (u32, GeometrySet<S>) {
         assert!(position < self.geometry_count);
 
-        let (head_position, head_offset, doc_id) = self.find_head(position);
+        let entry = self.locate_entry(position);
+        let head_position = entry.head;
+        let doc_id = entry.doc_id;
+        let member_count = entry.member_count;
 
         let mut members: Vec<EdgeSet<S>> = Vec::new();
-        let mut cur = head_offset;
-        let mut pos = head_position;
-        loop {
-            let h = self.read_header(cur);
-            if h.is_head && !members.is_empty() {
-                break;
-            }
-            let data_start = if h.is_head { cur + 9 } else { cur + 5 };
-
-            let (hole_starts, vertex_start) = if h.has_holes {
-                self.decode_ring_boundaries(data_start as usize, h.data_len as usize)
-            } else {
-                (Vec::new(), data_start as usize)
-            };
-
-            let vertex_end = data_start as usize + h.data_len as usize;
-            let vertices = self.decode_vertices(&self.data[vertex_start..vertex_end]);
-
-            let mut offsets = vec![0usize];
-            for &hole_start in &hole_starts {
-                offsets.push(hole_start);
-            }
-            offsets.push(vertices.len());
-
-            members.push(EdgeSet {
-                kind: h.kind,
-                vertices,
-                closed: h.closed,
-                contains_hilbert_start: h.contains_hilbert_start,
-                ring_offsets: offsets,
-            });
-
-            cur = data_start + h.data_len as u64;
-            pos += 1;
-
-            if pos >= self.geometry_count {
-                break;
-            }
+        for pos in head_position..head_position + member_count {
+            members.push(self.locate_entry(pos).to_edge_set());
         }
 
         (head_position, GeometrySet { members, doc_id })
     }
 
-    /// Locate a geometry entry and return its header, doc_id, and the byte offset where
-    /// vertex data begins. Does not decode vertices.
-    pub fn locate_entry(&self, position: u32) -> LocatedEntry<'_, S> {
+    /// Locate a geometry member's header and coordinate bytes without decoding vertices.
+    pub fn locate_entry(&self, position: u32) -> LocatedEntry<'a, S> {
         assert!(position < self.geometry_count);
-        let (_, _, doc_id) = self.find_head(position);
-
-        // Walk from the skip list entry to the target position.
-        let skip_index = (position / self.skip_interval) as usize;
-        let dir_entry = self.dir_offset as usize + skip_index * 8;
-        let mut current =
-            u64::from_le_bytes(self.data[dir_entry..dir_entry + 8].try_into().unwrap());
-        let start_pos = skip_index as u32 * self.skip_interval;
-
-        for _ in 0..(position - start_pos) {
-            let h = self.read_header(current);
-            let advance = if h.is_head { 9 } else { 5 } + h.data_len as u64;
-            current += advance;
-        }
-
-        let h = self.read_header(current);
-        let data_start = if h.is_head {
-            current as usize + 9
-        } else {
-            current as usize + 5
-        };
-
-        let vertex_start = if h.has_holes {
-            self.skip_ring_boundaries(data_start, h.data_len as usize)
-        } else {
-            data_start
-        };
-
-        let vertex_end = data_start + h.data_len as usize;
-        let vertex_count = (vertex_end - vertex_start) / (S::DIMENSIONS * 8);
+        let offset_start = self.offsets_offset as usize + position as usize * 8;
+        let header_start = u64::from_le_bytes(
+            self.data[offset_start..offset_start + 8]
+                .try_into()
+                .unwrap(),
+        ) as usize;
+        let data_start = header_start + EDGE_MEMBER_HEADER_BYTES;
+        assert!(data_start <= self.offsets_offset as usize);
+        let head = self.read_u32(header_start);
+        let member_count = self.read_u32(header_start + 4);
+        let vertex_count = self.read_u32(header_start + 8) as usize;
+        let ring_count = self.read_u32(header_start + 12);
+        let flags = self.read_u32(header_start + 16);
+        let ring_bytes = ring_count.saturating_sub(1) as usize * 4;
+        let vertex_start = data_start + ring_bytes;
+        let vertex_end = vertex_start + vertex_count * S::DIMENSIONS * 8;
+        assert!(vertex_end <= self.offsets_offset as usize);
 
         LocatedEntry {
-            doc_id,
-            closed: h.closed,
+            doc_id: self.doc_id_for(position),
+            head,
+            member_count,
+            kind: if flags & 0x01 != 0 {
+                GeometryKind::Polygon
+            } else if flags & 0x04 != 0 {
+                GeometryKind::LineString
+            } else {
+                GeometryKind::Point
+            },
+            closed: flags & 0x01 != 0,
+            contains_hilbert_start: flags & 0x02 != 0,
+            ring_data: &self.data[data_start..vertex_start],
             vertex_data: &self.data[vertex_start..vertex_end],
             vertex_count,
             _surface: PhantomData,
         }
     }
 
-    fn find_head(&self, position: u32) -> (u32, u64, u32) {
-        let mut skip_index = (position / self.skip_interval) as usize;
-
-        loop {
-            let dir_entry = self.dir_offset as usize + skip_index * 8;
-            let mut current =
-                u64::from_le_bytes(self.data[dir_entry..dir_entry + 8].try_into().unwrap());
-            let start_pos = skip_index as u32 * self.skip_interval;
-
-            let mut head_position: Option<u32> = None;
-            let mut head_offset: Option<u64> = None;
-            let mut doc_id: Option<u32> = None;
-
-            let end = std::cmp::min(position + 1, self.geometry_count);
-            for i in 0..(end - start_pos) {
-                let h = self.read_header(current);
-                if h.is_head {
-                    head_position = Some(start_pos + i);
-                    head_offset = Some(current);
-                    doc_id = Some(u32::from_le_bytes(
-                        self.data[current as usize + 5..current as usize + 9]
-                            .try_into()
-                            .unwrap(),
-                    ));
-                }
-                let advance = if h.is_head { 9 } else { 5 } + h.data_len as u64;
-                current += advance;
-            }
-
-            if let (Some(hp), Some(ho), Some(id)) = (head_position, head_offset, doc_id) {
-                return (hp, ho, id);
-            }
-
-            assert!(skip_index > 0, "find_head: no head found");
-            skip_index -= 1;
-        }
-    }
-
-    fn read_header(&self, offset: u64) -> EntryHeader {
-        let o = offset as usize;
-        let flags = self.data[o];
-        let data_len = u32::from_le_bytes(self.data[o + 1..o + 5].try_into().unwrap());
-        EntryHeader {
-            kind: if flags & 0x01 != 0 {
-                GeometryKind::Polygon
-            } else if flags & 0x10 != 0 {
-                GeometryKind::LineString
-            } else {
-                GeometryKind::Point
-            },
-            data_len,
-            closed: flags & 0x01 != 0,
-            contains_hilbert_start: flags & 0x02 != 0,
-            has_holes: flags & 0x04 != 0,
-            is_head: flags & 0x08 != 0,
-        }
-    }
-
-    // Skip past ring boundary entries without allocating. Returns the byte offset where
-    // vertex data begins.
-    fn skip_ring_boundaries(&self, data_start: usize, data_len: usize) -> usize {
-        let data_end = data_start + data_len;
-        let mut pos = data_start;
-        loop {
-            assert!(pos + 4 <= data_end, "ring boundary overruns data section");
-            let entry = u32::from_le_bytes(self.data[pos..pos + 4].try_into().unwrap());
-            let continuation = entry & 0x80000000 != 0;
-            pos += 4;
-            if !continuation {
-                break;
-            }
-        }
-        pos
-    }
-
-    fn decode_ring_boundaries(&self, data_start: usize, data_len: usize) -> (Vec<usize>, usize) {
-        let mut hole_starts = Vec::new();
-        let mut pos = data_start;
-        let data_end = data_start + data_len;
-        loop {
-            assert!(pos + 4 <= data_end, "ring boundary overruns data section");
-            let entry = u32::from_le_bytes(self.data[pos..pos + 4].try_into().unwrap());
-            let vertex_index = (entry & 0x7FFFFFFF) as usize;
-            let continuation = entry & 0x80000000 != 0;
-            hole_starts.push(vertex_index);
-            pos += 4;
-            if !continuation {
-                break;
-            }
-        }
-        (hole_starts, pos)
-    }
-
-    fn decode_vertices(&self, data: &[u8]) -> Vec<S::Point> {
-        let vertex_size = S::DIMENSIONS * 8;
-        data.chunks_exact(vertex_size)
-            .map(|chunk| S::point_from_le_bytes(chunk))
-            .collect()
+    fn read_u32(&self, offset: usize) -> u32 {
+        u32::from_le_bytes(self.data[offset..offset + 4].try_into().unwrap())
     }
 }

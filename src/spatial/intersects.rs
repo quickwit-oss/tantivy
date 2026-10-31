@@ -12,9 +12,9 @@ use common::BitSet;
 
 use super::cell_index_reader::CellIndexReader;
 use super::covering::{covering_contains_center, covering_split, CoveringCell};
-use super::edge_cache::EdgeCache;
 use super::edge_crosser::EdgeCrosser;
 use super::edge_provider::EdgeProvider;
+use super::edge_resolver::EdgeResolver;
 use super::geometry_set::GeometrySet;
 use super::plane::query::PlaneQuery;
 use super::plane::Predicate;
@@ -71,20 +71,20 @@ impl<S: Surface> Intersects<S> {
         &self,
         reader: &'a CellIndexReader<'a>,
         terms_filter: Option<&BitSet>,
-        edge_cache: &mut EdgeCache<'a, S>,
+        edge_resolver: &mut EdgeResolver<'a, S>,
         max_doc: u32,
     ) -> BitSet {
         if let Some(plane) = &self.plane {
             return plane.search(
                 reader,
                 terms_filter,
-                edge_cache,
+                edge_resolver,
                 max_doc,
                 Predicate::Intersects,
                 false,
             );
         }
-        let geometry_count = edge_cache.geometry_count(0);
+        let geometry_count = edge_resolver.geometry_count(0);
         let mut seen = BitSet::with_max_value(geometry_count);
         let mut doc_ids = BitSet::with_max_value(max_doc);
         let mut containment_tested = BitSet::with_max_value(geometry_count);
@@ -93,21 +93,25 @@ impl<S: Surface> Intersects<S> {
         // first vertex already tells us whether each indexed polygon contains the cell center; the
         // cell's clipped edges tell us whether the query vertex is on the same side.
         for query_edge_set in &self.query_edges.set.members {
+            if query_edge_set.vertices.is_empty() {
+                continue;
+            }
             let query_vertex = &query_edge_set.vertices[0];
             let query_point_cell_id = S::cell_id_from_point(query_vertex);
             if let Some(qpc) = reader.find(query_point_cell_id) {
                 let cell_center = S::cell_center(qpc.cell_id);
                 for shape in &qpc.shapes {
                     let gid = shape.geometry_id.1;
-                    let located = edge_cache.locate(shape.geometry_id);
-                    if !located.closed {
-                        continue;
-                    }
+                    let doc_id = edge_resolver.doc_id_for(shape.geometry_id);
                     if let Some(filter) = terms_filter {
-                        if !filter.contains(located.doc_id) {
+                        if !filter.contains(doc_id) {
                             seen.insert(gid);
                             continue;
                         }
+                    }
+                    let located = edge_resolver.locate(shape.geometry_id);
+                    if !located.closed {
+                        continue;
                     }
                     let mut inside = shape.contains_center;
                     if !shape.edge_indices.is_empty() {
@@ -182,7 +186,7 @@ impl<S: Surface> Intersects<S> {
                                 continue;
                             }
                             seen.insert(gid);
-                            let doc_id = edge_cache.doc_id_for(clipped.geometry_id);
+                            let doc_id = edge_resolver.doc_id_for(clipped.geometry_id);
                             if let Some(filter) = terms_filter {
                                 if !filter.contains(doc_id) {
                                     continue;
@@ -223,7 +227,7 @@ impl<S: Surface> Intersects<S> {
                             continue;
                         }
 
-                        let doc_id = edge_cache.doc_id_for(clipped.geometry_id);
+                        let doc_id = edge_resolver.doc_id_for(clipped.geometry_id);
                         if let Some(filter) = terms_filter {
                             if !filter.contains(doc_id) {
                                 seen.insert(gid);
@@ -234,7 +238,7 @@ impl<S: Surface> Intersects<S> {
                         if !containment_tested.contains(gid) {
                             containment_tested.insert(gid);
 
-                            let located = edge_cache.locate(clipped.geometry_id);
+                            let located = edge_resolver.locate(clipped.geometry_id);
                             let first_vertex = located.vertex(0);
                             if self.contains_point(&first_vertex) {
                                 seen.insert(gid);
@@ -244,7 +248,7 @@ impl<S: Surface> Intersects<S> {
                         }
 
                         if !clipped.edge_indices.is_empty() && !entry.query_edges.is_empty() {
-                            let located = edge_cache.locate(clipped.geometry_id);
+                            let located = edge_resolver.locate(clipped.geometry_id);
                             if located.vertex_count >= 2 {
                                 let crossed = 'crossing: {
                                     for &candidate_edge_idx in &clipped.edge_indices {

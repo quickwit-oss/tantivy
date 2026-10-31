@@ -4,22 +4,35 @@ use super::sphere::ORIGIN;
 
 /// A version of contains that does not use the shape index.
 pub fn brute_force_contains(p: &[f64; 3], vertices: &[[f64; 3]], origin_inside: bool) -> bool {
+    brute_force_contains_source(p, vertices.len(), |index| vertices[index], origin_inside)
+}
+
+/// A version of contains over indexed vertex access.
+pub fn brute_force_contains_source<F>(
+    p: &[f64; 3],
+    len: usize,
+    vertex: F,
+    origin_inside: bool,
+) -> bool
+where
+    F: Fn(usize) -> [f64; 3],
+{
     // Handle degenerate cases
-    let n = vertices.len();
-    if n < 3 {
+    if len < 3 {
         return origin_inside;
     }
 
     let origin = ORIGIN;
     let mut crosser = S2EdgeCrosser::new(&origin, p);
-    crosser.restart_at(&vertices[0]);
+    let first = vertex(0);
+    crosser.restart_at(&first);
 
     let mut inside = origin_inside;
 
     // Test each edge of the loop
-    for i in 1..=n {
-        let vertex = &vertices[i % n];
-        inside ^= crosser.edge_or_vertex_crossing(vertex);
+    for index in 1..=len {
+        let next = vertex(index % len);
+        inside ^= crosser.edge_or_vertex_crossing(&next);
     }
 
     inside
@@ -28,17 +41,25 @@ pub fn brute_force_contains(p: &[f64; 3], vertices: &[[f64; 3]], origin_inside: 
 /// Computes whether the reference origin is inside a loop. Compares angle containment at vertex 1
 /// with brute force result to determine the answer.
 pub fn compute_origin_inside(vertices: &[[f64; 3]]) -> bool {
-    let n = vertices.len();
-    if n < 3 {
+    compute_origin_inside_source(vertices.len(), |index| vertices[index])
+}
+
+/// Computes origin containment over indexed vertex access.
+pub fn compute_origin_inside_source<F>(len: usize, vertex: F) -> bool
+where F: Fn(usize) -> [f64; 3] {
+    if len < 3 {
         return false;
     }
 
     // Check if vertex(1) is inside the angle formed by edges 0->1 and 1->2
     // This is true by CCW convention for non-degenerate loops
-    let v1_inside = angle_contains_vertex(&vertices[0], &vertices[1], &vertices[2]);
+    let v0 = vertex(0);
+    let v1 = vertex(1);
+    let v2 = vertex(2);
+    let v1_inside = angle_contains_vertex(&v0, &v1, &v2);
 
     // Compute containment of v1 assuming origin_inside is false
-    let contains_v1 = brute_force_contains(&vertices[1], vertices, false);
+    let contains_v1 = brute_force_contains_source(&v1, len, vertex, false);
 
     // If the results disagree, Origin must be inside
     v1_inside != contains_v1

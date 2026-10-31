@@ -73,6 +73,11 @@ impl Surface for Plane {
         false
     }
 
+    fn origin_inside_source<F>(_len: usize, _vertex: F) -> bool
+    where F: Fn(usize) -> Self::Point {
+        false
+    }
+
     const CELL_PADDING: f64 = 0.0;
 
     const EXACT_SUPPORT: bool = true;
@@ -145,6 +150,18 @@ impl Surface for Plane {
     #[inline]
     fn contains_point(point: &Self::Point, ring: &[Self::Point], _origin_inside: bool) -> bool {
         math::point_in_polygon(point, ring)
+    }
+
+    fn contains_point_source<F>(
+        point: &Self::Point,
+        len: usize,
+        vertex: F,
+        _origin_inside: bool,
+    ) -> bool
+    where
+        F: Fn(usize) -> Self::Point,
+    {
+        math::point_in_polygon_source(point, len, vertex)
     }
 }
 

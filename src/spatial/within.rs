@@ -6,9 +6,9 @@ use common::BitSet;
 
 use super::cell_index_reader::CellIndexReader;
 use super::covering::{covering_contains_center, covering_split, CoveringCell};
-use super::edge_cache::EdgeCache;
 use super::edge_crosser::EdgeCrosser;
 use super::edge_provider::EdgeProvider;
+use super::edge_resolver::EdgeResolver;
 use super::geometry_set::GeometrySet;
 use super::plane::query::PlaneQuery;
 use super::plane::Predicate;
@@ -44,7 +44,12 @@ impl<S: Surface> Within<S> {
                 polygons: Vec::new(),
             };
         }
-        let mut members: Vec<_> = set.members.into_iter().enumerate().collect();
+        let mut members: Vec<_> = set
+            .members
+            .into_iter()
+            .enumerate()
+            .filter(|(_, member)| !member.vertices.is_empty())
+            .collect();
         members.sort_by(|a, b| b.1.vertices.len().cmp(&a.1.vertices.len()));
 
         let mut polygons = Vec::with_capacity(members.len());
@@ -70,27 +75,27 @@ impl<S: Surface> Within<S> {
         &'a self,
         reader: &'a CellIndexReader<'a>,
         terms_filter: Option<&'a BitSet>,
-        edge_cache: &mut EdgeCache<'a, S>,
+        edge_resolver: &mut EdgeResolver<'a, S>,
         max_doc: u32,
     ) -> BitSet {
         if let Some(plane) = &self.plane {
             return plane.search(
                 reader,
                 terms_filter,
-                edge_cache,
+                edge_resolver,
                 max_doc,
                 Predicate::CoveredBy,
                 false,
             );
         }
-        let geometry_count = edge_cache.geometry_count(0);
+        let geometry_count = edge_resolver.geometry_count(0);
         let included: Vec<BitSet> = (0..self.polygons.len())
             .map(|_| BitSet::with_max_value(geometry_count))
             .collect();
         let mut search = WithinSearch {
             polygons: &self.polygons,
             reader,
-            edge_cache,
+            edge_resolver,
             terms_filter,
             doc_ids: BitSet::with_max_value(max_doc),
             excluded: BitSet::with_max_value(geometry_count),
@@ -109,7 +114,7 @@ impl<S: Surface> Within<S> {
 struct WithinSearch<'a, 'b, S: Surface> {
     polygons: &'a [QueryPolygon<S>],
     reader: &'a CellIndexReader<'a>,
-    edge_cache: &'b mut EdgeCache<'a, S>,
+    edge_resolver: &'b mut EdgeResolver<'a, S>,
     terms_filter: Option<&'a BitSet>,
     doc_ids: BitSet,
     excluded: BitSet,
@@ -118,10 +123,10 @@ struct WithinSearch<'a, 'b, S: Surface> {
 
 impl<'a, 'b, S: Surface> WithinSearch<'a, 'b, S> {
     fn exclude_set(&mut self, geometry_id: (u16, u32)) {
-        let entry = self.edge_cache.get(geometry_id);
-        let doc_id = entry.doc_id();
-        let head = entry.head();
-        let count = entry.member_count();
+        let entry = self.edge_resolver.locate(geometry_id);
+        let doc_id = entry.doc_id;
+        let head = entry.head;
+        let count = entry.member_count;
         for i in 0..count {
             self.excluded.insert(head + i);
         }
@@ -132,10 +137,10 @@ impl<'a, 'b, S: Surface> WithinSearch<'a, 'b, S> {
     // just insert the doc_id. For multi-member sets, dispatch each sibling to a query polygon via
     // first-vertex containment.
     fn include_candidate(&mut self, geometry_id: (u16, u32), poly_idx: usize) {
-        let entry = self.edge_cache.get(geometry_id);
-        let doc_id = entry.doc_id();
-        let head = entry.head();
-        let count = entry.member_count();
+        let entry = self.edge_resolver.locate(geometry_id);
+        let doc_id = entry.doc_id;
+        let head = entry.head;
+        let count = entry.member_count;
 
         self.included[poly_idx].insert(geometry_id.1);
         self.doc_ids.insert(doc_id);
@@ -164,7 +169,12 @@ impl<'a, 'b, S: Surface> WithinSearch<'a, 'b, S> {
                 if pi < poly_idx {
                     continue;
                 }
-                let located = self.edge_cache.locate(sibling_id);
+                let located = self.edge_resolver.locate(sibling_id);
+                if located.vertex_count() == 0 {
+                    // An empty member contributes no uncovered points.
+                    included = true;
+                    break;
+                }
                 let first_vertex = located.vertex(0);
                 if index_contains_point::<S, QueryEdgeProvider<S>>(
                     &self.polygons[pi].index,
@@ -187,7 +197,7 @@ impl<'a, 'b, S: Surface> WithinSearch<'a, 'b, S> {
 
     fn search_polygon(&mut self, poly_idx: usize) {
         let polygon = &self.polygons[poly_idx];
-        let geometry_count = self.edge_cache.geometry_count(0);
+        let geometry_count = self.edge_resolver.geometry_count(0);
         let mut containment_tested = BitSet::with_max_value(geometry_count);
 
         let mut heap = BinaryHeap::new();
@@ -243,7 +253,7 @@ impl<'a, 'b, S: Surface> WithinSearch<'a, 'b, S> {
                         if self.excluded.contains(gid) || self.included[poly_idx].contains(gid) {
                             continue;
                         }
-                        let doc_id = self.edge_cache.doc_id_for(clipped.geometry_id);
+                        let doc_id = self.edge_resolver.doc_id_for(clipped.geometry_id);
                         if let Some(filter) = self.terms_filter {
                             if !filter.contains(doc_id) {
                                 continue;
@@ -285,7 +295,7 @@ impl<'a, 'b, S: Surface> WithinSearch<'a, 'b, S> {
                             continue;
                         }
 
-                        let doc_id = self.edge_cache.doc_id_for(clipped.geometry_id);
+                        let doc_id = self.edge_resolver.doc_id_for(clipped.geometry_id);
                         if let Some(filter) = self.terms_filter {
                             if !filter.contains(doc_id) {
                                 continue;
@@ -296,7 +306,7 @@ impl<'a, 'b, S: Surface> WithinSearch<'a, 'b, S> {
                             && !containment_tested.contains(gid)
                         {
                             containment_tested.insert(gid);
-                            let located = self.edge_cache.locate(clipped.geometry_id);
+                            let located = self.edge_resolver.locate(clipped.geometry_id);
                             let first_vertex = located.vertex(0);
                             if index_contains_point::<S, QueryEdgeProvider<S>>(
                                 &polygon.index,
@@ -312,7 +322,7 @@ impl<'a, 'b, S: Surface> WithinSearch<'a, 'b, S> {
                         }
 
                         if !entry.query_edges.is_empty() {
-                            let located = self.edge_cache.locate(clipped.geometry_id);
+                            let located = self.edge_resolver.locate(clipped.geometry_id);
                             if located.vertex_count >= 2 {
                                 let crossed = 'crossing: {
                                     for &candidate_edge_idx in &clipped.edge_indices {

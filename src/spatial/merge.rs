@@ -3,7 +3,7 @@
 //! emits `ShapeCell`s, collapsing groups with more than one cell.
 
 use super::crossings::S2EdgeCrosser;
-use super::edge_cache::EdgeCache;
+use super::edge_resolver::EdgeResolver;
 use super::s2cell_id::S2CellId;
 use super::s2padded_cell::S2PaddedCell;
 use super::sphere::Sphere;
@@ -21,7 +21,7 @@ struct CollapseEntry {
 fn merge_siblings(
     parent_id: S2CellId,
     cells: &[ShapeCell],
-    edge_cache: &EdgeCache<'_, Sphere>,
+    edge_resolver: &EdgeResolver<'_, Sphere>,
 ) -> ShapeCell {
     let parent_pcell = S2PaddedCell::<Sphere>::new(parent_id, CELL_PADDING);
     let parent_center = parent_pcell.get_center();
@@ -62,7 +62,7 @@ fn merge_siblings(
             continue;
         }
 
-        let entry_geo = edge_cache.get(entry.geometry_id);
+        let entry_geo = edge_resolver.locate(entry.geometry_id);
 
         let mut crosser = S2EdgeCrosser::new(&entry.anchor_center, &parent_center);
         let mut crossings = 0u32;
@@ -86,15 +86,15 @@ fn merge_siblings(
 /// with more than one cell are collapsed into a parent. Single-cell groups pass through.
 pub struct CellIndexMerge<'a, I: Iterator<Item = (S2CellId, Vec<ShapeCell>)>> {
     inner: I,
-    edge_cache: &'a EdgeCache<'a, Sphere>,
+    edge_resolver: &'a EdgeResolver<'a, Sphere>,
 }
 
 impl<'a, I: Iterator<Item = (S2CellId, Vec<ShapeCell>)>> CellIndexMerge<'a, I> {
-    /// Creates a merge from source cell index iterators and a shared edge cache.
-    pub fn new(iter: I, edge_cache: &'a EdgeCache<'a, Sphere>) -> Self {
+    /// Creates a merge from source cell index iterators and a shared edge resolver.
+    pub fn new(iter: I, edge_resolver: &'a EdgeResolver<'a, Sphere>) -> Self {
         CellIndexMerge {
             inner: iter,
-            edge_cache,
+            edge_resolver,
         }
     }
 
@@ -113,7 +113,7 @@ impl<'a, I: Iterator<Item = (S2CellId, Vec<ShapeCell>)>> Iterator for CellIndexM
         if cells.len() == 1 {
             Some(cells.remove(0))
         } else {
-            Some(merge_siblings(parent_id, &cells, self.edge_cache))
+            Some(merge_siblings(parent_id, &cells, self.edge_resolver))
         }
     }
 }

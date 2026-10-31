@@ -29,6 +29,13 @@ pub trait Surface {
     /// Whether the interior of a closed ring contains the surface's reference origin.
     fn origin_inside(ring: &[Self::Point]) -> bool;
 
+    /// Whether the reference origin is inside a ring supplied by indexed access.
+    fn origin_inside_source<F>(len: usize, vertex: F) -> bool
+    where F: Fn(usize) -> Self::Point {
+        let ring: Vec<_> = (0..len).map(vertex).collect();
+        Self::origin_inside(&ring)
+    }
+
     /// The Hilbert curve start point on this surface. Face 0, UV (-1, -1).
     fn hilbert_start() -> Self::Point;
 
@@ -111,6 +118,20 @@ pub trait Surface {
 
     /// Whether the point is inside the closed ring.
     fn contains_point(point: &Self::Point, ring: &[Self::Point], origin_inside: bool) -> bool;
+
+    /// Whether a point is inside a ring supplied by indexed access.
+    fn contains_point_source<F>(
+        point: &Self::Point,
+        len: usize,
+        vertex: F,
+        origin_inside: bool,
+    ) -> bool
+    where
+        F: Fn(usize) -> Self::Point,
+    {
+        let ring: Vec<_> = (0..len).map(vertex).collect();
+        Self::contains_point(point, &ring, origin_inside)
+    }
 }
 
 /// The nominal face UV rectangle of a cell, without padding.

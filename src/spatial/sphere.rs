@@ -2,7 +2,10 @@
 
 use std::sync::LazyLock;
 
-use crate::spatial::containment::{brute_force_contains, compute_origin_inside};
+use crate::spatial::containment::{
+    brute_force_contains, brute_force_contains_source, compute_origin_inside,
+    compute_origin_inside_source,
+};
 use crate::spatial::crossings::S2EdgeCrosser;
 use crate::spatial::math::normalize;
 use crate::spatial::s2cell_id::S2CellId;
@@ -78,6 +81,11 @@ impl Surface for Sphere {
         compute_origin_inside(ring)
     }
 
+    fn origin_inside_source<F>(len: usize, vertex: F) -> bool
+    where F: Fn(usize) -> Self::Point {
+        compute_origin_inside_source(len, vertex)
+    }
+
     const CELL_PADDING: f64 = crate::spatial::clipper::CELL_PADDING;
 
     const FACE_COUNT: i32 = 6;
@@ -128,5 +136,17 @@ impl Surface for Sphere {
     #[inline]
     fn contains_point(point: &Self::Point, ring: &[Self::Point], origin_inside: bool) -> bool {
         brute_force_contains(point, ring, origin_inside)
+    }
+
+    fn contains_point_source<F>(
+        point: &Self::Point,
+        len: usize,
+        vertex: F,
+        origin_inside: bool,
+    ) -> bool
+    where
+        F: Fn(usize) -> Self::Point,
+    {
+        brute_force_contains_source(point, len, vertex, origin_inside)
     }
 }

@@ -20,8 +20,8 @@ use crate::spatial::clip_options::ClipOptions;
 use crate::spatial::clipper::Clipper;
 use crate::spatial::contains::Contains;
 use crate::spatial::distance::Distance;
-use crate::spatial::edge_cache::EdgeCache;
 use crate::spatial::edge_reader::EdgeReader;
+use crate::spatial::edge_resolver::EdgeResolver;
 use crate::spatial::edge_writer::EdgeWriter;
 use crate::spatial::executor::SpatialRelation;
 use crate::spatial::geometry::Geometry;
@@ -36,10 +36,6 @@ use crate::spatial::sphere::Sphere;
 use crate::spatial::surface::Surface;
 use crate::spatial::within::Within;
 use crate::DocId;
-
-/// Default skip interval for the edge index skip list directory.
-const EDGE_SKIP_INTERVAL: u32 = 16;
-const MERGE_EDGE_CACHE_MAX_VERTICES: usize = 4_000_000;
 
 /// Source segment data for a spatial merge.
 pub struct MergeSource<'a> {
@@ -84,8 +80,8 @@ pub trait SpatialIndex: Send + Sync + SpatialIndexClone {
         ))
     }
 
-    /// Identify the value and document owning a stored member.
-    fn value_id(&self, _edges: &[u8], _position: u32) -> crate::Result<(u32, u32)> {
+    /// Enumerate stored value heads owned by a document.
+    fn value_heads(&self, _edges: &[u8], _doc_id: u32, _heads: &mut Vec<u32>) -> crate::Result<()> {
         Err(crate::TantivyError::InvalidArgument(
             "Stored-value joins are not supported by this spatial index".into(),
         ))
@@ -234,16 +230,16 @@ impl<S: Surface + Send + Sync + Clone + 'static> SpatialIndex for SurfaceIndex<S
 
         for source in sources {
             let cr = CellIndexReader::open(source.cells_bytes)?;
-            let er = EdgeReader::<S>::open(source.edges_bytes);
+            let er = EdgeReader::<S>::open(source.edges_bytes)?;
             geometry_counts.push(er.geometry_count());
             cell_readers.push(cr);
             edge_readers.push(er);
             segment_names.push(source.segment_name.clone());
         }
 
-        let edge_cache = EdgeCache::new(edge_readers, MERGE_EDGE_CACHE_MAX_VERTICES);
+        let edge_resolver = EdgeResolver::new(edge_readers);
         let iters = cell_readers.iter().map(|cr| cr.iter()).collect();
-        let mut interleave = Interleaver::new(iters, &edge_cache, alive_bitsets, segment_names);
+        let mut interleave = Interleaver::new(iters, &edge_resolver, alive_bitsets, segment_names);
 
         const NOT_ASSIGNED: u32 = u32::MAX;
         let mut old_to_new: Vec<Vec<u32>> = geometry_counts
@@ -252,7 +248,7 @@ impl<S: Surface + Send + Sync + Clone + 'static> SpatialIndex for SurfaceIndex<S
             .collect();
         let mut next_new_id: u32 = 0;
 
-        let mut edge_writer = EdgeWriter::<S>::new(edges_write, EDGE_SKIP_INTERVAL);
+        let mut edge_writer = EdgeWriter::<S>::new(edges_write);
         let cells_base = cells_write.written_bytes();
         let doc_ids_base = doc_ids_write.written_bytes();
         let mut offsets: Vec<(u64, u64, u64)> = Vec::new();
@@ -266,18 +262,18 @@ impl<S: Surface + Send + Sync + Clone + 'static> SpatialIndex for SurfaceIndex<S
                 if old_to_new[segment][position] != NOT_ASSIGNED {
                     continue;
                 }
-                let entry = edge_cache.get(shape.geometry_id);
-                let set_size = entry.member_count();
+                let entry = edge_resolver.locate(shape.geometry_id);
+                let set_size = entry.member_count;
                 for i in 0..set_size {
-                    let pos = (entry.head() + i) as usize;
+                    let pos = (entry.head + i) as usize;
                     if old_to_new[segment][pos] == NOT_ASSIGNED {
                         old_to_new[segment][pos] = next_new_id;
                         next_new_id += 1;
                     }
                 }
-                let old_doc_id = entry.doc_id();
+                let old_doc_id = entry.doc_id;
                 let new_doc_id = doc_id_inverse[segment][old_doc_id as usize].unwrap();
-                let mut set = entry.geometry_set().clone();
+                let (_, mut set) = edge_resolver.read_geometry_set(shape.geometry_id);
                 set.doc_id = new_doc_id as u32;
                 edge_writer.insert(&set);
             }
@@ -306,7 +302,7 @@ impl<S: Surface + Send + Sync + Clone + 'static> SpatialIndex for SurfaceIndex<S
                     cells_write.write_all(&edge_id.to_le_bytes()).unwrap();
                 }
 
-                let old_doc_id = edge_cache.doc_id_for(shape.geometry_id);
+                let old_doc_id = edge_resolver.doc_id_for(shape.geometry_id);
                 let new_doc_id = doc_id_inverse[segment][old_doc_id as usize].unwrap();
                 doc_ids_write
                     .write_all(&(new_doc_id as u32).to_le_bytes())
@@ -397,8 +393,9 @@ impl<S: Surface + Send + Sync + Clone + 'static> SpatialIndex for SurfaceIndex<S
         ))))
     }
 
-    fn value_id(&self, edges: &[u8], position: u32) -> crate::Result<(u32, u32)> {
-        Ok(EdgeReader::<S>::open(edges).value_id(position))
+    fn value_heads(&self, edges: &[u8], doc_id: u32, heads: &mut Vec<u32>) -> crate::Result<()> {
+        heads.extend(EdgeReader::<S>::open(edges)?.value_heads(doc_id)?);
+        Ok(())
     }
 
     fn prepare_join_query(
@@ -408,7 +405,7 @@ impl<S: Surface + Send + Sync + Clone + 'static> SpatialIndex for SurfaceIndex<S
         relation: &SpatialRelation,
     ) -> crate::Result<Box<dyn PreparedSpatialQuery>> {
         self.validate_join(relation)?;
-        let (_, set) = EdgeReader::<S>::open(edges).read_geometry_set(head);
+        let (_, set) = EdgeReader::<S>::open(edges)?.read_geometry_set(head);
         let options = CovererOptions::default();
         let query = match relation {
             SpatialRelation::Intersects if S::DIMENSIONS == 2 => PreparedQuery::Plane(
@@ -486,15 +483,20 @@ impl<S: Surface> PreparedQuery<S> {
         filter: Option<&BitSet>,
     ) -> io::Result<BitSet> {
         let reader = CellIndexReader::open_with_doc_ids(cells, doc_ids)?;
-        let mut cache = EdgeCache::new(vec![EdgeReader::<S>::open(edges)], 100_000);
+        let mut edge_resolver = EdgeResolver::new(vec![EdgeReader::<S>::open(edges)?]);
         Ok(match self {
-            Self::Intersects(query) => query.search(&reader, filter, &mut cache, max_doc),
-            Self::Contains(query) => query.search(&reader, filter, &mut cache, max_doc),
-            Self::Within(query) => query.search(&reader, filter, &mut cache, max_doc),
-            Self::Distance(query) => query.search(&reader, filter, &mut cache, max_doc),
-            Self::Plane(query, predicate, first_only) => {
-                query.search(&reader, filter, &cache, max_doc, *predicate, *first_only)
-            }
+            Self::Intersects(query) => query.search(&reader, filter, &mut edge_resolver, max_doc),
+            Self::Contains(query) => query.search(&reader, filter, &mut edge_resolver, max_doc),
+            Self::Within(query) => query.search(&reader, filter, &mut edge_resolver, max_doc),
+            Self::Distance(query) => query.search(&reader, filter, &mut edge_resolver, max_doc),
+            Self::Plane(query, predicate, first_only) => query.search(
+                &reader,
+                filter,
+                &edge_resolver,
+                max_doc,
+                *predicate,
+                *first_only,
+            ),
         })
     }
 }
@@ -574,7 +576,7 @@ impl<S: Surface + Send + 'static> SpatialFieldWriter for SurfaceFieldWriter<S> {
         cell_index.write(cells_write);
         cells_write.flush()?;
 
-        let mut edge_writer = EdgeWriter::<S>::new(edges_write, EDGE_SKIP_INTERVAL);
+        let mut edge_writer = EdgeWriter::<S>::new(edges_write);
         for set in &sets {
             edge_writer.insert(set);
         }

@@ -174,7 +174,7 @@ fn test_spatial_document_mappings_and_merge() -> crate::Result<()> {
             .spatial_fields()
             .get_field(geometry)?
             .unwrap();
-        let edges = EdgeReader::<Sphere>::open(field.edges_bytes());
+        let edges = EdgeReader::<Sphere>::open(field.edges_bytes())?;
         assert_eq!(
             (0..edges.geometry_count())
                 .map(|position| edges.doc_id_for(position))

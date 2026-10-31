@@ -63,7 +63,7 @@ impl Fixture {
         let set = to_geometry_set(&geometry.project::<Sphere>(), 0);
         // Read complete geometries without consulting the cell index. This checks traversal
         // and document IDs. The distance calculation itself is shared with the query.
-        let reader = EdgeReader::<Sphere>::open(&self.edges);
+        let reader = EdgeReader::<Sphere>::open(&self.edges).unwrap();
         let mut actual = Vec::new();
         let mut pos = 0;
         while pos < reader.geometry_count() {
@@ -94,7 +94,8 @@ impl Fixture {
         }
         let mut query = Distance::new(set, meters / EARTH_RADIUS, CovererOptions::default());
         let reader = CellIndexReader::open_with_doc_ids(&self.cells, &self.doc_ids).unwrap();
-        let mut cache = EdgeCache::new(vec![EdgeReader::<Sphere>::open(&self.edges)], 100_000);
+        let mut resolver =
+            EdgeResolver::new(vec![EdgeReader::<Sphere>::open(&self.edges).unwrap()]);
         let mut filter = BitSet::with_max_value(self.max_doc);
         for doc in 0..self.max_doc {
             filter.insert(doc);
@@ -102,7 +103,7 @@ impl Fixture {
         for first_only in [false, true] {
             query.first_only = first_only;
             for terms_filter in [None, Some(&filter)] {
-                let hits = query.search(&reader, terms_filter, &mut cache, self.max_doc);
+                let hits = query.search(&reader, terms_filter, &mut resolver, self.max_doc);
                 assert_eq!(
                     hits.len(),
                     if first_only {
@@ -124,7 +125,7 @@ impl Fixture {
         }
         assert_eq!(
             query
-                .search(&reader, Some(&filter), &mut cache, self.max_doc)
+                .search(&reader, Some(&filter), &mut resolver, self.max_doc)
                 .len(),
             0
         );
@@ -191,10 +192,10 @@ fn check_query_inside_candidate(query: &Geometry<Plane>, contained_member: usize
     let set = to_geometry_set(&query.project::<Sphere>(), 0);
     let vertex = &set.members[contained_member].vertices[0];
     let reader = CellIndexReader::open_with_doc_ids(&fixture.cells, &fixture.doc_ids).unwrap();
-    let mut cache = EdgeCache::new(vec![EdgeReader::<Sphere>::open(&fixture.edges)], 100_000);
+    let mut resolver = EdgeResolver::new(vec![EdgeReader::<Sphere>::open(&fixture.edges).unwrap()]);
     let cell = reader.find(Sphere::cell_id_from_point(vertex)).unwrap();
     let shape = cell.find_shape((0, 0)).unwrap();
-    let candidate = cache.locate(shape.geometry_id);
+    let candidate = resolver.locate(shape.geometry_id);
     assert_eq!(candidate.doc_id, 0);
     assert!(candidate.closed);
     assert!(!shape.contains_center);
@@ -214,13 +215,12 @@ fn check_query_inside_candidate(query: &Geometry<Plane>, contained_member: usize
 
     // Neither edge crossings nor an indexed vertex inside the query can supply the hit.
     for gid in 0..2 {
-        let indexed = cache.get((0, gid));
-        let indexed = indexed.edge_set();
-        assert!(!inside(&center, indexed));
+        let indexed = resolver.locate((0, gid)).to_edge_set();
+        assert!(!inside(&center, &indexed));
         for (member_id, member) in set.members.iter().enumerate() {
             for vertex in &member.vertices {
                 assert_eq!(
-                    inside(vertex, indexed),
+                    inside(vertex, &indexed),
                     gid == 0 && member_id == contained_member,
                     "query member {member_id}, indexed geometry {gid}"
                 );
@@ -229,7 +229,7 @@ fn check_query_inside_candidate(query: &Geometry<Plane>, contained_member: usize
                 .vertices
                 .iter()
                 .all(|vertex| !inside(vertex, member)));
-            for (a, b) in member_edges(indexed) {
+            for (a, b) in member_edges(&indexed) {
                 let mut crosser = S2EdgeCrosser::new(&a, &b);
                 for (c, d) in member_edges(member) {
                     assert_eq!(crosser.crossing_sign_two(&c, &d), -1);
@@ -239,7 +239,7 @@ fn check_query_inside_candidate(query: &Geometry<Plane>, contained_member: usize
     }
 
     let intersects = Intersects::new(set, CovererOptions::default());
-    let hits = intersects.search(&reader, None, &mut cache, fixture.max_doc);
+    let hits = intersects.search(&reader, None, &mut resolver, fixture.max_doc);
     assert_eq!(hits.len(), 1);
     assert!(hits.contains(0));
     fixture.check(query, 0.0, &[0]);
@@ -456,7 +456,8 @@ fn test_computed_distance_threshold_is_inclusive() {
         let distance = full_distance(&set, &to_geometry_set(&candidate.project::<Sphere>(), 0));
         let mut query = Distance::new(set, meters / EARTH_RADIUS, CovererOptions::default());
         let reader = CellIndexReader::open(&fixture.cells).unwrap();
-        let mut cache = EdgeCache::new(vec![EdgeReader::<Sphere>::open(&fixture.edges)], 100_000);
+        let mut resolver =
+            EdgeResolver::new(vec![EdgeReader::<Sphere>::open(&fixture.edges).unwrap()]);
         // Set the chord threshold directly so conversion to radians and back cannot change it.
         // The boundary search still includes its rounding allowance around this distance.
         for (limit, expected) in [
@@ -472,7 +473,7 @@ fn test_computed_distance_threshold_is_inclusive() {
                 query.first_only = first_only;
                 assert_eq!(
                     query
-                        .search(&reader, None, &mut cache, fixture.max_doc)
+                        .search(&reader, None, &mut resolver, fixture.max_doc)
                         .len(),
                     expected
                 );

@@ -6,8 +6,8 @@ use crate::spatial::cell_index_reader::CellIndexReader;
 use crate::spatial::clip_options::ClipOptions;
 use crate::spatial::clipper::Clipper;
 use crate::spatial::contains::Contains;
-use crate::spatial::edge_cache::EdgeCache;
 use crate::spatial::edge_reader::EdgeReader;
+use crate::spatial::edge_resolver::EdgeResolver;
 use crate::spatial::geometry::Geometry;
 use crate::spatial::geometry_set::to_geometry_set;
 use crate::spatial::intersects::Intersects;
@@ -116,7 +116,7 @@ impl Fixture {
             max_doc: segment.max_doc(),
         };
         let cells = fixture.reader();
-        let cache = fixture.cache::<S>();
+        let resolver = fixture.resolver::<S>();
         // Establish the stored center states independently before checking query descent.
         for pos in 0..cells.cell_count() {
             let cell = cells.cell_at(pos);
@@ -124,7 +124,8 @@ impl Fixture {
             for (doc, ring) in rings.iter().enumerate() {
                 if let Some(expected) = convex_contains(ring, [u, v]) {
                     let actual = cell.shapes.iter().any(|shape| {
-                        cache.doc_id_for(shape.geometry_id) == doc as u32 && shape.contains_center
+                        resolver.doc_id_for(shape.geometry_id) == doc as u32
+                            && shape.contains_center
                     });
                     assert_eq!(
                         actual, expected,
@@ -149,8 +150,8 @@ impl Fixture {
         CellIndexReader::open(&self.cells).unwrap()
     }
 
-    fn cache<S: Surface>(&self) -> EdgeCache<'_, S> {
-        EdgeCache::new(vec![EdgeReader::<S>::open(&self.edges)], 100_000)
+    fn resolver<S: Surface>(&self) -> EdgeResolver<'_, S> {
+        EdgeResolver::new(vec![EdgeReader::<S>::open(&self.edges).unwrap()])
     }
 }
 
@@ -185,9 +186,18 @@ fn check_aligned_queries<S: Surface + Clone>() {
                 let mut filter = BitSet::with_max_value(fixture.max_doc);
                 filter.insert(1);
                 let filter = if exclude { Some(&filter) } else { None };
-                let a =
-                    intersects.search(&cells, filter, &mut fixture.cache::<S>(), fixture.max_doc);
-                let b = within.search(&cells, filter, &mut fixture.cache::<S>(), fixture.max_doc);
+                let a = intersects.search(
+                    &cells,
+                    filter,
+                    &mut fixture.resolver::<S>(),
+                    fixture.max_doc,
+                );
+                let b = within.search(
+                    &cells,
+                    filter,
+                    &mut fixture.resolver::<S>(),
+                    fixture.max_doc,
+                );
                 for hits in [a, b] {
                     let actual: Vec<_> = (0..fixture.max_doc)
                         .filter(|&doc| hits.contains(doc))
@@ -222,8 +232,8 @@ fn check_contains<S: Surface>(x1: f64, steps: usize) {
     let set = to_geometry_set(&polygon::<S>(&ring).project::<S>(), 0);
     if steps == 31 {
         // Keep the exclusion witness separate from candidate-vertex contact.
-        let cache = fixture.cache::<S>();
-        let candidate = cache.locate((0, 1));
+        let resolver = fixture.resolver::<S>();
+        let candidate = resolver.locate((0, 1));
         let mut crossings = 0;
         for i in 0..candidate.vertex_count - 1 {
             let (a, b) = candidate.edge(i as u32);
@@ -246,7 +256,7 @@ fn check_contains<S: Surface>(x1: f64, steps: usize) {
     let hits = query.search(
         &fixture.reader(),
         None,
-        &mut fixture.cache::<S>(),
+        &mut fixture.resolver::<S>(),
         fixture.max_doc,
     );
     let actual: Vec<_> = (0..fixture.max_doc)
@@ -292,7 +302,12 @@ fn check_coarse_contains<S: Surface>() {
             for exclude in [false, true] {
                 let filter = BitSet::with_max_value(fixture.max_doc);
                 let filter = if exclude { Some(&filter) } else { None };
-                let hits = query.search(&cells, filter, &mut fixture.cache::<S>(), fixture.max_doc);
+                let hits = query.search(
+                    &cells,
+                    filter,
+                    &mut fixture.resolver::<S>(),
+                    fixture.max_doc,
+                );
                 assert_eq!(
                     hits.contains(0),
                     !exclude,

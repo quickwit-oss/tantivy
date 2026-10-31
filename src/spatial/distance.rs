@@ -14,9 +14,9 @@ use super::clip_options::ClipOptions;
 use super::clipper::Clipper;
 use super::covering::{split_edges, CoveringCell};
 use super::distance_boundary::{xyz, DistanceBoundary};
-use super::edge_cache::EdgeCache;
 use super::edge_crosser::EdgeCrosser;
 use super::edge_provider::EdgeProvider;
+use super::edge_resolver::EdgeResolver;
 use super::geometry_set::GeometrySet;
 use super::plane::query::PlaneQuery;
 use super::plane::Predicate;
@@ -188,20 +188,20 @@ impl<S: Surface> Distance<S> {
         &self,
         reader: &'a CellIndexReader<'a>,
         terms_filter: Option<&BitSet>,
-        edge_cache: &mut EdgeCache<'a, S>,
+        edge_resolver: &mut EdgeResolver<'a, S>,
         max_doc: u32,
     ) -> BitSet {
         if let Some(plane) = &self.plane {
             return plane.search(
                 reader,
                 terms_filter,
-                edge_cache,
+                edge_resolver,
                 max_doc,
                 Predicate::Intersects,
                 self.first_only,
             );
         }
-        let geometry_count = edge_cache.geometry_count(0);
+        let geometry_count = edge_resolver.geometry_count(0);
         let mut matches = Matches {
             seen: BitSet::with_max_value(geometry_count),
             containment_tested: BitSet::with_max_value(geometry_count),
@@ -223,11 +223,12 @@ impl<S: Surface> Distance<S> {
                     if matches.seen.contains(gid) {
                         continue;
                     }
-                    let located = edge_cache.locate(shape.geometry_id);
-                    if terms_filter.is_some_and(|filter| !filter.contains(located.doc_id)) {
+                    let doc_id = edge_resolver.doc_id_for(shape.geometry_id);
+                    if terms_filter.is_some_and(|filter| !filter.contains(doc_id)) {
                         matches.seen.insert(gid);
                         continue;
                     }
+                    let located = edge_resolver.locate(shape.geometry_id);
                     if !located.closed {
                         continue;
                     }
@@ -313,7 +314,7 @@ impl<S: Surface> Distance<S> {
                         &reader.cell_at(pos),
                         &entry.query_edges,
                         terms_filter,
-                        edge_cache,
+                        edge_resolver,
                         &mut matches,
                     ) {
                         return matches.doc_ids;
@@ -323,7 +324,7 @@ impl<S: Surface> Distance<S> {
         }
 
         if let Some(boundary) = &self.boundary {
-            self.flood_fill(boundary, reader, terms_filter, edge_cache, &mut matches);
+            self.flood_fill(boundary, reader, terms_filter, edge_resolver, &mut matches);
         }
         matches.doc_ids
     }
@@ -336,7 +337,7 @@ impl<S: Surface> Distance<S> {
         cell: &ShapeCell,
         query_edges: &[u32],
         terms_filter: Option<&BitSet>,
-        edge_cache: &mut EdgeCache<'a, S>,
+        edge_resolver: &mut EdgeResolver<'a, S>,
         matches: &mut Matches,
     ) -> bool {
         for clipped in &cell.shapes {
@@ -344,15 +345,16 @@ impl<S: Surface> Distance<S> {
             if matches.seen.contains(gid) {
                 continue;
             }
-            let located = edge_cache.locate(clipped.geometry_id);
-            if terms_filter.is_some_and(|filter| !filter.contains(located.doc_id)) {
+            let doc_id = edge_resolver.doc_id_for(clipped.geometry_id);
+            if terms_filter.is_some_and(|filter| !filter.contains(doc_id)) {
                 matches.seen.insert(gid);
                 continue;
             }
-            if matches.doc_ids.contains(located.doc_id) {
+            if matches.doc_ids.contains(doc_id) {
                 matches.seen.insert(gid);
                 continue;
             }
+            let located = edge_resolver.locate(clipped.geometry_id);
             if located.vertex_count == 0 {
                 continue;
             }
@@ -401,7 +403,7 @@ impl<S: Surface> Distance<S> {
         boundary: &DistanceBoundary,
         reader: &'a CellIndexReader<'a>,
         terms_filter: Option<&BitSet>,
-        edge_cache: &mut EdgeCache<'a, S>,
+        edge_resolver: &mut EdgeResolver<'a, S>,
         matches: &mut Matches,
     ) {
         let mut visited = HashSet::new();
@@ -434,7 +436,7 @@ impl<S: Surface> Distance<S> {
                         &reader.cell_at(pos),
                         &query_edges,
                         terms_filter,
-                        edge_cache,
+                        edge_resolver,
                         matches,
                     ) {
                         return;

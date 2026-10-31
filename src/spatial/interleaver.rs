@@ -8,8 +8,8 @@ use common::ReadOnlyBitSet;
 use rustc_hash::FxHashSet;
 
 use super::cell_index_reader::CellIndexIter;
-use super::edge_cache::EdgeCache;
 use super::edge_crosser::EdgeCrosser;
+use super::edge_resolver::EdgeResolver;
 use super::r2rect::R2Rect;
 use super::s2cell_id::S2CellId;
 use super::s2edge_clipping::{clip_edge_bound, interpolate_double};
@@ -87,13 +87,13 @@ impl<S: Surface> SpongeCell<S> {
     }
 
     // Original endpoints remain available through every absorption and split.
-    fn absorb_index_cell_edges(&mut self, cell: &ShapeCell, edge_cache: &EdgeCache<'_, S>) {
+    fn absorb_index_cell_edges(&mut self, cell: &ShapeCell, edge_resolver: &EdgeResolver<'_, S>) {
         let face = cell.cell_id.face();
         for shape in &cell.shapes {
             if shape.edge_indices.is_empty() {
                 continue;
             }
-            let cache_entry = edge_cache.get(shape.geometry_id);
+            let cache_entry = edge_resolver.locate(shape.geometry_id);
             for &edge_index in &shape.edge_indices {
                 let key = (shape.geometry_id, edge_index);
                 match self
@@ -208,13 +208,13 @@ impl<S: Surface> SpongeCell<S> {
 
     // The same center that you would use if you were searching. We going to do an ordinary search
     // edge crossing to move a child geometry into a parent.
-    fn absorb_index_cell_anchors(&mut self, cell: &ShapeCell, edge_cache: &EdgeCache<'_, S>) {
+    fn absorb_index_cell_anchors(&mut self, cell: &ShapeCell, edge_resolver: &EdgeResolver<'_, S>) {
         let mut cell_center: Option<S::Point> = None;
         for shape in &cell.shapes {
             let center = *cell_center.get_or_insert_with(|| {
                 S2PaddedCell::<S>::new(cell.cell_id, S::CELL_PADDING).get_center()
             });
-            let closed = edge_cache.get(shape.geometry_id).edge_set().closed;
+            let closed = edge_resolver.locate(shape.geometry_id).closed;
             assert!(
                 closed || !shape.contains_center,
                 "non-closed geometry {:?} has contains_center in source cell {}",
@@ -293,7 +293,7 @@ impl<S: Surface> Ord for HeapEntry<S> {
 /// Heap-based merge of N source cell indexes. Produces cells in Hilbert order.
 pub struct Interleaver<'a, S: Surface> {
     sources: Vec<CellIndexIter<'a>>,
-    edge_cache: &'a EdgeCache<'a, S>,
+    edge_resolver: &'a EdgeResolver<'a, S>,
     alive_bitsets: &'a [Option<ReadOnlyBitSet>],
     heap: BinaryHeap<HeapEntry<S>>,
     max_edges: usize,
@@ -310,17 +310,17 @@ pub struct Interleaver<'a, S: Surface> {
 }
 
 impl<'a, S: Surface> Interleaver<'a, S> {
-    /// Creates a heap merge from source iterators and a shared edge cache.
+    /// Creates a heap merge from source iterators and a shared edge resolver.
     pub fn new(
         iters: Vec<CellIndexIter<'a>>,
-        edge_cache: &'a EdgeCache<'a, S>,
+        edge_resolver: &'a EdgeResolver<'a, S>,
         alive_bitsets: &'a [Option<ReadOnlyBitSet>],
         segment_names: Vec<String>,
     ) -> Self {
         let options = ClipOptions::default();
         let mut merge = Interleaver {
             sources: iters,
-            edge_cache,
+            edge_resolver,
             alive_bitsets,
             heap: BinaryHeap::new(),
             max_edges: options.max_edges_per_cell,
@@ -363,7 +363,7 @@ impl<'a, S: Surface> Interleaver<'a, S> {
             if let Some(bitset) = &self.alive_bitsets[source_index] {
                 cell.shapes.retain(|shape| {
                     let id = (segment, shape.geometry_id.1);
-                    let doc_id = self.edge_cache.doc_id_for(id);
+                    let doc_id = self.edge_resolver.doc_id_for(id);
                     bitset.contains(doc_id)
                 });
             }
@@ -404,8 +404,8 @@ impl<'a, S: Surface> Iterator for Interleaver<'a, S> {
                             let cell_bound =
                                 S2PaddedCell::<S>::new(cell.cell_id, S::CELL_PADDING).bound();
                             let mut m = SpongeCell::new(cell.cell_id, cell_bound);
-                            m.absorb_index_cell_anchors(&cell, self.edge_cache);
-                            m.absorb_index_cell_edges(&cell, self.edge_cache);
+                            m.absorb_index_cell_anchors(&cell, self.edge_resolver);
+                            m.absorb_index_cell_edges(&cell, self.edge_resolver);
                             m
                         }
                         HeapEntry::Sponge(m) => m,
@@ -417,8 +417,8 @@ impl<'a, S: Surface> Iterator for Interleaver<'a, S> {
                             merged.absorb_sponge_cell_anchors(entry_merged);
                         }
                         HeapEntry::Source { source, cell } => {
-                            merged.absorb_index_cell_anchors(cell, self.edge_cache);
-                            merged.absorb_index_cell_edges(cell, self.edge_cache);
+                            merged.absorb_index_cell_anchors(cell, self.edge_resolver);
+                            merged.absorb_index_cell_edges(cell, self.edge_resolver);
                             self.push_next_from_source(*source);
                         }
                     }
@@ -439,7 +439,7 @@ impl<'a, S: Surface> Iterator for Interleaver<'a, S> {
                             self.splits += 1;
                             for entry in coarse_split(
                                 merged,
-                                self.edge_cache,
+                                self.edge_resolver,
                                 &mut self.crossings,
                                 &mut self.crossers,
                                 &self.segment_names,
@@ -453,17 +453,20 @@ impl<'a, S: Surface> Iterator for Interleaver<'a, S> {
                 } else {
                     self.cells_emitted += 1;
                     self.heap.push(entry);
-                    return flatten(sponge, self.edge_cache);
+                    return flatten(sponge, self.edge_resolver);
                 }
             } else {
                 self.cells_emitted += 1;
-                return flatten(sponge, self.edge_cache);
+                return flatten(sponge, self.edge_resolver);
             }
         }
     }
 }
 
-fn flatten<S: Surface>(sponge: HeapEntry<S>, edge_cache: &EdgeCache<'_, S>) -> Option<ShapeCell> {
+fn flatten<S: Surface>(
+    sponge: HeapEntry<S>,
+    edge_resolver: &EdgeResolver<'_, S>,
+) -> Option<ShapeCell> {
     let mut merged = match sponge {
         HeapEntry::Source { cell, .. } => return Some(cell),
         HeapEntry::Sponge(merged) => merged,
@@ -511,9 +514,8 @@ fn flatten<S: Surface>(sponge: HeapEntry<S>, edge_cache: &EdgeCache<'_, S>) -> O
         }
 
         if S::RING_ROLES && anchor.closed && !edge_indices.is_empty() {
-            contains_center = edge_cache
-                .get(geometry_id)
-                .edge_set()
+            contains_center = edge_resolver
+                .locate(geometry_id)
                 .contains_point(&sponge_center);
         }
 
@@ -762,7 +764,7 @@ fn clip_v_bound<S: Surface>(
 
 fn coarse_split<S: Surface>(
     mut merged: SpongeCell<S>,
-    edge_cache: &EdgeCache<'_, S>,
+    edge_resolver: &EdgeResolver<'_, S>,
     crossings: &mut u64,
     crossers: &mut u64,
     segment_names: &[String],
@@ -1016,9 +1018,8 @@ fn coarse_split<S: Surface>(
                 }
             }
             if S::RING_ROLES && anchor.closed && !edge_indices.is_empty() {
-                contains_center = edge_cache
-                    .get(anchor.geometry_id)
-                    .edge_set()
+                contains_center = edge_resolver
+                    .locate(anchor.geometry_id)
                     .contains_point(&child_center);
             }
             assert!(

@@ -6,6 +6,68 @@ use crate::schema::{IndexRecordOption, Schema, SPHERE, STRING};
 use crate::{Index, IndexWriter, TantivyDocument, Term};
 
 #[test]
+fn test_multi_value_join_survives_deletion_and_merge() -> crate::Result<()> {
+    use crate::query::QueryParser;
+    use crate::schema::PLANE;
+
+    let mut builder = Schema::builder();
+    builder.add_spatial_field("geometry", PLANE);
+    let kind = builder.add_text_field("kind", STRING);
+    let schema = builder.build();
+    let index = Index::create_in_ram(schema.clone());
+    let mut writer: IndexWriter = index.writer_with_num_threads(1, 50_000_000)?;
+    writer.set_merge_policy(Box::new(NoMergePolicy));
+    let batches: &[&[&str]] = &[
+        &[
+            r#"{"kind":"outer","geometry":[{"type":"Polygon","coordinates":[]},{"type":"Point","coordinates":[50,50]},{"type":"Polygon","coordinates":[[[0,0],[2,0],[2,2],[0,2],[0,0]]]}]}"#,
+            r#"{"kind":"gone","geometry":{"type":"Polygon","coordinates":[[[0,0],[2,0],[2,2],[0,2],[0,0]]]}}"#,
+        ],
+        &[
+            r#"{"kind":"outer","geometry":[{"type":"Polygon","coordinates":[[[0,0],[2,0],[2,2],[0,2],[0,0]]]},{"type":"Point","coordinates":[60,60]},{"type":"Polygon","coordinates":[]}]}"#,
+        ],
+        &[r#"{"kind":"inner","geometry":{"type":"LineString","coordinates":[[0.5,1],[1.5,1]]}}"#],
+        &[r#"{"kind":"nogeo"}"#],
+    ];
+    for batch in batches {
+        for json in *batch {
+            writer.add_document(TantivyDocument::parse_json(&schema, json)?)?;
+        }
+        writer.commit()?;
+    }
+    writer.delete_term(Term::from_field_text(kind, "gone"));
+    writer.commit()?;
+    let reader = index.reader()?;
+    assert!(reader
+        .searcher()
+        .segment_readers()
+        .iter()
+        .any(|segment| segment.num_deleted_docs() != 0));
+    let parser = QueryParser::for_index(&index, vec![kind]);
+    for merge in [false, true] {
+        if merge {
+            writer.merge(&index.searchable_segment_ids()?).wait()?;
+            reader.reload()?;
+        }
+        for (text, count) in [
+            ("kind:outer AND geometry:$contains($query(kind:inner))", 2),
+            ("kind:gone AND geometry:$contains($query(kind:inner))", 0),
+            ("kind:nogeo AND geometry:$contains($query(kind:inner))", 0),
+            ("kind:inner AND geometry:$coveredby($query(kind:outer))", 1),
+            ("kind:inner AND geometry:$coveredby($query(kind:gone))", 0),
+            ("kind:inner AND geometry:$coveredby($query(kind:nogeo))", 0),
+        ] {
+            let query = parser.parse_query(text)?;
+            assert_eq!(
+                reader.searcher().search(&query, &Count)?,
+                count,
+                "{text}, merge {merge}"
+            );
+        }
+    }
+    Ok(())
+}
+
+#[test]
 fn test_deleted_inner_geometry_does_not_match_join() -> crate::Result<()> {
     let mut builder = Schema::builder();
     let field = builder.add_spatial_field("geometry", SPHERE);
@@ -41,6 +103,39 @@ fn test_deleted_inner_geometry_does_not_match_join() -> crate::Result<()> {
     assert_eq!((segment.max_doc(), segment.num_deleted_docs()), (2, 1));
     assert_eq!(searcher.search(&term("fiber"), &Count)?, 0);
     assert_eq!(searcher.search(&join, &Count)?, 0);
+    Ok(())
+}
+
+#[test]
+fn test_sphere_join_ignores_empty_query_members() -> crate::Result<()> {
+    let mut builder = Schema::builder();
+    let field = builder.add_spatial_field("geometry", SPHERE);
+    let kind = builder.add_text_field("kind", STRING);
+    let schema = builder.build();
+    let index = Index::create_in_ram(schema.clone());
+    let mut writer: IndexWriter = index.writer_with_num_threads(1, 50_000_000)?;
+    writer.set_merge_policy(Box::new(NoMergePolicy));
+    for json in [
+        r#"{"kind":"empty","geometry":{"type":"Polygon","coordinates":[]}}"#,
+        r#"{"kind":"mixed","geometry":{"type":"GeometryCollection","geometries":[{"type":"Polygon","coordinates":[]},{"type":"Polygon","coordinates":[[[-1,-1],[1,-1],[1,1],[-1,1],[-1,-1]]]}]}}"#,
+        r#"{"kind":"point","geometry":{"type":"Point","coordinates":[0,0]}}"#,
+    ] {
+        writer.add_document(TantivyDocument::parse_json(&schema, json)?)?;
+    }
+    writer.commit()?;
+    let reader = index.reader()?;
+    let term = |text| TermQuery::new(Term::from_field_text(kind, text), IndexRecordOption::Basic);
+    let join = |outer| {
+        SpatialExecutor::new(PlanNode::Join {
+            field,
+            outer: Box::new(PlanNode::Query(Box::new(term(outer)))),
+            inner: Box::new(PlanNode::Query(Box::new(term("point")))),
+            relation: SpatialRelation::Intersects,
+        })
+    };
+
+    assert_eq!(reader.searcher().search(&join("empty"), &Count)?, 0);
+    assert_eq!(reader.searcher().search(&join("mixed"), &Count)?, 1);
     Ok(())
 }
 

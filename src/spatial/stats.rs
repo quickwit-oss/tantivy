@@ -12,15 +12,14 @@ use super::cell_index_reader::CellIndexReader;
 use super::clip_options::ClipOptions;
 use super::clipped_shape::GeometryId;
 use super::clipper::get_edge_max_level;
-use super::edge_cache::EdgeCache;
 use super::edge_reader::EdgeReader;
+use super::edge_resolver::EdgeResolver;
 use super::reader::SpatialReader;
 use super::s2cell_id::S2CellId;
 use super::sphere::Sphere;
 use super::surface::Surface;
 
 const TOP_CELL_COUNT: usize = 20;
-const STATS_EDGE_CACHE_MAX_VERTICES: usize = 20_000_000;
 
 /// Statistics for one persisted spatial field.
 #[derive(Clone, Debug, Serialize)]
@@ -206,8 +205,8 @@ fn spatial_stats_for_slices<S: Surface>(
 ) -> io::Result<SpatialStats> {
     let options = ClipOptions::default();
     let cell_reader = CellIndexReader::open_with_doc_ids(cells_bytes, doc_ids_bytes)?;
-    let edge_reader = EdgeReader::<S>::open(edges_bytes);
-    let edge_cache = EdgeCache::new(vec![edge_reader], STATS_EDGE_CACHE_MAX_VERTICES);
+    let edge_reader = EdgeReader::<S>::open(edges_bytes)?;
+    let edge_resolver = EdgeResolver::new(vec![edge_reader]);
 
     let mut levels: BTreeMap<i32, LevelAccumulator> = BTreeMap::new();
     let mut total_cells = 0u64;
@@ -235,7 +234,7 @@ fn spatial_stats_for_slices<S: Surface>(
             if shape.edge_indices.is_empty() {
                 continue;
             }
-            let entry = edge_cache.get(shape.geometry_id);
+            let entry = edge_resolver.locate(shape.geometry_id);
             for &edge_index in &shape.edge_indices {
                 distinct_edge_refs.push((shape.geometry_id, edge_index));
                 let (v0, v1) = entry.edge(edge_index);

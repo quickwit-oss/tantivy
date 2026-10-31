@@ -11,9 +11,9 @@ use std::collections::HashMap;
 use super::cell_index_reader::CellIndexReader;
 use super::cell_union::CellUnion;
 use super::clipped_shape::{ClippedShape, GeometryId};
-use super::edge_cache::EdgeCache;
 use super::edge_crosser::EdgeCrosser;
 use super::edge_provider::EdgeProvider;
+use super::edge_resolver::EdgeResolver;
 use super::latlng_rect::S2LatLngRect;
 use super::region::Region;
 use super::s2cap::S2Cap;
@@ -116,12 +116,12 @@ impl<S: Surface, E: EdgeProvider<Point = S::Point>> ContainmentIndex<S>
     }
 }
 
-/// Segment containment index wrapping a CellIndexReader and an EdgeCache.
+/// Segment containment index wrapping a CellIndexReader and an EdgeResolver.
 pub struct SegmentIndex<'a, 'b, S: Surface> {
     /// The serialized cell index reader.
     pub cell_reader: &'a CellIndexReader<'a>,
-    /// The edge cache for vertex resolution.
-    pub edge_cache: &'b mut EdgeCache<'a, S>,
+    /// The edge resolver for vertex access.
+    pub edge_resolver: &'b mut EdgeResolver<'a, S>,
 }
 
 impl<S: Surface> ContainmentIndex<S> for SegmentIndex<'_, '_, S> {
@@ -140,17 +140,11 @@ impl<S: Surface> ContainmentIndex<S> for SegmentIndex<'_, '_, S> {
     }
 
     fn resolve_edge(&mut self, geometry_id: GeometryId, edge_index: u32) -> (S::Point, S::Point) {
-        let entry = self.edge_cache.get(geometry_id);
-        let vertices = entry.vertices();
-        let i = edge_index as usize;
-        (vertices[i], vertices[i + 1])
+        self.edge_resolver.locate(geometry_id).edge(edge_index)
     }
 
     fn contains_polygon_point(&mut self, geometry_id: GeometryId, point: &S::Point) -> bool {
-        self.edge_cache
-            .get(geometry_id)
-            .edge_set()
-            .contains_point(point)
+        self.edge_resolver.locate(geometry_id).contains_point(point)
     }
 }
 
