@@ -1295,6 +1295,41 @@ mod tests {
     }
 
     #[test]
+    fn test_segment_emptied_during_merge_is_merged() -> crate::Result<()> {
+        let mut schema_builder = schema::Schema::builder();
+        let text_field = schema_builder.add_text_field("text", TEXT);
+        let index = Index::create_in_ram(schema_builder.build());
+        let mut index_writer: IndexWriter = index.writer_for_tests()?;
+        index_writer.set_merge_policy(Box::new(NoMergePolicy));
+        index_writer.add_document(doc!(text_field => "a"))?;
+        index_writer.commit()?;
+        index_writer.add_document(doc!(text_field => "b"))?;
+        index_writer.commit()?;
+        let segment_ids = index.searchable_segment_ids()?;
+        assert_eq!(segment_ids.len(), 2);
+
+        // Register the merge before its segments change, as a merge thread
+        // picking candidates does, then delete every document of one of them.
+        let merge_operation = index_writer
+            .segment_updater
+            .make_merge_operation(&segment_ids);
+        index_writer.delete_term(Term::from_field_text(text_field, "a"));
+        index_writer.commit()?;
+
+        // The commit must keep the emptied segment while it is being merged, so
+        // the merge can still complete instead of being discarded.
+        let merged = index_writer
+            .segment_updater
+            .start_merge(merge_operation)
+            .wait()?;
+        assert!(merged.is_some());
+        let reader = index.reader()?;
+        assert_eq!(reader.searcher().segment_readers().len(), 1);
+        assert_eq!(reader.searcher().num_docs(), 1);
+        Ok(())
+    }
+
+    #[test]
     fn test_delete_all_documents_rollback_correct_stamp() {
         let mut schema_builder = schema::Schema::builder();
         let text_field = schema_builder.add_text_field("text", TEXT);
