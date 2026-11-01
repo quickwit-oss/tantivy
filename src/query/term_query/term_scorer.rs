@@ -220,12 +220,56 @@ mod tests {
         assert_eq!(scorer.pruning_block_max_score(global), global);
         scorer.seek(258);
         assert!(scorer.pruning_block_max_score(global) < global);
-        let mut public = TermScorer::new(
+        let mut ungated = TermScorer::new(
             crate::postings::SegmentPostings::create_from_docs_and_tfs(&postings, Some(&norms)),
             crate::fieldnorm::FieldNormReader::for_test(&norms),
             weight,
         );
-        assert_eq!(public.pruning_block_max_score(global), global);
+        assert_eq!(ungated.pruning_block_max_score(global), global);
+    }
+
+    #[test]
+    fn production_term_weight_gates_stored_bounds_on_real_fieldnorms() -> crate::Result<()> {
+        use crate::schema::{TextFieldIndexing, TextOptions};
+        for fieldnorms in [true, false] {
+            let mut schema = Schema::builder();
+            let field = schema.add_text_field(
+                "text",
+                TextOptions::default().set_indexing_options(
+                    TextFieldIndexing::default()
+                        .set_tokenizer("default")
+                        .set_index_option(IndexRecordOption::WithFreqs)
+                        .set_fieldnorms(fieldnorms),
+                ),
+            );
+            let index = Index::create_in_ram(schema.build());
+            let mut writer = index.writer::<crate::TantivyDocument>(20_000_000)?;
+            for _ in 0..259 {
+                writer.add_document(doc!(field => "amber stone"))?;
+            }
+            writer.commit()?;
+            let searcher = index.reader()?.searcher();
+            assert_eq!(searcher.segment_readers().len(), 1);
+            let query = TermQuery::new(
+                Term::from_field_text(field, "amber"),
+                IndexRecordOption::WithFreqs,
+            );
+            let weight =
+                query.specialized_weight(EnableScoring::enabled_from_searcher(&searcher))?;
+            let mut scorer = weight
+                .term_scorer_for_test(searcher.segment_reader(0), 1.0)?
+                .unwrap();
+            assert_eq!(scorer.pruning_block_max_is_exact, fieldnorms);
+            let global = scorer.pruning_score_upper_bound().unwrap();
+            let block = scorer.pruning_block_max_score(global);
+            if fieldnorms {
+                assert!(block < global);
+                assert_eq!(block.to_bits(), scorer.block_max_score().to_bits());
+            } else {
+                assert_eq!(block, global);
+            }
+        }
+        Ok(())
     }
 
     #[test]

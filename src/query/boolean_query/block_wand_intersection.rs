@@ -35,6 +35,7 @@ pub(crate) fn block_wand_intersection(
     }
 
     let (leader, secondaries) = scorers.split_first_mut().unwrap();
+    // Keep scoring data available while the leader block cursor is mutably borrowed.
     let fieldnorm_reader = leader.fieldnorm_reader().clone();
     let bm25_weight = leader.bm25_weight().clone();
     let mut doc = leader.doc();
@@ -43,6 +44,7 @@ pub(crate) fn block_wand_intersection(
     while doc < TERMINATED {
         leader.seek_block(doc);
         let leader_block_max = leader.pruning_block_max_score(bounds[0]);
+        // Every bound must remain valid through the end of the shared window.
         let mut window_end = leader.last_doc_in_block();
         for (idx, secondary) in secondaries.iter_mut().enumerate() {
             secondary.block_cursor().seek_block(doc);
@@ -74,6 +76,7 @@ pub(crate) fn block_wand_intersection(
         {
             let fieldnorm_id = fieldnorm_reader.fieldnorm_id(candidate_doc);
             let leader_score = bm25_weight.score(fieldnorm_id, term_freq);
+            // Unconditional writes allow candidate rejection without a branch.
             candidate_doc_ids[num_candidates] = candidate_doc;
             candidate_scores[num_candidates] = leader_score;
             num_candidates += (((leader_score + secondary_block_max_scores[0])
@@ -591,73 +594,85 @@ mod tests {
     #[test]
     fn four_term_pruning_preserves_canonical_scores_and_cutoff_membership() {
         let fieldnorms = (0..192).map(|id| 4 + (id * 37) % 173).collect::<Vec<u32>>();
-        let postings = (0..4)
-            .map(|position| {
-                (0..192)
-                    .map(|id| (id, 1 + (id * (7 + position * 4)) % (11 + position * 6)))
-                    .collect::<Vec<_>>()
-            })
-            .collect::<Vec<_>>();
-        let make = || {
-            postings
-                .iter()
-                .enumerate()
-                .map(|(position, postings)| {
-                    let weight = Bm25Weight::for_one_term(192 + position as u64 * 9, 400, 107.0)
-                        .boost_by(0.21);
-                    TermScorer::create_for_test(postings, &fieldnorms, weight)
+        let segment_average = fieldnorms.iter().map(|&norm| u64::from(norm)).sum::<u64>() as Score
+            / fieldnorms.len() as Score;
+        for (average, missing) in [
+            (107.0, false),
+            (segment_average, false),
+            (107.0, true),
+            (segment_average, true),
+        ] {
+            let postings = (0..4)
+                .map(|position| {
+                    (0..192)
+                        .filter(|id| !missing || position == 0 || id % (position + 3) != position)
+                        .map(|id| (id, 1 + (id * (7 + position * 4)) % (11 + position * 6)))
+                        .collect::<Vec<_>>()
                 })
-                .collect::<Vec<_>>()
-        };
-        let mut oracle = crate::query::intersect_scorers(
-            make()
-                .into_iter()
-                .map(|s| Box::new(s) as Box<dyn Scorer>)
-                .collect(),
-            192,
-        );
-        let mut expected = Vec::new();
-        while oracle.doc() != TERMINATED {
-            expected.push((oracle.doc(), oracle.score()));
-            oracle.advance();
-        }
-        let mut actual = Vec::new();
-        super::block_wand_intersection(make(), Score::MIN, &mut |doc, score| {
-            actual.push((doc, score));
-            Score::MIN
-        });
-        let mut membership_difference = None;
-        for &(target, score) in &expected {
-            let threshold = score.next_down();
-            let wanted = expected
-                .iter()
-                .filter(|(_, s)| *s > threshold)
-                .map(|(d, _)| *d)
                 .collect::<Vec<_>>();
-            let mut found = Vec::new();
-            super::block_wand_intersection(make(), threshold, &mut |doc, _| {
-                found.push(doc);
-                threshold
-            });
-            if found != wanted {
-                membership_difference = Some((target, threshold.to_bits(), wanted, found));
-                break;
+            let make = || {
+                postings
+                    .iter()
+                    .enumerate()
+                    .map(|(position, postings)| {
+                        let weight =
+                            Bm25Weight::for_one_term(192 + position as u64 * 9, 400, average)
+                                .boost_by(0.21);
+                        TermScorer::create_for_test(postings, &fieldnorms, weight)
+                    })
+                    .collect::<Vec<_>>()
+            };
+            let mut oracle = crate::query::intersect_scorers(
+                make()
+                    .into_iter()
+                    .map(|s| Box::new(s) as Box<dyn Scorer>)
+                    .collect(),
+                192,
+            );
+            let mut expected = Vec::new();
+            while oracle.doc() != TERMINATED {
+                expected.push((oracle.doc(), oracle.score()));
+                oracle.advance();
             }
+            let mut actual = Vec::new();
+            super::block_wand_intersection(make(), Score::MIN, &mut |doc, score| {
+                actual.push((doc, score));
+                Score::MIN
+            });
+            let mut membership_difference = None;
+            for &(target, score) in &expected {
+                for threshold in [score.next_down(), score, score.next_up()] {
+                    let wanted = expected
+                        .iter()
+                        .filter(|(_, s)| *s > threshold)
+                        .map(|(d, _)| *d)
+                        .collect::<Vec<_>>();
+                    let mut found = Vec::new();
+                    super::block_wand_intersection(make(), threshold, &mut |doc, _| {
+                        found.push(doc);
+                        threshold
+                    });
+                    if found != wanted {
+                        membership_difference = Some((target, threshold.to_bits(), wanted, found));
+                        break;
+                    }
+                }
+            }
+            assert_eq!(
+                membership_difference, None,
+                "canonical cutoff changed membership"
+            );
+            assert_eq!(
+                actual
+                    .iter()
+                    .map(|(d, s)| (*d, s.to_bits()))
+                    .collect::<Vec<_>>(),
+                expected
+                    .iter()
+                    .map(|(d, s)| (*d, s.to_bits()))
+                    .collect::<Vec<_>>()
+            );
         }
-        assert_eq!(
-            membership_difference, None,
-            "canonical nextDown cutoff changed membership"
-        );
-        assert_eq!(
-            actual
-                .iter()
-                .map(|(d, s)| (*d, s.to_bits()))
-                .collect::<Vec<_>>(),
-            expected
-                .iter()
-                .map(|(d, s)| (*d, s.to_bits()))
-                .collect::<Vec<_>>()
-        );
     }
 
     #[test]
@@ -679,7 +694,10 @@ mod tests {
         let mut writer = index.writer::<TantivyDocument>(20_000_000)?;
         for id in 0..256 {
             let frequency = if id == 255 { 100 } else { 1 };
-            writer.add_document(doc!(field => std::iter::repeat_n("amber stone", frequency).collect::<Vec<_>>().join(" ")))?;
+            let text = std::iter::repeat_n("amber stone", frequency)
+                .collect::<Vec<_>>()
+                .join(" ");
+            writer.add_document(doc!(field => text))?;
         }
         writer.commit()?;
         let searcher = index.reader()?.searcher();
@@ -836,7 +854,10 @@ mod tests {
                     4 - position
                 }) * 9
                 {
-                    writer.add_document(doc!(field => std::iter::repeat_n(*term, 1 + segment * 200).collect::<Vec<_>>().join(" ")))?;
+                    let text = std::iter::repeat_n(*term, 1 + segment * 200)
+                        .collect::<Vec<_>>()
+                        .join(" ");
+                    writer.add_document(doc!(field => text))?;
                 }
             }
             writer.commit()?;
@@ -878,6 +899,14 @@ mod tests {
                 .order_by_score();
             let expected = searcher.search(&generic, &collector)?;
             let actual = searcher.search(&query, &collector)?;
+            let weight = query.weight(EnableScoring::enabled_from_searcher(&searcher))?;
+            for (score, address) in &actual {
+                let reader = &searcher.segment_readers()[address.segment_ord as usize];
+                assert_eq!(
+                    score.to_bits(),
+                    weight.explain(reader, address.doc_id)?.value().to_bits()
+                );
+            }
             let bits = |hits: Vec<(Score, crate::DocAddress)>| {
                 hits.into_iter()
                     .map(|(s, d)| (s.to_bits(), d))
