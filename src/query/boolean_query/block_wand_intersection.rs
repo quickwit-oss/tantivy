@@ -916,4 +916,51 @@ mod tests {
         }
         Ok(())
     }
+    #[test]
+    fn saturated_skip_frequency_preserves_cutoff_membership() {
+        let frequency = u32::MAX - 255;
+        let mut norms = vec![1; 615];
+        norms[0] = frequency;
+        let average =
+            norms.iter().map(|&n| u64::from(n)).sum::<u64>() as Score / norms.len() as Score;
+        let postings = (0..128)
+            .map(|doc| (doc, if doc == 0 { frequency } else { 1 }))
+            .collect::<Vec<_>>();
+        let make = || {
+            (0..2)
+                .map(|_| {
+                    TermScorer::create_for_test(
+                        &postings,
+                        &norms,
+                        Bm25Weight::for_one_term(128, 615, average),
+                    )
+                })
+                .collect::<Vec<_>>()
+        };
+        let mut oracle = crate::query::intersect_scorers(
+            make()
+                .into_iter()
+                .map(|s| Box::new(s) as Box<dyn Scorer>)
+                .collect(),
+            615,
+        );
+        assert_eq!(oracle.doc(), 0);
+        let top_score = oracle.score();
+        let threshold = top_score.next_down();
+        let mut expected = Vec::new();
+        while oracle.doc() != TERMINATED {
+            let score = oracle.score();
+            if score > threshold {
+                expected.push((oracle.doc(), score.to_bits()));
+            }
+            oracle.advance();
+        }
+        assert_eq!(expected, vec![(0, top_score.to_bits())]);
+        let mut actual = Vec::new();
+        super::block_wand_intersection(make(), threshold, &mut |doc, score| {
+            actual.push((doc, score.to_bits()));
+            threshold
+        });
+        assert_eq!(actual, expected);
+    }
 }

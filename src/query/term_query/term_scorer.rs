@@ -38,12 +38,14 @@ impl TermScorer {
 
     pub(crate) fn pruning_block_max_score(&mut self, global_bound: Score) -> Score {
         let block = &self.postings.block_cursor;
-        if self.pruning_block_max_is_exact
-            && (matches!(
-                block.skip_reader().block_info(),
-                crate::postings::BlockInfo::BitPacked { .. }
-            ) || block.block_is_loaded())
-        {
+        let supported_block = match block.skip_reader().block_info() {
+            crate::postings::BlockInfo::BitPacked {
+                block_wand_term_freq,
+                ..
+            } => block_wand_term_freq != u32::MAX,
+            crate::postings::BlockInfo::VInt { .. } => block.block_is_loaded(),
+        };
+        if self.pruning_block_max_is_exact && supported_block {
             self.block_max_score()
         } else {
             global_bound
@@ -95,8 +97,9 @@ impl TermScorer {
     /// is different enough from the current segment average fieldnorm that the maximum over a
     /// specific is achieved on a different document.
     ///
-    /// Stored full-block maxima require recorded fieldnorms and the same average used by
-    /// the serializer. An unloaded final block can still fall back to an underestimated bound.
+    /// Stored full-block maxima require recorded fieldnorms, the same average used by the
+    /// serializer, and an unquantized term frequency. An unloaded final block can also
+    /// fall back to an underestimated bound.
     pub fn block_max_score(&mut self) -> Score {
         self.postings
             .block_cursor
@@ -467,5 +470,31 @@ mod tests {
             test_block_wand_aux(&term_query, &searcher)?;
         }
         Ok(())
+    }
+    #[test]
+    fn saturated_skip_frequency_remains_a_conservative_bound() {
+        let frequency = u32::MAX - 255;
+        let mut norms = vec![1; 615];
+        norms[0] = frequency;
+        let average =
+            norms.iter().map(|&n| u64::from(n)).sum::<u64>() as Score / norms.len() as Score;
+        let postings = (0..128)
+            .map(|doc| (doc, if doc == 0 { frequency } else { 1 }))
+            .collect::<Vec<_>>();
+        for boost in [0.21, 0.3, 1.0, 2.0, 10.0, 100.0] {
+            let weight = Bm25Weight::for_one_term(128, 615, average).boost_by(boost);
+            let mut scorer = TermScorer::create_for_test(&postings, &norms, weight);
+            assert!(scorer.pruning_block_max_is_exact);
+            let actual = scorer.score();
+            let global = scorer.pruning_score_upper_bound().unwrap();
+            let bound = scorer.pruning_block_max_score(global);
+            assert!(
+                bound >= actual,
+                "boost={boost} avg={average} tf={frequency} bound={bound} bits={} actual={actual} \
+                 bits={}",
+                bound.to_bits(),
+                actual.to_bits()
+            );
+        }
     }
 }
