@@ -4,7 +4,8 @@
 // - Conjunctive queries (+a +b, +a +b +c) with top-10 by score
 // - Varying doc-frequency balance between terms (balanced, skewed, very skewed)
 // - Realistic term frequencies (geometric distribution, mostly low)
-// - 1M-doc single segment
+// - 1M documents in one segment or four retained segments
+// - Uniform or segment-skewed field lengths
 //
 // Run with: cargo bench --bench intersection_bench
 
@@ -38,7 +39,7 @@ fn random_term_freq(rng: &mut StdRng, p: f64) -> u32 {
 /// Build an index with three terms (a, b, c) with given doc-frequency probabilities.
 /// Each term occurrence has a realistic term frequency (geometric distribution).
 /// Field length is padded with filler tokens to create varied fieldnorms.
-fn build_index(p_a: f64, p_b: f64, p_c: f64) -> BenchIndex {
+fn build_index(p_a: f64, p_b: f64, p_c: f64, segments: usize, skewed_lengths: bool) -> BenchIndex {
     let mut schema_builder = Schema::builder();
     let body = schema_builder.add_text_field("body", TEXT);
     let schema = schema_builder.build();
@@ -48,7 +49,10 @@ fn build_index(p_a: f64, p_b: f64, p_c: f64) -> BenchIndex {
 
     {
         let mut writer = index.writer_with_num_threads(1, 500_000_000).unwrap();
-        for _ in 0..NUM_DOCS {
+        if segments > 1 {
+            writer.set_merge_policy(Box::new(tantivy::merge_policy::NoMergePolicy));
+        }
+        for id in 0..NUM_DOCS {
             let mut tokens: Vec<String> = Vec::new();
 
             if rng.random_bool(p_a) {
@@ -70,14 +74,21 @@ fn build_index(p_a: f64, p_b: f64, p_c: f64) -> BenchIndex {
                 }
             }
 
-            // Pad with filler to create varied field lengths (5-30 tokens).
-            let filler_count = rng.random_range(5u32..30u32);
+            // Retain the original random lengths or skew them between segments.
+            let filler_count = if skewed_lengths {
+                [5, 40, 120, 300][id / (NUM_DOCS / segments)]
+            } else {
+                rng.random_range(5u32..30u32)
+            };
             for _ in 0..filler_count {
                 tokens.push("filler".to_string());
             }
 
             let text = tokens.join(" ");
             writer.add_document(doc!(body => text)).unwrap();
+            if segments > 1 && (id + 1) % (NUM_DOCS / segments) == 0 {
+                writer.commit().unwrap();
+            }
         }
         writer.commit().unwrap();
     }
@@ -88,6 +99,7 @@ fn build_index(p_a: f64, p_b: f64, p_c: f64) -> BenchIndex {
         .try_into()
         .unwrap();
     let searcher = reader.searcher();
+    assert_eq!(searcher.segment_readers().len(), segments);
     let query_parser = QueryParser::for_index(&index, vec![body]);
 
     BenchIndex {
@@ -97,25 +109,34 @@ fn build_index(p_a: f64, p_b: f64, p_c: f64) -> BenchIndex {
 }
 
 fn main() {
-    // Scenarios: (label, p_a, p_b, p_c)
+    // Scenarios: (label, p_a, p_b, p_c, segments, skewed_lengths)
     //
     // "balanced":    all terms ~10% → intersection ~1% of docs
     // "skewed":      one common (50%), one rare (2%) → intersection ~1%
     // "very_skewed": one very common (80%), one very rare (0.5%) → intersection ~0.4%
     // "three_balanced": three terms ~20% each → intersection ~0.8%
     // "three_skewed":   50% / 10% / 2% → intersection ~0.1%
-    let scenarios: Vec<(&str, f64, f64, f64)> = vec![
-        ("balanced_10%_10%", 0.10, 0.10, 0.0),
-        ("skewed_50%_2%", 0.50, 0.02, 0.0),
-        ("very_skewed_80%_0.5%", 0.80, 0.005, 0.0),
-        ("three_balanced_20%_20%_20%", 0.20, 0.20, 0.20),
-        ("three_skewed_50%_10%_2%", 0.50, 0.10, 0.02),
+    let scenarios: Vec<(&str, f64, f64, f64, usize, bool)> = vec![
+        ("balanced_10%_10%", 0.10, 0.10, 0.0, 1, false),
+        ("skewed_50%_2%", 0.50, 0.02, 0.0, 1, false),
+        ("very_skewed_80%_0.5%", 0.80, 0.005, 0.0, 1, false),
+        ("three_balanced_20%_20%_20%", 0.20, 0.20, 0.20, 1, false),
+        ("three_skewed_50%_10%_2%", 0.50, 0.10, 0.02, 1, false),
+        ("four_segments_balanced_10%_10%", 0.10, 0.10, 0.0, 4, false),
+        (
+            "four_segments_skewed_lengths_three_20%",
+            0.20,
+            0.20,
+            0.20,
+            4,
+            true,
+        ),
     ];
 
     let mut runner = BenchRunner::new();
 
-    for (label, p_a, p_b, p_c) in &scenarios {
-        let bench_index = build_index(*p_a, *p_b, *p_c);
+    for (label, p_a, p_b, p_c, segments, skewed_lengths) in &scenarios {
+        let bench_index = build_index(*p_a, *p_b, *p_c, *segments, *skewed_lengths);
 
         let mut group = runner.new_group();
         group.set_name(format!("intersection — {label}"));

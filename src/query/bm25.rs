@@ -71,7 +71,10 @@ fn compute_tf_cache(average_fieldnorm: Score) -> (Arc<[Score; 256]>, bool) {
         let fieldnorm = FieldNormReader::id_to_fieldnorm(fieldnorm_id as u8);
         *cache_mut = cached_tf_component(fieldnorm, average_fieldnorm);
     }
-    let valid = cache.iter().all(|norm| norm.is_finite() && *norm >= 0.0);
+    // Cached norms are monotone in fieldnorm; zero/NaN averages fail the first endpoint.
+    let valid = [cache[0], cache[255]]
+        .into_iter()
+        .all(|norm| norm.is_finite() && norm >= 0.0);
     (Arc::new(cache), valid)
 }
 
@@ -82,6 +85,7 @@ pub(crate) fn segment_average_fieldnorm(total_tokens: u64, num_docs: u32) -> Sco
 #[derive(Clone, Copy)]
 pub(crate) enum Bm25BlockMax {
     Exact,
+    Serializer { average: Score },
     Corrected { average: Score, ratio: f64 },
 }
 
@@ -224,6 +228,12 @@ impl Bm25Weight {
         if self.has_average_fieldnorm(average) {
             return Some(Bm25BlockMax::Exact);
         }
+        if self.average_fieldnorm.is_finite()
+            && self.average_fieldnorm > 0.0
+            && self.average_fieldnorm <= average
+        {
+            return Some(Bm25BlockMax::Serializer { average });
+        }
         let mut ratio = 1.0f64;
         for (id, &query_norm) in self.cache.iter().enumerate() {
             let norm = cached_tf_component(FieldNormReader::id_to_fieldnorm(id as u8), average);
@@ -235,7 +245,8 @@ impl Bm25Weight {
         Some(Bm25BlockMax::Corrected { average, ratio })
     }
 
-    /// A serializer maximum M bounds x/(x+S) by m=nextUp(M)(1+u). With R>=S/Q,
+    /// A stored serializer maximum M remains conservative when the positive query average is
+    /// smaller. Otherwise M bounds x/(x+S) by m=nextUp(M)(1+u). With R>=S/Q,
     /// x/(x+Q) <= 1/(1+(1-m)/(mR)); dividing by 1-u covers denominator rounding.
     pub(crate) fn pruning_block_score(&self, mode: Bm25BlockMax, id: u8, tf: u32) -> Option<Score> {
         if tf == 0 || tf >= 255 {
@@ -243,6 +254,10 @@ impl Bm25Weight {
         }
         match mode {
             Bm25BlockMax::Exact => Some(self.score(id, tf)),
+            Bm25BlockMax::Serializer { average } => {
+                let norm = cached_tf_component(FieldNormReader::id_to_fieldnorm(id), average);
+                Some(self.weight * tf_factor(tf, norm))
+            }
             Bm25BlockMax::Corrected { average, ratio } => {
                 let norm = cached_tf_component(FieldNormReader::id_to_fieldnorm(id), average);
                 let maximum = tf_factor(tf, norm);
@@ -311,6 +326,65 @@ mod tests {
 
     use super::idf;
     use crate::{assert_nearly_equals, Score};
+
+    #[test]
+    fn cache_endpoint_validity_matches_all_norms() {
+        let mut averages = vec![
+            0.0,
+            -0.0,
+            f32::INFINITY,
+            f32::NEG_INFINITY,
+            f32::NAN,
+            f32::MAX,
+            -f32::MAX,
+            f32::MIN_POSITIVE,
+            -f32::MIN_POSITIVE,
+            f32::from_bits(1),
+            -f32::from_bits(1),
+            1.0f32.next_down(),
+            1.0,
+            1.0f32.next_up(),
+        ];
+        let mut bits = 1u32;
+        for _ in 0..10_000 {
+            bits = bits.wrapping_mul(1664525).wrapping_add(1013904223);
+            averages.push(f32::from_bits(bits));
+        }
+        for average in averages {
+            let (cache, valid) = super::compute_tf_cache(average);
+            let expected = cache.iter().all(|norm| norm.is_finite() && *norm >= 0.0);
+            assert_eq!(valid, expected, "average bits={:08x}", average.to_bits());
+        }
+    }
+
+    #[test]
+    fn ordered_positive_averages_use_serializer_bounds() {
+        for average in [0.01f32, 1.0, 100.0, 1_000_000.0, f32::MAX] {
+            let serializer = super::Bm25Weight::new_without_explain(1.0, average);
+            let maximum = serializer.tf_factor(0, 254);
+            for query_average in [average.next_down(), average / 2.0, average / 10.0] {
+                let query = super::Bm25Weight::new_without_explain(1.3, query_average);
+                let mode = query.prepare_block_max(average).unwrap();
+                assert!(matches!(mode, super::Bm25BlockMax::Serializer { .. }));
+                let upper = query.pruning_block_score(mode, 0, 254).unwrap();
+                for id in 0..=255 {
+                    assert!(query.cache[id as usize] >= serializer.cache[id as usize]);
+                    for frequency in [1, 2, 254, 255, 65535, 1 << 24, (1 << 24) + 2, u32::MAX] {
+                        if serializer.tf_factor(id, frequency) <= maximum {
+                            assert!(query.score(id, frequency) <= upper);
+                        }
+                    }
+                }
+            }
+        }
+        for average in [0.0, -0.0, -1.0, f32::NEG_INFINITY, f32::INFINITY, f32::NAN] {
+            let query = super::Bm25Weight::new_without_explain(1.0, average);
+            assert!(!matches!(
+                query.prepare_block_max(100.0),
+                Some(super::Bm25BlockMax::Serializer { .. })
+            ));
+        }
+    }
 
     #[test]
     fn corrected_block_bounds_cover_serializer_argmax_grid() {

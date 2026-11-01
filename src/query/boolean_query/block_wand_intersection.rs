@@ -969,22 +969,59 @@ mod tests {
     proptest! {
         #![proptest_config(ProptestConfig::with_cases(32))]
         #[test]
-        fn drifting_statistics_preserve_canonical_cutoffs(seed in 0u32..10000, scale in prop_oneof![Just(0.01f32),Just(0.5),Just(2.0),Just(100.0)]) {
-            let norms=(0..385u32).map(|id| 200 + (id.wrapping_mul(193).wrapping_add(seed))%2000).collect::<Vec<_>>();
-            let average=norms.iter().map(|&n|u64::from(n)).sum::<u64>() as Score/norms.len() as Score;
-            let postings=(0..4u32).map(|term|(0..385u32).filter(|id|(id+term+seed)%(7+term)!=0)
-                .map(|id|(id,1+(id*17+term*31+seed)%40)).collect::<Vec<_>>()).collect::<Vec<_>>();
-            let make=||postings.iter().map(|p|TermScorer::create_for_test(p,&norms,
-                Bm25Weight::for_one_term(p.len() as u64,1000,average*scale).boost_by(0.21))).collect::<Vec<_>>();
-            let mut oracle=crate::query::intersect_scorers(make().into_iter().map(|s|Box::new(s) as Box<dyn Scorer>).collect(),385);
-            let mut expected=Vec::new();
-            while oracle.doc()!=TERMINATED {expected.push((oracle.doc(),oracle.score()));oracle.advance();}
-            let cutoff=expected[20].1;
-            for threshold in [Score::MIN,cutoff.next_down(),cutoff,cutoff.next_up()] {
-                let wanted=expected.iter().filter(|(_,s)|*s>threshold).map(|(d,s)|(*d,s.to_bits())).collect::<Vec<_>>();
-                let mut actual=Vec::new();
-                super::block_wand_intersection(make(),threshold,&mut |d,s|{actual.push((d,s.to_bits()));threshold});
-                prop_assert_eq!(actual,wanted);
+        fn drifting_statistics_preserve_canonical_cutoffs(
+            seed in 0u32..10000,
+            scale in prop_oneof![Just(0.01f32), Just(0.5), Just(2.0), Just(100.0)],
+        ) {
+            let norms = (0..385u32)
+                .map(|id| 200 + (id.wrapping_mul(193).wrapping_add(seed)) % 2000)
+                .collect::<Vec<_>>();
+            let average = norms.iter().map(|&n| u64::from(n)).sum::<u64>() as Score / norms.len() as Score;
+            let postings = (0..4u32)
+                .map(|term| {
+                    (0..385u32)
+                        .filter(|id| (id + term + seed) % (7 + term) != 0)
+                        .map(|id| (id, 1 + (id * 17 + term * 31 + seed) % 40))
+                        .collect::<Vec<_>>()
+                })
+                .collect::<Vec<_>>();
+            let make = || {
+                postings
+                    .iter()
+                    .map(|p| {
+                        TermScorer::create_for_test(
+                            p,
+                            &norms,
+                            Bm25Weight::for_one_term(p.len() as u64, 1000, average * scale).boost_by(0.21),
+                        )
+                    })
+                    .collect::<Vec<_>>()
+            };
+            let mut oracle = crate::query::intersect_scorers(
+                make()
+                    .into_iter()
+                    .map(|s| Box::new(s) as Box<dyn Scorer>)
+                    .collect(),
+                385,
+            );
+            let mut expected = Vec::new();
+            while oracle.doc() != TERMINATED {
+                expected.push((oracle.doc(), oracle.score()));
+                oracle.advance();
+            }
+            let cutoff = expected[20].1;
+            for threshold in [Score::MIN, cutoff.next_down(), cutoff, cutoff.next_up()] {
+                let wanted = expected
+                    .iter()
+                    .filter(|(_, s)| *s > threshold)
+                    .map(|(d, s)| (*d, s.to_bits()))
+                    .collect::<Vec<_>>();
+                let mut actual = Vec::new();
+                super::block_wand_intersection(make(), threshold, &mut |d, s| {
+                    actual.push((d, s.to_bits()));
+                    threshold
+                });
+                prop_assert_eq!(actual, wanted);
             }
         }
     }

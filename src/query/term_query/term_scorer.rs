@@ -133,7 +133,10 @@ impl TermScorer {
             SegmentPostings::create_from_docs_and_tfs(doc_and_tfs, Some(fieldnorms));
         let fieldnorm_reader = FieldNormReader::for_test(fieldnorms);
         let total_num_tokens = fieldnorms.iter().map(|&norm| u64::from(norm)).sum::<u64>();
-        let average = total_num_tokens as Score / fieldnorms.len() as Score;
+        let average = crate::query::bm25::segment_average_fieldnorm(
+            total_num_tokens,
+            fieldnorms.len() as u32,
+        );
         TermScorer::new(segment_postings, fieldnorm_reader, similarity_weight)
             .with_segment_average_fieldnorm(average)
     }
