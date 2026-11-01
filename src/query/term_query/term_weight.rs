@@ -199,22 +199,21 @@ impl TermWeight {
         let segment_postings: SegmentPostings =
             inverted_index.read_postings_from_terminfo(&term_info, self.index_record_option)?;
 
-        let fieldnorm_reader = self.fieldnorm_reader(reader)?;
+        let stored_fieldnorm_reader = if self.scoring_enabled {
+            reader.fieldnorms_readers().get_field(field)?
+        } else {
+            None
+        };
+        let segment_average = stored_fieldnorm_reader
+            .as_ref()
+            .map(|norms| inverted_index.total_num_tokens() as Score / norms.num_docs() as Score);
+        let fieldnorm_reader = stored_fieldnorm_reader
+            .unwrap_or_else(|| FieldNormReader::constant(reader.max_doc(), 1));
         let similarity_weight = self.similarity_weight.boost_by(boost);
-        Ok(TermOrEmptyOrAllScorer::TermScorer(Box::new(
-            TermScorer::new(segment_postings, fieldnorm_reader, similarity_weight),
-        )))
-    }
-
-    fn fieldnorm_reader(&self, segment_reader: &SegmentReader) -> crate::Result<FieldNormReader> {
-        if self.scoring_enabled {
-            if let Some(field_norm_reader) = segment_reader
-                .fieldnorms_readers()
-                .get_field(self.term.field())?
-            {
-                return Ok(field_norm_reader);
-            }
+        let mut scorer = TermScorer::new(segment_postings, fieldnorm_reader, similarity_weight);
+        if let Some(average) = segment_average {
+            scorer = scorer.with_segment_average_fieldnorm(average);
         }
-        Ok(FieldNormReader::constant(segment_reader.max_doc(), 1))
+        Ok(TermOrEmptyOrAllScorer::TermScorer(Box::new(scorer)))
     }
 }

@@ -10,6 +10,7 @@ pub struct TermScorer {
     postings: SegmentPostings,
     fieldnorm_reader: FieldNormReader,
     similarity_weight: Bm25Weight,
+    pruning_block_max_is_exact: bool,
 }
 
 impl TermScorer {
@@ -22,6 +23,30 @@ impl TermScorer {
             postings,
             fieldnorm_reader,
             similarity_weight,
+            pruning_block_max_is_exact: false,
+        }
+    }
+
+    pub(crate) fn with_segment_average_fieldnorm(mut self, average: Score) -> Self {
+        self.pruning_block_max_is_exact = self.similarity_weight.has_average_fieldnorm(average);
+        self
+    }
+
+    pub(crate) fn pruning_score_upper_bound(&self) -> Option<Score> {
+        self.similarity_weight.pruning_score_upper_bound()
+    }
+
+    pub(crate) fn pruning_block_max_score(&mut self, global_bound: Score) -> Score {
+        let block = &self.postings.block_cursor;
+        if self.pruning_block_max_is_exact
+            && (matches!(
+                block.skip_reader().block_info(),
+                crate::postings::BlockInfo::BitPacked { .. }
+            ) || block.block_is_loaded())
+        {
+            self.block_max_score()
+        } else {
+            global_bound
         }
     }
 
@@ -47,7 +72,10 @@ impl TermScorer {
         let segment_postings =
             SegmentPostings::create_from_docs_and_tfs(doc_and_tfs, Some(fieldnorms));
         let fieldnorm_reader = FieldNormReader::for_test(fieldnorms);
+        let total_num_tokens = fieldnorms.iter().map(|&norm| u64::from(norm)).sum::<u64>();
+        let average = total_num_tokens as Score / fieldnorms.len() as Score;
         TermScorer::new(segment_postings, fieldnorm_reader, similarity_weight)
+            .with_segment_average_fieldnorm(average)
     }
 
     /// See `FreqReadingOption`.
@@ -163,6 +191,42 @@ mod tests {
     use crate::{
         assert_nearly_equals, DocId, DocSet, Index, IndexWriter, Score, Searcher, Term, TERMINATED,
     };
+
+    #[test]
+    fn pruning_block_bounds_require_matching_average_and_available_block() {
+        let postings = (0..259).map(|doc| (doc, 1)).collect::<Vec<_>>();
+        let norms = vec![100; 259];
+        let weight = Bm25Weight::for_one_term(259, 1000, 100.0);
+        let mut scorer = TermScorer::create_for_test(&postings, &norms, weight.clone());
+        let global = scorer.pruning_score_upper_bound().unwrap();
+        let exact = scorer.block_max_score();
+        assert!(exact < global);
+        assert_eq!(
+            scorer.pruning_block_max_score(global).to_bits(),
+            exact.to_bits()
+        );
+        let mut mismatched = TermScorer::create_for_test(
+            &postings,
+            &norms,
+            Bm25Weight::for_one_term(259, 1000, 100.0f32.next_up()),
+        );
+        let mismatch_bound = mismatched.pruning_score_upper_bound().unwrap();
+        assert_eq!(
+            mismatched.pruning_block_max_score(mismatch_bound),
+            mismatch_bound
+        );
+        scorer.seek_block(258);
+        assert!(!scorer.postings.block_cursor.block_is_loaded());
+        assert_eq!(scorer.pruning_block_max_score(global), global);
+        scorer.seek(258);
+        assert!(scorer.pruning_block_max_score(global) < global);
+        let mut public = TermScorer::new(
+            crate::postings::SegmentPostings::create_from_docs_and_tfs(&postings, Some(&norms)),
+            crate::fieldnorm::FieldNormReader::for_test(&norms),
+            weight,
+        );
+        assert_eq!(public.pruning_block_max_score(global), global);
+    }
 
     #[test]
     fn test_term_scorer_max_score() -> crate::Result<()> {

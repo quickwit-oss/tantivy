@@ -180,6 +180,21 @@ impl Bm25Weight {
         self.weight * self.tf_factor(fieldnorm_id, term_freq)
     }
 
+    pub(crate) fn pruning_score_upper_bound(&self) -> Option<Score> {
+        // Positive frequencies and nonnegative norms keep the rounded tf factor at most one.
+        (self.weight.is_finite()
+            && self.weight >= 0.0
+            && self
+                .cache
+                .iter()
+                .all(|norm| norm.is_finite() && *norm >= 0.0))
+        .then_some(self.weight)
+    }
+
+    pub(crate) fn has_average_fieldnorm(&self, average: Score) -> bool {
+        self.average_fieldnorm.to_bits() == average.to_bits()
+    }
+
     /// Compute the maximum possible BM25 score given this weight.
     pub fn max_score(&self) -> Score {
         self.score(255u8, 2_013_265_944)
@@ -231,6 +246,31 @@ mod tests {
 
     use super::idf;
     use crate::{assert_nearly_equals, Score};
+
+    #[test]
+    fn pruning_bound_covers_finite_nonnegative_scores() {
+        for average in [0.01, 1.0, 100.0, 1_000_000.0] {
+            for boost in [0.0, 0.3, 1.0, 100.0] {
+                let weight = super::Bm25Weight::new_without_explain(1.3, average).boost_by(boost);
+                let upper = weight.pruning_score_upper_bound().unwrap();
+                for norm in 0..=255 {
+                    for frequency in [1, 2, 254, 255, 65535, u32::MAX] {
+                        let score = weight.score(norm, frequency);
+                        assert!(score.is_finite() && score <= upper);
+                    }
+                }
+            }
+        }
+        for boost in [-1.0, f32::INFINITY, f32::NAN] {
+            assert!(super::Bm25Weight::new_without_explain(1.0, 100.0)
+                .boost_by(boost)
+                .pruning_score_upper_bound()
+                .is_none());
+        }
+        assert!(super::Bm25Weight::new_without_explain(1.0, 0.0)
+            .pruning_score_upper_bound()
+            .is_none());
+    }
 
     #[test]
     fn test_idf() {
