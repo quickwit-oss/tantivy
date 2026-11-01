@@ -95,7 +95,8 @@ impl TermScorer {
     /// is different enough from the current segment average fieldnorm that the maximum over a
     /// specific is achieved on a different document.
     ///
-    /// (The result is on the other hand guaranteed to be correct if there is only one segment).
+    /// Stored full-block maxima require recorded fieldnorms and the same average used by
+    /// the serializer. An unloaded final block can still fall back to an underestimated bound.
     pub fn block_max_score(&mut self) -> Score {
         self.postings
             .block_cursor
