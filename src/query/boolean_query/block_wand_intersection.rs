@@ -4,8 +4,8 @@ use crate::query::Scorer;
 use crate::{DocId, DocSet, Score, TERMINATED};
 
 /// Block-max pruning for intersections, with the score grouping of `Intersection::score`.
-/// Stored maxima are used only when their segment statistics match the scoring weight;
-/// other blocks use conservative term bounds. Scorers must read frequencies.
+/// Stored maxima are corrected conservatively when segment statistics differ.
+/// Scorers must read frequencies.
 pub(crate) fn block_wand_intersection(
     mut scorers: Vec<TermScorer>,
     mut threshold: Score,
@@ -16,9 +16,9 @@ pub(crate) fn block_wand_intersection(
 
     let bounds = scorers
         .iter()
-        .map(TermScorer::pruning_score_upper_bound)
+        .map(TermScorer::pruning_bounds)
         .collect::<Option<Vec<_>>>();
-    let Some(bounds) = bounds else {
+    let Some(mut bounds) = bounds else {
         let mut scorer = crate::query::intersect_scorers(
             scorers
                 .into_iter()
@@ -29,7 +29,8 @@ pub(crate) fn block_wand_intersection(
         crate::query::weight::for_each_pruning_scorer(scorer.as_mut(), threshold, callback);
         return;
     };
-    let global_max_score = (bounds[0] + bounds[1]) + bounds[2..].iter().copied().sum::<Score>();
+    let global_max_score = (bounds[0].global + bounds[1].global)
+        + bounds[2..].iter().map(|bound| bound.global).sum::<Score>();
     if global_max_score <= threshold {
         return;
     }
@@ -41,9 +42,10 @@ pub(crate) fn block_wand_intersection(
     let mut doc = leader.doc();
     let mut secondary_block_max_scores = vec![0.0; secondaries.len()].into_boxed_slice();
 
+    let mut shared_bounds = std::collections::HashMap::new();
     while doc < TERMINATED {
         leader.seek_block(doc);
-        let leader_block_max = leader.pruning_block_max_score(bounds[0]);
+        let leader_block_max = leader.pruning_block_max_score(&mut bounds[0], &mut shared_bounds);
         // Every bound must remain valid through the end of the shared window.
         let mut window_end = leader.last_doc_in_block();
         for (idx, secondary) in secondaries.iter_mut().enumerate() {
@@ -52,7 +54,8 @@ pub(crate) fn block_wand_intersection(
                 return;
             }
             window_end = window_end.min(secondary.last_doc_in_block());
-            secondary_block_max_scores[idx] = secondary.pruning_block_max_score(bounds[idx + 1]);
+            secondary_block_max_scores[idx] =
+                secondary.pruning_block_max_score(&mut bounds[idx + 1], &mut shared_bounds);
         }
         let secondary_tail_bound: Score = secondary_block_max_scores[1..].iter().copied().sum();
         if (leader_block_max + secondary_block_max_scores[0]) + secondary_tail_bound <= threshold {
@@ -959,6 +962,75 @@ mod tests {
         let mut actual = Vec::new();
         super::block_wand_intersection(make(), threshold, &mut |doc, score| {
             actual.push((doc, score.to_bits()));
+            threshold
+        });
+        assert_eq!(actual, expected);
+    }
+    proptest! {
+        #![proptest_config(ProptestConfig::with_cases(32))]
+        #[test]
+        fn drifting_statistics_preserve_canonical_cutoffs(seed in 0u32..10000, scale in prop_oneof![Just(0.01f32),Just(0.5),Just(2.0),Just(100.0)]) {
+            let norms=(0..385u32).map(|id| 200 + (id.wrapping_mul(193).wrapping_add(seed))%2000).collect::<Vec<_>>();
+            let average=norms.iter().map(|&n|u64::from(n)).sum::<u64>() as Score/norms.len() as Score;
+            let postings=(0..4u32).map(|term|(0..385u32).filter(|id|(id+term+seed)%(7+term)!=0)
+                .map(|id|(id,1+(id*17+term*31+seed)%40)).collect::<Vec<_>>()).collect::<Vec<_>>();
+            let make=||postings.iter().map(|p|TermScorer::create_for_test(p,&norms,
+                Bm25Weight::for_one_term(p.len() as u64,1000,average*scale).boost_by(0.21))).collect::<Vec<_>>();
+            let mut oracle=crate::query::intersect_scorers(make().into_iter().map(|s|Box::new(s) as Box<dyn Scorer>).collect(),385);
+            let mut expected=Vec::new();
+            while oracle.doc()!=TERMINATED {expected.push((oracle.doc(),oracle.score()));oracle.advance();}
+            let cutoff=expected[20].1;
+            for threshold in [Score::MIN,cutoff.next_down(),cutoff,cutoff.next_up()] {
+                let wanted=expected.iter().filter(|(_,s)|*s>threshold).map(|(d,s)|(*d,s.to_bits())).collect::<Vec<_>>();
+                let mut actual=Vec::new();
+                super::block_wand_intersection(make(),threshold,&mut |d,s|{actual.push((d,s.to_bits()));threshold});
+                prop_assert_eq!(actual,wanted);
+            }
+        }
+    }
+    #[test]
+    fn drifting_argmax_preserves_canonical_membership() {
+        let norms = (0..128)
+            .map(|d| if d % 2 == 0 { 2 } else { 1000 })
+            .collect::<Vec<_>>();
+        let postings = (0..128)
+            .map(|d| (d, if d % 2 == 0 { 1 } else { 2 }))
+            .collect::<Vec<_>>();
+        let make = || {
+            (0..2)
+                .map(|_| {
+                    TermScorer::create_for_test(
+                        &postings,
+                        &norms,
+                        Bm25Weight::for_one_term(128, 1000, 10000.0),
+                    )
+                })
+                .collect::<Vec<_>>()
+        };
+        let mut oracle = crate::query::intersect_scorers(
+            make()
+                .into_iter()
+                .map(|s| Box::new(s) as Box<dyn Scorer>)
+                .collect(),
+            128,
+        );
+        let low = oracle.score();
+        oracle.advance();
+        let high = oracle.score();
+        assert!(high > low);
+        let threshold = high.next_down();
+        let mut expected = Vec::new();
+        while oracle.doc() != TERMINATED {
+            let score = oracle.score();
+            if score > threshold {
+                expected.push((oracle.doc(), score.to_bits()));
+            }
+            oracle.advance();
+        }
+        assert_eq!(expected.len(), 64);
+        let mut actual = Vec::new();
+        super::block_wand_intersection(make(), threshold, &mut |d, s| {
+            actual.push((d, s.to_bits()));
             threshold
         });
         assert_eq!(actual, expected);

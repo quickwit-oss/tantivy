@@ -3,7 +3,7 @@ use crate::docset::{DocSet, COLLECT_BLOCK_BUFFER_LEN};
 use crate::fieldnorm::FieldNormReader;
 use crate::index::SegmentReader;
 use crate::postings::SegmentPostings;
-use crate::query::bm25::Bm25Weight;
+use crate::query::bm25::{segment_average_fieldnorm, Bm25Weight};
 use crate::query::explanation::does_not_match;
 use crate::query::weight::{for_each_docset_buffered, for_each_scorer};
 use crate::query::{AllScorer, AllWeight, EmptyScorer, Explanation, Scorer, Weight};
@@ -204,9 +204,9 @@ impl TermWeight {
         } else {
             None
         };
-        let segment_average = stored_fieldnorm_reader
-            .as_ref()
-            .map(|norms| inverted_index.total_num_tokens() as Score / norms.num_docs() as Score);
+        let segment_average = stored_fieldnorm_reader.as_ref().map(|norms| {
+            segment_average_fieldnorm(inverted_index.total_num_tokens(), norms.num_docs())
+        });
         let fieldnorm_reader = stored_fieldnorm_reader
             .unwrap_or_else(|| FieldNormReader::constant(reader.max_doc(), 1));
         let similarity_weight = self.similarity_weight.boost_by(boost);

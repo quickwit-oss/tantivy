@@ -1,7 +1,9 @@
+use std::collections::HashMap;
+
 use crate::docset::DocSet;
 use crate::fieldnorm::FieldNormReader;
 use crate::postings::{BlockSegmentPostings, FreqReadingOption, Postings, SegmentPostings};
-use crate::query::bm25::Bm25Weight;
+use crate::query::bm25::{Bm25BlockMax, Bm25Weight};
 use crate::query::{Explanation, Scorer};
 use crate::{DocId, Score};
 
@@ -10,7 +12,13 @@ pub struct TermScorer {
     postings: SegmentPostings,
     fieldnorm_reader: FieldNormReader,
     similarity_weight: Bm25Weight,
-    pruning_block_max_is_exact: bool,
+    segment_average_fieldnorm: Option<Score>,
+}
+
+pub(crate) struct TermPruningBounds {
+    pub global: Score,
+    correction: Option<Option<Bm25BlockMax>>,
+    block: Option<(DocId, Score)>,
 }
 
 impl TermScorer {
@@ -23,12 +31,12 @@ impl TermScorer {
             postings,
             fieldnorm_reader,
             similarity_weight,
-            pruning_block_max_is_exact: false,
+            segment_average_fieldnorm: None,
         }
     }
 
     pub(crate) fn with_segment_average_fieldnorm(mut self, average: Score) -> Self {
-        self.pruning_block_max_is_exact = self.similarity_weight.has_average_fieldnorm(average);
+        self.segment_average_fieldnorm = Some(average);
         self
     }
 
@@ -36,19 +44,69 @@ impl TermScorer {
         self.similarity_weight.pruning_score_upper_bound()
     }
 
-    pub(crate) fn pruning_block_max_score(&mut self, global_bound: Score) -> Score {
+    pub(crate) fn pruning_bounds(&self) -> Option<TermPruningBounds> {
+        Some(TermPruningBounds {
+            global: self.pruning_score_upper_bound()?,
+            correction: None,
+            block: None,
+        })
+    }
+
+    pub(crate) fn pruning_block_max_score(
+        &mut self,
+        bounds: &mut TermPruningBounds,
+        shared: &mut HashMap<(u32, u32), Option<Bm25BlockMax>>,
+    ) -> Score {
         let block = &self.postings.block_cursor;
-        let supported_block = match block.skip_reader().block_info() {
+        match block.skip_reader().block_info() {
+            crate::postings::BlockInfo::VInt { .. } => {
+                if block.block_is_loaded() {
+                    self.block_max_score()
+                } else {
+                    bounds.global
+                }
+            }
             crate::postings::BlockInfo::BitPacked {
+                block_wand_fieldnorm_id,
                 block_wand_term_freq,
                 ..
-            } => block_wand_term_freq != u32::MAX,
-            crate::postings::BlockInfo::VInt { .. } => block.block_is_loaded(),
-        };
-        if self.pruning_block_max_is_exact && supported_block {
-            self.block_max_score()
-        } else {
-            global_bound
+            } => {
+                let end = self.last_doc_in_block();
+                if let Some((cached_end, score)) = bounds.block {
+                    if cached_end == end {
+                        return score;
+                    }
+                }
+                if !(1..255).contains(&block_wand_term_freq) {
+                    return bounds.global;
+                }
+                let score = if let Some(average) = self.segment_average_fieldnorm {
+                    let mode = *bounds.correction.get_or_insert_with(|| {
+                        let key = (
+                            self.similarity_weight.average_fieldnorm().to_bits(),
+                            average.to_bits(),
+                        );
+                        if key.0 == key.1 {
+                            return self.similarity_weight.prepare_block_max(average);
+                        }
+                        *shared
+                            .entry(key)
+                            .or_insert_with(|| self.similarity_weight.prepare_block_max(average))
+                    });
+                    mode.and_then(|mode| {
+                        self.similarity_weight.pruning_block_score(
+                            mode,
+                            block_wand_fieldnorm_id,
+                            block_wand_term_freq,
+                        )
+                    })
+                    .unwrap_or(bounds.global)
+                } else {
+                    bounds.global
+                };
+                bounds.block = Some((end, score));
+                score
+            }
         }
     }
 
@@ -196,6 +254,12 @@ mod tests {
         assert_nearly_equals, DocId, DocSet, Index, IndexWriter, Score, Searcher, Term, TERMINATED,
     };
 
+    fn test_block_bound(scorer: &mut TermScorer, global: Score) -> Score {
+        let mut bounds = scorer.pruning_bounds().unwrap();
+        assert_eq!(bounds.global, global);
+        scorer.pruning_block_max_score(&mut bounds, &mut std::collections::HashMap::new())
+    }
+
     #[test]
     fn pruning_block_bounds_require_matching_average_and_available_block() {
         let postings = (0..259).map(|doc| (doc, 1)).collect::<Vec<_>>();
@@ -206,7 +270,7 @@ mod tests {
         let exact = scorer.block_max_score();
         assert!(exact < global);
         assert_eq!(
-            scorer.pruning_block_max_score(global).to_bits(),
+            test_block_bound(&mut scorer, global).to_bits(),
             exact.to_bits()
         );
         let mut mismatched = TermScorer::create_for_test(
@@ -215,21 +279,20 @@ mod tests {
             Bm25Weight::for_one_term(259, 1000, 100.0f32.next_up()),
         );
         let mismatch_bound = mismatched.pruning_score_upper_bound().unwrap();
-        assert_eq!(
-            mismatched.pruning_block_max_score(mismatch_bound),
-            mismatch_bound
-        );
+        let corrected = test_block_bound(&mut mismatched, mismatch_bound);
+        assert!(corrected < mismatch_bound);
+        assert!(corrected >= mismatched.score());
         scorer.seek_block(258);
         assert!(!scorer.postings.block_cursor.block_is_loaded());
-        assert_eq!(scorer.pruning_block_max_score(global), global);
+        assert_eq!(test_block_bound(&mut scorer, global), global);
         scorer.seek(258);
-        assert!(scorer.pruning_block_max_score(global) < global);
+        assert!(test_block_bound(&mut scorer, global) < global);
         let mut ungated = TermScorer::new(
             crate::postings::SegmentPostings::create_from_docs_and_tfs(&postings, Some(&norms)),
             crate::fieldnorm::FieldNormReader::for_test(&norms),
             weight,
         );
-        assert_eq!(ungated.pruning_block_max_score(global), global);
+        assert_eq!(test_block_bound(&mut ungated, global), global);
     }
 
     #[test]
@@ -263,9 +326,9 @@ mod tests {
             let mut scorer = weight
                 .term_scorer_for_test(searcher.segment_reader(0), 1.0)?
                 .unwrap();
-            assert_eq!(scorer.pruning_block_max_is_exact, fieldnorms);
+            assert_eq!(scorer.segment_average_fieldnorm.is_some(), fieldnorms);
             let global = scorer.pruning_score_upper_bound().unwrap();
-            let block = scorer.pruning_block_max_score(global);
+            let block = test_block_bound(&mut scorer, global);
             if fieldnorms {
                 assert!(block < global);
                 assert_eq!(block.to_bits(), scorer.block_max_score().to_bits());
@@ -484,10 +547,10 @@ mod tests {
         for boost in [0.21, 0.3, 1.0, 2.0, 10.0, 100.0] {
             let weight = Bm25Weight::for_one_term(128, 615, average).boost_by(boost);
             let mut scorer = TermScorer::create_for_test(&postings, &norms, weight);
-            assert!(scorer.pruning_block_max_is_exact);
+            assert!(scorer.segment_average_fieldnorm.is_some());
             let actual = scorer.score();
             let global = scorer.pruning_score_upper_bound().unwrap();
-            let bound = scorer.pruning_block_max_score(global);
+            let bound = test_block_bound(&mut scorer, global);
             assert!(
                 bound >= actual,
                 "boost={boost} avg={average} tf={frequency} bound={bound} bits={} actual={actual} \
@@ -496,5 +559,116 @@ mod tests {
                 actual.to_bits()
             );
         }
+    }
+    #[test]
+    fn serialized_argmax_reconstructs_every_full_block_and_bounds_drifting_scores() {
+        let norms = (0..512)
+            .map(|id| 1 + (id * 193) % 2000)
+            .collect::<Vec<u32>>();
+        let postings = norms
+            .iter()
+            .enumerate()
+            .map(|(id, n)| (id as u32, 1 + (id as u32 * 71) % (*n).min(200)))
+            .collect::<Vec<_>>();
+        let average =
+            norms.iter().map(|&n| u64::from(n)).sum::<u64>() as Score / norms.len() as Score;
+        let serializer = Bm25Weight::for_one_term(512, 1000, average);
+        for query_average in [
+            average * 0.01,
+            average.next_down(),
+            average,
+            average.next_up(),
+            average * 100.0,
+        ] {
+            let query = Bm25Weight::for_one_term(512, 1000, query_average).boost_by(0.21);
+            let mut scorer = TermScorer::create_for_test(&postings, &norms, query.clone());
+            let mut bounds = scorer.pruning_bounds().unwrap();
+            let mut shared = std::collections::HashMap::new();
+            for start in (0..512).step_by(128) {
+                scorer.seek_block(start as u32);
+                let crate::postings::BlockInfo::BitPacked {
+                    block_wand_fieldnorm_id: id,
+                    block_wand_term_freq: tf,
+                    ..
+                } = scorer.postings.block_cursor.skip_reader().block_info()
+                else {
+                    panic!("expected full serialized block")
+                };
+                let reconstructed = serializer.tf_factor(id, tf);
+                let expected = postings[start..start + 128]
+                    .iter()
+                    .map(|&(doc, tf)| {
+                        serializer.tf_factor(
+                            crate::fieldnorm::FieldNormReader::fieldnorm_to_id(norms[doc as usize]),
+                            tf,
+                        )
+                    })
+                    .fold(0.0, Score::max);
+                assert_eq!(reconstructed.to_bits(), expected.to_bits());
+                let bound = scorer.pruning_block_max_score(&mut bounds, &mut shared);
+                for &(doc, tf) in &postings[start..start + 128] {
+                    let score = query.score(
+                        crate::fieldnorm::FieldNormReader::fieldnorm_to_id(norms[doc as usize]),
+                        tf,
+                    );
+                    assert!(
+                        bound >= score,
+                        "avg={query_average} doc={doc} bound={bound} actual={score}"
+                    );
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn correction_preparation_is_lazy_and_shared_across_term_weights() {
+        let postings = (0..256).map(|d| (d, 1)).collect::<Vec<_>>();
+        let norms = vec![100; 256];
+        let mut shared = std::collections::HashMap::new();
+        for boost in [0.21, 1.0, 2.0] {
+            let mut scorer = TermScorer::create_for_test(
+                &postings,
+                &norms,
+                Bm25Weight::for_one_term(256, 1000, 200.0).boost_by(boost),
+            );
+            let mut bounds = scorer.pruning_bounds().unwrap();
+            assert!(bounds.correction.is_none());
+            assert!(bounds.block.is_none());
+            let first = scorer.pruning_block_max_score(&mut bounds, &mut shared);
+            assert!(bounds.correction.is_some());
+            assert_eq!(shared.len(), 1);
+            assert_eq!(
+                scorer
+                    .pruning_block_max_score(&mut bounds, &mut shared)
+                    .to_bits(),
+                first.to_bits()
+            );
+            scorer.seek_block(128);
+            let second = scorer.pruning_block_max_score(&mut bounds, &mut shared);
+            assert_eq!(second.to_bits(), first.to_bits());
+            assert_eq!(shared.len(), 1);
+        }
+    }
+
+    #[test]
+    fn corrected_bound_covers_an_argmax_change() {
+        let norms = (0..128)
+            .map(|d| if d % 2 == 0 { 2 } else { 1000 })
+            .collect::<Vec<_>>();
+        let postings = (0..128)
+            .map(|d| (d, if d % 2 == 0 { 1 } else { 2 }))
+            .collect::<Vec<_>>();
+        let serializer = Bm25Weight::for_one_term(128, 1000, 501.0);
+        let query = Bm25Weight::for_one_term(128, 1000, 10000.0);
+        let low = crate::fieldnorm::FieldNormReader::fieldnorm_to_id(2);
+        let high = crate::fieldnorm::FieldNormReader::fieldnorm_to_id(1000);
+        assert!(serializer.tf_factor(low, 1) > serializer.tf_factor(high, 2));
+        assert!(query.tf_factor(low, 1) < query.tf_factor(high, 2));
+        let mut scorer = TermScorer::create_for_test(&postings, &norms, query.clone());
+        let global = scorer.pruning_score_upper_bound().unwrap();
+        assert!(scorer.block_max_score() < query.score(high, 2));
+        let bound = test_block_bound(&mut scorer, global);
+        assert!(bound >= query.score(high, 2));
+        assert!(bound < global);
     }
 }
