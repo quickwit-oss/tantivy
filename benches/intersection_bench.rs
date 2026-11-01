@@ -74,7 +74,7 @@ fn build_index(p_a: f64, p_b: f64, p_c: f64, segments: usize, skewed_lengths: bo
                 }
             }
 
-            // Retain the original random lengths or skew them between segments.
+            // Vary field lengths within one distribution or between segments.
             let filler_count = if skewed_lengths {
                 [5, 40, 120, 300][id / (NUM_DOCS / segments)]
             } else {
@@ -109,8 +109,6 @@ fn build_index(p_a: f64, p_b: f64, p_c: f64, segments: usize, skewed_lengths: bo
 }
 
 fn main() {
-    // Scenarios: (label, p_a, p_b, p_c, segments, skewed_lengths)
-    //
     // "balanced":    all terms ~10% → intersection ~1% of docs
     // "skewed":      one common (50%), one rare (2%) → intersection ~1%
     // "very_skewed": one very common (80%), one very rare (0.5%) → intersection ~0.4%

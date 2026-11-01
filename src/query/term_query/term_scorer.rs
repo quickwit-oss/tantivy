@@ -537,6 +537,7 @@ mod tests {
         }
         Ok(())
     }
+
     #[test]
     fn saturated_skip_frequency_remains_a_conservative_bound() {
         let frequency = u32::MAX - 255;
@@ -563,6 +564,7 @@ mod tests {
             );
         }
     }
+
     #[test]
     fn serialized_argmax_reconstructs_every_full_block_and_bounds_drifting_scores() {
         let norms = (0..512)

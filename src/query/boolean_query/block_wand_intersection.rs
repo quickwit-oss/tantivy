@@ -966,6 +966,7 @@ mod tests {
         });
         assert_eq!(actual, expected);
     }
+
     proptest! {
         #![proptest_config(ProptestConfig::with_cases(32))]
         #[test]
@@ -976,7 +977,8 @@ mod tests {
             let norms = (0..385u32)
                 .map(|id| 200 + (id.wrapping_mul(193).wrapping_add(seed)) % 2000)
                 .collect::<Vec<_>>();
-            let average = norms.iter().map(|&n| u64::from(n)).sum::<u64>() as Score / norms.len() as Score;
+            let average =
+                norms.iter().map(|&n| u64::from(n)).sum::<u64>() as Score / norms.len() as Score;
             let postings = (0..4u32)
                 .map(|term| {
                     (0..385u32)
@@ -992,7 +994,8 @@ mod tests {
                         TermScorer::create_for_test(
                             p,
                             &norms,
-                            Bm25Weight::for_one_term(p.len() as u64, 1000, average * scale).boost_by(0.21),
+                            Bm25Weight::for_one_term(p.len() as u64, 1000, average * scale)
+                                .boost_by(0.21),
                         )
                     })
                     .collect::<Vec<_>>()
@@ -1025,6 +1028,7 @@ mod tests {
             }
         }
     }
+
     #[test]
     fn drifting_argmax_preserves_canonical_membership() {
         let norms = (0..128)
