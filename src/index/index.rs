@@ -68,7 +68,7 @@ pub(crate) fn builtin_plugins() -> Vec<Arc<dyn SegmentPlugin>> {
 }
 
 /// The files owned by the given segments: one per plugin extension (the built-in
-/// extensions plus the index's required custom ones), native spatial files, each
+/// extensions plus the index's required custom ones), each
 /// segment's delete bitset and its temp store while it is still being written.
 ///
 /// Callers pass the segment set they care about (e.g. all tracked segments for garbage
@@ -87,9 +87,6 @@ pub(crate) fn list_segment_files(
         for ext in &extensions {
             files.insert(segment_meta.relative_path(SegmentComponent::Custom(ext.clone())));
         }
-        files.insert(segment_meta.relative_path(SegmentComponent::SpatialCells));
-        files.insert(segment_meta.relative_path(SegmentComponent::SpatialEdges));
-        files.insert(segment_meta.relative_path(SegmentComponent::SpatialDocIds));
         files.insert(segment_meta.relative_path(SegmentComponent::Delete));
         if segment_meta.include_temp_store() {
             files.insert(segment_meta.relative_path(SegmentComponent::TempStore));
@@ -100,8 +97,7 @@ pub(crate) fn list_segment_files(
 
 /// Extensions owned by native components. Reserve both the component name and the
 /// on-disk extension so a custom plugin cannot claim the same file.
-const RESERVED_NON_PLUGIN_EXTENSIONS: &[&str] =
-    &["temp", "store.temp", "del", "cells", "edges", "docids"];
+const RESERVED_NON_PLUGIN_EXTENSIONS: &[&str] = &["temp", "store.temp", "del"];
 
 /// Save the index meta file.
 /// This operation is atomic :
@@ -310,6 +306,22 @@ impl IndexBuilder {
 
     fn validate(&self) -> crate::Result<()> {
         if let Some(schema) = self.schema.as_ref() {
+            let has_spatial_plugin = self.custom_plugins.iter().any(|plugin| {
+                ["cells", "edges", "docids"]
+                    .iter()
+                    .all(|extension| plugin.extensions().contains(extension))
+            });
+            if schema.contains_spatial_field() && !has_spatial_plugin {
+                return Err(TantivyError::InvalidArgument(
+                    "a schema with spatial fields requires a registered spatial segment plugin"
+                        .to_string(),
+                ));
+            }
+            if !schema.contains_spatial_field() && has_spatial_plugin {
+                return Err(TantivyError::InvalidArgument(
+                    "a spatial segment plugin requires a schema with spatial fields".to_string(),
+                ));
+            }
             if self.index_settings.manual_doc_id_mapping
                 && self.index_settings.sort_by_field.is_some()
             {

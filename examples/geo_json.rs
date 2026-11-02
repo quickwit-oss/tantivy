@@ -1,13 +1,22 @@
+use std::sync::Arc;
+
 use tantivy::collector::TopDocs;
 use tantivy::query::SpatialQuery;
 use tantivy::schema::{Schema, Value, SPHERE, STORED, TEXT};
+use tantivy::spatial::sphere::Sphere;
+use tantivy::spatial::{Cons, Nil, S2Plugin, SurfaceIndex};
 use tantivy::{Index, IndexWriter, TantivyDocument};
+
 fn main() -> tantivy::Result<()> {
     let mut schema_builder = Schema::builder();
     schema_builder.add_json_field("properties", STORED | TEXT);
     schema_builder.add_spatial_field("geometry", STORED | SPHERE);
     let schema = schema_builder.build();
-    let index = Index::create_in_ram(schema.clone());
+    type SpatialIndexes = Cons<SurfaceIndex<Sphere>, Nil>;
+    let index = Index::builder()
+        .schema(schema.clone())
+        .register_plugin(Arc::new(S2Plugin::<SpatialIndexes>::new()))
+        .create_in_ram()?;
     let mut index_writer: IndexWriter = index.writer(50_000_000)?;
     let doc = TantivyDocument::parse_json(
         &schema,
@@ -36,7 +45,7 @@ fn main() -> tantivy::Result<()> {
     let reader = index.reader()?;
     let searcher = reader.searcher();
     let field = schema.get_field("geometry").unwrap();
-    let query = SpatialQuery::from_bounds(field, [[-99.49, 45.56], [-99.45, 45.59]]);
+    let query = SpatialQuery::intersects_bounds(field, [[-99.49, 45.56], [-99.45, 45.59]]);
     let hits = searcher.search(&query, &TopDocs::with_limit(10).order_by_score())?;
     for (_score, doc_address) in &hits {
         let retrieved_doc: TantivyDocument = searcher.doc(*doc_address)?;

@@ -4,9 +4,7 @@ use crate::fastfield::FastFieldsPluginWriter;
 use crate::index::{InvertedIndexPluginWriter, Segment};
 use crate::plugin::{PluginWriter, PluginWriterContext};
 use crate::schema::document::{Document, ErasedDocument};
-use crate::schema::{FieldType, Schema};
-use crate::spatial::serializer::SpatialSerializer;
-use crate::spatial::writer::SpatialWriter;
+use crate::schema::Schema;
 use crate::store::StorePluginWriter;
 use crate::{DocId, Opstamp, TantivyError};
 
@@ -35,7 +33,6 @@ pub struct SegmentWriter {
     pub(crate) inverted_index: InvertedIndexPluginWriter,
     pub(crate) fast_fields: FastFieldsPluginWriter,
     pub(crate) store_writer: StorePluginWriter,
-    spatial_writer: SpatialWriter,
     custom_plugins: Vec<Box<dyn PluginWriter>>,
     pub(crate) doc_opstamps: Vec<Opstamp>,
     schema: Schema,
@@ -60,12 +57,6 @@ impl SegmentWriter {
         let inverted_index = InvertedIndexPluginWriter::new(&ctx)?;
         let fast_fields = FastFieldsPluginWriter::new(&ctx)?;
         let store_writer = StorePluginWriter::new(&ctx)?;
-        let mut spatial_writer = SpatialWriter::new(segment.index().spatial_indices().clone());
-        for (field, entry) in schema.fields() {
-            if let FieldType::Spatial(options) = entry.field_type() {
-                spatial_writer.set_field_index(field, options.spatial_index_name());
-            }
-        }
         let custom_plugins = segment
             .index()
             .custom_plugins()
@@ -78,7 +69,6 @@ impl SegmentWriter {
             inverted_index,
             fast_fields,
             store_writer,
-            spatial_writer,
             custom_plugins,
             doc_opstamps: Vec::with_capacity(1_000),
             schema,
@@ -153,16 +143,12 @@ impl SegmentWriter {
         self.finalize_inner(Some(mapping))
     }
 
-    fn finalize_inner(mut self, mapping: Option<&DocIdMapping>) -> crate::Result<Vec<u64>> {
-        // Write native components before custom plugins.
+    fn finalize_inner(self, mapping: Option<&DocIdMapping>) -> crate::Result<Vec<u64>> {
+        // Serialize in write order: inverted index, fast fields, store, then custom plugins.
         let segment = &self.segment;
         Box::new(self.inverted_index).serialize(segment, mapping)?;
         Box::new(self.fast_fields).serialize(segment, mapping)?;
         Box::new(self.store_writer).serialize(segment, mapping)?;
-        if let Some(serializer) = SpatialSerializer::for_segment(segment)? {
-            self.spatial_writer
-                .serialize(serializer, mapping.map(|m| m.old_to_new_ids()))?;
-        }
         for writer in self.custom_plugins {
             writer.serialize(segment, mapping)?;
         }
@@ -177,7 +163,6 @@ impl SegmentWriter {
         self.inverted_index.mem_usage()
             + self.fast_fields.mem_usage()
             + self.store_writer.mem_usage()
-            + self.spatial_writer.mem_usage()
             + self
                 .custom_plugins
                 .iter()
@@ -196,14 +181,15 @@ impl SegmentWriter {
         let doc_id = self.max_doc;
         self.doc_opstamps.push(opstamp);
 
-        // Built-in writers index the document generically, zero-copy for any `Document` type.
+        // Built-in writers index the document generically — zero-copy for any `Document` type.
         self.inverted_index.index_document(doc_id, &document)?;
         self.fast_fields.index_document(&document)?;
         self.store_writer.store(&document, &self.schema)?;
-        let erased: &dyn ErasedDocument = &document;
-        self.spatial_writer
-            .add_document(doc_id, erased, &self.schema);
+
+        // Custom plugins are trait objects, so they take the document type-erased. Leaves stay
+        // borrowed; a plugin that knows the concrete type recovers it for free via `as_any`.
         if !self.custom_plugins.is_empty() {
+            let erased: &dyn ErasedDocument = &document;
             for writer in &mut self.custom_plugins {
                 writer.add_document(doc_id, erased, &self.schema)?;
             }

@@ -41,6 +41,8 @@ pub mod latlng_rect;
 pub mod math;
 pub mod merge;
 pub mod plane;
+/// Spatial segment plugin and compile-time implementation catalog.
+pub mod plugin;
 pub mod query_edge_provider;
 pub mod r1interval;
 pub mod r2rect;
@@ -66,10 +68,11 @@ pub mod sphere;
 pub mod stats;
 pub mod surface;
 pub mod within;
-pub mod writer;
 pub mod xor;
 
 pub use geometry::Geometry;
+pub use plugin::{Cons, Nil, S2Plugin};
+pub use spatial_index_manager::SurfaceIndex;
 
 #[cfg(test)]
 mod lifecycle_tests;
