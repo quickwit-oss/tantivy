@@ -223,7 +223,7 @@ impl<S: Surface + Send + Sync + Clone + 'static> SpatialIndex for SurfaceIndex<S
             .collect();
         let mut next_new_id: u32 = 0;
 
-        let mut edge_writer = EdgeWriter::<S>::new(edges_write);
+        let mut edge_writer = EdgeWriter::<S, _>::new(edges_write);
         let cells_base = cells_write.written_bytes();
         let doc_ids_base = doc_ids_write.written_bytes();
         let mut offsets: Vec<(u64, u64, u64)> = Vec::new();
@@ -525,12 +525,16 @@ impl<S: Surface> SurfaceFieldWriter<S> {
             .sum()
     }
 
-    pub(crate) fn serialize(
+    pub(crate) fn serialize<CellsWrite, EdgesWrite>(
         self,
-        cells_write: &mut CountingWriter<WritePtr>,
-        edges_write: &mut CountingWriter<WritePtr>,
+        cells_write: &mut CountingWriter<CellsWrite>,
+        edges_write: &mut CountingWriter<EdgesWrite>,
         old_to_new: Option<&[DocId]>,
-    ) -> io::Result<()> {
+    ) -> io::Result<()>
+    where
+        CellsWrite: Write,
+        EdgesWrite: Write,
+    {
         let mut sets = self.sets;
         if let Some(old_to_new) = old_to_new {
             for set in &mut sets {
@@ -547,7 +551,7 @@ impl<S: Surface> SurfaceFieldWriter<S> {
         cell_index.write(cells_write);
         cells_write.flush()?;
 
-        let mut edge_writer = EdgeWriter::<S>::new(edges_write);
+        let mut edge_writer = EdgeWriter::<S, _>::new(edges_write);
         for set in &sets {
             edge_writer.insert(set);
         }

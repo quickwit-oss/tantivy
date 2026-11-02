@@ -79,7 +79,7 @@ impl SpatialSerializer {
         // Write the edge index.
         let edges_out = self.edges_write.for_field(field);
         {
-            let mut edge_writer = EdgeWriter::<S>::new(edges_out);
+            let mut edge_writer = EdgeWriter::<S, _>::new(edges_out);
 
             for set in sets {
                 edge_writer.insert(set);

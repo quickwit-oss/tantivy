@@ -9,14 +9,13 @@ use std::marker::PhantomData;
 
 use common::CountingWriter;
 
-use crate::directory::WritePtr;
 use crate::spatial::geometry_set::{GeometryKind, GeometrySet};
 use crate::spatial::surface::Surface;
 
 /// Streams geometry entries to disk. The Surface type parameter determines how many f64
 /// coordinates are written per vertex.
-pub struct EdgeWriter<'a, S: Surface> {
-    write: &'a mut CountingWriter<WritePtr>,
+pub struct EdgeWriter<'a, S: Surface, W: Write> {
+    write: &'a mut CountingWriter<W>,
     offsets: Vec<u64>,
     doc_ids: Vec<u32>,
     value_heads: Vec<u32>,
@@ -30,9 +29,9 @@ pub(crate) const EDGE_MAGIC: &[u8; 4] = b"TEDG";
 pub(crate) const EDGE_REVISION: u32 = 1;
 pub(crate) const EDGE_FOOTER_BYTES: usize = 48;
 
-impl<'a, S: Surface> EdgeWriter<'a, S> {
+impl<'a, S: Surface, W: Write> EdgeWriter<'a, S, W> {
     /// Creates a new writer backed by the given output.
-    pub fn new(write: &'a mut CountingWriter<WritePtr>) -> Self {
+    pub fn new(write: &'a mut CountingWriter<W>) -> Self {
         let base = write.written_bytes();
         EdgeWriter {
             write,
