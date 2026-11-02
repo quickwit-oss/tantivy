@@ -3,7 +3,7 @@ use super::operation::AddOperation;
 use crate::fastfield::FastFieldsPluginWriter;
 use crate::index::{InvertedIndexPluginWriter, Segment};
 use crate::plugin::{PluginWriter, PluginWriterContext};
-use crate::schema::document::{Document, ErasedDocument, Value};
+use crate::schema::document::{Document, ErasedDocument};
 use crate::schema::{FieldType, Schema};
 use crate::spatial::serializer::SpatialSerializer;
 use crate::spatial::writer::SpatialWriter;
@@ -200,23 +200,10 @@ impl SegmentWriter {
         self.inverted_index.index_document(doc_id, &document)?;
         self.fast_fields.index_document(&document)?;
         self.store_writer.store(&document, &self.schema)?;
-        if self.schema.contains_spatial_field() {
-            for (field, value) in document.iter_fields_and_values() {
-                if matches!(
-                    self.schema.get_field_entry(field).field_type(),
-                    FieldType::Spatial(_)
-                ) {
-                    if let Some(geometry) = value.as_geometry() {
-                        self.spatial_writer.add_geometry(doc_id, field, *geometry);
-                    }
-                }
-            }
-        }
-
-        // Custom plugins are trait objects, so they take the document type-erased. Leaves stay
-        // borrowed; a plugin that knows the concrete type recovers it for free via `as_any`.
+        let erased: &dyn ErasedDocument = &document;
+        self.spatial_writer
+            .add_document(doc_id, erased, &self.schema);
         if !self.custom_plugins.is_empty() {
-            let erased: &dyn ErasedDocument = &document;
             for writer in &mut self.custom_plugins {
                 writer.add_document(doc_id, erased, &self.schema)?;
             }
