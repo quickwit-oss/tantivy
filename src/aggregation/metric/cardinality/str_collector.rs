@@ -15,6 +15,7 @@ use columnar::ColumnType;
 use datasketches::hll::Coupon;
 use rustc_hash::{FxBuildHasher, FxHashMap, FxHashSet};
 
+use super::numeric_collector::{normalized_numeric_key_value, NUMERIC_CARDINALITY_SALT};
 use super::term_ord_accumulator::TermOrdAccumulator;
 use super::{CardinalityAggReqData, CardinalityCollector};
 use crate::aggregation::agg_data::AggregationsSegmentCtx;
@@ -142,25 +143,24 @@ fn build_coupon_cache<S: TermOrdAccumulator>(
     let mut coupons: Vec<Coupon> = Vec::with_capacity(term_ords.len());
     let all_term_ords_found: bool =
         dictionary.sorted_ords_to_term_cb(&term_ords, &mut |term_bytes| {
-            let coupon: Coupon = Coupon::from_value(term_bytes);
+            let coupon: Coupon = Coupon::from_value((ColumnType::Str as u8, term_bytes));
             coupons.push(coupon);
         })?;
     assert!(all_term_ords_found);
 
     // Regardless of whether or not there is effectively a missing value in one of the buckets,
     // we populate the cache with the missing key too (if any).
-    let missing_coupon_opt: Option<Coupon> = missing_value_opt.map(|missing_key| {
-        if let Key::Str(missing_value_str) = missing_key {
-            Coupon::from_value(missing_value_str.as_bytes())
-        } else {
-            // See https://github.com/quickwit-oss/tantivy/issues/2891
-            // A missing key with a type different from Str will not work as intended
-            // for the moment.
-            //
-            // Right now this is just a partial workaround.
-            Coupon::from_value("__tantivy_missing_non_str__".as_bytes())
-        }
-    });
+    let missing_coupon_opt: Option<Coupon> =
+        missing_value_opt.map(|missing_key| match missing_key {
+            Key::Str(missing_value_str) => {
+                Coupon::from_value((ColumnType::Str as u8, missing_value_str.as_bytes()))
+            }
+            numeric_key => {
+                let normalized_value = normalized_numeric_key_value(numeric_key)
+                    .expect("a non-string missing key is numeric");
+                Coupon::from_value((NUMERIC_CARDINALITY_SALT, normalized_value))
+            }
+        });
     Ok(CouponCache::new(term_ords, coupons, missing_coupon_opt))
 }
 

@@ -263,8 +263,9 @@ pub(crate) fn build_segment_cardinality_collector(
 
 #[cfg(test)]
 mod tests {
-    use columnar::MonotonicallyMappableToU64;
+    use columnar::{ColumnType, MonotonicallyMappableToU64};
 
+    use crate::aggregation::accessor_helpers::get_dynamic_columns;
     use crate::aggregation::agg_req::Aggregations;
     use crate::aggregation::tests::{exec_request, get_test_index_from_terms};
     use crate::schema::{Schema, FAST, STRING};
@@ -588,6 +589,227 @@ mod tests {
             let res = exec_request(agg_req, &index).unwrap();
             assert_eq!(res["cardinality"]["value"], 2.0);
         }
+    }
+
+    #[test]
+    fn cardinality_aggregation_missing_numeric_on_str_merges_with_numeric() -> crate::Result<()> {
+        let mut schema_builder = Schema::builder();
+        let field = schema_builder.add_json_field("json", FAST);
+        let index = Index::create_in_ram(schema_builder.build());
+        {
+            let mut writer = index.writer_for_tests()?;
+            // This segment has a Str column for `json.value`, plus one document where the
+            // value is missing and is substituted with the numeric missing key.
+            writer.add_document(doc!(field => json!({"value": "text"})))?;
+            writer.add_document(doc!())?;
+            writer.commit()?;
+
+            // This segment has a numeric column for the same JSON path.
+            writer.add_document(doc!(field => json!({"value": 7u64})))?;
+            writer.commit()?;
+        }
+
+        let agg_req: Aggregations = serde_json::from_value(json!({
+            "cardinality": {
+                "cardinality": {
+                    "field": "json.value",
+                    "missing": 7u64
+                },
+            }
+        }))
+        .unwrap();
+
+        let res = exec_request(agg_req, &index)?;
+        assert_eq!(res["cardinality"]["value"], 2.0);
+
+        Ok(())
+    }
+
+    #[test]
+    fn cardinality_aggregation_unifies_numeric_json_values() -> crate::Result<()> {
+        let mut schema_builder = Schema::builder();
+        let field = schema_builder.add_json_field("json", FAST);
+        let index = Index::create_in_ram(schema_builder.build());
+        {
+            let mut writer = index.writer_for_tests()?;
+            writer.add_document(doc!(field => json!({"value": 7i64})))?;
+            writer.commit()?;
+            writer.add_document(doc!(field => json!({"value": 7u64})))?;
+            writer.commit()?;
+            writer.add_document(doc!(field => json!({"value": 7.0f64})))?;
+            writer.commit()?;
+        }
+
+        let agg_req: Aggregations = serde_json::from_value(json!({
+            "cardinality": {
+                "cardinality": {
+                    "field": "json.value"
+                },
+            }
+        }))
+        .unwrap();
+
+        let res = exec_request(agg_req, &index)?;
+        assert_eq!(res["cardinality"]["value"], 1.0);
+
+        Ok(())
+    }
+
+    fn assert_json_cardinality(
+        segments: Vec<Vec<serde_json::Value>>,
+        missing: Option<serde_json::Value>,
+        expected_types: Option<&[&[ColumnType]]>,
+        expected_cardinality: f64,
+    ) -> crate::Result<()> {
+        let mut schema_builder = Schema::builder();
+        let field = schema_builder.add_json_field("json", FAST);
+        let index = Index::create_in_ram(schema_builder.build());
+        {
+            let mut writer = index.writer_for_tests()?;
+            for segment in segments {
+                for value in segment {
+                    writer.add_document(doc!(field => value))?;
+                }
+                writer.commit()?;
+            }
+        }
+
+        if let Some(expected_types) = expected_types {
+            let searcher = index.reader()?.searcher();
+            let mut physical_types: Vec<Vec<ColumnType>> = Vec::new();
+            for segment_reader in searcher.segment_readers() {
+                let columns = get_dynamic_columns(segment_reader, "json.value")?;
+                physical_types.push(columns.iter().map(|column| column.column_type()).collect());
+            }
+            physical_types.sort_by_key(|types| format!("{types:?}"));
+            assert_eq!(physical_types, expected_types);
+        }
+
+        let cardinality_req = match missing {
+            Some(missing) => json!({"field": "json.value", "missing": missing}),
+            None => json!({"field": "json.value"}),
+        };
+        let agg_req: Aggregations = serde_json::from_value(json!({
+            "cardinality": {"cardinality": cardinality_req}
+        }))
+        .unwrap();
+        let res = exec_request(agg_req, &index)?;
+        assert_eq!(res["cardinality"]["value"], expected_cardinality);
+        Ok(())
+    }
+
+    #[test]
+    fn cardinality_aggregation_f64_upper_endpoints_do_not_collide() -> crate::Result<()> {
+        assert_json_cardinality(
+            vec![
+                vec![
+                    json!({"value": 9_223_372_036_854_775_808.0f64}),
+                    json!({"value": 0.25f64}),
+                ],
+                vec![json!({"value": i64::MAX})],
+            ],
+            None,
+            Some(&[&[ColumnType::F64], &[ColumnType::I64]]),
+            3.0,
+        )?;
+        assert_json_cardinality(
+            vec![
+                vec![
+                    json!({"value": 18_446_744_073_709_551_616.0f64}),
+                    json!({"value": 0.5f64}),
+                ],
+                vec![json!({"value": u64::MAX})],
+            ],
+            None,
+            Some(&[&[ColumnType::F64], &[ColumnType::U64]]),
+            3.0,
+        )
+    }
+
+    #[test]
+    fn cardinality_aggregation_numeric_boundaries_merge_exact_values() -> crate::Result<()> {
+        assert_json_cardinality(
+            vec![
+                vec![
+                    json!({"value": 9_223_372_036_854_775_808.0f64}),
+                    json!({"value": 0.25f64}),
+                ],
+                vec![json!({"value": 9_223_372_036_854_775_808u64})],
+            ],
+            None,
+            Some(&[&[ColumnType::F64], &[ColumnType::U64]]),
+            2.0,
+        )?;
+        assert_json_cardinality(
+            vec![
+                vec![
+                    json!({"value": 9_223_372_036_854_774_784.0f64}),
+                    json!({"value": 0.25f64}),
+                ],
+                vec![json!({"value": 9_223_372_036_854_774_784i64})],
+            ],
+            None,
+            None,
+            2.0,
+        )?;
+        assert_json_cardinality(
+            vec![
+                vec![
+                    json!({"value": -9_223_372_036_854_775_808.0f64}),
+                    json!({"value": 0.25f64}),
+                ],
+                vec![json!({"value": i64::MIN})],
+            ],
+            None,
+            None,
+            2.0,
+        )?;
+        assert_json_cardinality(
+            vec![
+                vec![
+                    json!({"value": 18_446_744_073_709_549_568.0f64}),
+                    json!({"value": 0.5f64}),
+                ],
+                vec![json!({"value": 18_446_744_073_709_549_568u64})],
+            ],
+            None,
+            None,
+            2.0,
+        )
+    }
+
+    #[test]
+    fn cardinality_aggregation_missing_f64_endpoints_match_numeric() -> crate::Result<()> {
+        assert_json_cardinality(
+            vec![
+                vec![json!({"value": "text"}), json!({})],
+                vec![json!({"value": 9_223_372_036_854_775_808u64})],
+            ],
+            Some(json!(9_223_372_036_854_775_808.0f64)),
+            Some(&[&[ColumnType::Str], &[ColumnType::U64]]),
+            2.0,
+        )?;
+        assert_json_cardinality(
+            vec![
+                vec![json!({"value": "text"}), json!({})],
+                vec![
+                    json!({"value": 18_446_744_073_709_551_616.0f64}),
+                    json!({"value": 0.5f64}),
+                ],
+            ],
+            Some(json!(18_446_744_073_709_551_616.0f64)),
+            Some(&[&[ColumnType::F64], &[ColumnType::Str]]),
+            3.0,
+        )?;
+        assert_json_cardinality(
+            vec![
+                vec![json!({"value": "text"}), json!({})],
+                vec![json!({"value": u64::MAX})],
+            ],
+            Some(json!(18_446_744_073_709_551_616.0f64)),
+            Some(&[&[ColumnType::Str], &[ColumnType::U64]]),
+            3.0,
+        )
     }
 
     #[test]
