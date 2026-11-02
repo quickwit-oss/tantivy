@@ -9,6 +9,7 @@ use crate::directory::{CompositeFile, CompositeWrite, Directory, FileSlice, RamD
 use crate::index::SegmentComponent;
 use crate::indexer::SingleSegmentIndexWriter;
 use crate::query::{AllQuery, EnableScoring, Query, SpatialQuery};
+use crate::schema::document::{ErasedValue, ReferenceValueLeaf};
 use crate::schema::{Field, Schema, SPHERE, STORED};
 use crate::spatial::cell_index_reader::CellIndexReader;
 use crate::spatial::edge_reader::EdgeReader;
@@ -17,6 +18,7 @@ use crate::spatial::executor::{PlanNode, SpatialExecutor, SpatialRelation};
 use crate::spatial::geometry::Geometry;
 use crate::spatial::plane::Plane;
 use crate::spatial::plane_support_tests::assert_partition;
+use crate::spatial::plugin::NativeSpatial;
 use crate::spatial::reader::SpatialReader;
 use crate::spatial::shape_index::{write_cell_footer, ShapeIndex, CELL_FOOTER_LEN, CELL_REVISION};
 use crate::spatial::spatial_index_manager::{MergeSource, SpatialIndex, SurfaceIndex};
@@ -258,9 +260,14 @@ fn serialize_values<S: Surface + Clone + Send + Sync + 'static>(
     let directory = RamDirectory::create();
     let mut cells = CountingWriter::wrap(directory.open_write(Path::new("cells")).unwrap());
     let mut edges = CountingWriter::wrap(directory.open_write(Path::new("edges")).unwrap());
-    let mut writer = SurfaceIndex::<S>::new().create_field_writer();
+    let mut writer = SurfaceIndex::<S>::create_field_writer::<NativeSpatial>();
     for &(doc, geometry) in values {
-        writer.add_geometry(doc, geometry);
+        writer
+            .add_value(
+                doc,
+                ErasedValue::Leaf(ReferenceValueLeaf::Geometry(Box::new(geometry.clone()))),
+            )
+            .unwrap();
     }
     writer.serialize(&mut cells, &mut edges, None).unwrap();
     cells.terminate().unwrap();

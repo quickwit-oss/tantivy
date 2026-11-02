@@ -4,7 +4,7 @@ use tantivy::collector::TopDocs;
 use tantivy::query::SpatialQuery;
 use tantivy::schema::{Schema, Value, SPHERE, STORED, TEXT};
 use tantivy::spatial::sphere::Sphere;
-use tantivy::spatial::{Cons, Nil, S2Plugin, SurfaceIndex};
+use tantivy::spatial::{Cons, NativeSpatial, Nil, S2Plugin, SurfaceIndex};
 use tantivy::{Index, IndexWriter, TantivyDocument};
 
 fn main() -> tantivy::Result<()> {
@@ -15,7 +15,7 @@ fn main() -> tantivy::Result<()> {
     type SpatialIndexes = Cons<SurfaceIndex<Sphere>, Nil>;
     let index = Index::builder()
         .schema(schema.clone())
-        .register_plugin(Arc::new(S2Plugin::<SpatialIndexes>::new()))
+        .register_plugin(Arc::new(S2Plugin::<SpatialIndexes, NativeSpatial>::new()))
         .create_in_ram()?;
     let mut index_writer: IndexWriter = index.writer(50_000_000)?;
     let doc = TantivyDocument::parse_json(

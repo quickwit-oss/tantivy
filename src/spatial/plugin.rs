@@ -4,13 +4,15 @@ use std::marker::PhantomData;
 
 use crate::plugin::{PluginMergeContext, PluginWriter, PluginWriterContext, SegmentPlugin};
 use crate::schema::document::{ErasedDocument, ErasedValue, ReferenceValueLeaf};
-use crate::schema::{Field, FieldType, Schema};
+use crate::schema::{Field, FieldEntry, FieldType, Schema};
+use crate::spatial::geometry_set::{to_geometry_set, GeometrySet};
 use crate::spatial::plane::Plane;
 use crate::spatial::serializer::SpatialSerializer;
 use crate::spatial::spatial_index_manager::{
     MergeSource, SpatialFieldWriter, SpatialIndex, SurfaceIndex,
 };
 use crate::spatial::sphere::Sphere;
+use crate::spatial::surface::Surface;
 use crate::{DocId, TantivyError};
 
 /// Empty spatial index catalog.
@@ -19,80 +21,152 @@ pub struct Nil;
 /// A spatial index catalog entry followed by the rest of the catalog.
 pub struct Cons<Head, Tail>(PhantomData<(Head, Tail)>);
 
+/// Converts one document representation into spatial index input.
+pub trait SpatialInput: Send + Sync + 'static {
+    /// Claim a schema field and return the spatial index implementation it requests.
+    fn index_name(entry: &FieldEntry) -> crate::Result<Option<&str>>;
+
+    /// Convert one document value into the representation consumed by the spatial index.
+    fn convert<S: Surface>(
+        doc_id: DocId,
+        value: ErasedValue<'_>,
+    ) -> crate::Result<Option<GeometrySet<S>>>;
+}
+
+/// Native `SPATIAL` field input.
+pub struct NativeSpatial;
+
+impl SpatialInput for NativeSpatial {
+    fn index_name(entry: &FieldEntry) -> crate::Result<Option<&str>> {
+        let FieldType::Spatial(options) = entry.field_type() else {
+            return Ok(None);
+        };
+        Ok(Some(options.spatial_index_name()))
+    }
+
+    fn convert<S: Surface>(
+        doc_id: DocId,
+        value: ErasedValue<'_>,
+    ) -> crate::Result<Option<GeometrySet<S>>> {
+        let ErasedValue::Leaf(ReferenceValueLeaf::Geometry(geometry)) = value else {
+            return Ok(None);
+        };
+        let projected = geometry.project::<S>();
+        Ok(Some(to_geometry_set(&projected, doc_id)))
+    }
+}
+
 /// Creates one concrete spatial index implementation.
-pub trait SpatialIndexFactory: Send + Sync + 'static {
+pub trait SpatialIndexFactory<Input>: Send + Sync + 'static {
     /// The name used by a spatial field in the schema.
     const NAME: &'static str;
 
     /// Create the implementation.
-    fn create() -> Box<dyn SpatialIndex>;
+    fn create_index() -> Box<dyn SpatialIndex>;
+
+    /// Create a field writer using the selected document input.
+    fn create_field_writer() -> Box<dyn SpatialFieldWriter>;
 }
 
-impl SpatialIndexFactory for SurfaceIndex<Sphere> {
+impl<Input: SpatialInput> SpatialIndexFactory<Input> for SurfaceIndex<Sphere> {
     const NAME: &'static str = "sphere";
 
-    fn create() -> Box<dyn SpatialIndex> {
+    fn create_index() -> Box<dyn SpatialIndex> {
         Box::new(SurfaceIndex::<Sphere>::new())
+    }
+
+    fn create_field_writer() -> Box<dyn SpatialFieldWriter> {
+        SurfaceIndex::<Sphere>::create_field_writer::<Input>()
     }
 }
 
-impl SpatialIndexFactory for SurfaceIndex<Plane> {
+impl<Input: SpatialInput> SpatialIndexFactory<Input> for SurfaceIndex<Plane> {
     const NAME: &'static str = "plane";
 
-    fn create() -> Box<dyn SpatialIndex> {
+    fn create_index() -> Box<dyn SpatialIndex> {
         Box::new(SurfaceIndex::<Plane>::new())
+    }
+
+    fn create_field_writer() -> Box<dyn SpatialFieldWriter> {
+        SurfaceIndex::<Plane>::create_field_writer::<Input>()
     }
 }
 
 /// A compile-time catalog of spatial index implementations.
-pub trait SpatialIndexCatalog: Send + Sync + 'static {
+pub trait SpatialIndexCatalog<Input>: Send + Sync + 'static {
     #[doc(hidden)]
-    fn collect(name: &str, matches: &mut Vec<Box<dyn SpatialIndex>>);
+    fn collect_indexes(name: &str, matches: &mut Vec<Box<dyn SpatialIndex>>);
 
     #[doc(hidden)]
-    fn resolve(name: &str) -> crate::Result<Box<dyn SpatialIndex>> {
+    fn collect_writers(name: &str, matches: &mut Vec<Box<dyn SpatialFieldWriter>>);
+
+    #[doc(hidden)]
+    fn resolve_index(name: &str) -> crate::Result<Box<dyn SpatialIndex>> {
         let mut matches = Vec::new();
-        Self::collect(name, &mut matches);
-        match matches.len() {
-            1 => Ok(matches.pop().unwrap()),
-            0 => Err(TantivyError::InvalidArgument(format!(
-                "spatial index '{name}' is not registered"
-            ))),
-            _ => Err(TantivyError::InvalidArgument(format!(
-                "spatial index '{name}' is registered more than once"
-            ))),
-        }
+        Self::collect_indexes(name, &mut matches);
+        resolve_match(name, matches)
+    }
+
+    #[doc(hidden)]
+    fn resolve_writer(name: &str) -> crate::Result<Box<dyn SpatialFieldWriter>> {
+        let mut matches = Vec::new();
+        Self::collect_writers(name, &mut matches);
+        resolve_match(name, matches)
     }
 }
 
-impl SpatialIndexCatalog for Nil {
-    fn collect(_name: &str, _matches: &mut Vec<Box<dyn SpatialIndex>>) {}
+fn resolve_match<T>(name: &str, mut matches: Vec<T>) -> crate::Result<T> {
+    match matches.len() {
+        1 => Ok(matches.pop().unwrap()),
+        0 => Err(TantivyError::InvalidArgument(format!(
+            "spatial index '{name}' is not registered"
+        ))),
+        _ => Err(TantivyError::InvalidArgument(format!(
+            "spatial index '{name}' is registered more than once"
+        ))),
+    }
 }
 
-impl<Head, Tail> SpatialIndexCatalog for Cons<Head, Tail>
-where
-    Head: SpatialIndexFactory,
-    Tail: SpatialIndexCatalog,
+impl<Input> SpatialIndexCatalog<Input> for Nil
+where Input: SpatialInput
 {
-    fn collect(name: &str, matches: &mut Vec<Box<dyn SpatialIndex>>) {
-        if name == Head::NAME {
-            matches.push(Head::create());
+    fn collect_indexes(_name: &str, _matches: &mut Vec<Box<dyn SpatialIndex>>) {}
+
+    fn collect_writers(_name: &str, _matches: &mut Vec<Box<dyn SpatialFieldWriter>>) {}
+}
+
+impl<Input, Head, Tail> SpatialIndexCatalog<Input> for Cons<Head, Tail>
+where
+    Input: SpatialInput,
+    Head: SpatialIndexFactory<Input>,
+    Tail: SpatialIndexCatalog<Input>,
+{
+    fn collect_indexes(name: &str, matches: &mut Vec<Box<dyn SpatialIndex>>) {
+        if name == <Head as SpatialIndexFactory<Input>>::NAME {
+            matches.push(Head::create_index());
         }
-        Tail::collect(name, matches);
+        Tail::collect_indexes(name, matches);
+    }
+
+    fn collect_writers(name: &str, matches: &mut Vec<Box<dyn SpatialFieldWriter>>) {
+        if name == <Head as SpatialIndexFactory<Input>>::NAME {
+            matches.push(Head::create_field_writer());
+        }
+        Tail::collect_writers(name, matches);
     }
 }
 
-/// Spatial segment component using the implementations in `Catalog`.
-pub struct S2Plugin<Catalog>(PhantomData<Catalog>);
+/// Spatial segment component using `Input` and the implementations in `Catalog`.
+pub struct S2Plugin<Catalog, Input>(PhantomData<(Catalog, Input)>);
 
-impl<Catalog> S2Plugin<Catalog> {
+impl<Catalog, Input> S2Plugin<Catalog, Input> {
     /// Create a spatial segment plugin.
     pub fn new() -> Self {
         Self(PhantomData)
     }
 }
 
-impl<Catalog> Default for S2Plugin<Catalog> {
+impl<Catalog, Input> Default for S2Plugin<Catalog, Input> {
     fn default() -> Self {
         Self::new()
     }
@@ -103,14 +177,17 @@ struct SpatialPluginWriter {
 }
 
 impl SpatialPluginWriter {
-    fn new<Catalog: SpatialIndexCatalog>(schema: &Schema) -> crate::Result<Self> {
+    fn new<Catalog, Input>(schema: &Schema) -> crate::Result<Self>
+    where
+        Catalog: SpatialIndexCatalog<Input>,
+        Input: SpatialInput,
+    {
         let mut writers = HashMap::new();
         for (field, entry) in schema.fields() {
-            let FieldType::Spatial(options) = entry.field_type() else {
+            let Some(index_name) = Input::index_name(entry)? else {
                 continue;
             };
-            let index = Catalog::resolve(options.spatial_index_name())?;
-            writers.insert(field, index.create_field_writer());
+            writers.insert(field, Catalog::resolve_writer(index_name)?);
         }
         Ok(Self { writers })
     }
@@ -121,20 +198,11 @@ impl PluginWriter for SpatialPluginWriter {
         &mut self,
         doc_id: DocId,
         document: &dyn ErasedDocument,
-        schema: &Schema,
+        _schema: &Schema,
     ) -> crate::Result<()> {
         for (field, value) in document.erased_fields() {
-            if !matches!(
-                schema.get_field_entry(field).field_type(),
-                FieldType::Spatial(_)
-            ) {
-                continue;
-            }
-            let ErasedValue::Leaf(ReferenceValueLeaf::Geometry(geometry)) = value else {
-                continue;
-            };
             if let Some(writer) = self.writers.get_mut(&field) {
-                writer.add_geometry(doc_id, &geometry);
+                writer.add_value(doc_id, value)?;
             }
         }
         Ok(())
@@ -173,13 +241,17 @@ impl PluginWriter for SpatialPluginWriter {
     }
 }
 
-impl<Catalog: SpatialIndexCatalog> SegmentPlugin for S2Plugin<Catalog> {
+impl<Catalog, Input> SegmentPlugin for S2Plugin<Catalog, Input>
+where
+    Catalog: SpatialIndexCatalog<Input>,
+    Input: SpatialInput,
+{
     fn extensions(&self) -> &[&str] {
         &["cells", "edges", "docids"]
     }
 
     fn create_writer(&self, ctx: &PluginWriterContext) -> crate::Result<Box<dyn PluginWriter>> {
-        Ok(Box::new(SpatialPluginWriter::new::<Catalog>(
+        Ok(Box::new(SpatialPluginWriter::new::<Catalog, Input>(
             &ctx.segment.schema(),
         )?))
     }
@@ -202,10 +274,10 @@ impl<Catalog: SpatialIndexCatalog> SegmentPlugin for S2Plugin<Catalog> {
         }
 
         for (field, entry) in ctx.schema.fields() {
-            let FieldType::Spatial(options) = entry.field_type() else {
+            let Some(index_name) = Input::index_name(entry)? else {
                 continue;
             };
-            let index = Catalog::resolve(options.spatial_index_name())?;
+            let index = Catalog::resolve_index(index_name)?;
 
             let mut readers = Vec::new();
             for reader in ctx.readers {

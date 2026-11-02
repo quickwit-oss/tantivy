@@ -15,6 +15,7 @@ use std::sync::{Arc, RwLock};
 use common::{BitSet, CountingWriter, ReadOnlyBitSet};
 
 use crate::directory::WritePtr;
+use crate::schema::document::ErasedValue;
 use crate::spatial::cell_index_reader::CellIndexReader;
 use crate::spatial::clip_options::ClipOptions;
 use crate::spatial::clipper::Clipper;
@@ -30,6 +31,7 @@ use crate::spatial::interleaver::Interleaver;
 use crate::spatial::intersects::Intersects;
 use crate::spatial::plane::query::PlaneQuery;
 use crate::spatial::plane::{Plane, Predicate};
+use crate::spatial::plugin::SpatialInput;
 use crate::spatial::region_coverer::CovererOptions;
 use crate::spatial::shape_index::write_cell_footer;
 use crate::spatial::sphere::Sphere;
@@ -50,9 +52,6 @@ pub struct MergeSource<'a> {
 /// Factory for per-field spatial writers, mergers, and queries. Registered in
 /// `SpatialIndexManager` by name.
 pub trait SpatialIndex: Send + Sync + SpatialIndexClone {
-    /// Create a writer that accumulates geometries for one field.
-    fn create_field_writer(&self) -> Box<dyn SpatialFieldWriter>;
-
     /// Merge source segments into a new segment.
     fn merge_field<'a>(
         &self,
@@ -160,8 +159,8 @@ pub struct MergeResult {
 
 /// Accumulates geometries for one field and serializes them.
 pub trait SpatialFieldWriter: Send {
-    /// Project, smash, and accumulate a geometry.
-    fn add_geometry(&mut self, doc_id: u32, geometry: &Geometry<Plane>);
+    /// Convert and accumulate one document value.
+    fn add_value(&mut self, doc_id: u32, value: ErasedValue<'_>) -> crate::Result<()>;
 
     /// Memory usage estimate for accumulated geometry.
     fn mem_usage(&self) -> usize;
@@ -207,13 +206,18 @@ impl<S: Surface> SurfaceIndex<S> {
             _surface: std::marker::PhantomData,
         }
     }
+
+    /// Create a field writer using the selected document input.
+    pub fn create_field_writer<Input>() -> Box<dyn SpatialFieldWriter>
+    where
+        S: Send + 'static,
+        Input: SpatialInput,
+    {
+        Box::new(SurfaceFieldWriter::<S, Input>::new())
+    }
 }
 
 impl<S: Surface + Send + Sync + Clone + 'static> SpatialIndex for SurfaceIndex<S> {
-    fn create_field_writer(&self) -> Box<dyn SpatialFieldWriter> {
-        Box::new(SurfaceFieldWriter::<S>::new())
-    }
-
     fn merge_field<'a>(
         &self,
         sources: &[MergeSource<'a>],
@@ -525,21 +529,30 @@ impl<S: Surface + 'static> PreparedSpatialQuery for PreparedQuery<S> {
 }
 
 /// Per-field writer for a given surface. Accumulates `GeometrySet<S>` and serializes them.
-struct SurfaceFieldWriter<S: Surface> {
+struct SurfaceFieldWriter<S: Surface, Input> {
     sets: Vec<GeometrySet<S>>,
+    input: std::marker::PhantomData<Input>,
 }
 
-impl<S: Surface> SurfaceFieldWriter<S> {
+impl<S: Surface, Input> SurfaceFieldWriter<S, Input> {
     fn new() -> Self {
-        SurfaceFieldWriter { sets: Vec::new() }
+        SurfaceFieldWriter {
+            sets: Vec::new(),
+            input: std::marker::PhantomData,
+        }
     }
 }
 
-impl<S: Surface + Send + 'static> SpatialFieldWriter for SurfaceFieldWriter<S> {
-    fn add_geometry(&mut self, doc_id: u32, geometry: &Geometry<Plane>) {
-        let projected = geometry.project::<S>();
-        let set = to_geometry_set(&projected, doc_id);
-        self.sets.push(set);
+impl<S, Input> SpatialFieldWriter for SurfaceFieldWriter<S, Input>
+where
+    S: Surface + Send + 'static,
+    Input: SpatialInput,
+{
+    fn add_value(&mut self, doc_id: u32, value: ErasedValue<'_>) -> crate::Result<()> {
+        if let Some(set) = Input::convert::<S>(doc_id, value)? {
+            self.sets.push(set);
+        }
+        Ok(())
     }
 
     fn mem_usage(&self) -> usize {

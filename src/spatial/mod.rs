@@ -71,7 +71,7 @@ pub mod within;
 pub mod xor;
 
 pub use geometry::Geometry;
-pub use plugin::{Cons, Nil, S2Plugin};
+pub use plugin::{Cons, NativeSpatial, Nil, S2Plugin};
 pub use spatial_index_manager::SurfaceIndex;
 
 #[cfg(test)]
