@@ -1,7 +1,11 @@
 use std::any::Any;
 use std::collections::HashMap;
+use std::io;
 use std::marker::PhantomData;
 
+use common::CountingWriter;
+
+use crate::directory::WritePtr;
 use crate::plugin::{PluginMergeContext, PluginWriter, PluginWriterContext, SegmentPlugin};
 use crate::schema::document::{ErasedDocument, ErasedValue};
 use crate::schema::{Field, FieldEntry, Schema};
@@ -9,7 +13,7 @@ use crate::spatial::geometry_set::GeometrySet;
 use crate::spatial::plane::Plane;
 use crate::spatial::serializer::SpatialSerializer;
 use crate::spatial::spatial_index_manager::{
-    MergeSource, SpatialFieldWriter, SpatialIndex, SurfaceIndex,
+    MergeSource, SpatialIndex, SurfaceFieldWriter, SurfaceIndex,
 };
 use crate::spatial::sphere::Sphere;
 use crate::spatial::surface::Surface;
@@ -33,6 +37,60 @@ pub trait SpatialInput: Send + Sync + 'static {
     ) -> crate::Result<Option<GeometrySet<S>>>;
 }
 
+#[doc(hidden)]
+pub trait SpatialFieldWriter: Send {
+    fn add_value(&mut self, doc_id: DocId, value: ErasedValue<'_>) -> crate::Result<()>;
+
+    fn mem_usage(&self) -> usize;
+
+    fn serialize(
+        self: Box<Self>,
+        cells_write: &mut CountingWriter<WritePtr>,
+        edges_write: &mut CountingWriter<WritePtr>,
+        old_to_new: Option<&[DocId]>,
+    ) -> io::Result<()>;
+}
+
+struct InputFieldWriter<S: Surface, Input> {
+    writer: SurfaceFieldWriter<S>,
+    input: PhantomData<Input>,
+}
+
+impl<S: Surface, Input> InputFieldWriter<S, Input> {
+    fn new() -> Self {
+        Self {
+            writer: SurfaceFieldWriter::new(),
+            input: PhantomData,
+        }
+    }
+}
+
+impl<S, Input> SpatialFieldWriter for InputFieldWriter<S, Input>
+where
+    S: Surface + Send + 'static,
+    Input: SpatialInput,
+{
+    fn add_value(&mut self, doc_id: DocId, value: ErasedValue<'_>) -> crate::Result<()> {
+        if let Some(set) = Input::convert::<S>(doc_id, value)? {
+            self.writer.add_set(set);
+        }
+        Ok(())
+    }
+
+    fn mem_usage(&self) -> usize {
+        self.writer.mem_usage()
+    }
+
+    fn serialize(
+        self: Box<Self>,
+        cells_write: &mut CountingWriter<WritePtr>,
+        edges_write: &mut CountingWriter<WritePtr>,
+        old_to_new: Option<&[DocId]>,
+    ) -> io::Result<()> {
+        self.writer.serialize(cells_write, edges_write, old_to_new)
+    }
+}
+
 /// Creates one concrete spatial index implementation.
 pub trait SpatialIndexFactory<Input>: Send + Sync + 'static {
     /// The name used by a spatial field in the schema.
@@ -53,7 +111,7 @@ impl<Input: SpatialInput> SpatialIndexFactory<Input> for SurfaceIndex<Sphere> {
     }
 
     fn create_field_writer() -> Box<dyn SpatialFieldWriter> {
-        SurfaceIndex::<Sphere>::create_field_writer::<Input>()
+        Box::new(InputFieldWriter::<Sphere, Input>::new())
     }
 }
 
@@ -65,7 +123,7 @@ impl<Input: SpatialInput> SpatialIndexFactory<Input> for SurfaceIndex<Plane> {
     }
 
     fn create_field_writer() -> Box<dyn SpatialFieldWriter> {
-        SurfaceIndex::<Plane>::create_field_writer::<Input>()
+        Box::new(InputFieldWriter::<Plane, Input>::new())
     }
 }
 

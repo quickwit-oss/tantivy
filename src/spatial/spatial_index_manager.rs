@@ -15,7 +15,6 @@ use std::sync::{Arc, RwLock};
 use common::{BitSet, CountingWriter, ReadOnlyBitSet};
 
 use crate::directory::WritePtr;
-use crate::schema::document::ErasedValue;
 use crate::spatial::cell_index_reader::CellIndexReader;
 use crate::spatial::clip_options::ClipOptions;
 use crate::spatial::clipper::Clipper;
@@ -31,7 +30,6 @@ use crate::spatial::interleaver::Interleaver;
 use crate::spatial::intersects::Intersects;
 use crate::spatial::plane::query::PlaneQuery;
 use crate::spatial::plane::{Plane, Predicate};
-use crate::spatial::plugin::SpatialInput;
 use crate::spatial::region_coverer::CovererOptions;
 use crate::spatial::shape_index::write_cell_footer;
 use crate::spatial::sphere::Sphere;
@@ -157,24 +155,6 @@ pub struct MergeResult {
     pub cell_count: u64,
 }
 
-/// Accumulates geometries for one field and serializes them.
-pub trait SpatialFieldWriter: Send {
-    /// Convert and accumulate one document value.
-    fn add_value(&mut self, doc_id: u32, value: ErasedValue<'_>) -> crate::Result<()>;
-
-    /// Memory usage estimate for accumulated geometry.
-    fn mem_usage(&self) -> usize;
-
-    /// Serialize accumulated geometry to the cell index and edge index.
-    /// If supplied, `old_to_new` maps each input document ID to its final ID.
-    fn serialize(
-        self: Box<Self>,
-        cells_write: &mut CountingWriter<WritePtr>,
-        edges_write: &mut CountingWriter<WritePtr>,
-        old_to_new: Option<&[DocId]>,
-    ) -> io::Result<()>;
-}
-
 /// Clone support for trait objects.
 pub trait SpatialIndexClone {
     /// Clone into a boxed trait object.
@@ -205,15 +185,6 @@ impl<S: Surface> SurfaceIndex<S> {
         SurfaceIndex {
             _surface: std::marker::PhantomData,
         }
-    }
-
-    /// Create a field writer using the selected document input.
-    pub fn create_field_writer<Input>() -> Box<dyn SpatialFieldWriter>
-    where
-        S: Send + 'static,
-        Input: SpatialInput,
-    {
-        Box::new(SurfaceFieldWriter::<S, Input>::new())
     }
 }
 
@@ -529,33 +500,20 @@ impl<S: Surface + 'static> PreparedSpatialQuery for PreparedQuery<S> {
 }
 
 /// Per-field writer for a given surface. Accumulates `GeometrySet<S>` and serializes them.
-struct SurfaceFieldWriter<S: Surface, Input> {
+pub(crate) struct SurfaceFieldWriter<S: Surface> {
     sets: Vec<GeometrySet<S>>,
-    input: std::marker::PhantomData<Input>,
 }
 
-impl<S: Surface, Input> SurfaceFieldWriter<S, Input> {
-    fn new() -> Self {
-        SurfaceFieldWriter {
-            sets: Vec::new(),
-            input: std::marker::PhantomData,
-        }
-    }
-}
-
-impl<S, Input> SpatialFieldWriter for SurfaceFieldWriter<S, Input>
-where
-    S: Surface + Send + 'static,
-    Input: SpatialInput,
-{
-    fn add_value(&mut self, doc_id: u32, value: ErasedValue<'_>) -> crate::Result<()> {
-        if let Some(set) = Input::convert::<S>(doc_id, value)? {
-            self.sets.push(set);
-        }
-        Ok(())
+impl<S: Surface> SurfaceFieldWriter<S> {
+    pub(crate) fn new() -> Self {
+        SurfaceFieldWriter { sets: Vec::new() }
     }
 
-    fn mem_usage(&self) -> usize {
+    pub(crate) fn add_set(&mut self, set: GeometrySet<S>) {
+        self.sets.push(set);
+    }
+
+    pub(crate) fn mem_usage(&self) -> usize {
         self.sets
             .iter()
             .map(|set| {
@@ -567,8 +525,8 @@ where
             .sum()
     }
 
-    fn serialize(
-        self: Box<Self>,
+    pub(crate) fn serialize(
+        self,
         cells_write: &mut CountingWriter<WritePtr>,
         edges_write: &mut CountingWriter<WritePtr>,
         old_to_new: Option<&[DocId]>,

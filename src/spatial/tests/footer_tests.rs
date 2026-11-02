@@ -9,7 +9,6 @@ use crate::directory::{CompositeFile, CompositeWrite, Directory, FileSlice, RamD
 use crate::index::SegmentComponent;
 use crate::indexer::SingleSegmentIndexWriter;
 use crate::query::{AllQuery, EnableScoring, Query, SpatialQuery};
-use crate::schema::document::{ErasedValue, ReferenceValueLeaf};
 use crate::schema::{Field, Schema, SPHERE, STORED};
 use crate::spatial::cell_index_reader::CellIndexReader;
 use crate::spatial::edge_reader::EdgeReader;
@@ -20,11 +19,12 @@ use crate::spatial::plane::Plane;
 use crate::spatial::plane_support_tests::assert_partition;
 use crate::spatial::reader::SpatialReader;
 use crate::spatial::shape_index::{write_cell_footer, ShapeIndex, CELL_FOOTER_LEN, CELL_REVISION};
-use crate::spatial::spatial_index_manager::{MergeSource, SpatialIndex, SurfaceIndex};
+use crate::spatial::spatial_index_manager::{
+    MergeSource, SpatialIndex, SurfaceFieldWriter, SurfaceIndex,
+};
 use crate::spatial::sphere::Sphere;
 use crate::spatial::stats::{sphere_stats_for_reader, sphere_stats_for_slices};
 use crate::spatial::surface::Surface;
-use crate::spatial::NativeSpatial;
 use crate::{Index, TantivyDocument, TERMINATED};
 
 fn empty_cells() -> Vec<u8> {
@@ -260,14 +260,12 @@ fn serialize_values<S: Surface + Clone + Send + Sync + 'static>(
     let directory = RamDirectory::create();
     let mut cells = CountingWriter::wrap(directory.open_write(Path::new("cells")).unwrap());
     let mut edges = CountingWriter::wrap(directory.open_write(Path::new("edges")).unwrap());
-    let mut writer = SurfaceIndex::<S>::create_field_writer::<NativeSpatial>();
+    let mut writer = SurfaceFieldWriter::<S>::new();
     for &(doc, geometry) in values {
-        writer
-            .add_value(
-                doc,
-                ErasedValue::Leaf(ReferenceValueLeaf::Geometry(Box::new(geometry.clone()))),
-            )
-            .unwrap();
+        writer.add_set(crate::spatial::geometry_set::to_geometry_set(
+            &geometry.project::<S>(),
+            doc,
+        ));
     }
     writer.serialize(&mut cells, &mut edges, None).unwrap();
     cells.terminate().unwrap();
