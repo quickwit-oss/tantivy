@@ -779,6 +779,41 @@ mod tests {
     }
 
     #[test]
+    fn cardinality_aggregation_large_integer_missing_stays_exact() -> crate::Result<()> {
+        let missing = 9_007_199_254_740_993u64;
+        assert_json_cardinality(
+            vec![
+                vec![json!({"value": "text"}), json!({})],
+                vec![json!({"value": u64::MAX}), json!({})],
+            ],
+            Some(json!(missing)),
+            Some(&[&[ColumnType::Str], &[ColumnType::U64]]),
+            3.0,
+        )?;
+        assert_json_cardinality(
+            vec![
+                vec![json!({"value": "text"}), json!({})],
+                vec![json!({"value": 1i64}), json!({})],
+            ],
+            Some(json!(missing)),
+            Some(&[&[ColumnType::I64], &[ColumnType::Str]]),
+            3.0,
+        )?;
+
+        // A physical F64 segment cannot store 9007199254740993 exactly. Its missing
+        // substitution is the neighboring rounded F64, which is a different exact value.
+        assert_json_cardinality(
+            vec![
+                vec![json!({"value": "text"}), json!({})],
+                vec![json!({"value": 1.5f64}), json!({})],
+            ],
+            Some(json!(missing)),
+            Some(&[&[ColumnType::F64], &[ColumnType::Str]]),
+            4.0,
+        )
+    }
+
+    #[test]
     fn cardinality_aggregation_missing_f64_endpoints_match_numeric() -> crate::Result<()> {
         assert_json_cardinality(
             vec![
