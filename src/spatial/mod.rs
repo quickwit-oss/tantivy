@@ -40,6 +40,7 @@ pub mod intersects;
 pub mod latlng_rect;
 pub mod math;
 pub mod merge;
+mod native_input;
 pub mod plane;
 /// Spatial segment plugin and compile-time implementation catalog.
 pub mod plugin;
@@ -71,7 +72,8 @@ pub mod within;
 pub mod xor;
 
 pub use geometry::Geometry;
-pub use plugin::{Cons, NativeSpatial, Nil, S2Plugin};
+pub use native_input::NativeSpatial;
+pub use plugin::{Cons, Nil, S2Plugin, SpatialInput};
 pub use spatial_index_manager::SurfaceIndex;
 
 #[cfg(test)]

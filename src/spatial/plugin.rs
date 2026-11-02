@@ -3,9 +3,9 @@ use std::collections::HashMap;
 use std::marker::PhantomData;
 
 use crate::plugin::{PluginMergeContext, PluginWriter, PluginWriterContext, SegmentPlugin};
-use crate::schema::document::{ErasedDocument, ErasedValue, ReferenceValueLeaf};
-use crate::schema::{Field, FieldEntry, FieldType, Schema};
-use crate::spatial::geometry_set::{to_geometry_set, GeometrySet};
+use crate::schema::document::{ErasedDocument, ErasedValue};
+use crate::schema::{Field, FieldEntry, Schema};
+use crate::spatial::geometry_set::GeometrySet;
 use crate::spatial::plane::Plane;
 use crate::spatial::serializer::SpatialSerializer;
 use crate::spatial::spatial_index_manager::{
@@ -31,29 +31,6 @@ pub trait SpatialInput: Send + Sync + 'static {
         doc_id: DocId,
         value: ErasedValue<'_>,
     ) -> crate::Result<Option<GeometrySet<S>>>;
-}
-
-/// Native `SPATIAL` field input.
-pub struct NativeSpatial;
-
-impl SpatialInput for NativeSpatial {
-    fn index_name(entry: &FieldEntry) -> crate::Result<Option<&str>> {
-        let FieldType::Spatial(options) = entry.field_type() else {
-            return Ok(None);
-        };
-        Ok(Some(options.spatial_index_name()))
-    }
-
-    fn convert<S: Surface>(
-        doc_id: DocId,
-        value: ErasedValue<'_>,
-    ) -> crate::Result<Option<GeometrySet<S>>> {
-        let ErasedValue::Leaf(ReferenceValueLeaf::Geometry(geometry)) = value else {
-            return Ok(None);
-        };
-        let projected = geometry.project::<S>();
-        Ok(Some(to_geometry_set(&projected, doc_id)))
-    }
 }
 
 /// Creates one concrete spatial index implementation.
