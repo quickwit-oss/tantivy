@@ -33,6 +33,7 @@ pub mod edge_resolver;
 pub mod edge_writer;
 pub mod exact;
 pub mod executor;
+pub mod field_writer;
 pub mod geometry;
 pub mod geometry_set;
 pub mod interleaver;
@@ -71,6 +72,7 @@ pub mod surface;
 pub mod within;
 pub mod xor;
 
+pub use field_writer::SurfaceFieldWriter;
 pub use geometry::Geometry;
 pub use native_input::NativeSpatial;
 pub use plugin::{Cons, Nil, S2Plugin, SpatialInput};

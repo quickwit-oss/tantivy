@@ -9,12 +9,11 @@ use crate::directory::WritePtr;
 use crate::plugin::{PluginMergeContext, PluginWriter, PluginWriterContext, SegmentPlugin};
 use crate::schema::document::{ErasedDocument, ErasedValue};
 use crate::schema::{Field, FieldEntry, Schema};
+use crate::spatial::field_writer::SurfaceFieldWriter;
 use crate::spatial::geometry_set::GeometrySet;
 use crate::spatial::plane::Plane;
 use crate::spatial::serializer::SpatialSerializer;
-use crate::spatial::spatial_index_manager::{
-    MergeSource, SpatialIndex, SurfaceFieldWriter, SurfaceIndex,
-};
+use crate::spatial::spatial_index_manager::{MergeSource, SpatialIndex, SurfaceIndex};
 use crate::spatial::sphere::Sphere;
 use crate::spatial::surface::Surface;
 use crate::{DocId, TantivyError};

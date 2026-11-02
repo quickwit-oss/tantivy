@@ -14,14 +14,13 @@ use crate::spatial::cell_index_reader::CellIndexReader;
 use crate::spatial::edge_reader::EdgeReader;
 use crate::spatial::edge_writer::EDGE_FOOTER_BYTES;
 use crate::spatial::executor::{PlanNode, SpatialExecutor, SpatialRelation};
+use crate::spatial::field_writer::SurfaceFieldWriter;
 use crate::spatial::geometry::Geometry;
 use crate::spatial::plane::Plane;
 use crate::spatial::plane_support_tests::assert_partition;
 use crate::spatial::reader::SpatialReader;
 use crate::spatial::shape_index::{write_cell_footer, ShapeIndex, CELL_FOOTER_LEN, CELL_REVISION};
-use crate::spatial::spatial_index_manager::{
-    MergeSource, SpatialIndex, SurfaceFieldWriter, SurfaceIndex,
-};
+use crate::spatial::spatial_index_manager::{MergeSource, SpatialIndex, SurfaceIndex};
 use crate::spatial::sphere::Sphere;
 use crate::spatial::stats::{sphere_stats_for_reader, sphere_stats_for_slices};
 use crate::spatial::surface::Surface;

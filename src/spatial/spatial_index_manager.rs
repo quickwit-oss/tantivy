@@ -16,8 +16,6 @@ use common::{BitSet, CountingWriter, ReadOnlyBitSet};
 
 use crate::directory::WritePtr;
 use crate::spatial::cell_index_reader::CellIndexReader;
-use crate::spatial::clip_options::ClipOptions;
-use crate::spatial::clipper::Clipper;
 use crate::spatial::contains::Contains;
 use crate::spatial::distance::Distance;
 use crate::spatial::edge_reader::EdgeReader;
@@ -25,7 +23,7 @@ use crate::spatial::edge_resolver::EdgeResolver;
 use crate::spatial::edge_writer::EdgeWriter;
 use crate::spatial::executor::SpatialRelation;
 use crate::spatial::geometry::Geometry;
-use crate::spatial::geometry_set::{to_geometry_set, GeometrySet};
+use crate::spatial::geometry_set::to_geometry_set;
 use crate::spatial::interleaver::Interleaver;
 use crate::spatial::intersects::Intersects;
 use crate::spatial::plane::query::PlaneQuery;
@@ -496,69 +494,6 @@ impl<S: Surface + 'static> PreparedSpatialQuery for PreparedQuery<S> {
         filter: &BitSet,
     ) -> io::Result<BitSet> {
         self.search(cells, edges, doc_ids, max_doc, Some(filter))
-    }
-}
-
-/// Per-field writer for a given surface. Accumulates `GeometrySet<S>` and serializes them.
-pub(crate) struct SurfaceFieldWriter<S: Surface> {
-    sets: Vec<GeometrySet<S>>,
-}
-
-impl<S: Surface> SurfaceFieldWriter<S> {
-    pub(crate) fn new() -> Self {
-        SurfaceFieldWriter { sets: Vec::new() }
-    }
-
-    pub(crate) fn add_set(&mut self, set: GeometrySet<S>) {
-        self.sets.push(set);
-    }
-
-    pub(crate) fn mem_usage(&self) -> usize {
-        self.sets
-            .iter()
-            .map(|set| {
-                set.members
-                    .iter()
-                    .map(|m| m.vertices.len() * S::DIMENSIONS * 8)
-                    .sum::<usize>()
-            })
-            .sum()
-    }
-
-    pub(crate) fn serialize<CellsWrite, EdgesWrite>(
-        self,
-        cells_write: &mut CountingWriter<CellsWrite>,
-        edges_write: &mut CountingWriter<EdgesWrite>,
-        old_to_new: Option<&[DocId]>,
-    ) -> io::Result<()>
-    where
-        CellsWrite: Write,
-        EdgesWrite: Write,
-    {
-        let mut sets = self.sets;
-        if let Some(old_to_new) = old_to_new {
-            for set in &mut sets {
-                set.doc_id = old_to_new[set.doc_id as usize];
-            }
-        }
-        if sets.is_empty() {
-            return Ok(());
-        }
-
-        let builder = Clipper::new(ClipOptions::default());
-        let cell_index = builder.build(&sets);
-
-        cell_index.write(cells_write);
-        cells_write.flush()?;
-
-        let mut edge_writer = EdgeWriter::<S, _>::new(edges_write);
-        for set in &sets {
-            edge_writer.insert(set);
-        }
-        edge_writer.finish();
-        edges_write.flush()?;
-
-        Ok(())
     }
 }
 
