@@ -18,7 +18,7 @@ Tantivy Upcoming Release
   [Preserve scorer boost context in explanations #3239](https://github.com/quickwit-oss/tantivy/pull/3239)
   ([@kylebernhardy](https://github.com/kylebernhardy)).
 - Phrase-prefix BM25 details use the leading-phrase frequency consumed by the scorer while
-  the public prefix-qualified match count retains its existing meaning.
+  the prefix-qualified match count retains its existing meaning.
   [Preserve scorer boost context in explanations #3239](https://github.com/quickwit-oss/tantivy/pull/3239)
   ([@kylebernhardy](https://github.com/kylebernhardy)).
 
