@@ -3,7 +3,6 @@
 //! A GeometrySet holds one input value. Polygon rings remain closed, with offsets
 //! into a flat vertex array and gaps in the edge indices at ring boundaries.
 
-use super::geometry::Geometry;
 use super::surface::Surface;
 
 /// The declared type of one geometry member.
@@ -66,86 +65,44 @@ pub struct GeometrySet<S: Surface> {
     pub doc_id: u32,
 }
 
-/// Smash a projected geometry into stored format. Applies the surface's ring normalization,
-/// computes contains_hilbert_start, and flattens rings into one vertex array per member.
-/// One Geometry in, one GeometrySet out.
-pub fn to_geometry_set<S: Surface>(geometry: &Geometry<S>, doc_id: u32) -> GeometrySet<S> {
-    let mut members = Vec::new();
-    smash(&mut members, geometry);
-    GeometrySet { members, doc_id }
-}
+impl<S: Surface> GeometrySet<S> {
+    pub fn new(doc_id: u32) -> Self {
+        Self {
+            members: Vec::new(),
+            doc_id,
+        }
+    }
 
-fn smash<S: Surface>(members: &mut Vec<EdgeSet<S>>, geometry: &Geometry<S>) {
-    match geometry {
-        Geometry::Point(v) => {
-            members.push(EdgeSet {
-                kind: GeometryKind::Point,
-                vertices: vec![*v],
-                closed: false,
-                contains_hilbert_start: false,
-                ring_offsets: vec![0, 1],
-            });
-        }
-        Geometry::MultiPoint(points) => {
-            for v in points {
-                members.push(EdgeSet {
-                    kind: GeometryKind::Point,
-                    vertices: vec![*v],
-                    closed: false,
-                    contains_hilbert_start: false,
-                    ring_offsets: vec![0, 1],
-                });
-            }
-        }
-        Geometry::LineString(line) => {
-            let n = line.len();
-            members.push(EdgeSet {
-                kind: GeometryKind::LineString,
-                vertices: line.clone(),
-                closed: false,
-                contains_hilbert_start: false,
-                ring_offsets: vec![0, n],
-            });
-        }
-        Geometry::MultiLineString(lines) => {
-            for line in lines {
-                let n = line.len();
-                members.push(EdgeSet {
-                    kind: GeometryKind::LineString,
-                    vertices: line.clone(),
-                    closed: false,
-                    contains_hilbert_start: false,
-                    ring_offsets: vec![0, n],
-                });
-            }
-        }
-        Geometry::Polygon(polygon) => {
-            let (vertices, hilbert_inside, offsets) = smash_polygon::<S>(polygon);
-            members.push(EdgeSet {
-                kind: GeometryKind::Polygon,
-                vertices,
-                closed: true,
-                contains_hilbert_start: hilbert_inside,
-                ring_offsets: offsets,
-            });
-        }
-        Geometry::MultiPolygon(multi_polygon) => {
-            for polygon in multi_polygon {
-                let (vertices, hilbert_inside, offsets) = smash_polygon::<S>(polygon);
-                members.push(EdgeSet {
-                    kind: GeometryKind::Polygon,
-                    vertices,
-                    closed: true,
-                    contains_hilbert_start: hilbert_inside,
-                    ring_offsets: offsets,
-                });
-            }
-        }
-        Geometry::GeometryCollection(collection) => {
-            for geo in collection {
-                smash(members, geo);
-            }
-        }
+    pub fn push_point(&mut self, point: S::Point) {
+        self.members.push(EdgeSet {
+            kind: GeometryKind::Point,
+            vertices: vec![point],
+            closed: false,
+            contains_hilbert_start: false,
+            ring_offsets: vec![0, 1],
+        });
+    }
+
+    pub fn push_line_string(&mut self, vertices: Vec<S::Point>) {
+        let len = vertices.len();
+        self.members.push(EdgeSet {
+            kind: GeometryKind::LineString,
+            vertices,
+            closed: false,
+            contains_hilbert_start: false,
+            ring_offsets: vec![0, len],
+        });
+    }
+
+    pub fn push_polygon(&mut self, rings: &[Vec<S::Point>]) {
+        let (vertices, contains_hilbert_start, ring_offsets) = smash_polygon::<S>(rings);
+        self.members.push(EdgeSet {
+            kind: GeometryKind::Polygon,
+            vertices,
+            closed: true,
+            contains_hilbert_start,
+            ring_offsets,
+        });
     }
 }
 

@@ -11,7 +11,7 @@ pub(crate) const CELL_MAGIC: &[u8; 4] = b"TCEL";
 pub(crate) const CELL_REVISION: u32 = 1;
 pub(crate) const CELL_FOOTER_LEN: usize = 20;
 
-pub(crate) fn write_cell_footer(
+pub fn write_cell_footer(
     write: &mut impl Write,
     cell_count: u32,
     dir_offset: u64,

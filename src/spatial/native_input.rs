@@ -1,6 +1,7 @@
 use crate::schema::document::{ErasedValue, ReferenceValueLeaf};
 use crate::schema::{FieldEntry, FieldType};
-use crate::spatial::geometry_set::{to_geometry_set, GeometrySet};
+use crate::spatial::geometry::to_geometry_set;
+use crate::spatial::geometry_set::GeometrySet;
 use crate::spatial::plugin::SpatialInput;
 use crate::spatial::surface::Surface;
 use crate::DocId;

@@ -9,7 +9,7 @@ use super::contact::{contacts, difference, enclosing_bound, parameter, position,
 use super::operand::{Edge, Location, Operand};
 
 #[derive(Clone, Copy, Debug)]
-pub(crate) enum Predicate {
+pub enum Predicate {
     Intersects,
     Contains,
     Covers,

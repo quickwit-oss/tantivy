@@ -32,23 +32,17 @@ pub mod edge_reader;
 pub mod edge_resolver;
 pub mod edge_writer;
 pub mod exact;
-pub mod executor;
 pub mod field_writer;
-pub mod geometry;
 pub mod geometry_set;
 pub mod interleaver;
 pub mod intersects;
 pub mod latlng_rect;
 pub mod math;
 pub mod merge;
-mod native_input;
 pub mod plane;
-/// Spatial segment plugin and compile-time implementation catalog.
-pub mod plugin;
 pub mod query_edge_provider;
 pub mod r1interval;
 pub mod r2rect;
-pub mod reader;
 pub mod region;
 pub mod region_coverer;
 pub mod s1chord_angle;
@@ -62,29 +56,15 @@ pub mod s2edge_distances;
 pub mod s2loop_measures;
 pub mod s2metrics;
 pub mod s2padded_cell;
-pub mod serializer;
 pub mod shape_index;
 pub mod shape_index_region;
-pub mod spatial_index_manager;
 pub mod sphere;
-pub mod stats;
 pub mod surface;
 pub mod within;
 pub mod xor;
 
 pub use field_writer::SurfaceFieldWriter;
-pub use geometry::Geometry;
-pub use native_input::NativeSpatial;
-pub use plugin::{Cons, Nil, S2Plugin, SpatialInput};
-pub use spatial_index_manager::SurfaceIndex;
-
-#[cfg(test)]
-mod lifecycle_tests;
 
 #[cfg(test)]
 #[path = "tests/plane_support_tests.rs"]
 mod plane_support_tests;
-
-#[cfg(test)]
-#[path = "tests/footer_tests.rs"]
-mod footer_tests;

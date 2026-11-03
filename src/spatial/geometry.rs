@@ -5,6 +5,7 @@ use std::io::{self, Read, Write};
 use common::{BinarySerializable, VInt};
 use serde_json::{json, Map, Value};
 
+use crate::spatial::geometry_set::GeometrySet;
 use crate::spatial::plane::Plane;
 use crate::spatial::surface::Surface;
 use crate::spatial::xor::{compress_f64, decompress_f64};
@@ -42,6 +43,41 @@ pub enum Geometry<S: Surface> {
     MultiPolygon(Vec<Vec<Vec<S::Point>>>),
     /// A heterogeneous collection of geometries.
     GeometryCollection(Vec<Self>),
+}
+
+/// Convert a projected geometry into the representation consumed by the spatial index.
+pub fn to_geometry_set<S: Surface>(geometry: &Geometry<S>, doc_id: u32) -> GeometrySet<S> {
+    let mut set = GeometrySet::new(doc_id);
+    append_to(geometry, &mut set);
+    set
+}
+
+fn append_to<S: Surface>(geometry: &Geometry<S>, set: &mut GeometrySet<S>) {
+    match geometry {
+        Geometry::Point(point) => set.push_point(*point),
+        Geometry::MultiPoint(points) => {
+            for point in points {
+                set.push_point(*point);
+            }
+        }
+        Geometry::LineString(line) => set.push_line_string(line.clone()),
+        Geometry::MultiLineString(lines) => {
+            for line in lines {
+                set.push_line_string(line.clone());
+            }
+        }
+        Geometry::Polygon(rings) => set.push_polygon(rings),
+        Geometry::MultiPolygon(polygons) => {
+            for rings in polygons {
+                set.push_polygon(rings);
+            }
+        }
+        Geometry::GeometryCollection(geometries) => {
+            for geometry in geometries {
+                append_to(geometry, set);
+            }
+        }
+    }
 }
 
 impl Geometry<Plane> {

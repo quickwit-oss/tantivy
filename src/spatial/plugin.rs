@@ -1,3 +1,5 @@
+//! Spatial segment plugin and compile-time implementation catalog.
+
 use std::any::Any;
 use std::collections::HashMap;
 use std::io;

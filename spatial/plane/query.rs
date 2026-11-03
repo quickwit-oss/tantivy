@@ -18,7 +18,7 @@ use crate::spatial::surface::{cell_bound_uv, Surface};
 #[path = "../tests/plane_relation_tests.rs"]
 mod tests;
 
-pub(crate) struct PlaneQuery {
+pub struct PlaneQuery {
     index: ShapeIndex,
     operand: PreparedOperand,
     bound: R2Rect,

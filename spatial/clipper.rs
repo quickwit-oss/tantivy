@@ -65,7 +65,7 @@ fn ilogb(value: f64) -> i32 {
 /// Computes the maximum level at which an edge is "short" relative to the cell size. Above this
 /// level the edge is "long" and doesn't count toward the subdivision threshold. Port of
 /// MutableS2ShapeIndex::GetEdgeMaxLevel.
-pub(crate) fn get_edge_max_level<S: Surface>(v0: &S::Point, v1: &S::Point) -> i32 {
+pub fn get_edge_max_level<S: Surface>(v0: &S::Point, v1: &S::Point) -> i32 {
     let length = S::edge_length(v0, v1);
     let max_cell_edge = length * CELL_SIZE_TO_LONG_EDGE_RATIO;
     get_level_for_max_value(max_cell_edge)

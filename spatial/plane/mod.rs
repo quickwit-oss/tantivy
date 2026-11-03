@@ -5,9 +5,9 @@ pub mod crosser;
 mod edge_index;
 pub mod math;
 mod operand;
-pub(crate) mod query;
+pub mod query;
 mod relation;
-pub(crate) use relation::Predicate;
+pub use relation::Predicate;
 
 use crate::spatial::r1interval::R1Interval;
 use crate::spatial::r2rect::R2Rect;
