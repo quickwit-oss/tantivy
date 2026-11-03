@@ -199,6 +199,12 @@ impl BlockSegmentPostings {
                     .max_score_with_term_freq(fieldnorm_reader.fieldnorm_id(0), max_term_freq);
             }
         }
+        if self.freq_reading_option != FreqReadingOption::ReadFreq
+            && bm25_weight.is_non_negative()
+            && matches!(self.skip_reader.block_info(), BlockInfo::BitPacked { .. })
+        {
+            return bm25_weight.score(fieldnorm_reader.min_fieldnorm_id(), 1);
+        }
         // Do not cache this bound: a loaded block can supply a tighter one.
         bm25_weight.max_score_for(fieldnorm_reader)
     }
