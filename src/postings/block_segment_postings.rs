@@ -159,8 +159,12 @@ impl BlockSegmentPostings {
         // Without a stored bound, compute the block maximum if the block is loaded.
         if self.block_is_loaded() {
             let docs = self.doc_decoder.output_array().iter().cloned();
-            let freqs = self.freq_decoder.output_array().iter().cloned();
-            let bm25_scores = docs.zip(freqs).map(|(doc, term_freq)| {
+            let bm25_scores = docs.enumerate().map(|(i, doc)| {
+                let term_freq = if self.freq_reading_option == FreqReadingOption::ReadFreq {
+                    self.freq_decoder.output_array()[i]
+                } else {
+                    1
+                };
                 let fieldnorm_id = fieldnorm_reader.fieldnorm_id(doc);
                 bm25_weight.score(fieldnorm_id, term_freq)
             });
@@ -168,11 +172,14 @@ impl BlockSegmentPostings {
             self.block_max_score_cache = Some(block_max_score);
             return block_max_score;
         }
-        // We do not have access to any good block max value. We return bm25_weight.max_score()
-        // as it is a valid upperbound.
-        //
-        // We do not cache it however, so that it gets computed when once block is loaded.
-        bm25_weight.max_score()
+        // Use a conservative bound until the block is loaded. Constant fieldnorms do not
+        // bound term frequency, so the usual length-based maximum does not apply.
+        // Do not cache this bound: a loaded block can supply a tighter one.
+        if let Some(fieldnorm_id) = fieldnorm_reader.constant_fieldnorm_id() {
+            bm25_weight.score(fieldnorm_id, u32::MAX)
+        } else {
+            bm25_weight.max_score()
+        }
     }
 
     pub(crate) fn freq_reading_option(&self) -> FreqReadingOption {

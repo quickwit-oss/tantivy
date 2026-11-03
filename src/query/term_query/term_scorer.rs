@@ -89,7 +89,12 @@ impl TermScorer {
     }
 
     pub fn max_score(&self) -> Score {
-        self.similarity_weight.max_score()
+        if let Some(fieldnorm_id) = self.fieldnorm_reader.constant_fieldnorm_id() {
+            // Without fieldnorms, term frequency can exceed the constant field length.
+            self.similarity_weight.score(fieldnorm_id, u32::MAX)
+        } else {
+            self.similarity_weight.max_score()
+        }
     }
 
     pub fn last_doc_in_block(&self) -> DocId {
