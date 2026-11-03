@@ -113,6 +113,47 @@ pub trait Weight: Send + Sync + 'static {
     /// [`Weight::explain`] at unit boost; otherwise it reports the actual scorer value without
     /// child details. Override this method to retain custom weight details under a boost.
     /// An `explain` implementation delegating here must also override this method.
+    ///
+    /// A wrapper can safely delegate both explanation entry points to an inner weight:
+    ///
+    /// ```
+    /// use tantivy::query::{Explanation, Scorer, Weight};
+    /// use tantivy::{DocId, Score, SegmentReader};
+    ///
+    /// struct DelegatingWeight(Box<dyn Weight>);
+    ///
+    /// impl Weight for DelegatingWeight {
+    ///     fn scorer(&self, reader: &SegmentReader, boost: Score)
+    ///         -> tantivy::Result<Box<dyn Scorer>>
+    ///     {
+    ///         self.0.scorer(reader, boost)
+    ///     }
+    ///
+    ///     fn explain(&self, reader: &SegmentReader, doc: DocId)
+    ///         -> tantivy::Result<Explanation>
+    ///     {
+    ///         self.explain_with_boost(reader, doc, 1.0)
+    ///     }
+    ///
+    ///     fn explain_with_boost(&self, reader: &SegmentReader, doc: DocId, boost: Score)
+    ///         -> tantivy::Result<Explanation>
+    ///     {
+    ///         self.0.explain_with_boost(reader, doc, boost)
+    ///     }
+    /// }
+    ///
+    /// let weight = DelegatingWeight(Box::new(tantivy::query::AllWeight));
+    /// # let index = tantivy::Index::create_in_ram(tantivy::schema::Schema::builder().build());
+    /// # let mut writer = index.writer_with_num_threads::<tantivy::TantivyDocument>(1, 50_000_000)?;
+    /// # writer.add_document(tantivy::TantivyDocument::new())?;
+    /// # writer.commit()?;
+    /// # let reader = index.reader()?;
+    /// # let searcher = reader.searcher();
+    /// # let segment = searcher.segment_reader(0);
+    /// # assert_eq!(weight.explain(segment, 0)?.value(), 1.0);
+    /// # assert_eq!(weight.explain_with_boost(segment, 0, 0.3)?.value(), 0.3);
+    /// # Ok::<(), tantivy::TantivyError>(())
+    /// ```
     fn explain_with_boost(
         &self,
         reader: &SegmentReader,

@@ -141,12 +141,11 @@ impl Weight for PhrasePrefixWeight {
             return Err(does_not_match(doc));
         }
         let mut explanation = Explanation::new("Phrase Prefix Scorer", scorer.score());
-        if self.phrase_terms.len() == 1 {
+        let Some(phrase_count) = scorer.bm25_phrase_count() else {
             return Ok(explanation);
-        }
+        };
         let fieldnorm_reader = self.fieldnorm_reader(reader)?;
         let fieldnorm_id = fieldnorm_reader.fieldnorm_id(doc);
-        let phrase_count = scorer.phrase_count();
         if let Some(similarity_weight) = self.similarity_weight_opt.as_ref() {
             let mut detail = similarity_weight
                 .boost_by(boost)
@@ -164,7 +163,7 @@ impl Weight for PhrasePrefixWeight {
 mod tests {
     use crate::docset::TERMINATED;
     use crate::index::Index;
-    use crate::query::{EnableScoring, PhrasePrefixQuery, Query};
+    use crate::query::{EnableScoring, PhrasePrefixQuery, Query, Scorer, Weight};
     use crate::schema::{Schema, TEXT};
     use crate::{DocSet, IndexWriter, Term};
 
@@ -182,6 +181,43 @@ mod tests {
             index_writer.commit()?;
         }
         Ok(index)
+    }
+
+    #[test]
+    fn test_explain_uses_leading_phrase_scoring_frequency() -> crate::Result<()> {
+        let index = create_index(&["amber quartz rare amber quartz"])?;
+        let field = index.schema().get_field("text")?;
+        let reader = index.reader()?;
+        let searcher = reader.searcher();
+        let segment = searcher.segment_reader(0);
+        let query = PhrasePrefixQuery::new(vec![
+            Term::from_field_text(field, "amber"),
+            Term::from_field_text(field, "quartz"),
+            Term::from_field_text(field, "ra"),
+        ]);
+        let weight = query
+            .phrase_prefix_query_weight(EnableScoring::enabled_from_searcher(&searcher))?
+            .unwrap();
+        for boost in [1.0, 0.3, 1e20, 0.0] {
+            let mut scorer = weight.phrase_scorer(segment, boost)?.unwrap();
+            assert_eq!(scorer.doc(), 0);
+            assert_eq!(scorer.phrase_count(), 1);
+            let score = scorer.score();
+            let explanation = weight.explain_with_boost(segment, 0, boost)?;
+            assert_eq!(explanation.value().to_bits(), score.to_bits());
+            let tree = serde_json::to_value(explanation).unwrap();
+            let detail = &tree["details"][0];
+            assert_eq!(
+                (detail["value"].as_f64().unwrap() as f32).to_bits(),
+                score.to_bits(),
+                "boost={boost}, tree={tree}"
+            );
+            assert_eq!(
+                detail["details"][2]["details"][0]["value"].as_f64(),
+                Some(2.0)
+            );
+        }
+        Ok(())
     }
 
     #[test]
