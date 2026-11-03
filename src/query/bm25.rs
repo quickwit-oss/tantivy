@@ -185,7 +185,14 @@ impl Bm25Weight {
         self.score(255u8, 2_013_265_944)
     }
 
+    pub(crate) fn is_non_negative(&self) -> bool {
+        self.weight >= 0.0
+    }
+
     pub(crate) fn max_score_for(&self, fieldnorm_reader: &FieldNormReader) -> Score {
+        if !self.is_non_negative() {
+            return 0.0;
+        }
         if let Some(fieldnorm_id) = fieldnorm_reader.constant_fieldnorm_id() {
             // A synthetic field length does not bound term frequency.
             self.score(fieldnorm_id, u32::MAX)
@@ -245,14 +252,18 @@ mod tests {
     #[test]
     fn test_max_score_for_fieldnorm_reader() {
         for average_fieldnorm in [0.5, 1.0, 10.0, 1000.0] {
-            let weight = Bm25Weight::for_one_term(10, 100, average_fieldnorm);
-            let stored = FieldNormReader::for_test(&[1, 10, 100]);
-            assert_eq!(weight.max_score_for(&stored), weight.max_score());
-            for fieldnorm in [0, 1, 10, 100] {
-                let reader = FieldNormReader::constant(1, fieldnorm);
-                let bound = weight.max_score_for(&reader);
-                for term_freq in [1, 3, 20, 255, 100_000, u32::MAX] {
-                    assert!(bound >= weight.score(reader.fieldnorm_id(0), term_freq));
+            for boost in [-2.0, 0.0, 0.5, 1.0, 3.0] {
+                let weight = Bm25Weight::for_one_term(10, 100, average_fieldnorm).boost_by(boost);
+                let stored = FieldNormReader::for_test(&[1, 10, 100]);
+                if boost >= 0.0 {
+                    assert_eq!(weight.max_score_for(&stored), weight.max_score());
+                }
+                for fieldnorm in [0, 1, 10, 100] {
+                    let reader = FieldNormReader::constant(1, fieldnorm);
+                    let bound = weight.max_score_for(&reader);
+                    for term_freq in [1, 3, 20, 255, 100_000, u32::MAX] {
+                        assert!(bound >= weight.score(reader.fieldnorm_id(0), term_freq));
+                    }
                 }
             }
         }

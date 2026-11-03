@@ -1,7 +1,7 @@
 use tantivy::collector::TopDocs;
 use tantivy::merge_policy::NoMergePolicy;
 use tantivy::query::{
-    BooleanQuery, EnableScoring, Explanation, Occur, Query, Scorer, TermQuery, Weight,
+    BooleanQuery, BoostQuery, EnableScoring, Explanation, Occur, Query, Scorer, TermQuery, Weight,
 };
 use tantivy::schema::{IndexRecordOption, Schema, TextFieldIndexing, TextOptions, INDEXED};
 use tantivy::{
@@ -237,6 +237,67 @@ fn test_block_wand_without_fieldnorms_after_delete_and_merge() -> tantivy::Resul
         for query in queries {
             for limit in [1, 10] {
                 assert_pruning_parity(&searcher, query.as_ref(), limit)?;
+            }
+        }
+    }
+    Ok(())
+}
+
+#[test]
+fn test_block_wand_boosts() -> tantivy::Result<()> {
+    for fieldnorms in [false, true] {
+        for disjoint in [false, true] {
+            let mut schema = Schema::builder();
+            let field = schema.add_text_field(
+                "text",
+                TextOptions::default().set_indexing_options(
+                    TextFieldIndexing::default()
+                        .set_tokenizer("default")
+                        .set_index_option(IndexRecordOption::WithFreqs)
+                        .set_fieldnorms(fieldnorms),
+                ),
+            );
+            let index = Index::create_in_ram(schema.build());
+            let mut writer = index.writer_with_num_threads::<TantivyDocument>(1, 20_000_000)?;
+            for id in 0..256 {
+                let tokens = if !disjoint || id % 3 == 0 {
+                    "amber stone"
+                } else if id % 3 == 1 {
+                    "amber"
+                } else {
+                    "stone"
+                };
+                let frequency = if id < 128 { 3 } else { 1 };
+                let text = std::iter::repeat_n(tokens, frequency)
+                    .collect::<Vec<_>>()
+                    .join(" ");
+                writer.add_document(doc!(field => text))?;
+            }
+            writer.commit()?;
+            let searcher = index.reader()?.searcher();
+            for (amber_boost, stone_boost) in [(-1.0, -1.0), (-1.0, 1.0), (0.0, 1.0), (0.5, 3.0)] {
+                for occur in [Occur::Should, Occur::Must] {
+                    let query = BooleanQuery::new(
+                        [("amber", amber_boost), ("stone", stone_boost)]
+                            .into_iter()
+                            .map(|(text, boost)| {
+                                (
+                                    occur,
+                                    Box::new(BoostQuery::new(
+                                        Box::new(TermQuery::new(
+                                            Term::from_field_text(field, text),
+                                            IndexRecordOption::WithFreqs,
+                                        )),
+                                        boost,
+                                    )) as Box<dyn Query>,
+                                )
+                            })
+                            .collect(),
+                    );
+                    for limit in [1, 10] {
+                        assert_pruning_parity(&searcher, &query, limit)?;
+                    }
+                }
             }
         }
     }
