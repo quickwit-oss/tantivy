@@ -153,13 +153,10 @@ impl BlockSegmentPostings {
             return score;
         }
         if let Some(skip_reader_max_score) = self.skip_reader.block_max_score(bm25_weight) {
-            // if we are on a full block, the skip reader should have the block max information
-            // for us
             self.block_max_score_cache = Some(skip_reader_max_score);
             return skip_reader_max_score;
         }
-        // this is the last block of the segment posting list.
-        // If it is actually loaded, we can compute block max manually.
+        // Without a stored bound, compute the block maximum if the block is loaded.
         if self.block_is_loaded() {
             let docs = self.doc_decoder.output_array().iter().cloned();
             let freqs = self.freq_decoder.output_array().iter().cloned();
