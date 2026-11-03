@@ -106,6 +106,30 @@ pub trait Weight: Send + Sync + 'static {
     /// Returns an [`Explanation`] for the given document.
     fn explain(&self, reader: &SegmentReader, doc: DocId) -> crate::Result<Explanation>;
 
+    /// Explains the score with the same incoming boost as [`Weight::scorer`].
+    ///
+    /// Built-in weights propagate this context through their details. The default preserves
+    /// [`Weight::explain`] at unit boost; otherwise it reports the actual scorer value without
+    /// child details. Override this method to retain custom weight details under a boost.
+    fn explain_with_boost(
+        &self,
+        reader: &SegmentReader,
+        doc: DocId,
+        boost: Score,
+    ) -> crate::Result<Explanation> {
+        if boost == 1.0 {
+            return self.explain(reader, doc);
+        }
+        let mut scorer = self.scorer(reader, boost)?;
+        if scorer.doc() > doc || scorer.seek(doc) != doc {
+            return Err(crate::query::explanation::does_not_match(doc));
+        }
+        Ok(Explanation::new_with_string(
+            format!("Custom weight score with incoming boost {boost}; details unavailable"),
+            scorer.score(),
+        ))
+    }
+
     /// Returns the number documents within the given [`SegmentReader`].
     fn count(&self, reader: &SegmentReader) -> crate::Result<u32> {
         let mut scorer = self.scorer(reader, 1.0)?;

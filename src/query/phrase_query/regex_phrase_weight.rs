@@ -275,7 +275,16 @@ impl Weight for RegexPhraseWeight {
     }
 
     fn explain(&self, reader: &SegmentReader, doc: DocId) -> crate::Result<Explanation> {
-        let scorer_opt = self.phrase_scorer(reader, 1.0)?;
+        self.explain_with_boost(reader, doc, 1.0)
+    }
+
+    fn explain_with_boost(
+        &self,
+        reader: &SegmentReader,
+        doc: DocId,
+        boost: Score,
+    ) -> crate::Result<Explanation> {
+        let scorer_opt = self.phrase_scorer(reader, boost)?;
         if scorer_opt.is_none() {
             return Err(does_not_match(doc));
         }
@@ -288,7 +297,13 @@ impl Weight for RegexPhraseWeight {
         let phrase_count = scorer.phrase_count();
         let mut explanation = Explanation::new("Phrase Scorer", scorer.score());
         if let Some(similarity_weight) = self.similarity_weight_opt.as_ref() {
-            explanation.add_detail(similarity_weight.explain(fieldnorm_id, phrase_count));
+            let mut detail = similarity_weight
+                .boost_by(boost)
+                .explain(fieldnorm_id, phrase_count);
+            if boost != 1.0 {
+                detail.add_const("incoming boost", boost);
+            }
+            explanation.add_detail(detail);
         }
         Ok(explanation)
     }

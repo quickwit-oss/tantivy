@@ -577,7 +577,16 @@ impl<TScoreCombiner: ScoreCombiner + Sync> Weight for BooleanWeight<TScoreCombin
     }
 
     fn explain(&self, reader: &SegmentReader, doc: DocId) -> crate::Result<Explanation> {
-        let mut scorer = self.scorer(reader, 1.0)?;
+        self.explain_with_boost(reader, doc, 1.0)
+    }
+
+    fn explain_with_boost(
+        &self,
+        reader: &SegmentReader,
+        doc: DocId,
+        boost: Score,
+    ) -> crate::Result<Explanation> {
+        let mut scorer = self.scorer(reader, boost)?;
         if scorer.doc() > doc || scorer.seek(doc) != doc {
             return Err(does_not_match(doc));
         }
@@ -588,7 +597,7 @@ impl<TScoreCombiner: ScoreCombiner + Sync> Weight for BooleanWeight<TScoreCombin
         let mut explanation = Explanation::new("BooleanClause. sum of ...", scorer.score());
         for (occur, subweight) in self.per_occur_weights.iter() {
             if is_include_occur(occur) {
-                if let Ok(child_explanation) = subweight.explain(reader, doc) {
+                if let Ok(child_explanation) = subweight.explain_with_boost(reader, doc, boost) {
                     explanation.add_detail(child_explanation);
                 }
             }
