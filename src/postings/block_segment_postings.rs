@@ -156,6 +156,28 @@ impl BlockSegmentPostings {
             self.block_max_score_cache = Some(skip_reader_max_score);
             return skip_reader_max_score;
         }
+        if self.block_is_loaded() {
+            let block_max_score = if fieldnorm_reader.is_constant() {
+                (0..self.block_len())
+                    .map(|i| self.freq(i))
+                    .max()
+                    .map(|max_tf| {
+                        bm25_weight
+                            .max_score_with_term_freq(fieldnorm_reader.fieldnorm_id(0), max_tf)
+                    })
+                    .unwrap_or(0.0)
+            } else {
+                let docs = self.doc_decoder.output_array().iter().cloned();
+                let bm25_scores = docs.enumerate().map(|(i, doc)| {
+                    let term_freq = self.freq(i);
+                    let fieldnorm_id = fieldnorm_reader.fieldnorm_id(doc);
+                    bm25_weight.score(fieldnorm_id, term_freq)
+                });
+                max_score(bm25_scores).unwrap_or(0.0)
+            };
+            self.block_max_score_cache = Some(block_max_score);
+            return block_max_score;
+        }
         if fieldnorm_reader.is_constant() {
             if let BlockInfo::BitPacked { tf_num_bits, .. } = self.skip_reader.block_info() {
                 let max_term_freq = if self.freq_reading_option == FreqReadingOption::ReadFreq {
@@ -164,22 +186,9 @@ impl BlockSegmentPostings {
                 } else {
                     1
                 };
-                let bound = bm25_weight
+                return bm25_weight
                     .max_score_with_term_freq(fieldnorm_reader.fieldnorm_id(0), max_term_freq);
-                self.block_max_score_cache = Some(bound);
-                return bound;
             }
-        }
-        if self.block_is_loaded() {
-            let docs = self.doc_decoder.output_array().iter().cloned();
-            let bm25_scores = docs.enumerate().map(|(i, doc)| {
-                let term_freq = self.freq(i);
-                let fieldnorm_id = fieldnorm_reader.fieldnorm_id(doc);
-                bm25_weight.score(fieldnorm_id, term_freq)
-            });
-            let block_max_score = max_score(bm25_scores).unwrap_or(0.0);
-            self.block_max_score_cache = Some(block_max_score);
-            return block_max_score;
         }
         // Do not cache this bound: a loaded block can supply a tighter one.
         bm25_weight.max_score_for(fieldnorm_reader)

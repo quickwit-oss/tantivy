@@ -224,6 +224,18 @@ pub fn block_wand(
 ///   - On a block, advance until the end and execute `callback` when the doc score is greater or
 ///     equal to the `threshold`.
 pub fn block_wand_single_scorer(
+    scorer: TermScorer,
+    threshold: Score,
+    callback: &mut dyn FnMut(u32, Score) -> Score,
+) {
+    if scorer.fieldnorm_reader().is_constant() {
+        block_wand_single_scorer_impl::<true>(scorer, threshold, callback);
+    } else {
+        block_wand_single_scorer_impl::<false>(scorer, threshold, callback);
+    }
+}
+
+fn block_wand_single_scorer_impl<const CONSTANT_FIELDNORM: bool>(
     mut scorer: TermScorer,
     mut threshold: Score,
     callback: &mut dyn FnMut(u32, Score) -> Score,
@@ -245,18 +257,26 @@ pub fn block_wand_single_scorer(
         if doc == TERMINATED {
             break;
         }
-        loop {
-            let score = scorer.score();
-            if score > threshold {
-                threshold = callback(doc, score);
-            }
-            debug_assert!(doc <= scorer.last_doc_in_block());
-            if doc == scorer.last_doc_in_block() {
-                break;
-            }
-            doc = scorer.advance();
+        // Decoding can tighten a missing bound enough to skip scoring this block.
+        if CONSTANT_FIELDNORM && scorer.block_max_score() <= threshold {
+            doc = scorer.last_doc_in_block();
             if doc == TERMINATED {
                 return;
+            }
+        } else {
+            loop {
+                let score = scorer.score();
+                if score > threshold {
+                    threshold = callback(doc, score);
+                }
+                debug_assert!(doc <= scorer.last_doc_in_block());
+                if doc == scorer.last_doc_in_block() {
+                    break;
+                }
+                doc = scorer.advance();
+                if doc == TERMINATED {
+                    return;
+                }
             }
         }
         doc += 1;

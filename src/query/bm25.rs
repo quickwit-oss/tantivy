@@ -206,8 +206,12 @@ impl Bm25Weight {
         if !self.is_non_negative() {
             return 0.0;
         }
-        if max_term_freq == 1 {
-            return self.score(fieldnorm_id, 1);
+        if max_term_freq <= 16 {
+            // Keep common low-frequency bounds exact, including ties, without assuming
+            // floating-point BM25 scores are monotonic in frequency.
+            return (1..=max_term_freq)
+                .map(|tf| self.score(fieldnorm_id, tf))
+                .fold(0.0, Score::max);
         }
         let term_freq = max_term_freq as Score;
         let norm = self.cache[fieldnorm_id as usize];
@@ -279,8 +283,10 @@ mod tests {
                 let weight =
                     Bm25Weight::for_one_term(128, 33_554_432, average_fieldnorm).boost_by(boost);
                 for fieldnorm_id in [0, 1, 40, 255] {
-                    for bits in 0..=32 {
-                        let max_tf = 1u32.checked_shl(bits).unwrap_or(u32::MAX);
+                    for max_tf in (0..=32)
+                        .map(|bits| 1u32.checked_shl(bits).unwrap_or(u32::MAX))
+                        .chain([3, 5, 15, 17, 257])
+                    {
                         let bound = weight.max_score_with_term_freq(fieldnorm_id, max_tf);
                         for tf in
                             (1..=max_tf.min(256)).chain(max_tf.saturating_sub(256).max(1)..=max_tf)

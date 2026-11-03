@@ -306,7 +306,7 @@ fn test_block_wand_boosts() -> tantivy::Result<()> {
 
 #[test]
 fn test_block_wand_json_implicit_frequencies() -> tantivy::Result<()> {
-    for num_docs in [10, 127, 128, 129, 256, 384] {
+    for num_docs in [10usize, 127, 128, 129, 256, 384] {
         let mut schema = Schema::builder();
         let field = schema.add_json_field("json", tantivy::schema::TEXT);
         let schema = schema.build();
@@ -343,7 +343,7 @@ fn test_block_wand_json_implicit_frequencies() -> tantivy::Result<()> {
                 for limit in [1, 10, 50] {
                     let hits = assert_pruning_parity(&searcher, &query, limit)?;
                     let expected = if occur == Occur::Must {
-                        (num_docs + 2) / 3
+                        num_docs.div_ceil(3)
                     } else {
                         num_docs
                     };
