@@ -245,3 +245,7 @@ harness = false
 [[bench]]
 name = "intersection_bench"
 harness = false
+
+[[bench]]
+name = "phrase_query_bench"
+harness = false
