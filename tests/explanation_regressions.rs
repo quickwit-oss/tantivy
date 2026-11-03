@@ -100,7 +100,7 @@ fn built_in_contextual_explanations_match_native_scorers() -> tantivy::Result<()
     let mut writer = index.writer_with_num_threads::<tantivy::TantivyDocument>(1, 50_000_000)?;
     writer.set_merge_policy(Box::new(NoMergePolicy));
     for i in 0..12 {
-        writer.add_document(doc!(text => if i % 2 == 0 { "amber quartz" } else { "quartz rare" }, number => i as u64))?;
+        writer.add_document(doc!(text => if i % 2 == 0 { "amber quartz rare" } else { "quartz rare" }, number => i as u64))?;
         if i == 5 {
             writer.commit()?;
         }
@@ -118,7 +118,7 @@ fn built_in_contextual_explanations_match_native_scorers() -> tantivy::Result<()
         )
     };
     let predicate: DocPredicateQuery =
-        FunctionPredicate::from(|_: &SegmentReader| Ok(|doc: u32| doc % 2 == 0)).into();
+        FunctionPredicate::from(|_: &SegmentReader| Ok(|doc: u32| doc.is_multiple_of(2))).into();
     let (lower, upper) = range();
     let (inverted_lower, inverted_upper) = range();
     let queries: Vec<Box<dyn Query>> = vec![
@@ -135,6 +135,11 @@ fn built_in_contextual_explanations_match_native_scorers() -> tantivy::Result<()
         Box::new(PhrasePrefixQuery::new(vec![
             Term::from_field_text(text, "amber"),
             Term::from_field_text(text, "qua"),
+        ])),
+        Box::new(PhrasePrefixQuery::new(vec![
+            Term::from_field_text(text, "amber"),
+            Term::from_field_text(text, "quartz"),
+            Term::from_field_text(text, "ra"),
         ])),
         Box::new(RegexQuery::from_pattern("amb.*", text)?),
         Box::new(FuzzyTermQuery::new(
@@ -166,6 +171,7 @@ fn built_in_contextual_explanations_match_native_scorers() -> tantivy::Result<()
         Box::new(EmptyQuery),
     ];
     for query in queries {
+        let expects_match = !query.is::<EmptyQuery>();
         for outer in [0.0, 1e-20, 0.3] {
             let query = BoostQuery::new(
                 Box::new(BoostQuery::new(
@@ -175,9 +181,11 @@ fn built_in_contextual_explanations_match_native_scorers() -> tantivy::Result<()
                 outer,
             );
             let weight = query.weight(EnableScoring::enabled_from_searcher(&searcher))?;
+            let mut matches = 0;
             for segment in searcher.segment_readers() {
                 let mut scorer = weight.scorer(segment, 1.0)?;
                 while scorer.doc() != TERMINATED {
+                    matches += 1;
                     let explanation = weight.explain(segment, scorer.doc())?;
                     assert_eq!(
                         explanation.value().to_bits(),
@@ -203,6 +211,7 @@ fn built_in_contextual_explanations_match_native_scorers() -> tantivy::Result<()
                     scorer.advance();
                 }
             }
+            assert_eq!(matches > 0, expects_match, "{query:?}");
         }
     }
     Ok(())
