@@ -201,6 +201,29 @@ impl Bm25Weight {
         }
     }
 
+    /// Bounds scores at this norm for frequencies in `1..=max_term_freq`.
+    pub(crate) fn max_score_with_term_freq(&self, fieldnorm_id: u8, max_term_freq: u32) -> Score {
+        if !self.is_non_negative() {
+            return 0.0;
+        }
+        if max_term_freq == 1 {
+            return self.score(fieldnorm_id, 1);
+        }
+        let term_freq = max_term_freq as Score;
+        let norm = self.cache[fieldnorm_id as usize];
+        let denominator = term_freq + norm;
+        if !denominator.is_finite() {
+            return self.weight;
+        }
+        // One ULP here bounds addition rounding at every smaller frequency. Subtract it
+        // from the norm, rounding down, so tf / (tf + lower_norm) bounds the actual ratio.
+        // Unlike score(max_term_freq), this also covers non-monotonic f32 rounding.
+        let rounding_error = denominator.next_up() - denominator;
+        let lower_norm = (norm - rounding_error).next_down().max(0.0);
+        let lower_denominator = (term_freq + lower_norm).next_down().max(term_freq);
+        self.weight * (term_freq / lower_denominator)
+    }
+
     #[inline]
     pub(crate) fn tf_factor(&self, fieldnorm_id: u8, term_freq: u32) -> Score {
         let term_freq = term_freq as Score;
@@ -248,6 +271,36 @@ mod tests {
     use super::{idf, Bm25Weight};
     use crate::fieldnorm::FieldNormReader;
     use crate::{assert_nearly_equals, Score};
+
+    #[test]
+    fn test_max_score_with_term_freq() {
+        for average_fieldnorm in [0.00001, 0.5, 1.0, 10.0, 1000.0, f32::MAX] {
+            for boost in [-2.0, 0.0, 0.5, 1.0, 3.0] {
+                let weight =
+                    Bm25Weight::for_one_term(128, 33_554_432, average_fieldnorm).boost_by(boost);
+                for fieldnorm_id in [0, 1, 40, 255] {
+                    for bits in 0..=32 {
+                        let max_tf = 1u32.checked_shl(bits).unwrap_or(u32::MAX);
+                        let bound = weight.max_score_with_term_freq(fieldnorm_id, max_tf);
+                        for tf in
+                            (1..=max_tf.min(256)).chain(max_tf.saturating_sub(256).max(1)..=max_tf)
+                        {
+                            assert!(
+                                bound >= weight.score(fieldnorm_id, tf),
+                                "avg={average_fieldnorm}, boost={boost}, norm={fieldnorm_id}, \
+                                 tf={tf}, max_tf={max_tf}"
+                            );
+                        }
+                    }
+                }
+            }
+        }
+        let weight = Bm25Weight::for_one_term(128, 33_554_432, 1.0);
+        assert!(weight.score(1, (1 << 24) - 1) > weight.score(1, 1 << 24));
+        assert!(weight.max_score_with_term_freq(1, 1 << 24) >= weight.score(1, (1 << 24) - 1));
+        assert_eq!(weight.max_score_with_term_freq(1, 1), weight.score(1, 1));
+        assert!(weight.max_score_with_term_freq(1, 8) < weight.weight);
+    }
 
     #[test]
     fn test_max_score_for_fieldnorm_reader() {

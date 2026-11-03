@@ -181,7 +181,6 @@ impl SkipReader {
             } if block_wand_term_freq > 0 => {
                 Some(bm25_weight.score(block_wand_fieldnorm_id, block_wand_term_freq))
             }
-            // A zero frequency marks an unavailable bound, not a zero-scoring block.
             _ => None,
         }
     }
