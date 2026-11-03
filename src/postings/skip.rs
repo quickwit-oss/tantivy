@@ -170,7 +170,7 @@ impl SkipReader {
 
     // Returns the block max score for this block if available.
     //
-    // Full bitpacked blocks may have no bound when fieldnorms were disabled.
+    // Full blocks with zero stored frequency have no bound (e.g. no norms or frequencies).
     // The last VInt encoded incomplete block has no stored bound either.
     pub fn block_max_score(&self, bm25_weight: &Bm25Weight) -> Option<Score> {
         match self.block_info {

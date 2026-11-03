@@ -67,10 +67,8 @@ where
                 .map(|scorer| *(scorer.downcast::<TermScorer>().map_err(|_| ()).unwrap()))
                 .collect();
             if scorers.iter().all(TermScorer::supports_block_wand) {
-                // Block-WAND requires frequencies and nonnegative term scores.
                 return SpecializedScorer::TermUnion(scorers);
             } else if scorers.len() == 1 {
-                // Single TermScorer without freq reading — unwrap directly.
                 return SpecializedScorer::Other(Box::new(scorers.into_iter().next().unwrap()));
             } else {
                 return SpecializedScorer::Other(Box::new(BufferedUnionScorer::build(
