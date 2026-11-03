@@ -259,3 +259,31 @@ fn custom_weight_context_default_preserves_unit_details_and_native_scores() -> t
     assert!(nonfinite.value().is_nan());
     Ok(())
 }
+
+#[test]
+fn disabled_all_match_term_context_matches_its_constant_scorer() -> tantivy::Result<()> {
+    use tantivy::query::EnableScoring;
+    let mut builder = Schema::builder();
+    let field = builder.add_text_field("title", TEXT);
+    let index = Index::create_in_ram(builder.build());
+    let mut writer = index.writer_with_num_threads::<tantivy::TantivyDocument>(1, 50_000_000)?;
+    writer.add_document(doc!(field => "amber"))?;
+    writer.commit()?;
+    let reader = index.reader()?;
+    let searcher = reader.searcher();
+    let query = term(field, "amber");
+    let weight = query.weight(EnableScoring::disabled_from_searcher(&searcher))?;
+    let segment = searcher.segment_reader(0);
+    for boost in [0.0, 0.3, 1e20] {
+        let mut scorer = weight.scorer(segment, boost)?;
+        assert_eq!(scorer.score(), 1.0);
+        assert_eq!(
+            weight
+                .explain_with_boost(segment, 0, boost)?
+                .value()
+                .to_bits(),
+            scorer.score().to_bits()
+        );
+    }
+    Ok(())
+}
