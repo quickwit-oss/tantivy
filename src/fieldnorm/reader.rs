@@ -1,5 +1,5 @@
 use std::collections::HashMap;
-use std::sync::{Arc, OnceLock, RwLock};
+use std::sync::{Arc, OnceLock};
 
 use super::{fieldnorm_to_id, id_to_fieldnorm};
 use crate::directory::{CompositeFile, FileSlice, OwnedBytes};
@@ -16,42 +16,35 @@ use crate::DocId;
 #[derive(Clone)]
 pub struct FieldNormReaders {
     data: Arc<CompositeFile>,
-    readers: Arc<RwLock<HashMap<Field, FieldNormReader>>>,
+    readers: Arc<HashMap<Field, OnceLock<FieldNormReader>>>,
 }
 
 impl FieldNormReaders {
     /// Creates a field norm reader.
     pub fn open(file: FileSlice) -> crate::Result<FieldNormReaders> {
         let data = CompositeFile::open(&file)?;
+        let readers = data
+            .fields()
+            .map(|field| (field, OnceLock::new()))
+            .collect();
         Ok(FieldNormReaders {
             data: Arc::new(data),
-            readers: Default::default(),
+            readers: Arc::new(readers),
         })
     }
 
     /// Returns the FieldNormReader for a specific field.
     pub fn get_field(&self, field: Field) -> crate::Result<Option<FieldNormReader>> {
-        if let Some(reader) = self
-            .readers
-            .read()
-            .expect("Fieldnorm reader cache lock poisoned")
-            .get(&field)
-        {
-            return Ok(Some(reader.clone()));
+        if let Some(reader) = self.readers.get(&field) {
+            if let Some(reader) = reader.get() {
+                return Ok(Some(reader.clone()));
+            }
+            if let Some(file) = self.data.open_read(field) {
+                let fieldnorm_reader = FieldNormReader::open(file)?;
+                return Ok(Some(reader.get_or_init(|| fieldnorm_reader).clone()));
+            }
         }
-        if let Some(file) = self.data.open_read(field) {
-            let fieldnorm_reader = FieldNormReader::open(file)?;
-            let reader = self
-                .readers
-                .write()
-                .expect("Fieldnorm reader cache lock poisoned")
-                .entry(field)
-                .or_insert(fieldnorm_reader)
-                .clone();
-            Ok(Some(reader))
-        } else {
-            Ok(None)
-        }
+        Ok(None)
     }
 
     /// Return a break down of the space usage per field.
