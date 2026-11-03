@@ -96,11 +96,8 @@ impl FieldNormReader {
         ReaderImplEnum::FromData(data).into()
     }
 
-    pub(crate) fn constant_fieldnorm_id(&self) -> Option<u8> {
-        match &self.0 {
-            ReaderImplEnum::Const { fieldnorm_id, .. } => Some(*fieldnorm_id),
-            ReaderImplEnum::FromData(_) => None,
-        }
+    pub(crate) fn is_constant(&self) -> bool {
+        matches!(&self.0, ReaderImplEnum::Const { .. })
     }
 
     /// Returns the number of documents in this segment.

@@ -193,9 +193,9 @@ impl Bm25Weight {
         if !self.is_non_negative() {
             return 0.0;
         }
-        if let Some(fieldnorm_id) = fieldnorm_reader.constant_fieldnorm_id() {
-            // A synthetic field length does not bound term frequency.
-            self.score(fieldnorm_id, u32::MAX)
+        if fieldnorm_reader.is_constant() {
+            // A synthetic field length does not bound term frequency; tf_factor is at most 1.
+            self.weight
         } else {
             self.max_score()
         }
@@ -258,10 +258,19 @@ mod tests {
                 if boost >= 0.0 {
                     assert_eq!(weight.max_score_for(&stored), weight.max_score());
                 }
-                for fieldnorm in [0, 1, 10, 100] {
+                for fieldnorm in [0, 1, 10, 100, u32::MAX] {
                     let reader = FieldNormReader::constant(1, fieldnorm);
                     let bound = weight.max_score_for(&reader);
-                    for term_freq in [1, 3, 20, 255, 100_000, u32::MAX] {
+                    for term_freq in [
+                        1,
+                        3,
+                        20,
+                        255,
+                        100_000,
+                        u32::MAX - 512,
+                        u32::MAX - 127,
+                        u32::MAX,
+                    ] {
                         assert!(bound >= weight.score(reader.fieldnorm_id(0), term_freq));
                     }
                 }
