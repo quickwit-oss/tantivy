@@ -3,6 +3,7 @@ use std::cmp::Ordering;
 use super::Scorer;
 use crate::docset::{SeekDangerResult, COLLECT_BLOCK_BUFFER_LEN};
 use crate::index::SegmentReader;
+use crate::query::explanation::does_not_match;
 use crate::query::Explanation;
 use crate::{DocId, DocSet, Score, TERMINATED};
 
@@ -111,6 +112,7 @@ pub trait Weight: Send + Sync + 'static {
     /// Built-in weights propagate this context through their details. The default preserves
     /// [`Weight::explain`] at unit boost; otherwise it reports the actual scorer value without
     /// child details. Override this method to retain custom weight details under a boost.
+    /// An `explain` implementation delegating here must also override this method.
     fn explain_with_boost(
         &self,
         reader: &SegmentReader,
@@ -122,7 +124,7 @@ pub trait Weight: Send + Sync + 'static {
         }
         let mut scorer = self.scorer(reader, boost)?;
         if scorer.doc() > doc || scorer.seek(doc) != doc {
-            return Err(crate::query::explanation::does_not_match(doc));
+            return Err(does_not_match(doc));
         }
         Ok(Explanation::new_with_string(
             format!("Custom weight score with incoming boost {boost}; details unavailable"),

@@ -257,6 +257,26 @@ fn custom_weight_context_default_preserves_unit_details_and_native_scores() -> t
     let nonfinite =
         BoostQuery::new(Box::new(AllQuery), f32::NAN).explain(&searcher, DocAddress::new(0, 0))?;
     assert!(nonfinite.value().is_nan());
+    struct Delegating(Box<dyn Weight>);
+    impl Weight for Delegating {
+        fn scorer(&self, reader: &SegmentReader, boost: Score) -> tantivy::Result<Box<dyn Scorer>> {
+            self.0.scorer(reader, boost)
+        }
+        fn explain(&self, reader: &SegmentReader, doc: u32) -> tantivy::Result<Explanation> {
+            self.0.explain(reader, doc)
+        }
+    }
+    let delegated = Delegating(Box::new(tantivy::query::BoostWeight::new(
+        Box::new(tantivy::query::BoostWeight::new(
+            AllQuery.weight(EnableScoring::enabled_from_searcher(&searcher))?,
+            3e38,
+        )),
+        2.0,
+    )));
+    assert!(delegated.explain(segment, 0)?.value().is_infinite());
+    let contextual = serde_json::to_value(delegated.explain_with_boost(segment, 0, 0.0)?).unwrap();
+    assert_eq!(contextual["value"].as_f64(), Some(0.0));
+    assert!(contextual.get("details").is_none());
     Ok(())
 }
 
@@ -284,6 +304,79 @@ fn disabled_all_match_term_context_matches_its_constant_scorer() -> tantivy::Res
                 .to_bits(),
             scorer.score().to_bits()
         );
+    }
+    Ok(())
+}
+
+#[test]
+fn boolean_and_dismax_details_use_the_actual_child_boost_context() -> tantivy::Result<()> {
+    use tantivy::query::{DisjunctionMaxQuery, EnableScoring};
+    let mut builder = Schema::builder();
+    let field = builder.add_text_field("title", TEXT);
+    let index = Index::create_in_ram(builder.build());
+    let mut writer = index.writer_with_num_threads::<tantivy::TantivyDocument>(1, 50_000_000)?;
+    for text in ["amber quartz", "amber", "quartz"] {
+        writer.add_document(doc!(field => text))?;
+    }
+    writer.commit()?;
+    let reader = index.reader()?;
+    let searcher = reader.searcher();
+    let segment = searcher.segment_reader(0);
+    let children = [term(field, "amber"), term(field, "quartz")];
+    let queries: Vec<Box<dyn Query>> = vec![
+        Box::new(BooleanQuery::new(vec![
+            (Occur::Should, children[0].box_clone()),
+            (Occur::Should, children[1].box_clone()),
+        ])),
+        Box::new(BooleanQuery::new(vec![
+            (Occur::Must, children[0].box_clone()),
+            (Occur::Must, children[1].box_clone()),
+        ])),
+        Box::new(BooleanQuery::new(vec![
+            (Occur::Must, children[0].box_clone()),
+            (Occur::Should, children[1].box_clone()),
+        ])),
+        Box::new(DisjunctionMaxQuery::with_tie_breaker(
+            children.iter().map(|query| query.box_clone()).collect(),
+            0.1,
+        )),
+    ];
+    for query in queries {
+        let weight = query.weight(EnableScoring::enabled_from_searcher(&searcher))?;
+        for boost in [0.0, 0.3, 1e20] {
+            for doc in 0..segment.max_doc() {
+                let mut scorer = weight.scorer(segment, boost)?;
+                if scorer.doc() > doc || scorer.seek(doc) != doc {
+                    continue;
+                }
+                let json =
+                    serde_json::to_value(weight.explain_with_boost(segment, doc, boost)?).unwrap();
+                let expected: Vec<f32> = children
+                    .iter()
+                    .filter_map(|child| {
+                        let mut scorer = child
+                            .weight(EnableScoring::enabled_from_searcher(&searcher))
+                            .unwrap()
+                            .scorer(segment, boost)
+                            .unwrap();
+                        if scorer.doc() > doc || scorer.seek(doc) != doc {
+                            None
+                        } else {
+                            Some(scorer.score())
+                        }
+                    })
+                    .collect();
+                let actual = json["details"].as_array().unwrap();
+                assert_eq!(actual.len(), expected.len(), "{query:?}");
+                for (actual, expected) in actual.iter().zip(expected) {
+                    assert_eq!(
+                        (actual["value"].as_f64().unwrap() as f32).to_bits(),
+                        expected.to_bits(),
+                        "{query:?}, boost{boost}, doc{doc}"
+                    );
+                }
+            }
+        }
     }
     Ok(())
 }
