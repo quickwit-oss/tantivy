@@ -160,11 +160,7 @@ impl BlockSegmentPostings {
         if self.block_is_loaded() {
             let docs = self.doc_decoder.output_array().iter().cloned();
             let bm25_scores = docs.enumerate().map(|(i, doc)| {
-                let term_freq = if self.freq_reading_option == FreqReadingOption::ReadFreq {
-                    self.freq_decoder.output_array()[i]
-                } else {
-                    1
-                };
+                let term_freq = self.freq(i);
                 let fieldnorm_id = fieldnorm_reader.fieldnorm_id(doc);
                 bm25_weight.score(fieldnorm_id, term_freq)
             });
