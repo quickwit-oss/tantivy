@@ -143,8 +143,12 @@ fn test_block_wand_with_implicit_frequencies() -> tantivy::Result<()> {
         }
         writer.commit()?;
         let searcher = index.reader()?.searcher();
+        let mut queries: Vec<Box<dyn Query>> = vec![Box::new(TermQuery::new(
+            Term::from_field_text(field, "amber"),
+            IndexRecordOption::Basic,
+        ))];
         for occur in [Occur::Should, Occur::Must] {
-            let query = BooleanQuery::new(
+            queries.push(Box::new(BooleanQuery::new(
                 ["amber", "stone"]
                     .into_iter()
                     .map(|text| {
@@ -157,11 +161,13 @@ fn test_block_wand_with_implicit_frequencies() -> tantivy::Result<()> {
                         )
                     })
                     .collect(),
-            );
+            )));
+        }
+        for query in queries {
             let collector = TopDocs::with_limit(10).order_by_score();
-            let expected = searcher.search(&GenericQuery(Box::new(query.clone())), &collector)?;
+            let expected = searcher.search(&GenericQuery(query.box_clone()), &collector)?;
             let actual = searcher.search(&query, &collector)?;
-            assert_eq!(actual, expected, "fieldnorms={fieldnorms}, {occur:?}");
+            assert_eq!(actual, expected, "fieldnorms={fieldnorms}, {query:?}");
             if fieldnorms {
                 assert_eq!(expected[0].1.doc_id, 255);
             }

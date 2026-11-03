@@ -156,7 +156,6 @@ impl BlockSegmentPostings {
             self.block_max_score_cache = Some(skip_reader_max_score);
             return skip_reader_max_score;
         }
-        // Without a stored bound, compute the block maximum if the block is loaded.
         if self.block_is_loaded() {
             let docs = self.doc_decoder.output_array().iter().cloned();
             let bm25_scores = docs.enumerate().map(|(i, doc)| {
