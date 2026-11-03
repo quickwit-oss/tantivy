@@ -203,7 +203,10 @@ impl BlockSegmentPostings {
             && bm25_weight.is_non_negative()
             && matches!(self.skip_reader.block_info(), BlockInfo::BitPacked { .. })
         {
-            return bm25_weight.score(fieldnorm_reader.min_fieldnorm_id(), 1);
+            // Keep first-use work proportional to the posting list, even on a large segment.
+            if let Some(minimum) = fieldnorm_reader.min_fieldnorm_id(self.doc_freq) {
+                return bm25_weight.score(minimum, 1);
+            }
         }
         // Do not cache this bound: a loaded block can supply a tighter one.
         bm25_weight.max_score_for(fieldnorm_reader)

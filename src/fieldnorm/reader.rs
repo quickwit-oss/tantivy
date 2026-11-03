@@ -125,12 +125,19 @@ impl FieldNormReader {
         matches!(&self.0, ReaderImplEnum::Const { .. })
     }
 
-    pub(crate) fn min_fieldnorm_id(&self) -> u8 {
+    /// Reuses a cached minimum, or scans at most `max_scan_docs` fieldnorms to compute it.
+    pub(crate) fn min_fieldnorm_id(&self, max_scan_docs: u32) -> Option<u8> {
         match &self.0 {
             ReaderImplEnum::FromData { data, minimum } => {
-                *minimum.get_or_init(|| data.as_slice().iter().copied().min().unwrap_or(0))
+                if let Some(&minimum) = minimum.get() {
+                    return Some(minimum);
+                }
+                if data.len() > max_scan_docs as usize {
+                    return None;
+                }
+                Some(*minimum.get_or_init(|| data.as_slice().iter().copied().min().unwrap_or(0)))
             }
-            ReaderImplEnum::Const { fieldnorm_id, .. } => *fieldnorm_id,
+            ReaderImplEnum::Const { fieldnorm_id, .. } => Some(*fieldnorm_id),
         }
     }
 
@@ -223,20 +230,27 @@ mod tests {
             ) => {
                 assert!(std::sync::Arc::ptr_eq(a, b));
                 assert!(a.get().is_none());
-                assert_eq!(first.min_fieldnorm_id(), 1);
+                assert_eq!(first.min_fieldnorm_id(1), None);
+                assert_eq!(first.min_fieldnorm_id(2), Some(1));
                 assert_eq!(b.get(), Some(&1));
             }
             _ => panic!("Expected stored fieldnorms"),
         }
-        assert_eq!(second.min_fieldnorm_id(), 1);
-        assert_eq!(FieldNormReader::constant(5, 10).min_fieldnorm_id(), 10);
-        assert_eq!(FieldNormReader::for_test(&[]).min_fieldnorm_id(), 0);
-        assert_eq!(FieldNormReader::for_test(&[4, 0, 2]).min_fieldnorm_id(), 0);
+        assert_eq!(second.min_fieldnorm_id(0), Some(1));
+        assert_eq!(
+            FieldNormReader::constant(5, 10).min_fieldnorm_id(0),
+            Some(10)
+        );
+        assert_eq!(FieldNormReader::for_test(&[]).min_fieldnorm_id(0), Some(0));
+        assert_eq!(
+            FieldNormReader::for_test(&[4, 0, 2]).min_fieldnorm_id(3),
+            Some(0)
+        );
         Ok(())
     }
 
     #[test]
-    fn test_short_postings_do_not_initialize_minimum() -> crate::Result<()> {
+    fn test_sparse_postings_do_not_initialize_minimum() -> crate::Result<()> {
         let mut schema = crate::schema::Schema::builder();
         let field = schema.add_text_field("status", crate::schema::STRING);
         let index = crate::Index::create_in_ram(schema.build());
@@ -244,6 +258,9 @@ mod tests {
         for id in 0..1024 {
             let mut doc = crate::doc!(field => "active");
             if id < 128 {
+                doc.add_text(field, "short");
+            }
+            if id < 384 {
                 doc.add_text(field, "rare");
             }
             writer.add_document(doc)?;
@@ -251,18 +268,20 @@ mod tests {
         writer.commit()?;
         let searcher = index.reader()?.searcher();
         let reader = searcher.segment_reader(0).get_fieldnorms_reader(field)?;
-        let query = crate::query::TermQuery::new(
-            crate::Term::from_field_text(field, "rare"),
-            crate::schema::IndexRecordOption::Basic,
-        );
-        let hits = searcher.search(
-            &query,
-            &crate::collector::TopDocs::with_limit(10).order_by_score(),
-        )?;
-        assert_eq!(hits.len(), 10);
-        match &reader.0 {
-            super::ReaderImplEnum::FromData { minimum, .. } => assert!(minimum.get().is_none()),
-            _ => panic!("Expected stored fieldnorms"),
+        for term in ["short", "rare"] {
+            let query = crate::query::TermQuery::new(
+                crate::Term::from_field_text(field, term),
+                crate::schema::IndexRecordOption::Basic,
+            );
+            let hits = searcher.search(
+                &query,
+                &crate::collector::TopDocs::with_limit(10).order_by_score(),
+            )?;
+            assert_eq!(hits.len(), 10);
+            match &reader.0 {
+                super::ReaderImplEnum::FromData { minimum, .. } => assert!(minimum.get().is_none()),
+                _ => panic!("Expected stored fieldnorms"),
+            }
         }
         Ok(())
     }
