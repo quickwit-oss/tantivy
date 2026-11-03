@@ -166,6 +166,15 @@ impl BlockSegmentPostings {
                             .max_score_with_term_freq(fieldnorm_reader.fieldnorm_id(0), max_tf)
                     })
                     .unwrap_or(0.0)
+            } else if self.freq_reading_option != FreqReadingOption::ReadFreq
+                && bm25_weight.is_non_negative()
+            {
+                self.docs()
+                    .iter()
+                    .map(|&doc| fieldnorm_reader.fieldnorm_id(doc))
+                    .min()
+                    .map(|fieldnorm_id| bm25_weight.score(fieldnorm_id, 1))
+                    .unwrap_or(0.0)
             } else {
                 let docs = self.doc_decoder.output_array().iter().cloned();
                 let bm25_scores = docs.enumerate().map(|(i, doc)| {

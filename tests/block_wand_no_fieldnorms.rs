@@ -129,51 +129,53 @@ fn test_block_wand_without_fieldnorms() -> tantivy::Result<()> {
 
 #[test]
 fn test_block_wand_with_implicit_frequencies() -> tantivy::Result<()> {
-    for fieldnorms in [false, true] {
-        let mut schema = Schema::builder();
-        let field = schema.add_text_field(
-            "text",
-            TextOptions::default().set_indexing_options(
-                TextFieldIndexing::default()
-                    .set_tokenizer("default")
-                    .set_index_option(IndexRecordOption::Basic)
-                    .set_fieldnorms(fieldnorms),
-            ),
-        );
-        let index = Index::create_in_ram(schema.build());
-        let mut writer = index.writer_with_num_threads::<TantivyDocument>(1, 20_000_000)?;
-        for id in 0..256 {
-            let padding = if id == 255 { 0 } else { 10 };
-            writer.add_document(
-                doc!(field => format!("amber stone {}", "padding ".repeat(padding))),
-            )?;
-        }
-        writer.commit()?;
-        let searcher = index.reader()?.searcher();
-        let mut queries: Vec<Box<dyn Query>> = vec![Box::new(TermQuery::new(
-            Term::from_field_text(field, "amber"),
-            IndexRecordOption::Basic,
-        ))];
-        for occur in [Occur::Should, Occur::Must] {
-            queries.push(Box::new(BooleanQuery::new(
-                ["amber", "stone"]
-                    .into_iter()
-                    .map(|text| {
-                        (
-                            occur,
-                            Box::new(TermQuery::new(
-                                Term::from_field_text(field, text),
-                                IndexRecordOption::Basic,
-                            )) as Box<dyn Query>,
-                        )
-                    })
-                    .collect(),
-            )));
-        }
-        for query in queries {
-            let hits = assert_pruning_parity(&searcher, query.as_ref(), 10)?;
-            if fieldnorms {
-                assert_eq!(hits[0].1.doc_id, 255);
+    for record_option in [IndexRecordOption::Basic, IndexRecordOption::WithFreqs] {
+        for fieldnorms in [false, true] {
+            let mut schema = Schema::builder();
+            let field = schema.add_text_field(
+                "text",
+                TextOptions::default().set_indexing_options(
+                    TextFieldIndexing::default()
+                        .set_tokenizer("default")
+                        .set_index_option(record_option)
+                        .set_fieldnorms(fieldnorms),
+                ),
+            );
+            let index = Index::create_in_ram(schema.build());
+            let mut writer = index.writer_with_num_threads::<TantivyDocument>(1, 20_000_000)?;
+            for id in 0..256 {
+                let padding = if id == 255 { 0 } else { 10 };
+                writer.add_document(
+                    doc!(field => format!("amber stone {}", "padding ".repeat(padding))),
+                )?;
+            }
+            writer.commit()?;
+            let searcher = index.reader()?.searcher();
+            let mut queries: Vec<Box<dyn Query>> = vec![Box::new(TermQuery::new(
+                Term::from_field_text(field, "amber"),
+                IndexRecordOption::Basic,
+            ))];
+            for occur in [Occur::Should, Occur::Must] {
+                queries.push(Box::new(BooleanQuery::new(
+                    ["amber", "stone"]
+                        .into_iter()
+                        .map(|text| {
+                            (
+                                occur,
+                                Box::new(TermQuery::new(
+                                    Term::from_field_text(field, text),
+                                    IndexRecordOption::Basic,
+                                )) as Box<dyn Query>,
+                            )
+                        })
+                        .collect(),
+                )));
+            }
+            for query in queries {
+                let hits = assert_pruning_parity(&searcher, query.as_ref(), 10)?;
+                if fieldnorms {
+                    assert_eq!(hits[0].1.doc_id, 255);
+                }
             }
         }
     }

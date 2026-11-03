@@ -228,14 +228,16 @@ pub fn block_wand_single_scorer(
     threshold: Score,
     callback: &mut dyn FnMut(u32, Score) -> Score,
 ) {
-    if scorer.fieldnorm_reader().is_constant() {
+    if scorer.fieldnorm_reader().is_constant()
+        || scorer.freq_reading_option() != crate::postings::FreqReadingOption::ReadFreq
+    {
         block_wand_single_scorer_impl::<true>(scorer, threshold, callback);
     } else {
         block_wand_single_scorer_impl::<false>(scorer, threshold, callback);
     }
 }
 
-fn block_wand_single_scorer_impl<const CONSTANT_FIELDNORM: bool>(
+fn block_wand_single_scorer_impl<const REFINE_LOADED_BOUND: bool>(
     mut scorer: TermScorer,
     mut threshold: Score,
     callback: &mut dyn FnMut(u32, Score) -> Score,
@@ -258,7 +260,7 @@ fn block_wand_single_scorer_impl<const CONSTANT_FIELDNORM: bool>(
             break;
         }
         // Decoding can tighten a missing bound enough to skip scoring this block.
-        if CONSTANT_FIELDNORM && scorer.block_max_score() <= threshold {
+        if REFINE_LOADED_BOUND && scorer.block_max_score() <= threshold {
             doc = scorer.last_doc_in_block();
             if doc == TERMINATED {
                 return;
