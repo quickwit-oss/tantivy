@@ -303,3 +303,54 @@ fn test_block_wand_boosts() -> tantivy::Result<()> {
     }
     Ok(())
 }
+
+#[test]
+fn test_block_wand_json_implicit_frequencies() -> tantivy::Result<()> {
+    for num_docs in [10, 127, 128, 129, 256, 384] {
+        let mut schema = Schema::builder();
+        let field = schema.add_json_field("json", tantivy::schema::TEXT);
+        let schema = schema.build();
+        let index = Index::create_in_ram(schema.clone());
+        let mut writer = index.writer_with_num_threads::<TantivyDocument>(1, 20_000_000)?;
+        for id in 0..num_docs {
+            let number = if id % 3 == 0 { 5 } else { 7 };
+            let json = format!(r#"{{"json":{{"num":{number},"text":"foo"}}}}"#);
+            writer.add_document(TantivyDocument::parse_json(&schema, &json).unwrap())?;
+        }
+        writer.commit()?;
+        let searcher = index.reader()?.searcher();
+        let mut number = Term::from_field_json_path(field, "num", false);
+        number.append_type_and_fast_value(5i64);
+        let mut text = Term::from_field_json_path(field, "text", false);
+        text.append_type_and_str("foo");
+        for terms in [
+            [number.clone(), text.clone()],
+            [text.clone(), number.clone()],
+        ] {
+            for occur in [Occur::Should, Occur::Must] {
+                let query = BooleanQuery::new(
+                    terms
+                        .iter()
+                        .map(|term| {
+                            (
+                                occur,
+                                Box::new(TermQuery::new(term.clone(), IndexRecordOption::WithFreqs))
+                                    as Box<dyn Query>,
+                            )
+                        })
+                        .collect(),
+                );
+                for limit in [1, 10, 50] {
+                    let hits = assert_pruning_parity(&searcher, &query, limit)?;
+                    let expected = if occur == Occur::Must {
+                        (num_docs + 2) / 3
+                    } else {
+                        num_docs
+                    };
+                    assert_eq!(hits.len(), limit.min(expected));
+                }
+            }
+        }
+    }
+    Ok(())
+}
