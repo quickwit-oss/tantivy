@@ -167,14 +167,8 @@ impl BlockSegmentPostings {
             self.block_max_score_cache = Some(block_max_score);
             return block_max_score;
         }
-        // Use a conservative bound until the block is loaded. Constant fieldnorms do not
-        // bound term frequency, so the usual length-based maximum does not apply.
         // Do not cache this bound: a loaded block can supply a tighter one.
-        if let Some(fieldnorm_id) = fieldnorm_reader.constant_fieldnorm_id() {
-            bm25_weight.score(fieldnorm_id, u32::MAX)
-        } else {
-            bm25_weight.max_score()
-        }
+        bm25_weight.max_score_for(fieldnorm_reader)
     }
 
     pub(crate) fn freq_reading_option(&self) -> FreqReadingOption {
