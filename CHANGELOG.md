@@ -1,7 +1,7 @@
 Tantivy Upcoming Release
 ================================
 
-## Score explanations
+## Breaking explanation-output changes
 - The existing one-term-plus-prefix scorer ignores boosts and uses a constant matching
   contribution. Explanations now omit its unused BM25 details; scorer behavior is unchanged.
 - Built-in weights explain incoming boosts using the same arithmetic order as their scorers,

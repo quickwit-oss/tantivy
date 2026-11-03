@@ -380,3 +380,48 @@ fn boolean_and_dismax_details_use_the_actual_child_boost_context() -> tantivy::R
     }
     Ok(())
 }
+
+#[test]
+fn phrase_family_bm25_details_use_the_actual_boost_context() -> tantivy::Result<()> {
+    use tantivy::query::{EnableScoring, PhrasePrefixQuery, PhraseQuery, RegexPhraseQuery};
+    let mut builder = Schema::builder();
+    let field = builder.add_text_field("title", TEXT);
+    let index = Index::create_in_ram(builder.build());
+    let mut writer = index.writer_with_num_threads::<tantivy::TantivyDocument>(1, 50_000_000)?;
+    writer.add_document(doc!(field=>"amber quartz rare"))?;
+    writer.commit()?;
+    let reader = index.reader()?;
+    let searcher = reader.searcher();
+    let segment = searcher.segment_reader(0);
+    let queries: Vec<Box<dyn Query>> = vec![
+        Box::new(PhraseQuery::new(vec![
+            Term::from_field_text(field, "amber"),
+            Term::from_field_text(field, "quartz"),
+        ])),
+        Box::new(RegexPhraseQuery::new(
+            field,
+            vec!["amb.*".into(), "quartz".into()],
+        )),
+        Box::new(PhrasePrefixQuery::new(vec![
+            Term::from_field_text(field, "amber"),
+            Term::from_field_text(field, "quartz"),
+            Term::from_field_text(field, "ra"),
+        ])),
+    ];
+    for query in queries {
+        for boost in [0.0, 0.3, 1e20] {
+            let weight = query.weight(EnableScoring::enabled_from_searcher(&searcher))?;
+            let mut scorer = weight.scorer(segment, boost)?;
+            assert_eq!(scorer.doc(), 0);
+            let json = serde_json::to_value(weight.explain_with_boost(segment, 0, boost)?).unwrap();
+            let details = json["details"].as_array().unwrap();
+            assert_eq!(details.len(), 1);
+            assert_eq!(
+                (details[0]["value"].as_f64().unwrap() as f32).to_bits(),
+                scorer.score().to_bits(),
+                "{query:?}, boost{boost}"
+            );
+        }
+    }
+    Ok(())
+}
