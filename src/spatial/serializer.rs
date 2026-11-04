@@ -24,9 +24,6 @@ pub struct SpatialSerializer {
 
 impl SpatialSerializer {
     pub(crate) fn for_segment(segment: &Segment) -> crate::Result<Option<Self>> {
-        if !segment.schema().contains_spatial_field() {
-            return Ok(None);
-        }
         let cells = segment.open_write(SegmentComponent::SpatialCells)?;
         let edges = segment.open_write(SegmentComponent::SpatialEdges)?;
         let doc_ids = segment.open_write(SegmentComponent::SpatialDocIds)?;

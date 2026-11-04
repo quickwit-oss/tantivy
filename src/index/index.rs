@@ -317,11 +317,6 @@ impl IndexBuilder {
                         .to_string(),
                 ));
             }
-            if !schema.contains_spatial_field() && has_spatial_plugin {
-                return Err(TantivyError::InvalidArgument(
-                    "a spatial segment plugin requires a schema with spatial fields".to_string(),
-                ));
-            }
             if self.index_settings.manual_doc_id_mapping
                 && self.index_settings.sort_by_field.is_some()
             {
