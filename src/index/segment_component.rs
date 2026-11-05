@@ -28,6 +28,12 @@ pub enum SegmentComponent {
     /// Bitset describing which document of the segment is alive.
     /// (It was representing deleted docs but changed to represent alive docs from v0.17)
     Delete,
+    /// Cell index for spatial fields.
+    SpatialCells,
+    /// Edge index for spatial fields.
+    SpatialEdges,
+    /// Doc ID index for spatial fields. Parallel to the cell index for bulk inclusion.
+    SpatialDocIds,
     /// A custom component defined by a [`SegmentPlugin`](crate::SegmentPlugin).
     /// The string is the file extension for this component.
     Custom(String),
@@ -46,6 +52,9 @@ impl TryFrom<&str> for SegmentComponent {
             "fast" => Ok(SegmentComponent::FastFields),
             "fieldnorm" => Ok(SegmentComponent::FieldNorms),
             "del" => Ok(SegmentComponent::Delete),
+            "cells" => Ok(SegmentComponent::SpatialCells),
+            "edges" => Ok(SegmentComponent::SpatialEdges),
+            "docids" => Ok(SegmentComponent::SpatialDocIds),
             other => Ok(SegmentComponent::Custom(other.to_string())),
         }
     }
@@ -62,6 +71,9 @@ impl Display for SegmentComponent {
             SegmentComponent::Store => write!(f, "store"),
             SegmentComponent::TempStore => write!(f, "temp"),
             SegmentComponent::Delete => write!(f, "del"),
+            SegmentComponent::SpatialCells => write!(f, "cells"),
+            SegmentComponent::SpatialEdges => write!(f, "edges"),
+            SegmentComponent::SpatialDocIds => write!(f, "docids"),
             SegmentComponent::Custom(ext) => write!(f, "{ext}"),
         }
     }

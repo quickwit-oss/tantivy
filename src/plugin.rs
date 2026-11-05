@@ -570,9 +570,8 @@ mod tests {
             }
         }
 
-        // The temp store (`store.temp`) and delete bitset (`del`) are not owned by any
-        // plugin, so a custom plugin claiming one would contend for the reserved file.
-        for reserved in ["temp", "store.temp", "del"] {
+        // Native components own these files, so custom plugins cannot claim them.
+        for reserved in ["temp", "store.temp", "del", "cells", "edges", "docids"] {
             let mut schema_builder = Schema::builder();
             schema_builder.add_text_field("text", TEXT | STORED);
             let index = Index::builder()

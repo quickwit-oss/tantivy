@@ -31,6 +31,7 @@ use crate::plugin::SegmentPlugin;
 use crate::reader::{IndexReader, IndexReaderBuilder};
 use crate::schema::document::Document;
 use crate::schema::{Field, FieldType, Schema, Type};
+use crate::spatial::spatial_index_manager::SpatialIndexManager;
 use crate::store::StorePlugin;
 use crate::tokenizer::{TextAnalyzer, TokenizerManager};
 use crate::SegmentReader;
@@ -67,8 +68,8 @@ pub(crate) fn builtin_plugins() -> Vec<Arc<dyn SegmentPlugin>> {
 }
 
 /// The files owned by the given segments: one per plugin extension (the built-in
-/// extensions plus the index's required custom ones), plus each segment's delete bitset
-/// and — while it is still being written — its temp store.
+/// extensions plus the index's required custom ones), native spatial files, each
+/// segment's delete bitset and its temp store while it is still being written.
 ///
 /// Callers pass the segment set they care about (e.g. all tracked segments for garbage
 /// collection, or just the committed ones) and the index's persisted custom extensions.
@@ -86,6 +87,9 @@ pub(crate) fn list_segment_files(
         for ext in &extensions {
             files.insert(segment_meta.relative_path(SegmentComponent::Custom(ext.clone())));
         }
+        files.insert(segment_meta.relative_path(SegmentComponent::SpatialCells));
+        files.insert(segment_meta.relative_path(SegmentComponent::SpatialEdges));
+        files.insert(segment_meta.relative_path(SegmentComponent::SpatialDocIds));
         files.insert(segment_meta.relative_path(SegmentComponent::Delete));
         if segment_meta.include_temp_store() {
             files.insert(segment_meta.relative_path(SegmentComponent::TempStore));
@@ -94,11 +98,10 @@ pub(crate) fn list_segment_files(
     files
 }
 
-/// File extensions for built-in segment components that no plugin owns: the temp
-/// store (`<uuid>.store.temp`) and the delete bitset (`<uuid>.<opstamp>.del`).
-/// Both spellings of each are reserved — the bare [`SegmentComponent`] name and the
-/// on-disk extension — so a custom plugin cannot claim either and contend for the file.
-const RESERVED_NON_PLUGIN_EXTENSIONS: &[&str] = &["temp", "store.temp", "del"];
+/// Extensions owned by native components. Reserve both the component name and the
+/// on-disk extension so a custom plugin cannot claim the same file.
+const RESERVED_NON_PLUGIN_EXTENSIONS: &[&str] =
+    &["temp", "store.temp", "del", "cells", "edges", "docids"];
 
 /// Save the index meta file.
 /// This operation is atomic :
@@ -165,6 +168,7 @@ pub struct IndexBuilder {
     index_settings: IndexSettings,
     tokenizer_manager: TokenizerManager,
     fast_field_tokenizer_manager: TokenizerManager,
+    spatial_index_manager: SpatialIndexManager,
     custom_plugins: Vec<Arc<dyn SegmentPlugin>>,
 }
 impl Default for IndexBuilder {
@@ -180,6 +184,7 @@ impl IndexBuilder {
             index_settings: IndexSettings::default(),
             tokenizer_manager: TokenizerManager::default(),
             fast_field_tokenizer_manager: TokenizerManager::default(),
+            spatial_index_manager: SpatialIndexManager::default(),
             custom_plugins: Vec::new(),
         }
     }
@@ -292,6 +297,7 @@ impl IndexBuilder {
         }
         let mut index = Index::open(dir)?;
         index.set_tokenizers(self.tokenizer_manager.clone());
+        index.set_spatial_indices(self.spatial_index_manager.clone());
         if index.schema() == self.get_expect_schema()? {
             index.custom_plugins.extend(self.custom_plugins);
             Ok(index)
@@ -375,6 +381,7 @@ impl IndexBuilder {
         let mut index = Index::open_from_metas(directory, &metas, SegmentMetaInventory::default());
         index.set_tokenizers(self.tokenizer_manager);
         index.set_fast_field_tokenizers(self.fast_field_tokenizer_manager);
+        index.set_spatial_indices(self.spatial_index_manager);
         index.custom_plugins.extend(self.custom_plugins);
         Ok(index)
     }
@@ -389,6 +396,7 @@ pub struct Index {
     executor: Executor,
     tokenizers: TokenizerManager,
     fast_field_tokenizers: TokenizerManager,
+    spatial_indices: SpatialIndexManager,
     inventory: SegmentMetaInventory,
     custom_plugins: Vec<Arc<dyn SegmentPlugin>>,
     #[cfg(feature = "jitexpr")]
@@ -510,6 +518,7 @@ impl Index {
             schema,
             tokenizers: TokenizerManager::default(),
             fast_field_tokenizers: TokenizerManager::default(),
+            spatial_indices: SpatialIndexManager::default(),
             executor: Executor::single_thread(),
             inventory,
             custom_plugins: Vec::new(),
@@ -552,6 +561,16 @@ impl Index {
     /// Accessor for the fast field tokenizer manager.
     pub fn fast_field_tokenizer(&self) -> &TokenizerManager {
         &self.fast_field_tokenizers
+    }
+
+    /// Setter for the spatial index manager.
+    pub fn set_spatial_indices(&mut self, spatial_indices: SpatialIndexManager) {
+        self.spatial_indices = spatial_indices;
+    }
+
+    /// Accessor for the spatial index manager.
+    pub fn spatial_indices(&self) -> &SpatialIndexManager {
+        &self.spatial_indices
     }
 
     /// Get the tokenizer associated with a specific field.

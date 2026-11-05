@@ -124,6 +124,9 @@ impl SegmentMeta {
             SegmentComponent::FastFields => ".fast".to_string(),
             SegmentComponent::FieldNorms => ".fieldnorm".to_string(),
             SegmentComponent::Delete => format!(".{}.del", self.delete_opstamp().unwrap_or(0)),
+            SegmentComponent::SpatialCells => ".cells".to_string(),
+            SegmentComponent::SpatialEdges => ".edges".to_string(),
+            SegmentComponent::SpatialDocIds => ".docids".to_string(),
             SegmentComponent::Custom(ext) => format!(".{ext}"),
         });
         PathBuf::from(path)
@@ -434,8 +437,18 @@ mod tests {
 
     fn expected_builtin_files(segment_id: SegmentId, delete_opstamp: u64) -> HashSet<PathBuf> {
         let segment_uuid = segment_id.uuid_string();
-        let mut files = HashSet::with_capacity(7);
-        for extension in ["idx", "pos", "term", "store", "fast", "fieldnorm"] {
+        let mut files = HashSet::with_capacity(10);
+        for extension in [
+            "idx",
+            "pos",
+            "term",
+            "store",
+            "fast",
+            "fieldnorm",
+            "cells",
+            "edges",
+            "docids",
+        ] {
             files.insert(PathBuf::from(format!("{segment_uuid}.{extension}")));
         }
         files.insert(PathBuf::from(format!(
