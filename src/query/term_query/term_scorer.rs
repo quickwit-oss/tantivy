@@ -55,6 +55,11 @@ impl TermScorer {
         self.postings.block_cursor.freq_reading_option()
     }
 
+    pub(crate) fn supports_block_wand(&self) -> bool {
+        self.freq_reading_option() == FreqReadingOption::ReadFreq
+            && self.similarity_weight.is_non_negative()
+    }
+
     /// Returns the maximum score for the current block.
     ///
     /// In some rare case, the result may not be exact. In this case a lower value is returned,
@@ -89,7 +94,7 @@ impl TermScorer {
     }
 
     pub fn max_score(&self) -> Score {
-        self.similarity_weight.max_score()
+        self.similarity_weight.max_score_for(&self.fieldnorm_reader)
     }
 
     pub fn last_doc_in_block(&self) -> DocId {

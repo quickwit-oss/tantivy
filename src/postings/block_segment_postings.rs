@@ -153,29 +153,63 @@ impl BlockSegmentPostings {
             return score;
         }
         if let Some(skip_reader_max_score) = self.skip_reader.block_max_score(bm25_weight) {
-            // if we are on a full block, the skip reader should have the block max information
-            // for us
             self.block_max_score_cache = Some(skip_reader_max_score);
             return skip_reader_max_score;
         }
-        // this is the last block of the segment posting list.
-        // If it is actually loaded, we can compute block max manually.
         if self.block_is_loaded() {
-            let docs = self.doc_decoder.output_array().iter().cloned();
-            let freqs = self.freq_decoder.output_array().iter().cloned();
-            let bm25_scores = docs.zip(freqs).map(|(doc, term_freq)| {
-                let fieldnorm_id = fieldnorm_reader.fieldnorm_id(doc);
-                bm25_weight.score(fieldnorm_id, term_freq)
-            });
-            let block_max_score = max_score(bm25_scores).unwrap_or(0.0);
+            let block_max_score = if fieldnorm_reader.is_constant() {
+                (0..self.block_len())
+                    .map(|i| self.freq(i))
+                    .max()
+                    .map(|max_tf| {
+                        bm25_weight
+                            .max_score_with_term_freq(fieldnorm_reader.fieldnorm_id(0), max_tf)
+                    })
+                    .unwrap_or(0.0)
+            } else if self.freq_reading_option != FreqReadingOption::ReadFreq
+                && bm25_weight.is_non_negative()
+            {
+                self.docs()
+                    .iter()
+                    .map(|&doc| fieldnorm_reader.fieldnorm_id(doc))
+                    .min()
+                    .map(|fieldnorm_id| bm25_weight.score(fieldnorm_id, 1))
+                    .unwrap_or(0.0)
+            } else {
+                let docs = self.doc_decoder.output_array().iter().cloned();
+                let bm25_scores = docs.enumerate().map(|(i, doc)| {
+                    let term_freq = self.freq(i);
+                    let fieldnorm_id = fieldnorm_reader.fieldnorm_id(doc);
+                    bm25_weight.score(fieldnorm_id, term_freq)
+                });
+                max_score(bm25_scores).unwrap_or(0.0)
+            };
             self.block_max_score_cache = Some(block_max_score);
             return block_max_score;
         }
-        // We do not have access to any good block max value. We return bm25_weight.max_score()
-        // as it is a valid upperbound.
-        //
-        // We do not cache it however, so that it gets computed when once block is loaded.
-        bm25_weight.max_score()
+        if fieldnorm_reader.is_constant() {
+            if let BlockInfo::BitPacked { tf_num_bits, .. } = self.skip_reader.block_info() {
+                let max_term_freq = if self.freq_reading_option == FreqReadingOption::ReadFreq {
+                    // Frequencies are minus-one encoded; the extra value also covers old blocks.
+                    1u32.checked_shl(u32::from(tf_num_bits)).unwrap_or(u32::MAX)
+                } else {
+                    1
+                };
+                return bm25_weight
+                    .max_score_with_term_freq(fieldnorm_reader.fieldnorm_id(0), max_term_freq);
+            }
+        }
+        if self.freq_reading_option != FreqReadingOption::ReadFreq
+            && bm25_weight.is_non_negative()
+            && matches!(self.skip_reader.block_info(), BlockInfo::BitPacked { .. })
+        {
+            // Keep first-use work proportional to the posting list, even on a large segment.
+            if let Some(minimum) = fieldnorm_reader.min_fieldnorm_id(self.doc_freq) {
+                return bm25_weight.score(minimum, 1);
+            }
+        }
+        // Do not cache this bound: a loaded block can supply a tighter one.
+        bm25_weight.max_score_for(fieldnorm_reader)
     }
 
     pub(crate) fn freq_reading_option(&self) -> FreqReadingOption {
@@ -245,14 +279,6 @@ impl BlockSegmentPostings {
     pub fn freq(&self, idx: usize) -> u32 {
         debug_assert!(self.block_is_loaded());
         self.freq_decoder.output(idx)
-    }
-
-    /// Returns the length of the current block.
-    ///
-    /// Returns the decoded term-frequency buffer for the current block.
-    #[inline]
-    pub(crate) fn freq_output_array(&self) -> &[u32] {
-        self.freq_decoder.output_array()
     }
 
     /// All blocks have a length of `NUM_DOCS_PER_BLOCK`,
