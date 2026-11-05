@@ -71,6 +71,10 @@ impl Weight for BoostWeight {
         self.weight.scorer(reader, boost * self.boost)
     }
 
+    fn refutation_cost(&self) -> u64 {
+        self.weight.refutation_cost()
+    }
+
     fn explain(&self, reader: &SegmentReader, doc: u32) -> crate::Result<Explanation> {
         let underlying_explanation = self.weight.explain(reader, doc)?;
         let score = underlying_explanation.value() * self.boost;

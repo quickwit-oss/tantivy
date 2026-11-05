@@ -2,6 +2,7 @@ use crate::docset::{DocSet, COLLECT_BLOCK_BUFFER_LEN, TERMINATED};
 use crate::index::SegmentReader;
 use crate::query::boost_query::BoostScorer;
 use crate::query::explanation::does_not_match;
+use crate::query::weight::REFUTATION_COST_FREE;
 use crate::query::{EnableScoring, Explanation, Query, Scorer, Weight};
 use crate::{DocId, Score};
 
@@ -28,6 +29,10 @@ impl Weight for AllWeight {
         } else {
             Ok(Box::new(all_scorer))
         }
+    }
+
+    fn refutation_cost(&self) -> u64 {
+        REFUTATION_COST_FREE
     }
 
     fn explain(&self, reader: &SegmentReader, doc: DocId) -> crate::Result<Explanation> {
