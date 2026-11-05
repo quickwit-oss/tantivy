@@ -10,7 +10,7 @@ use crate::index::Segment;
 use crate::positions::PositionSerializer;
 use crate::postings::compression::{BlockEncoder, VIntEncoder, COMPRESSION_BLOCK_SIZE};
 use crate::postings::skip::SkipSerializer;
-use crate::query::Bm25Weight;
+use crate::query::{segment_average_fieldnorm, Bm25Weight};
 use crate::schema::{Field, FieldEntry, IndexRecordOption, Schema};
 use crate::termdict::TermDictionaryBuilder;
 use crate::{DocId, Score};
@@ -129,7 +129,7 @@ impl<'a, W: Write> FieldSerializer<'a, W> {
         let term_dictionary_builder = TermDictionaryBuilder::create(term_dictionary_write)?;
         let average_fieldnorm = fieldnorm_reader
             .as_ref()
-            .map(|ff_reader| total_num_tokens as Score / ff_reader.num_docs() as Score)
+            .map(|ff_reader| segment_average_fieldnorm(total_num_tokens, ff_reader.num_docs()))
             .unwrap_or(0.0);
         let postings_serializer =
             PostingsSerializer::new(average_fieldnorm, index_record_option, fieldnorm_reader);
