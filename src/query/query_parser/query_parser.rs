@@ -499,6 +499,13 @@ impl QueryParser {
                 Ok(terms.into_iter().next().unwrap())
             }
             FieldType::JsonObject(ref json_options) => {
+                // The indexer ignores JSON paths containing a nul byte, so none can match.
+                if json_path.contains('\0') {
+                    return Err(QueryParserError::FieldDoesNotExist(format!(
+                        "{}.{json_path}",
+                        field_entry.name()
+                    )));
+                }
                 let mut term = Term::from_field_json_path(
                     field,
                     json_path,
@@ -1021,6 +1028,12 @@ fn generate_literals_for_json_object(
     tokenizer_manager: &TokenizerManager,
     json_options: &JsonObjectOptions,
 ) -> Result<Vec<LogicalLiteral>, QueryParserError> {
+    // The indexer ignores JSON paths containing a nul byte, so none can match.
+    if json_path.contains('\0') {
+        return Err(QueryParserError::FieldDoesNotExist(format!(
+            "{field_name}.{json_path}"
+        )));
+    }
     let text_options = json_options.get_text_indexing_options().ok_or_else(|| {
         // This should have been seen earlier really.
         QueryParserError::FieldNotIndexed(field_name.to_string())
@@ -1462,6 +1475,24 @@ mod test {
             extract_query_term_json_path(r"json.k8s\.node\.name:hello"),
             "k8s.node.name\0shello"
         );
+    }
+
+    #[test]
+    fn test_json_path_with_nul_byte_is_rejected() {
+        // JSON paths containing a nul byte are ignored at indexing time, so they can never match.
+        for query in [
+            "json.a\u{0}b:hello",
+            "json.a\u{0}b:5",
+            "json.a\u{0}b:\"hello world\"",
+            "json.a\u{0}b:[1 TO 5]",
+            "json.a\u{0}b: IN [1 2]",
+        ] {
+            let error = parse_query_to_logical_ast(query, false).unwrap_err();
+            assert!(
+                matches!(error, QueryParserError::FieldDoesNotExist(_)),
+                "{query:?}: {error:?}"
+            );
+        }
     }
 
     #[test]
