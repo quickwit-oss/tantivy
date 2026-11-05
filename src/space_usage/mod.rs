@@ -28,6 +28,9 @@ pub(crate) const FAST_FIELDS: &str = "fast_fields";
 pub(crate) const FIELDNORMS: &str = "fieldnorms";
 pub(crate) const STORE: &str = "store";
 pub(crate) const DELETES: &str = "deletes";
+/// Keyed by the extension of the spatial plugin's file, as `component` looks custom ones up.
+pub(crate) const SPATIAL_CELLS: &str = "cells";
+pub(crate) const SPATIAL_EDGES: &str = "edges";
 
 static EMPTY_PER_FIELD: LazyLock<PerFieldSpaceUsage> =
     LazyLock::new(|| PerFieldSpaceUsage::new(Vec::new()));
@@ -177,6 +180,22 @@ impl SegmentSpaceUsage {
             Some(ComponentSpaceUsage::PerField(usage)) => usage,
             _ => &EMPTY_PER_FIELD,
         }
+    }
+
+    /// Space usage for spatial cell indexes
+    pub fn spatial_cells(&self) -> &PerFieldSpaceUsage {
+        self.per_field(SPATIAL_CELLS)
+    }
+
+    /// Space usage for spatial cell indexes, as older versions reported it.
+    #[deprecated(note = "use `spatial_cells`, and `spatial_edges` for the edge indexes")]
+    pub fn spatial(&self) -> &PerFieldSpaceUsage {
+        self.spatial_cells()
+    }
+
+    /// Space usage for spatial edge indexes
+    pub fn spatial_edges(&self) -> &PerFieldSpaceUsage {
+        self.per_field(SPATIAL_EDGES)
     }
 
     /// Space usage for stored documents
@@ -383,9 +402,9 @@ fn merge_column_space_usage(
 #[cfg(test)]
 mod test {
     use crate::index::Index;
-    use crate::schema::{Schema, FAST, INDEXED, STORED, TEXT};
-    use crate::space_usage::PerFieldSpaceUsage;
-    use crate::{IndexWriter, Term};
+    use crate::schema::{Schema, FAST, INDEXED, SPATIAL, STORED, TEXT};
+    use crate::space_usage::{ComponentSpaceUsage, PerFieldSpaceUsage};
+    use crate::{IndexWriter, TantivyDocument, Term};
 
     #[test]
     fn test_empty() {
@@ -450,6 +469,41 @@ mod test {
         // TODO: understand why the following fails
         //        assert_eq!(0, segment.store().total());
         assert_eq!(segment.deletes(), 0);
+        Ok(())
+    }
+
+    #[test]
+    fn test_spatial() -> crate::Result<()> {
+        let mut schema_builder = Schema::builder();
+        schema_builder.add_spatial_field("geometry", SPATIAL);
+        let schema = schema_builder.build();
+        let index = Index::create_in_ram(schema.clone());
+
+        {
+            let mut index_writer: IndexWriter = index.writer_for_tests()?;
+            let line = r#"{"geometry": {"type": "LineString", "coordinates": [[0, 0], [10, 0]]}}"#;
+            index_writer.add_document(TantivyDocument::parse_json(&schema, line)?)?;
+            index_writer.commit()?;
+        }
+
+        let reader = index.reader()?;
+        let searcher = reader.searcher();
+        let searcher_space_usage = searcher.space_usage()?;
+        let segment = &searcher_space_usage.segments()[0];
+
+        expect_single_field(segment.spatial_cells(), "geometry", 1, 512);
+        // The edge index holds at least the line's two vertices, three f64 each.
+        expect_single_field(segment.spatial_edges(), "geometry", 48, 512);
+        let ComponentSpaceUsage::PerField(edges) =
+            segment.component(crate::spatial::plugin::edges_component())
+        else {
+            panic!("the edge index is stored per field");
+        };
+        assert_eq!(edges.total(), segment.spatial_edges().total());
+        assert!(
+            segment.total() >= segment.spatial_cells().total() + segment.spatial_edges().total()
+        );
+
         Ok(())
     }
 

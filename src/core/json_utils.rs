@@ -227,6 +227,8 @@ pub(crate) fn index_json_value<'a, V: Value<'a>>(
             ReferenceValueLeaf::IpAddr(_) => {
                 unimplemented!("IP address support in dynamic fields is not yet implemented")
             }
+            // Only a spatial field indexes geometry.
+            ReferenceValueLeaf::Geometry(_) => {}
             ReferenceValueLeaf::Custom(_) => {
                 unimplemented!("the JSON field does not support custom field types")
             }

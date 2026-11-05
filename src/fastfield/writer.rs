@@ -211,6 +211,8 @@ impl FastFieldsWriter {
                             .record_str(doc_id, field_name, &token.text);
                     }
                 }
+                // Only a spatial field indexes geometry, and it has no fast field.
+                ReferenceValueLeaf::Geometry(_) => {}
                 // Custom fields are never fast (`is_fast() == false`), so they are not registered
                 // in `fast_field_names` and `add_doc_value` returns early above.
                 ReferenceValueLeaf::Custom(_) => {
@@ -354,6 +356,8 @@ fn record_json_value_to_columnar_writer<'a, V: Value<'a>>(
                     "Pre-tokenized string support in dynamic fields is not yet implemented"
                 )
             }
+            // Only a spatial field indexes geometry.
+            ReferenceValueLeaf::Geometry(_) => {}
             ReferenceValueLeaf::Custom(_) => {
                 unimplemented!("the JSON field does not support custom field types")
             }

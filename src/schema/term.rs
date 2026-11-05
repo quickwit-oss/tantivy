@@ -513,6 +513,9 @@ where B: AsRef<[u8]>
             Type::IpAddr => {
                 write_opt(f, self.as_ip_addr())?;
             }
+            Type::Spatial => {
+                write!(f, "<spatial term formatting not yet implemented>")?;
+            }
             // Custom fields produce no terms, so no term ever carries this type.
             Type::Custom => unreachable!("the term does not support custom field types"),
         }

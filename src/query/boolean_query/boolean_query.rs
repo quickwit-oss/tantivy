@@ -257,6 +257,11 @@ impl BooleanQuery {
     pub fn clauses(&self) -> &[(Occur, Box<dyn Query>)] {
         &self.subqueries[..]
     }
+
+    /// The clauses making up this query, to change in place.
+    pub(crate) fn clauses_mut(&mut self) -> &mut [(Occur, Box<dyn Query>)] {
+        &mut self.subqueries[..]
+    }
 }
 
 #[cfg(test)]
