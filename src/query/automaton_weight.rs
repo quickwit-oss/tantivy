@@ -112,9 +112,18 @@ where
     }
 
     fn explain(&self, reader: &SegmentReader, doc: DocId) -> crate::Result<Explanation> {
-        let mut scorer = self.scorer(reader, 1.0)?;
-        if scorer.seek(doc) == doc {
-            Ok(Explanation::new("AutomatonScorer", 1.0))
+        self.explain_with_boost(reader, doc, 1.0)
+    }
+
+    fn explain_with_boost(
+        &self,
+        reader: &SegmentReader,
+        doc: DocId,
+        boost: Score,
+    ) -> crate::Result<Explanation> {
+        let mut scorer = self.scorer(reader, boost)?;
+        if scorer.doc() <= doc && scorer.seek(doc) == doc {
+            Ok(Explanation::new("AutomatonScorer", scorer.score()))
         } else {
             Err(TantivyError::InvalidArgument(
                 "Document does not exist".to_string(),

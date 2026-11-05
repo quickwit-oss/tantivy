@@ -153,8 +153,19 @@ impl<TPostings: Postings> PhrasePrefixScorer<TPostings> {
         phrase_prefix_scorer
     }
 
+    #[allow(
+        dead_code,
+        reason = "Retains the prefix-qualified count independently of BM25 count"
+    )]
     pub fn phrase_count(&self) -> u32 {
         self.phrase_count
+    }
+
+    pub(crate) fn bm25_phrase_count(&self) -> Option<u32> {
+        match &self.phrase_scorer {
+            PhraseKind::SinglePrefix { .. } => None,
+            PhraseKind::MultiPrefix(scorer) => Some(scorer.phrase_count()),
+        }
     }
 
     fn matches_prefix(&mut self) -> bool {

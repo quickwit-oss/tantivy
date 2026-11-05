@@ -1,6 +1,28 @@
 Tantivy Upcoming Release
 ================================
 
+## Breaking changes to score explanations
+- The existing one-term-plus-prefix scorer ignores boosts and uses a constant matching
+  contribution. Explanations now omit its unused BM25 details; scorer behavior is unchanged.
+  [Preserve scorer boost context in explanations #3239](https://github.com/quickwit-oss/tantivy/pull/3239)
+  ([@kylebernhardy](https://github.com/kylebernhardy)).
+- Built-in weights explain incoming boosts using the same arithmetic order as their scorers,
+  avoiding nonfinite counterfactual details for finite zero and reducing boosts. Boost-node
+  children now include the applied boost; do not multiply their values by the factor again.
+  [Preserve scorer boost context in explanations #3239](https://github.com/quickwit-oss/tantivy/pull/3239)
+  ([@kylebernhardy](https://github.com/kylebernhardy)).
+- `Weight::explain_with_boost` is a provided extension point. Existing custom implementations
+  remain source-compatible. At non-unit incoming boost, its default reports the native scorer
+  value without child details; override it to provide contextual details. Unit-boost calls keep
+  the existing `explain` output. Genuinely nonfinite scorer results are not sanitized.
+  [Preserve scorer boost context in explanations #3239](https://github.com/quickwit-oss/tantivy/pull/3239)
+  ([@kylebernhardy](https://github.com/kylebernhardy)).
+- Phrase-prefix BM25 details use the leading-phrase frequency consumed by the scorer while
+  the prefix-qualified match count retains its existing meaning.
+  [Preserve scorer boost context in explanations #3239](https://github.com/quickwit-oss/tantivy/pull/3239)
+  ([@kylebernhardy](https://github.com/kylebernhardy)).
+
+
 ## Breaking change
 - MSRV is now 1.91, required by the `onpair` crate [#3179](https://github.com/quickwit-oss/tantivy/pull/3179)(@fulmicoton-dd)
 - `DynamicColumn` has new `PlainStr` and `PlainBytes` variants; exhaustive matches on `DynamicColumn` need new arms [#3179](https://github.com/quickwit-oss/tantivy/pull/3179)(@fulmicoton-dd)

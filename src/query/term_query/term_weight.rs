@@ -39,12 +39,24 @@ impl Weight for TermWeight {
     }
 
     fn explain(&self, reader: &SegmentReader, doc: DocId) -> crate::Result<Explanation> {
-        match self.specialized_scorer(reader, 1.0)? {
+        self.explain_with_boost(reader, doc, 1.0)
+    }
+
+    fn explain_with_boost(
+        &self,
+        reader: &SegmentReader,
+        doc: DocId,
+        boost: Score,
+    ) -> crate::Result<Explanation> {
+        match self.specialized_scorer(reader, boost)? {
             TermOrEmptyOrAllScorer::TermScorer(mut term_scorer) => {
                 if term_scorer.doc() > doc || term_scorer.seek(doc) != doc {
                     return Err(does_not_match(doc));
                 }
                 let mut explanation = term_scorer.explain();
+                if boost != 1.0 {
+                    explanation.add_const("incoming boost", boost);
+                }
                 explanation.add_context(format!("Term={:?}", self.term,));
                 Ok(explanation)
             }

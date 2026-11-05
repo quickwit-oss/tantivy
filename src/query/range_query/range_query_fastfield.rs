@@ -242,8 +242,17 @@ impl Weight for FastFieldRangeWeight {
     }
 
     fn explain(&self, reader: &SegmentReader, doc: DocId) -> crate::Result<Explanation> {
-        let mut scorer = self.scorer(reader, 1.0)?;
-        if scorer.seek(doc) != doc {
+        self.explain_with_boost(reader, doc, 1.0)
+    }
+
+    fn explain_with_boost(
+        &self,
+        reader: &SegmentReader,
+        doc: DocId,
+        boost: Score,
+    ) -> crate::Result<Explanation> {
+        let mut scorer = self.scorer(reader, boost)?;
+        if scorer.doc() > doc || scorer.seek(doc) != doc {
             return Err(TantivyError::InvalidArgument(format!(
                 "Document #({doc}) does not match"
             )));
