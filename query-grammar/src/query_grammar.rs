@@ -20,8 +20,12 @@ use crate::user_input_ast::Delimiter;
 
 // Note: '-' char is only forbidden at the beginning of a field name, would be clearer to add it to
 // special characters.
+// The whitespace characters are the ones `multispace` accepts between tokens: unescaped, they end
+// a field name (otherwise `a\nb:c` would parse as the field `a\nb`), and escaped with a backslash
+// they address a field whose name contains them.
 const SPECIAL_CHARS: &[char] = &[
-    '+', '^', '`', ':', '{', '}', '"', '\'', '[', ']', '(', ')', '!', '\\', '*', ' ',
+    '+', '^', '`', ':', '{', '}', '"', '\'', '[', ']', '(', ')', '!', '\\', '*', ' ', '\t', '\r',
+    '\n',
 ];
 
 /// consume a field name followed by colon. Return the field name with escape sequence
@@ -793,7 +797,7 @@ fn leaf(inp: &str) -> IResult<&str, UserInputAst> {
             ),
             |_| UserInputAst::from(UserInputLeaf::All),
         ),
-        map(preceded(tuple((tag("NOT"), multispace1)), leaf), negate),
+        map(preceded(keyword("NOT"), leaf), negate),
         literal,
     ))(inp)
 }
@@ -833,7 +837,7 @@ fn leaf_infallible(inp: &str) -> JResult<&str, Option<UserInputAst>> {
                 }),
             ),
             (
-                value((), tag("NOT ")),
+                value((), keyword("NOT")),
                 delimited_infallible(
                     space0_infallible,
                     map(leaf_infallible, |(res, err)| (res.map(negate), err)),
@@ -912,10 +916,22 @@ enum BinaryOperand {
     And,
 }
 
+/// Matches the operator keyword `kw` when it is followed by whitespace of any
+/// kind (consumed) or by an opening parenthesis (not consumed), as Lucene and
+/// Elasticsearch do: `a AND\nb` and `a AND(b OR c)` are both boolean operations.
+fn keyword<'a, E: nom::error::ParseError<&'a str>>(
+    kw: &'static str,
+) -> impl FnMut(&'a str) -> IResult<&'a str, &'a str, E> {
+    terminated(
+        tag(kw),
+        alt((value((), multispace1), value((), peek(char('('))))),
+    )
+}
+
 fn binary_operand(inp: &str) -> IResult<&str, BinaryOperand> {
     alt((
-        value(BinaryOperand::And, tag("AND ")),
-        value(BinaryOperand::Or, tag("OR ")),
+        value(BinaryOperand::And, keyword("AND")),
+        value(BinaryOperand::Or, keyword("OR")),
     ))(inp)
 }
 
@@ -1327,6 +1343,66 @@ mod test {
         test_parse_query_to_ast_helper("aaa ccc a OR b ", "(*aaa *ccc ?a ?b)");
         test_parse_query_to_ast_helper("aaa a AND b ", "(*aaa ?(+a +b))");
         test_parse_query_to_ast_helper("aaa ccc a AND b ", "(*aaa *ccc ?(+a +b))");
+    }
+
+    #[track_caller]
+    fn test_same_ast(query: &str, reference: &str) {
+        let expected = format!("{:?}", parse_to_ast(reference).unwrap().1);
+        test_parse_query_to_ast_helper(query, &expected);
+    }
+
+    #[test]
+    fn test_parse_query_operator_followed_by_any_whitespace() {
+        test_parse_query_to_ast_helper("a AND\nb", "(+a +b)");
+        test_parse_query_to_ast_helper("a OR\nb", "(?a ?b)");
+        test_parse_query_to_ast_helper("a OR\r\nb", "(?a ?b)");
+        test_parse_query_to_ast_helper("a AND\tb", "(+a +b)");
+        test_parse_query_to_ast_helper("a\n  OR\n  b", "(?a ?b)");
+        test_parse_query_to_ast_helper("a AND NOT\nb", "(+a +(-b))");
+        // `OR\nb:c` used to be parsed as the field `OR\nb`
+        test_same_ast("a:1 OR\nb:2", "a:1 OR b:2");
+    }
+
+    #[test]
+    fn test_parse_query_operator_followed_by_parenthesis() {
+        test_parse_query_to_ast_helper("a AND(b OR c)", "(+a +(?b ?c))");
+        test_parse_query_to_ast_helper("a OR(b AND c)", "(?a ?(+b +c))");
+        test_parse_query_to_ast_helper("a AND NOT(b)", "(+a +(-b))");
+        test_parse_query_to_ast_helper("NOT(a)", "(-a)");
+        test_same_ast("a AND((b AND c) OR(d))", "a AND ((b AND c) OR (d))");
+        // a keyword glued to a word is still a word
+        test_parse_query_to_ast_helper("a ANDb", "(*a *ANDb)");
+        test_parse_query_to_ast_helper("a ORb", "(*a *ORb)");
+        test_parse_query_to_ast_helper("NOTb", "NOTb");
+    }
+
+    #[test]
+    fn test_parse_field_name_ends_at_any_whitespace() {
+        test_same_ast("a\nb:c", "a b:c");
+        test_same_ast("a\tb:c", "a b:c");
+        test_same_ast("a\r\nb:c", "a b:c");
+        // escaped, whitespace is part of the field name, which tantivy schemas allow
+        assert_eq!(
+            super::field_name("my\\\tfield\\\nname:a"),
+            Ok(("a", "my\tfield\nname".to_string()))
+        );
+    }
+
+    #[test]
+    fn test_parse_multiline_queries() {
+        // Queries written in a multi-line editor: CRLF line breaks, indentation,
+        // an operator alone on its line, and operators glued to parentheses
+        test_same_ast(
+            "(a.b:x1 AND NOT a.c:x2)\r\nAND NOT d.e:/.*$/\r\nAND NOT d.f:\"x-3\"\r\nAND (\r\n  \
+             (g:1 AND (h.i:x4 OR h.j:x4))\r\n  OR\r\n  (g:2 AND h.j:x5)\r\n)\r\n",
+            "(a.b:x1 AND NOT a.c:x2) AND NOT d.e:/.*$/ AND NOT d.f:\"x-3\" AND ((g:1 AND (h.i:x4 \
+             OR h.j:x4)) OR (g:2 AND h.j:x5))",
+        );
+        test_same_ast(
+            "(a.b: x1  \r\nAND NOT a.c:x2)  \r\nAND((g: 1  \r\nAND(h.i: x4  \r\nOR h.j: x4)) \
+             \r\nOR(g: 2  \r\nAND h.j: x5)) ",
+            "(a.b:x1 AND NOT a.c:x2) AND ((g:1 AND (h.i:x4 OR h.j:x4)) OR (g:2 AND h.j:x5))",
+        );
     }
 
     #[test]
