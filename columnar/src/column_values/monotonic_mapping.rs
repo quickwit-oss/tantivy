@@ -1,5 +1,6 @@
 use std::fmt::Debug;
 use std::marker::PhantomData;
+use std::ops::RangeInclusive;
 
 use common::DateTime;
 
@@ -43,6 +44,17 @@ pub trait StrictlyMonotonicFn<External, Internal> {
     fn mapping(&self, inp: External) -> Internal;
     /// Inverse of `mapping`. Maps the value from Internal to External.
     fn inverse(&self, out: Internal) -> External;
+
+    /// Returns the range of External values whose mapping falls into the given Internal range,
+    /// or `None` if no External value maps into it.
+    ///
+    /// The default implementation inverts both bounds, which is only correct if the mapping is a
+    /// bijection. Mappings whose image does not cover the whole Internal space (e.g. `i64 -> u64`
+    /// or `i64 -> f64`) need to override it.
+    fn inverse_range(&self, range: RangeInclusive<Internal>) -> Option<RangeInclusive<External>> {
+        let (start, end) = range.into_inner();
+        Some(self.inverse(start)..=self.inverse(end))
+    }
 }
 
 /// Inverts a strictly monotonic mapping from `StrictlyMonotonicFn<A, B>` to
