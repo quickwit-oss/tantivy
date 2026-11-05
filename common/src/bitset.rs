@@ -258,6 +258,7 @@ impl BitSet {
         for tinyset in self.tinysets.iter_mut() {
             *tinyset = TinySet::empty();
         }
+        self.len = 0;
     }
 
     /// Intersect with serialized bitset
@@ -724,5 +725,17 @@ mod tests {
         for el in 0u32..1000u32 {
             assert!(!bitset.contains(el));
         }
+    }
+
+    #[test]
+    fn test_bitset_clear_resets_len() {
+        let mut bitset = BitSet::with_max_value(1_000);
+        bitset.insert(3);
+        bitset.insert(700);
+        assert_eq!(bitset.len(), 2);
+        bitset.clear();
+        assert_eq!(bitset.len(), 0);
+        bitset.insert(3);
+        assert_eq!(bitset.len(), 1);
     }
 }
