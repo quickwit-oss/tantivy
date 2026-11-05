@@ -15,6 +15,7 @@ repository = "https://github.com/quickwit-oss/tantivy"
 byteorder = "1.4.3"
 ownedbytes = { version= "0.9", path="../ownedbytes" }
 async-trait = "0.1"
+futures-util = "0.3.30"
 time = { version = "0.3.47", features = ["serde-well-known"] }
 serde = { version = "1.0.136", features = ["derive"] }
 

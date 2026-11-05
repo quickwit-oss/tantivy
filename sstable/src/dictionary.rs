@@ -9,8 +9,6 @@ use std::sync::Arc;
 use common::bounds::{TransformBound, transform_bound_inner_res};
 use common::file_slice::FileSlice;
 use common::{BinarySerializable, ByteCount, OwnedBytes};
-use futures_util::{StreamExt, TryStreamExt, stream};
-use itertools::Itertools;
 use tantivy_fst::Automaton;
 use tantivy_fst::automaton::AlwaysMatch;
 
@@ -102,7 +100,6 @@ impl<TSSTable: SSTable> Dictionary<TSSTable> {
         key_range: impl RangeBounds<[u8]>,
         limit: Option<u64>,
         automaton: &impl Automaton,
-        merge_holes_under_bytes: usize,
     ) -> io::Result<DeltaReader<TSSTable::ValueReader>> {
         let match_all = automaton.will_always_match(&automaton.start());
         if match_all {
@@ -110,26 +107,15 @@ impl<TSSTable: SSTable> Dictionary<TSSTable> {
             let data = slice.read_bytes_async().await?;
             Ok(TSSTable::delta_reader(data))
         } else {
-            let blocks = stream::iter(self.get_block_iterator_for_range_and_automaton(
-                key_range,
-                automaton,
-                merge_holes_under_bytes,
-            ));
-            let data = blocks
-                .map(|block_addr| {
-                    let first_ordinal = block_addr.first_ordinal;
-                    async move {
-                        let bytes = self
-                            .sstable_slice
-                            .read_bytes_slice_async(block_addr.byte_range)
-                            .await?;
-                        io::Result::Ok((bytes, first_ordinal))
-                    }
-                })
-                .buffered(5)
-                .try_collect::<Vec<_>>()
-                .await?;
-            Ok(DeltaReader::from_multiple_blocks(data))
+            let (ranges, first_ordinals): (Vec<_>, Vec<_>) = self
+                .get_block_iterator_for_range_and_automaton(key_range, automaton)
+                .map(|block| (block.byte_range, block.first_ordinal))
+                .unzip();
+            let data = self.sstable_slice.read_bytes_batch_async(ranges).await?;
+            assert_eq!(data.len(), first_ordinals.len());
+            Ok(DeltaReader::from_multiple_blocks(
+                data.into_iter().zip(first_ordinals).collect(),
+            ))
         }
     }
 
@@ -145,9 +131,7 @@ impl<TSSTable: SSTable> Dictionary<TSSTable> {
             let data = slice.read_bytes()?;
             Ok(TSSTable::delta_reader(data))
         } else {
-            // if operations are sync, we assume latency is almost null, and there is no point in
-            // merging across holes
-            let blocks = self.get_block_iterator_for_range_and_automaton(key_range, automaton, 0);
+            let blocks = self.get_block_iterator_for_range_and_automaton(key_range, automaton);
             let data = blocks
                 .map(|block_addr| {
                     let first_ordinal = block_addr.first_ordinal;
@@ -254,7 +238,6 @@ impl<TSSTable: SSTable> Dictionary<TSSTable> {
         &'a self,
         key_range: impl RangeBounds<[u8]>,
         automaton: &'a impl Automaton,
-        merge_holes_under_bytes: usize,
     ) -> impl Iterator<Item = BlockAddr> + 'a {
         let lower_bound = match key_range.start_bound() {
             Bound::Included(key) | Bound::Excluded(key) => {
@@ -274,16 +257,6 @@ impl<TSSTable: SSTable> Dictionary<TSSTable> {
             .get_block_for_automaton(automaton)
             .filter(move |(block_id, _)| block_range.contains(block_id))
             .map(|(_, block_addr)| block_addr)
-            .coalesce(move |first, second| {
-                if first.byte_range.end + merge_holes_under_bytes >= second.byte_range.start {
-                    Ok(BlockAddr {
-                        first_ordinal: first.first_ordinal,
-                        byte_range: first.byte_range.start..second.byte_range.end,
-                    })
-                } else {
-                    Err((first, second))
-                }
-            })
     }
 
     /// Opens a `TermDictionary`.
