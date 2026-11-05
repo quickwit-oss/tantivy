@@ -376,6 +376,28 @@ fn test_ord_to_term() -> crate::Result<()> {
 }
 
 #[test]
+fn test_term_info_from_ord() -> crate::Result<()> {
+    let ids: Vec<String> = (0u32..10_000u32).map(|i| format!("doc{i:0>6}")).collect();
+    let buffer: Vec<u8> = {
+        let mut term_dictionary_builder = TermDictionaryBuilder::create(Vec::new())?;
+        for (term_ord, id) in ids.iter().enumerate() {
+            term_dictionary_builder.insert(id.as_bytes(), &make_term_info(term_ord as u64))?;
+        }
+        term_dictionary_builder.finish()?
+    };
+    let termdict = TermDictionary::open(FileSlice::from(buffer))?;
+    for (term_ord, id) in ids.iter().enumerate() {
+        let term_info = termdict.term_info_from_ord(term_ord as u64)?;
+        assert_eq!(term_info, Some(make_term_info(term_ord as u64)));
+        assert_eq!(term_info, termdict.get(id.as_bytes())?);
+    }
+    assert_eq!(termdict.term_info_from_ord(ids.len() as u64)?, None);
+    assert_eq!(termdict.term_info_from_ord(u64::MAX)?, None);
+    assert_eq!(TermDictionary::empty().term_info_from_ord(0)?, None);
+    Ok(())
+}
+
+#[test]
 fn test_stream_term_ord() -> crate::Result<()> {
     let termdict = stream_range_test_dict()?;
     let mut stream = termdict.stream()?;
