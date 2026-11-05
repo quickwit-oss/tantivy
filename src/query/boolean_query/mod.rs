@@ -19,8 +19,9 @@ mod tests {
     use crate::collector::{Count, TopDocs};
     use crate::query::term_query::TermScorer;
     use crate::query::{
-        AllScorer, EmptyScorer, EnableScoring, Intersection, Occur, Query, QueryParser, RangeQuery,
-        RequiredOptionalScorer, Scorer, SumCombiner, TermQuery,
+        AllScorer, EmptyScorer, EnableScoring, ExistsQuery, Intersection, Occur, PhrasePrefixQuery,
+        PhraseQuery, Query, QueryParser, RangeQuery, RegexPhraseQuery, RequiredOptionalScorer,
+        Scorer, SumCombiner, TermQuery,
     };
     use crate::schema::*;
     use crate::{assert_nearly_equals, DocAddress, DocId, Index, IndexWriter, Score};
@@ -314,6 +315,66 @@ mod tests {
         let query = BooleanQuery::from(vec![(Occur::Should, term_a), (Occur::Should, term_b)]);
         let explanation = query.explain(&searcher, DocAddress::new(0, 0u32))?;
         assert_nearly_equals!(explanation.value(), std::f32::consts::LN_2);
+        Ok(())
+    }
+
+    // Regression test for #2645: explaining a document that only matches some of the
+    // `Should` clauses calls `explain` on the other clauses too. Their fresh scorers may
+    // already be positioned past the document, and seeking backwards used to trip a
+    // debug assertion.
+    #[test]
+    pub fn test_explain_with_should_clauses_matching_later_docs() -> crate::Result<()> {
+        let mut schema_builder = Schema::builder();
+        let text = schema_builder.add_text_field("text", TEXT);
+        let num = schema_builder.add_u64_field("num", FAST);
+        let schema = schema_builder.build();
+        let index = Index::create_in_ram(schema);
+        let mut index_writer: IndexWriter = index.writer_for_tests()?;
+        index_writer.add_document(doc!(text=>"a"))?;
+        index_writer.add_document(doc!(text=>"b c", num=>1u64))?;
+        index_writer.commit()?;
+        let searcher = index.reader()?.searcher();
+        let term_a = || -> Box<dyn Query> {
+            Box::new(TermQuery::new(
+                Term::from_field_text(text, "a"),
+                IndexRecordOption::Basic,
+            ))
+        };
+        let term_b_c = || {
+            vec![
+                Term::from_field_text(text, "b"),
+                Term::from_field_text(text, "c"),
+            ]
+        };
+        let expected = term_a()
+            .explain(&searcher, DocAddress::new(0, 0u32))?
+            .value();
+        let later_doc_queries: Vec<Box<dyn Query>> = vec![
+            Box::new(PhraseQuery::new(term_b_c())),
+            Box::new(PhrasePrefixQuery::new(term_b_c())),
+            Box::new(RegexPhraseQuery::new(text, vec!["b".into(), "c.*".into()])),
+            Box::new(RangeQuery::new(
+                Bound::Included(Term::from_field_u64(num, 0)),
+                Bound::Included(Term::from_field_u64(num, 10)),
+            )),
+            Box::new(ExistsQuery::new("num".to_string(), false)),
+            Box::new(BooleanQuery::intersection(
+                term_b_c()
+                    .into_iter()
+                    .map(|term| {
+                        Box::new(TermQuery::new(term, IndexRecordOption::Basic)) as Box<dyn Query>
+                    })
+                    .collect(),
+            )),
+        ];
+        for later_doc_query in later_doc_queries {
+            let query = BooleanQuery::from(vec![
+                (Occur::Should, term_a()),
+                (Occur::Should, later_doc_query),
+            ]);
+            let explanation = query.explain(&searcher, DocAddress::new(0, 0u32))?;
+            assert_nearly_equals!(explanation.value(), expected);
+        }
         Ok(())
     }
 
