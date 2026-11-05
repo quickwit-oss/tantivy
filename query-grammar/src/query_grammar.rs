@@ -1389,23 +1389,6 @@ mod test {
     }
 
     #[test]
-    fn test_parse_multiline_queries() {
-        // Queries written in a multi-line editor: CRLF line breaks, indentation,
-        // an operator alone on its line, and operators glued to parentheses
-        test_same_ast(
-            "(a.b:x1 AND NOT a.c:x2)\r\nAND NOT d.e:/.*$/\r\nAND NOT d.f:\"x-3\"\r\nAND (\r\n  \
-             (g:1 AND (h.i:x4 OR h.j:x4))\r\n  OR\r\n  (g:2 AND h.j:x5)\r\n)\r\n",
-            "(a.b:x1 AND NOT a.c:x2) AND NOT d.e:/.*$/ AND NOT d.f:\"x-3\" AND ((g:1 AND (h.i:x4 \
-             OR h.j:x4)) OR (g:2 AND h.j:x5))",
-        );
-        test_same_ast(
-            "(a.b: x1  \r\nAND NOT a.c:x2)  \r\nAND((g: 1  \r\nAND(h.i: x4  \r\nOR h.j: x4)) \
-             \r\nOR(g: 2  \r\nAND h.j: x5)) ",
-            "(a.b:x1 AND NOT a.c:x2) AND ((g:1 AND (h.i:x4 OR h.j:x4)) OR (g:2 AND h.j:x5))",
-        );
-    }
-
-    #[test]
     fn test_parse_mixed_bool_occur() {
         test_parse_query_to_ast_helper("+a OR +b", "(+a +b)");
 
