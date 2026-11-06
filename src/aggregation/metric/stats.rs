@@ -330,11 +330,20 @@ impl<const COLUMN_TYPE_ID: u8> SegmentAggregationCollector
                 self.missing_u64,
             );
         } else {
+            // A computed text source grows its term dictionary while loading the block.
+            let mem_pre = self.accessor.memory_consumption();
             agg_data.column_block_accessor.fetch_block_with_missing(
                 docs,
                 &mut *self.accessor,
                 self.missing_u64,
             );
+            let mem_delta = self.accessor.memory_consumption() - mem_pre;
+            if mem_delta > 0 {
+                agg_data
+                    .context
+                    .limits
+                    .add_memory_consumed(mem_delta as u64)?;
+            }
         }
         collect_stats_slice::<COLUMN_TYPE_ID>(
             &mut self.buckets[parent_bucket_id as usize],
