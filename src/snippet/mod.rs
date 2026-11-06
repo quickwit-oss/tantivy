@@ -293,7 +293,10 @@ fn sort_and_deduplicate_ranges(ranges: &[Range<usize>]) -> Vec<Range<usize>> {
     sorted_ranges
 }
 
-/// Merges overlapping or adjacent ranges into non-overlapping ranges.
+/// Merges overlapping ranges into non-overlapping ranges.
+///
+/// Adjacent ranges, where one range ends exactly where the next one starts,
+/// are not merged and stay separate.
 ///
 /// This function assumes that the input ranges are already sorted
 /// and deduplicated. Use `sort_and_deduplicate_ranges` before calling
@@ -301,7 +304,7 @@ fn sort_and_deduplicate_ranges(ranges: &[Range<usize>]) -> Vec<Range<usize>> {
 ///
 /// ## Examples
 /// - [0..1, 2..3] -> [0..1, 2..3]  # no overlap
-/// - [0..1, 1..2] -> [0..2]  # adjacent, merged
+/// - [0..1, 1..2] -> [0..1, 1..2]  # adjacent, kept separate
 /// - [0..2, 1..3] -> [0..3]  # overlapping, merged
 /// - [0..3, 1..2] -> [0..3]  # second range is completely within the first
 fn merge_overlapping_ranges(ranges: &[Range<usize>]) -> Vec<Range<usize>> {
@@ -327,14 +330,14 @@ fn merge_overlapping_ranges(ranges: &[Range<usize>]) -> Vec<Range<usize>> {
 /// Collapses ranges into non-overlapped ranges.
 ///
 /// This function first sorts and deduplicates the input ranges,
-/// then merges any overlapping or adjacent ranges.
+/// then merges any overlapping ranges. Adjacent ranges stay separate.
 ///
 /// ## Examples
 /// - [0..1, 2..3] -> [0..1, 2..3]  # no overlap
-/// - [0..1, 1..2] -> [0..2]  # adjacent, merged
+/// - [0..1, 1..2] -> [0..1, 1..2]  # adjacent, kept separate
 /// - [0..2, 1..3] -> [0..3]  # overlapping, merged
 /// - [0..3, 1..2] -> [0..3]  # second range is completely within the first
-/// - [0..3, 3..6, 0..3, 3..6] -> [0..6]  # duplicates removed, then merged
+/// - [0..3, 3..6, 0..3, 3..6] -> [0..3, 3..6]  # duplicates removed, adjacent kept separate
 pub fn collapse_overlapped_ranges(ranges: &[Range<usize>]) -> Vec<Range<usize>> {
     let prepared = sort_and_deduplicate_ranges(ranges);
     merge_overlapping_ranges(&prepared)
