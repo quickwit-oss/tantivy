@@ -329,6 +329,47 @@ pub(crate) mod tests {
     }
 
     #[test]
+    pub fn test_phrase_slop_tighter_span() -> crate::Result<()> {
+        let index = create_index(&["a a b c a d c"])?;
+        let text_field = index.schema().get_field("text").unwrap();
+        let searcher = index.reader()?.searcher();
+        let terms = ["a", "b", "c", "d"]
+            .iter()
+            .map(|text| Term::from_field_text(text_field, text))
+            .collect();
+        let mut phrase_query = PhraseQuery::new(terms);
+        phrase_query.set_slop(1);
+        assert_eq!(searcher.search(&phrase_query, &Count)?, 1);
+        assert_eq!(test_query(1, &index, vec!["a", "b", "c", "d"]).len(), 1);
+        Ok(())
+    }
+
+    #[test]
+    pub fn test_phrase_slop_many_terms_bounded() -> crate::Result<()> {
+        let terms = (0..30).map(|index| format!("t{index}")).collect::<Vec<_>>();
+        let mut tokens = Vec::with_capacity(59);
+        for (index, term) in terms.iter().enumerate() {
+            if index > 0 {
+                tokens.push("x".to_string());
+            }
+            tokens.push(term.clone());
+        }
+        let index = create_index(&[tokens.join(" ")])?;
+        let text_field = index.schema().get_field("text").unwrap();
+        let searcher = index.reader()?.searcher();
+        let phrase_terms = terms
+            .iter()
+            .map(|text| Term::from_field_text(text_field, text))
+            .collect();
+        let mut phrase_query = PhraseQuery::new(phrase_terms);
+        phrase_query.set_slop(29);
+        assert_eq!(searcher.search(&phrase_query, &Count)?, 1);
+        let query_refs = terms.iter().map(String::as_str).collect::<Vec<_>>();
+        assert_eq!(test_query(29, &index, query_refs).len(), 1);
+        Ok(())
+    }
+
+    #[test]
     pub fn test_phrase_score_with_slop_ordering() -> crate::Result<()> {
         let index = create_index(&[
             "a e b e c",

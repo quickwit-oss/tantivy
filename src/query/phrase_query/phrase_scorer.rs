@@ -1,4 +1,5 @@
-use std::cmp::Ordering;
+use std::cmp::{Ordering, Reverse};
+use std::collections::BinaryHeap;
 
 use crate::docset::{DocSet, SeekDangerResult, TERMINATED};
 use crate::fieldnorm::FieldNormReader;
@@ -87,8 +88,14 @@ impl CarriedSlop {
         }
     }
 
-    fn contains(self, position: u32) -> bool {
-        self.start <= position && position <= self.end()
+    fn match_bounds(self, max_slop: u32) -> Option<(u32, u32)> {
+        if self.width > max_slop {
+            return None;
+        }
+        Some((
+            self.end().saturating_sub(max_slop),
+            self.start.saturating_add(max_slop),
+        ))
     }
 }
 
@@ -267,11 +274,9 @@ fn intersection_exists_with_carrying_slop(
         .enumerate()
         .any(|(left_index, &left_val)| {
             let carried = carried_slop(left_slops, left_index, left_val);
-            if carried.width > max_slop {
+            let Some((lower, upper)) = carried.match_bounds(max_slop) else {
                 return false;
-            }
-            let lower = carried.end().saturating_sub(max_slop);
-            let upper = carried.start.saturating_add(max_slop);
+            };
             let right_index = right_positions.partition_point(|&right_val| right_val < lower);
             right_positions
                 .get(right_index)
@@ -279,18 +284,45 @@ fn intersection_exists_with_carrying_slop(
         })
 }
 
-/// Intersection variant for multi term searches that keeps track of slop so far.
-///
-/// In contrast to the regular algorithm this solves some issues:
-/// - Keep track of the slop so far. Slop is a budget that is spent on the distance between terms.
-/// - When encountering a match between two positions, which position is the best match is unclear
-///   and depends on intersections afterwards, therefore this algorithm keeps left and right as
-///   matches, but only counts one.
-///
-/// This algorithm may return an incorrect count in some cases (e.g. left, right expansion and is
-/// then matches both on the following term.)
-/// I think to fix this we would need to iterate all positions simultaneously,
-/// but not sure if that's worth it. (It may be considerable slower - untested)
+fn carrying_slop_match_count(
+    left_positions: &[u32],
+    left_slops: &[CarriedSlop],
+    right_positions: &[u32],
+    max_slop: u32,
+) -> u32 {
+    let mut ranges = left_positions
+        .iter()
+        .enumerate()
+        .filter_map(|(left_index, &left_val)| {
+            carried_slop(left_slops, left_index, left_val).match_bounds(max_slop)
+        })
+        .collect::<Vec<_>>();
+    ranges.sort_unstable_by_key(|&(lower, upper)| (lower, upper));
+
+    let mut active_upper_bounds = BinaryHeap::new();
+    let mut range_index = 0;
+    let mut count = 0;
+    for &right_val in right_positions {
+        while range_index < ranges.len() && ranges[range_index].0 <= right_val {
+            active_upper_bounds.push(Reverse(ranges[range_index].1));
+            range_index += 1;
+        }
+        while active_upper_bounds
+            .peek()
+            .is_some_and(|Reverse(upper)| *upper < right_val)
+        {
+            active_upper_bounds.pop();
+        }
+        if active_upper_bounds.pop().is_some() {
+            count += 1;
+        }
+    }
+    count
+}
+
+/// Intersection variant for multi term searches that tracks the span covered by the terms seen so
+/// far. Equivalent spans are coalesced before the next merge. The count assigns distinct right
+/// positions to spans.
 ///
 /// left_slops is allowed to be empty, which equals to a slop of 0 so far.
 #[inline]
@@ -303,10 +335,6 @@ fn intersection_count_with_carrying_slop(
     positions_buffer: &mut Vec<u32>,
     slops_buffer: &mut Vec<CarriedSlop>,
 ) -> u32 {
-    let mut left_index = 0;
-    let mut right_index = 0;
-    let mut count = 0;
-
     if left_positions.is_empty() || right_positions.is_empty() {
         if update_left {
             left_positions.clear();
@@ -315,113 +343,38 @@ fn intersection_count_with_carrying_slop(
         return 0;
     }
 
-    let add_val =
-        |val: (CarriedSlop, u32), new_left: &mut Vec<u32>, new_slops: &mut Vec<CarriedSlop>| {
-            if update_left {
-                let pos_exists = new_left.last().map(|v| *v == val.1).unwrap_or(false);
-                if pos_exists {
-                    let last_slop = new_slops.last_mut().unwrap();
-                    if val.0.width < last_slop.width {
-                        *last_slop = val.0;
-                    }
-                } else {
-                    new_left.push(val.1);
-                    new_slops.push(val.0);
-                }
-            }
+    let count = carrying_slop_match_count(left_positions, left_slops, right_positions, max_slop);
+    if !update_left {
+        return count;
+    }
+
+    let mut candidates = Vec::new();
+    for (left_index, &left_val) in left_positions.iter().enumerate() {
+        let carried = carried_slop(left_slops, left_index, left_val);
+        let Some((lower, upper)) = carried.match_bounds(max_slop) else {
+            continue;
         };
-    loop {
-        let left_val = left_positions[left_index];
-        let left_slop = carried_slop(left_slops, left_index, left_val);
-        let right_val = right_positions[right_index];
-        let new_slop = left_slop.with_position(right_val);
-
-        if new_slop.width <= max_slop {
-            if left_slop.contains(right_val) {
-                add_val((left_slop, right_val), positions_buffer, slops_buffer);
-            } else {
-                let (smaller_val, larger_val, mut smaller_val_idx, smaller_val_positions) =
-                    if left_val < right_val {
-                        (left_val, right_val, left_index, left_positions.as_slice())
-                    } else {
-                        (right_val, left_val, right_index, right_positions)
-                    };
-
-                let mut new_slop = new_slop;
-                add_val((new_slop, smaller_val), positions_buffer, slops_buffer);
-                while smaller_val_idx + 1 < smaller_val_positions.len() {
-                    // there could be a better match
-                    let next_val = smaller_val_positions[smaller_val_idx + 1];
-                    if next_val > larger_val {
-                        // the next value is outside the range, so current one is the best.
-                        break;
-                    }
-                    let next_slop = if left_val < right_val {
-                        carried_slop(left_slops, smaller_val_idx + 1, next_val)
-                            .with_position(larger_val)
-                    } else {
-                        left_slop.with_position(next_val)
-                    };
-
-                    // the next value is better.
-                    smaller_val_idx += 1;
-                    if next_slop.width > max_slop {
-                        continue;
-                    }
-                    // better slop
-                    new_slop = next_slop;
-                    add_val((new_slop, next_val), positions_buffer, slops_buffer);
-                }
-
-                add_val((new_slop, larger_val), positions_buffer, slops_buffer);
-            }
-            count += 1;
-            left_index += 1;
-            right_index += 1;
-        } else if left_val < right_val {
-            left_index += 1;
-        } else {
-            right_index += 1;
-        }
-
-        if left_index >= left_positions.len() || right_index >= right_positions.len() {
-            // finish rest
-            if left_index >= left_positions.len() {
-                let left_val = *left_positions.last().unwrap();
-                let left_slop = carried_slop(left_slops, left_positions.len() - 1, left_val);
-                for right_val in &right_positions[right_index..] {
-                    let new_slop = left_slop.with_position(*right_val);
-                    if new_slop.width <= max_slop {
-                        add_val((new_slop, *right_val), positions_buffer, slops_buffer);
-                    }
-                }
-            } else {
-                let right_val = *right_positions.last().unwrap();
-                for left_idx in left_index..left_positions.len() {
-                    let left_val = left_positions[left_idx];
-                    let left_slop = carried_slop(left_slops, left_idx, left_val);
-                    let new_slop = left_slop.with_position(right_val);
-                    if new_slop.width <= max_slop {
-                        let position = if left_slop.contains(right_val) {
-                            right_val
-                        } else {
-                            left_val
-                        };
-                        add_val((new_slop, position), positions_buffer, slops_buffer);
-                    }
-                }
-            };
-
-            break;
-        }
+        let right_start = right_positions.partition_point(|&right_val| right_val < lower);
+        let right_end = right_positions.partition_point(|&right_val| right_val <= upper);
+        candidates.extend(
+            right_positions[right_start..right_end]
+                .iter()
+                .map(|&right_val| (carried.with_position(right_val), right_val)),
+        );
     }
-    if update_left {
-        std::mem::swap(left_positions, positions_buffer);
-        std::mem::swap(left_slops, slops_buffer);
-        positions_buffer.clear();
-        slops_buffer.clear();
-    }
+    candidates
+        .sort_unstable_by_key(|&(span, position)| (span.start, Reverse(span.end()), position));
+    candidates.dedup_by_key(|(span, _)| *span);
 
+    positions_buffer.clear();
+    slops_buffer.clear();
+    positions_buffer.extend(candidates.iter().map(|(_, position)| *position));
+    slops_buffer.extend(candidates.iter().map(|(span, _)| *span));
+
+    std::mem::swap(left_positions, positions_buffer);
+    std::mem::swap(left_slops, slops_buffer);
+    positions_buffer.clear();
+    slops_buffer.clear();
     count
 }
 
@@ -809,11 +762,7 @@ mod tests {
                 &mut Vec::new(),
             );
         }
-        let out: Vec<(u32, u32)> = slops
-            .iter()
-            .map(|slop| slop.width)
-            .zip(left_vec.iter().cloned())
-            .collect();
+        let out: Vec<(u32, u32)> = slops.iter().map(|slop| (slop.start, slop.width)).collect();
         assert_eq!(&out, expected);
         assert_eq!(count, expected_count);
     }
@@ -821,37 +770,131 @@ mod tests {
     #[test]
     fn test_carry_slop_intersection() {
         test_carry_slop_intersection_aux(&[&[1], &[]], &[], 1, 0);
-        test_carry_slop_intersection_aux(&[&[1], &[2]], &[(1, 1), (1, 2)], 1, 1);
+        test_carry_slop_intersection_aux(&[&[1], &[2]], &[(1, 1)], 1, 1);
         test_carry_slop_intersection_aux(&[&[1], &[3]], &[], 1, 0);
-        test_carry_slop_intersection_aux(&[&[1], &[2]], &[(1, 1), (1, 2)], 1, 1);
+        test_carry_slop_intersection_aux(&[&[1], &[2]], &[(1, 1)], 1, 1);
 
         // The order may still matter
-        test_carry_slop_intersection_aux(&[&[1], &[2], &[2]], &[(1, 2)], 1, 1);
-        test_carry_slop_intersection_aux(&[&[2], &[1], &[2]], &[(1, 2)], 1, 1);
-        test_carry_slop_intersection_aux(&[&[2], &[2], &[1]], &[(1, 1), (1, 2)], 1, 1);
+        test_carry_slop_intersection_aux(&[&[1], &[2], &[2]], &[(1, 1)], 1, 1);
+        test_carry_slop_intersection_aux(&[&[2], &[1], &[2]], &[(1, 1)], 1, 1);
+        test_carry_slop_intersection_aux(&[&[2], &[2], &[1]], &[(1, 1)], 1, 1);
 
-        test_carry_slop_intersection_aux(&[&[2], &[2], &[1], &[2]], &[(1, 2)], 1, 1);
-        test_carry_slop_intersection_aux(&[&[1], &[2], &[2], &[2]], &[(1, 2)], 1, 1);
+        test_carry_slop_intersection_aux(&[&[2], &[2], &[1], &[2]], &[(1, 1)], 1, 1);
+        test_carry_slop_intersection_aux(&[&[1], &[2], &[2], &[2]], &[(1, 1)], 1, 1);
 
         test_carry_slop_intersection_aux(&[&[1], &[2], &[1]], &[(1, 1)], 1, 1);
 
-        test_carry_slop_intersection_aux(&[&[11], &[10, 12]], &[(1, 10), (1, 11), (1, 12)], 1, 1);
-        test_carry_slop_intersection_aux(&[&[10, 12], &[11]], &[(1, 10), (1, 11), (1, 12)], 1, 1);
+        test_carry_slop_intersection_aux(&[&[11], &[10, 12]], &[(10, 1), (11, 1)], 1, 1);
+        test_carry_slop_intersection_aux(&[&[10, 12], &[11]], &[(10, 1), (11, 1)], 1, 1);
 
         test_carry_slop_intersection_aux(
             &[&[5, 7, 11], &[1, 5, 10, 12]],
-            &[(0, 5), (1, 10), (1, 11), (1, 12)],
+            &[(5, 0), (10, 1), (11, 1)],
             1,
             2,
         );
-        test_carry_slop_intersection_aux(&[&[0], &[256]], &[(256, 0), (256, 256)], 256, 1);
+        test_carry_slop_intersection_aux(&[&[0], &[256]], &[(0, 256)], 256, 1);
         test_carry_slop_intersection_aux(&[&[0], &[256], &[512]], &[], 256, 0);
         test_carry_slop_intersection_aux(
             &[&[0], &[u32::MAX], &[u32::MAX - 1]],
-            &[(u32::MAX, u32::MAX - 1)],
+            &[(0, u32::MAX)],
             u32::MAX,
             1,
         );
+    }
+
+    #[test]
+    fn test_carry_slop_coalesces_equivalent_spans() {
+        let mut left_positions = vec![0];
+        let mut left_slops = Vec::new();
+        let mut positions_buffer = Vec::new();
+        let mut slops_buffer = Vec::new();
+        let mut max_candidates = 0;
+
+        for right_val in 1..30u32 {
+            let count = intersection_count_with_carrying_slop(
+                &mut left_positions,
+                &mut left_slops,
+                &[right_val],
+                29,
+                true,
+                &mut positions_buffer,
+                &mut slops_buffer,
+            );
+            assert_eq!(count, 1);
+            max_candidates = max_candidates.max(left_positions.len());
+            assert_eq!(left_positions.len(), left_slops.len());
+            assert_eq!(left_slops[0].width, right_val);
+        }
+        assert_eq!(max_candidates, 1);
+        assert_eq!(
+            left_slops,
+            [CarriedSlop {
+                start: 0,
+                width: 29
+            }]
+        );
+    }
+
+    #[test]
+    fn test_carry_slop_matches_brute_force() {
+        fn positions(mask: u32) -> Vec<u32> {
+            (0..5)
+                .filter(|position| mask & (1 << position) != 0)
+                .collect()
+        }
+
+        for first_mask in 0..32 {
+            let first = positions(first_mask);
+            for second_mask in 0..32 {
+                let second = positions(second_mask);
+                for third_mask in 0..32 {
+                    let third = positions(third_mask);
+                    for slop in 0..=4 {
+                        let expected = first.iter().any(|&a| {
+                            second.iter().any(|&b| {
+                                third.iter().any(|&c| {
+                                    let start = a.min(b).min(c);
+                                    let end = a.max(b).max(c);
+                                    end - start <= slop
+                                })
+                            })
+                        });
+                        let mut left_positions = first.clone();
+                        let mut left_slops = Vec::new();
+                        let mut positions_buffer = Vec::new();
+                        let mut slops_buffer = Vec::new();
+                        intersection_count_with_carrying_slop(
+                            &mut left_positions,
+                            &mut left_slops,
+                            &second,
+                            slop,
+                            true,
+                            &mut positions_buffer,
+                            &mut slops_buffer,
+                        );
+                        let exists = intersection_exists_with_carrying_slop(
+                            &left_positions,
+                            &left_slops,
+                            &third,
+                            slop,
+                        );
+                        let count = intersection_count_with_carrying_slop(
+                            &mut left_positions,
+                            &mut left_slops,
+                            &third,
+                            slop,
+                            false,
+                            &mut positions_buffer,
+                            &mut slops_buffer,
+                        );
+                        let context = format!("{first:?} {second:?} {third:?} at slop {slop}");
+                        assert_eq!(exists, expected, "unscored: {context}");
+                        assert_eq!(count > 0, expected, "scored: {context}");
+                    }
+                }
+            }
+        }
     }
 }
 
