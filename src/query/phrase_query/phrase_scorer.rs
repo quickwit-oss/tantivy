@@ -528,13 +528,18 @@ impl<TPostings: Postings> PhraseScorer<TPostings> {
     }
 
     fn compute_slop_phrase_count(&mut self) -> u32 {
-        self.left_positions.clone_from(&self.slop_positions[0]);
+        let mut order = (0..self.num_terms).collect::<Vec<_>>();
+        order.sort_unstable_by_key(|&phrase_index| {
+            (self.slop_positions[phrase_index].len(), phrase_index)
+        });
+        self.left_positions
+            .clone_from(&self.slop_positions[order[0]]);
         self.left_slops.clear();
-        for i in 1..self.num_terms - 1 {
+        for &phrase_index in &order[1..self.num_terms - 1] {
             intersection_count_with_carrying_slop(
                 &mut self.left_positions,
                 &mut self.left_slops,
-                &self.slop_positions[i],
+                &self.slop_positions[phrase_index],
                 self.slop,
                 true,
                 &mut self.positions_buffer,
@@ -548,7 +553,7 @@ impl<TPostings: Postings> PhraseScorer<TPostings> {
             intersection_count_with_carrying_slop(
                 &mut self.left_positions,
                 &mut self.left_slops,
-                &self.slop_positions[self.num_terms - 1],
+                &self.slop_positions[order[self.num_terms - 1]],
                 self.slop,
                 false,
                 &mut self.positions_buffer,
@@ -557,7 +562,7 @@ impl<TPostings: Postings> PhraseScorer<TPostings> {
         } else {
             intersection_count_with_slop(
                 &mut self.left_positions,
-                &self.slop_positions[1],
+                &self.slop_positions[order[1]],
                 self.slop,
                 false,
             ) as u32
