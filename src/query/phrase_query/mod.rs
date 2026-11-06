@@ -286,6 +286,49 @@ pub(crate) mod tests {
     }
 
     #[test]
+    pub fn test_phrase_slop_inside_carried_span() -> crate::Result<()> {
+        let index = create_index(&["a x b x c", "b"])?;
+        let text_field = index.schema().get_field("text").unwrap();
+        let searcher = index.reader()?.searcher();
+        let terms = ["a", "b", "c"]
+            .iter()
+            .map(|text| Term::from_field_text(text_field, text))
+            .collect();
+        let mut phrase_query = PhraseQuery::new(terms);
+        phrase_query.set_slop(2);
+        assert_eq!(searcher.search(&phrase_query, &Count)?, 1);
+        assert_eq!(test_query(2, &index, vec!["a", "b", "c"]).len(), 1);
+        Ok(())
+    }
+
+    #[test]
+    pub fn test_phrase_slop_candidate_expansion_bound() -> crate::Result<()> {
+        let index = create_index(&["a x b x c x d x e"])?;
+        let text_field = index.schema().get_field("text").unwrap();
+        let searcher = index.reader()?.searcher();
+
+        for (slop, expected) in [(3, 0), (4, 1)] {
+            let terms = ["a", "b", "c", "d", "e"]
+                .iter()
+                .map(|text| Term::from_field_text(text_field, text))
+                .collect();
+            let mut phrase_query = PhraseQuery::new(terms);
+            phrase_query.set_slop(slop);
+            assert_eq!(
+                searcher.search(&phrase_query, &Count)?,
+                expected,
+                "unscored search at slop {slop}"
+            );
+            assert_eq!(
+                test_query(slop, &index, vec!["a", "b", "c", "d", "e"]).len(),
+                expected,
+                "scored search at slop {slop}"
+            );
+        }
+        Ok(())
+    }
+
+    #[test]
     pub fn test_phrase_score_with_slop_ordering() -> crate::Result<()> {
         let index = create_index(&[
             "a e b e c",
