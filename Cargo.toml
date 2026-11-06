@@ -97,9 +97,6 @@ typetag = "0.2.21"
 unwrap-infallible = "1.0.0"
 serde-tuple-vec-map = "1.0.1"
 
-[target.'cfg(windows)'.dependencies]
-winapi = "0.3.9"
-
 [dev-dependencies]
 binggan = "0.17.0"
 rand = "0.9"
