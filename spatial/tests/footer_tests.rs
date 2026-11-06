@@ -259,6 +259,7 @@ fn serialize_values<S: Surface + Clone + Send + Sync + 'static>(
     let directory = RamDirectory::create();
     let mut cells = CountingWriter::wrap(directory.open_write(Path::new("cells")).unwrap());
     let mut edges = CountingWriter::wrap(directory.open_write(Path::new("edges")).unwrap());
+    let mut doc_ids = CountingWriter::wrap(directory.open_write(Path::new("docids")).unwrap());
     let mut writer = SurfaceFieldWriter::<S>::new();
     for &(doc, geometry) in values {
         writer.add_set(crate::spatial::geometry_set::to_geometry_set(
@@ -266,13 +267,16 @@ fn serialize_values<S: Surface + Clone + Send + Sync + 'static>(
             doc,
         ));
     }
-    writer.serialize(&mut cells, &mut edges, None).unwrap();
+    writer
+        .serialize(&mut cells, &mut edges, &mut doc_ids, None)
+        .unwrap();
     cells.terminate().unwrap();
     edges.terminate().unwrap();
+    doc_ids.terminate().unwrap();
     Bytes {
         cells: directory.atomic_read(Path::new("cells")).unwrap(),
         edges: directory.atomic_read(Path::new("edges")).unwrap(),
-        doc_ids: Vec::new(),
+        doc_ids: directory.atomic_read(Path::new("docids")).unwrap(),
     }
 }
 

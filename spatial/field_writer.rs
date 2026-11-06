@@ -41,15 +41,17 @@ impl<S: Surface> SurfaceFieldWriter<S> {
     }
 
     /// Write the accumulated cell and edge indexes.
-    pub fn serialize<CellsWrite, EdgesWrite>(
+    pub fn serialize<CellsWrite, EdgesWrite, DocIdsWrite>(
         self,
         cells_write: &mut CountingWriter<CellsWrite>,
         edges_write: &mut CountingWriter<EdgesWrite>,
+        doc_ids_write: &mut CountingWriter<DocIdsWrite>,
         old_to_new: Option<&[u32]>,
     ) -> io::Result<()>
     where
         CellsWrite: Write,
         EdgesWrite: Write,
+        DocIdsWrite: Write,
     {
         let mut sets = self.sets;
         if let Some(old_to_new) = old_to_new {
@@ -64,8 +66,13 @@ impl<S: Surface> SurfaceFieldWriter<S> {
         let builder = Clipper::new(ClipOptions::default());
         let cell_index = builder.build(&sets);
 
-        cell_index.write(cells_write);
+        let mut doc_id_map = Vec::new();
+        for set in &sets {
+            doc_id_map.extend(std::iter::repeat_n(set.doc_id, set.members.len()));
+        }
+        cell_index.write_with_doc_ids(cells_write, Some(doc_ids_write), Some(&doc_id_map));
         cells_write.flush()?;
+        doc_ids_write.flush()?;
 
         let mut edge_writer = EdgeWriter::<S, _>::new(edges_write);
         for set in &sets {

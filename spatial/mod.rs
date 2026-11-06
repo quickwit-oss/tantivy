@@ -39,6 +39,7 @@ pub mod intersects;
 pub mod latlng_rect;
 pub mod math;
 pub mod merge;
+pub mod merge_field;
 pub mod plane;
 pub mod query_edge_provider;
 pub mod r1interval;

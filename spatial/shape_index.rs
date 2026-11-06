@@ -121,13 +121,13 @@ impl ShapeIndex {
     /// the doc_id file position is recorded in the directory alongside the cell
     /// offset. The doc_ids are written to a separate writer in cell order.
     pub fn write<W: Write>(&self, write: &mut CountingWriter<W>) {
-        self.write_with_doc_ids::<W>(write, None, None);
+        self.write_with_doc_ids::<W, W>(write, None, None);
     }
 
-    pub fn write_with_doc_ids<W: Write>(
+    pub fn write_with_doc_ids<W: Write, D: Write>(
         &self,
         write: &mut CountingWriter<W>,
-        mut doc_ids_write: Option<&mut CountingWriter<W>>,
+        mut doc_ids_write: Option<&mut CountingWriter<D>>,
         doc_id_map: Option<&[u32]>,
     ) {
         let base = write.written_bytes();
