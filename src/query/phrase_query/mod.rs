@@ -370,6 +370,22 @@ pub(crate) mod tests {
     }
 
     #[test]
+    pub fn test_phrase_slop_repeated_terms_linear() -> crate::Result<()> {
+        let index = create_index(&["a b c ".repeat(10_000)])?;
+        let text_field = index.schema().get_field("text").unwrap();
+        let searcher = index.reader()?.searcher();
+        let terms = ["a", "b", "c"]
+            .iter()
+            .map(|text| Term::from_field_text(text_field, text))
+            .collect();
+        let mut phrase_query = PhraseQuery::new(terms);
+        phrase_query.set_slop(30_000);
+        assert_eq!(searcher.search(&phrase_query, &Count)?, 1);
+        assert_eq!(test_query(30_000, &index, vec!["a", "b", "c"]).len(), 1);
+        Ok(())
+    }
+
+    #[test]
     pub fn test_phrase_score_with_slop_ordering() -> crate::Result<()> {
         let index = create_index(&[
             "a e b e c",
