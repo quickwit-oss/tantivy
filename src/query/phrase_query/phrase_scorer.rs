@@ -55,9 +55,9 @@ pub struct PhraseScorer<TPostings: Postings> {
     fieldnorm_reader: FieldNormReader,
     similarity_weight_opt: Option<Bm25Weight>,
     slop: u32,
-    left_slops: Vec<u8>,
+    left_slops: Vec<u32>,
     positions_buffer: Vec<u32>,
-    slops_buffer: Vec<u8>,
+    slops_buffer: Vec<u32>,
 }
 
 /// Returns true if and only if the two sorted arrays contain a common element
@@ -217,6 +217,28 @@ fn intersection_exists_with_slop(
     false
 }
 
+fn intersection_exists_with_carrying_slop(
+    left_positions: &[u32],
+    left_slops: &[u32],
+    right_positions: &[u32],
+    max_slop: u32,
+) -> bool {
+    left_positions
+        .iter()
+        .enumerate()
+        .any(|(left_index, &left_val)| {
+            let slop_so_far = left_slops.get(left_index).copied().unwrap_or(0);
+            let Some(remaining_slop) = max_slop.checked_sub(slop_so_far) else {
+                return false;
+            };
+            let lower = left_val.saturating_sub(remaining_slop);
+            let right_index = right_positions.partition_point(|&right_val| right_val < lower);
+            right_positions
+                .get(right_index)
+                .is_some_and(|&right_val| right_val <= left_val.saturating_add(remaining_slop))
+        })
+}
+
 /// Intersection variant for multi term searches that keeps track of slop so far.
 ///
 /// In contrast to the regular algorithm this solves some issues:
@@ -234,12 +256,12 @@ fn intersection_exists_with_slop(
 #[inline]
 fn intersection_count_with_carrying_slop(
     left_positions: &mut Vec<u32>,
-    left_slops: &mut Vec<u8>,
+    left_slops: &mut Vec<u32>,
     right_positions: &[u32],
     max_slop: u32,
     update_left: bool,
     positions_buffer: &mut Vec<u32>,
-    slops_buffer: &mut Vec<u8>,
+    slops_buffer: &mut Vec<u32>,
 ) -> u32 {
     let mut left_index = 0;
     let mut right_index = 0;
@@ -253,7 +275,7 @@ fn intersection_count_with_carrying_slop(
         return 0;
     }
 
-    let add_val = |val: (u8, u32), new_left: &mut Vec<u32>, new_slops: &mut Vec<u8>| {
+    let add_val = |val: (u32, u32), new_left: &mut Vec<u32>, new_slops: &mut Vec<u32>| {
         if update_left {
             let pos_exists = new_left.last().map(|v| *v == val.1).unwrap_or(false);
             if pos_exists {
@@ -270,8 +292,8 @@ fn intersection_count_with_carrying_slop(
         let slop_so_far = left_slops.get(left_index).cloned().unwrap_or(0);
         let right_val = right_positions[right_index];
 
-        let distance = slop_so_far as u32 + left_val.abs_diff(right_val);
-        if distance <= max_slop {
+        let distance = slop_so_far as u64 + left_val.abs_diff(right_val) as u64;
+        if distance <= max_slop as u64 {
             let (smaller_val, larger_val, mut smaller_val_idx, smaller_val_positions) =
                 if left_val < right_val {
                     (left_val, right_val, left_index, left_positions.as_slice())
@@ -279,12 +301,8 @@ fn intersection_count_with_carrying_slop(
                     (right_val, left_val, right_index, right_positions)
                 };
 
-            let mut new_slop = distance;
-            add_val(
-                (new_slop as u8, smaller_val),
-                positions_buffer,
-                slops_buffer,
-            );
+            let mut new_slop = distance as u32;
+            add_val((new_slop, smaller_val), positions_buffer, slops_buffer);
             while smaller_val_idx + 1 < smaller_val_positions.len() {
                 // there could be a better match
                 let next_val = smaller_val_positions[smaller_val_idx + 1];
@@ -292,16 +310,17 @@ fn intersection_count_with_carrying_slop(
                     // the next value is outside the range, so current one is the best.
                     break;
                 }
-                let distance = next_val.abs_diff(larger_val);
+                let distance = slop_so_far as u64 + next_val.abs_diff(larger_val) as u64;
 
                 // the next value is better.
                 smaller_val_idx += 1;
                 // better slop
-                new_slop = slop_so_far as u32 + distance;
-                add_val((new_slop as u8, next_val), positions_buffer, slops_buffer);
+                debug_assert!(distance <= max_slop as u64);
+                new_slop = distance as u32;
+                add_val((new_slop, next_val), positions_buffer, slops_buffer);
             }
 
-            add_val((new_slop as u8, larger_val), positions_buffer, slops_buffer);
+            add_val((new_slop, larger_val), positions_buffer, slops_buffer);
             count += 1;
             left_index += 1;
             right_index += 1;
@@ -315,11 +334,15 @@ fn intersection_count_with_carrying_slop(
             // finish rest
             if left_index >= left_positions.len() {
                 let left_val = *left_positions.last().unwrap();
-                let slop_so_far: u8 = *left_slops.last().unwrap_or(&0);
+                let slop_so_far: u32 = *left_slops.last().unwrap_or(&0);
                 for right_val in &right_positions[right_index..] {
-                    let new_slop = left_val.abs_diff(*right_val) + slop_so_far as u32;
-                    if new_slop <= max_slop {
-                        add_val((new_slop as u8, *right_val), positions_buffer, slops_buffer);
+                    let new_slop = left_val.abs_diff(*right_val) as u64 + slop_so_far as u64;
+                    if new_slop <= max_slop as u64 {
+                        add_val(
+                            (new_slop as u32, *right_val),
+                            positions_buffer,
+                            slops_buffer,
+                        );
                     }
                 }
             } else {
@@ -327,9 +350,9 @@ fn intersection_count_with_carrying_slop(
                 for left_idx in left_index..left_positions.len() {
                     let left_val = left_positions[left_idx];
                     let slop_so_far = *left_slops.get(left_idx).unwrap_or(&0);
-                    let new_slop = left_val.abs_diff(right_val) + slop_so_far as u32;
-                    if new_slop <= max_slop {
-                        add_val((new_slop as u8, left_val), positions_buffer, slops_buffer);
+                    let new_slop = left_val.abs_diff(right_val) as u64 + slop_so_far as u64;
+                    if new_slop <= max_slop as u64 {
+                        add_val((new_slop as u32, left_val), positions_buffer, slops_buffer);
                     }
                 }
             };
@@ -479,11 +502,20 @@ impl<TPostings: Postings> PhraseScorer<TPostings> {
     fn phrase_exists(&mut self) -> bool {
         self.compute_phrase_match();
         if self.has_slop() {
-            intersection_exists_with_slop(
-                &self.left_positions,
-                &self.right_positions[..],
-                self.slop,
-            )
+            if self.num_terms > 2 {
+                intersection_exists_with_carrying_slop(
+                    &self.left_positions,
+                    &self.left_slops,
+                    &self.right_positions[..],
+                    self.slop,
+                )
+            } else {
+                intersection_exists_with_slop(
+                    &self.left_positions,
+                    &self.right_positions[..],
+                    self.slop,
+                )
+            }
         } else {
             intersection_exists(&self.left_positions, &self.right_positions[..])
         }
@@ -704,7 +736,7 @@ mod tests {
 
     fn test_carry_slop_intersection_aux(
         right: &[&[u32]],
-        expected: &[(u8, u32)],
+        expected: &[(u32, u32)],
         slop: u32,
         expected_count: u32,
     ) {
@@ -722,7 +754,7 @@ mod tests {
                 &mut Vec::new(),
             );
         }
-        let out: Vec<(u8, u32)> = slops
+        let out: Vec<(u32, u32)> = slops
             .iter()
             .cloned()
             .zip(left_vec.iter().cloned())
@@ -757,6 +789,9 @@ mod tests {
             1,
             2,
         );
+        test_carry_slop_intersection_aux(&[&[0], &[256]], &[(256, 0), (256, 256)], 256, 1);
+        test_carry_slop_intersection_aux(&[&[0], &[256], &[512]], &[], 256, 0);
+        test_carry_slop_intersection_aux(&[&[0], &[u32::MAX], &[u32::MAX - 1]], &[], u32::MAX, 0);
     }
 }
 
@@ -806,11 +841,11 @@ mod bench {
     #[bench]
     fn bench_intersection_medium_slop_carrying(b: &mut Bencher) {
         let mut left = Vec::new();
-        let mut left_slops: Vec<u8> = Vec::new();
+        let mut left_slops: Vec<u32> = Vec::new();
         let mut buffer = Vec::new();
         let mut slop_buffer = Vec::new();
         let left_data: Vec<u32> = (0..100).collect();
-        let left_slop_data: Vec<u8> = (0..100).map(|_| 0).collect();
+        let left_slop_data: Vec<u32> = (0..100).map(|_| 0).collect();
 
         b.iter(|| {
             left.clear();

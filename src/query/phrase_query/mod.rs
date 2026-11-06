@@ -16,6 +16,7 @@ pub(crate) mod tests {
 
     use super::*;
     use crate::collector::tests::{TEST_COLLECTOR_WITHOUT_SCORE, TEST_COLLECTOR_WITH_SCORE};
+    use crate::collector::Count;
     use crate::index::Index;
     use crate::query::{EnableScoring, QueryParser, Weight};
     use crate::schema::{Schema, Term, TEXT};
@@ -252,6 +253,35 @@ pub(crate) mod tests {
         let scores = test_query(2, &index, vec!["b", "a"]);
         assert_eq!(scores.len(), 1);
 
+        Ok(())
+    }
+
+    #[test]
+    pub fn test_phrase_slop_above_u8_max() -> crate::Result<()> {
+        let filler = vec!["w"; 256].join(" ");
+        let index = create_index(&[format!("a {filler} b {filler} c")])?;
+        let text_field = index.schema().get_field("text").unwrap();
+        let searcher = index.reader()?.searcher();
+
+        for slop in [255, 256, 300, 511, 512] {
+            let terms = ["a", "b", "c"]
+                .iter()
+                .map(|text| Term::from_field_text(text_field, text))
+                .collect();
+            let mut phrase_query = PhraseQuery::new(terms);
+            phrase_query.set_slop(slop);
+            let expected = if slop == 512 { 1 } else { 0 };
+            assert_eq!(
+                searcher.search(&phrase_query, &Count)?,
+                expected,
+                "unscored search at slop {slop}"
+            );
+            assert_eq!(
+                test_query(slop, &index, vec!["a", "b", "c"]).len(),
+                expected,
+                "scored search at slop {slop}"
+            );
+        }
         Ok(())
     }
 
