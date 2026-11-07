@@ -252,3 +252,6 @@ harness = false
 [[bench]]
 name = "intersection_bench"
 harness = false
+
+[patch.crates-io]
+tantivy-common = { path = "./common" }

@@ -48,6 +48,7 @@ pub trait SpatialFieldWriter: Send {
         self: Box<Self>,
         cells_write: &mut CountingWriter<WritePtr>,
         edges_write: &mut CountingWriter<WritePtr>,
+        doc_ids_write: &mut CountingWriter<WritePtr>,
         old_to_new: Option<&[DocId]>,
     ) -> io::Result<()>;
 }
@@ -86,9 +87,11 @@ where
         self: Box<Self>,
         cells_write: &mut CountingWriter<WritePtr>,
         edges_write: &mut CountingWriter<WritePtr>,
+        doc_ids_write: &mut CountingWriter<WritePtr>,
         old_to_new: Option<&[DocId]>,
     ) -> io::Result<()> {
-        self.writer.serialize(cells_write, edges_write, old_to_new)
+        self.writer
+            .serialize(cells_write, edges_write, doc_ids_write, old_to_new)
     }
 }
 
@@ -164,7 +167,8 @@ fn resolve_match<T>(name: &str, mut matches: Vec<T>) -> crate::Result<T> {
 }
 
 impl<Input> SpatialIndexCatalog<Input> for Nil
-where Input: SpatialInput
+where
+    Input: SpatialInput,
 {
     fn collect_indexes(_name: &str, _matches: &mut Vec<Box<dyn SpatialIndex>>) {}
 
@@ -253,10 +257,11 @@ impl PluginWriter for SpatialPluginWriter {
             return Ok(());
         };
         for (field, writer) in self.writers.drain() {
-            let (cells, edges, _doc_ids) = serializer.for_field(field);
+            let (cells, edges, doc_ids) = serializer.for_field(field);
             writer.serialize(
                 cells,
                 edges,
+                doc_ids,
                 doc_id_map.map(|mapping| mapping.old_to_new_ids()),
             )?;
         }

@@ -1,5 +1,7 @@
+use std::sync::Arc;
+
 use crate::collector::DocSetCollector;
-use crate::directory::{CompositeFile, RamDirectory};
+use crate::directory::{CompositeFile, CompositeWrite, Directory, RamDirectory};
 use crate::fastfield::AliveBitSet;
 use crate::index::SegmentComponent;
 use crate::indexer::segment_updater::merge_filtered_segments;
@@ -12,10 +14,28 @@ use crate::spatial::cell_index_reader::CellIndexReader;
 use crate::spatial::edge_reader::EdgeReader;
 use crate::spatial::geometry::Geometry;
 use crate::spatial::plane::Plane;
-use crate::spatial::spatial_index_manager::SurfaceIndex;
+use crate::spatial::plugin::{SpatialFieldWriter, SpatialIndexFactory};
+use crate::spatial::spatial_index_manager::{SpatialIndex, SurfaceIndex};
 use crate::spatial::sphere::Sphere;
 use crate::spatial::surface::Surface;
+use crate::spatial::{Cons, NativeSpatial, Nil, S2Plugin};
 use crate::{Index, IndexSettings, IndexSortByField, IndexWriter, Order, TantivyDocument, Term};
+
+type SpatialIndexes = Cons<SurfaceIndex<Sphere>, Cons<NamedSphere, Nil>>;
+
+struct NamedSphere;
+
+impl SpatialIndexFactory<NativeSpatial> for NamedSphere {
+    const NAME: &'static str = "named";
+
+    fn create_index() -> Box<dyn SpatialIndex> {
+        Box::new(SurfaceIndex::<Sphere>::new())
+    }
+
+    fn create_field_writer() -> Box<dyn SpatialFieldWriter> {
+        <SurfaceIndex<Sphere> as SpatialIndexFactory<NativeSpatial>>::create_field_writer()
+    }
+}
 
 fn schema(options: SpatialOptions) -> (Schema, Field, Field) {
     let mut builder = Schema::builder();
@@ -152,6 +172,7 @@ fn test_spatial_document_mappings_and_merge() -> crate::Result<()> {
         let mut writer: SingleSegmentIndexWriter = Index::builder()
             .schema(schema)
             .settings(settings)
+            .register_plugin(Arc::new(S2Plugin::<SpatialIndexes, NativeSpatial>::new()))
             .single_segment_index_writer(directory.clone(), 50_000_000)?;
         for value in [30, 10, 20] {
             writer.add_document(document(id, geometry, value))?;
@@ -182,7 +203,7 @@ fn test_spatial_document_mappings_and_merge() -> crate::Result<()> {
             [2, 2, 2, 0, 0, 0, 1, 1, 1]
         );
         drop(searcher);
-        assert_sidecar(&index, geometry, false)?;
+        assert_sidecar(&index, geometry, true)?;
         assert_queries(&index, id, geometry, &[10, 20, 30])?;
         let mut writer: IndexWriter = index.writer_with_num_threads(1, 50_000_000)?;
         writer.set_merge_policy(Box::new(NoMergePolicy));
@@ -195,7 +216,23 @@ fn test_spatial_document_mappings_and_merge() -> crate::Result<()> {
         assert_queries(&index, id, geometry, &[10, 30, 40])?;
         writer.garbage_collect_files().wait()?;
         assert_queries(&index, id, geometry, &[10, 30, 40])?;
-        let reopened = Index::open(directory)?;
+        writer.wait_merging_threads()?;
+        let mut reopened = Index::open(directory)?;
+        assert!(matches!(
+            reopened.writer_with_num_threads::<TantivyDocument>(1, 50_000_000),
+            Err(crate::TantivyError::MissingPlugin(_))
+        ));
+        reopened.register_plugin(Arc::new(S2Plugin::<SpatialIndexes, NativeSpatial>::new()));
+        assert_queries(&reopened, id, geometry, &[10, 30, 40])?;
+        for segment in reopened.searchable_segments()? {
+            let component = SegmentComponent::SpatialDocIds;
+            reopened
+                .directory()
+                .delete(&segment.relative_path(component.clone()))
+                .unwrap();
+            CompositeWrite::wrap(segment.open_write(component)?).close()?;
+        }
+        assert_sidecar(&reopened, geometry, false)?;
         assert_queries(&reopened, id, geometry, &[10, 30, 40])?;
     }
     Ok(())
@@ -211,6 +248,7 @@ fn named_index(
     let index = Index::builder()
         .schema(schema)
         .settings(sorted_settings())
+        .register_plugin(Arc::new(S2Plugin::<SpatialIndexes, NativeSpatial>::new()))
         .create_in_ram()?;
     index
         .spatial_indices()
@@ -313,7 +351,18 @@ fn test_spatial_files_are_optional_and_closed() -> crate::Result<()> {
         if spatial {
             builder.add_spatial_field("geometry", SPHERE);
         }
-        let index = Index::create_in_ram(builder.build());
+        let schema = builder.build();
+        let mut builder = Index::builder().schema(schema.clone());
+        if spatial {
+            assert!(matches!(
+                Index::builder().schema(schema).create_in_ram(),
+                Err(crate::TantivyError::InvalidArgument(message))
+                    if message.contains("requires a registered spatial segment plugin")
+            ));
+            builder =
+                builder.register_plugin(Arc::new(S2Plugin::<SpatialIndexes, NativeSpatial>::new()));
+        }
+        let index = builder.create_in_ram()?;
         let mut writer: IndexWriter = index.writer_with_num_threads(1, 50_000_000)?;
         writer.add_document(doc!(id => 1u64))?;
         writer.commit()?;
