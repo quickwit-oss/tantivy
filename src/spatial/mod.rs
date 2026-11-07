@@ -2,7 +2,6 @@
 
 pub use tantivy_spatial::*;
 
-pub mod executor;
 pub mod geometry;
 mod native_input;
 pub mod plugin;
@@ -30,3 +29,7 @@ mod footer_tests;
 #[cfg(test)]
 #[path = "../../spatial/tests/partition.rs"]
 mod partition;
+
+#[cfg(test)]
+#[path = "tests/query_tests.rs"]
+mod query_tests;

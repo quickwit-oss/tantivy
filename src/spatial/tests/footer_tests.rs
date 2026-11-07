@@ -5,15 +5,13 @@ use std::sync::Arc;
 
 use common::{BitSet, CountingWriter, OwnedBytes, ReadOnlyBitSet, TerminatingWrite};
 
-use crate::collector::Count;
-use crate::directory::{CompositeFile, CompositeWrite, Directory, FileSlice, RamDirectory};
+use crate::directory::{CompositeWrite, Directory, FileSlice, RamDirectory};
 use crate::index::SegmentComponent;
 use crate::indexer::SingleSegmentIndexWriter;
-use crate::query::{AllQuery, EnableScoring, Query, SpatialQuery};
+use crate::query::{EnableScoring, Query, SpatialQuery};
 use crate::schema::{Field, Schema, SPHERE, STORED};
 use crate::spatial::cell_index_reader::CellIndexReader;
 use crate::spatial::edge_reader::EdgeReader;
-use crate::spatial::executor::{PlanNode, SpatialExecutor, SpatialRelation};
 use crate::spatial::field_writer::SurfaceFieldWriter;
 use crate::spatial::geometry::Geometry;
 use crate::spatial::partition::assert_partition;
@@ -186,9 +184,6 @@ fn test_edge_document_ranges_reject_invalid_starts() {
         invalid[starts + slot * 4..starts + (slot + 1) * 4].copy_from_slice(&value.to_le_bytes());
         let reader = EdgeReader::<Plane>::open(&invalid).unwrap();
         invalid_data(reader.value_heads(doc));
-        assert!(SurfaceIndex::<Plane>::new()
-            .value_heads(&invalid, doc, &mut Vec::new())
-            .is_err());
     }
 
     // The same directory span can describe three starts and no value heads.
@@ -601,45 +596,6 @@ fn test_zero_document_scorer_validates_present_cells() -> crate::Result<()> {
                 .contains("rebuild"));
         }
     }
-    Ok(())
-}
-
-#[test]
-fn test_executor_rejects_old_cells() -> crate::Result<()> {
-    let (index, field) = index_with_payload(&[0; 12], 1)?;
-    let geometry = Geometry::<Plane>::Point([0.0, 0.0]);
-    let all = || Box::new(PlanNode::Query(Box::new(AllQuery)));
-    let searcher = index.reader()?.searcher();
-    for node in [
-        PlanNode::Intersects {
-            field,
-            geometry: geometry.clone(),
-            filter: all(),
-        },
-        PlanNode::Within {
-            field,
-            geometry,
-            radius: 0.01,
-            filter: all(),
-        },
-        PlanNode::Join {
-            field,
-            outer: all(),
-            inner: all(),
-            relation: SpatialRelation::Intersects,
-        },
-    ] {
-        let error = searcher
-            .search(&SpatialExecutor::new(node), &Count)
-            .unwrap_err();
-        assert!(error.to_string().contains("rebuild"));
-    }
-    let segment = index.searchable_segments()?.pop().unwrap();
-    let composite = CompositeFile::open(&segment.open_read(SegmentComponent::SpatialCells)?)?;
-    assert_eq!(
-        composite.open_read(field).unwrap().read_bytes()?.as_slice(),
-        &[0; 12]
-    );
     Ok(())
 }
 

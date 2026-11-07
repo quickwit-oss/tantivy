@@ -21,7 +21,6 @@ use crate::spatial::distance::Distance;
 use crate::spatial::edge_reader::EdgeReader;
 use crate::spatial::edge_resolver::EdgeResolver;
 use crate::spatial::edge_writer::EdgeWriter;
-use crate::spatial::executor::SpatialRelation;
 use crate::spatial::geometry::{to_geometry_set, Geometry};
 use crate::spatial::interleaver::Interleaver;
 use crate::spatial::intersects::Intersects;
@@ -74,32 +73,6 @@ pub trait SpatialIndex: Send + Sync + SpatialIndexClone {
         ))
     }
 
-    /// Enumerate stored value heads owned by a document.
-    fn value_heads(&self, _edges: &[u8], _doc_id: u32, _heads: &mut Vec<u32>) -> crate::Result<()> {
-        Err(crate::TantivyError::InvalidArgument(
-            "Stored-value joins are not supported by this spatial index".into(),
-        ))
-    }
-
-    /// Prepare a probe for a stored outer value without projecting it a second time.
-    fn prepare_join_query(
-        &self,
-        _edges: &[u8],
-        _head: u32,
-        _relation: &SpatialRelation,
-    ) -> crate::Result<Box<dyn PreparedSpatialQuery>> {
-        Err(crate::TantivyError::InvalidArgument(
-            "Stored-value joins are not supported by this spatial index".into(),
-        ))
-    }
-
-    /// Check a join's surface contract before enumerating values.
-    fn validate_join(&self, _relation: &SpatialRelation) -> crate::Result<()> {
-        Err(crate::TantivyError::InvalidArgument(
-            "Stored-value joins are not supported by this spatial index".into(),
-        ))
-    }
-
     /// Prepare a covered-by query from a geometry in lon/lat.
     fn prepare_within(&self, geometry: &Geometry<Plane>) -> Box<dyn PreparedSpatialQuery>;
 
@@ -121,25 +94,6 @@ pub trait PreparedSpatialQuery: Send + Sync {
         doc_ids_bytes: &[u8],
         max_doc: u32,
     ) -> io::Result<BitSet>;
-
-    /// Search only eligible documents. Built-in surfaces apply this before geometry work.
-    fn search_segment_filtered(
-        &self,
-        cells_bytes: &[u8],
-        edges_bytes: &[u8],
-        doc_ids_bytes: &[u8],
-        max_doc: u32,
-        filter: &BitSet,
-    ) -> io::Result<BitSet> {
-        let mut hits =
-            self.search_segment_bytes(cells_bytes, edges_bytes, doc_ids_bytes, max_doc)?;
-        for doc in 0..max_doc {
-            if !filter.contains(doc) {
-                hits.remove(doc);
-            }
-        }
-        Ok(hits)
-    }
 }
 
 /// Result of a spatial merge.
@@ -364,77 +318,6 @@ impl<S: Surface + Send + Sync + Clone + 'static> SpatialIndex for SurfaceIndex<S
             CovererOptions::default(),
         ))))
     }
-
-    fn value_heads(&self, edges: &[u8], doc_id: u32, heads: &mut Vec<u32>) -> crate::Result<()> {
-        heads.extend(EdgeReader::<S>::open(edges)?.value_heads(doc_id)?);
-        Ok(())
-    }
-
-    fn prepare_join_query(
-        &self,
-        edges: &[u8],
-        head: u32,
-        relation: &SpatialRelation,
-    ) -> crate::Result<Box<dyn PreparedSpatialQuery>> {
-        self.validate_join(relation)?;
-        let (_, set) = EdgeReader::<S>::open(edges)?.read_geometry_set(head);
-        let options = CovererOptions::default();
-        let query = match relation {
-            SpatialRelation::Intersects if S::DIMENSIONS == 2 => PreparedQuery::Plane(
-                PlaneQuery::prepare(&set).unwrap(),
-                Predicate::Intersects,
-                true,
-            ),
-            SpatialRelation::Intersects => PreparedQuery::Intersects(Intersects::new(set, options)),
-            SpatialRelation::Near(radius) => {
-                if S::DIMENSIONS == 2 && *radius > 0.0 {
-                    return Err(crate::TantivyError::InvalidArgument(
-                        "positive planar distance is not implemented".into(),
-                    ));
-                }
-                PreparedQuery::Distance(Distance::any_within(set, *radius, options))
-            }
-            SpatialRelation::Contains | SpatialRelation::Covers | SpatialRelation::CoveredBy => {
-                let query = PlaneQuery::prepare(&set).ok_or_else(|| {
-                    crate::TantivyError::InvalidArgument(
-                        "Coverage joins are not supported on this surface".into(),
-                    )
-                })?;
-                // The probe evaluates (inner, outer), so reverse the outer-first relation.
-                let predicate = match relation {
-                    SpatialRelation::Contains => Predicate::Within,
-                    SpatialRelation::Covers => Predicate::CoveredBy,
-                    SpatialRelation::CoveredBy => Predicate::Covers,
-                    _ => unreachable!(),
-                };
-                PreparedQuery::Plane(query, predicate, true)
-            }
-            SpatialRelation::Between(_, _) => {
-                return Err(crate::TantivyError::InvalidArgument(
-                    "Between joins are not supported".into(),
-                ))
-            }
-        };
-        Ok(Box::new(query))
-    }
-
-    fn validate_join(&self, relation: &SpatialRelation) -> crate::Result<()> {
-        let supported = match relation {
-            SpatialRelation::Intersects => true,
-            SpatialRelation::Near(radius) => S::DIMENSIONS == 3 || !(*radius > 0.0),
-            SpatialRelation::Contains | SpatialRelation::Covers | SpatialRelation::CoveredBy => {
-                S::DIMENSIONS == 2
-            }
-            SpatialRelation::Between(_, _) => false,
-        };
-        if supported {
-            Ok(())
-        } else {
-            Err(crate::TantivyError::InvalidArgument(
-                "Spatial join relation is not supported on this surface".into(),
-            ))
-        }
-    }
 }
 
 enum PreparedQuery<S: Surface> {
@@ -482,17 +365,6 @@ impl<S: Surface + 'static> PreparedSpatialQuery for PreparedQuery<S> {
         max_doc: u32,
     ) -> io::Result<BitSet> {
         self.search(cells, edges, doc_ids, max_doc, None)
-    }
-
-    fn search_segment_filtered(
-        &self,
-        cells: &[u8],
-        edges: &[u8],
-        doc_ids: &[u8],
-        max_doc: u32,
-        filter: &BitSet,
-    ) -> io::Result<BitSet> {
-        self.search(cells, edges, doc_ids, max_doc, Some(filter))
     }
 }
 
