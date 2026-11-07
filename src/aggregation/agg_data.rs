@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use columnar::{Column, ColumnType, StrColumn};
+use columnar::{Column, ColumnType, MonotonicallyMappableToU64, StrColumn};
 use common::BitSet;
 use rustc_hash::FxHashSet;
 use serde::Serialize;
@@ -298,6 +298,31 @@ fn missing_value_for_source(
         None => 0,
     };
     get_missing_val_as_u64_lenient(column_type, column_max_value, missing, field_name)
+}
+
+/// Cardinality hashes the configured `missing` key exactly on string columns. Preserve
+/// the same integer exactly for integer columns too; the generic conversion goes through
+/// `f64` and would round integers above 2^53 before the numeric collector normalized them.
+/// Other column types keep the generic conversion. In particular, an F64 column can only
+/// substitute the rounded F64 value that it can physically store.
+fn cardinality_missing_value_for_source(
+    accessor: &dyn ValueSource,
+    missing: &Key,
+    field_name: &str,
+) -> crate::Result<Option<u64>> {
+    let exact_value = match (accessor.column_type(), missing) {
+        (ColumnType::U64, Key::U64(value)) => Some(*value),
+        (ColumnType::U64, Key::I64(value)) if *value >= 0 => Some(*value as u64),
+        (ColumnType::I64, Key::I64(value)) => Some(value.to_u64()),
+        (ColumnType::I64, Key::U64(value)) if *value <= i64::MAX as u64 => {
+            Some((*value as i64).to_u64())
+        }
+        _ => None,
+    };
+    if exact_value.is_some() {
+        return Ok(exact_value);
+    }
+    missing_value_for_source(accessor, missing, field_name)
 }
 
 /// Extracts the materialized column, rejecting a computed source.
@@ -984,7 +1009,14 @@ fn build_terms_or_cardinality_nodes(
         let missing_value_for_accessor = if use_special_missing_agg {
             None
         } else if let Some(m) = missing.as_ref() {
-            missing_value_for_source(&*accessor, m, field_name)?
+            match &req {
+                TermsOrCardinalityRequest::Terms(_) => {
+                    missing_value_for_source(&*accessor, m, field_name)?
+                }
+                TermsOrCardinalityRequest::Cardinality(_) => {
+                    cardinality_missing_value_for_source(&*accessor, m, field_name)?
+                }
+            }
         } else {
             None
         };

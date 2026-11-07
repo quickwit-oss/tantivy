@@ -10,17 +10,63 @@ use std::fmt::Debug;
 use std::sync::Arc;
 
 use columnar::column_values::CompactSpaceU64Accessor;
-use columnar::ColumnType;
+use columnar::{ColumnType, NumericalValue};
 
 use super::{CardinalityAggReqData, CardinalityCollector};
 use crate::aggregation::agg_data::AggregationsSegmentCtx;
 use crate::aggregation::intermediate_agg_result::{
-    IntermediateAggregationResult, IntermediateAggregationResults, IntermediateMetricResult,
+    IntermediateAggregationResult, IntermediateAggregationResults, IntermediateKey,
+    IntermediateMetricResult,
 };
 use crate::aggregation::segment_agg_result::SegmentAggregationCollector;
 use crate::aggregation::value_source::ValueSource;
 use crate::aggregation::*;
 use crate::TantivyError;
+
+/// Numeric values are normalized before hashing so the same JSON number gets the same
+/// coupon whether a segment inferred it as `i64`, `u64`, or an integral `f64`. This uses
+/// the same normalization rule as numeric term aggregation keys, with a local guard for
+/// the two f64 endpoints where the shared rule's inclusive upper bound rounds to the
+/// next representable f64 and the integer cast saturates.
+fn normalized_cardinality_key(value: NumericalValue) -> IntermediateKey {
+    const F64_2_POW_63: f64 = 9_223_372_036_854_775_808.0;
+    const F64_2_POW_64: f64 = 18_446_744_073_709_551_616.0;
+
+    match value {
+        // `i64::MAX as f64` rounds up to 2^63. The shared normalization rule
+        // accepts that endpoint and its `as i64` cast then saturates at `i64::MAX`.
+        NumericalValue::F64(value) if value == F64_2_POW_63 => IntermediateKey::U64(1u64 << 63),
+        // `u64::MAX as f64` rounds up to 2^64. Keep that exact f64 separate instead
+        // of letting the shared rule saturate it to `u64::MAX`.
+        NumericalValue::F64(value) if value == F64_2_POW_64 => IntermediateKey::F64(value),
+        value => value.normalize().into(),
+    }
+}
+
+fn normalized_numeric_value(value: u64, column_type: ColumnType) -> IntermediateKey {
+    let value = match column_type {
+        ColumnType::U64 => NumericalValue::U64(value),
+        ColumnType::I64 => NumericalValue::I64(i64::from_u64(value)),
+        ColumnType::F64 => NumericalValue::F64(f64::from_u64(value)),
+        _ => unreachable!("unsupported numeric cardinality column type: {column_type:?}"),
+    };
+    normalized_cardinality_key(value)
+}
+
+pub(crate) fn normalized_numeric_key_value(key: &Key) -> Option<IntermediateKey> {
+    let value = match key {
+        Key::U64(value) => NumericalValue::U64(*value),
+        Key::I64(value) => NumericalValue::I64(*value),
+        Key::F64(value) => NumericalValue::F64(*value),
+        Key::Str(_) => return None,
+    };
+    Some(normalized_cardinality_key(value))
+}
+
+/// Numeric JSON columns can have different physical types per segment. Use one salt for
+/// all of them; the normalized key keeps booleans, dates and IP addresses in their own
+/// hash domains.
+pub(crate) const NUMERIC_CARDINALITY_SALT: u8 = ColumnType::F64 as u8;
 
 /// Segment collector for `cardinality` over any non-str column
 /// (numeric, bool, date, IpAddr).
@@ -152,6 +198,13 @@ impl SegmentAggregationCollector for SegmentNumericCardinalityCollector {
                 let val: u128 = compact_space_accessor.compact_to_u128(val as u32);
                 cardinality.insert(val);
             }
+        } else if matches!(
+            self.column_type,
+            ColumnType::U64 | ColumnType::I64 | ColumnType::F64
+        ) {
+            for val in col_block_accessor.iter_vals() {
+                cardinality.insert(normalized_numeric_value(val, self.column_type));
+            }
         } else {
             for val in col_block_accessor.iter_vals() {
                 cardinality.insert(val);
@@ -166,9 +219,16 @@ impl SegmentAggregationCollector for SegmentNumericCardinalityCollector {
         _agg_data: &AggregationsSegmentCtx,
     ) -> crate::Result<()> {
         if max_bucket as usize >= self.buckets.len() {
-            let column_type = self.column_type;
+            let salt = if matches!(
+                self.column_type,
+                ColumnType::U64 | ColumnType::I64 | ColumnType::F64
+            ) {
+                NUMERIC_CARDINALITY_SALT
+            } else {
+                self.column_type as u8
+            };
             self.buckets.resize_with(max_bucket as usize + 1, || {
-                Some(CardinalityCollector::new(column_type as u8))
+                Some(CardinalityCollector::new(salt))
             });
         }
         Ok(())
