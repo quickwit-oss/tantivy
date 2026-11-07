@@ -1,16 +1,15 @@
 use std::panic::{catch_unwind, AssertUnwindSafe};
-use std::path::Path;
 
-use common::{BitSet, CountingWriter, TerminatingWrite};
+use common::{BitSet, CountingWriter};
 
 use super::*;
-use crate::directory::{Directory, RamDirectory};
 use crate::spatial::cell_index_reader::CellIndexReader;
 use crate::spatial::clipper::Clipper;
 use crate::spatial::edge_reader::EdgeReader;
 use crate::spatial::edge_writer::{EdgeWriter, EDGE_FOOTER_BYTES};
+use crate::spatial::geometry::to_geometry_set;
 use crate::spatial::geometry::Geometry;
-use crate::spatial::geometry_set::{to_geometry_set, GeometrySet};
+use crate::spatial::geometry_set::GeometrySet;
 use crate::spatial::plane::Plane;
 use crate::spatial::plane_support_tests::{assert_partition, interval_intersects, nominal_bound};
 use crate::spatial::shape_index::ShapeIndex;
@@ -129,20 +128,17 @@ impl<S: Surface> Fixture<S> {
     fn new(sets: Vec<GeometrySet<S>>, index: ShapeIndex) -> Self {
         let mut cells = CountingWriter::wrap(Vec::new());
         index.write(&mut cells);
-        let directory = RamDirectory::create();
-        let path = Path::new("edges");
-        let mut write = CountingWriter::wrap(directory.open_write(path).unwrap());
+        let mut write = CountingWriter::wrap(Vec::new());
         let mut writer = EdgeWriter::new(&mut write);
         for set in &sets {
             writer.insert(set);
         }
         writer.finish();
-        write.terminate().unwrap();
         Self {
             sets,
             index,
             cells: cells.finish(),
-            edges: directory.atomic_read(path).unwrap(),
+            edges: write.finish(),
         }
     }
 

@@ -1,14 +1,15 @@
 use super::*;
-use crate::merge_policy::NoMergePolicy;
-use crate::schema::{Schema, SPHERE};
 use crate::spatial::crossings::S2EdgeCrosser;
 use crate::spatial::edge_reader::EdgeReader;
+use crate::spatial::field_writer::SurfaceFieldWriter;
+use crate::spatial::geometry::to_geometry_set;
 use crate::spatial::geometry::Geometry;
-use crate::spatial::geometry_set::{to_geometry_set, EdgeSet};
+use crate::spatial::geometry_set::EdgeSet;
 use crate::spatial::intersects::Intersects;
+use crate::spatial::merge_field::{merge_field, MergeSource};
 use crate::spatial::plane::Plane;
 use crate::spatial::sphere::Sphere;
-use crate::{Index, IndexWriter, TantivyDocument};
+use common::CountingWriter;
 
 const EARTH_RADIUS: f64 = 6_371_000.0;
 
@@ -25,37 +26,62 @@ impl Fixture {
     }
 
     fn build(geometries: &[Geometry<Plane>], merge: bool) -> Self {
-        let mut builder = Schema::builder();
-        let field = builder.add_spatial_field("geometry", SPHERE);
-        let schema = builder.build();
-        let index = Index::create_in_ram(schema.clone());
-        let mut writer: IndexWriter = index.writer_with_num_threads(1, 50_000_000).unwrap();
-        writer.set_merge_policy(Box::new(NoMergePolicy));
-        for (i, geometry) in geometries.iter().enumerate() {
-            if merge && i == geometries.len() / 2 {
-                writer.commit().unwrap();
-            }
-            let json = serde_json::json!({ "geometry": geometry.to_geojson() }).to_string();
-            writer
-                .add_document(TantivyDocument::parse_json(&schema, &json).unwrap())
-                .unwrap();
-        }
-        writer.commit().unwrap();
         if merge {
-            let segments = index.searchable_segment_ids().unwrap();
-            assert_eq!(segments.len(), 2);
-            writer.merge(&segments).wait().unwrap();
+            let middle = geometries.len() / 2;
+            let inputs = [
+                Self::new(&geometries[..middle]),
+                Self::new(&geometries[middle..]),
+            ];
+            let sources: Vec<_> = inputs
+                .iter()
+                .enumerate()
+                .map(|(index, input)| MergeSource {
+                    cells_bytes: &input.cells,
+                    edges_bytes: &input.edges,
+                    segment_name: index.to_string(),
+                })
+                .collect();
+            let mapping = [
+                (0..middle as u32).map(Some).collect::<Vec<_>>(),
+                (middle as u32..geometries.len() as u32)
+                    .map(Some)
+                    .collect::<Vec<_>>(),
+            ];
+            let mut cells = CountingWriter::wrap(Vec::new());
+            let mut edges = CountingWriter::wrap(Vec::new());
+            let mut docs = CountingWriter::wrap(Vec::new());
+            merge_field::<Sphere, _, _, _>(
+                &sources,
+                &[None, None],
+                &mut cells,
+                &mut edges,
+                &mut docs,
+                &mapping,
+            )
+            .unwrap();
+            return Self {
+                cells: cells.finish(),
+                edges: edges.finish(),
+                doc_ids: docs.finish(),
+                max_doc: geometries.len() as u32,
+            };
         }
-        let reader = index.reader().unwrap();
-        let searcher = reader.searcher();
-        assert_eq!(searcher.segment_readers().len(), 1);
-        let segment = &searcher.segment_readers()[0];
-        let spatial = segment.spatial_fields().get_field(field).unwrap().unwrap();
+        let mut writer = SurfaceFieldWriter::<Sphere>::new();
+        for (doc, geometry) in geometries.iter().enumerate() {
+            writer.add_set(to_geometry_set(&geometry.project::<Sphere>(), doc as u32));
+        }
+        let mut cells = CountingWriter::wrap(Vec::new());
+        let mut edges = CountingWriter::wrap(Vec::new());
+        let mut docs = CountingWriter::wrap(Vec::new());
+        writer
+            .serialize(&mut cells, &mut edges, &mut docs, None)
+            .unwrap();
         Self {
-            cells: spatial.cells_bytes().to_vec(),
-            edges: spatial.edges_bytes().to_vec(),
-            doc_ids: spatial.doc_ids_bytes().to_vec(),
-            max_doc: segment.max_doc(),
+            cells: cells.finish(),
+            edges: edges.finish(),
+            // Keep the optional-sidecar reader path in fresh fixtures.
+            doc_ids: Vec::new(),
+            max_doc: geometries.len() as u32,
         }
     }
 

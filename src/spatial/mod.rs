@@ -20,5 +20,13 @@ pub use spatial_index_manager::SurfaceIndex;
 mod lifecycle_tests;
 
 #[cfg(test)]
-#[path = "tests/executor_tests.rs"]
-mod executor_tests;
+#[path = "tests/covering_query_tests.rs"]
+mod covering_query_tests;
+
+#[cfg(test)]
+#[path = "tests/footer_tests.rs"]
+mod footer_tests;
+
+#[cfg(test)]
+#[path = "../../spatial/tests/partition.rs"]
+mod partition;

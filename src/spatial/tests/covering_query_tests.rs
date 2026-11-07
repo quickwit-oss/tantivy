@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use common::BitSet;
 
 use crate::indexer::NoMergePolicy;
@@ -8,8 +10,8 @@ use crate::spatial::clipper::Clipper;
 use crate::spatial::contains::Contains;
 use crate::spatial::edge_reader::EdgeReader;
 use crate::spatial::edge_resolver::EdgeResolver;
+use crate::spatial::geometry::to_geometry_set;
 use crate::spatial::geometry::Geometry;
-use crate::spatial::geometry_set::to_geometry_set;
 use crate::spatial::intersects::Intersects;
 use crate::spatial::plane::Plane;
 use crate::spatial::region_coverer::CovererOptions;
@@ -17,6 +19,8 @@ use crate::spatial::s2cell_id::S2CellId;
 use crate::spatial::sphere::Sphere;
 use crate::spatial::surface::Surface;
 use crate::spatial::within::Within;
+use crate::spatial::SurfaceIndex;
+use crate::spatial::{Cons, NativeSpatial, Nil, S2Plugin};
 use crate::{Index, IndexWriter, TantivyDocument};
 
 fn polygon<S: Surface>(uv: &[[f64; 2]]) -> Geometry<Plane> {
@@ -92,7 +96,11 @@ impl Fixture {
         let mut schema = Schema::builder();
         let field =
             schema.add_spatial_field("geometry", if S::DIMENSIONS == 2 { PLANE } else { SPHERE });
-        let index = Index::create_in_ram(schema.build());
+        let index = Index::builder()
+            .schema(schema.build())
+            .register_plugin(Arc::new(S2Plugin::<SpatialIndexes, NativeSpatial>::new()))
+            .create_in_ram()
+            .unwrap();
         let mut writer: IndexWriter = index.writer_with_num_threads(1, 50_000_000).unwrap();
         writer.set_merge_policy(Box::new(NoMergePolicy));
         for ring in rings {
@@ -327,3 +335,5 @@ fn test_plane_contains_with_coarse_index_cell() {
 fn test_sphere_contains_with_coarse_index_cell() {
     check_coarse_contains::<Sphere>();
 }
+
+type SpatialIndexes = Cons<SurfaceIndex<Sphere>, Cons<SurfaceIndex<Plane>, Nil>>;

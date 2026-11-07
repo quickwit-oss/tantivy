@@ -1,8 +1,14 @@
+use std::sync::Arc;
+
 use super::*;
 use crate::collector::Count;
 use crate::merge_policy::NoMergePolicy;
 use crate::query::TermQuery;
 use crate::schema::{IndexRecordOption, Schema, SPHERE, STRING};
+use crate::spatial::plugin::{SpatialFieldWriter, SpatialIndexFactory};
+use crate::spatial::spatial_index_manager::{SpatialIndex, SurfaceIndex};
+use crate::spatial::sphere::Sphere;
+use crate::spatial::{Cons, NativeSpatial, Nil, S2Plugin};
 use crate::{Index, IndexWriter, TantivyDocument, Term};
 
 #[test]
@@ -14,7 +20,10 @@ fn test_multi_value_join_survives_deletion_and_merge() -> crate::Result<()> {
     builder.add_spatial_field("geometry", PLANE);
     let kind = builder.add_text_field("kind", STRING);
     let schema = builder.build();
-    let index = Index::create_in_ram(schema.clone());
+    let index = Index::builder()
+        .schema(schema.clone())
+        .register_plugin(Arc::new(S2Plugin::<SpatialIndexes, NativeSpatial>::new()))
+        .create_in_ram()?;
     let mut writer: IndexWriter = index.writer_with_num_threads(1, 50_000_000)?;
     writer.set_merge_policy(Box::new(NoMergePolicy));
     let batches: &[&[&str]] = &[
@@ -73,7 +82,10 @@ fn test_deleted_inner_geometry_does_not_match_join() -> crate::Result<()> {
     let field = builder.add_spatial_field("geometry", SPHERE);
     let kind = builder.add_text_field("kind", STRING);
     let schema = builder.build();
-    let index = Index::create_in_ram(schema.clone());
+    let index = Index::builder()
+        .schema(schema.clone())
+        .register_plugin(Arc::new(S2Plugin::<SpatialIndexes, NativeSpatial>::new()))
+        .create_in_ram()?;
     let mut writer: IndexWriter = index.writer_with_num_threads(1, 50_000_000)?;
     writer.set_merge_policy(Box::new(NoMergePolicy));
     for json in [
@@ -112,7 +124,10 @@ fn test_sphere_join_ignores_empty_query_members() -> crate::Result<()> {
     let field = builder.add_spatial_field("geometry", SPHERE);
     let kind = builder.add_text_field("kind", STRING);
     let schema = builder.build();
-    let index = Index::create_in_ram(schema.clone());
+    let index = Index::builder()
+        .schema(schema.clone())
+        .register_plugin(Arc::new(S2Plugin::<SpatialIndexes, NativeSpatial>::new()))
+        .create_in_ram()?;
     let mut writer: IndexWriter = index.writer_with_num_threads(1, 50_000_000)?;
     writer.set_merge_policy(Box::new(NoMergePolicy));
     for json in [
@@ -149,7 +164,10 @@ fn test_plane_predicates_and_joins_follow_registered_surface() -> crate::Result<
     let field = builder.add_spatial_field("geometry", PLANE.set_spatial_index("cartesian"));
     let kind = builder.add_text_field("kind", STRING);
     let schema = builder.build();
-    let index = Index::create_in_ram(schema.clone());
+    let index = Index::builder()
+        .schema(schema.clone())
+        .register_plugin(Arc::new(S2Plugin::<SpatialIndexes, NativeSpatial>::new()))
+        .create_in_ram()?;
     index
         .spatial_indices()
         .register("cartesian", Box::new(SurfaceIndex::<Plane>::new()));
@@ -270,7 +288,10 @@ fn test_sphere_covers_is_unsupported_before_search() -> crate::Result<()> {
 
     let mut builder = Schema::builder();
     builder.add_spatial_field("geometry", SPHERE);
-    let index = Index::create_in_ram(builder.build());
+    let index = Index::builder()
+        .schema(builder.build())
+        .register_plugin(Arc::new(S2Plugin::<SpatialIndexes, NativeSpatial>::new()))
+        .create_in_ram()?;
     let parser = QueryParser::for_index(&index, Vec::new());
     let query = parser.parse_query("geometry:$covers(0 0, 1 0, 1 1, 0 1)")?;
     assert!(matches!(
@@ -279,4 +300,20 @@ fn test_sphere_covers_is_unsupported_before_search() -> crate::Result<()> {
             if message == "Covers is not supported on this surface"
     ));
     Ok(())
+}
+
+type SpatialIndexes = Cons<SurfaceIndex<Sphere>, Cons<SurfaceIndex<Plane>, Cons<Cartesian, Nil>>>;
+
+struct Cartesian;
+
+impl SpatialIndexFactory<NativeSpatial> for Cartesian {
+    const NAME: &'static str = "cartesian";
+
+    fn create_index() -> Box<dyn SpatialIndex> {
+        Box::new(SurfaceIndex::<Plane>::new())
+    }
+
+    fn create_field_writer() -> Box<dyn SpatialFieldWriter> {
+        <SurfaceIndex<Plane> as SpatialIndexFactory<NativeSpatial>>::create_field_writer()
+    }
 }

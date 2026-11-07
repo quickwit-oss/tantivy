@@ -69,3 +69,11 @@ pub use field_writer::SurfaceFieldWriter;
 #[cfg(test)]
 #[path = "tests/plane_support_tests.rs"]
 mod plane_support_tests;
+
+#[cfg(test)]
+#[path = "tests/geometry.rs"]
+mod geometry;
+
+#[cfg(test)]
+#[path = "tests/partition.rs"]
+mod partition;

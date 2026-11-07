@@ -1,14 +1,12 @@
-use std::path::Path;
-
-use common::{CountingWriter, TerminatingWrite};
+use common::CountingWriter;
 
 use super::*;
-use crate::directory::{Directory, RamDirectory};
 use crate::spatial::covering::split_edges;
 use crate::spatial::edge_reader::EdgeReader;
 use crate::spatial::edge_writer::EdgeWriter;
+use crate::spatial::geometry::to_geometry_set;
 use crate::spatial::geometry::Geometry;
-use crate::spatial::geometry_set::{to_geometry_set, EdgeSet};
+use crate::spatial::geometry_set::EdgeSet;
 use crate::spatial::plane::Plane;
 use crate::spatial::sphere::Sphere;
 
@@ -35,19 +33,16 @@ impl<S: Surface> Fixture<S> {
         let mut docs = CountingWriter::wrap(Vec::new());
         index.write_with_doc_ids(&mut cells, Some(&mut docs), Some(&doc_ids));
 
-        let directory = RamDirectory::create();
-        let path = Path::new("edges");
-        let mut write = CountingWriter::wrap(directory.open_write(path).unwrap());
+        let mut write = CountingWriter::wrap(Vec::new());
         let mut edges = EdgeWriter::new(&mut write);
         for set in &sets {
             edges.insert(set);
         }
         edges.finish();
-        write.terminate().unwrap();
         Self {
             sets,
             cells: cells.finish(),
-            edges: directory.atomic_read(path).unwrap(),
+            edges: write.finish(),
             doc_ids: docs.finish(),
         }
     }

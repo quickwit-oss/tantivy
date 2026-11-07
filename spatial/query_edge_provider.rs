@@ -39,8 +39,8 @@ impl<S: Surface> EdgeProvider for QueryEdgeProvider<S> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::spatial::geometry::to_geometry_set;
     use crate::spatial::geometry::Geometry;
-    use crate::spatial::geometry_set::to_geometry_set;
     use crate::spatial::sphere::Sphere;
 
     #[test]

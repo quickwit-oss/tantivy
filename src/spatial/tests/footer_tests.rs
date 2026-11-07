@@ -1,6 +1,7 @@
 use std::collections::BTreeSet;
 use std::io::{self, Write};
 use std::path::Path;
+use std::sync::Arc;
 
 use common::{BitSet, CountingWriter, OwnedBytes, ReadOnlyBitSet, TerminatingWrite};
 
@@ -12,19 +13,24 @@ use crate::query::{AllQuery, EnableScoring, Query, SpatialQuery};
 use crate::schema::{Field, Schema, SPHERE, STORED};
 use crate::spatial::cell_index_reader::CellIndexReader;
 use crate::spatial::edge_reader::EdgeReader;
-use crate::spatial::edge_writer::EDGE_FOOTER_BYTES;
 use crate::spatial::executor::{PlanNode, SpatialExecutor, SpatialRelation};
 use crate::spatial::field_writer::SurfaceFieldWriter;
 use crate::spatial::geometry::Geometry;
+use crate::spatial::partition::assert_partition;
 use crate::spatial::plane::Plane;
-use crate::spatial::plane_support_tests::assert_partition;
 use crate::spatial::reader::SpatialReader;
-use crate::spatial::shape_index::{write_cell_footer, ShapeIndex, CELL_FOOTER_LEN, CELL_REVISION};
+use crate::spatial::shape_index::{write_cell_footer, ShapeIndex};
 use crate::spatial::spatial_index_manager::{MergeSource, SpatialIndex, SurfaceIndex};
 use crate::spatial::sphere::Sphere;
 use crate::spatial::stats::{sphere_stats_for_reader, sphere_stats_for_slices};
 use crate::spatial::surface::Surface;
+use crate::spatial::{Cons, NativeSpatial, Nil, S2Plugin};
 use crate::{Index, TantivyDocument, TERMINATED};
+
+// Persisted format sizes used by the corruption fixtures.
+const EDGE_FOOTER_BYTES: usize = 48;
+const CELL_FOOTER_LEN: usize = 20;
+const CELL_REVISION: u32 = 1;
 
 fn empty_cells() -> Vec<u8> {
     let mut out = CountingWriter::wrap(Vec::new());
@@ -92,6 +98,20 @@ fn old_fixed_directory_point_edges() -> Vec<u8> {
     bytes.extend_from_slice(b"TEDG");
     bytes.extend_from_slice(&1u32.to_le_bytes());
     bytes
+}
+
+#[test]
+fn test_footer_constants_match_writers() {
+    let mut cells = Vec::new();
+    write_cell_footer(&mut cells, 0, 0).unwrap();
+    assert_eq!(cells.len(), CELL_FOOTER_LEN);
+    assert_eq!(&cells[cells.len() - 4..], &CELL_REVISION.to_le_bytes());
+    let mut edges = CountingWriter::wrap(Vec::new());
+    crate::spatial::edge_writer::EdgeWriter::<Plane, _>::new(&mut edges).finish();
+    let edges = edges.finish();
+    assert_eq!(edges.len(), 4 + EDGE_FOOTER_BYTES);
+    assert_eq!(&edges[..4], &[0; 4]);
+    assert_eq!(&edges[edges.len() - 8..edges.len() - 4], b"TEDG");
 }
 
 #[test]
@@ -262,7 +282,7 @@ fn serialize_values<S: Surface + Clone + Send + Sync + 'static>(
     let mut doc_ids = CountingWriter::wrap(directory.open_write(Path::new("docids")).unwrap());
     let mut writer = SurfaceFieldWriter::<S>::new();
     for &(doc, geometry) in values {
-        writer.add_set(crate::spatial::geometry_set::to_geometry_set(
+        writer.add_set(crate::spatial::geometry::to_geometry_set(
             &geometry.project::<S>(),
             doc,
         ));
@@ -519,7 +539,11 @@ fn index_with_payload(cells: &[u8], documents: u32) -> crate::Result<(Index, Fie
     let mut schema = Schema::builder();
     let field = schema.add_spatial_field("geometry", SPHERE);
     let id = schema.add_u64_field("id", STORED);
-    let index = Index::create_in_ram(schema.build());
+    let index = Index::builder()
+        .schema(schema.build())
+        .register_plugin(Arc::new(S2Plugin::<SpatialIndexes, NativeSpatial>::new()))
+        .create_in_ram()
+        .unwrap();
     let mut writer: SingleSegmentIndexWriter<TantivyDocument> =
         SingleSegmentIndexWriter::new(index, 50_000_000)?;
     for i in 0..documents {
@@ -618,3 +642,5 @@ fn test_executor_rejects_old_cells() -> crate::Result<()> {
     );
     Ok(())
 }
+
+type SpatialIndexes = Cons<SurfaceIndex<Sphere>, Nil>;

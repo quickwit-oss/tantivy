@@ -1,16 +1,13 @@
-use std::path::Path;
-
-use common::{CountingWriter, ReadOnlyBitSet, TerminatingWrite};
+use common::{CountingWriter, ReadOnlyBitSet};
 
 use super::*;
-use crate::directory::{Directory, RamDirectory};
 use crate::spatial::edge_reader::EdgeReader;
 use crate::spatial::edge_writer::EdgeWriter;
+use crate::spatial::geometry::to_geometry_set;
 use crate::spatial::geometry::Geometry;
-use crate::spatial::geometry_set::to_geometry_set;
+use crate::spatial::merge_field::{merge_field, MergeSource};
 use crate::spatial::plane::Plane;
 use crate::spatial::shape_index::ShapeCell;
-use crate::spatial::spatial_index_manager::{MergeSource, SpatialIndex, SurfaceIndex};
 
 struct Fixture {
     cells: Vec<u8>,
@@ -32,18 +29,15 @@ impl Fixture {
         .build(&sets);
         let mut cells = CountingWriter::wrap(Vec::new());
         index.write(&mut cells);
-        let directory = RamDirectory::create();
-        let path = Path::new("edges");
-        let mut write = CountingWriter::wrap(directory.open_write(path).unwrap());
+        let mut write = CountingWriter::wrap(Vec::new());
         let mut writer = EdgeWriter::new(&mut write);
         for set in &sets {
             writer.insert(set);
         }
         writer.finish();
-        write.terminate().unwrap();
         Self {
             cells: cells.finish(),
-            edges: directory.atomic_read(path).unwrap(),
+            edges: write.finish(),
             max_doc: values.iter().map(|v| v.0 + 1).max().unwrap_or(0),
         }
     }
@@ -58,10 +52,9 @@ impl Fixture {
     }
 
     fn merge(inputs: &[&Self], mapping: &[Vec<Option<u32>>]) -> Self {
-        let directory = RamDirectory::create();
-        let mut cells = CountingWriter::wrap(directory.open_write(Path::new("cells")).unwrap());
-        let mut edges = CountingWriter::wrap(directory.open_write(Path::new("edges")).unwrap());
-        let mut docs = CountingWriter::wrap(directory.open_write(Path::new("docs")).unwrap());
+        let mut cells = CountingWriter::wrap(Vec::new());
+        let mut edges = CountingWriter::wrap(Vec::new());
+        let mut docs = CountingWriter::wrap(Vec::new());
         let sources: Vec<_> = inputs
             .iter()
             .enumerate()
@@ -83,15 +76,11 @@ impl Fixture {
                 Some(ReadOnlyBitSet::from(&live))
             })
             .collect();
-        SurfaceIndex::<Plane>::new()
-            .merge_field(&sources, &alive, &mut cells, &mut edges, &mut docs, mapping)
+        merge_field::<Plane, _, _, _>(&sources, &alive, &mut cells, &mut edges, &mut docs, mapping)
             .unwrap();
-        cells.terminate().unwrap();
-        edges.terminate().unwrap();
-        docs.terminate().unwrap();
         Self {
-            cells: directory.atomic_read(Path::new("cells")).unwrap(),
-            edges: directory.atomic_read(Path::new("edges")).unwrap(),
+            cells: cells.finish(),
+            edges: edges.finish(),
             max_doc: mapping
                 .iter()
                 .flatten()

@@ -209,7 +209,3 @@ pub(crate) fn covering_contains_center<S: Surface>(
 #[cfg(test)]
 #[path = "tests/covering_tests.rs"]
 mod tests;
-
-#[cfg(test)]
-#[path = "tests/covering_query_tests.rs"]
-mod query_tests;
