@@ -44,6 +44,11 @@ impl LoadedPostings {
             cursor: 0,
         }
     }
+
+    /// All the doc ids of the postings, in increasing order, regardless of the cursor.
+    pub(crate) fn doc_ids(&self) -> &[DocId] {
+        &self.doc_ids
+    }
 }
 
 #[cfg(test)]
@@ -120,6 +125,14 @@ pub(crate) mod tests {
         assert_eq!(postings.seek(300u32), 300u32);
         assert_eq!(postings.doc(), 300u32);
         assert_eq!(postings.seek(6000u32), TERMINATED);
+    }
+
+    #[test]
+    pub fn test_doc_ids_ignore_the_cursor() {
+        let doc_ids: Vec<DocId> = vec![2, 5, 9];
+        let mut postings = LoadedPostings::from((doc_ids.clone(), vec![]));
+        postings.advance();
+        assert_eq!(postings.doc_ids(), &doc_ids[..]);
     }
 
     #[test]
