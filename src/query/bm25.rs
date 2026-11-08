@@ -180,6 +180,38 @@ impl Bm25Weight {
         self.weight * self.tf_factor(fieldnorm_id, term_freq)
     }
 
+    /// Whether this term frequency could produce a score above `threshold`.
+    ///
+    /// Most documents can be rejected without the division in `score`. The
+    /// comparison is made in f64 and inflates the weight to cover rounding in
+    /// the f32 denominator, division, and final multiplication. Borderline
+    /// cases use the exact scoring expression, including its tie behavior.
+    #[inline]
+    pub(crate) fn can_score_exceed(
+        &self,
+        fieldnorm_id: u8,
+        term_freq: u32,
+        threshold: Score,
+    ) -> bool {
+        let norm = self.cache[fieldnorm_id as usize];
+        if self.weight.is_finite()
+            && self.weight > 0.0
+            && norm.is_finite()
+            && norm > 0.0
+            && threshold.is_finite()
+            && threshold >= 0.0
+        {
+            // Use the f32-converted frequency: that is the value used by score().
+            let freq = f64::from(term_freq as Score);
+            let threshold = f64::from(threshold);
+            let inflated_weight = f64::from(self.weight) * (1.0 + 8.0 * f64::from(Score::EPSILON));
+            if freq * (inflated_weight - threshold) <= threshold * f64::from(norm) {
+                return false;
+            }
+        }
+        self.score(fieldnorm_id, term_freq) > threshold
+    }
+
     /// Compute the maximum possible BM25 score given this weight.
     pub fn max_score(&self) -> Score {
         self.score(255u8, 2_013_265_944)
@@ -228,13 +260,46 @@ impl Bm25Weight {
 
 #[cfg(test)]
 mod tests {
-
-    use super::idf;
+    use super::{idf, Bm25Weight};
     use crate::{assert_nearly_equals, Score};
 
     #[test]
     fn test_idf() {
         let score: Score = 2.0;
         assert_nearly_equals!(idf(1, 2), score.ln());
+    }
+
+    #[test]
+    fn test_can_score_exceed_matches_exact_scoring() {
+        for avg_fieldnorm in [1.0, 100.0, 10_000.0] {
+            let base = Bm25Weight::for_one_term_without_explain(10_000, 1_000_000, avg_fieldnorm);
+            for boost in [0.0, 1e-20, 1.0, 1e20, -1.0, f32::INFINITY] {
+                let weight = base.boost_by(boost);
+                for fieldnorm_id in 0..=u8::MAX {
+                    for term_freq in [0, 1, 2, 3, 8, 127, 128, 100_000, u32::MAX] {
+                        let score = weight.score(fieldnorm_id, term_freq);
+                        let thresholds = [
+                            -1.0,
+                            0.0,
+                            f32::MIN_POSITIVE,
+                            f32::from_bits(score.to_bits().saturating_sub(1)),
+                            score,
+                            f32::from_bits(score.to_bits().saturating_add(1)),
+                            f32::MAX,
+                            f32::INFINITY,
+                            f32::NAN,
+                        ];
+                        for threshold in thresholds {
+                            assert_eq!(
+                                weight.can_score_exceed(fieldnorm_id, term_freq, threshold),
+                                score > threshold,
+                                "boost={boost:?} norm={fieldnorm_id} freq={term_freq} \
+                                 threshold={threshold:?} score={score:?}"
+                            );
+                        }
+                    }
+                }
+            }
+        }
     }
 }
