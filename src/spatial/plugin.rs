@@ -168,8 +168,7 @@ fn resolve_match<T>(name: &str, mut matches: Vec<T>) -> crate::Result<T> {
 }
 
 impl<Input> SpatialIndexCatalog<Input> for Nil
-where
-    Input: SpatialInput,
+where Input: SpatialInput
 {
     fn collect_indexes(_name: &str, _matches: &mut Vec<Box<dyn SpatialIndex>>) {}
 

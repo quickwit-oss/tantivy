@@ -10,8 +10,7 @@ use crate::spatial::clipper::Clipper;
 use crate::spatial::contains::Contains;
 use crate::spatial::edge_reader::EdgeReader;
 use crate::spatial::edge_resolver::EdgeResolver;
-use crate::spatial::geometry::to_geometry_set;
-use crate::spatial::geometry::Geometry;
+use crate::spatial::geometry::{to_geometry_set, Geometry};
 use crate::spatial::intersects::Intersects;
 use crate::spatial::plane::Plane;
 use crate::spatial::region_coverer::CovererOptions;
@@ -19,8 +18,7 @@ use crate::spatial::s2cell_id::S2CellId;
 use crate::spatial::sphere::Sphere;
 use crate::spatial::surface::Surface;
 use crate::spatial::within::Within;
-use crate::spatial::SurfaceIndex;
-use crate::spatial::{Cons, NativeSpatial, Nil, S2Plugin};
+use crate::spatial::{Cons, NativeSpatial, Nil, S2Plugin, SurfaceIndex};
 use crate::{Index, IndexWriter, TantivyDocument};
 
 fn polygon<S: Surface>(uv: &[[f64; 2]]) -> Geometry<Plane> {

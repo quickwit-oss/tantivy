@@ -1,13 +1,15 @@
+use std::collections::BTreeMap;
+
+use num_bigint::BigInt;
+use num_rational::BigRational;
+use num_traits::{One, Zero};
+
 use crate::spatial::clipped_shape::GeometryId;
 use crate::spatial::geometry_set::EdgeSet;
 use crate::spatial::plane::Plane;
 use crate::spatial::r2rect::R2Rect;
 use crate::spatial::s2cell_id::S2CellId;
 use crate::spatial::shape_index::ShapeCell;
-use num_bigint::BigInt;
-use num_rational::BigRational;
-use num_traits::{One, Zero};
-use std::collections::BTreeMap;
 
 pub(crate) fn rational(value: f64) -> BigRational {
     BigRational::from_float(value).unwrap()

@@ -1,15 +1,15 @@
+use common::CountingWriter;
+
 use super::*;
 use crate::spatial::crossings::S2EdgeCrosser;
 use crate::spatial::edge_reader::EdgeReader;
 use crate::spatial::field_writer::SurfaceFieldWriter;
-use crate::spatial::geometry::to_geometry_set;
-use crate::spatial::geometry::Geometry;
+use crate::spatial::geometry::{to_geometry_set, Geometry};
 use crate::spatial::geometry_set::EdgeSet;
 use crate::spatial::intersects::Intersects;
 use crate::spatial::merge_field::{merge_field, MergeSource};
 use crate::spatial::plane::Plane;
 use crate::spatial::sphere::Sphere;
-use common::CountingWriter;
 
 const EARTH_RADIUS: f64 = 6_371_000.0;
 

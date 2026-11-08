@@ -2,6 +2,7 @@ use common::CountingWriter;
 use num_rational::BigRational;
 use num_traits::Zero;
 
+pub(crate) use super::partition::*;
 use crate::spatial::cell_index_reader::CellIndexReader;
 use crate::spatial::clip_options::ClipOptions;
 use crate::spatial::clipped_shape::ClippedShape;
@@ -10,8 +11,7 @@ use crate::spatial::covering::{
     covering_contains_center, covering_split, split_edges, CoveringCell,
 };
 use crate::spatial::edge_crosser::EdgeCrosser;
-use crate::spatial::geometry::to_geometry_set;
-use crate::spatial::geometry::Geometry;
+use crate::spatial::geometry::{to_geometry_set, Geometry};
 use crate::spatial::plane::crosser::PlaneEdgeCrosser;
 use crate::spatial::plane::math::point_in_polygon;
 use crate::spatial::plane::Plane;
@@ -21,8 +21,6 @@ use crate::spatial::s2cell_id::S2CellId;
 use crate::spatial::s2padded_cell::S2PaddedCell;
 use crate::spatial::shape_index_region::any_edge_intersects;
 use crate::spatial::surface::Surface;
-
-pub(crate) use super::partition::*;
 
 #[test]
 fn test_plane_build_closed_support() {

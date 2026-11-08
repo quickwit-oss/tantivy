@@ -268,8 +268,7 @@ pub(super) fn evaluate(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::spatial::geometry::to_geometry_set;
-    use crate::spatial::geometry::Geometry;
+    use crate::spatial::geometry::{to_geometry_set, Geometry};
     use crate::spatial::plane::Plane;
 
     fn rectangle(x0: f64, y0: f64, x1: f64, y1: f64) -> Vec<[f64; 2]> {
