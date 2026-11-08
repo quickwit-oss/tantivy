@@ -9,7 +9,6 @@
 
 use std::collections::HashMap;
 use std::io;
-use std::io::Write;
 use std::sync::{Arc, RwLock};
 
 use common::{BitSet, CountingWriter, ReadOnlyBitSet};
@@ -20,28 +19,16 @@ use crate::spatial::contains::Contains;
 use crate::spatial::distance::Distance;
 use crate::spatial::edge_reader::EdgeReader;
 use crate::spatial::edge_resolver::EdgeResolver;
-use crate::spatial::edge_writer::EdgeWriter;
 use crate::spatial::geometry::{to_geometry_set, Geometry};
-use crate::spatial::interleaver::Interleaver;
 use crate::spatial::intersects::Intersects;
+use crate::spatial::merge_field::{merge_field, MergeSource};
 use crate::spatial::plane::query::PlaneQuery;
 use crate::spatial::plane::{Plane, Predicate};
 use crate::spatial::region_coverer::CovererOptions;
-use crate::spatial::shape_index::write_cell_footer;
 use crate::spatial::sphere::Sphere;
 use crate::spatial::surface::Surface;
 use crate::spatial::within::Within;
 use crate::DocId;
-
-/// Source segment data for a spatial merge.
-pub struct MergeSource<'a> {
-    /// Raw cell index bytes from the mmap'd segment.
-    pub cells_bytes: &'a [u8],
-    /// Raw edge index bytes from the mmap'd segment.
-    pub edges_bytes: &'a [u8],
-    /// Segment name for diagnostics.
-    pub segment_name: String,
-}
 
 /// Factory for per-field spatial writers, mergers, and queries. Registered in
 /// `SpatialIndexManager` by name.
@@ -55,7 +42,7 @@ pub trait SpatialIndex: Send + Sync + SpatialIndexClone {
         edges_write: &mut CountingWriter<WritePtr>,
         doc_ids_write: &mut CountingWriter<WritePtr>,
         doc_id_inverse: &[Vec<Option<DocId>>],
-    ) -> io::Result<MergeResult>;
+    ) -> io::Result<()>;
 
     /// Prepare an intersects query from a geometry in lon/lat.
     fn prepare_intersects(&self, geometry: &Geometry<Plane>) -> Box<dyn PreparedSpatialQuery>;
@@ -94,16 +81,6 @@ pub trait PreparedSpatialQuery: Send + Sync {
         doc_ids_bytes: &[u8],
         max_doc: u32,
     ) -> io::Result<BitSet>;
-}
-
-/// Result of a spatial merge.
-pub struct MergeResult {
-    /// For each source segment, the mapping from old geometry position to new geometry ID.
-    pub old_to_new: Vec<Vec<u32>>,
-    /// Total number of geometries in the merged output.
-    pub geometry_count: u32,
-    /// Number of cells emitted.
-    pub cell_count: u64,
 }
 
 /// Clone support for trait objects.
@@ -148,115 +125,15 @@ impl<S: Surface + Send + Sync + Clone + 'static> SpatialIndex for SurfaceIndex<S
         edges_write: &mut CountingWriter<WritePtr>,
         doc_ids_write: &mut CountingWriter<WritePtr>,
         doc_id_inverse: &[Vec<Option<DocId>>],
-    ) -> io::Result<MergeResult> {
-        let mut cell_readers: Vec<CellIndexReader> = Vec::new();
-        let mut edge_readers: Vec<EdgeReader<'_, S>> = Vec::new();
-        let mut geometry_counts: Vec<u32> = Vec::new();
-        let mut segment_names: Vec<String> = Vec::new();
-
-        for source in sources {
-            let cr = CellIndexReader::open(source.cells_bytes)?;
-            let er = EdgeReader::<S>::open(source.edges_bytes)?;
-            geometry_counts.push(er.geometry_count());
-            cell_readers.push(cr);
-            edge_readers.push(er);
-            segment_names.push(source.segment_name.clone());
-        }
-
-        let edge_resolver = EdgeResolver::new(edge_readers);
-        let iters = cell_readers.iter().map(|cr| cr.iter()).collect();
-        let mut interleave = Interleaver::new(iters, &edge_resolver, alive_bitsets, segment_names);
-
-        const NOT_ASSIGNED: u32 = u32::MAX;
-        let mut old_to_new: Vec<Vec<u32>> = geometry_counts
-            .iter()
-            .map(|&count| vec![NOT_ASSIGNED; count as usize])
-            .collect();
-        let mut next_new_id: u32 = 0;
-
-        let mut edge_writer = EdgeWriter::<S, _>::new(edges_write);
-        let cells_base = cells_write.written_bytes();
-        let doc_ids_base = doc_ids_write.written_bytes();
-        let mut offsets: Vec<(u64, u64, u64)> = Vec::new();
-        let mut cell_count: u64 = 0;
-
-        while let Some(cell) = interleave.next() {
-            cell_count += 1;
-            for shape in &cell.shapes {
-                let segment = shape.geometry_id.0 as usize;
-                let position = shape.geometry_id.1 as usize;
-                if old_to_new[segment][position] != NOT_ASSIGNED {
-                    continue;
-                }
-                let entry = edge_resolver.locate(shape.geometry_id);
-                let set_size = entry.member_count;
-                for i in 0..set_size {
-                    let pos = (entry.head + i) as usize;
-                    if old_to_new[segment][pos] == NOT_ASSIGNED {
-                        old_to_new[segment][pos] = next_new_id;
-                        next_new_id += 1;
-                    }
-                }
-                let old_doc_id = entry.doc_id;
-                let new_doc_id = doc_id_inverse[segment][old_doc_id as usize].unwrap();
-                let (_, mut set) = edge_resolver.read_geometry_set(shape.geometry_id);
-                set.doc_id = new_doc_id as u32;
-                edge_writer.insert(&set);
-            }
-
-            let offset = cells_write.written_bytes() - cells_base;
-            let doc_id_offset = doc_ids_write.written_bytes() - doc_ids_base;
-            cells_write
-                .write_all(&cell.cell_id.0.to_le_bytes())
-                .unwrap();
-            cells_write
-                .write_all(&(cell.shapes.len() as u32).to_le_bytes())
-                .unwrap();
-            for shape in &cell.shapes {
-                let segment = shape.geometry_id.0 as usize;
-                let position = shape.geometry_id.1 as usize;
-                let new_id = old_to_new[segment][position];
-                assert_ne!(new_id, NOT_ASSIGNED);
-                cells_write.write_all(&new_id.to_le_bytes()).unwrap();
-                cells_write
-                    .write_all(&[shape.contains_center as u8])
-                    .unwrap();
-                cells_write
-                    .write_all(&(shape.edge_indices.len() as u32).to_le_bytes())
-                    .unwrap();
-                for &edge_id in &shape.edge_indices {
-                    cells_write.write_all(&edge_id.to_le_bytes()).unwrap();
-                }
-
-                let old_doc_id = edge_resolver.doc_id_for(shape.geometry_id);
-                let new_doc_id = doc_id_inverse[segment][old_doc_id as usize].unwrap();
-                doc_ids_write
-                    .write_all(&(new_doc_id as u32).to_le_bytes())
-                    .unwrap();
-            }
-            offsets.push((cell.cell_id.0, offset, doc_id_offset));
-        }
-
-        assert_eq!(next_new_id, edge_writer.geometry_count(),);
-        edge_writer.finish();
-
-        // Cell index dictionary and footer.
-        let dir_offset = cells_write.written_bytes() - cells_base;
-        for &(cell_id, offset, doc_id_offset) in &offsets {
-            cells_write.write_all(&cell_id.to_le_bytes()).unwrap();
-            cells_write.write_all(&offset.to_le_bytes()).unwrap();
-            cells_write.write_all(&doc_id_offset.to_le_bytes()).unwrap();
-        }
-        write_cell_footer(cells_write, cell_count as u32, dir_offset)?;
-        cells_write.flush()?;
-        edges_write.flush()?;
-        doc_ids_write.flush()?;
-
-        Ok(MergeResult {
-            old_to_new,
-            geometry_count: next_new_id,
-            cell_count,
-        })
+    ) -> io::Result<()> {
+        merge_field::<S, _, _, _>(
+            sources,
+            alive_bitsets,
+            cells_write,
+            edges_write,
+            doc_ids_write,
+            doc_id_inverse,
+        )
     }
 
     fn prepare_intersects(&self, geometry: &Geometry<Plane>) -> Box<dyn PreparedSpatialQuery> {
