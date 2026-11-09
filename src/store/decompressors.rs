@@ -1,5 +1,6 @@
 use std::io;
 
+use common::OwnedBytes;
 use serde::{Deserialize, Serialize};
 
 use super::Compressor;
@@ -51,10 +52,14 @@ impl Decompressor {
         }
     }
 
-    pub(crate) fn decompress(&self, compressed_block: &[u8]) -> io::Result<Vec<u8>> {
-        let mut decompressed_block = vec![];
-        self.decompress_into(compressed_block, &mut decompressed_block)?;
-        Ok(decompressed_block)
+    /// Uncompressed blocks are returned as is, without copying.
+    pub(crate) fn decompress_block(&self, compressed_block: OwnedBytes) -> io::Result<OwnedBytes> {
+        if *self == Self::None {
+            return Ok(compressed_block);
+        }
+        let mut decompressed_block = Vec::new();
+        self.decompress_into(compressed_block.as_slice(), &mut decompressed_block)?;
+        Ok(OwnedBytes::new(decompressed_block))
     }
 
     #[inline]
@@ -91,5 +96,13 @@ mod tests {
             Decompressor::from(Compressor::Zstd(Default::default())),
             Decompressor::Zstd
         );
+    }
+
+    #[test]
+    fn test_decompress_block_none_is_zero_copy() {
+        let block = OwnedBytes::new(b"hello".to_vec());
+        let ptr = block.as_slice().as_ptr();
+        let decompressed = Decompressor::None.decompress_block(block).unwrap();
+        assert_eq!(decompressed.as_slice().as_ptr(), ptr);
     }
 }
