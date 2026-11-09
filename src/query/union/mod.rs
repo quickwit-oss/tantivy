@@ -48,8 +48,10 @@ mod tests {
         ))
     }
     fn simple_union_from_docs_list(docs_list: &[Vec<DocId>]) -> Box<dyn DocSet> {
+        let num_docs = docs_list.iter().flatten().max().map_or(0, |doc| doc + 1);
         Box::new(SimpleUnion::build(
             vec_doc_set_from_docs_list(docs_list).collect::<Vec<VecDocSet>>(),
+            num_docs,
         ))
     }
     fn bitset_from_docs_list(docs_list: &[Vec<DocId>]) -> BitSetDocSet {
