@@ -552,7 +552,7 @@ pub(crate) fn build_segment_term_collector(
             ))
         }
     } else if has_sub_aggregations {
-        let term_buckets = HashMapTermBuckets::<BucketId>::default();
+        let term_buckets = HashMapTermBuckets::<BucketId>::with_capacity_hint(num_terms);
         Ok(boxed_high_card_collector(
             term_buckets,
             sub_agg,
@@ -561,7 +561,7 @@ pub(crate) fn build_segment_term_collector(
             terms_req_data,
         ))
     } else {
-        let term_buckets = HashMapTermBuckets::<()>::default();
+        let term_buckets = HashMapTermBuckets::<()>::with_capacity_hint(num_terms);
         Ok(boxed_high_card_collector(
             term_buckets,
             sub_agg,
@@ -663,6 +663,29 @@ impl<B, K> Default for HashMapTermBuckets<B, K> {
     fn default() -> Self {
         Self {
             bucket_map: FxHashMap::default(),
+            key_heap_memory: 0,
+        }
+    }
+}
+
+/// Upper bound on the pre-sized capacity of a top-level term map.
+///
+/// The hint is the term dictionary's upper bound, which is a raw column value for the hash-map
+/// fallback and can be as large as `u64::MAX`; the aggregation bucket limit bounds the number of
+/// entries actually kept, so there is no point in reserving more than this.
+const MAX_TERM_MAP_PRESIZE: usize = 65_536;
+
+impl<B, K> HashMapTermBuckets<B, K> {
+    /// Create a map pre-sized from `map_init_value`, capped at [`MAX_TERM_MAP_PRESIZE`].
+    ///
+    /// Only a top-level term aggregation uses this. The maps created per parent bucket (see
+    /// `prepare_max_bucket`) must stay lazy: there is one per parent bucket, up to the bucket
+    /// limit, so pre-sizing each of them would multiply the reservation by the parent cardinality.
+    #[inline]
+    fn with_capacity_hint(map_init_value: u64) -> Self {
+        let capacity = (map_init_value as usize).min(MAX_TERM_MAP_PRESIZE);
+        Self {
+            bucket_map: FxHashMap::with_capacity_and_hasher(capacity, Default::default()),
             key_heap_memory: 0,
         }
     }
@@ -834,15 +857,8 @@ impl<K: AggregationMapKey, B: BucketIdSlot> TermAggregationMap<K> for HashMapTer
     }
 
     #[inline]
-    fn new(map_init_value: u64, _bucket_id_provider: &mut BucketIdProvider) -> Self {
-        // `map_init_value` is the term dictionary's upper bound. Pre-size the map to
-        // avoid repeated rehashing, but cap the hint so a huge dictionary cannot
-        // allocate an unbounded table per parent bucket.
-        let capacity = (map_init_value as usize).min(65_536);
-        Self {
-            bucket_map: FxHashMap::with_capacity_and_hasher(capacity, Default::default()),
-            key_heap_memory: 0,
-        }
+    fn new(_map_init_value: u64, _bucket_id_provider: &mut BucketIdProvider) -> Self {
+        Self::default()
     }
 }
 
