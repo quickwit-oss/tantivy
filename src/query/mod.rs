@@ -30,6 +30,7 @@ mod size_hint;
 mod term_query;
 mod union;
 mod weight;
+mod zero_width_chars;
 
 #[cfg(test)]
 mod seek_danger_tests;
@@ -40,7 +41,7 @@ pub(crate) mod score_combiner;
 pub use query_grammar::Occur;
 
 pub use self::all_query::{AllQuery, AllScorer, AllWeight};
-pub use self::automaton_weight::AutomatonWeight;
+pub use self::automaton_weight::{AutomatonWeight, ExpansionRank, MatchedTermsSink};
 pub use self::bitset::BitSetDocSet;
 pub use self::bm25::{Bm25StatisticsProvider, Bm25Weight};
 pub use self::boolean_query::{BooleanQuery, BooleanWeight};
@@ -70,6 +71,7 @@ pub use self::union::BufferedUnionScorer;
 #[cfg(test)]
 pub use self::vec_docset::VecDocSet;
 pub use self::weight::Weight;
+pub use self::zero_width_chars::ZeroWidthChars;
 
 #[cfg(test)]
 mod tests {
