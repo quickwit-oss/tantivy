@@ -16,8 +16,8 @@ use super::agg_req::{Aggregation, AggregationVariants, Aggregations};
 use super::agg_result::{AggregationResult, BucketResult, MetricResult, RangeBucketEntry};
 use super::bucket::{
     composite_intermediate_key_ordering, cut_off_buckets, get_agg_name_and_property,
-    intermediate_histogram_buckets_to_final_buckets, CompositeAggregation, GetDocCount,
-    MissingOrder, Order, OrderTarget, RangeAggregation, TermsAggregation,
+    intermediate_histogram_buckets_to_final_buckets, CompositeAggregation, MissingOrder, Order,
+    OrderTarget, RangeAggregation, TermsAggregation,
 };
 use super::metric::{
     IntermediateAverage, IntermediateCount, IntermediateExtendedStats, IntermediateMax,
@@ -1024,33 +1024,44 @@ impl IntermediateTermBucketResult {
             .collect::<crate::Result<_>>()?;
 
         let order = req.order.order;
-        match req.order.target {
-            OrderTarget::Key => {
-                buckets.sort_by(|left, right| {
-                    if req.order.order == Order::Asc {
-                        left.key.cmp(&right.key)
-                    } else {
-                        right.key.cmp(&left.key)
-                    }
-                });
-            }
+        let size = req.size as usize;
+        // Only the top `size` buckets are returned, and the merged result can hold
+        // `segment_size` buckets per split (deduplicated), so partition instead of sorting
+        // everything. `OrderTarget::Key` and `OrderTarget::Count` define a total order (keys are
+        // unique, and equal counts are tie-broken by key ascending), which makes the selected
+        // top-k set deterministic. `OrderTarget::SubAggregation` has no tie-break and relies on
+        // the stable sort's input order, so it keeps the full sort.
+        //
+        // We ignore _term_doc_count_before_cutoff here, because it increases the upperbound error
+        // only for terms that didn't make it into the top N.
+        //
+        // This can be interesting, as a value of quality of the results, but not good to check the
+        // actual error count for the returned terms.
+        let sum_other_doc_count = match req.order.target {
+            OrderTarget::Key => top_k_buckets(&mut buckets, size, |left, right| {
+                if req.order.order == Order::Asc {
+                    left.key.cmp(&right.key)
+                } else {
+                    right.key.cmp(&left.key)
+                }
+            }),
             OrderTarget::Count => {
                 // Tie-break equal counts by key ascending so the output is deterministic
                 // regardless of the merge's (insertion-order) output.
                 let key_tie = |left: &BucketEntry, right: &BucketEntry| left.key.cmp(&right.key);
                 if req.order.order == Order::Desc {
-                    buckets.sort_unstable_by(|left, right| {
+                    top_k_buckets(&mut buckets, size, |left, right| {
                         right
-                            .doc_count()
-                            .cmp(&left.doc_count())
+                            .doc_count
+                            .cmp(&left.doc_count)
                             .then_with(|| key_tie(left, right))
-                    });
+                    })
                 } else {
-                    buckets.sort_unstable_by(|left, right| {
-                        left.doc_count()
-                            .cmp(&right.doc_count())
+                    top_k_buckets(&mut buckets, size, |left, right| {
+                        left.doc_count
+                            .cmp(&right.doc_count)
                             .then_with(|| key_tie(left, right))
-                    });
+                    })
                 }
             }
             OrderTarget::SubAggregation(name) => {
@@ -1074,16 +1085,9 @@ impl IntermediateTermBucketResult {
                     .into_iter()
                     .map(|(bucket, _val)| bucket)
                     .collect_vec();
+                cut_off_buckets(&mut buckets, size, None).1
             }
-        }
-
-        // We ignore _term_doc_count_before_cutoff here, because it increases the upperbound error
-        // only for terms that didn't make it into the top N.
-        //
-        // This can be interesting, as a value of quality of the results, but not good to check the
-        // actual error count for the returned terms.
-        let (_term_doc_count_before_cutoff, sum_other_doc_count) =
-            cut_off_buckets(&mut buckets, req.size as usize, None);
+        };
 
         let doc_count_error_upper_bound = if req.show_term_doc_count_error {
             Some(self.doc_count_error_upper_bound)
@@ -1207,6 +1211,24 @@ impl IntermediateTermBucketResult {
 
         Ok(())
     }
+}
+
+/// Truncate `buckets` to the top `size` by `cmp`, sort the kept slice by `cmp`, and return the
+/// summed `doc_count` of the dropped tail.
+///
+/// `cmp` must be a total order: `select_nth_unstable_by` leaves the top-k unordered, and only a
+/// total order makes the selected set deterministic.
+fn top_k_buckets<F>(buckets: &mut Vec<BucketEntry>, size: usize, cmp: F) -> u64
+where F: Fn(&BucketEntry, &BucketEntry) -> std::cmp::Ordering {
+    if buckets.len() <= size {
+        buckets.sort_unstable_by(&cmp);
+        return 0;
+    }
+    buckets.select_nth_unstable_by(size, &cmp);
+    let sum_other_doc_count = buckets[size..].iter().map(|bucket| bucket.doc_count).sum();
+    buckets.truncate(size);
+    buckets.sort_unstable_by(&cmp);
+    sum_other_doc_count
 }
 
 trait MergeFruits {
@@ -2034,5 +2056,62 @@ mod tests {
             .unwrap();
 
         assert_range_trees_eq(&tree_left, &orig);
+    }
+
+    fn test_bucket(key: u64, doc_count: u64) -> BucketEntry {
+        BucketEntry {
+            key_as_string: None,
+            key: Key::U64(key),
+            doc_count,
+            sub_aggregation: AggregationResults::default(),
+        }
+    }
+
+    /// The count order used by `into_final_result`: count desc, ties broken by key ascending.
+    fn count_desc(left: &BucketEntry, right: &BucketEntry) -> std::cmp::Ordering {
+        right
+            .doc_count
+            .cmp(&left.doc_count)
+            .then_with(|| left.key.cmp(&right.key))
+    }
+
+    #[test]
+    fn test_top_k_buckets_keeps_the_top_k_sorted_and_sums_the_tail() {
+        let mut buckets = vec![
+            test_bucket(1, 5),
+            test_bucket(2, 9),
+            test_bucket(3, 1),
+            test_bucket(4, 7),
+            test_bucket(5, 3),
+        ];
+        let sum_other_doc_count = top_k_buckets(&mut buckets, 2, count_desc);
+        assert_eq!(sum_other_doc_count, 5 + 1 + 3);
+        assert_eq!(
+            buckets.iter().map(|b| b.doc_count).collect::<Vec<_>>(),
+            [9, 7]
+        );
+    }
+
+    #[test]
+    fn test_top_k_buckets_selects_the_same_buckets_as_a_full_sort_on_ties() {
+        // 7 occurs twice: the tie-break by key ascending must keep key 2, not key 3.
+        let mut buckets = vec![test_bucket(3, 7), test_bucket(1, 9), test_bucket(2, 7)];
+        let sum_other_doc_count = top_k_buckets(&mut buckets, 2, count_desc);
+        assert_eq!(sum_other_doc_count, 7);
+        assert_eq!(
+            buckets.iter().map(|b| b.key.clone()).collect::<Vec<_>>(),
+            [Key::U64(1), Key::U64(2)]
+        );
+    }
+
+    #[test]
+    fn test_top_k_buckets_sorts_everything_when_fewer_than_k() {
+        let mut buckets = vec![test_bucket(1, 5), test_bucket(2, 9)];
+        let sum_other_doc_count = top_k_buckets(&mut buckets, 10, count_desc);
+        assert_eq!(sum_other_doc_count, 0);
+        assert_eq!(
+            buckets.iter().map(|b| b.doc_count).collect::<Vec<_>>(),
+            [9, 5]
+        );
     }
 }
