@@ -834,8 +834,15 @@ impl<K: AggregationMapKey, B: BucketIdSlot> TermAggregationMap<K> for HashMapTer
     }
 
     #[inline]
-    fn new(_map_init_value: u64, _bucket_id_provider: &mut BucketIdProvider) -> Self {
-        Self::default()
+    fn new(map_init_value: u64, _bucket_id_provider: &mut BucketIdProvider) -> Self {
+        // `map_init_value` is the term dictionary's upper bound. Pre-size the map to
+        // avoid repeated rehashing, but cap the hint so a huge dictionary cannot
+        // allocate an unbounded table per parent bucket.
+        let capacity = (map_init_value as usize).min(1_000_000);
+        Self {
+            bucket_map: FxHashMap::with_capacity_and_hasher(capacity, Default::default()),
+            key_heap_memory: 0,
+        }
     }
 }
 
