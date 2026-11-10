@@ -3,7 +3,6 @@ use std::cmp::Ordering;
 use super::occur_weights::OccurWeights;
 use crate::docset::{SeekDangerResult, COLLECT_BLOCK_BUFFER_LEN};
 use crate::index::SegmentReader;
-use crate::postings::FreqReadingOption;
 use crate::query::disjunction::Disjunction;
 use crate::query::explanation::does_not_match;
 use crate::query::score_combiner::{DoNothingCombiner, ScoreCombiner};
@@ -67,14 +66,9 @@ where
                 .into_iter()
                 .map(|scorer| *(scorer.downcast::<TermScorer>().map_err(|_| ()).unwrap()))
                 .collect();
-            if scorers
-                .iter()
-                .all(|scorer| scorer.freq_reading_option() == FreqReadingOption::ReadFreq)
-            {
-                // Block wand is only available if we read frequencies.
+            if scorers.iter().all(TermScorer::supports_block_wand) {
                 return SpecializedScorer::TermUnion(scorers);
             } else if scorers.len() == 1 {
-                // Single TermScorer without freq reading — unwrap directly.
                 return SpecializedScorer::Other(Box::new(scorers.into_iter().next().unwrap()));
             } else {
                 return SpecializedScorer::Other(Box::new(BufferedUnionScorer::build(
@@ -408,7 +402,7 @@ impl<TScoreCombiner: ScoreCombiner> BooleanWeight<TScoreCombiner> {
 
                 // Try to detect a pure TermScorer intersection for block-max optimization.
                 // Preconditions: no removed AllScorers, at least 2 scorers, all TermScorer
-                // with frequency reading enabled.
+                // with frequencies and nonnegative term scores.
                 if combined_all_scorer_count == 0
                     && must_scorers.len() >= 2
                     && must_scorers.iter().all(|s| s.is::<TermScorer>())
@@ -417,10 +411,7 @@ impl<TScoreCombiner: ScoreCombiner> BooleanWeight<TScoreCombiner> {
                         .into_iter()
                         .map(|s| *(s.downcast::<TermScorer>().map_err(|_| ()).unwrap()))
                         .collect();
-                    if term_scorers
-                        .iter()
-                        .all(|s| s.freq_reading_option() == FreqReadingOption::ReadFreq)
-                    {
+                    if term_scorers.iter().all(TermScorer::supports_block_wand) {
                         SpecializedScorer::TermIntersection(term_scorers)
                     } else {
                         let must_scorers: Vec<Box<dyn Scorer>> = term_scorers
