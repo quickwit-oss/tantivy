@@ -3,6 +3,7 @@ use std::cmp::Ordering;
 use super::Scorer;
 use crate::docset::{SeekDangerResult, COLLECT_BLOCK_BUFFER_LEN};
 use crate::index::SegmentReader;
+use crate::query::explanation::does_not_match;
 use crate::query::Explanation;
 use crate::{DocId, DocSet, Score, TERMINATED};
 
@@ -105,6 +106,72 @@ pub trait Weight: Send + Sync + 'static {
 
     /// Returns an [`Explanation`] for the given document.
     fn explain(&self, reader: &SegmentReader, doc: DocId) -> crate::Result<Explanation>;
+
+    /// Explains the score with the same incoming boost as [`Weight::scorer`].
+    ///
+    /// Built-in weights propagate this context through their details. The default preserves
+    /// [`Weight::explain`] at unit boost; otherwise it reports the actual scorer value without
+    /// child details. Override this method to retain custom weight details under a boost.
+    /// An `explain` implementation delegating here must also override this method.
+    ///
+    /// A wrapper can safely delegate both explanation entry points to an inner weight:
+    ///
+    /// ```
+    /// use tantivy::query::{Explanation, Scorer, Weight};
+    /// use tantivy::{DocId, Score, SegmentReader};
+    ///
+    /// struct DelegatingWeight(Box<dyn Weight>);
+    ///
+    /// impl Weight for DelegatingWeight {
+    ///     fn scorer(&self, reader: &SegmentReader, boost: Score)
+    ///         -> tantivy::Result<Box<dyn Scorer>>
+    ///     {
+    ///         self.0.scorer(reader, boost)
+    ///     }
+    ///
+    ///     fn explain(&self, reader: &SegmentReader, doc: DocId)
+    ///         -> tantivy::Result<Explanation>
+    ///     {
+    ///         self.explain_with_boost(reader, doc, 1.0)
+    ///     }
+    ///
+    ///     fn explain_with_boost(&self, reader: &SegmentReader, doc: DocId, boost: Score)
+    ///         -> tantivy::Result<Explanation>
+    ///     {
+    ///         self.0.explain_with_boost(reader, doc, boost)
+    ///     }
+    /// }
+    ///
+    /// let weight = DelegatingWeight(Box::new(tantivy::query::AllWeight));
+    /// # let index = tantivy::Index::create_in_ram(tantivy::schema::Schema::builder().build());
+    /// # let mut writer = index.writer_with_num_threads::<tantivy::TantivyDocument>(1, 50_000_000)?;
+    /// # writer.add_document(tantivy::TantivyDocument::new())?;
+    /// # writer.commit()?;
+    /// # let reader = index.reader()?;
+    /// # let searcher = reader.searcher();
+    /// # let segment = searcher.segment_reader(0);
+    /// # assert_eq!(weight.explain(segment, 0)?.value(), 1.0);
+    /// # assert_eq!(weight.explain_with_boost(segment, 0, 0.3)?.value(), 0.3);
+    /// # Ok::<(), tantivy::TantivyError>(())
+    /// ```
+    fn explain_with_boost(
+        &self,
+        reader: &SegmentReader,
+        doc: DocId,
+        boost: Score,
+    ) -> crate::Result<Explanation> {
+        if boost == 1.0 {
+            return self.explain(reader, doc);
+        }
+        let mut scorer = self.scorer(reader, boost)?;
+        if scorer.doc() > doc || scorer.seek(doc) != doc {
+            return Err(does_not_match(doc));
+        }
+        Ok(Explanation::new_with_string(
+            format!("Custom weight score with incoming boost {boost}; details unavailable"),
+            scorer.score(),
+        ))
+    }
 
     /// Returns the number documents within the given [`SegmentReader`].
     fn count(&self, reader: &SegmentReader) -> crate::Result<u32> {
