@@ -218,8 +218,7 @@ impl StoreReader {
         }
 
         let compressed_block = self.get_compressed_block(checkpoint)?;
-        let decompressed_block =
-            OwnedBytes::new(self.decompressor.decompress(compressed_block.as_ref())?);
+        let decompressed_block = self.decompressor.decompress_block(compressed_block)?;
 
         self.cache
             .put_into_cache(cache_key, decompressed_block.clone());
@@ -402,11 +401,15 @@ impl StoreReader {
             .await?;
 
         let decompressor = self.decompressor;
-        let maybe_decompressed_block = executor
-            .spawn_blocking(move || decompressor.decompress(compressed_block.as_ref()))
-            .await
-            .expect("decompression panicked");
-        let decompressed_block = OwnedBytes::new(maybe_decompressed_block?);
+        let decompressed_block = if decompressor == Decompressor::None {
+            // No need to offload a no-op to the blocking pool.
+            decompressor.decompress_block(compressed_block)?
+        } else {
+            executor
+                .spawn_blocking(move || decompressor.decompress_block(compressed_block))
+                .await
+                .expect("decompression panicked")?
+        };
 
         self.cache
             .put_into_cache(cache_key, decompressed_block.clone());
