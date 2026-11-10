@@ -3,6 +3,7 @@ name = "tantivy-spatial"
 version = "0.27.0"
 edition = "2021"
 license = "MIT"
+autotests = false
 
 [lib]
 path = "lib.rs"
