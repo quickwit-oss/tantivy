@@ -256,6 +256,65 @@ pub(crate) mod tests {
     }
 
     #[test]
+    pub fn test_phrase_slop_matches_same_docs_with_and_without_scoring() -> crate::Result<()> {
+        // The slop spent between earlier terms of the phrase has to be accounted for
+        // when scoring is disabled too. Otherwise `Count` (or a filter) matches
+        // documents that `TopDocs` never returns.
+        let index = create_index(&["a x b x c", "a b c", "a h d", "a x b c"])?;
+        let text_field = index.schema().get_field("text").unwrap();
+        let searcher = index.reader()?.searcher();
+        let matching_docs = |slop: u32, texts: &[&str], with_scoring: bool| -> Vec<DocId> {
+            let terms: Vec<Term> = texts
+                .iter()
+                .map(|text| Term::from_field_text(text_field, text))
+                .collect();
+            let mut phrase_query = PhraseQuery::new(terms);
+            phrase_query.set_slop(slop);
+            let collector = if with_scoring {
+                &TEST_COLLECTOR_WITH_SCORE
+            } else {
+                &TEST_COLLECTOR_WITHOUT_SCORE
+            };
+            searcher
+                .search(&phrase_query, collector)
+                .unwrap()
+                .docs()
+                .iter()
+                .map(|doc_address| doc_address.doc_id)
+                .collect()
+        };
+        for (slop, texts, expected) in [
+            (1, &["a", "b", "c"][..], vec![1, 3]),
+            (2, &["a", "b", "c"][..], vec![0, 1, 3]),
+            (1, &["a", "d", "h"][..], vec![]),
+        ] {
+            assert_eq!(matching_docs(slop, texts, true), expected);
+            assert_eq!(matching_docs(slop, texts, false), expected);
+        }
+        Ok(())
+    }
+
+    #[test]
+    pub fn test_phrase_slop_match_missed_by_greedy_count() -> crate::Result<()> {
+        // `c a b` matches `"a b c"~3`, but the greedy carrying-slop count skips it.
+        let index = create_index(&["b x a c a b"])?;
+        let scores = test_query(3, &index, vec!["a", "b", "c"]);
+        assert_eq!(scores.len(), 1);
+        let text_field = index.schema().get_field("text").unwrap();
+        let mut phrase_query = PhraseQuery::new(
+            ["a", "b", "c"]
+                .iter()
+                .map(|text| Term::from_field_text(text_field, text))
+                .collect(),
+        );
+        phrase_query.set_slop(3);
+        let searcher = index.reader()?.searcher();
+        let docs = searcher.search(&phrase_query, &TEST_COLLECTOR_WITHOUT_SCORE)?;
+        assert_eq!(docs.docs().len(), 1);
+        Ok(())
+    }
+
+    #[test]
     pub fn test_phrase_score_with_slop_ordering() -> crate::Result<()> {
         let index = create_index(&[
             "a e b e c",
