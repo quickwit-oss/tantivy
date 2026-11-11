@@ -78,28 +78,15 @@ pub struct CacheInfo {
     pub mmapped: Vec<PathBuf>,
 }
 
+#[derive(Default)]
 struct MmapCache {
     counters: CacheCounters,
     cache: HashMap<PathBuf, WeakArcBytes>,
     #[cfg(unix)]
-    madvice_opt: Option<Advice>,
+    advice_opt: Option<Advice>,
 }
 
 impl MmapCache {
-    fn new() -> MmapCache {
-        MmapCache {
-            counters: CacheCounters::default(),
-            cache: HashMap::default(),
-            #[cfg(unix)]
-            madvice_opt: None,
-        }
-    }
-
-    #[cfg(unix)]
-    fn set_advice(&mut self, madvice: Advice) {
-        self.madvice_opt = Some(madvice);
-    }
-
     fn get_info(&self) -> CacheInfo {
         let paths: Vec<PathBuf> = self.cache.keys().cloned().collect();
         CacheInfo {
@@ -123,9 +110,9 @@ impl MmapCache {
     fn open_mmap_impl(&self, full_path: &Path) -> Result<Option<Mmap>, OpenReadError> {
         let mmap_opt = open_mmap(full_path)?;
         #[cfg(unix)]
-        if let (Some(mmap), Some(madvice)) = (mmap_opt.as_ref(), self.madvice_opt) {
+        if let (Some(mmap), Some(advice)) = (mmap_opt.as_ref(), self.advice_opt) {
             // We ignore madvise errors.
-            let _ = mmap.advise(madvice);
+            let _ = mmap.advise(advice);
         }
         Ok(mmap_opt)
     }
@@ -167,20 +154,71 @@ pub struct MmapDirectory {
     inner: Arc<MmapDirectoryInner>,
 }
 
+/// Options for [`MmapDirectory::open_with_options`].
+#[derive(Clone, Debug)]
+pub struct MmapDirectoryOptions {
+    #[cfg(unix)]
+    advice_opt: Option<Advice>,
+    fsync: bool,
+}
+
+impl Default for MmapDirectoryOptions {
+    fn default() -> Self {
+        MmapDirectoryOptions {
+            #[cfg(unix)]
+            advice_opt: None,
+            fsync: true,
+        }
+    }
+}
+
+impl MmapDirectoryOptions {
+    /// Sets the access pattern of the mmapped files.
+    ///
+    /// This is only supported on unix platforms.
+    #[cfg(unix)]
+    #[must_use]
+    pub fn with_advice(mut self, advice: Advice) -> Self {
+        self.advice_opt = Some(advice);
+        self
+    }
+
+    /// Enables or disables fsync. Enabled by default.
+    ///
+    /// Without fsync, a process crash is still safe, but an OS crash or a power loss may lose
+    /// committed data or leave the index unopenable.
+    #[must_use]
+    pub fn with_fsync(mut self, fsync: bool) -> Self {
+        self.fsync = fsync;
+        self
+    }
+}
+
 struct MmapDirectoryInner {
     root_path: PathBuf,
     mmap_cache: RwLock<MmapCache>,
     _temp_directory: Option<TempDir>,
     watcher: FileWatcher,
+    options: MmapDirectoryOptions,
 }
 
 impl MmapDirectoryInner {
-    fn new(root_path: PathBuf, temp_directory: Option<TempDir>) -> MmapDirectoryInner {
+    fn new(
+        root_path: PathBuf,
+        temp_directory: Option<TempDir>,
+        options: MmapDirectoryOptions,
+    ) -> MmapDirectoryInner {
+        let mmap_cache = MmapCache {
+            #[cfg(unix)]
+            advice_opt: options.advice_opt,
+            ..MmapCache::default()
+        };
         MmapDirectoryInner {
-            mmap_cache: RwLock::new(MmapCache::new()),
+            mmap_cache: RwLock::new(mmap_cache),
             _temp_directory: temp_directory,
             watcher: FileWatcher::new(&root_path.join(*META_FILEPATH)),
             root_path,
+            options,
         }
     }
 
@@ -191,13 +229,24 @@ impl MmapDirectoryInner {
 
 impl fmt::Debug for MmapDirectory {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "MmapDirectory({:?})", self.inner.root_path)
+        f.debug_struct("MmapDirectory")
+            .field("root_path", &self.inner.root_path)
+            .field("options", &self.inner.options)
+            .finish()
     }
 }
 
 impl MmapDirectory {
     fn new(root_path: PathBuf, temp_directory: Option<TempDir>) -> MmapDirectory {
-        let inner = MmapDirectoryInner::new(root_path, temp_directory);
+        Self::new_with_options(root_path, temp_directory, MmapDirectoryOptions::default())
+    }
+
+    fn new_with_options(
+        root_path: PathBuf,
+        temp_directory: Option<TempDir>,
+        options: MmapDirectoryOptions,
+    ) -> MmapDirectory {
+        let inner = MmapDirectoryInner::new(root_path, temp_directory, options);
         MmapDirectory {
             inner: Arc::new(inner),
         }
@@ -220,13 +269,13 @@ impl MmapDirectory {
     ///
     /// This is only supported on unix platforms.
     #[cfg(unix)]
+    #[deprecated(note = "use `open_with_options` with `MmapDirectoryOptions::with_advice`")]
     pub fn open_with_madvice(
         directory_path: impl AsRef<Path>,
-        madvice: Advice,
+        advice: Advice,
     ) -> Result<MmapDirectory, OpenDirectoryError> {
-        let dir = Self::open_impl_to_avoid_monomorphization(directory_path.as_ref())?;
-        dir.inner.mmap_cache.write().unwrap().set_advice(madvice);
-        Ok(dir)
+        let options = MmapDirectoryOptions::default().with_advice(advice);
+        Self::open_impl_to_avoid_monomorphization(directory_path.as_ref(), options)
     }
 
     /// Opens a MmapDirectory in a directory.
@@ -234,12 +283,21 @@ impl MmapDirectory {
     /// Returns an error if the `directory_path` does not
     /// exist or if it is not a directory.
     pub fn open(directory_path: impl AsRef<Path>) -> Result<MmapDirectory, OpenDirectoryError> {
-        Self::open_impl_to_avoid_monomorphization(directory_path.as_ref())
+        Self::open_with_options(directory_path, MmapDirectoryOptions::default())
+    }
+
+    /// Opens a MmapDirectory in a directory, with the given options.
+    pub fn open_with_options(
+        directory_path: impl AsRef<Path>,
+        options: MmapDirectoryOptions,
+    ) -> Result<MmapDirectory, OpenDirectoryError> {
+        Self::open_impl_to_avoid_monomorphization(directory_path.as_ref(), options)
     }
 
     #[inline(never)]
     fn open_impl_to_avoid_monomorphization(
         directory_path: &Path,
+        options: MmapDirectoryOptions,
     ) -> Result<MmapDirectory, OpenDirectoryError> {
         let directory_exists = directory_path.try_exists().map_err(|io_err| {
             OpenDirectoryError::wrap_io_error(io_err, directory_path.to_owned())
@@ -275,7 +333,11 @@ impl MmapDirectory {
                 directory_path,
             )));
         }
-        Ok(MmapDirectory::new(canonical_path, None))
+        Ok(MmapDirectory::new_with_options(
+            canonical_path,
+            None,
+            options,
+        ))
     }
 
     /// Joins a relative_path to the directory `root_path`
@@ -319,18 +381,15 @@ impl Drop for ReleaseLockFile {
 }
 
 /// This Write wraps a File, but has the specificity of
-/// calling `sync_all` on terminate.
-struct SafeFileWriter(File);
-
-impl SafeFileWriter {
-    fn new(file: File) -> SafeFileWriter {
-        SafeFileWriter(file)
-    }
+/// calling `sync_data` on terminate if `fsync` is enabled.
+struct SafeFileWriter {
+    file: File,
+    fsync: bool,
 }
 
 impl Write for SafeFileWriter {
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
-        self.0.write(buf)
+        self.file.write(buf)
     }
 
     fn flush(&mut self) -> io::Result<()> {
@@ -340,8 +399,10 @@ impl Write for SafeFileWriter {
 
 impl TerminatingWrite for SafeFileWriter {
     fn terminate_ref(&mut self, _: AntiCallToken) -> io::Result<()> {
-        self.0.flush()?;
-        self.0.sync_data()?;
+        self.file.flush()?;
+        if self.fsync {
+            self.file.sync_data()?;
+        }
         Ok(())
     }
 }
@@ -359,6 +420,9 @@ impl Deref for MmapArc {
 unsafe impl StableDeref for MmapArc {}
 
 /// Writes a file in an atomic manner.
+///
+/// Tantivy only uses it for `.managed.json` and `meta.json`, which are always synced regardless
+/// of whether fsync is enabled for the directory.
 pub(crate) fn atomic_write(path: &Path, content: &[u8]) -> io::Result<()> {
     // We create the temporary file in the same directory as the target file.
     // Indeed the canonical temp directory and the target file might sit in different
@@ -445,10 +509,13 @@ impl Directory for MmapDirectory {
         // A newly created file, may, in some case, be created and even flushed to disk.
         // and then lost...
         //
-        // The file will only be durably written after we terminate AND
-        // sync_directory() is called.
+        // With fsync enabled, the file will only be durably written after we terminate AND
+        // sync_directory() is called. Without fsync, durability is not guaranteed.
 
-        let writer = SafeFileWriter::new(file);
+        let writer = SafeFileWriter {
+            file,
+            fsync: self.inner.options.fsync,
+        };
         Ok(BufWriter::new(Box::new(writer)))
     }
 
@@ -515,6 +582,9 @@ impl Directory for MmapDirectory {
 
     #[cfg(not(windows))]
     fn sync_directory(&self) -> Result<(), io::Error> {
+        if !self.inner.options.fsync {
+            return Ok(());
+        }
         let mut open_opts = OpenOptions::new();
 
         // Linux needs read to be set, otherwise returns EINVAL
@@ -626,6 +696,34 @@ mod tests {
         assert_eq!(mmap_directory.get_cache_info().counters.hit, 20);
         assert_eq!(mmap_directory.get_cache_info().counters.miss, 30);
         assert_eq!(mmap_directory.get_cache_info().mmapped.len(), 0);
+    }
+
+    #[test]
+    fn test_index_without_fsync() -> crate::Result<()> {
+        let tempdir = TempDir::new()?;
+        let mut schema_builder = Schema::builder();
+        let text_field = schema_builder.add_text_field("text", TEXT);
+        let schema = schema_builder.build();
+        {
+            let options = MmapDirectoryOptions::default().with_fsync(false);
+            let directory = MmapDirectory::open_with_options(tempdir.path(), options)?;
+            assert!(!directory.inner.options.fsync);
+
+            let index = Index::create(directory, schema, IndexSettings::default())?;
+            let mut index_writer: IndexWriter = index.writer_for_tests()?;
+            for _ in 0..3 {
+                index_writer.add_document(doc!(text_field=>"abc"))?;
+                index_writer.commit()?;
+            }
+            let segment_ids = index.searchable_segment_ids()?;
+            index_writer.merge(&segment_ids).wait()?;
+            index_writer.wait_merging_threads()?;
+        }
+        let index = Index::open_in_dir(tempdir.path())?;
+        let searcher = index.reader()?.searcher();
+        assert_eq!(searcher.num_docs(), 3);
+        assert_eq!(searcher.segment_readers().len(), 1);
+        Ok(())
     }
 
     fn assert_eventually<P: Fn() -> Option<String>>(predicate: P) {

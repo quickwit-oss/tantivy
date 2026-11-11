@@ -46,7 +46,7 @@ pub use memmap2::Advice;
 
 pub use self::managed_directory::ManagedDirectory;
 #[cfg(feature = "mmap")]
-pub use self::mmap_directory::MmapDirectory;
+pub use self::mmap_directory::{MmapDirectory, MmapDirectoryOptions};
 
 /// Write object for Directory.
 ///
