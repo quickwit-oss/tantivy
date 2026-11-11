@@ -13,7 +13,9 @@ use nom::error::{Error, ErrorKind};
 use nom::multi::{many0, many1, separated_list0};
 use nom::sequence::{delimited, preceded, separated_pair, terminated, tuple};
 
-use super::user_input_ast::{UserInputAst, UserInputBound, UserInputLeaf, UserInputLiteral};
+use super::user_input_ast::{
+    SpatialPredicateKind, UserInputAst, UserInputBound, UserInputLeaf, UserInputLiteral,
+};
 use crate::Occur;
 use crate::infallible::*;
 use crate::user_input_ast::Delimiter;
@@ -364,6 +366,319 @@ fn exists_infallible(inp: &str) -> JResult<&str, UserInputAst> {
     Ok((inp, (exists, Vec::new())))
 }
 
+/// Parse a float that may be negative. Returns the f64 value.
+fn spatial_float(inp: &str) -> IResult<&str, f64> {
+    map_res(
+        recognize(tuple((
+            opt(char('-')),
+            digit1,
+            opt(tuple((char('.'), digit1))),
+        ))),
+        |s: &str| s.parse::<f64>(),
+    )(inp)
+}
+
+/// Earth radius in miles.
+const EARTH_RADIUS_MI: f64 = 3958.8;
+/// Earth radius in kilometers.
+const EARTH_RADIUS_KM: f64 = 6371.0;
+/// Earth radius in meters.
+const EARTH_RADIUS_M: f64 = 6_371_000.0;
+/// Earth radius in feet.
+const EARTH_RADIUS_FT: f64 = 20_902_464.0;
+
+/// Parse a distance with unit: 50mi, 75km, 200ft, 1000m, 0.5rad.
+fn spatial_distance(inp: &str) -> IResult<&str, f64> {
+    let (inp, value) = spatial_float(inp)?;
+    let (inp, unit) = alt((tag("mi"), tag("km"), tag("ft"), tag("m"), tag("rad")))(inp)?;
+    let radians = match unit {
+        "mi" => value / EARTH_RADIUS_MI,
+        "km" => value / EARTH_RADIUS_KM,
+        "ft" => value / EARTH_RADIUS_FT,
+        "m" => value / EARTH_RADIUS_M,
+        "rad" => value,
+        _ => unreachable!(),
+    };
+    Ok((inp, radians))
+}
+
+/// Extract the content of a $query(...) argument, handling balanced parentheses.
+fn query_arg(inp: &str) -> IResult<&str, String> {
+    let (inp, _) = tag("$query(")(inp)?;
+    let mut depth = 1usize;
+    let mut end = 0;
+    for (i, c) in inp.char_indices() {
+        match c {
+            '(' => depth += 1,
+            ')' => {
+                depth -= 1;
+                if depth == 0 {
+                    end = i;
+                    break;
+                }
+            }
+            _ => {}
+        }
+    }
+    if depth != 0 {
+        return Err(nom::Err::Failure(Error::new(inp, ErrorKind::Verify)));
+    }
+    let query_str = inp[..end].trim().to_string();
+    Ok((&inp[end + 1..], query_str))
+}
+
+/// Parse a spatial predicate: $intersects, $contains, $within, $between, or $knn.
+fn spatial(inp: &str) -> IResult<&str, UserInputLeaf> {
+    alt((
+        spatial_polygon,
+        spatial_within,
+        spatial_between,
+        spatial_knn,
+    ))(inp)
+}
+
+fn spatial_polygon(inp: &str) -> IResult<&str, UserInputLeaf> {
+    let mut predicate_tag = alt((
+        value(SpatialPredicateKind::Intersects, tag("$intersects")),
+        value(SpatialPredicateKind::Contains, tag("$contains")),
+    ));
+
+    let (inp, predicate) = predicate_tag(inp)?;
+    let (inp, _) = tuple((multispace0, char('('), multispace0))(inp)?;
+
+    // Try $query(...) for a join.
+    if let Ok((inp, inner)) = query_arg(inp) {
+        let (inp, _) = tuple((multispace0, char(')')))(inp)?;
+        return Ok((
+            inp,
+            UserInputLeaf::Spatial {
+                field: None,
+                predicate,
+                coordinates: vec![],
+                inner_query: Some(inner),
+            },
+        ));
+    }
+
+    let (inp, coordinates) = polygon_coordinates(inp)?;
+    Ok((
+        inp,
+        UserInputLeaf::Spatial {
+            field: None,
+            predicate,
+            coordinates,
+            inner_query: None,
+        },
+    ))
+}
+
+/// Lon/lat pairs, as a spatial leaf holds them.
+type Coordinates = Vec<(
+    ordered_float::OrderedFloat<f64>,
+    ordered_float::OrderedFloat<f64>,
+)>;
+
+/// Parse the vertices of a polygon, at least 3 lon/lat pairs, and the closing parenthesis.
+fn polygon_coordinates(inp: &str) -> IResult<&str, Coordinates> {
+    let coord_sep = || delimited(multispace0, char(','), multispace0);
+    let coord_pair = separated_pair(spatial_float, multispace1, spatial_float);
+    let (inp, pairs) = separated_list0(coord_sep(), coord_pair)(inp)?;
+    let (inp, _) = tuple((multispace0, char(')')))(inp)?;
+
+    if pairs.len() < 3 {
+        return Err(nom::Err::Failure(Error::new(inp, ErrorKind::Verify)));
+    }
+
+    let coordinates = pairs
+        .into_iter()
+        .map(|(lon, lat)| {
+            (
+                ordered_float::OrderedFloat(lon),
+                ordered_float::OrderedFloat(lat),
+            )
+        })
+        .collect();
+    Ok((inp, coordinates))
+}
+
+fn spatial_within(inp: &str) -> IResult<&str, UserInputLeaf> {
+    let coord_sep = || delimited(multispace0, char(','), multispace0);
+    let mut coord_pair = separated_pair(spatial_float, multispace1, spatial_float);
+
+    let (inp, _) = tag("$within")(inp)?;
+    let (inp, _) = tuple((multispace0, char('('), multispace0))(inp)?;
+
+    // With no distance, the coordinates are a polygon to lie inside.
+    if let Ok((inp, coordinates)) = polygon_coordinates(inp) {
+        return Ok((
+            inp,
+            UserInputLeaf::Spatial {
+                field: None,
+                predicate: SpatialPredicateKind::CoveredBy,
+                coordinates,
+                inner_query: None,
+            },
+        ));
+    }
+
+    let (inp, radius) = spatial_distance(inp)?;
+    let (inp, _) = coord_sep()(inp)?;
+
+    // Try $query(...) for a join.
+    if let Ok((inp, inner)) = query_arg(inp) {
+        let (inp, _) = tuple((multispace0, char(')')))(inp)?;
+        return Ok((
+            inp,
+            UserInputLeaf::Spatial {
+                field: None,
+                predicate: SpatialPredicateKind::Within(ordered_float::OrderedFloat(radius)),
+                coordinates: vec![],
+                inner_query: Some(inner),
+            },
+        ));
+    }
+
+    let (inp, (lon, lat)) = coord_pair(inp)?;
+    let (inp, _) = tuple((multispace0, char(')')))(inp)?;
+
+    Ok((
+        inp,
+        UserInputLeaf::Spatial {
+            field: None,
+            predicate: SpatialPredicateKind::Within(ordered_float::OrderedFloat(radius)),
+            coordinates: vec![(
+                ordered_float::OrderedFloat(lon),
+                ordered_float::OrderedFloat(lat),
+            )],
+            inner_query: None,
+        },
+    ))
+}
+
+fn spatial_between(inp: &str) -> IResult<&str, UserInputLeaf> {
+    let coord_sep = || delimited(multispace0, char(','), multispace0);
+    let mut coord_pair = separated_pair(spatial_float, multispace1, spatial_float);
+
+    let (inp, _) = tag("$between")(inp)?;
+    let (inp, _) = tuple((multispace0, char('('), multispace0))(inp)?;
+    let (inp, inner) = spatial_distance(inp)?;
+    let (inp, _) = coord_sep()(inp)?;
+    let (inp, outer) = spatial_distance(inp)?;
+    let (inp, _) = coord_sep()(inp)?;
+
+    // Try $query(...) for a join.
+    if let Ok((inp, inner_q)) = query_arg(inp) {
+        let (inp, _) = tuple((multispace0, char(')')))(inp)?;
+        return Ok((
+            inp,
+            UserInputLeaf::Spatial {
+                field: None,
+                predicate: SpatialPredicateKind::Between(
+                    ordered_float::OrderedFloat(inner),
+                    ordered_float::OrderedFloat(outer),
+                ),
+                coordinates: vec![],
+                inner_query: Some(inner_q),
+            },
+        ));
+    }
+
+    let (inp, (lon, lat)) = coord_pair(inp)?;
+    let (inp, _) = tuple((multispace0, char(')')))(inp)?;
+
+    Ok((
+        inp,
+        UserInputLeaf::Spatial {
+            field: None,
+            predicate: SpatialPredicateKind::Between(
+                ordered_float::OrderedFloat(inner),
+                ordered_float::OrderedFloat(outer),
+            ),
+            coordinates: vec![(
+                ordered_float::OrderedFloat(lon),
+                ordered_float::OrderedFloat(lat),
+            )],
+            inner_query: None,
+        },
+    ))
+}
+
+fn spatial_knn(inp: &str) -> IResult<&str, UserInputLeaf> {
+    let mut coord_pair = separated_pair(spatial_float, multispace1, spatial_float);
+
+    let (inp, _) = tag("$knn")(inp)?;
+    let (inp, _) = tuple((multispace0, char('('), multispace0))(inp)?;
+    let (inp, k) = nom::character::complete::u32(inp)?;
+    let (inp, _) = delimited(multispace0, char(','), multispace0)(inp)?;
+    let (inp, (lon, lat)) = coord_pair(inp)?;
+    let (inp, _) = tuple((multispace0, char(')')))(inp)?;
+
+    Ok((
+        inp,
+        UserInputLeaf::Spatial {
+            field: None,
+            predicate: SpatialPredicateKind::Knn(k as usize),
+            coordinates: vec![(
+                ordered_float::OrderedFloat(lon),
+                ordered_float::OrderedFloat(lat),
+            )],
+            inner_query: None,
+        },
+    ))
+}
+
+fn spatial_precond(inp: &str) -> IResult<&str, (), ()> {
+    let predicate: IResult<&str, (&str, &str, char)> = peek(tuple((
+        alt((
+            tag("$intersects"),
+            tag("$contains"),
+            tag("$within"),
+            tag("$between"),
+            tag("$knn"),
+        )),
+        multispace0,
+        char('('),
+    )))(inp);
+    predicate
+        .map(|(rest, _)| (rest, ()))
+        .map_err(|e| e.map(|_| ()))
+}
+
+/// The lenient counterpart of `spatial`, for input that starts with a spatial predicate. A
+/// malformed predicate is reported and skipped, through its closing parenthesis, so that the
+/// clauses after it still parse.
+fn spatial_infallible(inp: &str) -> JResult<&str, Option<UserInputLeaf>> {
+    if let Ok((rest, leaf)) = spatial(inp) {
+        return Ok((rest, (Some(leaf), Vec::new())));
+    }
+    let open = inp.find('(').unwrap_or(inp.len());
+    let mut depth = 0usize;
+    let mut end = inp.len();
+    for (i, c) in inp[open..].char_indices() {
+        match c {
+            '(' => depth += 1,
+            ')' => {
+                depth -= 1;
+                if depth == 0 {
+                    end = open + i + 1;
+                    break;
+                }
+            }
+            _ => {}
+        }
+    }
+    Ok((
+        &inp[end..],
+        (
+            None,
+            vec![LenientErrorInternal {
+                pos: inp.len(),
+                message: "invalid spatial predicate".to_string(),
+            }],
+        ),
+    ))
+}
+
 fn literal(inp: &str) -> IResult<&str, UserInputAst> {
     // * alone is already parsed by our caller, so if `exists` succeed, we can be confident
     // something (a field name) got parsed before
@@ -371,7 +686,7 @@ fn literal(inp: &str) -> IResult<&str, UserInputAst> {
         map(
             tuple((
                 opt(field_name),
-                alt((range, set, exists, regex, term_or_phrase)),
+                alt((range, set, exists, regex, spatial, term_or_phrase)),
             )),
             |(field_name, leaf): (Option<String>, UserInputLeaf)| leaf.set_field(field_name).into(),
         ),
@@ -398,6 +713,7 @@ fn literal_no_group_infallible(inp: &str) -> JResult<&str, Option<UserInputAst>>
                         value((), peek(one_of("/"))),
                         map(regex_infallible, |(regex, errs)| (Some(regex), errs)),
                     ),
+                    (spatial_precond, spatial_infallible),
                 ),
                 delimited_infallible(space0_infallible, term_or_phrase_infallible, nothing),
             ),
@@ -1212,6 +1528,12 @@ mod test {
     // }
 
     #[test]
+    fn test_spatial_parser_direct() {
+        let result = spatial("$intersects(1.0 2.0, 3.0 4.0, 5.0 6.0)");
+        assert!(result.is_ok(), "spatial parser failed: {:?}", result);
+    }
+
+    #[test]
     fn test_positive_float_number() {
         fn valid_parse(float_str: &str, expected_val: f64, expected_remaining: &str) {
             let (remaining, val) = positive_float_number(float_str).unwrap();
@@ -1277,6 +1599,40 @@ mod test {
     #[test]
     fn test_parse_empty_to_ast() {
         test_parse_query_to_ast_helper("", "<emptyclause>");
+    }
+
+    #[test]
+    fn test_parse_malformed_spatial_lenient() {
+        let (ast, errors) = parse_to_ast_lenient("geometry:$within(oops) name:box");
+        assert_eq!(format!("{ast:?}"), "\"name\":box");
+        assert_eq!(errors.len(), 1);
+        let (ast, errors) = parse_to_ast_lenient("geometry:$knn(1, 10) name:box");
+        assert_eq!(format!("{ast:?}"), "\"name\":box");
+        assert_eq!(errors.len(), 1);
+    }
+
+    #[test]
+    fn test_parse_spatial_lenient() {
+        test_parse_query_to_ast_helper(
+            "geometry:$within(1rad, 1 2)",
+            "\"geometry\":$within(1rad, 1 2)",
+        );
+        test_parse_query_to_ast_helper(
+            "geometry:$intersects(0 0, 1 0, 1 1)",
+            "\"geometry\":$intersects(0 0, 1 0, 1 1)",
+        );
+        test_parse_query_to_ast_helper(
+            "+name:cafe +geometry:$knn(5, 1 2)",
+            "(+\"name\":cafe +\"geometry\":$knn(5, 1 2))",
+        );
+        test_parse_query_to_ast_helper(
+            "geometry:$contains($query(name:small))",
+            "\"geometry\":$contains($query(name:small))",
+        );
+        test_parse_query_to_ast_helper(
+            "geometry:$within(0 0, 1 0, 1 1)",
+            "\"geometry\":$within(0 0, 1 0, 1 1)",
+        );
     }
 
     #[test]

@@ -31,6 +31,8 @@ use crate::plugin::SegmentPlugin;
 use crate::reader::{IndexReader, IndexReaderBuilder};
 use crate::schema::document::Document;
 use crate::schema::{Field, FieldType, Schema, Type};
+use crate::spatial::plugin::SpatialPlugin;
+use crate::spatial::spatial_index_manager::SpatialIndexManager;
 use crate::store::StorePlugin;
 use crate::tokenizer::{TextAnalyzer, TokenizerManager};
 use crate::SegmentReader;
@@ -63,6 +65,7 @@ pub(crate) fn builtin_plugins() -> Vec<Arc<dyn SegmentPlugin>> {
         Arc::new(InvertedIndexPlugin),
         Arc::new(FastFieldsPlugin),
         Arc::new(StorePlugin),
+        Arc::new(SpatialPlugin),
     ]
 }
 
@@ -165,6 +168,7 @@ pub struct IndexBuilder {
     index_settings: IndexSettings,
     tokenizer_manager: TokenizerManager,
     fast_field_tokenizer_manager: TokenizerManager,
+    spatial_index_manager: SpatialIndexManager,
     custom_plugins: Vec<Arc<dyn SegmentPlugin>>,
 }
 impl Default for IndexBuilder {
@@ -180,6 +184,7 @@ impl IndexBuilder {
             index_settings: IndexSettings::default(),
             tokenizer_manager: TokenizerManager::default(),
             fast_field_tokenizer_manager: TokenizerManager::default(),
+            spatial_index_manager: SpatialIndexManager::default(),
             custom_plugins: Vec::new(),
         }
     }
@@ -292,6 +297,7 @@ impl IndexBuilder {
         }
         let mut index = Index::open(dir)?;
         index.set_tokenizers(self.tokenizer_manager.clone());
+        index.set_spatial_indices(self.spatial_index_manager.clone());
         if index.schema() == self.get_expect_schema()? {
             index.custom_plugins.extend(self.custom_plugins);
             Ok(index)
@@ -375,6 +381,7 @@ impl IndexBuilder {
         let mut index = Index::open_from_metas(directory, &metas, SegmentMetaInventory::default());
         index.set_tokenizers(self.tokenizer_manager);
         index.set_fast_field_tokenizers(self.fast_field_tokenizer_manager);
+        index.set_spatial_indices(self.spatial_index_manager);
         index.custom_plugins.extend(self.custom_plugins);
         Ok(index)
     }
@@ -389,6 +396,7 @@ pub struct Index {
     executor: Executor,
     tokenizers: TokenizerManager,
     fast_field_tokenizers: TokenizerManager,
+    spatial_indices: SpatialIndexManager,
     inventory: SegmentMetaInventory,
     custom_plugins: Vec<Arc<dyn SegmentPlugin>>,
     #[cfg(feature = "jitexpr")]
@@ -510,6 +518,7 @@ impl Index {
             schema,
             tokenizers: TokenizerManager::default(),
             fast_field_tokenizers: TokenizerManager::default(),
+            spatial_indices: SpatialIndexManager::default(),
             executor: Executor::single_thread(),
             inventory,
             custom_plugins: Vec::new(),
@@ -552,6 +561,16 @@ impl Index {
     /// Accessor for the fast field tokenizer manager.
     pub fn fast_field_tokenizer(&self) -> &TokenizerManager {
         &self.fast_field_tokenizers
+    }
+
+    /// Setter for the spatial index manager.
+    pub fn set_spatial_indices(&mut self, spatial_indices: SpatialIndexManager) {
+        self.spatial_indices = spatial_indices;
+    }
+
+    /// Accessor for the spatial index manager.
+    pub fn spatial_indices(&self) -> &SpatialIndexManager {
+        &self.spatial_indices
     }
 
     /// Get the tokenizer associated with a specific field.

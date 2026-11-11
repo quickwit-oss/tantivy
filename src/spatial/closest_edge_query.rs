@@ -1,0 +1,515 @@
+//! Branch-and-bound closest edge query over the cell index.
+//!
+//! Finds geometries closest to a query geometry by traversing the S2 cell hierarchy in distance
+//! order. The query geometry has its own CellIndex for bilateral pruning -- a stored cell is only
+//! checked against the query cells whose bounding caps could be closer than the best distance so
+//! far, not against every query edge.
+//!
+//! Interiors count, as with S2ClosestEdgeQuery's include_interiors: a polygon that contains part
+//! of the other geometry is at distance zero, however far away its edges are.
+//!
+//! Three modes from one algorithm:
+//!   kNN          -- dynamic threshold, tightens to Kth-best
+//!   within-D     -- fixed threshold, collect all within D
+//!   boolean      -- fixed threshold, exit on first witness
+
+use std::cmp::Ordering;
+use std::collections::{BinaryHeap, HashMap, HashSet};
+
+use common::BitSet;
+
+use super::cell_index::{
+    BuildOptions, CellIndex, CellRelation, GeometryId, IndexBuilder, IndexCell,
+};
+use super::cell_index_reader::CellIndexReader;
+use super::contains_query::QueryEdgeProvider;
+use super::edge_cache::EdgeCache;
+use super::geometry_set::GeometrySet;
+use super::s1chord_angle::S1ChordAngle;
+use super::s2cell::S2Cell;
+use super::s2cell_id::S2CellId;
+use super::s2edge_distances::{update_edge_pair_min_distance, update_min_distance};
+use super::shape_index_region::{any_shape_contains_point, clipped_shape_contains_point};
+use super::sphere::Sphere;
+
+/// A result from the closest edge query: document ID and distance.
+#[derive(Clone, Debug)]
+pub struct ClosestEdgeResult {
+    /// The document containing the closest geometry.
+    pub doc_id: u32,
+    /// The minimum distance from the query geometry to this document's geometry.
+    pub distance: S1ChordAngle,
+}
+
+/// Prepared closest-edge query. The query geometry is smashed into a GeometrySet and spatially
+/// indexed. The same CellIndex that contains and intersects build for the query polygon.
+pub struct ClosestEdgeQuery {
+    query_index: CellIndex,
+    query_edges: QueryEdgeProvider,
+    /// Bounding cap of each query index cell, parallel to `query_index.cells`.
+    query_bounds: Vec<CellBound>,
+    max_results: usize,
+    max_distance: S1ChordAngle,
+    min_distance: S1ChordAngle,
+    first_only: bool,
+}
+
+impl ClosestEdgeQuery {
+    /// Build a kNN query from a smashed query geometry.
+    pub fn knn(set: GeometrySet, k: usize) -> Self {
+        Self::build(set, k, S1ChordAngle::infinity(), false)
+    }
+
+    /// Build a within-D query from a smashed query geometry.
+    pub fn within(set: GeometrySet, max_distance: S1ChordAngle) -> Self {
+        Self::build(set, usize::MAX, max_distance, false)
+    }
+
+    /// Build a boolean distance query. Returns at most one result.
+    pub fn any_within(set: GeometrySet, max_distance: S1ChordAngle) -> Self {
+        Self::build(set, 1, max_distance, true)
+    }
+
+    /// Build a range distance query: results between inner and outer distance.
+    ///
+    /// There is no boolean form that stops at the first witness. A geometry's distance is final
+    /// only once every closer cell has been visited, and the first geometry found may turn out
+    /// to lie inside the inner distance while another lies in range.
+    pub fn between(
+        set: GeometrySet,
+        min_distance: S1ChordAngle,
+        max_distance: S1ChordAngle,
+    ) -> Self {
+        let mut q = Self::build(set, usize::MAX, max_distance, false);
+        q.min_distance = min_distance;
+        q
+    }
+
+    fn build(
+        set: GeometrySet,
+        max_results: usize,
+        max_distance: S1ChordAngle,
+        first_only: bool,
+    ) -> Self {
+        let builder = IndexBuilder::new(BuildOptions::default());
+        let query_index = builder.build_from_sets(std::slice::from_ref(&set));
+        let query_bounds = query_index
+            .cells
+            .iter()
+            .map(|cell| CellBound::new(&S2Cell::new(cell.cell_id)))
+            .collect();
+        let query_edges = QueryEdgeProvider { set };
+        Self {
+            query_index,
+            query_edges,
+            query_bounds,
+            max_results,
+            max_distance,
+            min_distance: S1ChordAngle::zero(),
+            first_only,
+        }
+    }
+
+    /// Search one segment.
+    pub fn search_segment(
+        &self,
+        cell_reader: &CellIndexReader,
+        edge_cache: &mut EdgeCache<'_, Sphere>,
+    ) -> Vec<ClosestEdgeResult> {
+        self.search_impl(cell_reader, edge_cache, None)
+    }
+
+    /// Search one segment, skipping shapes whose doc_id is not in the filter bitset.
+    pub fn search_segment_filtered(
+        &self,
+        cell_reader: &CellIndexReader,
+        edge_cache: &mut EdgeCache<'_, Sphere>,
+        terms_filter: &BitSet,
+    ) -> Vec<ClosestEdgeResult> {
+        self.search_impl(cell_reader, edge_cache, Some(terms_filter))
+    }
+
+    fn search_impl(
+        &self,
+        cell_reader: &CellIndexReader,
+        edge_cache: &mut EdgeCache<'_, Sphere>,
+        terms_filter: Option<&BitSet>,
+    ) -> Vec<ClosestEdgeResult> {
+        if cell_reader.cell_count() == 0
+            || self.max_results == 0
+            || self.max_distance <= S1ChordAngle::zero()
+            || self.min_distance >= self.max_distance
+        {
+            return Vec::new();
+        }
+
+        let mut best = Best::new(self.max_results, self.max_distance);
+
+        self.add_containing_polygons(cell_reader, edge_cache, terms_filter, &mut best);
+        if best.limit == S1ChordAngle::zero() || (self.first_only && !best.is_empty()) {
+            return self.collect_results(&best);
+        }
+
+        // Stored geometries already tested for lying inside the query geometry.
+        let mut tested_interiors: HashSet<GeometryId> = HashSet::new();
+        let mut queue: BinaryHeap<QueueEntry> = BinaryHeap::new();
+
+        // Seed with the six face-level cells.
+        for face in 0..6 {
+            self.enqueue(
+                &S2Cell::from_face(face),
+                cell_reader,
+                best.limit,
+                &mut queue,
+            );
+        }
+
+        while let Some(entry) = queue.pop() {
+            if entry.distance >= best.limit {
+                break;
+            }
+
+            match entry.relation {
+                // The queue cell is the index cell: any coarser index cell containing it would
+                // have been processed in its place.
+                CellRelation::Indexed(position) => {
+                    self.process_edges(
+                        &cell_reader.cell(position),
+                        edge_cache,
+                        terms_filter,
+                        &mut tested_interiors,
+                        &mut best,
+                    );
+                    if self.first_only && !best.is_empty() {
+                        return self.collect_results(&best);
+                    }
+                }
+                CellRelation::Subdivided(_) => {
+                    let cell = S2Cell::new(entry.cell_id);
+                    if let Some(children) = cell.subdivide() {
+                        for child in &children {
+                            self.enqueue(child, cell_reader, best.limit, &mut queue);
+                        }
+                    }
+                }
+                CellRelation::Disjoint => {}
+            }
+        }
+
+        self.collect_results(&best)
+    }
+
+    /// Queues a cell that overlaps the index and may be closer to the query than the limit.
+    fn enqueue(
+        &self,
+        cell: &S2Cell,
+        cell_reader: &CellIndexReader,
+        distance_limit: S1ChordAngle,
+        queue: &mut BinaryHeap<QueueEntry>,
+    ) {
+        let relation = cell_reader.locate(cell.id());
+        if relation == CellRelation::Disjoint {
+            return;
+        }
+        let distance = self.cell_to_query_distance(cell);
+        if distance < distance_limit {
+            queue.push(QueueEntry {
+                distance,
+                cell_id: cell.id(),
+                relation,
+            });
+        }
+    }
+
+    /// Stored polygons that contain part of the query geometry are at distance zero. Testing
+    /// one vertex of each query member suffices: a polygon that contains part of a member but
+    /// not that vertex has an edge that crosses the member, which the edge distances find.
+    fn add_containing_polygons(
+        &self,
+        cell_reader: &CellIndexReader,
+        edge_cache: &mut EdgeCache<'_, Sphere>,
+        terms_filter: Option<&BitSet>,
+        best: &mut Best,
+    ) {
+        for member in &self.query_edges.set.members {
+            let Some(point) = member.vertices.first() else {
+                continue;
+            };
+            let Some(index_cell) = cell_reader.find(S2CellId::from_point(point)) else {
+                continue;
+            };
+            for clipped in &index_cell.shapes {
+                if let Some(filter) = terms_filter {
+                    if !filter.contains(edge_cache.doc_id_for(clipped.geometry_id)) {
+                        continue;
+                    }
+                }
+                let entry = edge_cache.get(clipped.geometry_id);
+                if !entry.edge_set().closed {
+                    continue;
+                }
+                // Use the already decoded shape; looking it up again would decode every shape
+                // in the cell once per polygon, making overlapping polygons quadratic.
+                if clipped_shape_contains_point(index_cell.cell_id, clipped, point, |edge_idx| {
+                    entry.edge(edge_idx)
+                }) {
+                    best.update(entry.doc_id(), S1ChordAngle::zero());
+                    // K distinct zero-distance hits cannot be improved by any later geometry.
+                    if best.limit == S1ChordAngle::zero() {
+                        return;
+                    }
+                }
+            }
+        }
+    }
+
+    /// Whether a closed member of the query geometry contains the point.
+    fn query_contains(&self, point: &[f64; 3]) -> bool {
+        any_shape_contains_point(&self.query_index, &self.query_edges, point)
+    }
+
+    /// Minimum distance from a stored cell to the query geometry, its interior included: a
+    /// lower bound on the distance of anything stored in the cell.
+    fn cell_to_query_distance(&self, cell: &S2Cell) -> S1ChordAngle {
+        if self.query_contains(&cell.get_center()) {
+            return S1ChordAngle::zero();
+        }
+        let bound = CellBound::new(cell);
+        let mut min_dist = S1ChordAngle::infinity();
+        for (query_cell, query_bound) in self.query_index.cells.iter().zip(&self.query_bounds) {
+            if bound.distance(query_bound) >= min_dist {
+                continue;
+            }
+            for clipped in &query_cell.shapes {
+                let vertices = &self.query_edges.get_edge_set(clipped.geometry_id).vertices;
+                for &edge_idx in &clipped.edge_indices {
+                    let distance = match edge(vertices, edge_idx) {
+                        (point, other) if point == other => cell.get_distance_to_point(point),
+                        (v0, v1) => cell.get_distance_to_edge(v0, v1),
+                    };
+                    min_dist = min_dist.min(distance);
+                }
+            }
+        }
+        min_dist
+    }
+
+    /// Lowers `min_dist` to the distance between the stored edge (a0, a1), clipped to the cell
+    /// bounded by `bound`, and the query edges in query cells that could be closer.
+    fn update_min_distance_to_query(
+        &self,
+        bound: &CellBound,
+        a0: &[f64; 3],
+        a1: &[f64; 3],
+        min_dist: &mut S1ChordAngle,
+    ) {
+        for (query_cell, query_bound) in self.query_index.cells.iter().zip(&self.query_bounds) {
+            if bound.distance(query_bound) >= *min_dist {
+                continue;
+            }
+            for clipped in &query_cell.shapes {
+                let vertices = &self.query_edges.get_edge_set(clipped.geometry_id).vertices;
+                for &edge_idx in &clipped.edge_indices {
+                    let (b0, b1) = edge(vertices, edge_idx);
+                    if a0 == a1 {
+                        update_min_distance(a0, b0, b1, min_dist);
+                    } else if b0 == b1 {
+                        update_min_distance(b0, a0, a1, min_dist);
+                    } else {
+                        update_edge_pair_min_distance(a0, a1, b0, b1, min_dist);
+                    }
+                }
+            }
+        }
+    }
+
+    fn process_edges(
+        &self,
+        index_cell: &IndexCell,
+        edge_cache: &mut EdgeCache<'_, Sphere>,
+        terms_filter: Option<&BitSet>,
+        tested_interiors: &mut HashSet<GeometryId>,
+        best: &mut Best,
+    ) {
+        let bound = CellBound::new(&S2Cell::new(index_cell.cell_id));
+
+        for clipped in &index_cell.shapes {
+            let geometry_id = clipped.geometry_id;
+
+            if let Some(filter) = terms_filter {
+                let doc_id = edge_cache.doc_id_for(geometry_id);
+                if !filter.contains(doc_id) {
+                    continue;
+                }
+            }
+
+            let cache_entry = edge_cache.get(geometry_id);
+            let doc_id = cache_entry.doc_id();
+            let candidate_vertices = cache_entry.vertices();
+            if candidate_vertices.is_empty() {
+                continue;
+            }
+
+            let mut min_dist = best.limit;
+            if let Some(prev) = best.get(doc_id) {
+                if prev < min_dist {
+                    min_dist = prev;
+                }
+            }
+
+            // A stored geometry inside the query polygon is at distance zero wherever its edges
+            // are. If only part of it is inside, its edges cross the query's, which the edge
+            // distances find.
+            if tested_interiors.insert(geometry_id) && self.query_contains(&candidate_vertices[0]) {
+                min_dist = S1ChordAngle::zero();
+            } else {
+                // A shape with no edges in this cell covers it. Its distance comes from the cells
+                // its edges cross, or from add_containing_polygons when it contains the query.
+                for &edge_idx in &clipped.edge_indices {
+                    let (cv0, cv1) = cache_entry.edge(edge_idx);
+                    self.update_min_distance_to_query(&bound, &cv0, &cv1, &mut min_dist);
+                }
+            }
+
+            if min_dist < best.limit {
+                best.update(doc_id, min_dist);
+            }
+        }
+    }
+
+    fn collect_results(&self, best: &Best) -> Vec<ClosestEdgeResult> {
+        let mut out: Vec<ClosestEdgeResult> = best
+            .distances
+            .iter()
+            .filter(|(_, &distance)| distance >= self.min_distance)
+            .map(|(&doc_id, &distance)| ClosestEdgeResult { doc_id, distance })
+            .collect();
+        // Ties go to the lower document, so that a query always returns the same documents.
+        out.sort_by_key(|result| (result.distance, result.doc_id));
+        if self.max_results < out.len() {
+            out.truncate(self.max_results);
+        }
+        out
+    }
+}
+
+/// The best distance found so far for each document, and the distance a geometry must be nearer
+/// than to count. When the results are bounded to K, only the K nearest documents are kept, and
+/// once there are K the limit is the farthest of them.
+struct Best {
+    distances: HashMap<u32, S1ChordAngle>,
+    /// The kept documents by distance, farthest on top, when the results are bounded. Entries for
+    /// a document whose distance has since improved are stale, and dropped when they surface.
+    nearest: BinaryHeap<(S1ChordAngle, u32)>,
+    max_results: usize,
+    limit: S1ChordAngle,
+}
+
+impl Best {
+    fn new(max_results: usize, max_distance: S1ChordAngle) -> Self {
+        Best {
+            distances: HashMap::new(),
+            nearest: BinaryHeap::new(),
+            max_results,
+            limit: max_distance,
+        }
+    }
+
+    fn get(&self, doc_id: u32) -> Option<S1ChordAngle> {
+        self.distances.get(&doc_id).copied()
+    }
+
+    fn is_empty(&self) -> bool {
+        self.distances.is_empty()
+    }
+
+    /// Records a document's distance, unless it already has one at least as near.
+    fn update(&mut self, doc_id: u32, distance: S1ChordAngle) {
+        if self.get(doc_id).is_some_and(|prev| distance >= prev) {
+            return;
+        }
+        self.distances.insert(doc_id, distance);
+        if self.max_results == usize::MAX {
+            return;
+        }
+        self.nearest.push((distance, doc_id));
+        // Drop stale entries, and the farthest document while there are more than K.
+        while let Some(&(top_distance, top_doc)) = self.nearest.peek() {
+            let current = self.get(top_doc) == Some(top_distance);
+            if current && self.distances.len() <= self.max_results {
+                break;
+            }
+            self.nearest.pop();
+            if current {
+                self.distances.remove(&top_doc);
+            }
+        }
+        if self.distances.len() == self.max_results {
+            if let Some(&(farthest, _)) = self.nearest.peek() {
+                self.limit = farthest;
+            }
+        }
+    }
+}
+
+/// The endpoints of an edge in a smashed vertex array. A point is an edge from itself to itself.
+fn edge(vertices: &[[f64; 3]], edge_idx: u32) -> (&[f64; 3], &[f64; 3]) {
+    let i = edge_idx as usize;
+    (&vertices[i], vertices.get(i + 1).unwrap_or(&vertices[i]))
+}
+
+/// A cell's bounding cap, for a cheap lower bound on the distance between two cells.
+struct CellBound {
+    center: [f64; 3],
+    radius: f64,
+}
+
+impl CellBound {
+    fn new(cell: &S2Cell) -> Self {
+        let cap = cell.get_cap_bound();
+        CellBound {
+            center: cap.center(),
+            radius: cap.get_radius_radians(),
+        }
+    }
+
+    /// Lower bound on the distance between any point of one cap and any point of the other.
+    /// Rounded down by more than the error of the computation, so that it stays a lower bound.
+    fn distance(&self, other: &CellBound) -> S1ChordAngle {
+        let centers = S1ChordAngle::from_points(&self.center, &other.center).to_radians();
+        let gap = centers - self.radius - other.radius - 1e-14;
+        if gap > 0.0 {
+            S1ChordAngle::from_radians(gap)
+        } else {
+            S1ChordAngle::zero()
+        }
+    }
+}
+
+struct QueueEntry {
+    distance: S1ChordAngle,
+    cell_id: S2CellId,
+    /// Where the cell lies relative to the index cells.
+    relation: CellRelation,
+}
+
+impl PartialEq for QueueEntry {
+    fn eq(&self, other: &Self) -> bool {
+        self.distance == other.distance
+    }
+}
+
+impl Eq for QueueEntry {}
+
+impl PartialOrd for QueueEntry {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+// Reversed ordering for min-heap (BinaryHeap is a max-heap).
+impl Ord for QueueEntry {
+    fn cmp(&self, other: &Self) -> Ordering {
+        other.distance.cmp(&self.distance)
+    }
+}
