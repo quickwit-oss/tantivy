@@ -396,4 +396,35 @@ pub(crate) mod tests {
         assert_eq!(&matching_docs(r#"arr.text:"elliot smith""#), &[2]);
         Ok(())
     }
+
+    #[test]
+    fn test_phrase_under_must_not_does_not_panic_on_seek_danger() {
+        use crate::collector::Count;
+        use crate::query::{BooleanQuery, Occur, Query, TermQuery};
+        use crate::schema::IndexRecordOption;
+
+        let mut builder = Schema::builder();
+        let body = builder.add_text_field("body", TEXT);
+        let index = Index::create_in_ram(builder.build());
+        let mut writer = index.writer_with_num_threads(1, 15_000_000).unwrap();
+        writer.add_document(doc!(body => "x")).unwrap();
+        writer.add_document(doc!(body => "a b x")).unwrap();
+        writer.commit().unwrap();
+        let searcher = index.reader().unwrap().searcher();
+        let phrase = PhraseQuery::new(vec![
+            Term::from_field_text(body, "a"),
+            Term::from_field_text(body, "b"),
+        ]);
+        let query = BooleanQuery::new(vec![
+            (
+                Occur::Must,
+                Box::new(TermQuery::new(
+                    Term::from_field_text(body, "x"),
+                    IndexRecordOption::Basic,
+                )) as Box<dyn Query>,
+            ),
+            (Occur::MustNot, Box::new(phrase)),
+        ]);
+        assert_eq!(searcher.search(&query, &Count).unwrap(), 1);
+    }
 }
