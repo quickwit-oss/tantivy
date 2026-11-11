@@ -1,0 +1,20 @@
+[package]
+name = "tantivy-spatial"
+version = "0.27.0"
+edition = "2021"
+license = "MIT"
+autotests = false
+
+[lib]
+path = "lib.rs"
+
+[dependencies]
+common = { version = "0.27", package = "tantivy-common" }
+num-bigint = "0.4"
+num-rational = "0.4"
+num-traits = "0.2"
+robust = "1"
+rustc-hash = "2.0.0"
+
+[dev-dependencies]
+proptest = "1"
