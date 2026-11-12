@@ -14,6 +14,28 @@ use crate::{DocId, TantivyError};
 /// This is mostly to guard us from a stack overflow triggered by malicious input.
 const JSON_DEPTH_LIMIT: usize = 20;
 
+/// Returns the analyzer applied to the values of a text fast field, or `None` when values are
+/// recorded as is.
+///
+/// An analyzer registered in the tokenizer manager is always used, including one registered
+/// under the raw tokenizer name: callers may register a raw analyzer with extra filters, such as
+/// a token length limit. Values are recorded as is only when the raw tokenizer is requested and
+/// none is registered.
+fn resolve_fast_field_tokenizer(
+    tokenizer_manager: &TokenizerManager,
+    tokenizer_name: &str,
+) -> crate::Result<Option<TextAnalyzer>> {
+    if let Some(text_analyzer) = tokenizer_manager.get(tokenizer_name) {
+        return Ok(Some(text_analyzer));
+    }
+    if tokenizer_name == RAW_TOKENIZER_NAME {
+        return Ok(None);
+    }
+    Err(TantivyError::InvalidArgument(format!(
+        "Tokenizer `{tokenizer_name}` not found"
+    )))
+}
+
 /// The `FastFieldsWriter` groups all of the fast field writers.
 pub struct FastFieldsWriter {
     columnar_writer: ColumnarWriter,
@@ -63,32 +85,22 @@ impl FastFieldsWriter {
             }
             if let FieldType::JsonObject(json_object_options) = field_entry.field_type() {
                 if let Some(json_text_fast_field_option) = &json_object_options.fast {
-                    let tokenizer_name = json_text_fast_field_option.tokenizer.as_str();
-                    if tokenizer_name != RAW_TOKENIZER_NAME {
-                        let text_analyzer =
-                            tokenizer_manager.get(tokenizer_name).ok_or_else(|| {
-                                TantivyError::InvalidArgument(format!(
-                                    "Tokenizer {tokenizer_name:?} not found"
-                                ))
-                            })?;
-                        per_field_tokenizer[field_id.field_id() as usize] = Some(text_analyzer);
-                    }
+                    per_field_tokenizer[field_id.field_id() as usize] =
+                        resolve_fast_field_tokenizer(
+                            &tokenizer_manager,
+                            &json_text_fast_field_option.tokenizer,
+                        )?;
                 }
                 expand_dots[field_id.field_id() as usize] =
                     json_object_options.is_expand_dots_enabled();
             }
             if let FieldType::Str(text_options) = field_entry.field_type() {
                 if let Some(fast_field_text_options) = &text_options.fast {
-                    let tokenizer_name = fast_field_text_options.tokenizer.as_str();
-                    if tokenizer_name != RAW_TOKENIZER_NAME {
-                        let text_analyzer =
-                            tokenizer_manager.get(tokenizer_name).ok_or_else(|| {
-                                TantivyError::InvalidArgument(format!(
-                                    "Tokenizer `{tokenizer_name}` not found"
-                                ))
-                            })?;
-                        per_field_tokenizer[field_id.field_id() as usize] = Some(text_analyzer);
-                    }
+                    per_field_tokenizer[field_id.field_id() as usize] =
+                        resolve_fast_field_tokenizer(
+                            &tokenizer_manager,
+                            &fast_field_text_options.tokenizer,
+                        )?;
                 }
             }
 
