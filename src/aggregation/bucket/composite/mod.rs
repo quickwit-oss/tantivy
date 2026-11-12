@@ -1,29 +1,16 @@
-mod accessors;
-mod calendar_interval;
-mod collector;
-mod map;
-mod numeric_types;
-
-use core::panic;
 use std::cmp::Ordering;
 use std::fmt::Debug;
 use std::net::{AddrParseError, IpAddr};
 use std::str::FromStr;
 
-use columnar::ColumnType;
 use rustc_hash::FxHashMap;
 use serde::{Deserialize, Serialize};
 
-use crate::aggregation::agg_result::CompositeKey;
-pub(crate) use crate::aggregation::bucket::composite::accessors::CompositeAggReqData;
-pub use crate::aggregation::bucket::composite::accessors::{
-    CompositeAccessor, CompositeSourceAccessors, PrecomputedDateInterval,
-};
-pub use crate::aggregation::bucket::composite::collector::SegmentCompositeCollector;
-use crate::aggregation::bucket::composite::numeric_types::num_cmp::{
+use crate::aggregation::bucket::multi_terms::numeric_types::num_cmp::{
     cmp_i64_f64, cmp_i64_u64, cmp_u64_f64,
 };
-use crate::aggregation::bucket::Order;
+use crate::aggregation::bucket::multi_terms::sources::{BucketSource, KeyPage};
+use crate::aggregation::bucket::{MultiTermsAggReqData, MultiTermsAggregation, Order};
 use crate::aggregation::deserialize_f64;
 use crate::aggregation::intermediate_agg_result::CompositeIntermediateKey;
 use crate::schema::IntoIpv6Addr;
@@ -188,12 +175,10 @@ impl CompositeAggregationSource {
     }
 }
 
-/// A paginable aggregation that performs on multiple dimensions (sources),
-/// potentially mixing term and range queries.
+/// Returns a page of buckets keyed by named term, histogram, or date-histogram sources.
 ///
-/// Pagination is made possible because the buckets are ordered by the composite
-/// key, so the next page can be fetched "efficiently" by filtering using range
-/// queries on the key dimensions.
+/// Keys follow each source's configured order. The `after` key excludes that key and
+/// all keys preceding it from the next page.
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 #[serde(
     try_from = "CompositeAggregationSerde",
@@ -206,6 +191,38 @@ pub struct CompositeAggregation {
     pub size: u32,
     /// The key of the previous page's last bucket.
     pub after: FxHashMap<String, AfterKey>,
+}
+
+impl CompositeAggregation {
+    /// Builds this segment's multi-terms request with mapped sources and key pagination.
+    pub(crate) fn build_multi_terms_segment_request(
+        &self,
+        name: &str,
+        reader: &crate::SegmentReader,
+    ) -> crate::Result<MultiTermsAggReqData> {
+        let sources = self
+            .sources
+            .iter()
+            .map(|source| {
+                BucketSource::build(
+                    reader,
+                    source,
+                    self.after.get(source.name()).map(|key| &key.0),
+                )
+            })
+            .collect::<crate::Result<Vec<_>>>()?;
+        Ok(MultiTermsAggReqData {
+            name: name.to_string(),
+            req: MultiTermsAggregation::default(),
+            fields: Vec::new(),
+            missing_accessors: Vec::new(),
+            is_top_level: false,
+            key_page: Some(KeyPage {
+                sources,
+                size: self.size as usize,
+            }),
+        })
+    }
 }
 
 #[derive(Serialize, Deserialize)]
@@ -276,65 +293,6 @@ impl From<CompositeAggregation> for CompositeAggregationSerde {
             sources: serde_sources,
             size: value.size,
             after: value.after,
-        }
-    }
-}
-
-/// Key used to decide the order in which multi-type terms should be paginated.
-#[derive(Ord, PartialOrd, PartialEq, Eq)]
-enum ColumnPaginationOrder {
-    Bool = 1,
-    Str = 2,
-    Numeric = 3,
-    IpAddr = 4,
-    DateTime = 5,
-}
-
-trait ToTypePaginationOrder {
-    /// Returns the pagination order key for the current type related variant.
-    ///
-    /// Panics if called on a variant representing null. Null values must be
-    /// handled separately.
-    fn column_pagination_order(&self) -> ColumnPaginationOrder;
-}
-
-impl ToTypePaginationOrder for ColumnType {
-    fn column_pagination_order(&self) -> ColumnPaginationOrder {
-        match self {
-            ColumnType::Bool => ColumnPaginationOrder::Bool,
-            ColumnType::Str => ColumnPaginationOrder::Str,
-            ColumnType::F64 | ColumnType::I64 | ColumnType::U64 => ColumnPaginationOrder::Numeric,
-            ColumnType::IpAddr => ColumnPaginationOrder::IpAddr,
-            ColumnType::DateTime => ColumnPaginationOrder::DateTime,
-            ColumnType::Bytes => panic!("unsupported"),
-        }
-    }
-}
-
-impl ToTypePaginationOrder for CompositeIntermediateKey {
-    fn column_pagination_order(&self) -> ColumnPaginationOrder {
-        match self {
-            CompositeIntermediateKey::Bool(_) => ColumnPaginationOrder::Bool,
-            CompositeIntermediateKey::Str(_) => ColumnPaginationOrder::Str,
-            CompositeIntermediateKey::F64(_)
-            | CompositeIntermediateKey::I64(_)
-            | CompositeIntermediateKey::U64(_) => ColumnPaginationOrder::Numeric,
-            CompositeIntermediateKey::IpAddr(_) => ColumnPaginationOrder::IpAddr,
-            CompositeIntermediateKey::DateTime(_) => ColumnPaginationOrder::DateTime,
-            CompositeIntermediateKey::Null => panic!("null must be handled separately"),
-        }
-    }
-}
-
-impl ToTypePaginationOrder for CompositeKey {
-    fn column_pagination_order(&self) -> ColumnPaginationOrder {
-        match self {
-            CompositeKey::Bool(_) => ColumnPaginationOrder::Bool,
-            CompositeKey::Str(_) => ColumnPaginationOrder::Str,
-            CompositeKey::F64(_) | CompositeKey::I64(_) | CompositeKey::U64(_) => {
-                ColumnPaginationOrder::Numeric
-            }
-            CompositeKey::Null => panic!("null must be handled separately"),
         }
     }
 }
@@ -486,9 +444,7 @@ pub fn composite_intermediate_key_ordering(
         (CIKey::U64(left), CIKey::I64(right)) => cmp_i64_u64(*right, *left).reverse(),
         (CIKey::U64(left), CIKey::F64(right)) => cmp_u64_f64(*left, *right)?,
         // other cross-type comparisons
-        (type_a, type_b) => type_a
-            .column_pagination_order()
-            .cmp(&type_b.column_pagination_order()),
+        (left, right) => left.key_type().cmp(&right.key_type()),
     };
     if !forced_ordering && order == Order::Desc {
         Ok(asc_ordering.reverse())
@@ -891,86 +847,57 @@ mod tests {
     }
 
     #[test]
-    fn composite_aggregation_term_missing_order() -> crate::Result<()> {
-        // Create index with missing values
-        let mut schema_builder = Schema::builder();
-        let string_field = schema_builder.add_text_field("string_id", STRING | FAST);
-        let index = Index::create_in_ram(schema_builder.build());
+    fn composite_pagination_respects_missing_order_for_every_source() -> crate::Result<()> {
+        let mut schema = Schema::builder();
+        let string = schema.add_text_field("string", STRING | FAST);
+        let number = schema.add_u64_field("number", FAST);
+        let date = schema.add_date_field("date", FAST);
+        let index = Index::create_in_ram(schema.build());
+        let mut writer = index.writer_for_tests()?;
+        writer.add_document(doc!(string => "b", number => 23u64,
+            date => common::DateTime::from_timestamp_secs(86_400)))?;
+        writer.add_document(doc!())?;
+        writer.add_document(doc!(string => "a", number => 12u64,
+            date => common::DateTime::from_timestamp_secs(0)))?;
+        writer.commit()?;
 
-        {
-            let mut index_writer = index.writer_with_num_threads(1, 20_000_000)?;
-            index_writer.add_document(doc!(string_field => "termb"))?;
-            index_writer.add_document(doc!())?;
-            index_writer.add_document(doc!(string_field => "terma"))?;
-            index_writer.commit()?;
+        for (kind, mut source, values) in [
+            ("terms", json!({"field": "string"}), json!(["a", "b"])),
+            (
+                "histogram",
+                json!({"field": "number", "interval": 10}),
+                json!([10.0, 20.0]),
+            ),
+            (
+                "date_histogram",
+                json!({"field": "date", "fixed_interval": "1d"}),
+                json!([0, 86_400_000]),
+            ),
+        ] {
+            source["missing_bucket"] = json!(true);
+            for order in ["asc", "desc"] {
+                for missing_order in ["first", "last", "default"] {
+                    source["order"] = json!(order);
+                    source["missing_order"] = json!(missing_order);
+                    let mut keys = values.as_array().unwrap().clone();
+                    if order == "desc" {
+                        keys.reverse();
+                    }
+                    let missing_first =
+                        missing_order == "first" || (missing_order == "default" && order == "asc");
+                    keys.insert(if missing_first { 0 } else { keys.len() }, json!(null));
+                    let buckets: Vec<_> = keys
+                        .into_iter()
+                        .map(|key| json!({"key": {"value": key}, "doc_count": 1}))
+                        .collect();
+                    exec_and_assert_all_paginations(
+                        &index,
+                        json!([{"value": {(kind): source}}]),
+                        json!(buckets),
+                    );
+                }
+            }
         }
-
-        // Test missing_order: "first"
-        exec_and_assert_all_paginations(
-            &index,
-            json!([
-                {
-                    "myterm": {
-                        "terms": {
-                            "field": "string_id",
-                            "missing_bucket": true,
-                            "missing_order": "first",
-                            "order": "asc"
-                        }
-                    }
-                }
-            ]),
-            json!([
-                {"key": {"myterm": null}, "doc_count": 1},
-                {"key": {"myterm": "terma"}, "doc_count": 1},
-                {"key": {"myterm": "termb"}, "doc_count": 1}
-            ]),
-        );
-
-        // Test missing_order: "last"
-        exec_and_assert_all_paginations(
-            &index,
-            json!([
-                {
-                    "myterm": {
-                        "terms": {
-                            "field": "string_id",
-                            "missing_bucket": true,
-                            "missing_order": "last",
-                            "order": "asc"
-                        }
-                    }
-                }
-            ]),
-            json!([
-                {"key": {"myterm": "terma"}, "doc_count": 1},
-                {"key": {"myterm": "termb"}, "doc_count": 1},
-                {"key": {"myterm": null}, "doc_count": 1}
-            ]),
-        );
-
-        // Test missing_order: "default" with desc order
-        exec_and_assert_all_paginations(
-            &index,
-            json!([
-                {
-                    "myterm": {
-                        "terms": {
-                            "field": "string_id",
-                            "missing_bucket": true,
-                            "missing_order": "default",
-                            "order": "desc"
-                        }
-                    }
-                }
-            ]),
-            json!([
-                {"key": {"myterm": "termb"}, "doc_count": 1},
-                {"key": {"myterm": "terma"}, "doc_count": 1},
-                {"key": {"myterm": null}, "doc_count": 1}
-            ]),
-        );
-
         Ok(())
     }
 
@@ -1511,6 +1438,7 @@ mod tests {
                 text_field => "banana",
                 num_field => 10u64,
                 num_field => 20u64,
+                num_field => 10u64,
             ))?;
             index_writer.add_document(doc!(
                 text_field => "cherry",
@@ -1537,9 +1465,7 @@ mod tests {
                 {"key": {"text_terms": "banana"}, "doc_count": 1},
                 {"key": {"text_terms": "cherry"}, "doc_count": 1},
                 {"key": {"text_terms": "date"}, "doc_count": 1},
-                // this is not the doc count but the term occurrence count
-                // https://github.com/quickwit-oss/tantivy/issues/2721
-                {"key": {"text_terms": "elderberry"}, "doc_count": 2}
+                {"key": {"text_terms": "elderberry"}, "doc_count": 1}
             ]),
         );
 
@@ -1553,6 +1479,23 @@ mod tests {
                 {"key": {"num_terms": 20}, "doc_count": 1},
                 {"key": {"num_terms": 30}, "doc_count": 1},
                 {"key": {"num_terms": 40}, "doc_count": 1}
+            ]),
+        );
+
+        exec_and_assert_all_paginations(
+            &index,
+            json!([
+                {"num_terms": {"terms": {"field": "num"}}},
+                {"text_terms": {"terms": {"field": "text"}}}
+            ]),
+            json!([
+                {"key": {"num_terms": 10, "text_terms": "apple"}, "doc_count": 1},
+                {"key": {"num_terms": 10, "text_terms": "banana"}, "doc_count": 1},
+                {"key": {"num_terms": 20, "text_terms": "apple"}, "doc_count": 1},
+                {"key": {"num_terms": 20, "text_terms": "banana"}, "doc_count": 1},
+                {"key": {"num_terms": 30, "text_terms": "cherry"}, "doc_count": 1},
+                {"key": {"num_terms": 40, "text_terms": "date"}, "doc_count": 1},
+                {"key": {"num_terms": 40, "text_terms": "elderberry"}, "doc_count": 1}
             ]),
         );
 
@@ -1588,6 +1531,188 @@ mod tests {
                 {"key": {"val_hist": 10.0}, "doc_count": 1}
             ]),
         );
+        Ok(())
+    }
+
+    #[test]
+    fn composite_aggregation_deduplicates_mapped_source_keys() -> crate::Result<()> {
+        let mut schema_builder = Schema::builder();
+        let json_field = schema_builder.add_json_field("json_data", FAST);
+        let metric_field = schema_builder.add_u64_field("metric", FAST);
+        let index = Index::create_in_ram(schema_builder.build());
+        {
+            let mut index_writer = index.writer_with_num_threads(1, 20_000_000)?;
+            // Numeric and date columns collapse into the same histogram buckets.
+            index_writer.add_document(doc!(
+                json_field => json!({
+                    "value": [12, 22, 15, 12.5, "1970-01-01T00:00:00.012Z"],
+                    "tag": ["x", "y", "x"]
+                }),
+                metric_field => 5u64,
+                metric_field => 5u64,
+            ))?;
+            index_writer.add_document(doc!(
+                json_field => json!({"value": 19, "tag": "x"}),
+                metric_field => 7u64,
+            ))?;
+            index_writer.add_document(doc!(
+                json_field => json!({"tag": "x"}),
+                metric_field => 3u64,
+            ))?;
+            index_writer.commit()?;
+        }
+        for order in ["asc", "desc"] {
+            for histogram_first in [true, false] {
+                let mut sources = vec![
+                    json!({"value": {"histogram": {
+                        "field": "json_data.value", "interval": 10,
+                        "order": order, "missing_bucket": true
+                    }}}),
+                    json!({"tag": {"terms": {"field": "json_data.tag", "order": order}}}),
+                ];
+                let mut expected_buckets = [
+                    json!({"key": {"value": null, "tag": "x"}, "doc_count": 1, "total": {"value": 3.0}}),
+                    json!({"key": {"value": 10.0, "tag": "x"}, "doc_count": 2, "total": {"value": 17.0}}),
+                    json!({"key": {"value": 10.0, "tag": "y"}, "doc_count": 1, "total": {"value": 10.0}}),
+                    json!({"key": {"value": 20.0, "tag": "x"}, "doc_count": 1, "total": {"value": 10.0}}),
+                    json!({"key": {"value": 20.0, "tag": "y"}, "doc_count": 1, "total": {"value": 10.0}}),
+                ];
+                if !histogram_first {
+                    sources.reverse();
+                    expected_buckets.swap(2, 3);
+                }
+                if order == "desc" {
+                    expected_buckets.reverse();
+                }
+                // Child sums retain duplicate metric values, not duplicate bucket membership.
+                for page_size in 1..=expected_buckets.len() {
+                    let mut after = None;
+                    for expected_page in expected_buckets.chunks(page_size) {
+                        let mut request = json!({"my_composite": {
+                            "composite": {"sources": sources, "size": page_size},
+                            "aggs": {"total": {"sum": {"field": "metric"}}}
+                        }});
+                        if let Some(after_key) = after.take() {
+                            request["my_composite"]["composite"]["after"] = after_key;
+                        }
+                        let res = exec_request(serde_json::from_value(request)?, &index)?;
+                        assert_eq!(res["my_composite"]["buckets"], json!(expected_page));
+                        after = Some(res["my_composite"]["after_key"].clone());
+                    }
+                }
+            }
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn composite_pagination_skips_prefixes_without_a_qualifying_suffix() -> crate::Result<()> {
+        let mut schema = Schema::builder();
+        let values = schema.add_u64_field("values", FAST);
+        let metric = schema.add_u64_field("metric", FAST);
+        let index = Index::create_in_ram(schema.build());
+        let mut writer = index.writer_with_num_threads(1, 20_000_000)?;
+        // More than one collection block. Every document has 32^3 distinct tuples,
+        // but only two qualifying tuples per document are needed for this page.
+        for _ in 0..130 {
+            let mut doc = doc!(metric => 3u64, metric => 3u64);
+            for value in (0..32u64).rev() {
+                doc.add_u64(values, value);
+            }
+            writer.add_document(doc)?;
+        }
+        writer.commit()?;
+        for (order, last_suffix, absent_suffix, next_prefix, suffixes) in [
+            ("asc", "u64:31", "u64:99", 21, [0, 1]),
+            ("desc", "u64:0", "i64:-1", 19, [31, 30]),
+        ] {
+            for after in [
+                json!({"a": "u64:20", "b": "u64:31", "c": last_suffix}),
+                // Nonexistent suffixes: the prefix equal to `after` produces no result.
+                json!({"a": "u64:20", "b": "u64:31", "c": absent_suffix}),
+                json!({"a": "u64:20", "b": "u64:99", "c": "u64:0"}),
+            ] {
+                let req = json!({"page": {
+                    "composite": {
+                        "sources": [
+                            {"a": {"terms": {"field": "values", "order": order}}},
+                            {"b": {"terms": {"field": "values"}}},
+                            {"c": {"terms": {"field": "values", "order": order}}}
+                        ],
+                        "size": 2,
+                        "after": after
+                    },
+                    "aggs": {"total": {"sum": {"field": "metric"}}}
+                }});
+                let res = exec_request(serde_json::from_value(req)?, &index)?;
+                assert_eq!(
+                    res["page"]["buckets"],
+                    json!([
+                        {"key": {"a": next_prefix, "b": 0, "c": suffixes[0]}, "doc_count": 130, "total": {"value": 780.0}},
+                        {"key": {"a": next_prefix, "b": 0, "c": suffixes[1]}, "doc_count": 130, "total": {"value": 780.0}}
+                    ])
+                );
+            }
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn composite_buckets_preserve_counts_and_child_metrics_under_terms() -> crate::Result<()> {
+        let mut schema = Schema::builder();
+        let parent = schema.add_text_field("parent", STRING | FAST);
+        let data = schema.add_json_field("data", FAST);
+        let metric = schema.add_u64_field("metric", FAST);
+        let index = Index::create_in_ram(schema.build());
+        let mut writer = index.writer_with_num_threads(1, 20_000_000)?;
+        for _ in 0..130 {
+            writer.add_document(doc!(
+                parent => "a", parent => "b",
+                data => json!({
+                    "price": [12, 15, 22, "1970-01-01T00:00:00.012Z"],
+                    "tag": ["x", "z", "x"]
+                }),
+                metric => 3u64, metric => 3u64,
+            ))?;
+        }
+        writer.commit()?;
+        let request = json!({"parents": {
+            "terms": {"field": "parent", "order": {"_key": "asc"}},
+            "aggs": {"page": {
+                "composite": {
+                    "sources": [
+                        {"tag": {"terms": {"field": "data.tag", "order": "desc"}}},
+                        {"price": {"histogram": {"field": "data.price", "interval": 10}}}
+                    ],
+                    "size": 2,
+                    "after": {"tag": "str:z", "price": "f64:15"}
+                },
+                "aggs": {
+                    "total": {"sum": {"field": "metric"}},
+                    "tuples": {
+                        "multi_terms": {"terms": [{"field": "metric"}]},
+                        "aggs": {"total": {"sum": {"field": "metric"}}}
+                    }
+                }
+            }}
+        }});
+        let result = exec_request(serde_json::from_value(request)?, &index)?;
+        let parents = result["parents"]["buckets"].as_array().unwrap();
+        assert_eq!(parents.len(), 2);
+        for parent in parents {
+            let buckets = parent["page"]["buckets"].as_array().unwrap();
+            assert_eq!(buckets.len(), 2);
+            assert_eq!(buckets[0]["key"], json!({"tag": "z", "price": 20.0}));
+            assert_eq!(buckets[1]["key"], json!({"tag": "x", "price": 10.0}));
+            for bucket in buckets {
+                assert_eq!(bucket["doc_count"], 130);
+                assert_eq!(bucket["total"]["value"], 780.0);
+                assert_eq!(
+                    bucket["tuples"]["buckets"],
+                    json!([{"key": [3], "key_as_string": "3", "doc_count": 130, "total": {"value": 780.0}}])
+                );
+            }
+        }
         Ok(())
     }
 
@@ -1654,8 +1779,11 @@ mod tests {
         let index = Index::create_in_ram(schema_builder.build());
         {
             let mut index_writer = index.writer_with_num_threads(1, 20_000_000)?;
-            index_writer
-                .add_document(doc!(date_field => datetime_from_iso_str("2021-01-01T00:00:00Z")))?;
+            index_writer.add_document(doc!(
+                date_field => datetime_from_iso_str("2021-01-01T00:00:00Z"),
+                date_field => datetime_from_iso_str("2021-02-01T00:00:00Z"),
+                date_field => datetime_from_iso_str("2021-01-01T00:00:00Z"),
+            ))?;
             index_writer
                 .add_document(doc!(date_field => datetime_from_iso_str("2021-02-01T00:00:00Z")))?;
             index_writer
@@ -1687,8 +1815,11 @@ mod tests {
         let index = Index::create_in_ram(schema_builder.build());
         {
             let mut index_writer = index.writer_with_num_threads(1, 20_000_000)?;
-            index_writer
-                .add_document(doc!(date_field => datetime_from_iso_str("2021-01-01T00:00:00Z")))?;
+            index_writer.add_document(doc!(
+                date_field => datetime_from_iso_str("2021-01-01T00:00:00Z"),
+                date_field => datetime_from_iso_str("2021-01-01T05:00:00Z"),
+                date_field => datetime_from_iso_str("2021-01-01T00:00:00Z"),
+            ))?;
             index_writer
                 .add_document(doc!(date_field => datetime_from_iso_str("2021-01-01T05:30:00Z")))?;
             index_writer
@@ -1697,6 +1828,10 @@ mod tests {
                 .add_document(doc!(date_field => datetime_from_iso_str("2021-01-01T12:00:00Z")))?;
             index_writer
                 .add_document(doc!(date_field => datetime_from_iso_str("2021-01-01T18:00:00Z")))?;
+            index_writer.add_document(doc!(
+                date_field => datetime_from_iso_str("1969-12-31T19:00:00Z"),
+                date_field => datetime_from_iso_str("1969-12-31T23:00:00Z"),
+            ))?;
             index_writer.commit()?;
         }
 
@@ -1706,6 +1841,7 @@ mod tests {
                 {"dt_hist": {"date_histogram": {"field": "dt", "fixed_interval": "6h"}}}
             ]),
             json!([
+                {"key": {"dt_hist": ms_timestamp_from_iso_str("1969-12-31T18:00:00Z")}, "doc_count": 1},
                 {"key": {"dt_hist": ms_timestamp_from_iso_str("2021-01-01T00:00:00Z")}, "doc_count": 2},
                 {"key": {"dt_hist": ms_timestamp_from_iso_str("2021-01-01T06:00:00Z")}, "doc_count": 1},
                 {"key": {"dt_hist": ms_timestamp_from_iso_str("2021-01-01T12:00:00Z")}, "doc_count": 1},

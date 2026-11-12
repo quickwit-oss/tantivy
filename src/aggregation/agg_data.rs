@@ -13,11 +13,11 @@ use crate::aggregation::accessor_helpers::{
 use crate::aggregation::agg_req::{Aggregation, AggregationVariants, Aggregations};
 use crate::aggregation::bucket::{
     build_segment_filter_collector, build_segment_histogram_collector,
-    build_segment_multi_terms_collector, build_segment_range_collector, CompositeAggReqData,
-    CompositeAggregation, CompositeSourceAccessors, FilterAggReqData, HistogramAggReqData,
-    IncludeExcludeParam, MissingTermAggReqData, MultiTermsAggReqData, MultiTermsAggregation,
-    MultiTermsFieldAccessor, MultiTermsMissingAccessor, OrderTarget, RangeAggReqData,
-    TermMissingAgg, TermsAggReqData, TermsAggregation, TermsAggregationInternal,
+    build_segment_multi_terms_collector, build_segment_range_collector, CompositeAggregation,
+    FilterAggReqData, HistogramAggReqData, IncludeExcludeParam, MissingTermAggReqData,
+    MultiTermsAggReqData, MultiTermsAggregation, MultiTermsFieldAccessor,
+    MultiTermsMissingAccessor, OrderTarget, RangeAggReqData, TermMissingAgg, TermsAggReqData,
+    TermsAggregation, TermsAggregationInternal,
 };
 use crate::aggregation::metric::{
     build_segment_stats_collector, AverageAggregation, CardinalityAggReqData,
@@ -76,7 +76,6 @@ pub(crate) enum AggNodeData {
     Histogram(HistogramAggReqData),
     Range(RangeAggReqData),
     Filter(Box<FilterAggReqData>),
-    Composite(CompositeAggReqData),
     MultiTerms(MultiTermsAggReqData),
 }
 
@@ -96,7 +95,6 @@ impl AggNode {
             AggNodeData::Histogram(req_data) => &req_data.name,
             AggNodeData::Range(req_data) => &req_data.name,
             AggNodeData::Filter(req_data) => &req_data.name,
-            AggNodeData::Composite(req_data) => &req_data.name,
             AggNodeData::MultiTerms(req_data) => &req_data.name,
         }
     }
@@ -113,7 +111,6 @@ impl AggNode {
             AggNodeData::Histogram(_) => "Histogram",
             AggNodeData::Range(_) => "Range",
             AggNodeData::Filter(_) => "Filter",
-            AggNodeData::Composite(_) => "Composite",
             AggNodeData::MultiTerms(_) => "MultiTerms",
         }
     }
@@ -133,7 +130,6 @@ impl AggNode {
             AggNodeData::Histogram(req_data) => req_data.get_memory_consumption(),
             AggNodeData::Range(req_data) => req_data.get_memory_consumption(),
             AggNodeData::Filter(req_data) => req_data.get_memory_consumption(),
-            AggNodeData::Composite(req_data) => req_data.get_memory_consumption(),
             AggNodeData::MultiTerms(req_data) => req_data.get_memory_consumption(),
         }
     }
@@ -245,14 +241,6 @@ pub(crate) fn build_segment_agg_collector(
         }
         AggNodeData::Range(req_data) => build_segment_range_collector(ctx, req_data, children),
         AggNodeData::Filter(req_data) => build_segment_filter_collector(ctx, *req_data, children),
-        AggNodeData::Composite(req_data) => {
-            let sub_agg = build_sub_agg_collectors(ctx, children)?;
-            Ok(Box::new(
-                crate::aggregation::bucket::SegmentCompositeCollector::from_req_and_validate(
-                    req_data, sub_agg,
-                )?,
-            ))
-        }
         AggNodeData::MultiTerms(req_data) => {
             build_segment_multi_terms_collector(ctx, req_data, children)
         }
@@ -585,26 +573,17 @@ fn build_nodes(
 fn build_composite_node(
     agg_name: &str,
     reader: &SegmentReader,
-    _segment_ordinal: SegmentOrdinal,
+    segment_ordinal: SegmentOrdinal,
     context: &AggContextParams,
     sub_aggs: &Aggregations,
     req: &CompositeAggregation,
 ) -> crate::Result<AggNode> {
-    let mut composite_accessors = Vec::with_capacity(req.sources.len());
     for source in &req.sources {
         reject_registered_source(&context.value_sources, source.field(), "composite")?;
-        let source_after_key_opt = req.after.get(source.name()).map(|k| &k.0);
-        let source_accessor =
-            CompositeSourceAccessors::build_for_source(reader, source, source_after_key_opt)?;
-        composite_accessors.push(source_accessor);
     }
-    let agg = CompositeAggReqData {
-        name: agg_name.to_string(),
-        req: req.clone(),
-        composite_accessors,
-    };
-    let children = build_children(sub_aggs, reader, _segment_ordinal, context)?;
-    Ok(AggNode::new(AggNodeData::Composite(agg), children))
+    let req_data = req.build_multi_terms_segment_request(agg_name, reader)?;
+    let children = build_children(sub_aggs, reader, segment_ordinal, context)?;
+    Ok(AggNode::new(AggNodeData::MultiTerms(req_data), children))
 }
 
 fn build_multi_terms_nodes(
@@ -712,6 +691,7 @@ fn build_multi_terms_nodes(
             fields,
             missing_accessors,
             is_top_level,
+            key_page: None,
         });
         let children = build_children(sub_aggs, reader, segment_ordinal, context)?;
         nodes.push(AggNode::new(node_data, children));
@@ -1229,6 +1209,43 @@ mod tests {
                 field.str_dict_column.is_some() == (field.column_type == ColumnType::Str)
             }));
 
+        Ok(())
+    }
+
+    #[test]
+    fn composite_translates_to_one_multi_terms_node() -> crate::Result<()> {
+        let mut schema = crate::schema::Schema::builder();
+        let attrs = schema.add_json_field("attrs", crate::schema::FAST);
+        let index = crate::Index::create_in_ram(schema.build());
+        let mut writer = index.writer_for_tests()?;
+        writer.add_document(crate::doc!(attrs => json!({
+            "value": [12, "1970-01-01T00:00:00.012Z"], "tag": ["x", true]
+        })))?;
+        writer.commit()?;
+        let aggs: Aggregations = serde_json::from_value(json!({"page": {
+            "composite": {
+                "sources": [
+                    {"price": {"histogram": {"field": "attrs.value", "interval": 10}}},
+                    {"tag": {"terms": {"field": "attrs.tag"}}}
+                ],
+                "size": 2
+            },
+            "aggs": {"total": {"sum": {"field": "attrs.value"}}}
+        }}))?;
+        let searcher = index.reader()?.searcher();
+        let tree = build_aggregations_data_from_req(
+            &aggs,
+            searcher.segment_reader(0),
+            0,
+            &Default::default(),
+        )?;
+        assert_eq!(tree.len(), 1);
+        assert_eq!(tree[0].children.len(), 1);
+        let requests = multi_terms_req_data(&tree);
+        let page = requests[0].key_page.as_ref().unwrap();
+        assert_eq!(page.sources.len(), 2);
+        assert_eq!(page.sources[0].columns.len(), 2);
+        assert_eq!(page.sources[1].columns.len(), 2);
         Ok(())
     }
 
