@@ -98,7 +98,8 @@ mod tests {
     };
     use crate::time::OffsetDateTime;
     use crate::tokenizer::{
-        LowerCaser, RawTokenizer, TextAnalyzer, TokenizerManager, RAW_TOKENIZER_NAME,
+        LowerCaser, RawTokenizer, RemoveLongFilter, TextAnalyzer, TokenizerManager,
+        RAW_TOKENIZER_NAME,
     };
     use crate::{Index, IndexWriter, SegmentReader};
 
@@ -1266,6 +1267,50 @@ mod tests {
         let mut out = String::new();
         column.ord_to_str(0u64, &mut out).unwrap();
         assert_eq!(&out, "test1 test2");
+    }
+
+    #[test]
+    fn test_fast_field_registered_raw_tokenizer_is_applied() {
+        let mut schema_builder = Schema::builder();
+        let text_field = schema_builder
+            .add_text_field("text", TextOptions::default().set_fast(RAW_TOKENIZER_NAME));
+        let json_field = schema_builder.add_json_field(
+            "json",
+            JsonObjectOptions::default().set_fast(RAW_TOKENIZER_NAME),
+        );
+        let schema = schema_builder.build();
+        let ff_tokenizer_manager = TokenizerManager::default();
+        ff_tokenizer_manager.register(
+            RAW_TOKENIZER_NAME,
+            TextAnalyzer::builder(RawTokenizer::default())
+                .filter(RemoveLongFilter::limit(10))
+                .build(),
+        );
+
+        let mut index = Index::create_in_ram(schema);
+        index.set_fast_field_tokenizers(ff_tokenizer_manager);
+        let mut index_writer: IndexWriter = index.writer_for_tests().unwrap();
+        let long_value = "a value longer than the limit";
+        index_writer
+            .add_document(doc!(text_field => "Short", json_field => json!({"key": "Short"})))
+            .unwrap();
+        index_writer
+            .add_document(doc!(text_field => long_value, json_field => json!({"key": long_value})))
+            .unwrap();
+        index_writer.commit().unwrap();
+        let searcher = index.reader().unwrap().searcher();
+        let fast_fields = searcher.segment_reader(0u32).fast_fields();
+
+        for column_name in ["text", "json.key"] {
+            let column = fast_fields.str(column_name).unwrap().unwrap();
+            assert_eq!(column.num_terms(), 1, "{column_name}");
+            let mut out = String::new();
+            column.ord_to_str(0u64, &mut out).unwrap();
+            // The registered raw analyzer does not lowercase, unlike the default tokenizer.
+            assert_eq!(&out, "Short", "{column_name}");
+            assert!(column.term_ords(0).eq([0]), "{column_name}");
+            assert!(column.term_ords(1).next().is_none(), "{column_name}");
+        }
     }
 
     #[test]
