@@ -280,7 +280,7 @@ impl Weight for RegexPhraseWeight {
             return Err(does_not_match(doc));
         }
         let mut scorer = scorer_opt.unwrap();
-        if scorer.seek(doc) != doc {
+        if scorer.doc() > doc || scorer.seek(doc) != doc {
             return Err(does_not_match(doc));
         }
         let fieldnorm_reader = self.fieldnorm_reader(reader)?;
