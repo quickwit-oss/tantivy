@@ -423,7 +423,7 @@ impl SnippetGenerator {
         field: Field,
     ) -> crate::Result<SnippetGenerator> {
         let mut terms: BTreeSet<&Term> = BTreeSet::new();
-        query.query_terms(&mut |term, _| {
+        query.positive_query_terms(&mut |term, _| {
             if term.field() == field {
                 terms.insert(term);
             }
@@ -807,6 +807,33 @@ Survey in 2016, 2017, and 2018."#;
                 snippet_generator.terms_text()
             );
         }
+        Ok(())
+    }
+
+    #[test]
+    fn test_snippet_generator_skips_negated_terms() -> crate::Result<()> {
+        let mut schema_builder = Schema::builder();
+        let text_field = schema_builder.add_text_field("text", TEXT);
+        let schema = schema_builder.build();
+        let index = Index::create_in_ram(schema);
+        {
+            let mut index_writer = index.writer_for_tests()?;
+            index_writer.add_document(doc!(text_field => "fox dog"))?;
+            index_writer.add_document(doc!(text_field => "cat"))?;
+            index_writer.commit()?;
+        }
+        let searcher = index.reader()?.searcher();
+        let query_parser = QueryParser::for_index(&index, vec![text_field]);
+        let query = query_parser.parse_query("fox OR (cat -dog)")?;
+        let snippet_generator = SnippetGenerator::create(&searcher, &*query, text_field)?;
+        assert_eq!(
+            &btreemap!("cat".to_string() => 0.5, "fox".to_string() => 0.5),
+            snippet_generator.terms_text()
+        );
+        assert_eq!(
+            snippet_generator.snippet("fox dog").to_html(),
+            "<b>fox</b> dog"
+        );
         Ok(())
     }
 

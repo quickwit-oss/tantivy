@@ -110,6 +110,12 @@ impl Query for DisjunctionMaxQuery {
             disjunct.query_terms(visitor);
         }
     }
+
+    fn positive_query_terms<'a>(&'a self, visitor: &mut dyn FnMut(&'a Term, bool)) {
+        for disjunct in &self.disjuncts {
+            disjunct.positive_query_terms(visitor);
+        }
+    }
 }
 
 impl DisjunctionMaxQuery {
