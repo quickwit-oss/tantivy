@@ -632,9 +632,22 @@ where
         self.append_doc(doc, sort_key);
     }
 
+    /// Push a new document to the top n, in any `DocId`/`DocAddress` order.
+    /// A document below the current threshold is ignored. One equal to it is kept, so that
+    /// truncation can keep the lower `DocId`/`DocAddress` of a tie.
+    #[inline]
+    pub(crate) fn push_unordered(&mut self, sort_key: TSortKey, doc: D) {
+        if let Some(last_median) = &self.threshold {
+            if self.comparator.compare(&sort_key, last_median) == Ordering::Less {
+                return;
+            }
+        }
+        self.append_doc(doc, sort_key);
+    }
+
     // Append a document to the top n.
     //
-    // At this point, we need to have established that the doc is above the threshold.
+    // At this point, we need to have established that the doc is not below the threshold.
     #[inline(always)]
     pub(crate) fn append_doc(&mut self, doc: D, sort_key: TSortKey) {
         if self.buffer.len() == self.buffer.capacity() {
@@ -835,6 +848,35 @@ mod tests {
         }
     }
 
+    proptest! {
+        #[test]
+        fn test_topn_computer_push_unordered_prop(
+          limit in 0..10_usize,
+          docs in proptest::collection::vec(0..5_u64, 0..100_usize)
+              .prop_map(|sort_keys| {
+                  sort_keys
+                      .into_iter()
+                      .enumerate()
+                      .map(|(doc, sort_key)| (sort_key, doc as u64))
+                      .collect::<Vec<_>>()
+              })
+              .prop_shuffle(),
+        ) {
+            let mut computer: TopNComputer<_, _, ReverseComparator> = TopNComputer::new_with_comparator(limit, ReverseComparator);
+            for (feature, doc) in &docs {
+                computer.push_unordered(*feature, *doc);
+            }
+            let mut comparable_docs: Vec<ComparableDoc<u64, u64>> =
+                docs.into_iter().map(|(sort_key, doc)| ComparableDoc { sort_key, doc }).collect();
+            crate::collector::sort_key::tests::sort_hits(&mut comparable_docs, Order::Asc);
+            comparable_docs.truncate(limit);
+            prop_assert_eq!(
+                computer.into_sorted_vec(),
+                comparable_docs,
+            );
+        }
+    }
+
     #[test]
     fn test_top_collector_not_at_capacity_without_offset() -> crate::Result<()> {
         let index = make_index()?;
@@ -951,6 +993,50 @@ mod tests {
 
         assert_eq!(page_1, &page_2[..page_1.len()]);
         assert_eq!(page_0, &page_2[..page_0.len()]);
+    }
+
+    #[test]
+    fn test_top_collector_stable_sorting_with_ties_inside_a_segment() {
+        use crate::indexer::NoMergePolicy;
+        use crate::query::TermQuery;
+        use crate::schema::IndexRecordOption;
+        use crate::Term;
+
+        // Every "a" doc ties, and most limits cut through them. The merge fills its buffer
+        // partway through one segment's tied docs, so the docs it keeps must not depend on
+        // the order a segment returns its hits in.
+        let segments: [&[&str]; 3] = [
+            &["a"; 4],
+            &["a b"; 7],
+            &["a", "a", "a", "a", "a", "a", "a", "a", "a b"],
+        ];
+        let mut schema_builder = Schema::builder();
+        let text = schema_builder.add_text_field("text", TEXT);
+        let index = Index::create_in_ram(schema_builder.build());
+        let mut writer = index.writer_for_tests().unwrap();
+        writer.set_merge_policy(Box::new(NoMergePolicy));
+        for segment in segments {
+            for value in segment {
+                writer.add_document(doc!(text => *value)).unwrap();
+            }
+            writer.commit().unwrap();
+        }
+        let searcher = index.reader().unwrap().searcher();
+        let query = TermQuery::new(
+            Term::from_field_text(text, "a"),
+            IndexRecordOption::WithFreqs,
+        );
+        let top = |limit: usize| {
+            searcher
+                .search(&query, &TopDocs::with_limit(limit).order_by_score())
+                .unwrap()
+        };
+        let full = top(20);
+
+        assert_eq!(searcher.segment_readers().len(), 3);
+        for limit in 1..=full.len() {
+            assert_eq!(top(limit), full[..limit], "limit {limit}");
+        }
     }
 
     proptest! {
