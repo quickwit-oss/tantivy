@@ -52,6 +52,10 @@ impl Query for ConstScoreQuery {
     fn query_terms<'a>(&'a self, visitor: &mut dyn FnMut(&'a Term, bool)) {
         self.query.query_terms(visitor);
     }
+
+    fn positive_query_terms<'a>(&'a self, visitor: &mut dyn FnMut(&'a Term, bool)) {
+        self.query.positive_query_terms(visitor);
+    }
 }
 
 struct ConstWeight {

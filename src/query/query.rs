@@ -168,6 +168,22 @@ pub trait Query: QueryClone + Send + Sync + downcast_rs::Downcast + fmt::Debug {
     /// Note that there can be multiple instances of any given term
     /// in a query and deduplication must be handled by the visitor.
     fn query_terms<'a>(&'a self, _visitor: &mut dyn FnMut(&'a Term, bool)) {}
+
+    /// Extract the terms of the query that are not negated and pass them to the
+    /// given closure.
+    ///
+    /// This is [`Query::query_terms`] without the terms that only exclude documents:
+    /// the terms of the [`Occur::MustNot`](crate::query::Occur::MustNot) clauses of a
+    /// [`BooleanQuery`](crate::query::BooleanQuery), and of every query nested inside
+    /// them, are skipped. The [`SnippetGenerator`](crate::snippet::SnippetGenerator)
+    /// highlights these terms.
+    ///
+    /// The default implementation calls [`Query::query_terms`], which is correct for
+    /// a query that does not negate any of its terms. A query that wraps other queries
+    /// should forward this call to them.
+    fn positive_query_terms<'a>(&'a self, visitor: &mut dyn FnMut(&'a Term, bool)) {
+        self.query_terms(visitor);
+    }
 }
 
 /// Implements `box_clone`.
@@ -195,6 +211,10 @@ impl Query for Box<dyn Query> {
 
     fn query_terms<'a>(&'a self, visitor: &mut dyn FnMut(&'a Term, bool)) {
         self.as_ref().query_terms(visitor);
+    }
+
+    fn positive_query_terms<'a>(&'a self, visitor: &mut dyn FnMut(&'a Term, bool)) {
+        self.as_ref().positive_query_terms(visitor);
     }
 }
 
