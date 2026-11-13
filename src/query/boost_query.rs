@@ -152,10 +152,45 @@ impl<S: Scorer> Scorer for BoostScorer<S> {
 
 #[cfg(test)]
 mod tests {
+    use std::ops::Bound::Unbounded;
+
     use super::BoostQuery;
-    use crate::query::{AllQuery, Query};
-    use crate::schema::Schema;
-    use crate::{DocAddress, Index, IndexWriter, TantivyDocument};
+    use crate::query::{AllQuery, EnableScoring, FastFieldRangeQuery, PhrasePrefixQuery, Query};
+    use crate::schema::{Schema, TEXT};
+    use crate::{DocAddress, Index, IndexWriter, TantivyDocument, Term, TERMINATED};
+
+    #[test]
+    fn test_native_scorers_apply_boost() -> crate::Result<()> {
+        let mut schema = Schema::builder();
+        let field = schema.add_text_field("title", TEXT);
+        let index = Index::create_in_ram(schema.build());
+        let mut writer: IndexWriter = index.writer_for_tests()?;
+        writer.add_document(doc!(field => "amber quartz"))?;
+        writer.commit()?;
+        let reader = index.reader()?;
+        let searcher = reader.searcher();
+        let queries: [Box<dyn Query>; 2] = [
+            Box::new(PhrasePrefixQuery::new(vec![
+                Term::from_field_text(field, "amber"),
+                Term::from_field_text(field, "qua"),
+            ])),
+            Box::new(FastFieldRangeQuery::new(Unbounded, Unbounded)),
+        ];
+        let mut scores = Vec::new();
+        for query in queries {
+            for boost in [0.0, 1.0, 2.0] {
+                let boosted_query = BoostQuery::new(query.box_clone(), boost);
+                let weight =
+                    boosted_query.weight(EnableScoring::enabled_from_searcher(&searcher))?;
+                let mut scorer = weight.scorer(searcher.segment_reader(0), 1.0)?;
+                assert_eq!(scorer.doc(), 0);
+                scores.push(scorer.score());
+                assert_eq!(scorer.advance(), TERMINATED);
+            }
+        }
+        assert_eq!(scores, [0.0, 1.0, 2.0, 0.0, 1.0, 2.0]);
+        Ok(())
+    }
 
     #[test]
     fn test_boost_query_explain() -> crate::Result<()> {
