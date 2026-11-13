@@ -109,6 +109,7 @@ impl PhrasePrefixWeight {
             fieldnorm_reader,
             suffixes,
             self.prefix.0,
+            boost,
         )))
     }
 }
