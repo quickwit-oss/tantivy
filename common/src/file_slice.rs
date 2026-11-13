@@ -5,6 +5,7 @@ use std::sync::Arc;
 use std::{fmt, io};
 
 use async_trait::async_trait;
+use futures_util::{StreamExt, TryStreamExt, stream};
 use ownedbytes::{OwnedBytes, StableDeref};
 
 use crate::{ByteCount, HasLen};
@@ -31,6 +32,24 @@ pub trait FileHandle: 'static + Send + Sync + HasLen + fmt::Debug {
             io::ErrorKind::Unsupported,
             "Async read is not supported.",
         ))
+    }
+
+    /// Reads multiple ranges, returning one buffer per range in input order.
+    ///
+    /// Batching lets storage plan downloads without a pending future per range.
+    /// For example, 1M ranges use 16 MB on 64-bit targets, while 1M read-future
+    /// stacks can consume gigabytes.
+    ///
+    /// The default implementation runs at most five single-range reads concurrently.
+    async fn read_bytes_batch_async(
+        &self,
+        ranges: Vec<Range<usize>>,
+    ) -> io::Result<Vec<OwnedBytes>> {
+        stream::iter(ranges)
+            .map(|range| self.read_bytes_async(range))
+            .buffered(5)
+            .try_collect()
+            .await
     }
 }
 
@@ -262,6 +281,21 @@ impl FileSlice {
             .await
     }
 
+    /// Reads multiple ranges relative to this slice, returning buffers in input order.
+    ///
+    /// Panics if a range is reversed or extends beyond this slice.
+    pub async fn read_bytes_batch_async(
+        &self,
+        mut ranges: Vec<Range<usize>>,
+    ) -> io::Result<Vec<OwnedBytes>> {
+        for range in &mut ranges {
+            assert!(range.start <= range.end && range.end <= self.len());
+            range.start += self.range.start;
+            range.end += self.range.start;
+        }
+        self.data.read_bytes_batch_async(ranges).await
+    }
+
     /// Splits the FileSlice at the given offset and return two file slices.
     /// `file_slice[..split_offset]` and `file_slice[split_offset..]`.
     ///
@@ -320,6 +354,13 @@ impl FileHandle for FileSlice {
     async fn read_bytes_async(&self, byte_range: Range<usize>) -> io::Result<OwnedBytes> {
         self.read_bytes_slice_async(byte_range).await
     }
+
+    async fn read_bytes_batch_async(
+        &self,
+        ranges: Vec<Range<usize>>,
+    ) -> io::Result<Vec<OwnedBytes>> {
+        FileSlice::read_bytes_batch_async(self, ranges).await
+    }
 }
 
 impl HasLen for FileSlice {
@@ -342,10 +383,13 @@ impl FileHandle for OwnedBytes {
 #[cfg(test)]
 mod tests {
     use std::io;
-    use std::ops::Bound;
+    use std::ops::{Bound, Range};
     use std::sync::Arc;
 
-    use super::{FileHandle, FileSlice};
+    use async_trait::async_trait;
+    use futures_util::FutureExt;
+
+    use super::{FileHandle, FileSlice, OwnedBytes};
     use crate::HasLen;
     use crate::file_slice::combine_ranges;
 
@@ -384,6 +428,44 @@ mod tests {
             assert_eq!(right.read_bytes()?.as_slice(), b"ef");
         }
         Ok(())
+    }
+
+    #[test]
+    fn test_batch_read_through_nested_slices() {
+        #[derive(Debug)]
+        struct BatchOnlyHandle;
+
+        impl HasLen for BatchOnlyHandle {
+            fn len(&self) -> usize {
+                8
+            }
+        }
+
+        #[async_trait]
+        impl FileHandle for BatchOnlyHandle {
+            fn read_bytes(&self, _: Range<usize>) -> io::Result<OwnedBytes> {
+                panic!("expected a batch read");
+            }
+
+            async fn read_bytes_batch_async(
+                &self,
+                ranges: Vec<Range<usize>>,
+            ) -> io::Result<Vec<OwnedBytes>> {
+                assert_eq!(ranges, [4..6, 2..4, 7..7, 3..5, 4..6]);
+                // Exercise the default implementation after forwarding the batch.
+                b"abcdefgh".as_slice().read_bytes_batch_async(ranges).await
+            }
+        }
+
+        let inner = FileSlice::new(Arc::new(BatchOnlyHandle)).slice(1..8);
+        let outer = FileSlice::new(Arc::new(inner)).slice(1..6);
+        let bytes = outer
+            .read_bytes_batch_async(vec![2..4, 0..2, 5..5, 1..3, 2..4])
+            .now_or_never()
+            .unwrap()
+            .unwrap();
+        let slices: Vec<&[u8]> = bytes.iter().map(|bytes| bytes.as_slice()).collect();
+        assert_eq!(slices, [b"ef".as_slice(), b"cd", b"", b"de", b"ef"]);
     }
 
     #[test]
