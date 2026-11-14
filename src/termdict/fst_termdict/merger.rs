@@ -94,7 +94,7 @@ impl<'a> TermMerger<'a> {
 
 #[cfg(all(test, feature = "unstable"))]
 mod bench {
-    use rand::distributions::Alphanumeric;
+    use rand::distr::Alphanumeric;
     use rand::{rng, Rng};
     use test::{self, Bencher};
 
