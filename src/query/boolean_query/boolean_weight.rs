@@ -8,7 +8,9 @@ use crate::query::disjunction::Disjunction;
 use crate::query::explanation::does_not_match;
 use crate::query::score_combiner::{DoNothingCombiner, ScoreCombiner};
 use crate::query::term_query::TermScorer;
-use crate::query::weight::{for_each_docset_buffered, for_each_pruning_scorer, for_each_scorer};
+use crate::query::weight::{
+    for_each_docset_buffered, for_each_pruning_scorer, for_each_scorer, REFUTATION_COST_FREE,
+};
 use crate::query::{
     intersect_scorers, AllScorer, BufferedUnionScorer, EmptyScorer, Exclude, Explanation, Occur,
     RequiredOptionalScorer, Scorer, Weight,
@@ -280,6 +282,7 @@ impl<TScoreCombiner: ScoreCombiner> BooleanWeight<TScoreCombiner> {
         match num_should_weights.cmp(&minimum_number_should_match) {
             Ordering::Greater => {
                 // nothing to do. We will need the minimum should match logic.
+                per_occur_weights.sort_must_by_refutation_cost();
                 BooleanWeight {
                     per_occur_weights,
                     minimum_number_should_match,
@@ -290,6 +293,7 @@ impl<TScoreCombiner: ScoreCombiner> BooleanWeight<TScoreCombiner> {
             Ordering::Equal => {
                 // Equal! All should clause will be required. We promote them to Must!
                 per_occur_weights.promote_should_to_must();
+                per_occur_weights.sort_must_by_refutation_cost();
                 BooleanWeight {
                     per_occur_weights,
                     minimum_number_should_match: 0,
@@ -576,6 +580,26 @@ impl<TScoreCombiner: ScoreCombiner + Sync> Weight for BooleanWeight<TScoreCombin
         }
     }
 
+    /// With required clauses, building stops at the first empty one, so the intersection is
+    /// refuted by its cheapest required clause. Without them, every optional clause has to be
+    /// built to prove the union empty.
+    fn refutation_cost(&self) -> u64 {
+        let must = self.per_occur_weights.get(Occur::Must);
+        if !must.is_empty() {
+            return must
+                .iter()
+                .map(|weight| weight.refutation_cost())
+                .min()
+                .unwrap_or(REFUTATION_COST_FREE);
+        }
+        self.per_occur_weights
+            .get(Occur::Should)
+            .iter()
+            .fold(REFUTATION_COST_FREE, |cost, weight| {
+                cost.saturating_add(weight.refutation_cost())
+            })
+    }
+
     fn explain(&self, reader: &SegmentReader, doc: DocId) -> crate::Result<Explanation> {
         let mut scorer = self.scorer(reader, 1.0)?;
         if scorer.seek(doc) != doc {
@@ -720,10 +744,61 @@ fn is_include_occur(occur: Occur) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use super::create_aligned_scorers_for_intersection;
-    use crate::query::{EmptyScorer, EnableScoring, Query, TermQuery, Weight};
+    use std::sync::{Arc, Mutex};
+
+    use super::{create_aligned_scorers_for_intersection, BooleanWeight};
+    use crate::query::score_combiner::DoNothingCombiner;
+    use crate::query::{
+        EmptyScorer, EnableScoring, Explanation, Occur, Query, RegexQuery, Scorer, TermQuery,
+        Weight,
+    };
     use crate::schema::{Field, IndexRecordOption, Schema, TEXT};
-    use crate::{Index, Searcher, Term, TERMINATED};
+    use crate::{DocId, DocSet, Index, Score, Searcher, SegmentReader, Term, TERMINATED};
+
+    type BuildLog = Arc<Mutex<Vec<&'static str>>>;
+
+    struct RecordingWeight {
+        name: &'static str,
+        inner: Box<dyn Weight>,
+        log: BuildLog,
+    }
+
+    impl Weight for RecordingWeight {
+        fn scorer(&self, reader: &SegmentReader, boost: Score) -> crate::Result<Box<dyn Scorer>> {
+            self.log.lock().unwrap().push(self.name);
+            self.inner.scorer(reader, boost)
+        }
+
+        fn refutation_cost(&self) -> u64 {
+            self.inner.refutation_cost()
+        }
+
+        fn explain(&self, reader: &SegmentReader, doc: DocId) -> crate::Result<Explanation> {
+            self.inner.explain(reader, doc)
+        }
+    }
+
+    fn recording(name: &'static str, inner: Box<dyn Weight>, log: &BuildLog) -> Box<dyn Weight> {
+        Box::new(RecordingWeight {
+            name,
+            inner,
+            log: log.clone(),
+        })
+    }
+
+    fn regex_weight(searcher: &Searcher, field: Field) -> crate::Result<Box<dyn Weight>> {
+        RegexQuery::from_pattern(".*", field)?
+            .weight(EnableScoring::disabled_from_searcher(searcher))
+    }
+
+    fn must_weight(weights: Vec<Box<dyn Weight>>) -> BooleanWeight<DoNothingCombiner> {
+        BooleanWeight::with_minimum_number_should_match(
+            weights.into_iter().map(|w| (Occur::Must, w)).collect(),
+            0,
+            false,
+            Box::new(DoNothingCombiner::default),
+        )
+    }
 
     fn test_index() -> crate::Result<(Index, Field)> {
         let mut schema_builder = Schema::builder();
@@ -842,6 +917,78 @@ mod tests {
         assert_eq!(scorers.len(), 1);
         assert!(scorers[0].is::<EmptyScorer>());
         assert_eq!(scorers[0].doc(), TERMINATED);
+        Ok(())
+    }
+
+    #[test]
+    fn test_must_weights_are_sorted_by_refutation_cost() -> crate::Result<()> {
+        let (index, text) = test_index()?;
+        let searcher = index.reader()?.searcher();
+        let weight = must_weight(vec![
+            regex_weight(&searcher, text)?,
+            term_weight(&searcher, text, "a")?,
+            term_weight(&searcher, text, "b")?,
+        ]);
+
+        let costs: Vec<u64> = weight
+            .per_occur_weights
+            .get(Occur::Must)
+            .iter()
+            .map(|w| w.refutation_cost())
+            .collect();
+        assert_eq!(costs, vec![1, 1, 1_000]);
+        assert_eq!(weight.refutation_cost(), 1);
+        Ok(())
+    }
+
+    #[test]
+    fn test_scan_must_clauses_keep_query_order() -> crate::Result<()> {
+        let (index, text) = test_index()?;
+        let searcher = index.reader()?.searcher();
+        let log = BuildLog::default();
+        let weight = must_weight(vec![
+            recording("regex_1", regex_weight(&searcher, text)?, &log),
+            recording("regex_2", regex_weight(&searcher, text)?, &log),
+            recording("term", term_weight(&searcher, text, "a")?, &log),
+        ]);
+
+        weight.scorer(searcher.segment_reader(0), 1.0)?;
+
+        assert_eq!(*log.lock().unwrap(), vec!["term", "regex_1", "regex_2"]);
+        Ok(())
+    }
+
+    #[test]
+    fn test_expensive_must_clause_is_not_built_when_cheap_one_is_empty() -> crate::Result<()> {
+        let (index, text) = test_index()?;
+        let searcher = index.reader()?.searcher();
+        let log = BuildLog::default();
+        let weight = must_weight(vec![
+            recording("regex", regex_weight(&searcher, text)?, &log),
+            recording("term", term_weight(&searcher, text, "missing")?, &log),
+        ]);
+
+        let scorer = weight.scorer(searcher.segment_reader(0), 1.0)?;
+
+        assert_eq!(scorer.doc(), TERMINATED);
+        assert_eq!(*log.lock().unwrap(), vec!["term"]);
+        Ok(())
+    }
+
+    #[test]
+    fn test_expensive_must_clause_is_built_when_cheap_one_matches() -> crate::Result<()> {
+        let (index, text) = test_index()?;
+        let searcher = index.reader()?.searcher();
+        let log = BuildLog::default();
+        let weight = must_weight(vec![
+            recording("regex", regex_weight(&searcher, text)?, &log),
+            recording("term", term_weight(&searcher, text, "x")?, &log),
+        ]);
+
+        let mut scorer = weight.scorer(searcher.segment_reader(0), 1.0)?;
+
+        assert_eq!(scorer.count_including_deleted(), 1);
+        assert_eq!(*log.lock().unwrap(), vec!["term", "regex"]);
         Ok(())
     }
 }

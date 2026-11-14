@@ -61,6 +61,16 @@ pub(crate) fn for_each_pruning_scorer<TScorer: Scorer + ?Sized>(
     }
 }
 
+/// Refutation cost of a scorer whose emptiness is known without touching the segment.
+pub(crate) const REFUTATION_COST_FREE: u64 = 0;
+/// Refutation cost of a scorer that needs a single term dictionary lookup.
+pub(crate) const REFUTATION_COST_TERM: u64 = 1;
+/// Refutation cost assumed for weights that do not provide an estimate.
+pub(crate) const REFUTATION_COST_DEFAULT: u64 = 10;
+/// Refutation cost of a scorer that walks part of the term dictionary and collects the postings
+/// of every matching term, such as an automaton or a term range.
+pub(crate) const REFUTATION_COST_SCAN: u64 = 1_000;
+
 /// A Weight is the specialization of a `Query`
 /// for a given set of segments.
 ///
@@ -72,6 +82,12 @@ pub trait Weight: Send + Sync + 'static {
     ///
     /// See [`Query`](crate::query::Query).
     fn scorer(&self, reader: &SegmentReader, boost: Score) -> crate::Result<Box<dyn Scorer>>;
+
+    /// Returns a relative estimate of the work needed to find out that the scorer for a
+    /// segment is empty, e.g. `1` for a term lookup and `1_000` for an automaton walk.
+    fn refutation_cost(&self) -> u64 {
+        REFUTATION_COST_DEFAULT
+    }
 
     /// !!!Dragons ahead!!!
     /// Returns a scorer initialized around `target` for use in an intersection.

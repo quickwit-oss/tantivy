@@ -7,6 +7,7 @@ use tantivy_fst::Automaton;
 use super::phrase_prefix_query::prefix_end;
 use crate::index::SegmentReader;
 use crate::postings::TermInfo;
+use crate::query::weight::REFUTATION_COST_SCAN;
 use crate::query::{BitSetDocSet, ConstScorer, Explanation, Scorer, Weight};
 use crate::schema::{Field, IndexRecordOption};
 use crate::termdict::{TermDictionary, TermStreamer, WithoutKeys};
@@ -85,6 +86,10 @@ where
     A: Automaton + Send + Sync + 'static,
     A::State: Clone,
 {
+    fn refutation_cost(&self) -> u64 {
+        REFUTATION_COST_SCAN
+    }
+
     fn scorer(&self, reader: &SegmentReader, boost: Score) -> crate::Result<Box<dyn Scorer>> {
         let max_doc = reader.max_doc();
         let mut doc_bitset = BitSet::with_max_value(max_doc);

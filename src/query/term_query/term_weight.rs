@@ -5,7 +5,7 @@ use crate::index::SegmentReader;
 use crate::postings::SegmentPostings;
 use crate::query::bm25::Bm25Weight;
 use crate::query::explanation::does_not_match;
-use crate::query::weight::{for_each_docset_buffered, for_each_scorer};
+use crate::query::weight::{for_each_docset_buffered, for_each_scorer, REFUTATION_COST_TERM};
 use crate::query::{AllScorer, AllWeight, EmptyScorer, Explanation, Scorer, Weight};
 use crate::schema::IndexRecordOption;
 use crate::{DocId, Score, TantivyError, Term};
@@ -36,6 +36,10 @@ impl TermOrEmptyOrAllScorer {
 impl Weight for TermWeight {
     fn scorer(&self, reader: &SegmentReader, boost: Score) -> crate::Result<Box<dyn Scorer>> {
         Ok(self.specialized_scorer(reader, boost)?.into_boxed_scorer())
+    }
+
+    fn refutation_cost(&self) -> u64 {
+        REFUTATION_COST_TERM
     }
 
     fn explain(&self, reader: &SegmentReader, doc: DocId) -> crate::Result<Explanation> {
