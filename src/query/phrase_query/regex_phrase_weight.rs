@@ -245,7 +245,7 @@ impl RegexPhraseWeight {
                 BitSetPostingUnion::build(postings, BitSetDocSet::from(bitset))
             })
             .collect();
-        let sparse_term_unions = SimpleUnion::build(sparse_term_docsets);
+        let sparse_term_unions = SimpleUnion::build(sparse_term_docsets, reader.num_docs());
 
         // Build unions for other term buckets
         let bitset_unions_per_bucket: Vec<_> = buckets
@@ -255,10 +255,12 @@ impl RegexPhraseWeight {
                 BitSetPostingUnion::build(postings, BitSetDocSet::from(bitset))
             })
             .collect();
-        let other_union = SimpleUnion::build(bitset_unions_per_bucket);
+        let other_union = SimpleUnion::build(bitset_unions_per_bucket, reader.num_docs());
 
-        let union: SimpleUnion<Box<dyn Postings + 'static>> =
-            SimpleUnion::build(vec![Box::new(sparse_term_unions), Box::new(other_union)]);
+        let union: SimpleUnion<Box<dyn Postings + 'static>> = SimpleUnion::build(
+            vec![Box::new(sparse_term_unions), Box::new(other_union)],
+            reader.num_docs(),
+        );
 
         // Return a union of sparse term unions and other term unions
         Ok(union)
