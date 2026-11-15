@@ -53,6 +53,21 @@ fn decode_bitpacked_block(
     }
 }
 
+fn decode_dense_block(
+    doc_decoder: &mut BlockDecoder,
+    freq_decoder_opt: Option<&mut BlockDecoder>,
+    data: &[u8],
+    doc_offset: DocId,
+    num_longs: u8,
+    tf_num_bits: u8,
+) {
+    let num_consumed_bytes =
+        doc_decoder.uncompress_bitset_sorted(data, doc_offset, num_longs as usize);
+    if let Some(freq_decoder) = freq_decoder_opt {
+        freq_decoder.uncompress_block_unsorted(&data[num_consumed_bytes..], tf_num_bits, true);
+    }
+}
+
 fn decode_vint_block(
     doc_decoder: &mut BlockDecoder,
     freq_decoder_opt: Option<&mut BlockDecoder>,
@@ -364,6 +379,24 @@ impl BlockSegmentPostings {
                     doc_num_bits,
                     tf_num_bits,
                     strict_delta_encoded,
+                );
+            }
+            BlockInfo::Dense {
+                num_longs,
+                tf_num_bits,
+                ..
+            } => {
+                decode_dense_block(
+                    &mut self.doc_decoder,
+                    if let FreqReadingOption::ReadFreq = self.freq_reading_option {
+                        Some(&mut self.freq_decoder)
+                    } else {
+                        None
+                    },
+                    &self.data.as_slice()[offset..],
+                    self.skip_reader.last_doc_in_previous_block,
+                    num_longs,
+                    tf_num_bits,
                 );
             }
             BlockInfo::VInt { num_docs } => {
