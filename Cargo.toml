@@ -91,7 +91,6 @@ tokenizer-api = { version = "0.7", path = "./tokenizer-api", package = "tantivy-
 sketches-ddsketch = { version = "0.4", features = ["use_serde"] }
 datasketches = { version = "0.5.0", features = ["hll"] }
 futures-util = { version = "0.3.28", optional = true }
-futures-channel = { version = "0.3.28", optional = true }
 fnv = "1.0.7"
 typetag = "0.2.21"
 unwrap-infallible = "1.0.0"
@@ -153,7 +152,7 @@ columnar-zstd-compression = ["columnar/zstd-compression"]
 failpoints = ["fail", "fail/failpoints"]
 unstable = []                            # useful for benches.
 
-quickwit = ["sstable", "futures-util", "futures-channel"]
+quickwit = ["sstable", "futures-util"]
 jitexpr = ["dep:jitexpr", "dep:hashbrown"]
 
 # Compares only the hash of a string when indexing data.

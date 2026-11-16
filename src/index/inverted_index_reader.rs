@@ -1,11 +1,11 @@
 use std::io;
+#[cfg(feature = "quickwit")]
+use std::ops::Range;
 
 use common::json_path_writer::JSON_END_OF_PATH;
 use common::{BinarySerializable, ByteCount};
 #[cfg(feature = "quickwit")]
 use common::{BitSet, VInt};
-#[cfg(feature = "quickwit")]
-use futures_util::{FutureExt, StreamExt};
 #[cfg(feature = "quickwit")]
 use tantivy_fst::automaton::{AlwaysMatch, Automaton};
 
@@ -16,19 +16,6 @@ use crate::schema::{IndexRecordOption, Term, Type};
 use crate::termdict::TermDictionary;
 #[cfg(feature = "quickwit")]
 use crate::Executor;
-
-#[cfg(feature = "quickwit")]
-fn send_posting_ranges(
-    posting_ranges: impl Iterator<Item = std::ops::Range<usize>>,
-    sender: futures_channel::mpsc::UnboundedSender<std::ops::Range<usize>>,
-) -> io::Result<()> {
-    for posting_range in posting_ranges {
-        sender
-            .unbounded_send(posting_range)
-            .map_err(|_| io::Error::other("failed to send posting range back"))?;
-    }
-    Ok(())
-}
 
 /// The inverted index reader is in charge of accessing
 /// the inverted index associated with a specific field.
@@ -403,11 +390,7 @@ impl InvertedIndexReader {
         Ok(true)
     }
 
-    async fn download_posting_ranges(
-        &self,
-        posting_ranges: futures_channel::mpsc::UnboundedReceiver<std::ops::Range<usize>>,
-    ) -> io::Result<bool> {
-        let ranges = posting_ranges.collect::<Vec<_>>().await;
+    async fn download_posting_ranges(&self, ranges: Vec<Range<usize>>) -> io::Result<bool> {
         let postings_found = !ranges.is_empty();
         self.postings_file_slice
             .read_bytes_batch_async(ranges)
@@ -420,8 +403,8 @@ impl InvertedIndexReader {
     /// Returns whether a matching term was found in the dictionary.
     pub async fn warm_postings_automaton<
         A: Automaton + Clone + Send + 'static,
-        E: FnOnce(Box<dyn FnOnce() -> io::Result<()> + Send>) -> F,
-        F: std::future::Future<Output = io::Result<()>>,
+        E: FnOnce(Box<dyn FnOnce() -> io::Result<Vec<Range<usize>>> + Send>) -> F,
+        F: std::future::Future<Output = io::Result<Vec<Range<usize>>>>,
     >(
         &self,
         automaton: A,
@@ -435,7 +418,6 @@ impl InvertedIndexReader {
             .get_term_range_async(.., automaton.clone(), None)
             .await?;
 
-        let (sender, posting_ranges_to_load_stream) = futures_channel::mpsc::unbounded();
         let termdict = self.termdict.clone();
         let cpu_bound_task = move || {
             // Synchronous reads here rely on the directory caching the preceding
@@ -450,16 +432,10 @@ impl InvertedIndexReader {
                     .next_without_key()
                     .map(|value| value.postings_range.clone())
             });
-            send_posting_ranges(posting_ranges, sender)
+            Ok(posting_ranges.collect())
         };
-        let task_handle = executor(Box::new(cpu_bound_task));
-
-        let (_, postings_found) = futures_util::future::try_join(
-            task_handle,
-            self.download_posting_ranges(posting_ranges_to_load_stream),
-        )
-        .await?;
-        Ok(postings_found)
+        let posting_ranges = executor(Box::new(cpu_bound_task)).await?;
+        self.download_posting_ranges(posting_ranges).await
     }
 
     /// Warms postings in one batch for an automaton and returns matching document IDs as a bitset.
@@ -480,9 +456,8 @@ impl InvertedIndexReader {
         let term_info_stream = self.termdict.search(&automaton).into_stream_async().await?;
         drop(term_info_stream);
 
-        let (posting_range_sender, posting_range_receiver) = futures_channel::mpsc::unbounded();
         let termdict = self.termdict.clone();
-        let cpu_bound_task = move || {
+        let cpu_bound_task = move || -> io::Result<_> {
             let mut stream = termdict.search(automaton).without_keys().into_stream()?;
             let mut encoded_terminfo = Vec::new();
             let mut previous_end = 0;
@@ -496,17 +471,15 @@ impl InvertedIndexReader {
                 previous_end = range.end;
                 Some(range)
             });
-            send_posting_ranges(posting_ranges, posting_range_sender)?;
-            Ok(encoded_terminfo)
+            let posting_ranges = posting_ranges.collect();
+            Ok((posting_ranges, encoded_terminfo))
         };
-        let task_handle = executor.spawn_blocking(cpu_bound_task).map(|result| {
-            result.map_err(|_| io::Error::other("automaton warmup task panicked"))?
-        });
-        let (encoded_terminfo, _) = futures_util::future::try_join(
-            task_handle,
-            self.download_posting_ranges(posting_range_receiver),
-        )
-        .await?;
+        let (posting_ranges, encoded_terminfo) =
+            executor
+                .spawn_blocking(cpu_bound_task)
+                .await
+                .map_err(|_| io::Error::other("automaton warmup task panicked"))??;
+        self.download_posting_ranges(posting_ranges).await?;
 
         let postings_file_slice = self.postings_file_slice.clone();
         let record_option = self.record_option;
@@ -565,6 +538,7 @@ impl InvertedIndexReader {
 
 #[cfg(all(test, feature = "quickwit"))]
 mod tests {
+    use tantivy_fst::automaton::{AlwaysMatch, Subsequence};
     use tantivy_fst::Regex;
 
     use crate::query::BitSetDocSet;
@@ -590,6 +564,19 @@ mod tests {
         let segment_reader = searcher.segment_reader(0);
         let inverted_index = segment_reader.inverted_index(field)?;
         let executor = Executor::multi_thread(1, "warmup-test-")?;
+        for (subsequence, expected) in [("b", true), ("z", false), ("a", true), ("", true)] {
+            let postings_found =
+                futures::executor::block_on(inverted_index.warm_postings_automaton(
+                    Subsequence::new(subsequence),
+                    |task| async {
+                        executor
+                            .spawn_blocking(task)
+                            .await
+                            .map_err(|_| std::io::Error::other("warmup task panicked"))?
+                    },
+                ))?;
+            assert_eq!(postings_found, expected);
+        }
         for (pattern, expected) in [
             ("b.*", vec![0, 2]),
             ("z.*", vec![]),
@@ -616,10 +603,27 @@ mod tests {
     }
 
     #[test]
+    fn test_warm_postings_automaton_executor_error() {
+        let inverted_index =
+            super::InvertedIndexReader::empty(crate::schema::IndexRecordOption::Basic);
+        let error = futures::executor::block_on(
+            inverted_index.warm_postings_automaton(AlwaysMatch, |_| {
+                std::future::ready(Err(std::io::Error::other("executor failed")))
+            }),
+        )
+        .unwrap_err();
+        assert_eq!(error.to_string(), "executor failed");
+    }
+
+    #[test]
     fn test_warm_postings_automaton_with_bitset_empty_index() -> crate::Result<()> {
         let inverted_index =
             super::InvertedIndexReader::empty(crate::schema::IndexRecordOption::Basic);
         let executor = Executor::single_thread();
+        let postings_found = futures::executor::block_on(
+            inverted_index.warm_postings_automaton(AlwaysMatch, |task| std::future::ready(task())),
+        )?;
+        assert!(!postings_found);
         let bitset =
             futures::executor::block_on(inverted_index.warm_postings_automaton_with_bitset(
                 Regex::new(".*").unwrap(),
