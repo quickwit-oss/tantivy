@@ -25,8 +25,6 @@ use std::{fmt, io};
 
 use common::OwnedBytes;
 use common::file_slice::FileSlice;
-// Only used by tests until the columnar writer supports the plain codec.
-#[cfg_attr(not(test), allow(unused_imports))]
 pub(crate) use serializer::PlainColumnSerializer;
 
 use self::block::PlainBlock;

@@ -44,7 +44,7 @@ pub use column_values::{
 pub use columnar::{
     CURRENT_VERSION, ColumnType, ColumnarReader, ColumnarWriter, HasAssociatedColumnType,
     MergeRowOrder, ShuffleMergeOrder, StackMergeOrder, StrColumnCodec, Version,
-    compute_merged_term_ord_mapping, merge_columnar,
+    compute_merged_term_ord_mapping, merge_columnar, merge_columnar_with_codecs,
 };
 use sstable::VoidSSTable;
 pub use value::{NumericalType, NumericalValue};

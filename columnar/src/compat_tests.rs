@@ -184,3 +184,77 @@ fn open_column(reader: &ColumnarReader, name: &str) -> Column<u64> {
     };
     column
 }
+
+/// Value of the plain column "plain_text" for `doc_id`, if it has one.
+fn plain_text_value(doc_id: u32) -> Option<String> {
+    if doc_id % 10 != 1 {
+        return None;
+    }
+    Some(format!(
+        "GET /api/v1/items/{doc_id}?page={} HTTP/1.1",
+        doc_id % 13
+    ))
+}
+
+/// Same as `generate_columnar`, with a plain-encoded `Str` column: the columnar has version V3.
+fn generate_columnar_with_plain_column(num_docs: u32) -> Vec<u8> {
+    use crate::{ColumnarWriter, StrColumnCodec};
+
+    let mut columnar_writer = ColumnarWriter::default();
+    for doc_id in 0..num_docs {
+        columnar_writer.record_numerical(doc_id, "full", doc_id as u64);
+        if let Some(value) = plain_text_value(doc_id) {
+            columnar_writer.record_str_with_codec(
+                doc_id,
+                "plain_text",
+                &value,
+                StrColumnCodec::Plain,
+            );
+        }
+    }
+    let mut wrt: Vec<u8> = Vec::new();
+    columnar_writer.serialize(num_docs, None, &mut wrt).unwrap();
+    wrt
+}
+
+#[test]
+/// Writes a columnar with a plain-encoded column (version V3) to disk.
+fn create_format_v3() {
+    let file_path = path_for_version(&crate::Version::V3.to_string());
+    if PathBuf::from(file_path.clone())
+        .try_exists()
+        .expect("Failed to check whether the compatibility columnar file exists")
+    {
+        return;
+    }
+    let columnar = generate_columnar_with_plain_column(NUM_DOCS);
+    std::fs::write(file_path, columnar).unwrap();
+}
+
+#[test]
+fn test_format_v3() {
+    let path = path_for_version("v3");
+    let file_content = std::fs::read(path).unwrap();
+    let reader = ColumnarReader::open(file_content).unwrap();
+    let column = open_column(&reader, "full");
+    check_column(&column, |doc_id| vec![(doc_id, doc_id as u64).into()]);
+    let handles = reader.read_columns("plain_text").unwrap();
+    assert_eq!(handles.len(), 1);
+    assert_eq!(handles[0].str_codec(), Some(crate::StrColumnCodec::Plain));
+    let DynamicColumn::PlainStr(plain_column) = handles[0].open().unwrap() else {
+        panic!("expected a plain str column");
+    };
+    assert_eq!(plain_column.get_cardinality(), Cardinality::Optional);
+    let mut reader = plain_column.reader();
+    for doc_id in [0, 1, 2, 11, 1000, 1001, 65001, NUM_DOCS - 1] {
+        let mut value = Vec::new();
+        let has_value = reader.append_first_value(doc_id, &mut value).unwrap();
+        match plain_text_value(doc_id) {
+            Some(expected_value) => {
+                assert!(has_value);
+                assert_eq!(value, expected_value.as_bytes());
+            }
+            None => assert!(!has_value),
+        }
+    }
+}

@@ -485,3 +485,53 @@ impl ColumnSpaceUsage {
         }
     }
 }
+
+/// Returns the values of each doc of a `Str` or `Bytes` column, whatever its codec.
+#[cfg(test)]
+pub(crate) fn str_or_bytes_values_per_doc(dynamic_column: &DynamicColumn) -> Vec<Vec<Vec<u8>>> {
+    let column_index = dynamic_column.column_index();
+    let num_docs = match dynamic_column {
+        DynamicColumn::Str(column) => column.num_rows(),
+        DynamicColumn::Bytes(column) => column.num_rows(),
+        DynamicColumn::PlainStr(column) => column.num_docs(),
+        DynamicColumn::PlainBytes(column) => column.num_docs(),
+        _ => panic!("not a str or bytes column"),
+    };
+    let mut values_per_doc: Vec<Vec<Vec<u8>>> = Vec::with_capacity(num_docs as usize);
+    for doc in 0..num_docs {
+        let mut doc_values: Vec<Vec<u8>> = Vec::new();
+        match dynamic_column {
+            DynamicColumn::Str(column) => {
+                for term_ord in column.term_ords(doc) {
+                    let mut value = Vec::new();
+                    assert!(column.ord_to_bytes(term_ord, &mut value).unwrap());
+                    doc_values.push(value);
+                }
+            }
+            DynamicColumn::Bytes(column) => {
+                for term_ord in column.term_ords(doc) {
+                    let mut value = Vec::new();
+                    assert!(column.ord_to_bytes(term_ord, &mut value).unwrap());
+                    doc_values.push(value);
+                }
+            }
+            DynamicColumn::PlainStr(column) => {
+                let mut reader = column.reader();
+                for value_idx in column_index.value_row_ids(doc) {
+                    let mut value = String::new();
+                    reader.append_str_value(value_idx, &mut value).unwrap();
+                    doc_values.push(value.into_bytes());
+                }
+            }
+            DynamicColumn::PlainBytes(column) => {
+                let mut reader = column.reader();
+                reader
+                    .for_each_value(doc, |value| doc_values.push(value.to_vec()))
+                    .unwrap();
+            }
+            _ => unreachable!(),
+        }
+        values_per_doc.push(doc_values);
+    }
+    values_per_doc
+}

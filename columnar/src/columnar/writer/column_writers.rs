@@ -2,7 +2,8 @@ use std::cmp::Ordering;
 
 use stacker::{ExpUnrolledLinkedList, MemoryArena};
 
-use crate::columnar::writer::column_operation::{ColumnOperation, SymbolValue};
+use crate::columnar::StrColumnCodec;
+use crate::columnar::writer::column_operation::{ColumnOperation, SymbolValue, ValueLen};
 use crate::dictionary::{DictionaryBuilder, UnorderedId};
 use crate::{Cardinality, NumericalType, NumericalValue, RowId};
 
@@ -240,8 +241,74 @@ impl NumericalColumnWriter {
     }
 }
 
+/// Writer of a `Str` or `Bytes` column.
+///
+/// The codec is chosen when the column is created, and never changes.
 #[derive(Copy, Clone)]
-pub(crate) struct StrOrBytesColumnWriter {
+pub(crate) enum StrOrBytesColumnWriter {
+    Dictionary(DictionaryColumnWriter),
+    Plain(PlainColumnWriter),
+}
+
+impl StrOrBytesColumnWriter {
+    pub(crate) fn with_codec(
+        codec: StrColumnCodec,
+        dictionaries: &mut Vec<DictionaryBuilder>,
+    ) -> StrOrBytesColumnWriter {
+        match codec {
+            StrColumnCodec::Dictionary => {
+                // Each column has its own dictionary
+                let dictionary_id = dictionaries.len() as u32;
+                dictionaries.push(DictionaryBuilder::default());
+                StrOrBytesColumnWriter::Dictionary(DictionaryColumnWriter::with_dictionary_id(
+                    dictionary_id,
+                ))
+            }
+            StrColumnCodec::Plain => StrOrBytesColumnWriter::Plain(PlainColumnWriter::default()),
+        }
+    }
+
+    pub(crate) fn codec(&self) -> StrColumnCodec {
+        match self {
+            StrOrBytesColumnWriter::Dictionary(_) => StrColumnCodec::Dictionary,
+            StrOrBytesColumnWriter::Plain(_) => StrColumnCodec::Plain,
+        }
+    }
+
+    pub(crate) fn record_bytes(
+        &mut self,
+        doc: RowId,
+        bytes: &[u8],
+        dictionaries: &mut [DictionaryBuilder],
+        arena: &mut MemoryArena,
+    ) {
+        match self {
+            StrOrBytesColumnWriter::Dictionary(dictionary_column_writer) => {
+                dictionary_column_writer.record_bytes(doc, bytes, dictionaries, arena)
+            }
+            StrOrBytesColumnWriter::Plain(plain_column_writer) => {
+                plain_column_writer.record_bytes(doc, bytes, arena)
+            }
+        }
+    }
+
+    pub(crate) fn get_cardinality(&self, num_docs: RowId) -> Cardinality {
+        match self {
+            StrOrBytesColumnWriter::Dictionary(dictionary_column_writer) => {
+                dictionary_column_writer
+                    .column_writer
+                    .get_cardinality(num_docs)
+            }
+            StrOrBytesColumnWriter::Plain(plain_column_writer) => {
+                plain_column_writer.column_writer.get_cardinality(num_docs)
+            }
+        }
+    }
+}
+
+/// Writer of a dictionary encoded `Str` or `Bytes` column.
+#[derive(Copy, Clone)]
+pub(crate) struct DictionaryColumnWriter {
     pub(crate) dictionary_id: u32,
     pub(crate) column_writer: ColumnWriter,
     // If true, when facing a multivalued cardinality,
@@ -254,9 +321,9 @@ pub(crate) struct StrOrBytesColumnWriter {
     pub(crate) sort_values_within_row: bool,
 }
 
-impl StrOrBytesColumnWriter {
-    pub(crate) fn with_dictionary_id(dictionary_id: u32) -> StrOrBytesColumnWriter {
-        StrOrBytesColumnWriter {
+impl DictionaryColumnWriter {
+    pub(crate) fn with_dictionary_id(dictionary_id: u32) -> DictionaryColumnWriter {
+        DictionaryColumnWriter {
             dictionary_id,
             column_writer: Default::default(),
             sort_values_within_row: false,
@@ -283,6 +350,28 @@ impl StrOrBytesColumnWriter {
     ) -> impl Iterator<Item = ColumnOperation<UnorderedId>> + 'a + use<'a> {
         self.column_writer
             .operation_iterator(arena, old_to_new_ids, byte_buffer)
+    }
+}
+
+/// Writer of a plain-encoded `Str` or `Bytes` column.
+///
+/// Values are not deduplicated: they are appended to a single buffer.
+#[derive(Copy, Clone, Default)]
+pub(crate) struct PlainColumnWriter {
+    /// `NewDoc(doc)` and `Value(ValueLen(len))` operations. Drives the cardinality detection.
+    pub(crate) column_writer: ColumnWriter,
+    /// All of the values, concatenated in insertion order.
+    ///
+    /// Invariant: the k-th `Value(ValueLen(len))` operation of `column_writer` (in insertion
+    /// order) is made of the `len` bytes following the bytes of the first k-1 values.
+    pub(crate) value_bytes: ExpUnrolledLinkedList,
+}
+
+impl PlainColumnWriter {
+    pub(crate) fn record_bytes(&mut self, doc: RowId, bytes: &[u8], arena: &mut MemoryArena) {
+        let len = u32::try_from(bytes.len()).expect("a plain value must be smaller than 4 GiB");
+        self.column_writer.record(doc, ValueLen(len), arena);
+        self.value_bytes.writer(arena).extend_from_slice(bytes);
     }
 }
 
