@@ -34,9 +34,9 @@ mod iterable;
 pub(crate) mod utils;
 mod value;
 
-pub use column::{
-    BytesColumn, Column, PlainBytesColumn, PlainStrColumn, PlainValueReader, StrColumn,
-};
+pub use column::{BytesColumn, Column, StrColumn};
+#[cfg(feature = "plain_codec")]
+pub use column::{PlainBytesColumn, PlainStrColumn, PlainValueReader};
 pub use column_index::ColumnIndex;
 pub use column_values::{
     ColumnValues, EmptyColumnValues, MonotonicallyMappableToU64, MonotonicallyMappableToU128,

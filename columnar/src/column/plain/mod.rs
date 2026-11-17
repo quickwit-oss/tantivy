@@ -5,8 +5,7 @@
 //!
 //! Values are stored in self-contained blocks of at most 100,000 values and at most 10 MiB of raw
 //! bytes. Each block is compressed with OnPair16 and has its own dictionary, so reading a value
-//! only requires reading its block. OnPair16 requires the `plain_codec` feature: without it,
-//! blocks are stored raw.
+//! only requires reading its block.
 //!
 //! Lookup of a value:
 //! - doc -> value idx: the `ColumnIndex`, as for any other column.
@@ -194,7 +193,6 @@ impl PlainBytesColumn {
             .inner
             .blocks
             .read_bytes_slice(byte_range.start as usize..byte_range.end as usize)?;
-        block::check_block_is_supported(block_bytes.as_slice())?;
         let num_values = self.inner.block_index.value_range(block_id).len() as u32;
         Ok(PlainBlock::open(block_bytes, num_values))
     }

@@ -61,6 +61,11 @@ impl<W: io::Write> ColumnarSerializer<W> {
         column_type: ColumnType,
         codec: StrColumnCodec,
     ) -> ColumnSerializer<'a, W> {
+        #[cfg(not(feature = "plain_codec"))]
+        assert!(
+            codec != StrColumnCodec::Plain,
+            "writing a plain-encoded column requires the `plain_codec` feature"
+        );
         let start_offset = self.wrt.written_bytes();
         prepare_key(
             column_name,

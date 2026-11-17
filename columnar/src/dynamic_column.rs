@@ -5,7 +5,9 @@ use common::file_slice::FileSlice;
 use common::{ByteCount, DateTime, OwnedBytes};
 use serde::{Deserialize, Serialize};
 
-use crate::column::{BytesColumn, Column, PlainBytesColumn, PlainStrColumn, StrColumn};
+use crate::column::{BytesColumn, Column, StrColumn};
+#[cfg(feature = "plain_codec")]
+use crate::column::{PlainBytesColumn, PlainStrColumn};
 use crate::column_values::{StrictlyMonotonicFn, monotonic_map_column};
 use crate::columnar::{ColumnType, StrColumnCodec};
 use crate::{Cardinality, ColumnIndex, ColumnValues, NumericalType, Version};
@@ -21,8 +23,10 @@ pub enum DynamicColumn {
     Bytes(BytesColumn),
     Str(StrColumn),
     /// A `Bytes` column using the plain codec.
+    #[cfg(feature = "plain_codec")]
     PlainBytes(PlainBytesColumn),
     /// A `Str` column using the plain codec.
+    #[cfg(feature = "plain_codec")]
     PlainStr(PlainStrColumn),
 }
 
@@ -38,7 +42,9 @@ impl fmt::Debug for DynamicColumn {
             DynamicColumn::DateTime(col) => write!(f, "{col:?}")?,
             DynamicColumn::Bytes(col) => write!(f, "{col:?}")?,
             DynamicColumn::Str(col) => write!(f, "{col:?}")?,
+            #[cfg(feature = "plain_codec")]
             DynamicColumn::PlainBytes(col) => write!(f, "{col:?}")?,
+            #[cfg(feature = "plain_codec")]
             DynamicColumn::PlainStr(col) => write!(f, "{col:?}")?,
         }
         write!(f, "]")
@@ -56,7 +62,9 @@ impl DynamicColumn {
             DynamicColumn::DateTime(c) => &c.index,
             DynamicColumn::Bytes(c) => &c.ords().index,
             DynamicColumn::Str(c) => &c.ords().index,
+            #[cfg(feature = "plain_codec")]
             DynamicColumn::PlainBytes(c) => c.column_index(),
+            #[cfg(feature = "plain_codec")]
             DynamicColumn::PlainStr(c) => c.column_index(),
         }
     }
@@ -72,7 +80,9 @@ impl DynamicColumn {
             DynamicColumn::DateTime(c) => c.index,
             DynamicColumn::Bytes(c) => c.into_column_index(),
             DynamicColumn::Str(c) => c.into_column_index(),
+            #[cfg(feature = "plain_codec")]
             DynamicColumn::PlainBytes(c) => c.into_column_index(),
+            #[cfg(feature = "plain_codec")]
             DynamicColumn::PlainStr(c) => PlainBytesColumn::from(c).into_column_index(),
         }
     }
@@ -91,7 +101,9 @@ impl DynamicColumn {
             DynamicColumn::DateTime(c) => c.values.num_vals(),
             DynamicColumn::Bytes(c) => c.ords().values.num_vals(),
             DynamicColumn::Str(c) => c.ords().values.num_vals(),
+            #[cfg(feature = "plain_codec")]
             DynamicColumn::PlainBytes(c) => c.num_values(),
+            #[cfg(feature = "plain_codec")]
             DynamicColumn::PlainStr(c) => c.num_values(),
         }
     }
@@ -106,7 +118,9 @@ impl DynamicColumn {
             DynamicColumn::DateTime(_) => ColumnType::DateTime,
             DynamicColumn::Bytes(_) => ColumnType::Bytes,
             DynamicColumn::Str(_) => ColumnType::Str,
+            #[cfg(feature = "plain_codec")]
             DynamicColumn::PlainBytes(_) => ColumnType::Bytes,
+            #[cfg(feature = "plain_codec")]
             DynamicColumn::PlainStr(_) => ColumnType::Str,
         }
     }
@@ -115,6 +129,7 @@ impl DynamicColumn {
     pub fn str_codec(&self) -> Option<StrColumnCodec> {
         match self {
             DynamicColumn::Bytes(_) | DynamicColumn::Str(_) => Some(StrColumnCodec::Dictionary),
+            #[cfg(feature = "plain_codec")]
             DynamicColumn::PlainBytes(_) | DynamicColumn::PlainStr(_) => {
                 Some(StrColumnCodec::Plain)
             }
@@ -271,7 +286,9 @@ static_dynamic_conversions!(Column<DateTime>, DateTime);
 static_dynamic_conversions!(StrColumn, Str);
 static_dynamic_conversions!(BytesColumn, Bytes);
 static_dynamic_conversions!(Column<Ipv6Addr>, IpAddr);
+#[cfg(feature = "plain_codec")]
 static_dynamic_conversions!(PlainStrColumn, PlainStr);
+#[cfg(feature = "plain_codec")]
 static_dynamic_conversions!(PlainBytesColumn, PlainBytes);
 
 #[derive(Clone, Debug)]
@@ -293,6 +310,7 @@ fn plain_column_has_no_u64_representation() -> io::Error {
 impl DynamicColumnHandle {
     // TODO rename load
     pub fn open(&self) -> io::Result<DynamicColumn> {
+        #[cfg(feature = "plain_codec")]
         if self.codec == StrColumnCodec::Plain {
             // Only the column metadata is read: the blocks are read lazily.
             let plain_column =
@@ -306,6 +324,11 @@ impl DynamicColumnHandle {
                 )),
             };
         }
+        #[cfg(not(feature = "plain_codec"))]
+        assert!(
+            self.codec != StrColumnCodec::Plain,
+            "opening a plain-encoded column requires the `plain_codec` feature"
+        );
         let column_bytes: OwnedBytes = self.file_slice.read_bytes()?;
         self.open_internal(column_bytes)
     }
