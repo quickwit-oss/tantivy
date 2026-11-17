@@ -139,7 +139,7 @@ impl TextOptions {
     ///
     /// The tokenizer is always looked up, including the raw tokenizer: the analyzer registered
     /// under the raw name may have extra filters. To record values as is, without any lookup,
-    /// use the `FAST` flag instead.
+    /// use [`TextOptions::set_fast_no_tokenizer`] or the `FAST` flag instead.
     ///
     /// The effective cardinality depends on the tokenizer. The tokenizer can be used to apply
     /// normalization like lower case.
@@ -153,6 +153,15 @@ impl TextOptions {
     pub fn set_fast(mut self, tokenizer_name: impl ToString) -> TextOptions {
         let tokenizer = Some(tokenizer_name.to_string());
         self.fast = Some(FastFieldTextOptions { tokenizer });
+        self
+    }
+
+    /// Set the field as a fast field, without any tokenizer.
+    ///
+    /// Values are recorded as is. This is the same as the `FAST` flag.
+    #[must_use]
+    pub fn set_fast_no_tokenizer(mut self) -> TextOptions {
+        self.fast = Some(FastFieldTextOptions { tokenizer: None });
         self
     }
 
@@ -475,5 +484,16 @@ mod tests {
         let fast_flag_options: TextOptions = FAST.into();
         assert!(fast_flag_options.is_fast());
         assert_eq!(fast_flag_options.get_fast_field_tokenizer_name(), None);
+    }
+
+    #[test]
+    fn test_set_fast_no_tokenizer() {
+        let options = TextOptions::default().set_fast_no_tokenizer();
+        assert!(options.is_fast());
+        assert_eq!(options.get_fast_field_tokenizer_name(), None);
+        let fast_flag_options: TextOptions = FAST.into();
+        assert_eq!(options.fast, fast_flag_options.fast);
+        let serialized = serde_json::to_value(&options).unwrap();
+        assert_eq!(serialized["fast"], serde_json::json!(true));
     }
 }

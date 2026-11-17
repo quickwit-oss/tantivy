@@ -132,7 +132,7 @@ impl JsonObjectOptions {
     ///
     /// The tokenizer is always looked up, including the raw tokenizer: the analyzer registered
     /// under the raw name may have extra filters. To record text values as is, without any
-    /// lookup, use the `FAST` flag instead.
+    /// lookup, use [`JsonObjectOptions::set_fast_no_tokenizer`] or the `FAST` flag instead.
     ///
     /// The original text can be retrieved via
     /// [`TermDictionary::ord_to_term()`](crate::termdict::TermDictionary::ord_to_term)
@@ -141,6 +141,15 @@ impl JsonObjectOptions {
     pub fn set_fast(mut self, tokenizer_name: impl ToString) -> Self {
         let tokenizer = Some(tokenizer_name.to_string());
         self.fast = Some(FastFieldTextOptions { tokenizer });
+        self
+    }
+
+    /// Set the field as a fast field, without any tokenizer.
+    ///
+    /// Text values are recorded as is. This is the same as the `FAST` flag.
+    #[must_use]
+    pub fn set_fast_no_tokenizer(mut self) -> Self {
+        self.fast = Some(FastFieldTextOptions { tokenizer: None });
         self
     }
 
@@ -268,6 +277,19 @@ mod tests {
         assert_eq!(enabled.fast.as_ref().unwrap().tokenizer, None);
         assert_eq!(
             serde_json::to_value(enabled).unwrap()["fast"],
+            serde_json::json!(true)
+        );
+    }
+
+    #[test]
+    fn test_set_fast_no_tokenizer() {
+        let options = JsonObjectOptions::default().set_fast_no_tokenizer();
+        assert!(options.is_fast());
+        assert_eq!(options.get_fast_field_tokenizer_name(), None);
+        let fast_flag_options: JsonObjectOptions = FAST.into();
+        assert_eq!(options.fast, fast_flag_options.fast);
+        assert_eq!(
+            serde_json::to_value(options).unwrap()["fast"],
             serde_json::json!(true)
         );
     }
