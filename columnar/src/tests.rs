@@ -767,6 +767,7 @@ proptest! {
                     assert_bytes_column_values(col, expected_col_values, false),
                 DynamicColumn::Str(col) =>
                     assert_bytes_column_values(col, expected_col_values, true),
+                #[cfg(feature = "plain_codec")]
                 DynamicColumn::PlainBytes(_) | DynamicColumn::PlainStr(_) =>
                     panic!("this test only builds dictionary encoded columns"),
             }
@@ -816,6 +817,7 @@ proptest! {
                         assert_bytes_column_values(col, expected_col_values, false),
                     DynamicColumn::Str(col) =>
                         assert_bytes_column_values(col, expected_col_values, true),
+                    #[cfg(feature = "plain_codec")]
                     DynamicColumn::PlainBytes(_) | DynamicColumn::PlainStr(_) =>
                         panic!("this test only builds dictionary encoded columns"),
                 }

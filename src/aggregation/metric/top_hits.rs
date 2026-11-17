@@ -329,6 +329,7 @@ impl TopHitsAggregationReq {
                             .values_for_doc(doc_id)
                             .map(FastFieldValue::Date)
                             .collect::<Vec<_>>(),
+                        #[cfg(feature = "plain_codec")]
                         DynamicColumn::PlainBytes(accessor) => {
                             let mut values = Vec::new();
                             accessor
@@ -339,6 +340,7 @@ impl TopHitsAggregationReq {
                                 .expect("could not read plain column");
                             values
                         }
+                        #[cfg(feature = "plain_codec")]
                         DynamicColumn::PlainStr(accessor) => {
                             let mut values = Vec::new();
                             let mut reader = accessor.reader();

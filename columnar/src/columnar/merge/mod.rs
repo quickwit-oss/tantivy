@@ -124,11 +124,9 @@ fn dynamic_column_to_u64_monotonic(dynamic_column: DynamicColumn) -> Option<Colu
         DynamicColumn::U64(column) => Some(column.to_u64_monotonic()),
         DynamicColumn::F64(column) => Some(column.to_u64_monotonic()),
         DynamicColumn::DateTime(column) => Some(column.to_u64_monotonic()),
-        DynamicColumn::IpAddr(_)
-        | DynamicColumn::Bytes(_)
-        | DynamicColumn::Str(_)
-        | DynamicColumn::PlainBytes(_)
-        | DynamicColumn::PlainStr(_) => None,
+        DynamicColumn::IpAddr(_) | DynamicColumn::Bytes(_) | DynamicColumn::Str(_) => None,
+        #[cfg(feature = "plain_codec")]
+        DynamicColumn::PlainBytes(_) | DynamicColumn::PlainStr(_) => None,
     }
 }
 
@@ -213,6 +211,7 @@ fn merge_column(
                         column_indexes.push(bytes_column.term_ord_column.index.clone());
                         bytes_columns.push(Some(bytes_column));
                     }
+                    #[cfg(feature = "plain_codec")]
                     Some(DynamicColumn::PlainStr(_) | DynamicColumn::PlainBytes(_)) => {
                         return Err(io::Error::new(
                             io::ErrorKind::InvalidInput,
@@ -480,9 +479,9 @@ fn min_max_if_numerical(column: &DynamicColumn) -> Option<(NumericalValue, Numer
         | DynamicColumn::IpAddr(_)
         | DynamicColumn::DateTime(_)
         | DynamicColumn::Bytes(_)
-        | DynamicColumn::Str(_)
-        | DynamicColumn::PlainBytes(_)
-        | DynamicColumn::PlainStr(_) => None,
+        | DynamicColumn::Str(_) => None,
+        #[cfg(feature = "plain_codec")]
+        DynamicColumn::PlainBytes(_) | DynamicColumn::PlainStr(_) => None,
     }
 }
 

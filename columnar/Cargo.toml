@@ -20,7 +20,7 @@ serde = "1.0.152"
 downcast-rs = "2.0.1"
 rand = "0.9"
 # OnPair16 string compression, used by the plain codec of Str and Bytes columns.
-onpair = "0.2.1"
+onpair = { version = "0.2.1", optional = true }
 
 [dev-dependencies]
 proptest = "1"
@@ -66,3 +66,6 @@ harness = false
 
 [features]
 zstd-compression = ["sstable/zstd-compression"]
+# Compresses the blocks of plain-encoded Str and Bytes columns with OnPair16.
+# Without it, blocks are written raw, and reading an OnPair16 block returns an error.
+plain_codec = ["dep:onpair"]

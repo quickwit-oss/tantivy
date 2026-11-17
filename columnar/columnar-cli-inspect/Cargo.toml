@@ -6,7 +6,7 @@ license = "MIT"
 
 [dependencies]
 tantivy = {path="../..", package="tantivy"}
-columnar = {path="../", package="tantivy-columnar"}
+columnar = {path="../", package="tantivy-columnar", features=["plain_codec"]}
 common = {path="../../common", package="tantivy-common"}
 
 [workspace]

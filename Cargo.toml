@@ -138,7 +138,7 @@ debug-assertions = true
 overflow-checks = true
 
 [features]
-default = ["mmap", "stopwords", "lz4-compression", "columnar-zstd-compression", "stemmer"]
+default = ["mmap", "stopwords", "lz4-compression", "columnar-zstd-compression", "stemmer", "plain_codec"]
 stemmer = ["frostem"]
 mmap = ["fs4", "tempfile", "memmap2"]
 stopwords = []
@@ -148,6 +148,9 @@ zstd-compression = ["zstd"]
 
 # enable zstd-compression in columnar (and sstable)
 columnar-zstd-compression = ["columnar/zstd-compression"]
+
+# OnPair16 compression of plain-encoded Str and Bytes columns in columnar.
+plain_codec = ["columnar/plain_codec"]
 
 failpoints = ["fail", "fail/failpoints"]
 unstable = []                            # useful for benches.
