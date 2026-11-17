@@ -70,8 +70,8 @@ jobs:
     strategy:
       matrix:
         features:
-          - { label: "all", flags: "mmap,stopwords,lz4-compression,zstd-compression,failpoints,stemmer,jitexpr" }
-          - { label: "quickwit", flags: "mmap,quickwit,failpoints,jitexpr" }
+          - { label: "all", flags: "mmap,stopwords,lz4-compression,zstd-compression,failpoints,stemmer,jitexpr,plain_codec" }
+          - { label: "quickwit", flags: "mmap,quickwit,failpoints,jitexpr,plain_codec" }
           - { label: "none", flags: "" }
 
     name: test-${{ matrix.features.label}}

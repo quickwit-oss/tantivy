@@ -6,7 +6,11 @@
 //! The first byte of a block is its kind:
 //! - `BLOCK_KIND_RAW`: values stored as is, see `raw_block`.
 //! - `BLOCK_KIND_ONPAIR16`: values compressed with OnPair16, see `onpair16_block`.
+//!
+//! OnPair16 blocks require the `plain_codec` feature. Without it, all blocks are written raw, and
+//! opening an OnPair16 block returns an error.
 
+#[cfg(feature = "plain_codec")]
 mod onpair16_block;
 mod raw_block;
 
@@ -15,17 +19,22 @@ use std::sync::Arc;
 
 use common::OwnedBytes;
 
+#[cfg(feature = "plain_codec")]
 use self::onpair16_block::{OnPair16Block, encode_onpair16_block};
-use self::raw_block::{RAW_HEADER_NUM_BYTES, RawBlock, encode_raw_block};
+#[cfg(feature = "plain_codec")]
+use self::raw_block::RAW_HEADER_NUM_BYTES;
+use self::raw_block::{RawBlock, encode_raw_block};
 use crate::column_values::{CodecType, ColumnValues, load_u64_based_column_values};
 
 /// Kind of a block storing its values as is.
 const BLOCK_KIND_RAW: u8 = 0;
 /// Kind of a block compressed with OnPair16.
+#[cfg_attr(not(feature = "plain_codec"), allow(dead_code))]
 const BLOCK_KIND_ONPAIR16: u8 = 1;
 
 /// Blocks with fewer raw bytes than this are stored raw: an OnPair dictionary always contains the
 /// 256 single-byte tokens, which does not pay off on small blocks.
+#[cfg(feature = "plain_codec")]
 const MIN_ONPAIR16_BLOCK_NUM_BYTES: usize = 4 << 10;
 
 /// Codecs considered for the code offsets and the byte offsets of a block.
@@ -34,6 +43,7 @@ const OFFSETS_CODECS: [CodecType; 2] = [CodecType::Bitpacked, CodecType::Blockwi
 /// Reads a little endian `u16` from the front of `bytes`, and advances `bytes` past it.
 ///
 /// Precondition: `bytes` holds at least 2 bytes.
+#[cfg(feature = "plain_codec")]
 fn read_u16(bytes: &mut &[u8]) -> u16 {
     let (u16_bytes, rest) = bytes
         .split_first_chunk::<2>()
@@ -74,6 +84,29 @@ fn load_offsets(bytes: OwnedBytes, expected_num_vals: u32) -> Arc<dyn ColumnValu
 ///
 /// The block is compressed with OnPair16, unless it is small or OnPair16 does not make it
 /// smaller. In that case, it is stored raw.
+///
+/// Without the `plain_codec` feature, the block is always stored raw.
+#[cfg(not(feature = "plain_codec"))]
+pub(crate) fn encode_block(
+    bytes: &[u8],
+    offsets: &[u32],
+    output: &mut Vec<u8>,
+    _scratch: &mut Vec<u8>,
+) -> io::Result<()> {
+    debug_assert_eq!(offsets.first().copied(), Some(0));
+    debug_assert_eq!(offsets.last().copied(), Some(bytes.len() as u32));
+    output.clear();
+    encode_raw_block(bytes, offsets, output)
+}
+
+/// Encodes the values of a block into `output`.
+///
+/// `bytes` holds the `n` values of the block, concatenated. `offsets` has `n + 1` entries, with
+/// `offsets[0] == 0`: value `i` is `bytes[offsets[i]..offsets[i + 1]]`.
+///
+/// The block is compressed with OnPair16, unless it is small or OnPair16 does not make it
+/// smaller. In that case, it is stored raw.
+#[cfg(feature = "plain_codec")]
 pub(crate) fn encode_block(
     bytes: &[u8],
     offsets: &[u32],
@@ -101,12 +134,30 @@ pub(crate) fn encode_block(
 /// The decoded metadata of a block. All of the buffers are zero-copy views on the block bytes,
 /// except the dictionary offsets.
 pub(crate) enum PlainBlock {
+    #[cfg(feature = "plain_codec")]
     OnPair16(OnPair16Block),
     Raw(RawBlock),
 }
 
+/// Returns an error if the block cannot be decoded by this build.
+///
+/// This is the case of OnPair16 blocks without the `plain_codec` feature.
+/// Callers must call it before `PlainBlock::open`, which panics on such blocks.
+pub(crate) fn check_block_is_supported(bytes: &[u8]) -> io::Result<()> {
+    if !cfg!(feature = "plain_codec") && bytes.first() == Some(&BLOCK_KIND_ONPAIR16) {
+        return Err(io::Error::new(
+            io::ErrorKind::Unsupported,
+            "plain block compressed with OnPair16, but tantivy-columnar was built without the \
+             `plain_codec` feature",
+        ));
+    }
+    Ok(())
+}
+
 impl PlainBlock {
     /// Opens a block holding `num_values` values.
+    ///
+    /// Precondition: `check_block_is_supported` accepted `bytes`.
     ///
     /// Panics if `bytes` is corrupted.
     pub(crate) fn open(bytes: OwnedBytes, num_values: u32) -> PlainBlock {
@@ -114,6 +165,7 @@ impl PlainBlock {
         let kind: u8 = bytes[0];
         match kind {
             BLOCK_KIND_RAW => PlainBlock::Raw(RawBlock::open(bytes, num_values)),
+            #[cfg(feature = "plain_codec")]
             BLOCK_KIND_ONPAIR16 => PlainBlock::OnPair16(OnPair16Block::open(bytes, num_values)),
             _ => panic!("unknown plain block kind {kind}"),
         }
@@ -130,7 +182,11 @@ impl PlainBlock {
         codes_buffer: &mut Vec<u16>,
         output: &mut Vec<u8>,
     ) {
+        // Only used by OnPair16 blocks.
+        #[cfg(not(feature = "plain_codec"))]
+        let _ = codes_buffer;
         match self {
+            #[cfg(feature = "plain_codec")]
             PlainBlock::OnPair16(onpair16_block) => {
                 onpair16_block.append_value(slot, codes_buffer, output)
             }
@@ -213,6 +269,7 @@ mod tests {
         test_roundtrip_aux(&[Vec::new()], BLOCK_KIND_RAW);
     }
 
+    #[cfg(feature = "plain_codec")]
     #[test]
     fn test_compressible_block_is_onpair16() {
         let values = log_lines(2_000);
@@ -224,6 +281,7 @@ mod tests {
         assert_eq!(decode_all(block_bytes, values.len()), values);
     }
 
+    #[cfg(feature = "plain_codec")]
     #[test]
     fn test_onpair16_block_with_empty_values() {
         let mut values = log_lines(500);
@@ -278,6 +336,7 @@ mod tests {
         open_truncated_block(100);
     }
 
+    #[cfg(feature = "plain_codec")]
     #[test]
     #[should_panic(expected = "invalid codes length")]
     fn test_truncated_block_codes_panics() {
@@ -292,6 +351,24 @@ mod tests {
         let value_refs: Vec<&[u8]> = values.iter().map(|value| value.as_slice()).collect();
         let block_bytes = OwnedBytes::new(encode(&value_refs));
         PlainBlock::open(block_bytes, values.len() as u32 + 1);
+    }
+
+    #[cfg(not(feature = "plain_codec"))]
+    #[test]
+    fn test_compressible_block_is_raw_without_plain_codec() {
+        test_roundtrip_aux(&log_lines(2_000), BLOCK_KIND_RAW);
+    }
+
+    #[test]
+    fn test_check_block_is_supported() {
+        check_block_is_supported(&[BLOCK_KIND_RAW]).unwrap();
+        let onpair16_result = check_block_is_supported(&[BLOCK_KIND_ONPAIR16]);
+        if cfg!(feature = "plain_codec") {
+            onpair16_result.unwrap();
+        } else {
+            let error = onpair16_result.unwrap_err();
+            assert_eq!(error.kind(), io::ErrorKind::Unsupported);
+        }
     }
 
     #[test]
