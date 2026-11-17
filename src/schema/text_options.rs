@@ -25,27 +25,25 @@ pub struct TextOptions {
     coerce: bool,
 }
 
-/// Options controlling how a text fast field is tokenized.
-#[derive(Clone, Debug, PartialEq)]
+/// Options controlling how the values of a text fast field are recorded.
+#[derive(Clone, Debug, Default, PartialEq)]
 pub(crate) struct FastFieldTextOptions {
-    pub tokenizer: String,
-}
-
-impl Default for FastFieldTextOptions {
-    fn default() -> Self {
-        FastFieldTextOptions {
-            tokenizer: RAW_TOKENIZER_NAME.to_string(),
-        }
-    }
+    /// Name of the analyzer applied to the values, looked up in the fast field tokenizer
+    /// manager.
+    ///
+    /// `None` means values are recorded as is, without any lookup. This is not the same as
+    /// `Some("raw")`: the analyzer registered under the raw name may have extra filters, such as
+    /// a token length limit.
+    pub tokenizer: Option<String>,
 }
 
 pub(super) fn merge_fast_field_options(
     left: Option<FastFieldTextOptions>,
     right: Option<FastFieldTextOptions>,
 ) -> Option<FastFieldTextOptions> {
-    // A configured tokenizer takes precedence over the implicit raw tokenizer.
+    // A configured tokenizer takes precedence over recording values as is.
     match (left, right) {
-        (Some(left), Some(right)) if left.tokenizer == RAW_TOKENIZER_NAME => Some(right),
+        (Some(left), Some(right)) if left.tokenizer.is_none() => Some(right),
         (Some(left), _) => Some(left),
         (None, right) => right,
     }
@@ -54,7 +52,7 @@ pub(super) fn merge_fast_field_options(
 pub(super) mod fast_field_text_options_serde {
     use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
-    use super::{FastFieldTextOptions, RAW_TOKENIZER_NAME};
+    use super::FastFieldTextOptions;
 
     #[derive(Serialize, Deserialize)]
     #[serde(untagged)]
@@ -72,11 +70,11 @@ pub(super) mod fast_field_text_options_serde {
     {
         let wire_format = match fast_field_options {
             None => WireFormat::IsEnabled(false),
-            Some(fast_field_options) if fast_field_options.tokenizer == RAW_TOKENIZER_NAME => {
-                WireFormat::IsEnabled(true)
-            }
-            Some(fast_field_options) => WireFormat::EnabledWithTokenizer {
-                with_tokenizer: fast_field_options.tokenizer.clone(),
+            Some(FastFieldTextOptions { tokenizer: None }) => WireFormat::IsEnabled(true),
+            Some(FastFieldTextOptions {
+                tokenizer: Some(tokenizer_name),
+            }) => WireFormat::EnabledWithTokenizer {
+                with_tokenizer: tokenizer_name.clone(),
             },
         };
         wire_format.serialize(serializer)
@@ -89,7 +87,7 @@ pub(super) mod fast_field_text_options_serde {
             WireFormat::IsEnabled(false) => Ok(None),
             WireFormat::IsEnabled(true) => Ok(Some(FastFieldTextOptions::default())),
             WireFormat::EnabledWithTokenizer { with_tokenizer } => Ok(Some(FastFieldTextOptions {
-                tokenizer: with_tokenizer,
+                tokenizer: Some(with_tokenizer),
             })),
         }
     }
@@ -120,11 +118,11 @@ impl TextOptions {
 
     /// Returns the tokenizer used for the fast field, if the text field
     /// is a fast field and a tokenizer was configured for it.
+    ///
+    /// Returns `None` for a fast field set with the `FAST` flag: its values are recorded as is.
     #[inline]
     pub fn get_fast_field_tokenizer_name(&self) -> Option<&str> {
-        self.fast
-            .as_ref()
-            .map(|fast_field_options| fast_field_options.tokenizer.as_str())
+        self.fast.as_ref()?.tokenizer.as_deref()
     }
 
     /// Returns true if values should be coerced to strings (numbers, null).
@@ -139,7 +137,9 @@ impl TextOptions {
     /// Access time are similar to a random lookup in an array.
     /// Text fast fields will have the term ids stored in the fast field.
     ///
-    /// If you do not want the field to be tokenized, use tokenizer_name: "raw".
+    /// The tokenizer is always looked up, including the raw tokenizer: the analyzer registered
+    /// under the raw name may have extra filters. To record values as is, without any lookup,
+    /// use [`TextOptions::set_fast_no_tokenizer`] or the `FAST` flag instead.
     ///
     /// The effective cardinality depends on the tokenizer. The tokenizer can be used to apply
     /// normalization like lower case.
@@ -151,8 +151,17 @@ impl TextOptions {
     /// from the dictionary.
     #[must_use]
     pub fn set_fast(mut self, tokenizer_name: impl ToString) -> TextOptions {
-        let tokenizer = tokenizer_name.to_string();
+        let tokenizer = Some(tokenizer_name.to_string());
         self.fast = Some(FastFieldTextOptions { tokenizer });
+        self
+    }
+
+    /// Set the field as a fast field, without any tokenizer.
+    ///
+    /// Values are recorded as is. This is the same as the `FAST` flag.
+    #[must_use]
+    pub fn set_fast_no_tokenizer(mut self) -> TextOptions {
+        self.fast = Some(FastFieldTextOptions { tokenizer: None });
         self
     }
 
@@ -380,16 +389,16 @@ mod tests {
                 .fast
                 .unwrap()
                 .tokenizer
-                .as_str(),
-            "default"
+                .as_deref(),
+            Some("default")
         );
         assert_eq!(
             (tokenized_options | raw_options)
                 .fast
                 .unwrap()
                 .tokenizer
-                .as_str(),
-            "default"
+                .as_deref(),
+            Some("default")
         );
     }
 
@@ -423,7 +432,7 @@ mod tests {
         assert_eq!(
             options.fast,
             Some(FastFieldTextOptions {
-                tokenizer: "default".to_string()
+                tokenizer: Some("default".to_string())
             })
         );
         let serialized = serde_json::to_value(&options).unwrap();
@@ -435,7 +444,7 @@ mod tests {
         assert_eq!(
             options.fast,
             Some(FastFieldTextOptions {
-                tokenizer: "default".to_string()
+                tokenizer: Some("default".to_string())
             })
         );
 
@@ -443,21 +452,11 @@ mod tests {
             "fast": true
         } "#;
         let options: TextOptions = serde_json::from_str(json).unwrap();
-        assert_eq!(
-            options.fast,
-            Some(FastFieldTextOptions {
-                tokenizer: "raw".to_string()
-            })
-        );
+        assert_eq!(options.fast, Some(FastFieldTextOptions { tokenizer: None }));
         let serialized = serde_json::to_value(&options).unwrap();
         assert_eq!(serialized["fast"], serde_json::json!(true));
         let options: TextOptions = serde_json::from_value(serialized).unwrap();
-        assert_eq!(
-            options.fast,
-            Some(FastFieldTextOptions {
-                tokenizer: "raw".to_string()
-            })
-        );
+        assert_eq!(options.fast, Some(FastFieldTextOptions { tokenizer: None }));
 
         let json = r#" {
             "fast": false
@@ -468,5 +467,33 @@ mod tests {
         assert_eq!(serialized["fast"], serde_json::json!(false));
         let options: TextOptions = serde_json::from_value(serialized).unwrap();
         assert_eq!(options.fast, None);
+    }
+
+    #[test]
+    fn serde_fast_field_explicit_raw_tokenizer_is_kept() {
+        let options = TextOptions::default().set_fast("raw");
+        assert_eq!(options.get_fast_field_tokenizer_name(), Some("raw"));
+        let serialized = serde_json::to_value(&options).unwrap();
+        assert_eq!(
+            serialized["fast"],
+            serde_json::json!({ "with_tokenizer": "raw" })
+        );
+        let options: TextOptions = serde_json::from_value(serialized).unwrap();
+        assert_eq!(options.get_fast_field_tokenizer_name(), Some("raw"));
+
+        let fast_flag_options: TextOptions = FAST.into();
+        assert!(fast_flag_options.is_fast());
+        assert_eq!(fast_flag_options.get_fast_field_tokenizer_name(), None);
+    }
+
+    #[test]
+    fn test_set_fast_no_tokenizer() {
+        let options = TextOptions::default().set_fast_no_tokenizer();
+        assert!(options.is_fast());
+        assert_eq!(options.get_fast_field_tokenizer_name(), None);
+        let fast_flag_options: TextOptions = FAST.into();
+        assert_eq!(options.fast, fast_flag_options.fast);
+        let serialized = serde_json::to_value(&options).unwrap();
+        assert_eq!(serialized["fast"], serde_json::json!(true));
     }
 }

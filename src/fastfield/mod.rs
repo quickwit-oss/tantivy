@@ -98,7 +98,8 @@ mod tests {
     };
     use crate::time::OffsetDateTime;
     use crate::tokenizer::{
-        LowerCaser, RawTokenizer, TextAnalyzer, TokenizerManager, RAW_TOKENIZER_NAME,
+        LowerCaser, RawTokenizer, RemoveLongFilter, TextAnalyzer, TokenizerManager,
+        RAW_TOKENIZER_NAME,
     };
     use crate::{Index, IndexWriter, SegmentReader};
 
@@ -1266,6 +1267,81 @@ mod tests {
         let mut out = String::new();
         column.ord_to_str(0u64, &mut out).unwrap();
         assert_eq!(&out, "test1 test2");
+    }
+
+    /// Indexes a short and a long value in a text field and a json field, with a fast field
+    /// tokenizer manager whose raw analyzer drops tokens of 10 bytes or more.
+    ///
+    /// Returns the terms of the `text` and `json.key` columns, and whether the long value
+    /// document has a value in each column.
+    fn index_with_length_limited_raw_tokenizer(
+        text_options: TextOptions,
+        json_options: JsonObjectOptions,
+    ) -> Vec<(Vec<String>, bool)> {
+        let mut schema_builder = Schema::builder();
+        let text_field = schema_builder.add_text_field("text", text_options);
+        let json_field = schema_builder.add_json_field("json", json_options);
+        let schema = schema_builder.build();
+        let ff_tokenizer_manager = TokenizerManager::default();
+        ff_tokenizer_manager.register(
+            RAW_TOKENIZER_NAME,
+            TextAnalyzer::builder(RawTokenizer::default())
+                .filter(RemoveLongFilter::limit(10))
+                .build(),
+        );
+        let mut index = Index::create_in_ram(schema);
+        index.set_fast_field_tokenizers(ff_tokenizer_manager);
+        let mut index_writer: IndexWriter = index.writer_for_tests().unwrap();
+        let long_value = "a value longer than the limit";
+        index_writer
+            .add_document(doc!(text_field => "short", json_field => json!({"key": "short"})))
+            .unwrap();
+        index_writer
+            .add_document(doc!(text_field => long_value, json_field => json!({"key": long_value})))
+            .unwrap();
+        index_writer.commit().unwrap();
+        let searcher = index.reader().unwrap().searcher();
+        let fast_fields = searcher.segment_reader(0u32).fast_fields();
+        let mut results = Vec::with_capacity(2);
+        for column_name in ["text", "json.key"] {
+            let column = fast_fields.str(column_name).unwrap().unwrap();
+            let mut terms = Vec::with_capacity(column.num_terms());
+            for term_ord in 0..column.num_terms() as u64 {
+                let mut term = String::new();
+                column.ord_to_str(term_ord, &mut term).unwrap();
+                terms.push(term);
+            }
+            let long_value_doc_has_value = column.term_ords(1).next().is_some();
+            results.push((terms, long_value_doc_has_value));
+        }
+        results
+    }
+
+    #[test]
+    fn test_fast_field_registered_raw_tokenizer_is_applied() {
+        let results = index_with_length_limited_raw_tokenizer(
+            TextOptions::default().set_fast(RAW_TOKENIZER_NAME),
+            JsonObjectOptions::default().set_fast(RAW_TOKENIZER_NAME),
+        );
+        for (terms, long_value_doc_has_value) in results {
+            assert_eq!(terms, vec!["short".to_string()]);
+            assert!(!long_value_doc_has_value);
+        }
+    }
+
+    #[test]
+    fn test_fast_flag_does_not_use_registered_raw_tokenizer() {
+        let results = index_with_length_limited_raw_tokenizer(FAST.into(), FAST.into());
+        for (terms, long_value_doc_has_value) in results {
+            assert_eq!(
+                terms,
+                vec![
+                    "a value longer than the limit".to_string(),
+                    "short".to_string()
+                ]
+            );
+            assert!(long_value_doc_has_value);
+        }
     }
 
     #[test]
