@@ -3,7 +3,7 @@ use std::cmp::Ordering;
 use columnar::MonotonicallyMappableToU64;
 use serde::{Deserialize, Serialize};
 
-use crate::collector::{SegmentSortKeyComputer, SortKeyComputer};
+use crate::collector::{SegmentSortKeyComputer, SortKeyComputer, TopNComputer};
 use crate::schema::{OwnedValue, Schema};
 use crate::{DocId, Order, Score};
 
@@ -497,6 +497,16 @@ where
 
     fn segment_sort_key(&mut self, doc: DocId, score: Score) -> Self::SegmentSortKey {
         self.segment_sort_key_computer.segment_sort_key(doc, score)
+    }
+
+    #[inline]
+    fn compute_sort_keys_and_collect_block<C: Comparator<Self::SegmentSortKey>>(
+        &mut self,
+        docs: &[DocId],
+        top_n_computer: &mut TopNComputer<Self::SegmentSortKey, DocId, C>,
+    ) {
+        self.segment_sort_key_computer
+            .compute_sort_keys_and_collect_block(docs, top_n_computer);
     }
 
     #[inline(always)]

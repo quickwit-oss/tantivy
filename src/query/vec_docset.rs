@@ -1,15 +1,9 @@
-#![allow(dead_code)]
-
 use common::HasLen;
 
-use crate::docset::{DocSet, TERMINATED};
+use crate::docset::{DocSet, COLLECT_BLOCK_BUFFER_LEN, TERMINATED};
 use crate::DocId;
 
-/// Simulate a `Postings` objects from a `VecPostings`.
-/// `VecPostings` only exist for testing purposes.
-///
-/// Term frequencies always return 1.
-/// No positions are returned.
+/// A `DocSet` backed by a strictly sorted vector of doc ids.
 pub struct VecDocSet {
     doc_ids: Vec<DocId>,
     cursor: usize,
@@ -39,6 +33,20 @@ impl DocSet for VecDocSet {
             return TERMINATED;
         }
         self.doc_ids[self.cursor]
+    }
+
+    fn seek(&mut self, target: DocId) -> DocId {
+        let remaining = &self.doc_ids[self.cursor..];
+        self.cursor += remaining.partition_point(|&doc| doc < target);
+        self.doc()
+    }
+
+    fn fill_buffer(&mut self, buffer: &mut [DocId; COLLECT_BLOCK_BUFFER_LEN]) -> usize {
+        let remaining = &self.doc_ids[self.cursor..];
+        let num_docs = remaining.len().min(COLLECT_BLOCK_BUFFER_LEN);
+        buffer[..num_docs].copy_from_slice(&remaining[..num_docs]);
+        self.cursor += num_docs;
+        num_docs
     }
 
     fn size_hint(&self) -> u32 {

@@ -1,5 +1,6 @@
 mod warming;
 
+use std::collections::HashMap;
 use std::sync::atomic::AtomicU64;
 use std::sync::{atomic, Arc, Weak};
 
@@ -9,8 +10,9 @@ pub use warming::Warmer;
 use self::warming::WarmingState;
 use crate::core::searcher::{SearcherGeneration, SearcherInner};
 use crate::directory::{Directory, WatchCallback, WatchHandle, META_LOCK};
+use crate::index::SegmentId;
 use crate::store::DOCSTORE_CACHE_CAPACITY;
-use crate::{Index, Inventory, Searcher, SegmentReader, TrackedObject};
+use crate::{Index, Inventory, Opstamp, Searcher, SegmentReader, TrackedObject};
 
 /// Defines when a new version of the index should be reloaded.
 ///
@@ -175,6 +177,7 @@ impl InnerIndexReader {
             &warming_state,
             &searcher_generation_counter,
             &searcher_generation_inventory,
+            None,
         )?;
         Ok(InnerIndexReader {
             doc_store_cache_num_blocks,
@@ -187,15 +190,45 @@ impl InnerIndexReader {
     }
     /// Opens the freshest segments [`SegmentReader`].
     ///
+    /// Segment readers from the `previous` searcher are reused for segments that are
+    /// unchanged (same segment id and same delete opstamp), instead of being reopened.
+    /// Only segments that are still searchable are reused: readers for segments that
+    /// were merged away or deleted are not carried over, and are released together with
+    /// the previous searcher, exactly as if they had not been reused.
+    ///
     /// This function acquires a lock to prevent GC from removing files
     /// as we are opening our index.
-    fn open_segment_readers(index: &Index) -> crate::Result<Vec<SegmentReader>> {
+    fn open_segment_readers(
+        index: &Index,
+        previous: Option<&SearcherInner>,
+    ) -> crate::Result<Vec<SegmentReader>> {
         // Prevents segment files from getting deleted while we are in the process of opening them
         let _meta_lock = index.directory().acquire_lock(&META_LOCK)?;
         let searchable_segments = index.searchable_segments()?;
+        let previous_segment_readers: HashMap<(SegmentId, Option<Opstamp>), &SegmentReader> =
+            previous
+                .map(|previous| {
+                    previous
+                        .segment_readers()
+                        .iter()
+                        .map(|segment_reader| {
+                            (
+                                (segment_reader.segment_id(), segment_reader.delete_opstamp()),
+                                segment_reader,
+                            )
+                        })
+                        .collect()
+                })
+                .unwrap_or_default();
         let segment_readers = searchable_segments
             .iter()
-            .map(SegmentReader::open)
+            .map(|segment| {
+                let key = (segment.id(), segment.meta().delete_opstamp());
+                match previous_segment_readers.get(&key) {
+                    Some(segment_reader) => Ok((*segment_reader).clone()),
+                    None => SegmentReader::open(segment),
+                }
+            })
             .collect::<crate::Result<_>>()?;
         Ok(segment_readers)
     }
@@ -217,8 +250,9 @@ impl InnerIndexReader {
         warming_state: &WarmingState,
         searcher_generation_counter: &Arc<AtomicU64>,
         searcher_generation_inventory: &Inventory<SearcherGeneration>,
+        previous: Option<&SearcherInner>,
     ) -> crate::Result<Arc<SearcherInner>> {
-        let segment_readers = Self::open_segment_readers(index)?;
+        let segment_readers = Self::open_segment_readers(index, previous)?;
         let searcher_generation = Self::track_segment_readers_in_inventory(
             &segment_readers,
             searcher_generation_counter,
@@ -232,6 +266,7 @@ impl InnerIndexReader {
             segment_readers,
             searcher_generation,
             doc_store_cache_num_blocks,
+            previous,
         )?);
 
         warming_state.warm_new_searcher_generation(&searcher.clone().into())?;
@@ -239,13 +274,16 @@ impl InnerIndexReader {
     }
 
     fn reload(&self) -> crate::Result<()> {
+        let previous_searcher = self.searcher.load_full();
         let searcher = Self::create_searcher(
             &self.index,
             self.doc_store_cache_num_blocks,
             &self.warming_state,
             &self.searcher_generation_counter,
             &self.searcher_generation_inventory,
+            Some(&previous_searcher),
         )?;
+        drop(previous_searcher);
 
         self.searcher.store(searcher);
 

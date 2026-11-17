@@ -6,7 +6,7 @@ pub const COMPRESSION_BLOCK_SIZE: usize = BitPacker4x::BLOCK_LEN;
 const MAX_VINT_SIZE: usize = 5;
 const COMPRESSED_BLOCK_MAX_SIZE: usize = COMPRESSION_BLOCK_SIZE * MAX_VINT_SIZE;
 
-mod vint;
+pub(crate) mod vint;
 
 /// Returns the size in bytes of a compressed block, given `num_bits`.
 #[inline]

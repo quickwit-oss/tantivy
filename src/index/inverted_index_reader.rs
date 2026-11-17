@@ -11,9 +11,11 @@ use tantivy_fst::automaton::{AlwaysMatch, Automaton};
 
 use crate::directory::FileSlice;
 use crate::positions::PositionReader;
+use crate::postings::compression::COMPRESSION_BLOCK_SIZE;
 use crate::postings::{BlockSegmentPostings, SegmentPostings, TermInfo};
 use crate::schema::{IndexRecordOption, Term, Type};
 use crate::termdict::TermDictionary;
+use crate::DocId;
 
 /// The inverted index reader is in charge of accessing
 /// the inverted index associated with a specific field.
@@ -158,6 +160,35 @@ impl InvertedIndexReader {
         fields.extend(current_field_opt.take());
 
         Ok(fields)
+    }
+
+    /// Decodes the doc ids of a posting list holding fewer than
+    /// `COMPRESSION_BLOCK_SIZE` documents, without building a `BlockSegmentPostings`.
+    ///
+    /// Such posting lists have no skip data and consist of a single VInt-encoded
+    /// block of doc ids (possibly followed by term frequencies, which are ignored).
+    ///
+    /// Returns the number of doc ids written into `output`.
+    pub(crate) fn read_small_postings_docs(
+        &self,
+        term_info: &TermInfo,
+        output: &mut [DocId; COMPRESSION_BLOCK_SIZE],
+    ) -> io::Result<usize> {
+        let num_docs = term_info.doc_freq as usize;
+        assert!(num_docs < COMPRESSION_BLOCK_SIZE);
+        if num_docs == 0 {
+            return Ok(0);
+        }
+        let postings_bytes = self
+            .postings_file_slice
+            .slice(term_info.postings_range.clone())
+            .read_bytes()?;
+        crate::postings::compression::vint::uncompress_sorted(
+            postings_bytes.as_slice(),
+            &mut output[..num_docs],
+            0,
+        );
+        Ok(num_docs)
     }
 
     /// Resets the block segment to another position of the postings

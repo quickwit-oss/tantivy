@@ -28,7 +28,6 @@ mod term_query;
 mod union;
 mod weight;
 
-#[cfg(test)]
 mod vec_docset;
 
 pub(crate) mod score_combiner;
@@ -64,7 +63,6 @@ pub use self::scorer::Scorer;
 pub use self::set_query::TermSetQuery;
 pub use self::term_query::TermQuery;
 pub use self::union::BufferedUnionScorer;
-#[cfg(test)]
 pub use self::vec_docset::VecDocSet;
 pub use self::weight::Weight;
 

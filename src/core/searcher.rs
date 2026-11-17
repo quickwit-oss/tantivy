@@ -1,4 +1,4 @@
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashMap};
 use std::sync::Arc;
 use std::{fmt, io};
 
@@ -260,7 +260,7 @@ pub(crate) struct SearcherInner {
     schema: Schema,
     index: Index,
     segment_readers: Vec<SegmentReader>,
-    store_readers: Vec<StoreReader>,
+    store_readers: Vec<Arc<StoreReader>>,
     generation: TrackedObject<SearcherGeneration>,
 }
 
@@ -272,6 +272,7 @@ impl SearcherInner {
         segment_readers: Vec<SegmentReader>,
         generation: TrackedObject<SearcherGeneration>,
         doc_store_cache_num_blocks: usize,
+        previous: Option<&SearcherInner>,
     ) -> io::Result<SearcherInner> {
         assert_eq!(
             &segment_readers
@@ -281,9 +282,31 @@ impl SearcherInner {
             generation.segments(),
             "Set of segments referenced by this Searcher and its SearcherGeneration must match"
         );
-        let store_readers: Vec<StoreReader> = segment_readers
+        // Store readers of segments that were already part of the previous searcher are
+        // reused, so that their block caches survive reloads. Only segments still part of
+        // the new searcher are carried over: readers of segments that went away are dropped
+        // with the previous searcher, as before.
+        let previous_store_readers: HashMap<SegmentId, &Arc<StoreReader>> = previous
+            .map(|previous| {
+                previous
+                    .segment_readers
+                    .iter()
+                    .map(SegmentReader::segment_id)
+                    .zip(previous.store_readers.iter())
+                    .collect()
+            })
+            .unwrap_or_default();
+        let store_readers: Vec<Arc<StoreReader>> = segment_readers
             .iter()
-            .map(|segment_reader| segment_reader.get_store_reader(doc_store_cache_num_blocks))
+            .map(|segment_reader| {
+                if let Some(store_reader) = previous_store_readers.get(&segment_reader.segment_id())
+                {
+                    return Ok(Arc::clone(store_reader));
+                }
+                segment_reader
+                    .get_store_reader(doc_store_cache_num_blocks)
+                    .map(Arc::new)
+            })
             .collect::<io::Result<Vec<_>>>()?;
 
         Ok(SearcherInner {
@@ -293,6 +316,11 @@ impl SearcherInner {
             store_readers,
             generation,
         })
+    }
+
+    /// The segment readers of this searcher.
+    pub(crate) fn segment_readers(&self) -> &[SegmentReader] {
+        &self.segment_readers
     }
 }
 
@@ -304,5 +332,79 @@ impl fmt::Debug for Searcher {
             .map(SegmentReader::segment_id)
             .collect::<Vec<_>>();
         write!(f, "Searcher({segment_ids:?})")
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::sync::Arc;
+
+    use crate::collector::Count;
+    use crate::query::TermQuery;
+    use crate::schema::{IndexRecordOption, Schema, STORED, STRING};
+    use crate::{Index, IndexWriter, ReloadPolicy, Term};
+
+    #[test]
+    fn test_reload_reuses_unchanged_segment_readers() -> crate::Result<()> {
+        let mut schema_builder = Schema::builder();
+        let text = schema_builder.add_text_field("text", STRING | STORED);
+        let index = Index::create_in_ram(schema_builder.build());
+        let reader = index
+            .reader_builder()
+            .reload_policy(ReloadPolicy::Manual)
+            .try_into()?;
+        let mut writer: IndexWriter = index.writer_for_tests()?;
+        writer.add_document(doc!(text => "a"))?;
+        writer.commit()?;
+        reader.reload()?;
+        let searcher1 = reader.searcher();
+        assert_eq!(searcher1.segment_readers().len(), 1);
+        let segment_a = searcher1.segment_readers()[0].segment_id();
+
+        writer.add_document(doc!(text => "b"))?;
+        writer.commit()?;
+        reader.reload()?;
+        let searcher2 = reader.searcher();
+        assert_eq!(searcher2.segment_readers().len(), 2);
+        let ord_a = searcher2
+            .segment_readers()
+            .iter()
+            .position(|segment_reader| segment_reader.segment_id() == segment_a)
+            .unwrap();
+        // The unchanged segment's store reader (and its block cache) is shared.
+        assert!(Arc::ptr_eq(
+            &searcher1.inner.store_readers[0],
+            &searcher2.inner.store_readers[ord_a]
+        ));
+        assert_eq!(searcher2.num_docs(), 2);
+
+        // Deleting a document changes the delete opstamp: the segment reader must be
+        // reopened so that the new alive bitset is taken into account.
+        writer.delete_term(Term::from_field_text(text, "a"));
+        writer.commit()?;
+        reader.reload()?;
+        let searcher3 = reader.searcher();
+        assert_eq!(searcher3.num_docs(), 1);
+        let query = TermQuery::new(Term::from_field_text(text, "a"), IndexRecordOption::Basic);
+        assert_eq!(searcher3.search(&query, &Count)?, 0);
+        // The older searchers are unaffected.
+        assert_eq!(searcher2.search(&query, &Count)?, 1);
+        assert_eq!(searcher2.num_docs(), 2);
+
+        // Segments that go away are not carried over.
+        let segment_ids = index.searchable_segment_ids()?;
+        writer.merge(&segment_ids).wait()?;
+        writer.wait_merging_threads()?;
+        reader.reload()?;
+        let searcher4 = reader.searcher();
+        assert_eq!(searcher4.segment_readers().len(), 1);
+        assert_eq!(searcher4.inner.store_readers.len(), 1);
+        assert_eq!(searcher4.num_docs(), 1);
+        let doc: crate::TantivyDocument = searcher4.doc(crate::DocAddress::new(0, 0))?;
+        assert_eq!(
+            crate::schema::Value::as_str(&doc.get_first(text).unwrap()),
+            Some("b")
+        );
+        Ok(())
     }
 }

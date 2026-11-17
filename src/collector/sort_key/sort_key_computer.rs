@@ -45,6 +45,22 @@ pub trait SegmentSortKeyComputer: 'static {
         top_n_computer.push(sort_key, doc);
     }
 
+    /// Computes the sort keys for a block of documents and pushes them in a TopN Computer.
+    ///
+    /// This is only called when scoring is disabled. The default implementation simply
+    /// calls `compute_sort_key_and_collect` for each document; implementations backed by
+    /// columnar data can override it to fetch the sort keys in batch.
+    #[inline]
+    fn compute_sort_keys_and_collect_block<C: Comparator<Self::SegmentSortKey>>(
+        &mut self,
+        docs: &[DocId],
+        top_n_computer: &mut TopNComputer<Self::SegmentSortKey, DocId, C>,
+    ) {
+        for &doc in docs {
+            self.compute_sort_key_and_collect(doc, 0.0, top_n_computer);
+        }
+    }
+
     /// A SegmentSortKeyComputer maps to a SegmentSortKey, but it can also decide on
     /// its ordering.
     ///
