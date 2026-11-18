@@ -5,7 +5,9 @@ use common::{BinarySerializable, ByteCount};
 #[cfg(feature = "quickwit")]
 use common::{BitSet, VInt};
 #[cfg(feature = "quickwit")]
-use futures_util::{FutureExt, StreamExt};
+use futures_util::{FutureExt, StreamExt, TryStreamExt};
+#[cfg(feature = "quickwit")]
+use itertools::Itertools;
 #[cfg(feature = "quickwit")]
 use tantivy_fst::automaton::{AlwaysMatch, Automaton};
 
@@ -18,11 +20,22 @@ use crate::termdict::TermDictionary;
 use crate::Executor;
 
 #[cfg(feature = "quickwit")]
-fn send_posting_ranges(
+// This is how many bytes we can hope to receive during a TTFB from S3 (~80MiB/s, 50ms).
+const MERGE_HOLES_UNDER_BYTES: usize = (80 * 1024 * 1024 * 50) / 1000;
+
+#[cfg(feature = "quickwit")]
+fn send_coalesced_posting_ranges(
     posting_ranges: impl Iterator<Item = std::ops::Range<usize>>,
     sender: futures_channel::mpsc::UnboundedSender<std::ops::Range<usize>>,
 ) -> io::Result<()> {
-    for posting_range in posting_ranges {
+    let merged_posting_ranges = posting_ranges.coalesce(|range1, range2| {
+        if range1.end + MERGE_HOLES_UNDER_BYTES >= range2.start {
+            Ok(range1.start..range2.end)
+        } else {
+            Err((range1, range2))
+        }
+    });
+    for posting_range in merged_posting_ranges {
         sender
             .unbounded_send(posting_range)
             .map_err(|_| io::Error::other("failed to send posting range back"))?;
@@ -307,6 +320,7 @@ impl InvertedIndexReader {
         terms: impl std::ops::RangeBounds<Term>,
         automaton: A,
         limit: Option<u64>,
+        merge_holes_under_bytes: usize,
     ) -> io::Result<impl Iterator<Item = TermInfo> + 'a>
     where
         A::State: Clone,
@@ -330,7 +344,9 @@ impl InvertedIndexReader {
             range_builder
         };
 
-        let mut stream = range_builder.into_stream_async().await?;
+        let mut stream = range_builder
+            .into_stream_async_merging_holes(merge_holes_under_bytes)
+            .await?;
 
         let iter = std::iter::from_fn(move || stream.next_without_key().cloned());
 
@@ -376,7 +392,9 @@ impl InvertedIndexReader {
         limit: Option<u64>,
         with_positions: bool,
     ) -> io::Result<bool> {
-        let mut term_info = self.get_term_range_async(terms, AlwaysMatch, limit).await?;
+        let mut term_info = self
+            .get_term_range_async(terms, AlwaysMatch, limit, 0)
+            .await?;
 
         let Some(first_terminfo) = term_info.next() else {
             // no key matches, nothing more to load
@@ -407,17 +425,22 @@ impl InvertedIndexReader {
         &self,
         posting_ranges: futures_channel::mpsc::UnboundedReceiver<std::ops::Range<usize>>,
     ) -> io::Result<bool> {
-        let ranges = posting_ranges.collect::<Vec<_>>().await;
-        let postings_found = !ranges.is_empty();
-        self.postings_file_slice
-            .read_bytes_batch_async(ranges)
+        let slices_downloaded = posting_ranges
+            .map(|posting_range| {
+                self.postings_file_slice
+                    .read_bytes_slice_async(posting_range)
+                    .map(|result| result.map(|_slice| ()))
+            })
+            .buffer_unordered(5)
+            .try_collect::<Vec<()>>()
             .await?;
-        Ok(postings_found)
+        Ok(!slices_downloaded.is_empty())
     }
 
-    /// Warms postings for terms matched by an automaton in one batch.
+    /// Warmup a block postings given a range of `Term`s.
+    /// This method is for an advanced usage only.
     ///
-    /// Returns whether a matching term was found in the dictionary.
+    /// returns a boolean, whether a term matching the range was found in the dictionary
     pub async fn warm_postings_automaton<
         A: Automaton + Clone + Send + 'static,
         E: FnOnce(Box<dyn FnOnce() -> io::Result<()> + Send>) -> F,
@@ -425,21 +448,27 @@ impl InvertedIndexReader {
     >(
         &self,
         automaton: A,
+        // with_positions: bool, at the moment we have no use for it, and supporting it would add
+        // complexity to the coalesce
         executor: E,
     ) -> io::Result<bool>
     where
         A::State: Clone,
     {
-        // Warm the dictionary asynchronously before scanning it on the CPU executor.
+        // We build a first iterator to download everything. Simply calling the function already
+        // download everything we need from the sstable, but doesn't start iterating over it.
         let _term_info_iter = self
-            .get_term_range_async(.., automaton.clone(), None)
+            .get_term_range_async(.., automaton.clone(), None, MERGE_HOLES_UNDER_BYTES)
             .await?;
 
         let (sender, posting_ranges_to_load_stream) = futures_channel::mpsc::unbounded();
         let termdict = self.termdict.clone();
         let cpu_bound_task = move || {
-            // Synchronous reads here rely on the directory caching the preceding
-            // asynchronous dictionary reads, as Quickwit does.
+            // then we build a 2nd iterator, this one with no holes, so we don't go through blocks
+            // we can't match.
+            // This makes the assumption there is a caching layer below us, which gives sync read
+            // for free after the initial async access. This might not always be true, but is in
+            // Quickwit.
             // We build things from this closure otherwise we get into lifetime issues that can only
             // be solved with self referential strucs. Returning an io::Result from here is a bit
             // more leaky abstraction-wise, but a lot better than the alternative
@@ -450,7 +479,7 @@ impl InvertedIndexReader {
                     .next_without_key()
                     .map(|value| value.postings_range.clone())
             });
-            send_posting_ranges(posting_ranges, sender)
+            send_coalesced_posting_ranges(posting_ranges, sender)
         };
         let task_handle = executor(Box::new(cpu_bound_task));
 
@@ -462,7 +491,7 @@ impl InvertedIndexReader {
         Ok(postings_found)
     }
 
-    /// Warms postings in one batch for an automaton and returns matching document IDs as a bitset.
+    /// Warms postings for one automaton and returns a bitset of matching document IDs.
     ///
     /// `max_doc` must be the segment's maximum document ID plus one, including deleted documents.
     /// The directory must cache asynchronous reads for subsequent synchronous reads.
@@ -477,7 +506,11 @@ impl InvertedIndexReader {
     where
         A::State: Clone,
     {
-        let term_info_stream = self.termdict.search(&automaton).into_stream_async().await?;
+        let term_info_stream = self
+            .termdict
+            .search(&automaton)
+            .into_stream_async_merging_holes(MERGE_HOLES_UNDER_BYTES)
+            .await?;
         drop(term_info_stream);
 
         let (posting_range_sender, posting_range_receiver) = futures_channel::mpsc::unbounded();
@@ -496,7 +529,7 @@ impl InvertedIndexReader {
                 previous_end = range.end;
                 Some(range)
             });
-            send_posting_ranges(posting_ranges, posting_range_sender)?;
+            send_coalesced_posting_ranges(posting_ranges, posting_range_sender)?;
             Ok(encoded_terminfo)
         };
         let task_handle = executor.spawn_blocking(cpu_bound_task).map(|result| {
