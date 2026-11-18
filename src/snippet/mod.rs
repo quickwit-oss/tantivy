@@ -226,7 +226,7 @@ fn search_fragments(
     while let Some(next) = token_stream.next() {
         // Offsets are in bytes, and a char is at least one byte, so the chars
         // only need to be counted once the fragment is longer than `max_num_chars` bytes.
-        if (next.offset_to - fragment.start_offset) > max_num_chars
+        if next.offset_to.saturating_sub(fragment.start_offset) > max_num_chars
             && text[fragment.start_offset..next.offset_to].chars().count() > max_num_chars
         {
             if fragment.score > 0.0 {
@@ -260,15 +260,23 @@ fn select_best_fragment_combination(fragments: &[FragmentCandidate], text: &str)
         }
     });
     if let Some(fragment) = best_fragment_opt {
-        let fragment_text = &text[fragment.start_offset..fragment.stop_offset];
+        // A tokenizer can emit a token that starts before an earlier one. If the earlier token
+        // opened this fragment, the later one starts before it, so the snippet reaches back to
+        // cover every highlight.
+        let start_offset = fragment
+            .highlighted
+            .iter()
+            .map(|item| item.start)
+            .fold(fragment.start_offset, usize::min);
+        let fragment_text = &text[start_offset..fragment.stop_offset];
         let highlighted = fragment
             .highlighted
             .iter()
-            .map(|item| item.start - fragment.start_offset..item.end - fragment.start_offset)
+            .map(|item| item.start - start_offset..item.end - start_offset)
             .collect();
         Snippet::new(
             fragment_text,
-            fragment.start_offset..fragment.stop_offset,
+            start_offset..fragment.stop_offset,
             highlighted,
         )
     } else {
@@ -569,6 +577,56 @@ Survey in 2016, 2017, and 2018."#;
         }
         let snippet = select_best_fragment_combination(&[fragment], "abc");
         assert_eq!(snippet.to_html(), "<b>abc</b>");
+    }
+
+    #[test]
+    fn test_snippet_with_token_starting_before_fragment() {
+        use crate::tokenizer::{PreTokenizedStream, PreTokenizedString, Tokenizer};
+
+        // Emits tokens at fixed offsets, in the given order.
+        #[derive(Clone)]
+        struct FixedOffsets([(usize, usize); 2]);
+
+        impl Tokenizer for FixedOffsets {
+            type TokenStream<'a> = PreTokenizedStream;
+
+            fn token_stream<'a>(&'a mut self, text: &'a str) -> Self::TokenStream<'a> {
+                let tokens = self
+                    .0
+                    .into_iter()
+                    .enumerate()
+                    .map(|(position, (offset_from, offset_to))| Token {
+                        offset_from,
+                        offset_to,
+                        position,
+                        text: text[offset_from..offset_to].to_string(),
+                        ..Token::default()
+                    })
+                    .collect();
+                PreTokenizedString {
+                    text: text.to_string(),
+                    tokens,
+                }
+                .into()
+            }
+        }
+
+        let text = "ab cd";
+        // With a limit of two chars, "d" opens a fragment at byte 4, and the
+        // next token starts before it. Jieba emits 悟空 before 孙悟空 the same way.
+        for (offsets, term, range, html) in [
+            ([(4, 5), (3, 5)], "cd", 3..5, "<b>cd</b>"),
+            ([(4, 5), (0, 2)], "ab", 0..5, "<b>ab</b> cd"),
+        ] {
+            let mut tokenizer = FixedOffsets(offsets).into();
+            let terms = btreemap! { term.to_string() => 1.0 };
+            let fragments = search_fragments(&mut tokenizer, text, &terms, 2);
+            assert_eq!(fragments.len(), 1);
+            assert_eq!(fragments[0].start_offset, 4);
+            let snippet = select_best_fragment_combination(&fragments, text);
+            assert_eq!(snippet.fragment_range(), range);
+            assert_eq!(snippet.to_html(), html);
+        }
     }
 
     #[test]
