@@ -276,21 +276,29 @@ fn owned_bitset_async_reads() -> crate::Result<()> {
 fn owned_bitset_many_terms() -> crate::Result<()> {
     let (mut reader, dictionary, postings) = fixture(IndexRecordOption::Basic)?;
     let source = TermDictionary::open(FileSlice::new(Arc::new(dictionary.bytes.clone())))?;
+    // Cross two batch boundaries and leave a final partial batch.
+    let apple_len = source.get(b"apple")?.unwrap().postings_range.len();
+    let num_terms = 2 * (1024 * 1024 / apple_len + 1) + 1;
     let mut builder = TermDictionaryBuilder::create(Vec::new())?;
     let mut bytes = Vec::new();
-    for term in 0..10_000 {
-        let key = if term == 9_999 { b"berry" } else { b"apple" };
+    for term in 0..num_terms {
+        let key = if term == num_terms - 1 {
+            b"berry"
+        } else {
+            b"apple"
+        };
         let mut info = source.get(key)?.unwrap();
         let start = bytes.len();
         bytes.extend_from_slice(&postings.bytes[info.postings_range.clone()]);
         info.postings_range = start..bytes.len();
-        builder.insert(format!("{term:05}").as_bytes(), &info)?;
+        builder.insert(format!("{term:08}").as_bytes(), &info)?;
     }
     reader.termdict = TermDictionary::open(FileSlice::from(builder.finish()?))?;
     let postings = AsyncFile::new(OwnedBytes::new(bytes));
     postings.reject_sync();
     reader.postings_file_slice = FileSlice::new(postings.clone());
-    let bitset = read_bitset(&reader, ".*", 264, &Executor::single_thread())?;
+    let executor = Executor::multi_thread(1, "bitset-test-")?;
+    let bitset = read_bitset(&reader, ".*", 264, &executor)?;
     assert_eq!(bitset.len(), 262);
     assert!(bitset.contains(2)); // The final term must also be decoded.
     assert_eq!(postings.bytes_read.load(Ordering::SeqCst), postings.len());
