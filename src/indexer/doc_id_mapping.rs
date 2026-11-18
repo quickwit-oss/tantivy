@@ -47,11 +47,11 @@ impl SegmentDocIdMapping {
         self.mapping_type
     }
 
-    /// Returns an iterator over the old document addresses, ordered by the new document ids.
+    /// Returns the source address of each live document in target document ID order.
     ///
-    /// In the returned `DocAddress`, the `segment_ord` is the ordinal of targeted segment
-    /// in the list of merged segments.
-    pub(crate) fn iter_old_doc_addrs(&self) -> impl Iterator<Item = DocAddress> + '_ {
+    /// In a [`PluginMergeContext`](crate::plugin::PluginMergeContext), the
+    /// segment ordinal indexes the context's `readers`. Deleted documents are skipped.
+    pub fn iter_old_doc_addrs(&self) -> impl Iterator<Item = DocAddress> + '_ {
         self.new_doc_id_to_old_doc_addr.iter().copied()
     }
 
@@ -125,13 +125,28 @@ impl DocIdMapping {
         })
     }
 
-    /// Returns the new doc_id for the old doc_id
-    pub(crate) fn get_new_doc_id(&self, doc_id: DocId) -> DocId {
+    /// Returns the target document ID of a document in the original segment.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `doc_id` is outside the segment.
+    pub fn get_new_doc_id(&self, doc_id: DocId) -> DocId {
         self.old_doc_id_to_new[doc_id as usize]
     }
 
-    /// Iiterate over old doc_ids in order of the new doc_ids
-    pub(crate) fn iter_old_doc_ids(&self) -> impl Iterator<Item = DocId> + Clone + '_ {
+    /// Iterates over original document IDs in target document ID order.
+    ///
+    /// ```
+    /// use tantivy::indexer::DocIdMapping;
+    ///
+    /// let mapping = DocIdMapping::new_permutation(vec![2, 0, 1])?;
+    /// let values = ["first", "second", "third"];
+    /// let reordered: Vec<_> = mapping.iter_old_doc_ids().map(|id| values[id as usize]).collect();
+    /// assert_eq!(reordered, ["third", "first", "second"]);
+    /// assert_eq!(mapping.get_new_doc_id(0), 1);
+    /// # Ok::<(), tantivy::TantivyError>(())
+    /// ```
+    pub fn iter_old_doc_ids(&self) -> impl Iterator<Item = DocId> + Clone + '_ {
         self.new_doc_id_to_old.iter().copied()
     }
 
