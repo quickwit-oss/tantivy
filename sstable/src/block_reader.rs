@@ -12,8 +12,10 @@ pub struct BlockReader {
     offset: usize,
     /// First term ordinal of the slice we just moved to, taken once by the caller.
     ///
-    /// An automaton can prune blocks between slices. Each slice carries its first term's
-    /// ordinal so the caller can resume counting at the correct ordinal after a gap.
+    /// When an automaton prunes blocks, the slices handed to us are not contiguous, so a
+    /// caller counting terms cannot know the ordinal it is at. Each slice therefore carries
+    /// the ordinal of its first term; consecutive blocks merged into one slice stay
+    /// contiguous, so counting within a slice remains correct.
     pending_first_ordinal: Option<u64>,
 }
 
