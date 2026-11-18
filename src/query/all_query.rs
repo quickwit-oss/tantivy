@@ -31,10 +31,19 @@ impl Weight for AllWeight {
     }
 
     fn explain(&self, reader: &SegmentReader, doc: DocId) -> crate::Result<Explanation> {
+        self.explain_with_boost(reader, doc, 1.0)
+    }
+
+    fn explain_with_boost(
+        &self,
+        reader: &SegmentReader,
+        doc: DocId,
+        boost: Score,
+    ) -> crate::Result<Explanation> {
         if doc >= reader.max_doc() {
             return Err(does_not_match(doc));
         }
-        Ok(Explanation::new("AllQuery", 1.0))
+        Ok(Explanation::new("AllQuery", boost))
     }
 }
 

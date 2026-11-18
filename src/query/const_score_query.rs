@@ -71,8 +71,17 @@ impl Weight for ConstWeight {
         Ok(Box::new(ConstScorer::new(inner_scorer, boost * self.score)))
     }
 
-    fn explain(&self, reader: &SegmentReader, doc: u32) -> crate::Result<Explanation> {
-        let mut scorer = self.scorer(reader, 1.0)?;
+    fn explain(&self, reader: &SegmentReader, doc: DocId) -> crate::Result<Explanation> {
+        self.explain_with_boost(reader, doc, 1.0)
+    }
+
+    fn explain_with_boost(
+        &self,
+        reader: &SegmentReader,
+        doc: u32,
+        boost: Score,
+    ) -> crate::Result<Explanation> {
+        let mut scorer = self.scorer(reader, boost)?;
         if scorer.doc() > doc || scorer.seek(doc) != doc {
             return Err(TantivyError::InvalidArgument(format!(
                 "Document #({doc}) does not match"
@@ -80,7 +89,7 @@ impl Weight for ConstWeight {
         }
         // The child query only determines whether the document matches. Its score does not
         // contribute to the constant score and is intentionally omitted from the explanation.
-        Ok(Explanation::new("Const", self.score))
+        Ok(Explanation::new("Const", boost * self.score))
     }
 
     fn count(&self, reader: &SegmentReader) -> crate::Result<u32> {
@@ -288,10 +297,10 @@ mod tests {
             nested_explanation.to_pretty_json(),
             r#"{
   "value": 0.84,
-  "description": "Boost x2 of ...",
+  "description": "Boost x2 (applied to details)",
   "details": [
     {
-      "value": 0.42,
+      "value": 0.84,
       "description": "Const"
     }
   ]
