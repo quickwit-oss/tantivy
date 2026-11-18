@@ -1,5 +1,6 @@
 use std::cmp::Ordering;
 use std::io::{self, Write};
+use std::sync::Arc;
 
 use common::{BinarySerializable, CountingWriter, VInt};
 
@@ -318,6 +319,9 @@ pub struct PostingsSerializer {
     bm25_weight: Option<Bm25Weight>,
     avg_fieldnorm: Score, /* Average number of term in the field for that segment.
                            * this value is used to compute the block wand information. */
+    /// BM25's term-frequency table for `avg_fieldnorm`. It is the same for every
+    /// term of the field, so it is computed once here rather than per term.
+    tf_cache: Arc<[Score; 256]>,
     term_has_freq: bool,
 }
 
@@ -343,6 +347,7 @@ impl PostingsSerializer {
             fieldnorm_reader,
             bm25_weight: None,
             avg_fieldnorm,
+            tf_cache: Bm25Weight::tf_cache(avg_fieldnorm),
             term_has_freq: false,
         }
     }
@@ -368,10 +373,11 @@ impl PostingsSerializer {
             return;
         }
 
-        self.bm25_weight = Some(Bm25Weight::for_one_term_without_explain(
+        self.bm25_weight = Some(Bm25Weight::for_one_term_with_tf_cache(
             term_doc_freq as u64,
             num_docs_in_segment,
             self.avg_fieldnorm,
+            Arc::clone(&self.tf_cache),
         ));
     }
 

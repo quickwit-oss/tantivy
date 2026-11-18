@@ -164,12 +164,37 @@ impl Bm25Weight {
             average_fieldnorm,
         }
     }
+    /// The term-frequency part of the BM25 score for each of the 256 fieldnorm ids.
+    ///
+    /// It depends only on `average_fieldnorm`, so it is the same for every term of a
+    /// field: a caller weighing many terms can compute it once and pass it to
+    /// [`Bm25Weight::for_one_term_with_tf_cache`].
+    pub(crate) fn tf_cache(average_fieldnorm: Score) -> Arc<[Score; 256]> {
+        compute_tf_cache(average_fieldnorm)
+    }
+
+    /// [`Bm25Weight::for_one_term_without_explain`], reusing a table computed by
+    /// [`Bm25Weight::tf_cache`] for the same `average_fieldnorm`.
+    pub(crate) fn for_one_term_with_tf_cache(
+        term_doc_freq: u64,
+        total_num_docs: u64,
+        average_fieldnorm: Score,
+        tf_cache: Arc<[Score; 256]>,
+    ) -> Bm25Weight {
+        let idf = idf(term_doc_freq, total_num_docs);
+        Bm25Weight::with_tf_cache(idf, average_fieldnorm, tf_cache)
+    }
+
     pub(crate) fn new_without_explain(idf: f32, average_fieldnorm: Score) -> Bm25Weight {
+        Bm25Weight::with_tf_cache(idf, average_fieldnorm, compute_tf_cache(average_fieldnorm))
+    }
+
+    fn with_tf_cache(idf: f32, average_fieldnorm: Score, cache: Arc<[Score; 256]>) -> Bm25Weight {
         let weight = idf * (1.0 + K1);
         Bm25Weight {
             idf_explain: None,
             weight,
-            cache: compute_tf_cache(average_fieldnorm),
+            cache,
             average_fieldnorm,
         }
     }
