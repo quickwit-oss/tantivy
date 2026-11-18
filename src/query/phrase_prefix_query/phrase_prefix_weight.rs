@@ -144,11 +144,65 @@ impl Weight for PhrasePrefixWeight {
 
 #[cfg(test)]
 mod tests {
+    use std::cell::Cell;
+
+    use crate::collector::TopDocs;
     use crate::docset::TERMINATED;
     use crate::index::Index;
-    use crate::query::{EnableScoring, PhrasePrefixQuery, Query};
-    use crate::schema::{Schema, TEXT};
-    use crate::{DocSet, IndexWriter, Term};
+    use crate::query::{
+        Bm25StatisticsProvider, EnableScoring, PhrasePrefixQuery, PhraseQuery, Query,
+    };
+    use crate::schema::{Field, Schema, TEXT};
+    use crate::{DocAddress, DocSet, IndexWriter, Term};
+
+    struct RecordingStatistics {
+        total_num_tokens: u64,
+        total_num_docs: u64,
+        doc_freq: u64,
+        total_num_tokens_calls: Cell<usize>,
+        total_num_docs_calls: Cell<usize>,
+        doc_freq_calls: Cell<usize>,
+    }
+
+    impl RecordingStatistics {
+        fn new(total_num_tokens: u64, total_num_docs: u64, doc_freq: u64) -> Self {
+            Self {
+                total_num_tokens,
+                total_num_docs,
+                doc_freq,
+                total_num_tokens_calls: Cell::new(0),
+                total_num_docs_calls: Cell::new(0),
+                doc_freq_calls: Cell::new(0),
+            }
+        }
+
+        fn calls(&self) -> (usize, usize, usize) {
+            (
+                self.total_num_tokens_calls.get(),
+                self.total_num_docs_calls.get(),
+                self.doc_freq_calls.get(),
+            )
+        }
+    }
+
+    impl Bm25StatisticsProvider for RecordingStatistics {
+        fn total_num_tokens(&self, _field: Field) -> crate::Result<u64> {
+            self.total_num_tokens_calls
+                .set(self.total_num_tokens_calls.get() + 1);
+            Ok(self.total_num_tokens)
+        }
+
+        fn total_num_docs(&self) -> crate::Result<u64> {
+            self.total_num_docs_calls
+                .set(self.total_num_docs_calls.get() + 1);
+            Ok(self.total_num_docs)
+        }
+
+        fn doc_freq(&self, _term: &Term) -> crate::Result<u64> {
+            self.doc_freq_calls.set(self.doc_freq_calls.get() + 1);
+            Ok(self.doc_freq)
+        }
+    }
 
     pub fn create_index(texts: &[&'static str]) -> crate::Result<Index> {
         let mut schema_builder = Schema::builder();
@@ -261,6 +315,57 @@ mod tests {
         let weight = phrase_query.weight(enable_scoring).unwrap();
         let mut phrase_scorer = weight.scorer(searcher.segment_reader(0u32), 1.0)?;
         assert_eq!(phrase_scorer.advance(), TERMINATED);
+        Ok(())
+    }
+
+    #[test]
+    fn test_custom_statistics_provider() -> crate::Result<()> {
+        let index = create_index(&["alpha beta gamma", "unrelated text"])?;
+        let text_field = index.schema().get_field("text").unwrap();
+        let searcher = index.reader()?.searcher();
+        let prefix_query = PhrasePrefixQuery::new(vec![
+            Term::from_field_text(text_field, "alpha"),
+            Term::from_field_text(text_field, "beta"),
+            Term::from_field_text(text_field, "g"),
+        ]);
+        let phrase_query = PhraseQuery::new(vec![
+            Term::from_field_text(text_field, "alpha"),
+            Term::from_field_text(text_field, "beta"),
+        ]);
+        let default_results =
+            searcher.search(&prefix_query, &TopDocs::with_limit(10).order_by_score())?;
+        assert_eq!(default_results, vec![(1.2814485, DocAddress::new(0, 0))]);
+
+        let provider_a = RecordingStatistics::new(12, 3, 1);
+        let provider_b = RecordingStatistics::new(60, 10, 5);
+        let results_a = searcher.search_with_statistics_provider(
+            &prefix_query,
+            &TopDocs::with_limit(10).order_by_score(),
+            &provider_a,
+        )?;
+        assert_eq!(provider_a.calls(), (1, 1, 2));
+        let results_b = searcher.search_with_statistics_provider(
+            &prefix_query,
+            &TopDocs::with_limit(10).order_by_score(),
+            &provider_b,
+        )?;
+        assert_eq!(provider_b.calls(), (1, 1, 2));
+        assert_eq!(results_a.len(), 1);
+        assert_eq!(results_b.len(), 1);
+        assert_ne!(results_a[0].0, results_b[0].0);
+
+        let expected_a = searcher.search_with_statistics_provider(
+            &phrase_query,
+            &TopDocs::with_limit(10).order_by_score(),
+            &provider_a,
+        )?;
+        let expected_b = searcher.search_with_statistics_provider(
+            &phrase_query,
+            &TopDocs::with_limit(10).order_by_score(),
+            &provider_b,
+        )?;
+        assert_eq!(results_a, expected_a);
+        assert_eq!(results_b, expected_b);
         Ok(())
     }
 }

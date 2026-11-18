@@ -111,9 +111,10 @@ impl PhrasePrefixQuery {
         }
         let terms = self.phrase_terms();
         let bm25_weight_opt = match enable_scoring {
-            EnableScoring::Enabled { searcher, .. } => {
-                Some(Bm25Weight::for_terms(searcher, &terms)?)
-            }
+            EnableScoring::Enabled {
+                statistics_provider,
+                ..
+            } => Some(Bm25Weight::for_terms(statistics_provider, &terms)?),
             EnableScoring::Disabled { .. } => None,
         };
         let weight = PhrasePrefixWeight::new(
