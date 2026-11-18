@@ -277,6 +277,23 @@ where
     TSSTable: SSTable,
     K: KeyTracking,
 {
+    /// Releases the lifetime tie to the dictionary that created this stream.
+    ///
+    /// The stream already owns its buffers and cursor state. Any references held by
+    /// the automaton, its state, or key tracking must themselves be `'static`.
+    pub fn into_owned(self) -> Streamer<'static, TSSTable, A, K>
+    where
+        A: 'static,
+        A::State: 'static,
+        TSSTable: 'static,
+        K: 'static,
+    {
+        Streamer {
+            _lifetime: PhantomData,
+            ..self
+        }
+    }
+
     #[inline(always)]
     fn advance_delta_reader(&mut self) -> bool {
         if !self.delta_reader.advance().unwrap() {
@@ -549,6 +566,30 @@ mod tests {
         assert!(streamer.advance());
         assert_eq!(streamer.key(), b"abandon");
         assert_eq!(streamer.value(), &3);
+        assert!(!streamer.advance());
+        Ok(())
+    }
+
+    #[test]
+    fn test_owned_stream_preserves_cursor() -> io::Result<()> {
+        let mut streamer = {
+            let dictionary = create_test_dictionary()?;
+            let automaton = tantivy_fst::Regex::new("ab.*t.*").unwrap();
+            let mut streamer = dictionary
+                .search(automaton)
+                .ge("abal")
+                .le("abalienate")
+                .into_stream()?;
+            assert!(streamer.advance());
+            streamer.into_owned()
+        };
+        assert_eq!(streamer.key(), b"abalation");
+        assert_eq!(streamer.term_ord(), 1);
+        assert_eq!(streamer.value(), &1);
+        assert!(streamer.advance());
+        assert_eq!(streamer.key(), b"abalienate");
+        assert_eq!(streamer.term_ord(), 2);
+        assert_eq!(streamer.value(), &2);
         assert!(!streamer.advance());
         Ok(())
     }

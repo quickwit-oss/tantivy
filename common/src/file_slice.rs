@@ -32,6 +32,22 @@ pub trait FileHandle: 'static + Send + Sync + HasLen + fmt::Debug {
             "Async read is not supported.",
         ))
     }
+
+    /// Opens an owned reader yielding exactly the requested range, then EOF.
+    ///
+    /// The reader can outlive this handle. Dropping it cancels further reads.
+    /// Backends must override this method to support streaming. The default returns
+    /// [`io::ErrorKind::Unsupported`]. Invalid ranges may panic.
+    #[cfg(feature = "quickwit")]
+    async fn read_bytes_stream(
+        &self,
+        _range: Range<usize>,
+    ) -> io::Result<Box<dyn tokio::io::AsyncRead + Send + Unpin>> {
+        Err(io::Error::new(
+            io::ErrorKind::Unsupported,
+            "Streaming read is not supported.",
+        ))
+    }
 }
 
 #[derive(Debug)]
@@ -99,6 +115,14 @@ impl FileHandle for &'static [u8] {
 
     async fn read_bytes_async(&self, byte_range: Range<usize>) -> io::Result<OwnedBytes> {
         Ok(self.read_bytes(byte_range)?)
+    }
+
+    #[cfg(feature = "quickwit")]
+    async fn read_bytes_stream(
+        &self,
+        range: Range<usize>,
+    ) -> io::Result<Box<dyn tokio::io::AsyncRead + Send + Unpin>> {
+        Ok(Box::new(io::Cursor::new(&self[range])))
     }
 }
 
@@ -262,6 +286,16 @@ impl FileSlice {
             .await
     }
 
+    /// Opens an owned reader for this entire slice.
+    ///
+    /// See [`FileHandle::read_bytes_stream`] for backend and cancellation requirements.
+    #[cfg(feature = "quickwit")]
+    pub async fn read_bytes_stream(
+        &self,
+    ) -> io::Result<Box<dyn tokio::io::AsyncRead + Send + Unpin>> {
+        self.data.read_bytes_stream(self.range.clone()).await
+    }
+
     /// Splits the FileSlice at the given offset and return two file slices.
     /// `file_slice[..split_offset]` and `file_slice[split_offset..]`.
     ///
@@ -320,6 +354,14 @@ impl FileHandle for FileSlice {
     async fn read_bytes_async(&self, byte_range: Range<usize>) -> io::Result<OwnedBytes> {
         self.read_bytes_slice_async(byte_range).await
     }
+
+    #[cfg(feature = "quickwit")]
+    async fn read_bytes_stream(
+        &self,
+        range: Range<usize>,
+    ) -> io::Result<Box<dyn tokio::io::AsyncRead + Send + Unpin>> {
+        self.slice(range).read_bytes_stream().await
+    }
 }
 
 impl HasLen for FileSlice {
@@ -336,6 +378,14 @@ impl FileHandle for OwnedBytes {
 
     async fn read_bytes_async(&self, range: Range<usize>) -> io::Result<OwnedBytes> {
         self.read_bytes(range)
+    }
+
+    #[cfg(feature = "quickwit")]
+    async fn read_bytes_stream(
+        &self,
+        range: Range<usize>,
+    ) -> io::Result<Box<dyn tokio::io::AsyncRead + Send + Unpin>> {
+        Ok(Box::new(io::Cursor::new(self.slice(range))))
     }
 }
 
@@ -384,6 +434,106 @@ mod tests {
             assert_eq!(right.read_bytes()?.as_slice(), b"ef");
         }
         Ok(())
+    }
+
+    #[cfg(feature = "quickwit")]
+    mod streaming {
+        use std::ops::Range;
+        use std::panic::{AssertUnwindSafe, catch_unwind};
+
+        use async_trait::async_trait;
+        use futures_util::FutureExt;
+        use tokio::io::AsyncReadExt;
+
+        use super::*;
+        use crate::OwnedBytes;
+        use crate::file_slice::WrapFile;
+
+        #[test]
+        fn nested_slices() {
+            #[derive(Debug)]
+            struct StreamOnlyHandle;
+
+            impl HasLen for StreamOnlyHandle {
+                fn len(&self) -> usize {
+                    8
+                }
+            }
+
+            #[async_trait]
+            impl FileHandle for StreamOnlyHandle {
+                fn read_bytes(&self, _: Range<usize>) -> io::Result<OwnedBytes> {
+                    panic!("expected a streaming read");
+                }
+
+                async fn read_bytes_stream(
+                    &self,
+                    range: Range<usize>,
+                ) -> io::Result<Box<dyn tokio::io::AsyncRead + Send + Unpin>> {
+                    assert_eq!(range, 4..6);
+                    b"abcdefgh".as_slice().read_bytes_stream(range).await
+                }
+            }
+
+            async {
+                let inner = FileSlice::new(Arc::new(StreamOnlyHandle)).slice(1..8);
+                let outer = FileSlice::new(Arc::new(inner)).slice(1..6);
+                let mut reader = FileHandle::read_bytes_stream(&outer, 2..4).await.unwrap();
+                drop(outer);
+                let mut bytes = Vec::new();
+                reader.read_to_end(&mut bytes).await.unwrap();
+                assert_eq!(bytes, b"ef");
+            }
+            .now_or_never()
+            .unwrap();
+        }
+
+        #[test]
+        fn in_memory() {
+            let handles: [Box<dyn FileHandle>; 2] = [
+                Box::new(b"abcdef".as_slice()),
+                Box::new(OwnedBytes::new(b"abcdef".to_vec())),
+            ];
+            async {
+                for handle in handles {
+                    let mut reader = handle.read_bytes_stream(1..4).await.unwrap();
+                    let mut empty = handle.read_bytes_stream(6..6).await.unwrap();
+                    drop(handle);
+                    assert_eq!(reader.read_u8().await.unwrap(), b'b');
+                    let mut bytes = Vec::new();
+                    reader.read_to_end(&mut bytes).await.unwrap();
+                    assert_eq!(bytes, b"cd");
+                    assert_eq!(empty.read_to_end(&mut bytes).await.unwrap(), 0);
+                }
+                let mut empty = FileSlice::empty().read_bytes_stream().await.unwrap();
+                assert_eq!(empty.read(&mut [0]).await.unwrap(), 0);
+            }
+            .now_or_never()
+            .unwrap();
+        }
+
+        #[test]
+        fn invalid_bounds() {
+            let inner = FileSlice::from(b"abcdefgh".as_slice()).slice(1..7);
+            let outer = FileSlice::new(Arc::new(inner)).slice(1..4);
+            for range in [0..4, 4..4, Range { start: 2, end: 1 }] {
+                assert!(
+                    catch_unwind(AssertUnwindSafe(|| {
+                        let _ = FileHandle::read_bytes_stream(&outer, range).now_or_never();
+                    }))
+                    .is_err()
+                );
+            }
+        }
+
+        #[test]
+        fn default_unsupported() {
+            let handle =
+                WrapFile::new(std::fs::File::open(std::env::current_exe().unwrap()).unwrap())
+                    .unwrap();
+            let result = handle.read_bytes_stream(0..0).now_or_never().unwrap();
+            assert_eq!(result.err().unwrap().kind(), io::ErrorKind::Unsupported);
+        }
     }
 
     #[test]
