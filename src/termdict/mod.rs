@@ -128,11 +128,23 @@ impl TermDictionary {
         self.0.ord_to_term(ord, bytes)
     }
 
-    // this isn't used, and has different prototype in Fst and SSTable
-    // Returns the number of terms in the dictionary.
-    // pub fn term_info_from_ord(&self, term_ord: TermOrdinal) -> TermInfo {
-    // self.0.term_info_from_ord(term_ord)
-    // }
+    /// Returns the `TermInfo` associated with a given term ordinal.
+    ///
+    /// This is the ordinal-indexed counterpart of [`get`](Self::get): it skips the key
+    /// lookup when the caller already holds the ordinal, e.g. from
+    /// [`term_ord`](Self::term_ord), a [`TermStreamer`], or its own ordinal index.
+    ///
+    /// Returns `None` if `term_ord >= num_terms()`.
+    pub fn term_info_from_ord(&self, term_ord: TermOrdinal) -> io::Result<Option<TermInfo>> {
+        if term_ord >= self.num_terms() as TermOrdinal {
+            return Ok(None);
+        }
+        #[cfg(not(feature = "quickwit"))]
+        let term_info = Some(self.0.term_info_from_ord(term_ord));
+        #[cfg(feature = "quickwit")]
+        let term_info = self.0.term_info_from_ord(term_ord)?;
+        Ok(term_info)
+    }
 
     /// Lookups the value corresponding to the key.
     pub fn get<K: AsRef<[u8]>>(&self, key: K) -> io::Result<Option<TermInfo>> {
