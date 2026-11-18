@@ -1,15 +1,22 @@
 use std::io;
+#[cfg(feature = "quickwit")]
+use std::ops::Range;
+
+#[cfg(all(test, feature = "quickwit"))]
+mod automaton_bitset_tests;
 
 use common::json_path_writer::JSON_END_OF_PATH;
 use common::{BinarySerializable, ByteCount};
 #[cfg(feature = "quickwit")]
-use common::{BitSet, VInt};
+use common::{BitSet, OwnedBytes};
 #[cfg(feature = "quickwit")]
-use futures_util::{FutureExt, StreamExt, TryStreamExt};
+use futures_util::{stream, FutureExt, StreamExt, TryStreamExt};
 #[cfg(feature = "quickwit")]
 use itertools::Itertools;
 #[cfg(feature = "quickwit")]
 use tantivy_fst::automaton::{AlwaysMatch, Automaton};
+#[cfg(feature = "quickwit")]
+use tokio::io::{AsyncReadExt, BufReader};
 
 use crate::directory::FileSlice;
 use crate::positions::PositionReader;
@@ -23,18 +30,26 @@ use crate::Executor;
 // This is how many bytes we can hope to receive during a TTFB from S3 (~80MiB/s, 50ms).
 const MERGE_HOLES_UNDER_BYTES: usize = (80 * 1024 * 1024 * 50) / 1000;
 
+/// Input ranges are in file order. Merge gaps up to 4 MiB to amortize storage latency.
+#[cfg(feature = "quickwit")]
+fn coalesce_posting_ranges(
+    ranges: impl Iterator<Item = Range<usize>>,
+) -> impl Iterator<Item = Range<usize>> {
+    ranges.coalesce(|first, second| {
+        if second.start.saturating_sub(first.end) <= MERGE_HOLES_UNDER_BYTES {
+            Ok(first.start..first.end.max(second.end))
+        } else {
+            Err((first, second))
+        }
+    })
+}
+
 #[cfg(feature = "quickwit")]
 fn send_coalesced_posting_ranges(
     posting_ranges: impl Iterator<Item = std::ops::Range<usize>>,
     sender: futures_channel::mpsc::UnboundedSender<std::ops::Range<usize>>,
 ) -> io::Result<()> {
-    let merged_posting_ranges = posting_ranges.coalesce(|range1, range2| {
-        if range1.end + MERGE_HOLES_UNDER_BYTES >= range2.start {
-            Ok(range1.start..range2.end)
-        } else {
-            Err((range1, range2))
-        }
-    });
+    let merged_posting_ranges = coalesce_posting_ranges(posting_ranges);
     for posting_range in merged_posting_ranges {
         sender
             .unbounded_send(posting_range)
@@ -491,86 +506,103 @@ impl InvertedIndexReader {
         Ok(postings_found)
     }
 
-    /// Warms postings for one automaton and returns a bitset of matching document IDs.
+    /// Reads postings matched by an automaton and unions their document IDs into a bitset.
+    ///
+    /// Loads selected dictionary blocks asynchronously, then streams coalesced posting ranges,
+    /// skipping gaps and decoding one posting list at a time. Gaps up to 4 MiB are coalesced.
+    /// No synchronous body reads or directory cache are required. Dictionary blocks are released
+    /// after term enumeration. Posting buffers are released after decoding each list.
     ///
     /// `max_doc` must be the segment's maximum document ID plus one, including deleted documents.
-    /// The directory must cache asynchronous reads for subsequent synchronous reads.
+    /// Deleted documents are included in the result.
+    ///
     /// Term enumeration and postings decoding run on the executor. Use a thread-pool executor
-    /// to keep this CPU work off the calling thread.
-    pub async fn warm_postings_automaton_with_bitset<A: Automaton + Send + 'static>(
+    /// to keep this CPU work off the calling thread. Buffers are released when their task completes
+    /// or is dropped.
+    pub async fn create_bitset_for_automaton<A>(
         &self,
         automaton: A,
         max_doc: u32,
         executor: &Executor,
     ) -> io::Result<BitSet>
     where
-        A::State: Clone,
+        A: Automaton + Send + 'static,
+        A::State: Clone + Send + 'static,
     {
-        let term_info_stream = self
+        let mut stream = self
             .termdict
-            .search(&automaton)
-            .into_stream_async_merging_holes(MERGE_HOLES_UNDER_BYTES)
-            .await?;
-        drop(term_info_stream);
-
-        let (posting_range_sender, posting_range_receiver) = futures_channel::mpsc::unbounded();
-        let termdict = self.termdict.clone();
-        let cpu_bound_task = move || {
-            let mut stream = termdict.search(automaton).without_keys().into_stream()?;
-            let mut encoded_terminfo = Vec::new();
-            let mut previous_end = 0;
-            let posting_ranges = std::iter::from_fn(|| {
-                let info = stream.next_without_key()?;
-                let range = info.postings_range.clone();
-                // Retain only what decoding postings needs, avoiding another dictionary scan.
-                VInt((range.start - previous_end) as u64).serialize_into_vec(&mut encoded_terminfo);
-                VInt(range.len() as u64).serialize_into_vec(&mut encoded_terminfo);
-                VInt(u64::from(info.doc_freq)).serialize_into_vec(&mut encoded_terminfo);
-                previous_end = range.end;
-                Some(range)
-            });
-            send_coalesced_posting_ranges(posting_ranges, posting_range_sender)?;
-            Ok(encoded_terminfo)
-        };
-        let task_handle = executor.spawn_blocking(cpu_bound_task).map(|result| {
-            result.map_err(|_| io::Error::other("automaton warmup task panicked"))?
-        });
-        let (encoded_terminfo, _) = futures_util::future::try_join(
-            task_handle,
-            self.download_posting_ranges(posting_range_receiver),
-        )
-        .await?;
-
-        let postings_file_slice = self.postings_file_slice.clone();
-        let record_option = self.record_option;
-        let cpu_bound_task = move || {
-            let mut bitset = BitSet::with_max_value(max_doc);
-            let mut data = encoded_terminfo.as_slice();
-            let mut previous_end = 0;
-            while !data.is_empty() {
-                let start = previous_end + VInt::deserialize_u64(&mut data)? as usize;
-                let end = start + VInt::deserialize_u64(&mut data)? as usize;
-                let doc_freq = VInt::deserialize_u64(&mut data)? as u32;
-                previous_end = end;
-                let mut postings = BlockSegmentPostings::open(
-                    doc_freq,
-                    postings_file_slice.slice(start..end),
-                    record_option,
-                    IndexRecordOption::Basic,
-                )?;
-                while !postings.docs().is_empty() {
-                    for &doc in postings.docs() {
-                        bitset.insert(doc);
-                    }
-                    postings.advance();
-                }
-            }
-            Ok(bitset)
-        };
-        executor
-            .spawn_blocking(cpu_bound_task)
+            .search(automaton)
+            .without_keys()
+            .into_stream_async()
+            .await?
+            .into_owned();
+        let (term_infos, ranges) = executor
+            .spawn_blocking(move || {
+                let term_infos: Vec<TermInfo> =
+                    std::iter::from_fn(|| stream.next_without_key().cloned()).collect();
+                let ranges: Vec<_> = coalesce_posting_ranges(
+                    term_infos.iter().map(|info| info.postings_range.clone()),
+                )
+                .collect();
+                (term_infos, ranges)
+            })
             .await
-            .map_err(|_| io::Error::other("automaton bitset task panicked"))?
+            .map_err(|_| io::Error::other("automaton term enumeration task panicked"))?;
+        let mut readers = stream::iter(ranges)
+            .map(|range| async move {
+                let reader = self
+                    .postings_file_slice
+                    .slice(range.clone())
+                    .read_bytes_stream()
+                    .await?;
+                io::Result::Ok((range, BufReader::new(reader)))
+            })
+            .buffered(5);
+        let mut term_infos = term_infos.into_iter().peekable();
+        let record_option = self.record_option;
+        let mut bitset = BitSet::with_max_value(max_doc);
+        while let Some((range, mut reader)) = readers.try_next().await? {
+            let mut position = range.start;
+            while let Some(info) = term_infos.next_if(|info| info.postings_range.end <= range.end) {
+                let gap = (info.postings_range.start - position) as u64;
+                if tokio::io::copy(&mut (&mut reader).take(gap), &mut tokio::io::sink()).await?
+                    != gap
+                {
+                    return Err(io::Error::new(
+                        io::ErrorKind::UnexpectedEof,
+                        "truncated posting gap",
+                    ));
+                }
+                let mut bytes = vec![0; info.postings_range.len()];
+                reader.read_exact(&mut bytes).await?;
+                position = info.postings_range.end;
+                bitset = executor
+                    .spawn_blocking(move || {
+                        let mut postings = BlockSegmentPostings::open_bytes(
+                            info.doc_freq,
+                            OwnedBytes::new(bytes),
+                            record_option,
+                            IndexRecordOption::Basic,
+                        )?;
+                        while !postings.docs().is_empty() {
+                            for &doc in postings.docs() {
+                                if doc >= max_doc {
+                                    return Err(io::Error::new(
+                                        io::ErrorKind::InvalidData,
+                                        "posting document exceeds max_doc",
+                                    ));
+                                }
+                                bitset.insert(doc);
+                            }
+                            postings.advance();
+                        }
+                        io::Result::Ok(bitset)
+                    })
+                    .await
+                    .map_err(|_| io::Error::other("automaton bitset task panicked"))??;
+            }
+        }
+        Ok(bitset)
     }
 
     /// Warmup the block postings for all terms.
@@ -605,7 +637,7 @@ mod tests {
     use crate::{DocSet, Executor, Index, IndexWriter, TERMINATED};
 
     #[test]
-    fn test_warm_postings_automaton_with_bitset() -> crate::Result<()> {
+    fn test_create_bitset_for_automaton() -> crate::Result<()> {
         let mut schema_builder = Schema::builder();
         let field = schema_builder.add_text_field("field", STRING);
         let index = Index::create_in_ram(schema_builder.build());
@@ -630,12 +662,11 @@ mod tests {
             ("apple|berry", [vec![0, 2], (4..264).collect()].concat()),
             (".*", (0..264).collect()),
         ] {
-            let bitset =
-                futures::executor::block_on(inverted_index.warm_postings_automaton_with_bitset(
-                    Regex::new(pattern).unwrap(),
-                    segment_reader.max_doc(),
-                    &executor,
-                ))?;
+            let bitset = futures::executor::block_on(inverted_index.create_bitset_for_automaton(
+                Regex::new(pattern).unwrap(),
+                segment_reader.max_doc(),
+                &executor,
+            ))?;
             assert_eq!(bitset.len(), expected.len());
             let mut docset = BitSetDocSet::from(bitset);
             let mut docs = Vec::new();
@@ -649,16 +680,15 @@ mod tests {
     }
 
     #[test]
-    fn test_warm_postings_automaton_with_bitset_empty_index() -> crate::Result<()> {
+    fn test_create_bitset_for_automaton_empty_index() -> crate::Result<()> {
         let inverted_index =
             super::InvertedIndexReader::empty(crate::schema::IndexRecordOption::Basic);
         let executor = Executor::single_thread();
-        let bitset =
-            futures::executor::block_on(inverted_index.warm_postings_automaton_with_bitset(
-                Regex::new(".*").unwrap(),
-                0,
-                &executor,
-            ))?;
+        let bitset = futures::executor::block_on(inverted_index.create_bitset_for_automaton(
+            Regex::new(".*").unwrap(),
+            0,
+            &executor,
+        ))?;
         assert_eq!(bitset.len(), 0);
         Ok(())
     }

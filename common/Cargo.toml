@@ -15,10 +15,15 @@ repository = "https://github.com/quickwit-oss/tantivy"
 byteorder = "1.4.3"
 ownedbytes = { version= "0.9", path="../ownedbytes" }
 async-trait = "0.1"
+tokio = { version = "1", features = ["io-util"], optional = true }
 time = { version = "0.3.47", features = ["serde-well-known"] }
 serde = { version = "1.0.136", features = ["derive"] }
 
+[features]
+quickwit = ["dep:tokio"]
+
 [dev-dependencies]
+futures-util = "0.3.30"
 binggan = "0.17.0"
 proptest = "1.0.0"
 rand = "0.9"
