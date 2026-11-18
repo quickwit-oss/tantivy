@@ -506,9 +506,10 @@ impl InvertedIndexReader {
     /// Reads postings matched by an automaton and unions their document IDs into a bitset.
     ///
     /// Loads selected dictionary blocks asynchronously, then streams coalesced posting ranges,
-    /// skipping gaps and decoding one posting list at a time. Gaps up to 4 MiB are coalesced.
+    /// skipping gaps and decoding batches targeting 1 MiB of posting bytes per CPU task.
+    /// Posting lists are kept whole. Gaps up to 4 MiB are coalesced.
     /// No synchronous body reads or directory cache are required. Dictionary blocks are released
-    /// after term enumeration. Posting buffers are released after decoding each list.
+    /// after term enumeration. Posting buffers are released after decoding each batch.
     /// Matching term metadata is retained as VInts: delta-encoded posting offsets, posting
     /// lengths, and document frequencies.
     ///
@@ -564,35 +565,55 @@ impl InvertedIndexReader {
                 io::Result::Ok((range, BufReader::new(reader)))
             })
             .buffered(5);
-        let mut data = encoded_terminfo.as_slice();
+        const TARGET_BATCH_BYTES: usize = 1024 * 1024;
+        let encoded_terminfo = OwnedBytes::new(encoded_terminfo);
+        let mut data = &encoded_terminfo[..];
         let mut previous_end = 0;
         let record_option = self.record_option;
+        let mut batch = Vec::new();
+        let mut batch_start = 0;
         let mut bitset = BitSet::with_max_value(max_doc);
         while let Some((range, mut reader)) = readers.try_next().await? {
             let mut position = range.start;
             while position < range.end {
                 let start = previous_end + VInt::deserialize_u64(&mut data)? as usize;
                 let end = start + VInt::deserialize_u64(&mut data)? as usize;
-                let doc_freq = VInt::deserialize_u64(&mut data)? as u32;
+                VInt::deserialize_u64(&mut data)?; // Document frequency is used during decoding.
                 previous_end = end;
                 let gap = (start - position) as u64;
                 tokio::io::copy(&mut (&mut reader).take(gap), &mut tokio::io::sink()).await?;
-                let mut bytes = vec![0; end - start];
-                reader.read_exact(&mut bytes).await?;
+                let offset = batch.len();
+                batch.resize(offset + (end - start), 0);
+                reader.read_exact(&mut batch[offset..]).await?;
                 position = end;
+                if batch.len() < TARGET_BATCH_BYTES && !data.is_empty() {
+                    continue;
+                }
+                let batch_end = encoded_terminfo.len() - data.len();
+                let mut term_infos = encoded_terminfo.slice(batch_start..batch_end);
+                batch_start = batch_end;
+                let mut bytes = OwnedBytes::new(std::mem::take(&mut batch));
                 bitset = executor
                     .spawn_blocking(move || -> io::Result<BitSet> {
-                        let mut postings = BlockSegmentPostings::open_bytes(
-                            doc_freq,
-                            OwnedBytes::new(bytes),
-                            record_option,
-                            IndexRecordOption::Basic,
-                        )?;
-                        while !postings.docs().is_empty() {
-                            for &doc in postings.docs() {
-                                bitset.insert(doc);
+                        while !term_infos.is_empty() {
+                            // Gaps were skipped during reading.
+                            VInt::deserialize_u64(&mut term_infos)?;
+                            let len = VInt::deserialize_u64(&mut term_infos)? as usize;
+                            let doc_freq = VInt::deserialize_u64(&mut term_infos)? as u32;
+                            let (posting_bytes, rest) = bytes.split(len);
+                            bytes = rest;
+                            let mut postings = BlockSegmentPostings::open_bytes(
+                                doc_freq,
+                                posting_bytes,
+                                record_option,
+                                IndexRecordOption::Basic,
+                            )?;
+                            while !postings.docs().is_empty() {
+                                for &doc in postings.docs() {
+                                    bitset.insert(doc);
+                                }
+                                postings.advance();
                             }
-                            postings.advance();
                         }
                         Ok(bitset)
                     })
