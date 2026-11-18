@@ -137,6 +137,8 @@ pub struct PluginMergeContext<'a> {
     /// Readers for the source segments being merged.
     pub readers: &'a [SegmentReader],
     /// Mapping from target document IDs to source segment document IDs.
+    /// Iterate with [`SegmentDocIdMapping::iter_old_doc_addrs`] to read plugin
+    /// data from `readers` in the order it should be written to the target.
     pub doc_id_mapping: &'a SegmentDocIdMapping,
     /// Segment that receives the merged plugin data.
     pub target_segment: &'a Segment,
