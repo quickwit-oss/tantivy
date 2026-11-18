@@ -41,7 +41,6 @@ pub trait FileHandle: 'static + Send + Sync + HasLen + fmt::Debug {
     /// stacks can consume gigabytes.
     ///
     /// The default implementation runs at most five single-range reads concurrently.
-    #[doc(hidden)]
     async fn read_bytes_batch_async(
         &self,
         ranges: Vec<Range<usize>>,
@@ -285,7 +284,6 @@ impl FileSlice {
     /// Reads multiple ranges relative to this slice, returning buffers in input order.
     ///
     /// Panics if a range is reversed or extends beyond this slice.
-    #[doc(hidden)]
     pub async fn read_bytes_batch_async(
         &self,
         mut ranges: Vec<Range<usize>>,
