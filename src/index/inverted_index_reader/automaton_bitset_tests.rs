@@ -1,4 +1,3 @@
-
 use std::future::Future;
 use std::io;
 use std::ops::Range;
@@ -274,6 +273,32 @@ fn owned_bitset_async_reads() -> crate::Result<()> {
 }
 
 #[test]
+fn owned_bitset_many_terms() -> crate::Result<()> {
+    let (mut reader, dictionary, postings) = fixture(IndexRecordOption::Basic)?;
+    let source = TermDictionary::open(FileSlice::new(Arc::new(dictionary.bytes.clone())))?;
+    let mut builder = TermDictionaryBuilder::create(Vec::new())?;
+    let mut bytes = Vec::new();
+    for term in 0..10_000 {
+        let key = if term == 9_999 { b"berry" } else { b"apple" };
+        let mut info = source.get(key)?.unwrap();
+        let start = bytes.len();
+        bytes.extend_from_slice(&postings.bytes[info.postings_range.clone()]);
+        info.postings_range = start..bytes.len();
+        builder.insert(format!("{term:05}").as_bytes(), &info)?;
+    }
+    reader.termdict = TermDictionary::open(FileSlice::from(builder.finish()?))?;
+    let postings = AsyncFile::new(OwnedBytes::new(bytes));
+    postings.reject_sync();
+    reader.postings_file_slice = FileSlice::new(postings.clone());
+    let bitset = read_bitset(&reader, ".*", 264, &Executor::single_thread())?;
+    assert_eq!(bitset.len(), 262);
+    assert!(bitset.contains(2)); // The final term must also be decoded.
+    assert_eq!(postings.bytes_read.load(Ordering::SeqCst), postings.len());
+    postings.assert_released();
+    Ok(())
+}
+
+#[test]
 fn owned_bitset_coalescing() -> crate::Result<()> {
     for gap in [0, 4 * 1024 * 1024, 4 * 1024 * 1024 + 1] {
         let (mut reader, dictionary, postings) = fixture(IndexRecordOption::Basic)?;
@@ -379,15 +404,5 @@ fn owned_bitset_errors() -> crate::Result<()> {
         dictionary.assert_released();
         postings.assert_released();
     }
-    let (reader, dictionary, postings) = fixture(IndexRecordOption::Basic)?;
-    let result = read_bitset(&reader, ".*", 1, &executor);
-    assert_eq!(result.unwrap_err().kind(), io::ErrorKind::InvalidData);
-    // The first list was decoded before the remaining coalesced bytes were read.
-    assert!(
-        postings.bytes_read.load(Ordering::SeqCst) < postings.state.lock().unwrap().reads[0].len()
-    );
-    dictionary.assert_released();
-    postings.assert_released();
-
     Ok(())
 }

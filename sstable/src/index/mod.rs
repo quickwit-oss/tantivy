@@ -291,7 +291,7 @@ mod tests {
         let mut left_buf = left.to_vec();
         super::find_shorter_str_in_between(&mut left_buf, right);
         assert!(left_buf.len() <= left.len());
-        assert!(left <= &left_buf);
+        assert!(left <= &left_buf[..]);
         assert!(&left_buf[..] < right);
     }
 
