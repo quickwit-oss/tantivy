@@ -112,7 +112,8 @@ pub(crate) struct CardinalityAggReqData {
 impl CardinalityAggReqData {
     /// Estimate the memory consumption of this struct in bytes.
     pub fn get_memory_consumption(&self) -> usize {
-        std::mem::size_of::<Self>()
+        // A computed text source may already hold interned terms (e.g. a constant source).
+        std::mem::size_of::<Self>() + self.accessor.memory_consumption()
     }
 }
 
