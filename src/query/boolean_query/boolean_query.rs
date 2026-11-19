@@ -173,6 +173,14 @@ impl Query for BooleanQuery {
             subquery.query_terms(visitor);
         }
     }
+
+    fn positive_query_terms<'a>(&'a self, visitor: &mut dyn FnMut(&'a Term, bool)) {
+        for (occur, subquery) in &self.subqueries {
+            if *occur != Occur::MustNot {
+                subquery.positive_query_terms(visitor);
+            }
+        }
+    }
 }
 
 impl BooleanQuery {

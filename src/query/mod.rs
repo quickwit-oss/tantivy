@@ -191,4 +191,44 @@ mod tests {
             assert_eq!(vec![(&term_a, false), (&term_b, false)], terms);
         }
     }
+
+    #[test]
+    fn test_positive_query_terms() {
+        use crate::query::{BoostQuery, ConstScoreQuery, DisjunctionMaxQuery, Query};
+
+        let mut schema_builder = Schema::builder();
+        let text_field = schema_builder.add_text_field("text", TEXT);
+        let schema = schema_builder.build();
+        let index = Index::create_in_ram(schema);
+        let query_parser = QueryParser::for_index(&index, vec![text_field]);
+        let term_a = Term::from_field_text(text_field, "a");
+        let term_b = Term::from_field_text(text_field, "b");
+        let positive_terms = |query: &dyn Query| {
+            let mut terms = Vec::new();
+            query.positive_query_terms(&mut |term, pos| terms.push((term.clone(), pos)));
+            terms
+        };
+        let a_not_b = || query_parser.parse_query("a -b").unwrap();
+        assert_eq!(positive_terms(&*a_not_b()), vec![(term_a.clone(), false)]);
+        assert_eq!(
+            positive_terms(&*query_parser.parse_query("a -(b -c)").unwrap()),
+            vec![(term_a.clone(), false)]
+        );
+        assert_eq!(
+            positive_terms(&*query_parser.parse_query("\"a b\" -c").unwrap()),
+            vec![(term_a.clone(), true), (term_b.clone(), true)]
+        );
+        assert_eq!(
+            positive_terms(&BoostQuery::new(a_not_b(), 2.0)),
+            vec![(term_a.clone(), false)]
+        );
+        assert_eq!(
+            positive_terms(&ConstScoreQuery::new(a_not_b(), 1.0)),
+            vec![(term_a.clone(), false)]
+        );
+        assert_eq!(
+            positive_terms(&DisjunctionMaxQuery::new(vec![a_not_b()])),
+            vec![(term_a.clone(), false)]
+        );
+    }
 }
