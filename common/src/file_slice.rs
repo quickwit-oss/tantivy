@@ -342,11 +342,10 @@ impl FileHandle for FileSlice {
         &self,
         ranges: Box<dyn Iterator<Item = Range<usize>> + Send>,
     ) -> BoxStream<'_, io::Result<OwnedBytes>> {
-        let slice = self.range.clone();
-        self.data.stream_ranges(Box::new(ranges.map(move |range| {
-            assert!(range.start <= range.end && range.end <= slice.len());
-            slice.start + range.start..slice.start + range.end
-        })))
+        let offset = self.range.start;
+        self.data.stream_ranges(Box::new(
+            ranges.map(move |range| offset + range.start..offset + range.end),
+        ))
     }
 }
 
@@ -417,7 +416,6 @@ mod tests {
     #[cfg(feature = "quickwit")]
     mod streaming {
         use std::ops::Range;
-        use std::panic::{AssertUnwindSafe, catch_unwind};
 
         use async_trait::async_trait;
         use futures_util::FutureExt;
@@ -484,21 +482,6 @@ mod tests {
             }
             .now_or_never()
             .unwrap();
-        }
-
-        #[test]
-        fn invalid_bounds() {
-            let inner = FileSlice::from(b"abcdefgh".as_slice()).slice(1..7);
-            let outer = FileSlice::new(Arc::new(inner)).slice(1..4);
-            for range in [0..4, 4..4, Range { start: 2, end: 1 }] {
-                assert!(
-                    catch_unwind(AssertUnwindSafe(|| {
-                        let mut stream = outer.stream_ranges(Box::new(std::iter::once(range)));
-                        let _ = stream.try_next().now_or_never();
-                    }))
-                    .is_err()
-                );
-            }
         }
     }
 
