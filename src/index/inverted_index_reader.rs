@@ -1,4 +1,6 @@
 use std::io;
+#[cfg(feature = "quickwit")]
+use std::ops::Range;
 
 #[cfg(all(test, feature = "quickwit"))]
 mod automaton_bitset_tests;
@@ -68,46 +70,20 @@ impl PostingListMetadata {
         self.byte_offset_after_previous_list = range.end;
     }
 
-    fn into_ranges_and_doc_freqs(
-        self,
-    ) -> impl Iterator<Item = (std::ops::Range<usize>, u32)> + Clone {
+    fn into_ranges_and_doc_freqs(self) -> impl Iterator<Item = (Range<usize>, u64)> {
         let mut bytes = OwnedBytes::new(self.bytes);
-        let mut byte_offset_after_previous_list = 0;
+        let mut previous_end = 0;
         std::iter::from_fn(move || {
             if bytes.is_empty() {
                 return None;
             }
             let mut next =
                 || VInt::deserialize_u64(&mut bytes).expect("complete posting list metadata");
-            let start = byte_offset_after_previous_list + next() as usize;
+            let start = previous_end + next() as usize;
             let end = start + next() as usize;
-            byte_offset_after_previous_list = end;
-            Some((start..end, next() as u32))
+            previous_end = end;
+            Some((start..end, next()))
         })
-    }
-}
-
-#[cfg(feature = "quickwit")]
-struct MatchingPostingLists<A> {
-    dictionary: TermDictionary,
-    automaton: A,
-    metadata: PostingListMetadata,
-}
-
-#[cfg(feature = "quickwit")]
-impl<A: Automaton> MatchingPostingLists<A>
-where A::State: Clone
-{
-    fn collect_block_batch(mut self, blocks: Vec<(OwnedBytes, u64)>) -> io::Result<Self> {
-        let mut terms = self
-            .dictionary
-            .search(&self.automaton)
-            .without_keys()
-            .into_stream_from_delta_reader(sstable::DeltaReader::from_multiple_blocks(blocks))?;
-        while let Some(info) = terms.next_without_key() {
-            self.metadata.push(info);
-        }
-        Ok(self)
     }
 }
 
@@ -573,7 +549,7 @@ impl InvertedIndexReader {
     /// to keep this CPU work off the calling thread.
     pub async fn create_bitset_for_automaton<A: Automaton + Send + 'static>(
         &self,
-        automaton: A,
+        mut automaton: A,
         max_doc: u32,
         executor: &Executor,
     ) -> io::Result<BitSet>
@@ -582,53 +558,46 @@ impl InvertedIndexReader {
     {
         const TARGET_BYTES_PER_CPU_TASK: usize = 1024 * 1024;
         let mut dictionary_blocks = self.termdict.stream_candidate_blocks(&automaton);
-        let mut matches = MatchingPostingLists {
-            dictionary: self.termdict.clone(),
-            automaton,
-            metadata: PostingListMetadata::default(),
-        };
-        loop {
-            let mut batch_bytes = 0;
-            let mut batch = Vec::new();
-            while let Some((bytes, first_term_ordinal)) = dictionary_blocks.try_next().await? {
-                batch_bytes += bytes.len();
-                batch.push((bytes, first_term_ordinal));
-                if batch_bytes >= TARGET_BYTES_PER_CPU_TASK {
-                    break;
-                }
-            }
-            if batch.is_empty() {
-                break;
-            }
-            matches = executor
-                .spawn_blocking(move || matches.collect_block_batch(batch))
+        let flush_batch = |batch, automaton: A, mut postinglist_metdata: PostingListMetadata| async move {
+            let mut terms = self
+                .termdict
+                .search(automaton)
+                .without_keys()
+                .into_stream_from_delta_reader(sstable::DeltaReader::from_multiple_blocks(batch))?;
+            executor
+                .spawn_blocking(move || {
+                    while let Some(info) = terms.next_without_key() {
+                        postinglist_metdata.push(info);
+                    }
+                    (terms.into_automaton(), postinglist_metdata)
+                })
                 .await
-                .map_err(|_| io::Error::other("automaton term enumeration task panicked"))??;
+                .map_err(|_| io::Error::other("automaton term enumeration task panicked"))
+        };
+        let mut postinglist_metdata = PostingListMetadata::default();
+        let mut batch = Vec::new();
+        let mut batch_bytes = 0;
+        // We don't want to block the async runtime, and we don't want to call spawn_blocking for
+        // every block, so we batch blocks together until we reach a target number of bytes.
+        while let Some((bytes, first_term_ordinal)) = dictionary_blocks.try_next().await? {
+            batch_bytes += bytes.len();
+            batch.push((bytes, first_term_ordinal));
+            if batch_bytes >= TARGET_BYTES_PER_CPU_TASK {
+                (automaton, postinglist_metdata) = flush_batch(batch, automaton, postinglist_metdata).await?;
+                batch = Vec::new();
+                batch_bytes = 0;
+            }
         }
         drop(dictionary_blocks);
-        let mut bitset = BitSet::with_max_value(max_doc);
-        let mut terms = matches.metadata.into_ranges_and_doc_freqs().peekable();
-        if terms.peek().is_none() {
-            return Ok(bitset);
+        if !batch.is_empty() {
+            (_, postinglist_metdata) = flush_batch(batch, automaton, postinglist_metdata).await?;
         }
-        let ranges = terms.clone().map(|(range, _)| range);
+        let mut bitset = BitSet::with_max_value(max_doc);
+        let ranges = postinglist_metdata.into_ranges_and_doc_freqs();
         let mut posting_lists = self.postings_file_slice.stream_ranges(Box::new(ranges));
         let record_option = self.record_option;
-        while terms.peek().is_some() {
-            let mut batch = Vec::new();
-            let mut batch_bytes = 0;
-            for (_, doc_freq) in terms.by_ref() {
-                let bytes = posting_lists
-                    .try_next()
-                    .await?
-                    .ok_or(io::ErrorKind::UnexpectedEof)?;
-                batch_bytes += bytes.len() + std::mem::size_of::<(u32, OwnedBytes)>();
-                batch.push((doc_freq, bytes));
-                if batch_bytes >= TARGET_BYTES_PER_CPU_TASK {
-                    break;
-                }
-            }
-            bitset = executor
+        let decode_batch = |batch: Vec<(u32, OwnedBytes)>, mut bitset: BitSet| async move {
+            executor
                 .spawn_blocking(move || -> io::Result<BitSet> {
                     for (doc_freq, bytes) in batch {
                         let mut postings = BlockSegmentPostings::open_bytes(
@@ -647,15 +616,20 @@ impl InvertedIndexReader {
                     Ok(bitset)
                 })
                 .await
-                .map_err(|_| io::Error::other("automaton bitset task panicked"))??;
+                .map_err(|_| io::Error::other("automaton bitset task panicked"))?
+        };
+        let mut batch = Vec::new();
+        let mut batch_bytes = 0;
+        while let Some((bytes, doc_freq)) = posting_lists.try_next().await? {
+            batch_bytes += bytes.len() + std::mem::size_of::<(u32, OwnedBytes)>();
+            batch.push((doc_freq as u32, bytes));
+            if batch_bytes >= TARGET_BYTES_PER_CPU_TASK {
+                bitset = decode_batch(batch, bitset).await?;
+                batch = Vec::new();
+                batch_bytes = 0;
+            }
         }
-        if posting_lists.try_next().await?.is_some() {
-            return Err(io::Error::new(
-                io::ErrorKind::InvalidData,
-                "unexpected posting list",
-            ));
-        }
-        Ok(bitset)
+        decode_batch(batch, bitset).await
     }
 
     /// Warmup the block postings for all terms.

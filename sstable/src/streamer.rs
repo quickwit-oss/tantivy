@@ -166,11 +166,11 @@ where
             .await
     }
 
-    /// Searches dictionary blocks supplied by the caller instead of reading them from the file.
+    /// Searches the supplied blocks. The stream owns the reader and does not borrow the dictionary.
     pub fn into_stream_from_delta_reader(
         self,
         delta_reader: DeltaReader<<TSSTable as SSTable>::ValueReader>,
-    ) -> io::Result<Streamer<'a, TSSTable, A, K>> {
+    ) -> io::Result<Streamer<'static, TSSTable, A, K>> {
         let start_state = self.automaton.start();
         let start_key = bound_as_byte_slice(&self.lower);
 
@@ -278,6 +278,11 @@ where
     TSSTable: SSTable,
     K: KeyTracking,
 {
+    /// Returns the automaton for use with the next batch of blocks.
+    pub fn into_automaton(self) -> A {
+        self.automaton
+    }
+
     #[inline(always)]
     fn advance_delta_reader(&mut self) -> bool {
         if !self.delta_reader.advance().unwrap() {
