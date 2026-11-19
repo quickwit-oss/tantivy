@@ -1,6 +1,7 @@
 use std::collections::HashMap;
-use std::io;
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::RwLock;
+use std::{io, mem};
 
 use common::json_path_writer::JSON_END_OF_PATH;
 use common::{BinarySerializable, ByteCount};
@@ -619,25 +620,43 @@ impl InvertedIndexReader {
 /// The term infos an [`InvertedIndexReader`] looked up, absent terms included, by serialized term.
 ///
 /// The dictionary of a segment never changes, so a remembered term info stays valid for the
-/// lifetime of the reader. At most `limit` terms are remembered; past that, lookups go to the
-/// dictionary.
+/// lifetime of the reader. Retained memory is bounded by `max_bytes`, and terms longer than
+/// `max_term_bytes` are skipped so oversized raw/byte queries cannot exhaust or evict the memo;
+/// past those bounds, lookups go to the dictionary.
 struct TermInfoMemo {
-    term_infos: RwLock<HashMap<Vec<u8>, Option<TermInfo>>>,
-    limit: usize,
+    term_infos: RwLock<HashMap<Box<[u8]>, Option<TermInfo>>>,
+    /// Monotonically updated under `term_infos` write lock; read lock-free to skip `write()` once
+    /// no room remains.
+    retained_bytes: AtomicUsize,
+    max_bytes: usize,
+    max_term_bytes: usize,
 }
 
 impl TermInfoMemo {
-    /// The number of terms a reader remembers by default.
-    const DEFAULT_LIMIT: usize = 65_536;
+    /// Default retained-memory budget per reader (4 MiB, ~55k short terms).
+    const DEFAULT_MAX_BYTES: usize = 4 * 1024 * 1024;
+    /// Maximum serialized term length eligible for memoization.
+    const DEFAULT_MAX_TERM_BYTES: usize = 256;
+    /// Per-entry bucket and control-byte overhead in `HashMap<Box<[u8]>, Option<TermInfo>>`.
+    const ENTRY_OVERHEAD: usize = mem::size_of::<(Box<[u8]>, Option<TermInfo>)>() + 8;
 
-    fn with_limit(limit: usize) -> TermInfoMemo {
+    fn with_limits(max_bytes: usize, max_term_bytes: usize) -> TermInfoMemo {
         TermInfoMemo {
             term_infos: RwLock::new(HashMap::new()),
-            limit,
+            retained_bytes: AtomicUsize::new(0),
+            max_bytes,
+            max_term_bytes,
         }
     }
 
+    const fn entry_bytes(term_len: usize) -> usize {
+        Self::ENTRY_OVERHEAD.saturating_add(term_len)
+    }
+
     fn get(&self, term: &[u8]) -> Option<Option<TermInfo>> {
+        if term.len() > self.max_term_bytes {
+            return None;
+        }
         self.term_infos
             .read()
             .unwrap_or_else(|poisoned| poisoned.into_inner())
@@ -646,12 +665,30 @@ impl TermInfoMemo {
     }
 
     fn insert(&self, term: &[u8], term_info: &Option<TermInfo>) {
+        if term.len() > self.max_term_bytes {
+            return;
+        }
+        let entry_bytes = Self::entry_bytes(term.len());
+        if self
+            .retained_bytes
+            .load(Ordering::Relaxed)
+            .saturating_add(entry_bytes)
+            > self.max_bytes
+        {
+            return;
+        }
         let mut term_infos = self
             .term_infos
             .write()
             .unwrap_or_else(|poisoned| poisoned.into_inner());
-        if term_infos.len() < self.limit {
-            term_infos.insert(term.to_vec(), term_info.clone());
+        if term_infos.contains_key(term) {
+            return;
+        }
+        let retained = self.retained_bytes.load(Ordering::Relaxed);
+        if retained.saturating_add(entry_bytes) <= self.max_bytes {
+            term_infos.insert(Box::from(term), term_info.clone());
+            self.retained_bytes
+                .store(retained + entry_bytes, Ordering::Relaxed);
         }
     }
 
@@ -662,11 +699,16 @@ impl TermInfoMemo {
             .unwrap_or_else(|poisoned| poisoned.into_inner())
             .len()
     }
+
+    #[cfg(test)]
+    fn retained_bytes(&self) -> usize {
+        self.retained_bytes.load(Ordering::Relaxed)
+    }
 }
 
 impl Default for TermInfoMemo {
     fn default() -> TermInfoMemo {
-        TermInfoMemo::with_limit(TermInfoMemo::DEFAULT_LIMIT)
+        TermInfoMemo::with_limits(Self::DEFAULT_MAX_BYTES, Self::DEFAULT_MAX_TERM_BYTES)
     }
 }
 
@@ -679,9 +721,7 @@ mod tests {
     use crate::postings::TermInfo;
     #[cfg(feature = "quickwit")]
     use crate::query::BitSetDocSet;
-    #[cfg(feature = "quickwit")]
-    use crate::schema::STRING;
-    use crate::schema::{Schema, TEXT};
+    use crate::schema::{Schema, STRING, TEXT};
     #[cfg(feature = "quickwit")]
     use crate::{DocSet, Executor, TERMINATED};
     use crate::{Index, IndexWriter, Term};
@@ -690,9 +730,10 @@ mod tests {
     fn test_get_term_info_remembers_lookups() -> crate::Result<()> {
         let mut schema_builder = Schema::builder();
         let text = schema_builder.add_text_field("text", TEXT);
+        let raw = schema_builder.add_text_field("raw", STRING);
         let index = Index::create_in_ram(schema_builder.build());
         let mut writer: IndexWriter = index.writer_for_tests()?;
-        writer.add_document(doc!(text => "a b b"))?;
+        writer.add_document(doc!(text => "a b b", raw => "short"))?;
         writer.add_document(doc!(text => "b c"))?;
         writer.commit()?;
         let searcher = index.reader()?.searcher();
@@ -715,20 +756,68 @@ mod tests {
             inverted_index.doc_freq(&Term::from_field_text(text, "missing"))?,
             0
         );
+
+        // Oversized raw terms still resolve from the dictionary without entering the memo.
+        let raw_index = searcher.segment_reader(0).inverted_index(raw)?;
+        let oversized = "x".repeat(TermInfoMemo::DEFAULT_MAX_TERM_BYTES + 1);
+        assert_eq!(
+            raw_index.get_term_info(&Term::from_field_text(raw, &oversized))?,
+            None
+        );
+        assert_eq!(raw_index.term_infos.len(), 0);
+        assert_eq!(raw_index.term_infos.retained_bytes(), 0);
         Ok(())
     }
 
     #[test]
-    fn test_term_info_memo_limit() {
-        let memo = TermInfoMemo::with_limit(2);
+    fn test_term_info_memo_byte_budget_and_oversized_keys() {
+        let budget = 2 * TermInfoMemo::entry_bytes(1);
+        let memo = TermInfoMemo::with_limits(budget, 4);
         let term_info = Some(TermInfo::default());
+
+        // Oversized keys are ignored and consume none of the byte budget.
+        memo.insert(b"12345", &None);
+        assert_eq!(memo.len(), 0);
+        assert_eq!(memo.retained_bytes(), 0);
+        assert_eq!(memo.get(b"12345"), None);
+
         memo.insert(b"a", &term_info);
+        // Re-inserting an existing key (e.g. concurrent miss) does not double-count bytes.
+        memo.insert(b"a", &term_info);
+        assert_eq!(memo.retained_bytes(), TermInfoMemo::entry_bytes(1));
+
         memo.insert(b"b", &None);
         memo.insert(b"c", &term_info);
         assert_eq!(memo.len(), 2);
+        assert_eq!(memo.retained_bytes(), budget);
         assert_eq!(memo.get(b"a"), Some(term_info));
         assert_eq!(memo.get(b"b"), Some(None));
         assert_eq!(memo.get(b"c"), None);
+    }
+
+    #[test]
+    fn test_term_info_memo_skips_write_lock_when_full() {
+        // Leave 10 bytes of unusable slack (< ENTRY_OVERHEAD) so `retained_bytes < max_bytes`
+        // while no further entry can fit.
+        let memo = TermInfoMemo::with_limits(2 * TermInfoMemo::entry_bytes(1) + 10, 4);
+        let term_info = Some(TermInfo::default());
+        memo.insert(b"a", &term_info);
+        memo.insert(b"b", &term_info);
+
+        // Hold a read lock on the main thread: acquiring `write()` on another thread would block
+        // until `read_guard` is dropped.
+        let read_guard = memo.term_infos.read().unwrap();
+        let (tx, rx) = std::sync::mpsc::channel();
+        std::thread::scope(|s| {
+            s.spawn(|| {
+                memo.insert(b"c", &term_info);
+                tx.send(()).unwrap();
+            });
+            let finished = rx.recv_timeout(std::time::Duration::from_secs(2));
+            drop(read_guard);
+            assert!(finished.is_ok(), "saturated insert blocked on write lock");
+        });
+        assert_eq!(memo.len(), 2);
     }
 
     #[cfg(feature = "quickwit")]
