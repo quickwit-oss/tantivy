@@ -427,6 +427,18 @@ mod tests {
         use super::*;
         use crate::OwnedBytes;
 
+        fn assert_stream_items(
+            mut stream: BoxStream<'_, io::Result<(OwnedBytes, u64)>>,
+            expected: &[(&[u8], u64)],
+        ) {
+            let mut next = || stream.try_next().now_or_never().unwrap().unwrap();
+            for &item in expected {
+                let (bytes, tag) = next().expect("missing stream item");
+                assert_eq!((bytes.as_slice(), tag), item);
+            }
+            assert!(next().is_none());
+        }
+
         #[test]
         fn nested_slices() {
             #[derive(Debug)]
@@ -455,18 +467,11 @@ mod tests {
                 }
             }
 
-            async {
-                let inner = FileSlice::new(Arc::new(StreamOnlyHandle)).slice(1..8);
-                let outer = FileSlice::new(Arc::new(inner)).slice(1..6);
-                let mut stream = outer.stream_ranges(Box::new([(2..4, 9), (0..1, 5)].into_iter()));
-                for expected in [(b"ef".as_slice(), 9), (b"c", 5)] {
-                    let (bytes, tag) = stream.try_next().await.unwrap().unwrap();
-                    assert_eq!((&*bytes, tag), expected);
-                }
-                assert!(stream.try_next().await.unwrap().is_none());
-            }
-            .now_or_never()
-            .unwrap();
+            let inner = FileSlice::new(Arc::new(StreamOnlyHandle)).slice(1..8);
+            let outer = FileSlice::new(Arc::new(inner)).slice(1..6);
+            let ranges = [(2..4, 9), (0..1, 5)];
+            let stream = outer.stream_ranges(Box::new(ranges.into_iter()));
+            assert_stream_items(stream, &[(b"ef", 9), (b"c", 5)]);
         }
 
         #[test]
@@ -475,19 +480,11 @@ mod tests {
                 Box::new(b"abcdef".as_slice()),
                 Box::new(OwnedBytes::new(b"abcdef".to_vec())),
             ];
-            async {
-                for handle in handles {
-                    let ranges = [(1..4, 0), (6..6, 1), (1..4, 2)];
-                    let mut stream = handle.stream_ranges(Box::new(ranges.into_iter()));
-                    for expected in [(b"bcd".as_slice(), 0), (b"", 1), (b"bcd", 2)] {
-                        let (bytes, tag) = stream.try_next().await.unwrap().unwrap();
-                        assert_eq!((&*bytes, tag), expected);
-                    }
-                    assert!(stream.try_next().await.unwrap().is_none());
-                }
+            for handle in handles {
+                let ranges = [(1..4, 0), (6..6, 1), (1..4, 2)];
+                let stream = handle.stream_ranges(Box::new(ranges.into_iter()));
+                assert_stream_items(stream, &[(b"bcd", 0), (b"", 1), (b"bcd", 2)]);
             }
-            .now_or_never()
-            .unwrap();
         }
     }
 

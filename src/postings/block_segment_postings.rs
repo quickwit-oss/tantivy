@@ -2,7 +2,7 @@ use std::io;
 
 use common::VInt;
 
-use crate::directory::{FileSlice, OwnedBytes};
+use crate::directory::OwnedBytes;
 use crate::fieldnorm::FieldNormReader;
 use crate::postings::compression::{BlockDecoder, VIntDecoder, COMPRESSION_BLOCK_SIZE};
 use crate::postings::{BlockInfo, FreqReadingOption, SkipReader};
@@ -95,21 +95,6 @@ impl BlockSegmentPostings {
     /// If for instance, we do not request for term frequencies, this function will not decompress
     /// term frequency blocks.
     pub(crate) fn open(
-        doc_freq: u32,
-        data: FileSlice,
-        record_option: IndexRecordOption,
-        requested_option: IndexRecordOption,
-    ) -> io::Result<BlockSegmentPostings> {
-        Self::open_bytes(
-            doc_freq,
-            data.read_bytes()?,
-            record_option,
-            requested_option,
-        )
-    }
-
-    /// Opens postings from an already-read buffer, without accessing the directory.
-    pub(crate) fn open_bytes(
         doc_freq: u32,
         bytes: OwnedBytes,
         mut record_option: IndexRecordOption,

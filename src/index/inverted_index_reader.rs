@@ -284,7 +284,7 @@ impl InvertedIndexReader {
             .slice(term_info.postings_range.clone());
         BlockSegmentPostings::open(
             term_info.doc_freq,
-            postings_data,
+            postings_data.read_bytes()?,
             self.record_option,
             requested_option,
         )
@@ -596,14 +596,23 @@ impl InvertedIndexReader {
             (_, postinglist_metdata) = flush_batch(batch, automaton, postinglist_metdata).await?;
         }
         let mut bitset = BitSet::with_max_value(max_doc);
-        let ranges = postinglist_metdata.into_ranges_and_doc_freqs();
-        let mut posting_lists = self.postings_file_slice.stream_ranges(Box::new(ranges));
+        let ranges = Box::new(postinglist_metdata.into_ranges_and_doc_freqs());
+        let mut posting_lists = self.postings_file_slice.stream_ranges(ranges).fuse();
         let record_option = self.record_option;
-        let decode_batch_and_write_bitset = |batch: Vec<(u32, OwnedBytes)>, mut bitset: BitSet| async move {
-            executor
+        while !posting_lists.is_done() {
+            let mut batch = Vec::new();
+            let mut batch_bytes = 0;
+            while let Some((posting_list_bytes, doc_freq)) = posting_lists.try_next().await? {
+                batch_bytes += posting_list_bytes.len() + std::mem::size_of::<(u32, OwnedBytes)>();
+                batch.push((doc_freq as u32, posting_list_bytes));
+                if batch_bytes >= TARGET_BYTES_PER_CPU_TASK {
+                    break;
+                }
+            }
+            bitset = executor
                 .spawn_blocking(move || -> io::Result<BitSet> {
                     for (doc_freq, posting_list_bytes) in batch {
-                        let mut postings = BlockSegmentPostings::open_bytes(
+                        let mut postings = BlockSegmentPostings::open(
                             doc_freq,
                             posting_list_bytes,
                             record_option,
@@ -619,20 +628,9 @@ impl InvertedIndexReader {
                     Ok(bitset)
                 })
                 .await
-                .map_err(|_| io::Error::other("automaton bitset task panicked"))?
-        };
-        let mut batch = Vec::new();
-        let mut batch_bytes = 0;
-        while let Some((posting_list_bytes, doc_freq)) = posting_lists.try_next().await? {
-            batch_bytes += posting_list_bytes.len() + std::mem::size_of::<(u32, OwnedBytes)>();
-            batch.push((doc_freq as u32, posting_list_bytes));
-            if batch_bytes >= TARGET_BYTES_PER_CPU_TASK {
-                bitset = decode_batch_and_write_bitset(batch, bitset).await?;
-                batch = Vec::new();
-                batch_bytes = 0;
-            }
+                .map_err(|_| io::Error::other("automaton bitset task panicked"))??;
         }
-        decode_batch_and_write_bitset(batch, bitset).await
+        Ok(bitset)
     }
 
     /// Warmup the block postings for all terms.
@@ -662,9 +660,8 @@ impl InvertedIndexReader {
 mod tests {
     use tantivy_fst::Regex;
 
-    use crate::query::BitSetDocSet;
     use crate::schema::{Schema, STRING};
-    use crate::{DocSet, Executor, Index, IndexWriter, TERMINATED};
+    use crate::{Executor, Index, IndexWriter};
 
     #[test]
     fn test_create_bitset_for_automaton() -> crate::Result<()> {
@@ -698,12 +695,9 @@ mod tests {
                 &executor,
             ))?;
             assert_eq!(bitset.len(), expected.len());
-            let mut docset = BitSetDocSet::from(bitset);
-            let mut docs = Vec::new();
-            while docset.doc() != TERMINATED {
-                docs.push(docset.doc());
-                docset.advance();
-            }
+            let docs: Vec<_> = (0..segment_reader.max_doc())
+                .filter(|&doc| bitset.contains(doc))
+                .collect();
             assert_eq!(docs, expected);
         }
         Ok(())
