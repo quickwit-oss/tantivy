@@ -48,6 +48,69 @@ fn send_coalesced_posting_ranges(
     Ok(())
 }
 
+/// An automaton can match millions of terms. To save memory until their postings are read,
+/// we keep three VInts per match instead of a `TermInfo`.
+#[cfg(feature = "quickwit")]
+#[derive(Default)]
+struct PostingListMetadata {
+    bytes: Vec<u8>,
+    byte_offset_after_previous_list: usize,
+}
+
+#[cfg(feature = "quickwit")]
+impl PostingListMetadata {
+    fn push(&mut self, info: &TermInfo) {
+        let range = &info.postings_range;
+        let gap = range.start - self.byte_offset_after_previous_list;
+        for value in [gap as u64, range.len() as u64, u64::from(info.doc_freq)] {
+            VInt(value).serialize_into_vec(&mut self.bytes);
+        }
+        self.byte_offset_after_previous_list = range.end;
+    }
+
+    fn into_ranges_and_doc_freqs(
+        self,
+    ) -> impl Iterator<Item = (std::ops::Range<usize>, u32)> + Clone {
+        let mut bytes = OwnedBytes::new(self.bytes);
+        let mut byte_offset_after_previous_list = 0;
+        std::iter::from_fn(move || {
+            if bytes.is_empty() {
+                return None;
+            }
+            let mut next =
+                || VInt::deserialize_u64(&mut bytes).expect("complete posting list metadata");
+            let start = byte_offset_after_previous_list + next() as usize;
+            let end = start + next() as usize;
+            byte_offset_after_previous_list = end;
+            Some((start..end, next() as u32))
+        })
+    }
+}
+
+#[cfg(feature = "quickwit")]
+struct MatchingPostingLists<A> {
+    dictionary: TermDictionary,
+    automaton: A,
+    metadata: PostingListMetadata,
+}
+
+#[cfg(feature = "quickwit")]
+impl<A: Automaton> MatchingPostingLists<A>
+where A::State: Clone
+{
+    fn collect_block_batch(mut self, blocks: Vec<(OwnedBytes, u64)>) -> io::Result<Self> {
+        let mut terms = self
+            .dictionary
+            .search(&self.automaton)
+            .without_keys()
+            .into_stream_from_delta_reader(sstable::DeltaReader::from_multiple_blocks(blocks))?;
+        while let Some(info) = terms.next_without_key() {
+            self.metadata.push(info);
+        }
+        Ok(self)
+    }
+}
+
 /// The inverted index reader is in charge of accessing
 /// the inverted index associated with a specific field.
 ///
@@ -518,126 +581,71 @@ impl InvertedIndexReader {
         A::State: Clone + Send + 'static,
     {
         const TARGET_BYTES_PER_CPU_TASK: usize = 1024 * 1024;
-        let (file, blocks) = self.termdict.candidate_blocks(&automaton);
-        let (ranges, block_info): (Vec<_>, Vec<_>) = blocks
-            .map(|block| {
-                let len = block.byte_range.len();
-                (block.byte_range, (len, block.first_ordinal))
-            })
-            .unzip();
-        let mut dictionary_blocks = file.stream_ranges(Box::new(ranges.into_iter()));
-        let mut block_info = block_info.into_iter().peekable();
-        let mut encoded_terminfo = Vec::new();
-        let mut previous_end = 0;
-        let mut automaton = automaton;
-        while block_info.peek().is_some() {
+        let mut dictionary_blocks = self.termdict.stream_candidate_blocks(&automaton);
+        let mut matches = MatchingPostingLists {
+            dictionary: self.termdict.clone(),
+            automaton,
+            metadata: PostingListMetadata::default(),
+        };
+        loop {
             let mut batch_bytes = 0;
             let mut batch = Vec::new();
-            for (len, first_ordinal) in block_info.by_ref() {
-                let bytes = dictionary_blocks
-                    .try_next()
-                    .await?
-                    .ok_or(io::ErrorKind::UnexpectedEof)?;
-                if bytes.len() != len {
-                    return Err(io::Error::new(
-                        io::ErrorKind::InvalidData,
-                        "wrong dictionary block length",
-                    ));
-                }
-                batch.push((bytes, first_ordinal));
-                batch_bytes += len;
+            while let Some((bytes, first_term_ordinal)) = dictionary_blocks.try_next().await? {
+                batch_bytes += bytes.len();
+                batch.push((bytes, first_term_ordinal));
                 if batch_bytes >= TARGET_BYTES_PER_CPU_TASK {
                     break;
                 }
             }
-            let mut stream = self
-                .termdict
-                .search(automaton)
-                .without_keys()
-                .into_stream_from_delta_reader(sstable::DeltaReader::from_multiple_blocks(batch))?
-                .into_owned();
-            (automaton, encoded_terminfo, previous_end) = executor
-                .spawn_blocking(move || {
-                    while let Some(info) = stream.next_without_key() {
-                        let range = info.postings_range.clone();
-                        VInt((range.start - previous_end) as u64)
-                            .serialize_into_vec(&mut encoded_terminfo);
-                        VInt(range.len() as u64).serialize_into_vec(&mut encoded_terminfo);
-                        VInt(u64::from(info.doc_freq)).serialize_into_vec(&mut encoded_terminfo);
-                        previous_end = range.end;
-                    }
-                    (stream.into_automaton(), encoded_terminfo, previous_end)
-                })
+            if batch.is_empty() {
+                break;
+            }
+            matches = executor
+                .spawn_blocking(move || matches.collect_block_batch(batch))
                 .await
-                .map_err(|_| io::Error::other("automaton term enumeration task panicked"))?;
-        }
-        if dictionary_blocks.try_next().await?.is_some() {
-            return Err(io::Error::new(
-                io::ErrorKind::InvalidData,
-                "unexpected dictionary block",
-            ));
+                .map_err(|_| io::Error::other("automaton term enumeration task panicked"))??;
         }
         drop(dictionary_blocks);
         let mut bitset = BitSet::with_max_value(max_doc);
-        if encoded_terminfo.is_empty() {
+        let mut terms = matches.metadata.into_ranges_and_doc_freqs().peekable();
+        if terms.peek().is_none() {
             return Ok(bitset);
         }
-        let mut data = OwnedBytes::new(encoded_terminfo);
-        let mut previous_end = 0;
-        let terms = std::iter::from_fn(move || {
-            if data.is_empty() {
-                return None;
-            }
-            // These triples were encoded in memory during term enumeration.
-            let mut next = || VInt::deserialize_u64(&mut data).expect("complete term metadata");
-            let start = previous_end + next() as usize;
-            let end = start + next() as usize;
-            previous_end = end;
-            Some((start..end, next() as u32))
-        });
         let ranges = terms.clone().map(|(range, _)| range);
         let mut posting_lists = self.postings_file_slice.stream_ranges(Box::new(ranges));
-        let mut terms = terms.peekable();
         let record_option = self.record_option;
         while terms.peek().is_some() {
             let mut batch = Vec::new();
             let mut batch_bytes = 0;
-            for (range, doc_freq) in terms.by_ref() {
+            for (_, doc_freq) in terms.by_ref() {
                 let bytes = posting_lists
                     .try_next()
                     .await?
                     .ok_or(io::ErrorKind::UnexpectedEof)?;
-                if bytes.len() != range.len() {
-                    return Err(io::Error::new(
-                        io::ErrorKind::InvalidData,
-                        "wrong posting list length",
-                    ));
-                }
                 batch_bytes += bytes.len() + std::mem::size_of::<(u32, OwnedBytes)>();
                 batch.push((doc_freq, bytes));
                 if batch_bytes >= TARGET_BYTES_PER_CPU_TASK {
                     break;
                 }
             }
-            let insert_doc_ids = move || -> io::Result<BitSet> {
-                for (doc_freq, bytes) in batch {
-                    let mut postings = BlockSegmentPostings::open_bytes(
-                        doc_freq,
-                        bytes,
-                        record_option,
-                        IndexRecordOption::Basic,
-                    )?;
-                    while !postings.docs().is_empty() {
-                        for &doc in postings.docs() {
-                            bitset.insert(doc);
-                        }
-                        postings.advance();
-                    }
-                }
-                Ok(bitset)
-            };
             bitset = executor
-                .spawn_blocking(insert_doc_ids)
+                .spawn_blocking(move || -> io::Result<BitSet> {
+                    for (doc_freq, bytes) in batch {
+                        let mut postings = BlockSegmentPostings::open_bytes(
+                            doc_freq,
+                            bytes,
+                            record_option,
+                            IndexRecordOption::Basic,
+                        )?;
+                        while !postings.docs().is_empty() {
+                            for &doc in postings.docs() {
+                                bitset.insert(doc);
+                            }
+                            postings.advance();
+                        }
+                    }
+                    Ok(bitset)
+                })
                 .await
                 .map_err(|_| io::Error::other("automaton bitset task panicked"))??;
         }

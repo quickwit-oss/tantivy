@@ -158,16 +158,41 @@ impl TermDictionary {
     }
 
     #[cfg(feature = "quickwit")]
-    pub(crate) fn candidate_blocks<'a, 's: 'a>(
-        &'s self,
-        automaton: &'a impl Automaton,
-    ) -> (&'s FileSlice, impl Iterator<Item = sstable::BlockAddr> + 'a) {
-        let blocks = self
+    pub(crate) fn stream_candidate_blocks(
+        &self,
+        automaton: &impl Automaton,
+    ) -> futures_util::stream::BoxStream<'_, io::Result<(common::OwnedBytes, TermOrdinal)>> {
+        use futures_util::{stream, StreamExt, TryStreamExt};
+
+        use crate::directory::FileHandle;
+
+        let (byte_ranges, first_term_ordinals): (Vec<_>, Vec<_>) = self
             .0
             .sstable_index
             .get_block_for_automaton(automaton)
-            .map(|(_, block)| block);
-        (&self.0.sstable_slice, blocks)
+            .map(|(_, block)| (block.byte_range, block.first_ordinal))
+            .unzip();
+        let blocks = self
+            .0
+            .sstable_slice
+            .stream_ranges(Box::new(byte_ranges.into_iter()));
+        stream::try_unfold(
+            (blocks, first_term_ordinals.into_iter()),
+            |(mut blocks, mut ordinals)| async move {
+                match (blocks.try_next().await?, ordinals.next()) {
+                    (Some(bytes), Some(ordinal)) => {
+                        Ok(Some(((bytes, ordinal), (blocks, ordinals))))
+                    }
+                    (None, None) => Ok(None),
+                    (None, Some(_)) => Err(io::ErrorKind::UnexpectedEof.into()),
+                    (Some(_), None) => Err(io::Error::new(
+                        io::ErrorKind::InvalidData,
+                        "unexpected dictionary block",
+                    )),
+                }
+            },
+        )
+        .boxed()
     }
 
     #[cfg(feature = "quickwit")]
