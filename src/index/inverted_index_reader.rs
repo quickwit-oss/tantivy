@@ -499,18 +499,15 @@ impl InvertedIndexReader {
     /// Reads postings matched by an automaton and unions their document IDs into a bitset.
     ///
     /// Streams selected dictionary blocks, then requests the matching posting ranges
-    /// as one ordered stream. The storage backend decides which reads to coalesce.
+    /// as one ordered stream.
     /// No synchronous body reads or directory cache are required. Dictionary blocks are released
     /// after enumerating each batch. Posting buffers are released after decoding each batch.
-    /// Matching term metadata is retained as VInts: delta-encoded posting offsets, posting
-    /// lengths, and document frequencies.
     ///
     /// `max_doc` must be the segment's maximum document ID plus one, including deleted documents.
     /// Deleted documents are included in the result.
     ///
     /// Term enumeration and postings decoding run on the executor. Use a thread-pool executor
-    /// to keep this CPU work off the calling thread. Buffers are released when their task completes
-    /// or is dropped.
+    /// to keep this CPU work off the calling thread.
     pub async fn create_bitset_for_automaton<A: Automaton + Send + 'static>(
         &self,
         automaton: A,
@@ -520,7 +517,7 @@ impl InvertedIndexReader {
     where
         A::State: Clone + Send + 'static,
     {
-        const TARGET_BATCH_BYTES: usize = 1024 * 1024;
+        const TARGET_BYTES_PER_CPU_TASK: usize = 1024 * 1024;
         let (file, blocks) = self.termdict.candidate_blocks(&automaton);
         let (ranges, block_info): (Vec<_>, Vec<_>) = blocks
             .map(|block| {
@@ -549,7 +546,7 @@ impl InvertedIndexReader {
                 }
                 batch.push((bytes, first_ordinal));
                 batch_bytes += len;
-                if batch_bytes >= TARGET_BATCH_BYTES {
+                if batch_bytes >= TARGET_BYTES_PER_CPU_TASK {
                     break;
                 }
             }
@@ -618,7 +615,7 @@ impl InvertedIndexReader {
                 }
                 batch_bytes += bytes.len() + std::mem::size_of::<(u32, OwnedBytes)>();
                 batch.push((doc_freq, bytes));
-                if batch_bytes >= TARGET_BATCH_BYTES {
+                if batch_bytes >= TARGET_BYTES_PER_CPU_TASK {
                     break;
                 }
             }
