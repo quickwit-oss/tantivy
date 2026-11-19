@@ -29,7 +29,7 @@ impl FileHandle for StreamingPostings {
         panic!("postings must be streamed");
     }
 
-    fn read_bytes_batch_stream(
+    fn stream_ranges(
         &self,
         ranges: Box<dyn Iterator<Item = Range<usize>> + Send>,
     ) -> BoxStream<'_, io::Result<OwnedBytes>> {

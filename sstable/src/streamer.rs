@@ -167,7 +167,7 @@ where
     }
 
     /// Searches dictionary blocks supplied by the caller instead of reading them from the file.
-    pub fn into_stream_given_delta_reader(
+    pub fn into_stream_from_delta_reader(
         self,
         delta_reader: DeltaReader<<TSSTable as SSTable>::ValueReader>,
     ) -> io::Result<Streamer<'a, TSSTable, A, K>> {
@@ -217,14 +217,14 @@ where
         merge_holes_under_bytes: usize,
     ) -> io::Result<Streamer<'a, TSSTable, A, K>> {
         let delta_reader = self.delta_reader_async(merge_holes_under_bytes).await?;
-        self.into_stream_given_delta_reader(delta_reader)
+        self.into_stream_from_delta_reader(delta_reader)
     }
 
     /// Creates the stream corresponding to the range
     /// of terms defined using the `StreamerBuilder`.
     pub fn into_stream(self) -> io::Result<Streamer<'a, TSSTable, A, K>> {
         let delta_reader = self.delta_reader()?;
-        self.into_stream_given_delta_reader(delta_reader)
+        self.into_stream_from_delta_reader(delta_reader)
     }
 }
 

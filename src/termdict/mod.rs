@@ -158,7 +158,7 @@ impl TermDictionary {
     }
 
     #[cfg(feature = "quickwit")]
-    pub(crate) fn matching_blocks<'a, 's: 'a>(
+    pub(crate) fn candidate_blocks<'a, 's: 'a>(
         &'s self,
         automaton: &'a impl Automaton,
     ) -> (&'s FileSlice, impl Iterator<Item = sstable::BlockAddr> + 'a) {
