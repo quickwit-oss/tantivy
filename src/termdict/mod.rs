@@ -158,6 +158,19 @@ impl TermDictionary {
     }
 
     #[cfg(feature = "quickwit")]
+    pub(crate) fn matching_blocks<'a, 's: 'a>(
+        &'s self,
+        automaton: &'a impl Automaton,
+    ) -> (&'s FileSlice, impl Iterator<Item = sstable::BlockAddr> + 'a) {
+        let blocks = self
+            .0
+            .sstable_index
+            .get_block_for_automaton(automaton)
+            .map(|(_, block)| block);
+        (&self.0.sstable_slice, blocks)
+    }
+
+    #[cfg(feature = "quickwit")]
     /// Lookups the value corresponding to the key.
     pub async fn get_async<K: AsRef<[u8]>>(&self, key: K) -> io::Result<Option<TermInfo>> {
         self.0.get_async(key).await
