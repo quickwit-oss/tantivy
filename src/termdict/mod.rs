@@ -157,42 +157,24 @@ impl TermDictionary {
         self.0.search(automaton)
     }
 
+    /// Streams blocks that may contain a matching term, in dictionary order.
+    /// Each item pairs the block's bytes with the ordinal of its first term in the dictionary.
     #[cfg(feature = "quickwit")]
     pub(crate) fn stream_candidate_blocks(
         &self,
         automaton: &impl Automaton,
     ) -> futures_util::stream::BoxStream<'_, io::Result<(common::OwnedBytes, TermOrdinal)>> {
-        use futures_util::{stream, StreamExt, TryStreamExt};
-
         use crate::directory::FileHandle;
 
-        let (byte_ranges, first_term_ordinals): (Vec<_>, Vec<_>) = self
+        let blocks: Vec<_> = self
             .0
             .sstable_index
             .get_block_for_automaton(automaton)
             .map(|(_, block)| (block.byte_range, block.first_ordinal))
-            .unzip();
-        let blocks = self
-            .0
+            .collect();
+        self.0
             .sstable_slice
-            .stream_ranges(Box::new(byte_ranges.into_iter()));
-        stream::try_unfold(
-            (blocks, first_term_ordinals.into_iter()),
-            |(mut blocks, mut ordinals)| async move {
-                match (blocks.try_next().await?, ordinals.next()) {
-                    (Some(bytes), Some(ordinal)) => {
-                        Ok(Some(((bytes, ordinal), (blocks, ordinals))))
-                    }
-                    (None, None) => Ok(None),
-                    (None, Some(_)) => Err(io::ErrorKind::UnexpectedEof.into()),
-                    (Some(_), None) => Err(io::Error::new(
-                        io::ErrorKind::InvalidData,
-                        "unexpected dictionary block",
-                    )),
-                }
-            },
-        )
-        .boxed()
+            .stream_ranges(Box::new(blocks.into_iter()))
     }
 
     #[cfg(feature = "quickwit")]

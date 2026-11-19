@@ -15,7 +15,6 @@ use crate::{Executor, Index, IndexWriter, TantivyDocument};
 struct StreamingPostings {
     bytes: OwnedBytes,
     skipped: Range<usize>,
-    max_lists: usize,
 }
 
 impl HasLen for StreamingPostings {
@@ -31,11 +30,11 @@ impl FileHandle for StreamingPostings {
 
     fn stream_ranges(
         &self,
-        ranges: Box<dyn Iterator<Item = Range<usize>> + Send>,
-    ) -> BoxStream<'_, io::Result<OwnedBytes>> {
-        stream::iter(ranges.take(self.max_lists).map(|range| {
+        ranges: Box<dyn Iterator<Item = (Range<usize>, u64)> + Send>,
+    ) -> BoxStream<'_, io::Result<(OwnedBytes, u64)>> {
+        stream::iter(ranges.map(|(range, tag)| {
             assert!(range.end <= self.skipped.start || range.start >= self.skipped.end);
-            Ok(self.bytes.slice(range))
+            Ok((self.bytes.slice(range), tag))
         }))
         .boxed()
     }
@@ -65,22 +64,13 @@ fn streams_matching_lists_across_decode_batches() -> crate::Result<()> {
     let skipped = reader.termdict.get(b"skip")?.unwrap().postings_range;
     let bytes = source.postings_file_slice.read_bytes()?;
     let executor = Executor::multi_thread(1, "bitset-test-")?;
-    let mut read = |max_lists| {
-        let postings = StreamingPostings {
-            bytes: bytes.clone(),
-            skipped: skipped.clone(),
-            max_lists,
-        };
-        reader.postings_file_slice = FileSlice::new(Arc::new(postings));
-        futures::executor::block_on(reader.create_bitset_for_automaton(
-            Regex::new("match.*|z").unwrap(),
-            3,
-            &executor,
-        ))
-    };
-    let bitset = read(usize::MAX)?;
+    reader.postings_file_slice = FileSlice::new(Arc::new(StreamingPostings { bytes, skipped }));
+    let bitset = futures::executor::block_on(reader.create_bitset_for_automaton(
+        Regex::new("match.*|z").unwrap(),
+        3,
+        &executor,
+    ))?;
     assert_eq!(bitset.len(), 2);
     assert!(bitset.contains(0) && bitset.contains(2));
-    assert_eq!(read(1).unwrap_err().kind(), io::ErrorKind::UnexpectedEof);
     Ok(())
 }

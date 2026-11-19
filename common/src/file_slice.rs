@@ -36,16 +36,19 @@ pub trait FileHandle: 'static + Send + Sync + HasLen + fmt::Debug {
     }
 
     /// Streams one complete buffer per range, in input order, including duplicates and empty
-    /// ranges. Backends may coalesce reads but should yield requested bytes as they arrive,
+    /// ranges. Each buffer carries the caller's `u64` tag unchanged.
+    /// Backends may coalesce reads but should yield requested bytes as they arrive,
     /// without buffering an entire merged read. Dropping the stream cancels further reads.
     /// The default calls `read_bytes_async` for one range at a time. Invalid ranges may panic.
     #[cfg(feature = "quickwit")]
     fn stream_ranges(
         &self,
-        ranges: Box<dyn Iterator<Item = Range<usize>> + Send>,
-    ) -> BoxStream<'_, io::Result<OwnedBytes>> {
+        ranges: Box<dyn Iterator<Item = (Range<usize>, u64)> + Send>,
+    ) -> BoxStream<'_, io::Result<(OwnedBytes, u64)>> {
         stream::iter(ranges)
-            .then(move |range| self.read_bytes_async(range))
+            .then(move |(range, tag)| async move {
+                self.read_bytes_async(range).await.map(|bytes| (bytes, tag))
+            })
             .boxed()
     }
 }
@@ -340,11 +343,11 @@ impl FileHandle for FileSlice {
     #[cfg(feature = "quickwit")]
     fn stream_ranges(
         &self,
-        ranges: Box<dyn Iterator<Item = Range<usize>> + Send>,
-    ) -> BoxStream<'_, io::Result<OwnedBytes>> {
+        ranges: Box<dyn Iterator<Item = (Range<usize>, u64)> + Send>,
+    ) -> BoxStream<'_, io::Result<(OwnedBytes, u64)>> {
         let offset = self.range.start;
         self.data.stream_ranges(Box::new(
-            ranges.map(move |range| offset + range.start..offset + range.end),
+            ranges.map(move |(range, tag)| (offset + range.start..offset + range.end, tag)),
         ))
     }
 }
@@ -443,10 +446,10 @@ mod tests {
 
                 fn stream_ranges(
                     &self,
-                    ranges: Box<dyn Iterator<Item = Range<usize>> + Send>,
-                ) -> BoxStream<'_, io::Result<OwnedBytes>> {
+                    ranges: Box<dyn Iterator<Item = (Range<usize>, u64)> + Send>,
+                ) -> BoxStream<'_, io::Result<(OwnedBytes, u64)>> {
                     let ranges: Vec<_> = ranges.collect();
-                    assert_eq!(ranges, [4..6, 2..3]);
+                    assert_eq!(ranges, [(4..6, 9), (2..3, 5)]);
                     static BYTES: &[u8] = b"abcdefgh";
                     BYTES.stream_ranges(Box::new(ranges.into_iter()))
                 }
@@ -455,9 +458,11 @@ mod tests {
             async {
                 let inner = FileSlice::new(Arc::new(StreamOnlyHandle)).slice(1..8);
                 let outer = FileSlice::new(Arc::new(inner)).slice(1..6);
-                let mut stream = outer.stream_ranges(Box::new([2..4, 0..1].into_iter()));
-                assert_eq!(&*stream.try_next().await.unwrap().unwrap(), b"ef");
-                assert_eq!(&*stream.try_next().await.unwrap().unwrap(), b"c");
+                let mut stream = outer.stream_ranges(Box::new([(2..4, 9), (0..1, 5)].into_iter()));
+                for expected in [(b"ef".as_slice(), 9), (b"c", 5)] {
+                    let (bytes, tag) = stream.try_next().await.unwrap().unwrap();
+                    assert_eq!((&*bytes, tag), expected);
+                }
                 assert!(stream.try_next().await.unwrap().is_none());
             }
             .now_or_never()
@@ -472,10 +477,11 @@ mod tests {
             ];
             async {
                 for handle in handles {
-                    let ranges = [1..4, 6..6, 1..4];
+                    let ranges = [(1..4, 0), (6..6, 1), (1..4, 2)];
                     let mut stream = handle.stream_ranges(Box::new(ranges.into_iter()));
-                    for expected in [b"bcd".as_slice(), b"", b"bcd"] {
-                        assert_eq!(&*stream.try_next().await.unwrap().unwrap(), expected);
+                    for expected in [(b"bcd".as_slice(), 0), (b"", 1), (b"bcd", 2)] {
+                        let (bytes, tag) = stream.try_next().await.unwrap().unwrap();
+                        assert_eq!((&*bytes, tag), expected);
                     }
                     assert!(stream.try_next().await.unwrap().is_none());
                 }
