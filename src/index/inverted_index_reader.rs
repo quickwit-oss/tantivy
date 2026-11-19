@@ -498,10 +498,10 @@ impl InvertedIndexReader {
 
     /// Reads postings matched by an automaton and unions their document IDs into a bitset.
     ///
-    /// Loads selected dictionary blocks asynchronously, then requests the matching posting ranges
+    /// Streams selected dictionary blocks, then requests the matching posting ranges
     /// as one ordered stream. The storage backend decides which reads to coalesce.
     /// No synchronous body reads or directory cache are required. Dictionary blocks are released
-    /// after term enumeration. Posting buffers are released after decoding each batch.
+    /// after enumerating each batch. Posting buffers are released after decoding each batch.
     /// Matching term metadata is retained as VInts: delta-encoded posting offsets, posting
     /// lengths, and document frequencies.
     ///
@@ -520,30 +520,67 @@ impl InvertedIndexReader {
     where
         A::State: Clone + Send + 'static,
     {
-        let mut stream = self
-            .termdict
-            .search(automaton)
-            .without_keys()
-            .into_stream_async()
-            .await?
-            .into_owned();
-        let cpu_bound_task = move || {
-            let mut encoded_terminfo = Vec::new();
-            let mut previous_end = 0;
-            while let Some(info) = stream.next_without_key() {
-                let range = info.postings_range.clone();
-                // Retain only what decoding postings needs, avoiding another dictionary scan.
-                VInt((range.start - previous_end) as u64).serialize_into_vec(&mut encoded_terminfo);
-                VInt(range.len() as u64).serialize_into_vec(&mut encoded_terminfo);
-                VInt(u64::from(info.doc_freq)).serialize_into_vec(&mut encoded_terminfo);
-                previous_end = range.end;
+        const TARGET_BATCH_BYTES: usize = 1024 * 1024;
+        let (file, blocks) = self.termdict.matching_blocks(&automaton);
+        let (ranges, block_info): (Vec<_>, Vec<_>) = blocks
+            .map(|block| {
+                let info = (block.byte_range.len(), block.first_ordinal);
+                (block.byte_range, info)
+            })
+            .unzip();
+        let mut reads = file.read_bytes_batch_stream(Box::new(ranges.into_iter()));
+        let mut block_info = block_info.into_iter().peekable();
+        let mut encoded_terminfo = Vec::new();
+        let mut previous_end = 0;
+        let mut automaton = automaton;
+        while block_info.peek().is_some() {
+            let mut batch_bytes = 0;
+            let mut batch = Vec::new();
+            for (len, first_ordinal) in block_info.by_ref() {
+                let bytes = reads
+                    .try_next()
+                    .await?
+                    .ok_or(io::ErrorKind::UnexpectedEof)?;
+                if bytes.len() != len {
+                    return Err(io::Error::new(
+                        io::ErrorKind::InvalidData,
+                        "wrong dictionary block length",
+                    ));
+                }
+                batch.push((bytes, first_ordinal));
+                batch_bytes += len;
+                if batch_bytes >= TARGET_BATCH_BYTES {
+                    break;
+                }
             }
-            encoded_terminfo
-        };
-        let encoded_terminfo = executor
-            .spawn_blocking(cpu_bound_task)
-            .await
-            .map_err(|_| io::Error::other("automaton term enumeration task panicked"))?;
+            let mut stream = self
+                .termdict
+                .search(automaton)
+                .without_keys()
+                .into_stream_given_delta_reader(sstable::DeltaReader::from_multiple_blocks(batch))?
+                .into_owned();
+            (automaton, encoded_terminfo, previous_end) = executor
+                .spawn_blocking(move || {
+                    while let Some(info) = stream.next_without_key() {
+                        let range = info.postings_range.clone();
+                        VInt((range.start - previous_end) as u64)
+                            .serialize_into_vec(&mut encoded_terminfo);
+                        VInt(range.len() as u64).serialize_into_vec(&mut encoded_terminfo);
+                        VInt(u64::from(info.doc_freq)).serialize_into_vec(&mut encoded_terminfo);
+                        previous_end = range.end;
+                    }
+                    (stream.into_automaton(), encoded_terminfo, previous_end)
+                })
+                .await
+                .map_err(|_| io::Error::other("automaton term enumeration task panicked"))?;
+        }
+        if reads.try_next().await?.is_some() {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                "unexpected dictionary block",
+            ));
+        }
+        drop(reads);
         let mut bitset = BitSet::with_max_value(max_doc);
         if encoded_terminfo.is_empty() {
             return Ok(bitset);
@@ -568,7 +605,6 @@ impl InvertedIndexReader {
         let mut terms = terms.peekable();
         let record_option = self.record_option;
         while terms.peek().is_some() {
-            const TARGET_DECODE_BATCH_BYTES: usize = 1024 * 1024;
             let mut batch = Vec::new();
             let mut batch_bytes = 0;
             for (range, doc_freq) in terms.by_ref() {
@@ -584,7 +620,7 @@ impl InvertedIndexReader {
                 }
                 batch_bytes += bytes.len() + std::mem::size_of::<(u32, OwnedBytes)>();
                 batch.push((doc_freq, bytes));
-                if batch_bytes >= TARGET_DECODE_BATCH_BYTES {
+                if batch_bytes >= TARGET_BATCH_BYTES {
                     break;
                 }
             }

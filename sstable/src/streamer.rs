@@ -166,7 +166,8 @@ where
             .await
     }
 
-    fn into_stream_given_delta_reader(
+    /// Searches dictionary blocks supplied by the caller instead of reading them from the file.
+    pub fn into_stream_given_delta_reader(
         self,
         delta_reader: DeltaReader<<TSSTable as SSTable>::ValueReader>,
     ) -> io::Result<Streamer<'a, TSSTable, A, K>> {
@@ -277,6 +278,11 @@ where
     TSSTable: SSTable,
     K: KeyTracking,
 {
+    /// Returns the automaton so it can be reused for the next batch of blocks.
+    pub fn into_automaton(self) -> A {
+        self.automaton
+    }
+
     /// Releases the lifetime tie to the dictionary that created this stream.
     ///
     /// The stream already owns its buffers and cursor state. Any references held by
