@@ -55,7 +55,7 @@ fn send_coalesced_posting_ranges(
 #[cfg(feature = "quickwit")]
 #[derive(Default)]
 struct PostingListMetadata {
-    bytes: Vec<u8>,
+    metadata_bytes: Vec<u8>,
     byte_offset_after_previous_list: usize,
 }
 
@@ -65,20 +65,21 @@ impl PostingListMetadata {
         let range = &info.postings_range;
         let gap = range.start - self.byte_offset_after_previous_list;
         for value in [gap as u64, range.len() as u64, u64::from(info.doc_freq)] {
-            VInt(value).serialize_into_vec(&mut self.bytes);
+            VInt(value).serialize_into_vec(&mut self.metadata_bytes);
         }
         self.byte_offset_after_previous_list = range.end;
     }
 
     fn into_ranges_and_doc_freqs(self) -> impl Iterator<Item = (Range<usize>, u64)> {
-        let mut bytes = OwnedBytes::new(self.bytes);
+        let mut metadata_bytes = OwnedBytes::new(self.metadata_bytes);
         let mut previous_end = 0;
         std::iter::from_fn(move || {
-            if bytes.is_empty() {
+            if metadata_bytes.is_empty() {
                 return None;
             }
-            let mut next =
-                || VInt::deserialize_u64(&mut bytes).expect("complete posting list metadata");
+            let mut next = || {
+                VInt::deserialize_u64(&mut metadata_bytes).expect("complete posting list metadata")
+            };
             let start = previous_end + next() as usize;
             let end = start + next() as usize;
             previous_end = end;
@@ -579,9 +580,11 @@ impl InvertedIndexReader {
         let mut batch_bytes = 0;
         // We don't want to block the async runtime, and we don't want to call spawn_blocking for
         // every block, so we batch blocks together until we reach a target number of bytes.
-        while let Some((bytes, first_term_ordinal)) = dictionary_blocks.try_next().await? {
-            batch_bytes += bytes.len();
-            batch.push((bytes, first_term_ordinal));
+        while let Some((dictionary_block_bytes, first_term_ordinal)) =
+            dictionary_blocks.try_next().await?
+        {
+            batch_bytes += dictionary_block_bytes.len();
+            batch.push((dictionary_block_bytes, first_term_ordinal));
             if batch_bytes >= TARGET_BYTES_PER_CPU_TASK {
                 (automaton, postinglist_metdata) = flush_batch(batch, automaton, postinglist_metdata).await?;
                 batch = Vec::new();
@@ -596,13 +599,13 @@ impl InvertedIndexReader {
         let ranges = postinglist_metdata.into_ranges_and_doc_freqs();
         let mut posting_lists = self.postings_file_slice.stream_ranges(Box::new(ranges));
         let record_option = self.record_option;
-        let decode_batch = |batch: Vec<(u32, OwnedBytes)>, mut bitset: BitSet| async move {
+        let decode_batch_and_write_bitset = |batch: Vec<(u32, OwnedBytes)>, mut bitset: BitSet| async move {
             executor
                 .spawn_blocking(move || -> io::Result<BitSet> {
-                    for (doc_freq, bytes) in batch {
+                    for (doc_freq, posting_list_bytes) in batch {
                         let mut postings = BlockSegmentPostings::open_bytes(
                             doc_freq,
-                            bytes,
+                            posting_list_bytes,
                             record_option,
                             IndexRecordOption::Basic,
                         )?;
@@ -620,16 +623,16 @@ impl InvertedIndexReader {
         };
         let mut batch = Vec::new();
         let mut batch_bytes = 0;
-        while let Some((bytes, doc_freq)) = posting_lists.try_next().await? {
-            batch_bytes += bytes.len() + std::mem::size_of::<(u32, OwnedBytes)>();
-            batch.push((doc_freq as u32, bytes));
+        while let Some((posting_list_bytes, doc_freq)) = posting_lists.try_next().await? {
+            batch_bytes += posting_list_bytes.len() + std::mem::size_of::<(u32, OwnedBytes)>();
+            batch.push((doc_freq as u32, posting_list_bytes));
             if batch_bytes >= TARGET_BYTES_PER_CPU_TASK {
-                bitset = decode_batch(batch, bitset).await?;
+                bitset = decode_batch_and_write_bitset(batch, bitset).await?;
                 batch = Vec::new();
                 batch_bytes = 0;
             }
         }
-        decode_batch(batch, bitset).await
+        decode_batch_and_write_bitset(batch, bitset).await
     }
 
     /// Warmup the block postings for all terms.

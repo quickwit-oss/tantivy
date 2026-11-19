@@ -13,13 +13,13 @@ use crate::{Executor, Index, IndexWriter, TantivyDocument};
 
 #[derive(Debug)]
 struct StreamingPostings {
-    bytes: OwnedBytes,
+    postings_file_bytes: OwnedBytes,
     skipped: Range<usize>,
 }
 
 impl HasLen for StreamingPostings {
     fn len(&self) -> usize {
-        self.bytes.len()
+        self.postings_file_bytes.len()
     }
 }
 
@@ -34,7 +34,7 @@ impl FileHandle for StreamingPostings {
     ) -> BoxStream<'_, io::Result<(OwnedBytes, u64)>> {
         stream::iter(ranges.map(|(range, tag)| {
             assert!(range.end <= self.skipped.start || range.start >= self.skipped.end);
-            Ok((self.bytes.slice(range), tag))
+            Ok((self.postings_file_bytes.slice(range), tag))
         }))
         .boxed()
     }
@@ -62,9 +62,12 @@ fn streams_matching_lists_across_decode_batches() -> crate::Result<()> {
     let mut reader = InvertedIndexReader::empty(source.record_option);
     reader.termdict = source.termdict.clone();
     let skipped = reader.termdict.get(b"skip")?.unwrap().postings_range;
-    let bytes = source.postings_file_slice.read_bytes()?;
+    let postings_file_bytes = source.postings_file_slice.read_bytes()?;
     let executor = Executor::multi_thread(1, "bitset-test-")?;
-    reader.postings_file_slice = FileSlice::new(Arc::new(StreamingPostings { bytes, skipped }));
+    reader.postings_file_slice = FileSlice::new(Arc::new(StreamingPostings {
+        postings_file_bytes,
+        skipped,
+    }));
     let bitset = futures::executor::block_on(reader.create_bitset_for_automaton(
         Regex::new("match.*|z").unwrap(),
         3,
