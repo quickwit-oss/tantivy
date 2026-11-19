@@ -38,13 +38,15 @@ pub trait FileHandle: 'static + Send + Sync + HasLen + fmt::Debug {
     /// Streams one complete buffer per range, in input order, including duplicates and empty
     /// ranges. Backends may coalesce reads but should yield requested bytes as they arrive,
     /// without buffering an entire merged read. Dropping the stream cancels further reads.
-    /// The default yields `Unsupported`. Invalid ranges may panic.
+    /// The default calls `read_bytes_async` for one range at a time. Invalid ranges may panic.
     #[cfg(feature = "quickwit")]
     fn read_bytes_batch_stream(
         &self,
-        _ranges: Box<dyn Iterator<Item = Range<usize>> + Send>,
+        ranges: Box<dyn Iterator<Item = Range<usize>> + Send>,
     ) -> BoxStream<'_, io::Result<OwnedBytes>> {
-        stream::once(async { Err(io::ErrorKind::Unsupported.into()) }).boxed()
+        stream::iter(ranges)
+            .then(move |range| self.read_bytes_async(range))
+            .boxed()
     }
 }
 
@@ -113,14 +115,6 @@ impl FileHandle for &'static [u8] {
 
     async fn read_bytes_async(&self, byte_range: Range<usize>) -> io::Result<OwnedBytes> {
         Ok(self.read_bytes(byte_range)?)
-    }
-
-    #[cfg(feature = "quickwit")]
-    fn read_bytes_batch_stream(
-        &self,
-        ranges: Box<dyn Iterator<Item = Range<usize>> + Send>,
-    ) -> BoxStream<'_, io::Result<OwnedBytes>> {
-        stream::iter(ranges.map(|range| self.read_bytes(range))).boxed()
     }
 }
 
@@ -371,14 +365,6 @@ impl FileHandle for OwnedBytes {
 
     async fn read_bytes_async(&self, range: Range<usize>) -> io::Result<OwnedBytes> {
         self.read_bytes(range)
-    }
-
-    #[cfg(feature = "quickwit")]
-    fn read_bytes_batch_stream(
-        &self,
-        ranges: Box<dyn Iterator<Item = Range<usize>> + Send>,
-    ) -> BoxStream<'_, io::Result<OwnedBytes>> {
-        stream::iter(ranges.map(|range| self.read_bytes(range))).boxed()
     }
 }
 
