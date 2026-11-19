@@ -59,6 +59,60 @@ fn main() {
     for num_segments in [100, 1_000] {
         bench_many_segments(num_segments);
     }
+    bench_composite_multivalue_with_deletes();
+}
+
+fn bench_composite_multivalue_with_deletes() {
+    let mut schema = Schema::builder();
+    let first = schema.add_u64_field("first", FAST);
+    let second = schema.add_u64_field("second", FAST);
+    let metric = schema.add_u64_field("metric", FAST);
+    let marker = schema.add_text_field("marker", STRING);
+    let index = Index::create_in_ram(schema.build());
+    let mut writer = index.writer_with_num_threads(1, 20_000_000).unwrap();
+    writer.set_merge_policy(Box::new(NoMergePolicy));
+    let mut document = doc!(metric => 1u64);
+    for value in 0..16 {
+        document.add_u64(first, value);
+        document.add_u64(second, value);
+    }
+    for _ in 0..2_048 {
+        writer.add_document(document.clone()).unwrap();
+    }
+    writer.add_document(doc!(marker => "delete")).unwrap();
+    writer.commit().unwrap();
+    // A deletion routes search through collect(), whose buffer forwards 2,048 documents.
+    // Each document produces 16 * 16 tuples. Track the cost of expanding that whole batch.
+    writer.delete_term(Term::from_field_text(marker, "delete"));
+    writer.commit().unwrap();
+    drop(writer);
+    let reader = index.reader().unwrap();
+    let searcher = reader.searcher();
+    assert_eq!(searcher.segment_readers().len(), 1);
+    assert_eq!(searcher.num_docs(), 2_048);
+    assert!(searcher.segment_reader(0).alive_bitset().is_some());
+    let request = json!({
+        "page": {
+            "composite": {
+                "size": 256,
+                "sources": [
+                    {"first": {"terms": {"field": "first"}}},
+                    {"second": {"terms": {"field": "second"}}}
+                ]
+            },
+            "aggs": {"total": {"sum": {"field": "metric"}}}
+        }
+    });
+    let mut runner = BenchRunner::new();
+    runner.add_plugin(PeakMemAllocPlugin::new(GLOBAL));
+    let mut group = runner.new_group();
+    group.set_name("composite_multivalue");
+    group.register_with_input(
+        "16_values_per_field_page_256_with_sum_and_deletes",
+        &searcher,
+        move |searcher| execute_agg(searcher, request.clone()),
+    );
+    group.run();
 }
 
 fn bench_many_segments(num_segments: usize) {

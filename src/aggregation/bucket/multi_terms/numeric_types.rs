@@ -1,6 +1,6 @@
 /// This module helps comparing numerical values of different types (i64, u64
 /// and f64).
-pub(super) mod num_cmp {
+pub(crate) mod num_cmp {
     use std::cmp::Ordering;
 
     use crate::TantivyError;
@@ -57,9 +57,8 @@ pub(super) mod num_cmp {
             return Ok(Ordering::Greater);
         }
 
-        // If right_f is >= u64::MAX then left_u < right_f (u64::MAX=2^64-1 cannot be exactly)
-        let max_as_f = u64::MAX as f64;
-        if right_f > max_as_f {
+        // u64::MAX rounds up to 2^64 as f64, beyond every u64 value.
+        if right_f >= u64::MAX as f64 {
             return Ok(Ordering::Less);
         }
 
@@ -100,11 +99,22 @@ pub(super) mod num_cmp {
 ///
 /// All functions in this module assume that f64 values are not NaN.
 pub(super) mod num_proj {
-    #[derive(Debug, PartialEq)]
+    #[derive(Clone, Debug, PartialEq)]
     pub enum ProjectedNumber<T> {
         Exact(T),
         Next(T),
         AfterLast,
+    }
+
+    impl<T> ProjectedNumber<T> {
+        /// Maps the representable number without changing its relation to the input.
+        pub fn map<U>(self, map: impl FnOnce(T) -> U) -> ProjectedNumber<U> {
+            match self {
+                Self::Exact(value) => ProjectedNumber::Exact(map(value)),
+                Self::Next(value) => ProjectedNumber::Next(map(value)),
+                Self::AfterLast => ProjectedNumber::AfterLast,
+            }
+        }
     }
 
     pub fn i64_to_u64(value: i64) -> ProjectedNumber<u64> {
@@ -126,7 +136,7 @@ pub(super) mod num_proj {
     pub fn f64_to_u64(value: f64) -> ProjectedNumber<u64> {
         if value < 0.0 {
             ProjectedNumber::Next(0)
-        } else if value > u64::MAX as f64 {
+        } else if value >= u64::MAX as f64 {
             ProjectedNumber::AfterLast
         } else if value.fract() == 0.0 {
             ProjectedNumber::Exact(value as u64)
@@ -203,6 +213,10 @@ mod num_cmp_tests {
 
         // Tests with extreme values
         assert_eq!(cmp_u64_f64(u64::MAX, 1e20).unwrap(), Ordering::Less);
+        assert_eq!(
+            cmp_u64_f64(u64::MAX, u64::MAX as f64).unwrap(),
+            Ordering::Less
+        );
 
         // Precision edge cases: large u64 that loses precision when converted to f64
         // => 2^54, exactly represented as f64
@@ -287,20 +301,18 @@ mod num_cmp_tests {
             cmp_i64_f64(large_neg_i64, large_neg_f64).unwrap(),
             Ordering::Equal
         );
-        // => (-2^54 + 1) cannot be exactly represented in f64
-        let large_neg_i64_plus_1 = -18_014_398_509_481_985;
-        // prove that it is represented as f64 by large_neg_f64
-        assert_eq!(large_neg_i64_plus_1 as f64, large_neg_f64);
-        assert_eq!(
-            cmp_i64_f64(large_neg_i64_plus_1, large_neg_f64).unwrap(),
-            Ordering::Less
-        );
-        // => (-2^54 - 1) cannot be exactly represented in f64
-        let large_neg_i64_minus_1 = -18_014_398_509_481_983;
-        // prove that it is also represented as f64 by large_neg_f64
+        // -2^54 - 1 rounds to -2^54 but compares below it.
+        let large_neg_i64_minus_1 = -18_014_398_509_481_985;
         assert_eq!(large_neg_i64_minus_1 as f64, large_neg_f64);
         assert_eq!(
             cmp_i64_f64(large_neg_i64_minus_1, large_neg_f64).unwrap(),
+            Ordering::Less
+        );
+        // -2^54 + 1 rounds to -2^54 but compares above it.
+        let large_neg_i64_plus_1 = -18_014_398_509_481_983;
+        assert_eq!(large_neg_i64_plus_1 as f64, large_neg_f64);
+        assert_eq!(
+            cmp_i64_f64(large_neg_i64_plus_1, large_neg_f64).unwrap(),
             Ordering::Greater
         );
 
@@ -367,6 +379,10 @@ mod num_proj_tests {
         assert_eq!(num_proj::f64_to_u64(-0.1), ProjectedNumber::Next(0));
         assert_eq!(num_proj::f64_to_u64(1e20), ProjectedNumber::AfterLast);
         assert_eq!(
+            num_proj::f64_to_u64(u64::MAX as f64),
+            ProjectedNumber::AfterLast
+        );
+        assert_eq!(
             num_proj::f64_to_u64(f64::INFINITY),
             ProjectedNumber::AfterLast
         );
@@ -403,34 +419,20 @@ mod num_proj_tests {
         assert_eq!(num_proj::i64_to_f64(42), ProjectedNumber::Exact(42.0));
         assert_eq!(num_proj::i64_to_f64(-42), ProjectedNumber::Exact(-42.0));
 
-        let max_exact = 9_007_199_254_740_992; // 2^53
         assert_eq!(
-            num_proj::i64_to_f64(max_exact),
-            ProjectedNumber::Exact(max_exact as f64)
+            num_proj::i64_to_f64(9_007_199_254_740_992), // 2^53
+            ProjectedNumber::Exact(9_007_199_254_740_992.0)
         );
 
-        // Test values that cannot be exactly represented as f64 (integers above 2^53)
-        let large_i64 = 9_007_199_254_740_993; // 2^53 + 1
-        let closest_f64 = 9_007_199_254_740_992.0;
-        assert_eq!(large_i64 as f64, closest_f64);
-        if let ProjectedNumber::Next(val) = num_proj::i64_to_f64(large_i64) {
-            // Verify that the returned float is different from the direct cast
-            assert!(val > closest_f64);
-            assert!(val - closest_f64 < 2. * f64::EPSILON * closest_f64);
-        } else {
-            panic!("Expected ProjectedNumber::Next for large_i64");
-        }
-
-        // Test with very large negative value
-        let large_neg_i64 = -9_007_199_254_740_993; // -(2^53 + 1)
-        let closest_neg_f64 = -9_007_199_254_740_992.0;
-        assert_eq!(large_neg_i64 as f64, closest_neg_f64);
-        if let ProjectedNumber::Next(val) = num_proj::i64_to_f64(large_neg_i64) {
-            // Verify that the returned float is the closest representable f64
-            assert_eq!(val, closest_neg_f64);
-        } else {
-            panic!("Expected ProjectedNumber::Next for large_neg_i64");
-        }
+        // Inexact integers project to the next greater float, including negative integers.
+        assert_eq!(
+            num_proj::i64_to_f64(9_007_199_254_740_993), // 2^53 + 1
+            ProjectedNumber::Next(9_007_199_254_740_994.0)
+        );
+        assert_eq!(
+            num_proj::i64_to_f64(-9_007_199_254_740_993), // -(2^53 + 1)
+            ProjectedNumber::Next(-9_007_199_254_740_992.0)
+        );
     }
 
     #[test]
@@ -438,23 +440,14 @@ mod num_proj_tests {
         assert_eq!(num_proj::u64_to_f64(0), ProjectedNumber::Exact(0.0));
         assert_eq!(num_proj::u64_to_f64(42), ProjectedNumber::Exact(42.0));
 
-        // Test the largest u64 value that can be exactly represented as f64 (2^53)
-        let max_exact = 9_007_199_254_740_992; // 2^53
+        // 2^53 is exact; the next integer must project to the next greater float.
         assert_eq!(
-            num_proj::u64_to_f64(max_exact),
-            ProjectedNumber::Exact(max_exact as f64)
+            num_proj::u64_to_f64(9_007_199_254_740_992),
+            ProjectedNumber::Exact(9_007_199_254_740_992.0)
         );
-
-        // Test values that cannot be exactly represented as f64 (integers above 2^53)
-        let large_u64 = 9_007_199_254_740_993; // 2^53 + 1
-        let closest_f64 = 9_007_199_254_740_992.0;
-        assert_eq!(large_u64 as f64, closest_f64);
-        if let ProjectedNumber::Next(val) = num_proj::u64_to_f64(large_u64) {
-            // Verify that the returned float is different from the direct cast
-            assert!(val > closest_f64);
-            assert!(val - closest_f64 < 2. * f64::EPSILON * closest_f64);
-        } else {
-            panic!("Expected ProjectedNumber::Next for large_u64");
-        }
+        assert_eq!(
+            num_proj::u64_to_f64(9_007_199_254_740_993),
+            ProjectedNumber::Next(9_007_199_254_740_994.0)
+        );
     }
 }
