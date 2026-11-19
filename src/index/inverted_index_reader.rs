@@ -48,47 +48,6 @@ fn send_coalesced_posting_ranges(
     Ok(())
 }
 
-#[cfg(feature = "quickwit")]
-fn matching_postings(
-    mut data: OwnedBytes,
-) -> impl Iterator<Item = (std::ops::Range<usize>, u32)> + Clone {
-    let mut previous_end = 0;
-    std::iter::from_fn(move || {
-        if data.is_empty() {
-            return None;
-        }
-        // These triples were encoded in memory during term enumeration.
-        let mut next = || VInt::deserialize_u64(&mut data).expect("complete term metadata");
-        let start = previous_end + next() as usize;
-        let end = start + next() as usize;
-        previous_end = end;
-        Some((start..end, next() as u32))
-    })
-}
-
-#[cfg(feature = "quickwit")]
-fn add_postings_to_bitset(
-    mut bitset: BitSet,
-    batch: Vec<(u32, OwnedBytes)>,
-    record_option: IndexRecordOption,
-) -> io::Result<BitSet> {
-    for (doc_freq, bytes) in batch {
-        let mut postings = BlockSegmentPostings::open_bytes(
-            doc_freq,
-            bytes,
-            record_option,
-            IndexRecordOption::Basic,
-        )?;
-        while !postings.docs().is_empty() {
-            for &doc in postings.docs() {
-                bitset.insert(doc);
-            }
-            postings.advance();
-        }
-    }
-    Ok(bitset)
-}
-
 /// The inverted index reader is in charge of accessing
 /// the inverted index associated with a specific field.
 ///
@@ -589,7 +548,19 @@ impl InvertedIndexReader {
         if encoded_terminfo.is_empty() {
             return Ok(bitset);
         }
-        let terms = matching_postings(OwnedBytes::new(encoded_terminfo));
+        let mut data = OwnedBytes::new(encoded_terminfo);
+        let mut previous_end = 0;
+        let terms = std::iter::from_fn(move || {
+            if data.is_empty() {
+                return None;
+            }
+            // These triples were encoded in memory during term enumeration.
+            let mut next = || VInt::deserialize_u64(&mut data).expect("complete term metadata");
+            let start = previous_end + next() as usize;
+            let end = start + next() as usize;
+            previous_end = end;
+            Some((start..end, next() as u32))
+        });
         let ranges = terms.clone().map(|(range, _)| range);
         let mut postings = self
             .postings_file_slice
@@ -617,8 +588,25 @@ impl InvertedIndexReader {
                     break;
                 }
             }
+            let add_batch = move || -> io::Result<BitSet> {
+                for (doc_freq, bytes) in batch {
+                    let mut postings = BlockSegmentPostings::open_bytes(
+                        doc_freq,
+                        bytes,
+                        record_option,
+                        IndexRecordOption::Basic,
+                    )?;
+                    while !postings.docs().is_empty() {
+                        for &doc in postings.docs() {
+                            bitset.insert(doc);
+                        }
+                        postings.advance();
+                    }
+                }
+                Ok(bitset)
+            };
             bitset = executor
-                .spawn_blocking(move || add_postings_to_bitset(bitset, batch, record_option))
+                .spawn_blocking(add_batch)
                 .await
                 .map_err(|_| io::Error::other("automaton bitset task panicked"))??;
         }
