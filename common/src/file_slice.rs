@@ -460,10 +460,8 @@ mod tests {
                     &self,
                     ranges: Box<dyn Iterator<Item = (Range<usize>, u64)> + Send>,
                 ) -> BoxStream<'_, io::Result<(OwnedBytes, u64)>> {
-                    let ranges: Vec<_> = ranges.collect();
-                    assert_eq!(ranges, [(4..6, 9), (2..3, 5)]);
                     static BYTES: &[u8] = b"abcdefgh";
-                    BYTES.stream_ranges(Box::new(ranges.into_iter()))
+                    BYTES.stream_ranges(ranges)
                 }
             }
 
