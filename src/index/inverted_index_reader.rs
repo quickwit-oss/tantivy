@@ -8,14 +8,14 @@ use common::{BinarySerializable, ByteCount};
 #[cfg(feature = "quickwit")]
 use common::{BitSet, OwnedBytes, VInt};
 #[cfg(feature = "quickwit")]
-use futures_util::{stream, FutureExt, StreamExt, TryStreamExt};
+use futures_util::{FutureExt, StreamExt, TryStreamExt};
 #[cfg(feature = "quickwit")]
 use itertools::Itertools;
 #[cfg(feature = "quickwit")]
 use tantivy_fst::automaton::{AlwaysMatch, Automaton};
-#[cfg(feature = "quickwit")]
-use tokio::io::{AsyncReadExt, BufReader};
 
+#[cfg(feature = "quickwit")]
+use crate::directory::FileHandle;
 use crate::directory::FileSlice;
 use crate::positions::PositionReader;
 use crate::postings::{BlockSegmentPostings, SegmentPostings, TermInfo};
@@ -29,30 +29,64 @@ use crate::Executor;
 const MERGE_HOLES_UNDER_BYTES: usize = (80 * 1024 * 1024 * 50) / 1000;
 
 #[cfg(feature = "quickwit")]
-fn coalesce_posting_ranges(
+fn send_coalesced_posting_ranges(
     posting_ranges: impl Iterator<Item = std::ops::Range<usize>>,
-) -> impl Iterator<Item = std::ops::Range<usize>> {
-    posting_ranges.coalesce(|range1, range2| {
+    sender: futures_channel::mpsc::UnboundedSender<std::ops::Range<usize>>,
+) -> io::Result<()> {
+    let merged_posting_ranges = posting_ranges.coalesce(|range1, range2| {
         if range1.end + MERGE_HOLES_UNDER_BYTES >= range2.start {
             Ok(range1.start..range2.end)
         } else {
             Err((range1, range2))
         }
-    })
-}
-
-#[cfg(feature = "quickwit")]
-fn send_coalesced_posting_ranges(
-    posting_ranges: impl Iterator<Item = std::ops::Range<usize>>,
-    sender: futures_channel::mpsc::UnboundedSender<std::ops::Range<usize>>,
-) -> io::Result<()> {
-    let merged_posting_ranges = coalesce_posting_ranges(posting_ranges);
+    });
     for posting_range in merged_posting_ranges {
         sender
             .unbounded_send(posting_range)
             .map_err(|_| io::Error::other("failed to send posting range back"))?;
     }
     Ok(())
+}
+
+#[cfg(feature = "quickwit")]
+fn matching_postings(
+    mut data: OwnedBytes,
+) -> impl Iterator<Item = (std::ops::Range<usize>, u32)> + Clone {
+    let mut previous_end = 0;
+    std::iter::from_fn(move || {
+        if data.is_empty() {
+            return None;
+        }
+        // These triples were encoded in memory during term enumeration.
+        let mut next = || VInt::deserialize_u64(&mut data).expect("complete term metadata");
+        let start = previous_end + next() as usize;
+        let end = start + next() as usize;
+        previous_end = end;
+        Some((start..end, next() as u32))
+    })
+}
+
+#[cfg(feature = "quickwit")]
+fn add_postings_to_bitset(
+    mut bitset: BitSet,
+    batch: Vec<(u32, OwnedBytes)>,
+    record_option: IndexRecordOption,
+) -> io::Result<BitSet> {
+    for (doc_freq, bytes) in batch {
+        let mut postings = BlockSegmentPostings::open_bytes(
+            doc_freq,
+            bytes,
+            record_option,
+            IndexRecordOption::Basic,
+        )?;
+        while !postings.docs().is_empty() {
+            for &doc in postings.docs() {
+                bitset.insert(doc);
+            }
+            postings.advance();
+        }
+    }
+    Ok(bitset)
 }
 
 /// The inverted index reader is in charge of accessing
@@ -505,9 +539,8 @@ impl InvertedIndexReader {
 
     /// Reads postings matched by an automaton and unions their document IDs into a bitset.
     ///
-    /// Loads selected dictionary blocks asynchronously, then streams coalesced posting ranges,
-    /// skipping gaps and decoding batches targeting 1 MiB of posting bytes per CPU task.
-    /// Posting lists are kept whole. Gaps up to 4 MiB are coalesced.
+    /// Loads selected dictionary blocks asynchronously, then requests the matching posting ranges
+    /// as one ordered stream. The storage backend decides which reads to coalesce.
     /// No synchronous body reads or directory cache are required. Dictionary blocks are released
     /// after term enumeration. Posting buffers are released after decoding each batch.
     /// Matching term metadata is retained as VInts: delta-encoded posting offsets, posting
@@ -538,88 +571,62 @@ impl InvertedIndexReader {
         let cpu_bound_task = move || {
             let mut encoded_terminfo = Vec::new();
             let mut previous_end = 0;
-            let posting_ranges = std::iter::from_fn(|| {
-                let info = stream.next_without_key()?;
+            while let Some(info) = stream.next_without_key() {
                 let range = info.postings_range.clone();
                 // Retain only what decoding postings needs, avoiding another dictionary scan.
                 VInt((range.start - previous_end) as u64).serialize_into_vec(&mut encoded_terminfo);
                 VInt(range.len() as u64).serialize_into_vec(&mut encoded_terminfo);
                 VInt(u64::from(info.doc_freq)).serialize_into_vec(&mut encoded_terminfo);
                 previous_end = range.end;
-                Some(range)
-            });
-            let ranges: Vec<_> = coalesce_posting_ranges(posting_ranges).collect();
-            (encoded_terminfo, ranges)
+            }
+            encoded_terminfo
         };
-        let (encoded_terminfo, ranges) = executor
+        let encoded_terminfo = executor
             .spawn_blocking(cpu_bound_task)
             .await
             .map_err(|_| io::Error::other("automaton term enumeration task panicked"))?;
-        let mut readers = stream::iter(ranges)
-            .map(|range| async move {
-                let reader = self
-                    .postings_file_slice
-                    .slice(range.clone())
-                    .read_bytes_stream()
-                    .await?;
-                io::Result::Ok((range, BufReader::new(reader)))
-            })
-            .buffered(5);
-        const TARGET_BATCH_BYTES: usize = 1024 * 1024;
-        let encoded_terminfo = OwnedBytes::new(encoded_terminfo);
-        let mut data = &encoded_terminfo[..];
-        let mut previous_end = 0;
-        let record_option = self.record_option;
-        let mut batch = Vec::new();
-        let mut batch_start = 0;
         let mut bitset = BitSet::with_max_value(max_doc);
-        while let Some((range, mut reader)) = readers.try_next().await? {
-            let mut position = range.start;
-            while position < range.end {
-                let start = previous_end + VInt::deserialize_u64(&mut data)? as usize;
-                let end = start + VInt::deserialize_u64(&mut data)? as usize;
-                VInt::deserialize_u64(&mut data)?; // Document frequency is used during decoding.
-                previous_end = end;
-                let gap = (start - position) as u64;
-                tokio::io::copy(&mut (&mut reader).take(gap), &mut tokio::io::sink()).await?;
-                let offset = batch.len();
-                batch.resize(offset + (end - start), 0);
-                reader.read_exact(&mut batch[offset..]).await?;
-                position = end;
-                if batch.len() < TARGET_BATCH_BYTES && !data.is_empty() {
-                    continue;
+        if encoded_terminfo.is_empty() {
+            return Ok(bitset);
+        }
+        let terms = matching_postings(OwnedBytes::new(encoded_terminfo));
+        let ranges = terms.clone().map(|(range, _)| range);
+        let mut postings = self
+            .postings_file_slice
+            .read_bytes_batch_stream(Box::new(ranges));
+        let mut terms = terms.peekable();
+        let record_option = self.record_option;
+        while terms.peek().is_some() {
+            const TARGET_DECODE_BATCH_BYTES: usize = 1024 * 1024;
+            let mut batch = Vec::new();
+            let mut batch_bytes = 0;
+            for (range, doc_freq) in terms.by_ref() {
+                let bytes = postings
+                    .try_next()
+                    .await?
+                    .ok_or(io::ErrorKind::UnexpectedEof)?;
+                if bytes.len() != range.len() {
+                    return Err(io::Error::new(
+                        io::ErrorKind::InvalidData,
+                        "wrong posting list length",
+                    ));
                 }
-                let batch_end = encoded_terminfo.len() - data.len();
-                let mut term_infos = encoded_terminfo.slice(batch_start..batch_end);
-                batch_start = batch_end;
-                let mut bytes = OwnedBytes::new(std::mem::take(&mut batch));
-                bitset = executor
-                    .spawn_blocking(move || -> io::Result<BitSet> {
-                        while !term_infos.is_empty() {
-                            // Gaps were skipped during reading.
-                            VInt::deserialize_u64(&mut term_infos)?;
-                            let len = VInt::deserialize_u64(&mut term_infos)? as usize;
-                            let doc_freq = VInt::deserialize_u64(&mut term_infos)? as u32;
-                            let (posting_bytes, rest) = bytes.split(len);
-                            bytes = rest;
-                            let mut postings = BlockSegmentPostings::open_bytes(
-                                doc_freq,
-                                posting_bytes,
-                                record_option,
-                                IndexRecordOption::Basic,
-                            )?;
-                            while !postings.docs().is_empty() {
-                                for &doc in postings.docs() {
-                                    bitset.insert(doc);
-                                }
-                                postings.advance();
-                            }
-                        }
-                        Ok(bitset)
-                    })
-                    .await
-                    .map_err(|_| io::Error::other("automaton bitset task panicked"))??;
+                batch_bytes += bytes.len() + std::mem::size_of::<(u32, OwnedBytes)>();
+                batch.push((doc_freq, bytes));
+                if batch_bytes >= TARGET_DECODE_BATCH_BYTES {
+                    break;
+                }
             }
+            bitset = executor
+                .spawn_blocking(move || add_postings_to_bitset(bitset, batch, record_option))
+                .await
+                .map_err(|_| io::Error::other("automaton bitset task panicked"))??;
+        }
+        if postings.try_next().await?.is_some() {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                "unexpected posting list",
+            ));
         }
         Ok(bitset)
     }

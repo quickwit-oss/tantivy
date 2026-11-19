@@ -5,6 +5,8 @@ use std::sync::Arc;
 use std::{fmt, io};
 
 use async_trait::async_trait;
+#[cfg(feature = "quickwit")]
+use futures_util::stream::{self, BoxStream, StreamExt};
 use ownedbytes::{OwnedBytes, StableDeref};
 
 use crate::{ByteCount, HasLen};
@@ -33,20 +35,16 @@ pub trait FileHandle: 'static + Send + Sync + HasLen + fmt::Debug {
         ))
     }
 
-    /// Opens an owned reader yielding exactly the requested range, then EOF.
-    ///
-    /// The reader can outlive this handle. Dropping it cancels further reads.
-    /// Backends must override this method to support streaming. The default returns
-    /// [`io::ErrorKind::Unsupported`]. Invalid ranges may panic.
+    /// Streams one complete buffer per range, in input order, including duplicates and empty
+    /// ranges. Backends may coalesce reads but should yield requested bytes as they arrive,
+    /// without buffering an entire merged read. Dropping the stream cancels further reads.
+    /// The default yields `Unsupported`. Invalid ranges may panic.
     #[cfg(feature = "quickwit")]
-    async fn read_bytes_stream(
+    fn read_bytes_batch_stream(
         &self,
-        _range: Range<usize>,
-    ) -> io::Result<Box<dyn tokio::io::AsyncRead + Send + Unpin>> {
-        Err(io::Error::new(
-            io::ErrorKind::Unsupported,
-            "Streaming read is not supported.",
-        ))
+        _ranges: Box<dyn Iterator<Item = Range<usize>> + Send>,
+    ) -> BoxStream<'_, io::Result<OwnedBytes>> {
+        stream::once(async { Err(io::ErrorKind::Unsupported.into()) }).boxed()
     }
 }
 
@@ -118,11 +116,11 @@ impl FileHandle for &'static [u8] {
     }
 
     #[cfg(feature = "quickwit")]
-    async fn read_bytes_stream(
+    fn read_bytes_batch_stream(
         &self,
-        range: Range<usize>,
-    ) -> io::Result<Box<dyn tokio::io::AsyncRead + Send + Unpin>> {
-        Ok(Box::new(io::Cursor::new(&self[range])))
+        ranges: Box<dyn Iterator<Item = Range<usize>> + Send>,
+    ) -> BoxStream<'_, io::Result<OwnedBytes>> {
+        stream::iter(ranges.map(|range| self.read_bytes(range))).boxed()
     }
 }
 
@@ -286,16 +284,6 @@ impl FileSlice {
             .await
     }
 
-    /// Opens an owned reader for this entire slice.
-    ///
-    /// See [`FileHandle::read_bytes_stream`] for backend and cancellation requirements.
-    #[cfg(feature = "quickwit")]
-    pub async fn read_bytes_stream(
-        &self,
-    ) -> io::Result<Box<dyn tokio::io::AsyncRead + Send + Unpin>> {
-        self.data.read_bytes_stream(self.range.clone()).await
-    }
-
     /// Splits the FileSlice at the given offset and return two file slices.
     /// `file_slice[..split_offset]` and `file_slice[split_offset..]`.
     ///
@@ -356,11 +344,16 @@ impl FileHandle for FileSlice {
     }
 
     #[cfg(feature = "quickwit")]
-    async fn read_bytes_stream(
+    fn read_bytes_batch_stream(
         &self,
-        range: Range<usize>,
-    ) -> io::Result<Box<dyn tokio::io::AsyncRead + Send + Unpin>> {
-        self.slice(range).read_bytes_stream().await
+        ranges: Box<dyn Iterator<Item = Range<usize>> + Send>,
+    ) -> BoxStream<'_, io::Result<OwnedBytes>> {
+        let slice = self.range.clone();
+        self.data
+            .read_bytes_batch_stream(Box::new(ranges.map(move |range| {
+                assert!(range.start <= range.end && range.end <= slice.len());
+                slice.start + range.start..slice.start + range.end
+            })))
     }
 }
 
@@ -381,11 +374,11 @@ impl FileHandle for OwnedBytes {
     }
 
     #[cfg(feature = "quickwit")]
-    async fn read_bytes_stream(
+    fn read_bytes_batch_stream(
         &self,
-        range: Range<usize>,
-    ) -> io::Result<Box<dyn tokio::io::AsyncRead + Send + Unpin>> {
-        Ok(Box::new(io::Cursor::new(self.slice(range))))
+        ranges: Box<dyn Iterator<Item = Range<usize>> + Send>,
+    ) -> BoxStream<'_, io::Result<OwnedBytes>> {
+        stream::iter(ranges.map(|range| self.read_bytes(range))).boxed()
     }
 }
 
@@ -443,7 +436,7 @@ mod tests {
 
         use async_trait::async_trait;
         use futures_util::FutureExt;
-        use tokio::io::AsyncReadExt;
+        use futures_util::stream::{BoxStream, TryStreamExt};
 
         use super::*;
         use crate::OwnedBytes;
@@ -466,23 +459,24 @@ mod tests {
                     panic!("expected a streaming read");
                 }
 
-                async fn read_bytes_stream(
+                fn read_bytes_batch_stream(
                     &self,
-                    range: Range<usize>,
-                ) -> io::Result<Box<dyn tokio::io::AsyncRead + Send + Unpin>> {
-                    assert_eq!(range, 4..6);
-                    b"abcdefgh".as_slice().read_bytes_stream(range).await
+                    ranges: Box<dyn Iterator<Item = Range<usize>> + Send>,
+                ) -> BoxStream<'_, io::Result<OwnedBytes>> {
+                    let ranges: Vec<_> = ranges.collect();
+                    assert_eq!(ranges, [4..6, 2..3]);
+                    static BYTES: &[u8] = b"abcdefgh";
+                    BYTES.read_bytes_batch_stream(Box::new(ranges.into_iter()))
                 }
             }
 
             async {
                 let inner = FileSlice::new(Arc::new(StreamOnlyHandle)).slice(1..8);
                 let outer = FileSlice::new(Arc::new(inner)).slice(1..6);
-                let mut reader = FileHandle::read_bytes_stream(&outer, 2..4).await.unwrap();
-                drop(outer);
-                let mut bytes = Vec::new();
-                reader.read_to_end(&mut bytes).await.unwrap();
-                assert_eq!(bytes, b"ef");
+                let mut stream = outer.read_bytes_batch_stream(Box::new([2..4, 0..1].into_iter()));
+                assert_eq!(&*stream.try_next().await.unwrap().unwrap(), b"ef");
+                assert_eq!(&*stream.try_next().await.unwrap().unwrap(), b"c");
+                assert!(stream.try_next().await.unwrap().is_none());
             }
             .now_or_never()
             .unwrap();
@@ -496,17 +490,13 @@ mod tests {
             ];
             async {
                 for handle in handles {
-                    let mut reader = handle.read_bytes_stream(1..4).await.unwrap();
-                    let mut empty = handle.read_bytes_stream(6..6).await.unwrap();
-                    drop(handle);
-                    assert_eq!(reader.read_u8().await.unwrap(), b'b');
-                    let mut bytes = Vec::new();
-                    reader.read_to_end(&mut bytes).await.unwrap();
-                    assert_eq!(bytes, b"cd");
-                    assert_eq!(empty.read_to_end(&mut bytes).await.unwrap(), 0);
+                    let ranges = [1..4, 6..6, 1..4];
+                    let mut stream = handle.read_bytes_batch_stream(Box::new(ranges.into_iter()));
+                    for expected in [b"bcd".as_slice(), b"", b"bcd"] {
+                        assert_eq!(&*stream.try_next().await.unwrap().unwrap(), expected);
+                    }
+                    assert!(stream.try_next().await.unwrap().is_none());
                 }
-                let mut empty = FileSlice::empty().read_bytes_stream().await.unwrap();
-                assert_eq!(empty.read(&mut [0]).await.unwrap(), 0);
             }
             .now_or_never()
             .unwrap();
@@ -519,7 +509,9 @@ mod tests {
             for range in [0..4, 4..4, Range { start: 2, end: 1 }] {
                 assert!(
                     catch_unwind(AssertUnwindSafe(|| {
-                        let _ = FileHandle::read_bytes_stream(&outer, range).now_or_never();
+                        let mut stream =
+                            outer.read_bytes_batch_stream(Box::new(std::iter::once(range)));
+                        let _ = stream.try_next().now_or_never();
                     }))
                     .is_err()
                 );
@@ -531,7 +523,11 @@ mod tests {
             let handle =
                 WrapFile::new(std::fs::File::open(std::env::current_exe().unwrap()).unwrap())
                     .unwrap();
-            let result = handle.read_bytes_stream(0..0).now_or_never().unwrap();
+            let result = handle
+                .read_bytes_batch_stream(Box::new(std::iter::once(0..0)))
+                .try_next()
+                .now_or_never()
+                .unwrap();
             assert_eq!(result.err().unwrap().kind(), io::ErrorKind::Unsupported);
         }
     }

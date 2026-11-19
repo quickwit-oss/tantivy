@@ -4,11 +4,10 @@ use std::ops::Range;
 use std::pin::Pin;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex, Weak};
-use std::task::{Context, Poll};
 
 use common::{BitSet, HasLen};
+use futures_util::stream::{self, BoxStream, StreamExt};
 use tantivy_fst::Regex;
-use tokio::io::{AsyncRead, ReadBuf};
 
 use super::InvertedIndexReader;
 use crate::directory::{FileHandle, FileSlice, OwnedBytes};
@@ -25,7 +24,9 @@ enum ReadBehavior {
     FailOpen,
     Pending,
     FailBody,
-    Truncate(usize),
+    Short,
+    Missing,
+    Extra,
 }
 
 #[derive(Debug, Default)]
@@ -116,53 +117,30 @@ impl FileHandle for AsyncFile {
         })
     }
 
-    fn read_bytes_stream<'a, 'f>(
-        &'a self,
-        range: Range<usize>,
-    ) -> Pin<Box<dyn Future<Output = io::Result<Box<dyn AsyncRead + Send + Unpin>>> + Send + 'f>>
-    where
-        'a: 'f,
-        Self: 'f,
-    {
-        Box::pin(async move {
-            let (mut bytes, behavior) = self.read_range(range)?;
-            if let ReadBehavior::Truncate(len) = behavior {
-                bytes = bytes.slice(0..bytes.len().min(len));
-            }
-            Ok(Box::new(TestReader {
-                bytes,
-                bytes_read: self.bytes_read.clone(),
-                behavior,
-            }) as Box<dyn AsyncRead + Send + Unpin>)
-        })
-    }
-}
-
-struct TestReader {
-    bytes: OwnedBytes,
-    bytes_read: Arc<AtomicUsize>,
-    behavior: ReadBehavior,
-}
-
-impl AsyncRead for TestReader {
-    fn poll_read(
-        mut self: Pin<&mut Self>,
-        _: &mut Context<'_>,
-        buffer: &mut ReadBuf<'_>,
-    ) -> Poll<io::Result<()>> {
-        match self.behavior {
-            ReadBehavior::Pending => return Poll::Pending,
-            ReadBehavior::FailBody => {
-                return Poll::Ready(Err(io::Error::other("injected body failure")));
-            }
-            _ => {}
+    fn read_bytes_batch_stream(
+        &self,
+        ranges: Box<dyn Iterator<Item = Range<usize>> + Send>,
+    ) -> BoxStream<'_, io::Result<OwnedBytes>> {
+        let behavior = self.state.lock().unwrap().behavior;
+        if matches!(behavior, ReadBehavior::Missing) {
+            return stream::empty().boxed();
         }
-        // Force reads across chunk boundaries, independent of posting boundaries.
-        let len = buffer.remaining().min(self.bytes.len()).min(7);
-        buffer.put_slice(&self.bytes[..len]);
-        self.bytes.advance(len);
-        self.bytes_read.fetch_add(len, Ordering::SeqCst);
-        Poll::Ready(Ok(()))
+        let extra = matches!(behavior, ReadBehavior::Extra).then_some(0..0);
+        stream::iter(ranges.chain(extra))
+            .then(move |range| async move {
+                let (bytes, behavior) = self.read_range(range)?;
+                match behavior {
+                    ReadBehavior::Pending => std::future::pending::<()>().await,
+                    ReadBehavior::FailBody => {
+                        return Err(io::Error::other("injected body failure"))
+                    }
+                    ReadBehavior::Short => return Ok(bytes.slice(0..0)),
+                    _ => {}
+                }
+                self.bytes_read.fetch_add(bytes.len(), Ordering::SeqCst);
+                Ok(bytes)
+            })
+            .boxed()
     }
 }
 
@@ -239,7 +217,7 @@ fn owned_bitset_async_reads() -> crate::Result<()> {
             (".*", (0..264).collect()),
         ] {
             let (reader, dictionary_file, postings_file) = fixture(option)?;
-            // Determine expected coalesced ranges using a separate in-memory dictionary.
+            // Expect exactly the matching ranges, even when nearby terms could share a read.
             let dictionary =
                 TermDictionary::open(FileSlice::new(Arc::new(dictionary_file.bytes.clone())))?;
             let mut stream = dictionary
@@ -251,11 +229,7 @@ fn owned_bitset_async_reads() -> crate::Result<()> {
             }
             let bitset = read_bitset(&reader, pattern, 264, &executor)?;
             assert_eq!(dictionary_file.state.lock().unwrap().reads.len(), 1);
-            let expected_ranges: Vec<_> = match (ranges.first(), ranges.last()) {
-                (Some(first), Some(last)) => vec![first.start..last.end],
-                _ => vec![],
-            };
-            assert_eq!(postings_file.state.lock().unwrap().reads, expected_ranges);
+            assert_eq!(postings_file.state.lock().unwrap().reads, ranges);
             dictionary_file.assert_released();
             postings_file.assert_released();
             drop(reader);
@@ -307,56 +281,6 @@ fn owned_bitset_many_terms() -> crate::Result<()> {
 }
 
 #[test]
-fn owned_bitset_coalescing() -> crate::Result<()> {
-    for gap in [0, 4 * 1024 * 1024, 4 * 1024 * 1024 + 1] {
-        let (mut reader, dictionary, postings) = fixture(IndexRecordOption::Basic)?;
-        let source = TermDictionary::open(FileSlice::new(Arc::new(dictionary.bytes.clone())))?;
-        let mut builder = TermDictionaryBuilder::create(Vec::new())?;
-        let mut bytes = Vec::new();
-        let mut ranges = Vec::new();
-        for key in [b"apple".as_slice(), b"berry"] {
-            let mut info = source.get(key)?.unwrap();
-            let start = bytes.len();
-            bytes.extend_from_slice(&postings.bytes[info.postings_range.clone()]);
-            info.postings_range = start..bytes.len();
-            ranges.push(info.postings_range.clone());
-            builder.insert(key, &info)?;
-            if key == b"apple" && gap > 0 {
-                // Dictionary encoding requires consecutive posting ranges. An unmatched
-                // term accounts for the gap without requiring a large real index.
-                info.postings_range = bytes.len()..bytes.len() + gap;
-                info.doc_freq = 1;
-                builder.insert(b"banana", &info)?;
-                bytes.resize(bytes.len() + gap, 0);
-            }
-        }
-        reader.termdict = TermDictionary::open(FileSlice::from(builder.finish()?))?;
-        let postings = AsyncFile::new(OwnedBytes::new(bytes));
-        postings.reject_sync();
-        reader.postings_file_slice = FileSlice::new(postings.clone());
-        let bitset = read_bitset(&reader, "apple|berry", 264, &Executor::single_thread())?;
-        assert_eq!(bitset.len(), 262);
-        let expected = if gap <= 4 * 1024 * 1024 {
-            vec![0..ranges[1].end]
-        } else {
-            ranges.clone()
-        };
-        assert_eq!(postings.state.lock().unwrap().reads, expected);
-        postings.assert_released();
-
-        // EOF while skipping a coalesced gap must fail too.
-        if gap == 4 * 1024 * 1024 {
-            postings.set_behavior(ReadBehavior::Truncate(ranges[0].end + 1));
-            let error =
-                read_bitset(&reader, "apple|berry", 264, &Executor::single_thread()).unwrap_err();
-            assert_eq!(error.kind(), io::ErrorKind::UnexpectedEof);
-            postings.assert_released();
-        }
-    }
-    Ok(())
-}
-
-#[test]
 fn owned_bitset_cancellation_releases_buffers() -> crate::Result<()> {
     let executor = Executor::single_thread();
     for pause_dictionary in [true, false] {
@@ -389,11 +313,22 @@ fn owned_bitset_cancellation_releases_buffers() -> crate::Result<()> {
 #[test]
 fn owned_bitset_errors() -> crate::Result<()> {
     let executor = Executor::single_thread();
+    for behavior in [ReadBehavior::Short, ReadBehavior::Extra] {
+        let (reader, _, postings) = fixture(IndexRecordOption::Basic)?;
+        postings.set_behavior(behavior);
+        assert_eq!(
+            read_bitset(&reader, ".*", 264, &executor)
+                .unwrap_err()
+                .kind(),
+            io::ErrorKind::InvalidData
+        );
+        postings.assert_released();
+    }
     for (fail_dictionary, behavior, expected_message) in [
         (true, ReadBehavior::FailOpen, Some("injected read failure")),
         (false, ReadBehavior::FailOpen, Some("injected read failure")),
         (false, ReadBehavior::FailBody, Some("injected body failure")),
-        (false, ReadBehavior::Truncate(1), None),
+        (false, ReadBehavior::Missing, None),
     ] {
         let (reader, dictionary, postings) = fixture(IndexRecordOption::Basic)?;
         let file = if fail_dictionary {
