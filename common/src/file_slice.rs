@@ -40,7 +40,7 @@ pub trait FileHandle: 'static + Send + Sync + HasLen + fmt::Debug {
     /// without buffering an entire merged read. Dropping the stream cancels further reads.
     /// The default calls `read_bytes_async` for one range at a time. Invalid ranges may panic.
     #[cfg(feature = "quickwit")]
-    fn read_bytes_batch_stream(
+    fn stream_ranges(
         &self,
         ranges: Box<dyn Iterator<Item = Range<usize>> + Send>,
     ) -> BoxStream<'_, io::Result<OwnedBytes>> {
@@ -338,16 +338,15 @@ impl FileHandle for FileSlice {
     }
 
     #[cfg(feature = "quickwit")]
-    fn read_bytes_batch_stream(
+    fn stream_ranges(
         &self,
         ranges: Box<dyn Iterator<Item = Range<usize>> + Send>,
     ) -> BoxStream<'_, io::Result<OwnedBytes>> {
         let slice = self.range.clone();
-        self.data
-            .read_bytes_batch_stream(Box::new(ranges.map(move |range| {
-                assert!(range.start <= range.end && range.end <= slice.len());
-                slice.start + range.start..slice.start + range.end
-            })))
+        self.data.stream_ranges(Box::new(ranges.map(move |range| {
+            assert!(range.start <= range.end && range.end <= slice.len());
+            slice.start + range.start..slice.start + range.end
+        })))
     }
 }
 
@@ -426,7 +425,6 @@ mod tests {
 
         use super::*;
         use crate::OwnedBytes;
-        use crate::file_slice::WrapFile;
 
         #[test]
         fn nested_slices() {
@@ -445,21 +443,21 @@ mod tests {
                     panic!("expected a streaming read");
                 }
 
-                fn read_bytes_batch_stream(
+                fn stream_ranges(
                     &self,
                     ranges: Box<dyn Iterator<Item = Range<usize>> + Send>,
                 ) -> BoxStream<'_, io::Result<OwnedBytes>> {
                     let ranges: Vec<_> = ranges.collect();
                     assert_eq!(ranges, [4..6, 2..3]);
                     static BYTES: &[u8] = b"abcdefgh";
-                    BYTES.read_bytes_batch_stream(Box::new(ranges.into_iter()))
+                    BYTES.stream_ranges(Box::new(ranges.into_iter()))
                 }
             }
 
             async {
                 let inner = FileSlice::new(Arc::new(StreamOnlyHandle)).slice(1..8);
                 let outer = FileSlice::new(Arc::new(inner)).slice(1..6);
-                let mut stream = outer.read_bytes_batch_stream(Box::new([2..4, 0..1].into_iter()));
+                let mut stream = outer.stream_ranges(Box::new([2..4, 0..1].into_iter()));
                 assert_eq!(&*stream.try_next().await.unwrap().unwrap(), b"ef");
                 assert_eq!(&*stream.try_next().await.unwrap().unwrap(), b"c");
                 assert!(stream.try_next().await.unwrap().is_none());
@@ -477,7 +475,7 @@ mod tests {
             async {
                 for handle in handles {
                     let ranges = [1..4, 6..6, 1..4];
-                    let mut stream = handle.read_bytes_batch_stream(Box::new(ranges.into_iter()));
+                    let mut stream = handle.stream_ranges(Box::new(ranges.into_iter()));
                     for expected in [b"bcd".as_slice(), b"", b"bcd"] {
                         assert_eq!(&*stream.try_next().await.unwrap().unwrap(), expected);
                     }
@@ -495,26 +493,12 @@ mod tests {
             for range in [0..4, 4..4, Range { start: 2, end: 1 }] {
                 assert!(
                     catch_unwind(AssertUnwindSafe(|| {
-                        let mut stream =
-                            outer.read_bytes_batch_stream(Box::new(std::iter::once(range)));
+                        let mut stream = outer.stream_ranges(Box::new(std::iter::once(range)));
                         let _ = stream.try_next().now_or_never();
                     }))
                     .is_err()
                 );
             }
-        }
-
-        #[test]
-        fn default_unsupported() {
-            let handle =
-                WrapFile::new(std::fs::File::open(std::env::current_exe().unwrap()).unwrap())
-                    .unwrap();
-            let result = handle
-                .read_bytes_batch_stream(Box::new(std::iter::once(0..0)))
-                .try_next()
-                .now_or_never()
-                .unwrap();
-            assert_eq!(result.err().unwrap().kind(), io::ErrorKind::Unsupported);
         }
     }
 

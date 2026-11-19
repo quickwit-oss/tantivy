@@ -521,14 +521,14 @@ impl InvertedIndexReader {
         A::State: Clone + Send + 'static,
     {
         const TARGET_BATCH_BYTES: usize = 1024 * 1024;
-        let (file, blocks) = self.termdict.matching_blocks(&automaton);
+        let (file, blocks) = self.termdict.candidate_blocks(&automaton);
         let (ranges, block_info): (Vec<_>, Vec<_>) = blocks
             .map(|block| {
-                let info = (block.byte_range.len(), block.first_ordinal);
-                (block.byte_range, info)
+                let len = block.byte_range.len();
+                (block.byte_range, (len, block.first_ordinal))
             })
             .unzip();
-        let mut reads = file.read_bytes_batch_stream(Box::new(ranges.into_iter()));
+        let mut dictionary_blocks = file.stream_ranges(Box::new(ranges.into_iter()));
         let mut block_info = block_info.into_iter().peekable();
         let mut encoded_terminfo = Vec::new();
         let mut previous_end = 0;
@@ -537,7 +537,7 @@ impl InvertedIndexReader {
             let mut batch_bytes = 0;
             let mut batch = Vec::new();
             for (len, first_ordinal) in block_info.by_ref() {
-                let bytes = reads
+                let bytes = dictionary_blocks
                     .try_next()
                     .await?
                     .ok_or(io::ErrorKind::UnexpectedEof)?;
@@ -557,7 +557,7 @@ impl InvertedIndexReader {
                 .termdict
                 .search(automaton)
                 .without_keys()
-                .into_stream_given_delta_reader(sstable::DeltaReader::from_multiple_blocks(batch))?
+                .into_stream_from_delta_reader(sstable::DeltaReader::from_multiple_blocks(batch))?
                 .into_owned();
             (automaton, encoded_terminfo, previous_end) = executor
                 .spawn_blocking(move || {
@@ -574,13 +574,13 @@ impl InvertedIndexReader {
                 .await
                 .map_err(|_| io::Error::other("automaton term enumeration task panicked"))?;
         }
-        if reads.try_next().await?.is_some() {
+        if dictionary_blocks.try_next().await?.is_some() {
             return Err(io::Error::new(
                 io::ErrorKind::InvalidData,
                 "unexpected dictionary block",
             ));
         }
-        drop(reads);
+        drop(dictionary_blocks);
         let mut bitset = BitSet::with_max_value(max_doc);
         if encoded_terminfo.is_empty() {
             return Ok(bitset);
@@ -599,16 +599,14 @@ impl InvertedIndexReader {
             Some((start..end, next() as u32))
         });
         let ranges = terms.clone().map(|(range, _)| range);
-        let mut postings = self
-            .postings_file_slice
-            .read_bytes_batch_stream(Box::new(ranges));
+        let mut posting_lists = self.postings_file_slice.stream_ranges(Box::new(ranges));
         let mut terms = terms.peekable();
         let record_option = self.record_option;
         while terms.peek().is_some() {
             let mut batch = Vec::new();
             let mut batch_bytes = 0;
             for (range, doc_freq) in terms.by_ref() {
-                let bytes = postings
+                let bytes = posting_lists
                     .try_next()
                     .await?
                     .ok_or(io::ErrorKind::UnexpectedEof)?;
@@ -624,7 +622,7 @@ impl InvertedIndexReader {
                     break;
                 }
             }
-            let add_batch = move || -> io::Result<BitSet> {
+            let insert_doc_ids = move || -> io::Result<BitSet> {
                 for (doc_freq, bytes) in batch {
                     let mut postings = BlockSegmentPostings::open_bytes(
                         doc_freq,
@@ -642,11 +640,11 @@ impl InvertedIndexReader {
                 Ok(bitset)
             };
             bitset = executor
-                .spawn_blocking(add_batch)
+                .spawn_blocking(insert_doc_ids)
                 .await
                 .map_err(|_| io::Error::other("automaton bitset task panicked"))??;
         }
-        if postings.try_next().await?.is_some() {
+        if posting_lists.try_next().await?.is_some() {
             return Err(io::Error::new(
                 io::ErrorKind::InvalidData,
                 "unexpected posting list",
