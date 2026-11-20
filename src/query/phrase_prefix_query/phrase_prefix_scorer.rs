@@ -14,6 +14,7 @@ enum PhraseKind<TPostings: Postings> {
         position_offset: u32,
         postings: TPostings,
         positions: Vec<u32>,
+        boost: Score,
     },
     MultiPrefix(PhraseScorer<TPostings>),
 }
@@ -25,6 +26,7 @@ impl<TPostings: Postings> PhraseKind<TPostings> {
                 position_offset,
                 postings,
                 positions,
+                ..
             } => {
                 if positions.is_empty() {
                     postings.positions_with_offset(*position_offset, positions);
@@ -84,11 +86,13 @@ impl<TPostings: Postings> Scorer for PhraseKind<TPostings> {
     #[inline]
     fn score(&mut self) -> Score {
         match self {
-            PhraseKind::SinglePrefix { positions, .. } => {
+            PhraseKind::SinglePrefix {
+                positions, boost, ..
+            } => {
                 if positions.is_empty() {
                     0.0
                 } else {
-                    1.0
+                    *boost
                 }
             }
             PhraseKind::MultiPrefix(postings) => postings.score(),
@@ -112,6 +116,7 @@ impl<TPostings: Postings> PhrasePrefixScorer<TPostings> {
         fieldnorm_reader: FieldNormReader,
         suffixes: Vec<TPostings>,
         suffix_pos: usize,
+        boost: Score,
     ) -> PhrasePrefixScorer<TPostings> {
         // correct indices so we can merge with our suffix term the PhraseScorer doesn't know about
         let max_offset = term_postings
@@ -138,6 +143,7 @@ impl<TPostings: Postings> PhrasePrefixScorer<TPostings> {
                 position_offset: offset as u32,
                 postings,
                 positions: Vec::with_capacity(100),
+                boost,
             }
         };
         let mut phrase_prefix_scorer = PhrasePrefixScorer {
