@@ -144,6 +144,7 @@ Tantivy 0.26
     - Add fast field fallback for `TermQuery` when the field is not indexed [#2693](https://github.com/quickwit-oss/tantivy/pull/2693)(@PSeitz-dd)
     - Add fast field support for `Bytes` values [#2830](https://github.com/quickwit-oss/tantivy/pull/2830)(@mdashti)
 - **Query Parser**
+    - Represent spatial query arguments as recursive ASTs and preserve Boolean clauses, boosts, and inner-query errors when building spatial joins. `UserInputLeaf::Spatial.inner_query` changes from an optional string to `Option<Box<UserInputAst>>`; its serialized value changes from a string to an AST object.
     - Add support for regexes in the query grammar [#2677](https://github.com/quickwit-oss/tantivy/pull/2677) [#2818](https://github.com/quickwit-oss/tantivy/pull/2818)(@Darkheir)
     - Deduplicate queries in query parser [#2698](https://github.com/quickwit-oss/tantivy/pull/2698)(@PSeitz-dd)
 - Add erased `SortKeyComputer` for sorting on column types unknown until runtime [#2770](https://github.com/quickwit-oss/tantivy/pull/2770) [#2790](https://github.com/quickwit-oss/tantivy/pull/2790)(@stuhood @PSeitz)
