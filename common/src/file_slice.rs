@@ -5,6 +5,8 @@ use std::sync::Arc;
 use std::{fmt, io};
 
 use async_trait::async_trait;
+#[cfg(feature = "quickwit")]
+use futures_util::stream::{self, BoxStream, StreamExt};
 use ownedbytes::{OwnedBytes, StableDeref};
 
 use crate::{ByteCount, HasLen};
@@ -31,6 +33,23 @@ pub trait FileHandle: 'static + Send + Sync + HasLen + fmt::Debug {
             io::ErrorKind::Unsupported,
             "Async read is not supported.",
         ))
+    }
+
+    /// Streams one complete buffer per range, in input order, including duplicates and empty
+    /// ranges. Each buffer carries the caller's `u64` tag unchanged.
+    /// Backends may coalesce reads but should yield requested bytes as they arrive,
+    /// without buffering an entire merged read. Dropping the stream cancels further reads.
+    /// The default calls `read_bytes_async` for one range at a time. Invalid ranges may panic.
+    #[cfg(feature = "quickwit")]
+    fn stream_ranges(
+        &self,
+        ranges: Box<dyn Iterator<Item = (Range<usize>, u64)> + Send>,
+    ) -> BoxStream<'_, io::Result<(OwnedBytes, u64)>> {
+        stream::iter(ranges)
+            .then(move |(range, tag)| async move {
+                self.read_bytes_async(range).await.map(|bytes| (bytes, tag))
+            })
+            .boxed()
     }
 }
 
@@ -320,6 +339,17 @@ impl FileHandle for FileSlice {
     async fn read_bytes_async(&self, byte_range: Range<usize>) -> io::Result<OwnedBytes> {
         self.read_bytes_slice_async(byte_range).await
     }
+
+    #[cfg(feature = "quickwit")]
+    fn stream_ranges(
+        &self,
+        ranges: Box<dyn Iterator<Item = (Range<usize>, u64)> + Send>,
+    ) -> BoxStream<'_, io::Result<(OwnedBytes, u64)>> {
+        let offset = self.range.start;
+        self.data.stream_ranges(Box::new(
+            ranges.map(move |(range, tag)| (offset + range.start..offset + range.end, tag)),
+        ))
+    }
 }
 
 impl HasLen for FileSlice {
@@ -384,6 +414,76 @@ mod tests {
             assert_eq!(right.read_bytes()?.as_slice(), b"ef");
         }
         Ok(())
+    }
+
+    #[cfg(feature = "quickwit")]
+    mod streaming {
+        use std::ops::Range;
+
+        use async_trait::async_trait;
+        use futures_util::FutureExt;
+        use futures_util::stream::{BoxStream, TryStreamExt};
+
+        use super::*;
+        use crate::OwnedBytes;
+
+        fn assert_stream_items(
+            mut stream: BoxStream<'_, io::Result<(OwnedBytes, u64)>>,
+            expected: &[(&[u8], u64)],
+        ) {
+            let mut next = || stream.try_next().now_or_never().unwrap().unwrap();
+            for &item in expected {
+                let (bytes, tag) = next().expect("missing stream item");
+                assert_eq!((bytes.as_slice(), tag), item);
+            }
+            assert!(next().is_none());
+        }
+
+        #[test]
+        fn nested_slices() {
+            #[derive(Debug)]
+            struct StreamOnlyHandle;
+
+            impl HasLen for StreamOnlyHandle {
+                fn len(&self) -> usize {
+                    8
+                }
+            }
+
+            #[async_trait]
+            impl FileHandle for StreamOnlyHandle {
+                fn read_bytes(&self, _: Range<usize>) -> io::Result<OwnedBytes> {
+                    panic!("expected a streaming read");
+                }
+
+                fn stream_ranges(
+                    &self,
+                    ranges: Box<dyn Iterator<Item = (Range<usize>, u64)> + Send>,
+                ) -> BoxStream<'_, io::Result<(OwnedBytes, u64)>> {
+                    static BYTES: &[u8] = b"abcdefgh";
+                    BYTES.stream_ranges(ranges)
+                }
+            }
+
+            let inner = FileSlice::new(Arc::new(StreamOnlyHandle)).slice(1..8);
+            let outer = FileSlice::new(Arc::new(inner)).slice(1..6);
+            let ranges = [(2..4, 9), (0..1, 5)];
+            let stream = outer.stream_ranges(Box::new(ranges.into_iter()));
+            assert_stream_items(stream, &[(b"ef", 9), (b"c", 5)]);
+        }
+
+        #[test]
+        fn in_memory() {
+            let handles: [Box<dyn FileHandle>; 2] = [
+                Box::new(b"abcdef".as_slice()),
+                Box::new(OwnedBytes::new(b"abcdef".to_vec())),
+            ];
+            for handle in handles {
+                let ranges = [(1..4, 0), (6..6, 1), (1..4, 2)];
+                let stream = handle.stream_ranges(Box::new(ranges.into_iter()));
+                assert_stream_items(stream, &[(b"bcd", 0), (b"", 1), (b"bcd", 2)]);
+            }
+        }
     }
 
     #[test]

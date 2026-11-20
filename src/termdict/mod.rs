@@ -157,6 +157,26 @@ impl TermDictionary {
         self.0.search(automaton)
     }
 
+    /// Streams blocks that may contain a matching term, in dictionary order.
+    /// Each item pairs the block's bytes with the ordinal of its first term in the dictionary.
+    #[cfg(feature = "quickwit")]
+    pub(crate) fn stream_candidate_blocks(
+        &self,
+        automaton: &impl Automaton,
+    ) -> futures_util::stream::BoxStream<'_, io::Result<(common::OwnedBytes, TermOrdinal)>> {
+        use crate::directory::FileHandle;
+
+        let blocks: Vec<_> = self
+            .0
+            .sstable_index
+            .get_block_for_automaton(automaton)
+            .map(|(_, block)| (block.byte_range, block.first_ordinal))
+            .collect();
+        self.0
+            .sstable_slice
+            .stream_ranges(Box::new(blocks.into_iter()))
+    }
+
     #[cfg(feature = "quickwit")]
     /// Lookups the value corresponding to the key.
     pub async fn get_async<K: AsRef<[u8]>>(&self, key: K) -> io::Result<Option<TermInfo>> {

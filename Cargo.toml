@@ -156,7 +156,7 @@ plain_codec = ["columnar/plain_codec"]
 failpoints = ["fail", "fail/failpoints"]
 unstable = []                            # useful for benches.
 
-quickwit = ["sstable", "futures-util", "futures-channel"]
+quickwit = ["sstable", "futures-util", "futures-channel", "common/quickwit"]
 jitexpr = ["dep:jitexpr", "dep:hashbrown"]
 
 # Compares only the hash of a string when indexing data.

@@ -166,10 +166,11 @@ where
             .await
     }
 
-    fn into_stream_given_delta_reader(
+    /// Searches the supplied blocks. The stream owns the reader and does not borrow the dictionary.
+    pub fn into_stream_from_delta_reader(
         self,
         delta_reader: DeltaReader<<TSSTable as SSTable>::ValueReader>,
-    ) -> io::Result<Streamer<'a, TSSTable, A, K>> {
+    ) -> io::Result<Streamer<'static, TSSTable, A, K>> {
         let start_state = self.automaton.start();
         let start_key = bound_as_byte_slice(&self.lower);
 
@@ -216,14 +217,14 @@ where
         merge_holes_under_bytes: usize,
     ) -> io::Result<Streamer<'a, TSSTable, A, K>> {
         let delta_reader = self.delta_reader_async(merge_holes_under_bytes).await?;
-        self.into_stream_given_delta_reader(delta_reader)
+        self.into_stream_from_delta_reader(delta_reader)
     }
 
     /// Creates the stream corresponding to the range
     /// of terms defined using the `StreamerBuilder`.
     pub fn into_stream(self) -> io::Result<Streamer<'a, TSSTable, A, K>> {
         let delta_reader = self.delta_reader()?;
-        self.into_stream_given_delta_reader(delta_reader)
+        self.into_stream_from_delta_reader(delta_reader)
     }
 }
 
@@ -277,6 +278,11 @@ where
     TSSTable: SSTable,
     K: KeyTracking,
 {
+    /// Returns the automaton for use with the next batch of blocks.
+    pub fn into_automaton(self) -> A {
+        self.automaton
+    }
+
     #[inline(always)]
     fn advance_delta_reader(&mut self) -> bool {
         if !self.delta_reader.advance().unwrap() {
