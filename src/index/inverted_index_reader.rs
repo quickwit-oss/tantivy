@@ -580,13 +580,12 @@ impl InvertedIndexReader {
         let mut batch_bytes = 0;
         // We don't want to block the async runtime, and we don't want to call spawn_blocking for
         // every block, so we batch blocks together until we reach a target number of bytes.
-        while let Some((dictionary_block_bytes, first_term_ordinal)) =
-            dictionary_blocks.try_next().await?
-        {
-            batch_bytes += dictionary_block_bytes.len();
-            batch.push((dictionary_block_bytes, first_term_ordinal));
+        while let Some(block) = dictionary_blocks.try_next().await? {
+            batch_bytes += block.0.len();
+            batch.push(block);
             if batch_bytes >= TARGET_BYTES_PER_CPU_TASK {
-                (automaton, postinglist_metdata) = flush_batch(batch, automaton, postinglist_metdata).await?;
+                (automaton, postinglist_metdata) =
+                    flush_batch(batch, automaton, postinglist_metdata).await?;
                 batch = Vec::new();
                 batch_bytes = 0;
             }

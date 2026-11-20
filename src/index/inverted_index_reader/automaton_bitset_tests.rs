@@ -43,10 +43,8 @@ fn test_create_bitset_for_automaton() -> crate::Result<()> {
             &executor,
         ))?;
         assert_eq!(bitset.len(), expected.len());
-        let docs: Vec<_> = (0..segment_reader.max_doc())
-            .filter(|&doc| bitset.contains(doc))
-            .collect();
-        assert_eq!(docs, expected);
+        let docs = (0..segment_reader.max_doc()).filter(|&doc| bitset.contains(doc));
+        itertools::assert_equal(docs, expected);
     }
     Ok(())
 }
