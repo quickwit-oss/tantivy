@@ -427,4 +427,38 @@ mod tests {
         assert_eq!(values.len(), 2);
         assert!(values[0] < values[1]);
     }
+
+    #[test]
+    fn test_mixed_numeric_top_docs_beyond_float_precision() -> crate::Result<()> {
+        use crate::indexer::NoMergePolicy;
+        use crate::{Order, TantivyDocument};
+
+        let mut builder = Schema::builder();
+        builder.add_json_field("attrs", FAST);
+        builder.add_u64_field("tie", FAST);
+        let schema = builder.build();
+        let index = Index::create_in_ram(schema.clone());
+        let mut writer = index.writer_for_tests()?;
+        writer.set_merge_policy(Box::new(NoMergePolicy));
+        for segment in [
+            vec![r#"{"attrs":{"n":9007199254740993},"tie":0}"#],
+            vec![
+                r#"{"attrs":{"n":9007199254740992.0},"tie":1}"#,
+                r#"{"attrs":{"n":0.5},"tie":2}"#,
+            ],
+        ] {
+            for json in segment {
+                writer.add_document(TantivyDocument::parse_json(&schema, json).unwrap())?;
+            }
+            writer.commit()?;
+        }
+
+        let collector = TopDocs::with_limit(1).order_by::<(OwnedValue, OwnedValue)>((
+            (SortByErasedType::for_field("attrs.n"), Order::Desc),
+            (SortByErasedType::for_field("tie"), Order::Desc),
+        ));
+        let hits = index.reader()?.searcher().search(&AllQuery, &collector)?;
+        assert_eq!(hits[0].0 .1, OwnedValue::U64(0));
+        Ok(())
+    }
 }
