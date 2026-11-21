@@ -30,10 +30,10 @@ use crate::{FutureResult, Opstamp, TantivyError};
 const PANIC_CAUGHT: &str = "Panic caught in merge thread";
 
 /// Save the index meta file.
-/// This operation is atomic:
-/// Either
-/// - it fails, in which case an error is returned, and the `meta.json` remains untouched,
-/// - it success, and `meta.json` is written and flushed.
+/// The file replacement itself is atomic, and the directory is synced both
+/// before (for newly written segment files) and after (for the `meta.json`
+/// rename). Note that an error from the trailing `sync_directory()` can be
+/// returned after `meta.json` has already been replaced.
 ///
 /// This method is not part of tantivy's public API
 pub(crate) fn save_metas(metas: &IndexMeta, directory: &dyn Directory) -> crate::Result<()> {
@@ -46,6 +46,7 @@ pub(crate) fn save_metas(metas: &IndexMeta, directory: &dyn Directory) -> crate:
     )));
     directory.sync_directory()?;
     directory.atomic_write(&META_FILEPATH, &buffer[..])?;
+    directory.sync_directory()?;
     debug!("Saved metas {:?}", serde_json::to_string_pretty(&metas));
     Ok(())
 }
@@ -1165,6 +1166,187 @@ mod tests {
             assert_eq!(doc_ids_alive, vec![0, 1, 2]);
         }
 
+        Ok(())
+    }
+
+    #[derive(Clone, Debug, PartialEq, Eq)]
+    enum DirOp {
+        AtomicWrite(std::path::PathBuf),
+        SyncDirectory,
+        Delete(std::path::PathBuf),
+    }
+
+    #[derive(Clone, Debug, Default)]
+    struct RecordingDirectory {
+        inner: RamDirectory,
+        ops: std::sync::Arc<std::sync::Mutex<Vec<DirOp>>>,
+    }
+
+    impl RecordingDirectory {
+        fn clear_ops(&self) {
+            self.ops.lock().unwrap().clear();
+        }
+
+        fn ops(&self) -> Vec<DirOp> {
+            self.ops.lock().unwrap().clone()
+        }
+    }
+
+    impl Directory for RecordingDirectory {
+        fn get_file_handle(
+            &self,
+            path: &std::path::Path,
+        ) -> Result<
+            std::sync::Arc<dyn crate::directory::FileHandle>,
+            crate::directory::error::OpenReadError,
+        > {
+            self.inner.get_file_handle(path)
+        }
+
+        fn delete(
+            &self,
+            path: &std::path::Path,
+        ) -> Result<(), crate::directory::error::DeleteError> {
+            self.ops
+                .lock()
+                .unwrap()
+                .push(DirOp::Delete(path.to_path_buf()));
+            self.inner.delete(path)
+        }
+
+        fn exists(
+            &self,
+            path: &std::path::Path,
+        ) -> Result<bool, crate::directory::error::OpenReadError> {
+            self.inner.exists(path)
+        }
+
+        fn open_write(
+            &self,
+            path: &std::path::Path,
+        ) -> Result<crate::directory::WritePtr, crate::directory::error::OpenWriteError> {
+            self.inner.open_write(path)
+        }
+
+        fn atomic_read(
+            &self,
+            path: &std::path::Path,
+        ) -> Result<Vec<u8>, crate::directory::error::OpenReadError> {
+            self.inner.atomic_read(path)
+        }
+
+        fn atomic_write(&self, path: &std::path::Path, data: &[u8]) -> std::io::Result<()> {
+            let res = self.inner.atomic_write(path, data);
+            if res.is_ok() {
+                self.ops
+                    .lock()
+                    .unwrap()
+                    .push(DirOp::AtomicWrite(path.to_path_buf()));
+            }
+            res
+        }
+
+        fn sync_directory(&self) -> std::io::Result<()> {
+            let res = self.inner.sync_directory();
+            if res.is_ok() {
+                self.ops.lock().unwrap().push(DirOp::SyncDirectory);
+            }
+            res
+        }
+
+        fn watch(
+            &self,
+            watch_callback: crate::directory::WatchCallback,
+        ) -> crate::Result<crate::directory::WatchHandle> {
+            self.inner.watch(watch_callback)
+        }
+    }
+
+    #[test]
+    fn test_commit_syncs_directory_after_meta_write() -> crate::Result<()> {
+        let mut schema_builder = Schema::builder();
+        let text_field = schema_builder.add_text_field("text", TEXT);
+        let dir = RecordingDirectory::default();
+        let index = Index::create(
+            dir.clone(),
+            schema_builder.build(),
+            crate::IndexSettings::default(),
+        )?;
+
+        let mut writer = index.writer_for_tests()?;
+        writer.set_merge_policy(Box::new(crate::indexer::NoMergePolicy));
+
+        writer.add_document(doc!(text_field => "first"))?;
+        writer.commit()?;
+
+        dir.clear_ops();
+        writer.add_document(doc!(text_field => "second"))?;
+        writer.commit()?;
+
+        let ops = dir.ops();
+        let meta_pos = ops
+            .iter()
+            .rposition(|op| *op == DirOp::AtomicWrite(crate::core::META_FILEPATH.to_path_buf()))
+            .expect("commit must atomic_write meta.json");
+
+        assert!(
+            ops[..meta_pos].contains(&DirOp::SyncDirectory),
+            "expected sync_directory() before meta.json atomic_write: {ops:?}"
+        );
+        assert!(
+            ops[meta_pos + 1..].contains(&DirOp::SyncDirectory),
+            "expected sync_directory() after meta.json atomic_write: {ops:?}"
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn test_merge_gc_syncs_directory_before_deleting_old_segments() -> crate::Result<()> {
+        let mut schema_builder = Schema::builder();
+        let text_field = schema_builder.add_text_field("text", TEXT);
+        let dir = RecordingDirectory::default();
+        let index = Index::create(
+            dir.clone(),
+            schema_builder.build(),
+            crate::IndexSettings::default(),
+        )?;
+
+        let mut writer = index.writer_for_tests()?;
+        writer.set_merge_policy(Box::new(crate::indexer::NoMergePolicy));
+
+        writer.add_document(doc!(text_field => "alpha"))?;
+        writer.commit()?;
+        writer.add_document(doc!(text_field => "beta"))?;
+        writer.commit()?;
+
+        let segment_ids = index.searchable_segment_ids()?;
+        assert_eq!(segment_ids.len(), 2);
+
+        dir.clear_ops();
+        writer.merge(&segment_ids).wait()?;
+
+        let ops = dir.ops();
+        let meta_pos = ops
+            .iter()
+            .position(|op| *op == DirOp::AtomicWrite(crate::core::META_FILEPATH.to_path_buf()))
+            .expect("merge must atomic_write meta.json");
+        let first_seg_delete_pos = ops[meta_pos + 1..]
+            .iter()
+            .position(|op| match op {
+                DirOp::Delete(path) => path
+                    .file_name()
+                    .and_then(|n| n.to_str())
+                    .is_some_and(|n| !n.starts_with('.')),
+                _ => false,
+            })
+            .map(|rel| meta_pos + 1 + rel)
+            .expect("post-merge GC must delete obsolete pre-merge segment files");
+
+        assert!(
+            ops[meta_pos + 1..first_seg_delete_pos].contains(&DirOp::SyncDirectory),
+            "expected sync_directory() after meta.json atomic_write and before deleting obsolete \
+             segment files: {ops:?}"
+        );
         Ok(())
     }
 }

@@ -129,7 +129,6 @@ fn save_new_metas(
         },
         directory,
     )?;
-    directory.sync_directory()?;
     Ok(())
 }
 
