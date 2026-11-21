@@ -1,12 +1,12 @@
 use std::collections::HashSet;
 use std::io::Write;
 use std::path::{Path, PathBuf};
-use std::sync::{Arc, RwLock, RwLockWriteGuard};
+use std::sync::{Arc, Mutex, RwLock, RwLockWriteGuard};
 use std::{io, result};
 
 use crc32fast::Hasher;
 
-use crate::core::MANAGED_FILEPATH;
+use crate::core::{MANAGED_FILEPATH, META_FILEPATH};
 use crate::directory::error::{DeleteError, LockError, OpenReadError, OpenWriteError};
 use crate::directory::footer::{Footer, FooterProxy};
 use crate::directory::{
@@ -40,6 +40,38 @@ fn is_managed(path: &Path) -> bool {
 pub struct ManagedDirectory {
     directory: Box<dyn Directory>,
     meta_informations: Arc<RwLock<MetaInformation>>,
+    meta_sync: Arc<Mutex<MetaSyncState>>,
+}
+
+#[derive(Debug)]
+struct MetaSyncState {
+    write_seq: u64,
+    synced_seq: u64,
+    in_flight: usize,
+}
+
+impl MetaSyncState {
+    fn unsynced() -> Self {
+        Self {
+            write_seq: 1,
+            synced_seq: 0,
+            in_flight: 0,
+        }
+    }
+
+    fn is_synced(&self) -> bool {
+        self.in_flight == 0 && self.synced_seq >= self.write_seq
+    }
+}
+
+struct MetaWriteGuard<'a>(&'a Mutex<MetaSyncState>);
+
+impl Drop for MetaWriteGuard<'_> {
+    fn drop(&mut self) {
+        let mut state = self.0.lock().unwrap();
+        state.write_seq += 1;
+        state.in_flight -= 1;
+    }
 }
 
 #[derive(Debug, Default)]
@@ -77,11 +109,13 @@ impl ManagedDirectory {
                     meta_informations: Arc::new(RwLock::new(MetaInformation {
                         managed_paths: managed_files,
                     })),
+                    meta_sync: Arc::new(Mutex::new(MetaSyncState::unsynced())),
                 })
             }
             Err(OpenReadError::FileDoesNotExist(_)) => Ok(ManagedDirectory {
                 directory,
                 meta_informations: Arc::default(),
+                meta_sync: Arc::new(Mutex::new(MetaSyncState::unsynced())),
             }),
             io_err @ Err(OpenReadError::IoError { .. }) => Err(io_err.err().unwrap().into()),
             Err(OpenReadError::IncompatibleIndex(incompatibility)) => {
@@ -149,6 +183,10 @@ impl ManagedDirectory {
                     return Err(crate::TantivyError::from(err));
                 }
             }
+        }
+
+        if !files_to_delete.is_empty() && !self.is_meta_dir_synced() {
+            self.sync_directory()?;
         }
 
         let mut failed_to_delete_files = vec![];
@@ -256,6 +294,10 @@ impl ManagedDirectory {
         Ok(footer.crc() == crc)
     }
 
+    fn is_meta_dir_synced(&self) -> bool {
+        self.meta_sync.lock().unwrap().is_synced()
+    }
+
     /// List all managed files
     pub fn list_managed_files(&self) -> HashSet<PathBuf> {
         let managed_paths = self
@@ -296,6 +338,12 @@ impl Directory for ManagedDirectory {
 
     fn atomic_write(&self, path: &Path, data: &[u8]) -> io::Result<()> {
         self.register_file_as_managed(path)?;
+        let _meta_write_guard = (path == *META_FILEPATH).then(|| {
+            let mut state = self.meta_sync.lock().unwrap();
+            state.write_seq += 1;
+            state.in_flight += 1;
+            MetaWriteGuard(&self.meta_sync)
+        });
         self.directory.atomic_write(path, data)
     }
 
@@ -320,7 +368,17 @@ impl Directory for ManagedDirectory {
     }
 
     fn sync_directory(&self) -> io::Result<()> {
+        let observed = {
+            let state = self.meta_sync.lock().unwrap();
+            (state.in_flight == 0).then_some(state.write_seq)
+        };
         self.directory.sync_directory()?;
+        if let Some(seq) = observed {
+            let mut state = self.meta_sync.lock().unwrap();
+            if seq > state.synced_seq {
+                state.synced_seq = seq;
+            }
+        }
         Ok(())
     }
 }
@@ -330,6 +388,7 @@ impl Clone for ManagedDirectory {
         ManagedDirectory {
             directory: self.directory.box_clone(),
             meta_informations: Arc::clone(&self.meta_informations),
+            meta_sync: Arc::clone(&self.meta_sync),
         }
     }
 }
