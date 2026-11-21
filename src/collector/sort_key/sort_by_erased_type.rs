@@ -1,3 +1,7 @@
+use std::net::Ipv6Addr;
+use std::sync::Arc;
+
+use columnar::column_values::CompactSpaceU64Accessor;
 use columnar::{ColumnType, MonotonicallyMappableToU64};
 
 use crate::collector::sort_key::{
@@ -59,6 +63,28 @@ where
     }
 }
 
+struct IpAddrSegmentSortKeyComputer {
+    column: columnar::Column<u64>,
+    compact_space: Arc<CompactSpaceU64Accessor>,
+}
+
+impl ErasedSegmentSortKeyComputer for IpAddrSegmentSortKeyComputer {
+    fn segment_sort_key(&mut self, doc: DocId, _score: Score) -> Option<u64> {
+        self.column.first(doc)
+    }
+
+    fn convert_segment_sort_key(&self, sort_key: Option<u64>) -> OwnedValue {
+        // Compact IDs preserve order within a segment. Merge segments by the original address.
+        sort_key
+            .map(|id| {
+                OwnedValue::IpAddr(Ipv6Addr::from(
+                    self.compact_space.compact_to_u128(id as u32),
+                ))
+            })
+            .unwrap_or(OwnedValue::Null)
+    }
+}
+
 struct ScoreSegmentSortKeyComputer {
     segment_computer: SortBySimilarityScore,
 }
@@ -96,7 +122,7 @@ impl SortKeyComputer for SortByErasedType {
                 // https://github.com/quickwit-oss/tantivy/issues/2776 is resolved, we should
                 // consider directly constructing the appropriate `SegmentSortKeyComputer` type for
                 // the column that we open here.
-                let (_column, column_type) =
+                let (column, column_type) =
                     fast_fields.u64_lenient(column_name)?.ok_or_else(|| {
                         FastFieldNotAvailableError {
                             field_name: column_name.to_owned(),
@@ -174,12 +200,20 @@ impl SortKeyComputer for SortByErasedType {
                             },
                         })
                     }
-                    column_type => {
-                        return Err(crate::TantivyError::SchemaError(format!(
-                            "Field `{}` is of type {column_type:?}, which is not supported for \
-                             sorting by owned value yet.",
-                            column_name
-                        )))
+                    ColumnType::IpAddr => {
+                        let compact_space = column
+                            .values
+                            .clone()
+                            .downcast_arc::<CompactSpaceU64Accessor>()
+                            .map_err(|_| {
+                                crate::TantivyError::InternalError(
+                                    "Expected a compact IP address column".to_string(),
+                                )
+                            })?;
+                        Box::new(IpAddrSegmentSortKeyComputer {
+                            column,
+                            compact_space,
+                        })
                     }
                 }
             }
@@ -217,6 +251,48 @@ mod tests {
     use crate::query::AllQuery;
     use crate::schema::{OwnedValue, Schema, FAST, TEXT};
     use crate::Index;
+
+    #[test]
+    fn test_sort_by_owned_ip_across_segments() -> crate::Result<()> {
+        use std::net::Ipv6Addr;
+
+        use crate::indexer::NoMergePolicy;
+        use crate::Order;
+
+        let mut builder = Schema::builder();
+        let ip = builder.add_ip_addr_field("ip", FAST);
+        let index = Index::create_in_ram(builder.build());
+        let mut writer = index.writer_for_tests()?;
+        writer.set_merge_policy(Box::new(NoMergePolicy));
+        let low: Ipv6Addr = "::ffff:192.0.2.1".parse().unwrap();
+        let mid: Ipv6Addr = "2001:db8::1".parse().unwrap();
+        let high: Ipv6Addr = "2001:db8:1::1".parse().unwrap();
+        writer.add_document(doc!(ip => high))?;
+        writer.add_document(doc!())?;
+        writer.commit()?;
+        writer.add_document(doc!(ip => low, ip => high))?;
+        writer.add_document(doc!(ip => mid))?;
+        writer.commit()?;
+
+        let searcher = index.reader()?.searcher();
+        assert_eq!(searcher.segment_readers().len(), 2);
+        for (order, expected) in [
+            (Order::Asc, [low, mid, high]),
+            (Order::Desc, [high, mid, low]),
+        ] {
+            let collector =
+                TopDocs::with_limit(4).order_by((SortByErasedType::for_field("ip"), order));
+            let keys: Vec<_> = searcher
+                .search(&AllQuery, &collector)?
+                .into_iter()
+                .map(|(key, _)| key)
+                .collect();
+            let mut expected: Vec<_> = expected.into_iter().map(OwnedValue::IpAddr).collect();
+            expected.push(OwnedValue::Null);
+            assert_eq!(keys, expected);
+        }
+        Ok(())
+    }
 
     #[test]
     fn test_sort_by_owned_u64() {
