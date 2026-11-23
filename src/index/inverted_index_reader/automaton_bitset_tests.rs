@@ -81,11 +81,11 @@ impl FileHandle for StreamingPostings {
 
     fn stream_ranges(
         &self,
-        ranges: Box<dyn Iterator<Item = (Range<usize>, u64)> + Send>,
-    ) -> BoxStream<'_, io::Result<(OwnedBytes, u64)>> {
-        stream::iter(ranges.map(|(range, tag)| {
+        ranges: Box<dyn Iterator<Item = Range<usize>> + Send>,
+    ) -> BoxStream<'_, io::Result<OwnedBytes>> {
+        stream::iter(ranges.map(|range| {
             assert!(range.end <= self.skipped.start || range.start >= self.skipped.end);
-            Ok((self.postings_file_bytes.slice(range), tag))
+            Ok(self.postings_file_bytes.slice(range))
         }))
         .boxed()
     }

@@ -36,19 +36,16 @@ pub trait FileHandle: 'static + Send + Sync + HasLen + fmt::Debug {
     }
 
     /// Streams one complete buffer per range, in input order, including duplicates and empty
-    /// ranges. Each buffer carries the caller's `u64` tag unchanged.
-    /// Backends may coalesce reads but should yield requested bytes as they arrive,
+    /// ranges. Backends may coalesce reads but should yield requested bytes as they arrive,
     /// without buffering an entire merged read. Dropping the stream cancels further reads.
     /// The default calls `read_bytes_async` for one range at a time. Invalid ranges may panic.
     #[cfg(feature = "quickwit")]
     fn stream_ranges(
         &self,
-        ranges: Box<dyn Iterator<Item = (Range<usize>, u64)> + Send>,
-    ) -> BoxStream<'_, io::Result<(OwnedBytes, u64)>> {
+        ranges: Box<dyn Iterator<Item = Range<usize>> + Send>,
+    ) -> BoxStream<'_, io::Result<OwnedBytes>> {
         stream::iter(ranges)
-            .then(move |(range, tag)| async move {
-                self.read_bytes_async(range).await.map(|bytes| (bytes, tag))
-            })
+            .then(move |range| self.read_bytes_async(range))
             .boxed()
     }
 }
@@ -343,11 +340,11 @@ impl FileHandle for FileSlice {
     #[cfg(feature = "quickwit")]
     fn stream_ranges(
         &self,
-        ranges: Box<dyn Iterator<Item = (Range<usize>, u64)> + Send>,
-    ) -> BoxStream<'_, io::Result<(OwnedBytes, u64)>> {
+        ranges: Box<dyn Iterator<Item = Range<usize>> + Send>,
+    ) -> BoxStream<'_, io::Result<OwnedBytes>> {
         let offset = self.range.start;
         self.data.stream_ranges(Box::new(
-            ranges.map(move |(range, tag)| (offset + range.start..offset + range.end, tag)),
+            ranges.map(move |range| offset + range.start..offset + range.end),
         ))
     }
 }
@@ -428,13 +425,13 @@ mod tests {
         use crate::OwnedBytes;
 
         fn assert_stream_items(
-            mut stream: BoxStream<'_, io::Result<(OwnedBytes, u64)>>,
-            expected: &[(&[u8], u64)],
+            mut stream: BoxStream<'_, io::Result<OwnedBytes>>,
+            expected: &[&[u8]],
         ) {
             let mut next = || stream.try_next().now_or_never().unwrap().unwrap();
             for &item in expected {
-                let (bytes, tag) = next().expect("missing stream item");
-                assert_eq!((bytes.as_slice(), tag), item);
+                let bytes = next().expect("missing stream item");
+                assert_eq!(bytes.as_slice(), item);
             }
             assert!(next().is_none());
         }
@@ -458,8 +455,8 @@ mod tests {
 
                 fn stream_ranges(
                     &self,
-                    ranges: Box<dyn Iterator<Item = (Range<usize>, u64)> + Send>,
-                ) -> BoxStream<'_, io::Result<(OwnedBytes, u64)>> {
+                    ranges: Box<dyn Iterator<Item = Range<usize>> + Send>,
+                ) -> BoxStream<'_, io::Result<OwnedBytes>> {
                     static BYTES: &[u8] = b"abcdefgh";
                     BYTES.stream_ranges(ranges)
                 }
@@ -467,9 +464,9 @@ mod tests {
 
             let inner = FileSlice::new(Arc::new(StreamOnlyHandle)).slice(1..8);
             let outer = FileSlice::new(Arc::new(inner)).slice(1..6);
-            let ranges = [(2..4, 9), (0..1, 5)];
+            let ranges = [2..4, 0..1];
             let stream = outer.stream_ranges(Box::new(ranges.into_iter()));
-            assert_stream_items(stream, &[(b"ef", 9), (b"c", 5)]);
+            assert_stream_items(stream, &[b"ef", b"c"]);
         }
 
         #[test]
@@ -479,9 +476,9 @@ mod tests {
                 Box::new(OwnedBytes::new(b"abcdef".to_vec())),
             ];
             for handle in handles {
-                let ranges = [(1..4, 0), (6..6, 1), (1..4, 2)];
+                let ranges = [1..4, 6..6, 1..4];
                 let stream = handle.stream_ranges(Box::new(ranges.into_iter()));
-                assert_stream_items(stream, &[(b"bcd", 0), (b"", 1), (b"bcd", 2)]);
+                assert_stream_items(stream, &[b"bcd", b"", b"bcd"]);
             }
         }
     }
