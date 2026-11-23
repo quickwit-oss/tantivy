@@ -24,55 +24,15 @@ fn max_score<I: Iterator<Item = Score>>(mut it: I) -> Option<Score> {
 #[derive(Clone)]
 pub struct BlockSegmentPostings {
     pub(crate) doc_decoder: BlockDecoder,
-    block_loaded: bool,
+    docs_loaded: bool,
+    freqs_loaded: bool,
+    docs_consumed_bytes: usize,
     freq_decoder: BlockDecoder,
     freq_reading_option: FreqReadingOption,
     block_max_score_cache: Option<Score>,
     doc_freq: u32,
     data: OwnedBytes,
     skip_reader: SkipReader,
-}
-
-fn decode_bitpacked_block(
-    doc_decoder: &mut BlockDecoder,
-    freq_decoder_opt: Option<&mut BlockDecoder>,
-    data: &[u8],
-    doc_offset: DocId,
-    doc_num_bits: u8,
-    tf_num_bits: u8,
-    strict_delta: bool,
-) {
-    let num_consumed_bytes =
-        doc_decoder.uncompress_block_sorted(data, doc_offset, doc_num_bits, strict_delta);
-    if let Some(freq_decoder) = freq_decoder_opt {
-        freq_decoder.uncompress_block_unsorted(
-            &data[num_consumed_bytes..],
-            tf_num_bits,
-            strict_delta,
-        );
-    }
-}
-
-fn decode_vint_block(
-    doc_decoder: &mut BlockDecoder,
-    freq_decoder_opt: Option<&mut BlockDecoder>,
-    data: &[u8],
-    doc_offset: DocId,
-    num_vint_docs: usize,
-) {
-    let num_consumed_bytes =
-        doc_decoder.uncompress_vint_sorted(data, doc_offset, num_vint_docs, TERMINATED);
-    if let Some(freq_decoder) = freq_decoder_opt {
-        // if it's a json term with freq, containing less than 256 docs, we can reach here thinking
-        // we have a freq, despite not really having one.
-        if data.len() > num_consumed_bytes {
-            freq_decoder.uncompress_vint_unsorted(
-                &data[num_consumed_bytes..],
-                num_vint_docs,
-                TERMINATED,
-            );
-        }
-    }
 }
 
 fn split_into_skips_and_postings(
@@ -95,6 +55,18 @@ impl BlockSegmentPostings {
     /// If for instance, we do not request for term frequencies, this function will not decompress
     /// term frequency blocks.
     pub(crate) fn open(
+        doc_freq: u32,
+        data: FileSlice,
+        record_option: IndexRecordOption,
+        requested_option: IndexRecordOption,
+    ) -> io::Result<BlockSegmentPostings> {
+        let mut block_segment_postings =
+            Self::open_lazy(doc_freq, data, record_option, requested_option)?;
+        block_segment_postings.load_block();
+        Ok(block_segment_postings)
+    }
+
+    pub(crate) fn open_lazy(
         doc_freq: u32,
         data: FileSlice,
         mut record_option: IndexRecordOption,
@@ -125,18 +97,18 @@ impl BlockSegmentPostings {
             (_, _) => FreqReadingOption::ReadFreq,
         };
 
-        let mut block_segment_postings = BlockSegmentPostings {
+        Ok(BlockSegmentPostings {
             doc_decoder: BlockDecoder::with_val(TERMINATED),
-            block_loaded: false,
+            docs_loaded: false,
+            freqs_loaded: false,
+            docs_consumed_bytes: 0,
             freq_decoder: BlockDecoder::with_val(1),
             freq_reading_option,
             block_max_score_cache: None,
             doc_freq,
             data: postings_data,
             skip_reader,
-        };
-        block_segment_postings.load_block();
-        Ok(block_segment_postings)
+        })
     }
 
     /// Returns the block_max_score for the current block.
@@ -197,7 +169,9 @@ impl BlockSegmentPostings {
             split_into_skips_and_postings(doc_freq, postings_data)?;
         self.data = postings_data;
         self.block_max_score_cache = None;
-        self.block_loaded = false;
+        self.docs_loaded = false;
+        self.freqs_loaded = false;
+        self.docs_consumed_bytes = 0;
         if let Some(skip_data) = skip_data_opt {
             self.skip_reader.reset(skip_data, doc_freq);
         } else {
@@ -223,7 +197,7 @@ impl BlockSegmentPostings {
     /// returned by `.docs()` is empty.
     #[inline]
     pub fn docs(&self) -> &[DocId] {
-        debug_assert!(self.block_is_loaded());
+        debug_assert!(self.docs_loaded);
         self.doc_decoder.output_array()
     }
 
@@ -236,14 +210,14 @@ impl BlockSegmentPostings {
     /// Return the array of `term freq` in the block.
     #[inline]
     pub fn freqs(&self) -> &[u32] {
-        debug_assert!(self.block_is_loaded());
+        debug_assert!(self.freqs_loaded);
         self.freq_decoder.output_array()
     }
 
     /// Return the frequency at index `idx` of the block.
     #[inline]
     pub fn freq(&self, idx: usize) -> u32 {
-        debug_assert!(self.block_is_loaded());
+        debug_assert!(self.freqs_loaded);
         self.freq_decoder.output(idx)
     }
 
@@ -260,7 +234,7 @@ impl BlockSegmentPostings {
     /// of any number between 1 and `NUM_DOCS_PER_BLOCK - 1`
     #[inline]
     pub fn block_len(&self) -> usize {
-        debug_assert!(self.block_is_loaded());
+        debug_assert!(self.docs_loaded);
         self.doc_decoder.output_len
     }
 
@@ -314,34 +288,57 @@ impl BlockSegmentPostings {
         docs_before_block + within as u32
     }
 
-    pub(crate) fn position_offset(&self) -> u64 {
+    /// Returns the cumulative position offset at the start of the current block.
+    #[inline]
+    pub fn position_offset(&self) -> u64 {
         self.skip_reader.position_offset()
     }
 
-    /// Dangerous API! This calls seeks the next block on the skip list,
-    /// but does not `.load_block()` afterwards.
+    /// Dangerous API! Seeks to the block that may contain `target_doc` using the skip list without decoding the block.
     ///
-    /// `.load_block()` needs to be called manually afterwards.
-    /// If all docs are smaller than target, the block loaded may be empty,
-    /// or be the last an incomplete VInt block.
-    pub(crate) fn seek_block(&mut self, target_doc: DocId) {
+    /// Call [`Self::load_block`] or [`Self::load_docs_only`] before reading docs or frequencies. If all docs are
+    /// smaller than `target_doc`, the landed block may be empty or be the last incomplete VInt block.
+    pub fn seek_block(&mut self, target_doc: DocId) {
         if self.skip_reader.seek(target_doc) {
             self.block_max_score_cache = None;
-            self.block_loaded = false;
+            self.docs_loaded = false;
+            self.freqs_loaded = false;
+            self.docs_consumed_bytes = 0;
         }
     }
 
+    /// Returns `true` if there are remaining documents in the current or subsequent blocks.
     #[inline]
-    pub(crate) fn has_remaining_docs(&self) -> bool {
+    pub fn has_remaining_docs(&self) -> bool {
         self.skip_reader.has_remaining_docs()
     }
 
-    pub(crate) fn block_is_loaded(&self) -> bool {
-        self.block_loaded
+    /// Returns the last document ID in the current block from the skip list, or `TERMINATED` on a trailing VInt block.
+    #[inline]
+    pub fn last_doc_in_block(&self) -> DocId {
+        self.skip_reader.last_doc_in_block()
     }
 
-    pub(crate) fn load_block(&mut self) {
-        if self.block_is_loaded() {
+    pub(crate) fn block_is_loaded(&self) -> bool {
+        self.docs_loaded && self.freqs_loaded
+    }
+
+    /// Returns `true` if the document IDs for the current block have been decoded.
+    #[inline]
+    pub fn docs_loaded(&self) -> bool {
+        self.docs_loaded
+    }
+
+    /// Returns `true` if the term frequencies for the current block have been decoded.
+    #[inline]
+    pub fn freqs_loaded(&self) -> bool {
+        self.freqs_loaded
+    }
+
+    /// Decodes only the document IDs for the current block, deferring term-frequency decompression until
+    /// [`Self::load_freqs_only`] or [`Self::load_block`] is called.
+    pub fn load_docs_only(&mut self) {
+        if self.docs_loaded {
             return;
         }
         let offset = self.skip_reader.byte_offset();
@@ -349,52 +346,122 @@ impl BlockSegmentPostings {
             BlockInfo::BitPacked {
                 doc_num_bits,
                 strict_delta_encoded,
-                tf_num_bits,
                 ..
             } => {
-                decode_bitpacked_block(
-                    &mut self.doc_decoder,
-                    if let FreqReadingOption::ReadFreq = self.freq_reading_option {
-                        Some(&mut self.freq_decoder)
-                    } else {
-                        None
-                    },
+                self.docs_consumed_bytes = self.doc_decoder.uncompress_block_sorted(
                     &self.data.as_slice()[offset..],
                     self.skip_reader.last_doc_in_previous_block,
                     doc_num_bits,
-                    tf_num_bits,
                     strict_delta_encoded,
                 );
             }
             BlockInfo::VInt { num_docs } => {
-                let data = {
-                    if num_docs == 0 {
-                        &[]
-                    } else {
-                        &self.data.as_slice()[offset..]
-                    }
+                let data = if num_docs == 0 {
+                    &[]
+                } else {
+                    &self.data.as_slice()[offset..]
                 };
-                decode_vint_block(
-                    &mut self.doc_decoder,
-                    if let FreqReadingOption::ReadFreq = self.freq_reading_option {
-                        Some(&mut self.freq_decoder)
-                    } else {
-                        None
-                    },
+                self.docs_consumed_bytes = self.doc_decoder.uncompress_vint_sorted(
                     data,
                     self.skip_reader.last_doc_in_previous_block,
                     num_docs as usize,
+                    TERMINATED,
                 );
             }
         }
-        self.block_loaded = true;
+        self.docs_loaded = true;
+    }
+
+    /// Decodes the term frequencies for the current block, loading document IDs first if not yet decoded.
+    pub fn load_freqs_only(&mut self) {
+        if self.freqs_loaded {
+            return;
+        }
+        if !self.docs_loaded {
+            self.load_docs_only();
+        }
+        if let FreqReadingOption::ReadFreq = self.freq_reading_option {
+            let offset = self.skip_reader.byte_offset();
+            match self.skip_reader.block_info() {
+                BlockInfo::BitPacked {
+                    strict_delta_encoded,
+                    tf_num_bits,
+                    ..
+                } => {
+                    self.freq_decoder.uncompress_block_unsorted(
+                        &self.data.as_slice()[offset + self.docs_consumed_bytes..],
+                        tf_num_bits,
+                        strict_delta_encoded,
+                    );
+                }
+                BlockInfo::VInt { num_docs } => {
+                    let data = if num_docs == 0 {
+                        &[]
+                    } else {
+                        &self.data.as_slice()[offset..]
+                    };
+                    // if it's a json term with freq, containing less than 256 docs, we can reach
+                    // here thinking we have a freq, despite not really having one.
+                    if data.len() > self.docs_consumed_bytes {
+                        self.freq_decoder.uncompress_vint_unsorted(
+                            &data[self.docs_consumed_bytes..],
+                            num_docs as usize,
+                            TERMINATED,
+                        );
+                    }
+                }
+            }
+        }
+        self.freqs_loaded = true;
+    }
+
+    /// Decodes both document IDs and term frequencies for the current block.
+    pub fn load_block(&mut self) {
+        self.load_docs_only();
+        self.load_freqs_only();
+    }
+
+    /// Returns the full fixed-size decoded document ID buffer for the current block.
+    ///
+    /// Lanes at indices `>= self.block_len()` are padded with [`TERMINATED`].
+    #[inline]
+    pub fn docs_array(&self) -> &[u32; COMPRESSION_BLOCK_SIZE] {
+        debug_assert!(self.docs_loaded);
+        self.doc_decoder.output_raw()
+    }
+
+    /// Returns the full fixed-size decoded term-frequency buffer for the current block.
+    ///
+    /// For partial trailing VInt blocks, lanes at indices `>= self.block_len()` are padded.
+    #[inline]
+    pub fn freqs_array(&self) -> &[u32; COMPRESSION_BLOCK_SIZE] {
+        debug_assert!(self.freqs_loaded);
+        self.freq_decoder.output_raw()
+    }
+
+    /// Returns the in-block index of the first document ID `>= target_doc` using branchless search over the padded
+    /// block buffer.
+    #[inline]
+    pub fn seek_within_loaded_block(&self, target_doc: DocId) -> usize {
+        debug_assert!(self.docs_loaded);
+        self.doc_decoder.seek_within_block(target_doc)
+    }
+
+    /// Advances the skip cursor to the next block without decoding it.
+    ///
+    /// Call [`Self::load_block`] or [`Self::load_docs_only`] before reading docs or frequencies.
+    #[inline]
+    pub fn advance_block_shallow(&mut self) {
+        self.skip_reader.advance();
+        self.docs_loaded = false;
+        self.freqs_loaded = false;
+        self.docs_consumed_bytes = 0;
+        self.block_max_score_cache = None;
     }
 
     /// Advance to the next block.
     pub fn advance(&mut self) {
-        self.skip_reader.advance();
-        self.block_loaded = false;
-        self.block_max_score_cache = None;
+        self.advance_block_shallow();
         self.load_block();
     }
 
@@ -402,7 +469,9 @@ impl BlockSegmentPostings {
     pub fn empty() -> BlockSegmentPostings {
         BlockSegmentPostings {
             doc_decoder: BlockDecoder::with_val(TERMINATED),
-            block_loaded: true,
+            docs_loaded: true,
+            freqs_loaded: true,
+            docs_consumed_bytes: 0,
             freq_decoder: BlockDecoder::with_val(1),
             freq_reading_option: FreqReadingOption::NoFreq,
             block_max_score_cache: None,
@@ -627,6 +696,130 @@ mod tests {
         // Empty postings: rank is always 0.
         let mut empty = BlockSegmentPostings::empty();
         assert_eq!(empty.rank(42), 0);
+        Ok(())
+    }
+
+    #[test]
+    fn test_lazy_two_stage_block_decode_and_shallow_navigation() -> crate::Result<()> {
+        let mut schema_builder = Schema::builder();
+        let text_field = schema_builder.add_text_field("text", crate::schema::TEXT);
+        let schema = schema_builder.build();
+        let index = Index::create_in_ram(schema);
+        let mut index_writer = index.writer_for_tests()?;
+        let num_docs = COMPRESSION_BLOCK_SIZE * 2 + 17;
+        for i in 0..num_docs {
+            let repeats = (i % 5) + 1;
+            let body = std::iter::repeat_n("alpha", repeats)
+                .collect::<Vec<_>>()
+                .join(" ");
+            index_writer.add_document(doc!(text_field => body))?;
+        }
+        index_writer.commit()?;
+
+        let reader = index.reader()?;
+        let searcher = reader.searcher();
+        let segment_reader = searcher.segment_reader(0);
+        let inverted_index = segment_reader.inverted_index(text_field)?;
+        let term = Term::from_field_text(text_field, "alpha");
+        let term_info = inverted_index.get_term_info(&term)?.unwrap();
+
+        let mut eager = inverted_index
+            .read_block_postings_from_terminfo(&term_info, IndexRecordOption::WithFreqs)?;
+        let mut lazy = inverted_index
+            .read_block_postings_lazy_from_terminfo(&term_info, IndexRecordOption::WithFreqs)?;
+
+        assert!(eager.docs_loaded());
+        assert!(eager.freqs_loaded());
+        assert!(!lazy.docs_loaded());
+        assert!(!lazy.freqs_loaded());
+        assert!(lazy.has_remaining_docs());
+        assert_eq!(
+            lazy.last_doc_in_block(),
+            (COMPRESSION_BLOCK_SIZE - 1) as u32
+        );
+        assert_eq!(lazy.position_offset(), 0);
+
+        let mut seen_blocks = 0usize;
+        loop {
+            lazy.load_docs_only();
+            assert!(lazy.docs_loaded());
+            assert!(!lazy.freqs_loaded());
+            let len = lazy.block_len();
+            assert_eq!(len, eager.block_len());
+            assert_eq!(lazy.docs(), eager.docs());
+            assert_eq!(&lazy.docs_array()[..len], eager.docs());
+            if len < COMPRESSION_BLOCK_SIZE {
+                assert!(lazy.docs_array()[len..]
+                    .iter()
+                    .all(|&doc_id| doc_id == TERMINATED));
+            }
+            if len > 0 {
+                let mid = len / 2;
+                let target = lazy.docs()[mid];
+                assert_eq!(lazy.seek_within_loaded_block(target), mid);
+            }
+
+            lazy.load_freqs_only();
+            assert!(lazy.freqs_loaded());
+            assert_eq!(lazy.freqs(), eager.freqs());
+            assert_eq!(&lazy.freqs_array()[..len], eager.freqs());
+            seen_blocks += 1;
+
+            if len < COMPRESSION_BLOCK_SIZE {
+                break;
+            }
+            lazy.advance_block_shallow();
+            assert!(!lazy.docs_loaded());
+            assert!(!lazy.freqs_loaded());
+            eager.advance();
+        }
+        assert_eq!(seen_blocks, 3);
+
+        let mut seek_lazy = inverted_index
+            .read_block_postings_lazy_from_terminfo(&term_info, IndexRecordOption::WithFreqs)?;
+        let target_doc = (COMPRESSION_BLOCK_SIZE + 5) as DocId;
+        seek_lazy.seek_block(target_doc);
+        assert!(!seek_lazy.docs_loaded());
+        assert!(!seek_lazy.freqs_loaded());
+        assert!(seek_lazy.position_offset() > 0);
+        seek_lazy.load_block();
+        assert!(seek_lazy.docs_loaded());
+        assert!(seek_lazy.freqs_loaded());
+        let idx = seek_lazy.seek_within_loaded_block(target_doc);
+        assert_eq!(seek_lazy.doc(idx), target_doc);
+        assert_eq!(seek_lazy.freq(idx), ((target_doc as usize % 5) + 1) as u32);
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_lazy_decode_without_freqs() -> crate::Result<()> {
+        let mut schema_builder = Schema::builder();
+        let text_field = schema_builder.add_text_field("text", crate::schema::STRING);
+        let schema = schema_builder.build();
+        let index = Index::create_in_ram(schema);
+        let mut index_writer = index.writer_for_tests()?;
+        for _ in 0..10 {
+            index_writer.add_document(doc!(text_field => "beta"))?;
+        }
+        index_writer.commit()?;
+
+        let reader = index.reader()?;
+        let searcher = reader.searcher();
+        let inverted_index = searcher.segment_reader(0).inverted_index(text_field)?;
+        let term = Term::from_field_text(text_field, "beta");
+        let term_info = inverted_index.get_term_info(&term)?.unwrap();
+
+        let mut lazy = inverted_index
+            .read_block_postings_lazy_from_terminfo(&term_info, IndexRecordOption::Basic)?;
+        assert!(!lazy.docs_loaded());
+        assert!(!lazy.freqs_loaded());
+        lazy.load_freqs_only();
+        assert!(lazy.docs_loaded());
+        assert!(lazy.freqs_loaded());
+        assert_eq!(lazy.block_len(), 10);
+        assert_eq!(&lazy.freqs_array()[..10], &[1u32; 10]);
+
         Ok(())
     }
 }

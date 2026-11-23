@@ -180,6 +180,18 @@ impl Bm25Weight {
         self.weight * self.tf_factor(fieldnorm_id, term_freq)
     }
 
+    /// Returns the precomputed IDF weight factor (`idf * (1.0 + K1)`).
+    #[inline]
+    pub fn weight(&self) -> Score {
+        self.weight
+    }
+
+    /// Returns the 256-entry lookup table mapping each `fieldnorm_id` to `k1 * (1.0 - b + b * dl / avgdl)`.
+    #[inline]
+    pub fn tf_cache(&self) -> &[Score; 256] {
+        &self.cache
+    }
+
     /// Compute the maximum possible BM25 score given this weight.
     pub fn max_score(&self) -> Score {
         self.score(255u8, 2_013_265_944)
@@ -229,12 +241,27 @@ impl Bm25Weight {
 #[cfg(test)]
 mod tests {
 
-    use super::idf;
+    use super::{idf, Bm25Weight};
     use crate::{assert_nearly_equals, Score};
 
     #[test]
     fn test_idf() {
         let score: Score = 2.0;
         assert_nearly_equals!(idf(1, 2), score.ln());
+    }
+
+    #[test]
+    fn test_bm25_weight_and_tf_cache_match_score() {
+        let bm25 = Bm25Weight::for_one_term(17, 1_000, 24.5);
+        let weight = bm25.weight();
+        let tf_cache = bm25.tf_cache();
+        for fieldnorm_id in 0u8..=255u8 {
+            for tf in [1u32, 2, 5, 19, 250] {
+                let expected = bm25.score(fieldnorm_id, tf);
+                let tf_f = tf as Score;
+                let reconstructed = weight * (tf_f / (tf_f + tf_cache[fieldnorm_id as usize]));
+                assert_eq!(reconstructed.to_bits(), expected.to_bits());
+            }
+        }
     }
 }

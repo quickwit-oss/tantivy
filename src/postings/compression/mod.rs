@@ -154,6 +154,11 @@ impl BlockDecoder {
         &self.output[..self.output_len]
     }
 
+    #[inline]
+    pub fn output_raw(&self) -> &[u32; COMPRESSION_BLOCK_SIZE] {
+        &self.output
+    }
+
     /// Return in-block index of first value >= `target`.
     /// Uses the padded buffer to enable branchless search.
     #[inline]

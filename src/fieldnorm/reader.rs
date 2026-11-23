@@ -135,6 +135,24 @@ impl FieldNormReader {
         }
     }
 
+    /// Returns the per-document `fieldnorm_id` byte slice, or `None` when the reader uses a constant fieldnorm.
+    #[inline]
+    pub fn as_slice(&self) -> Option<&[u8]> {
+        match &self.0 {
+            ReaderImplEnum::FromData(data) => Some(data.as_slice()),
+            ReaderImplEnum::Const { .. } => None,
+        }
+    }
+
+    /// Returns the constant `fieldnorm_id` shared by all documents, or `None` when backed by a per-document slice.
+    #[inline]
+    pub fn constant_fieldnorm_id(&self) -> Option<u8> {
+        match &self.0 {
+            ReaderImplEnum::FromData(_) => None,
+            ReaderImplEnum::Const { fieldnorm_id, .. } => Some(*fieldnorm_id),
+        }
+    }
+
     /// Converts a `fieldnorm_id` into a fieldnorm.
     #[inline]
     pub fn id_to_fieldnorm(id: u8) -> u32 {
@@ -190,5 +208,24 @@ mod tests {
         assert_eq!(fieldnorm_reader.num_docs(), 1_000_000u32);
         assert_eq!(fieldnorm_reader.fieldnorm(0u32), 280u32);
         assert_eq!(fieldnorm_reader.fieldnorm_id(0u32), 72u8);
+    }
+
+    #[test]
+    fn test_fieldnorm_slice_and_constant_accessors() {
+        let from_data = FieldNormReader::for_test(&[1, 5, 100]);
+        let expected_ids = [
+            FieldNormReader::fieldnorm_to_id(1),
+            FieldNormReader::fieldnorm_to_id(5),
+            FieldNormReader::fieldnorm_to_id(100),
+        ];
+        assert_eq!(from_data.as_slice(), Some(&expected_ids[..]));
+        assert_eq!(from_data.constant_fieldnorm_id(), None);
+
+        let constant = FieldNormReader::constant(10, 42);
+        assert_eq!(constant.as_slice(), None);
+        assert_eq!(
+            constant.constant_fieldnorm_id(),
+            Some(FieldNormReader::fieldnorm_to_id(42))
+        );
     }
 }
