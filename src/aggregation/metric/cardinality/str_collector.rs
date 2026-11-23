@@ -11,11 +11,14 @@
 use std::fmt::Debug;
 use std::io;
 
+use common::BitSet;
 use datasketches::hll::Coupon;
 use rustc_hash::{FxBuildHasher, FxHashMap, FxHashSet};
 
-use super::term_ord_accumulator::TermOrdAccumulator;
-use super::{coupon_from_str_bytes, CardinalityAggReqData, CardinalityCollector};
+use super::term_ord_accumulator::{TermOrdAccumulator, TermOrdSet, BITSET_MAX_TERM_ORD};
+use super::{
+    coupon_from_str_bytes, str_max_term_ord_inclusive, CardinalityAggReqData, CardinalityCollector,
+};
 use crate::aggregation::agg_data::AggregationsSegmentCtx;
 use crate::aggregation::intermediate_agg_result::{
     IntermediateAggregationResult, IntermediateAggregationResults, IntermediateMetricResult,
@@ -197,18 +200,38 @@ impl<S: TermOrdAccumulator> SegmentStrCardinalityCollector<S> {
             max_term_ord_inclusive,
         }
     }
-}
 
-impl<S: TermOrdAccumulator + 'static> SegmentAggregationCollector
-    for SegmentStrCardinalityCollector<S>
-{
-    fn add_intermediate_aggregation_result(
+    /// Insert a single existing term ordinal directly into `bucket_id` (used when a multi-column
+    /// segment detects an all-column missing doc whose `Key::Str` missing value is already in
+    /// this column's dictionary).
+    pub(super) fn insert_term_ord(
+        &mut self,
+        bucket_id: BucketId,
+        term_ord: u64,
+    ) -> crate::Result<()> {
+        let Some(term_ords) = self.buckets[bucket_id as usize].as_mut() else {
+            return Err(crate::TantivyError::InternalError(
+                "collection should not happen after finalization".to_string(),
+            ));
+        };
+        term_ords.insert(term_ord);
+        Ok(())
+    }
+
+    /// Exact distinct term-ordinal count accumulated for `bucket_id` so far.
+    pub(super) fn bucket_len(&self, bucket_id: BucketId) -> Option<usize> {
+        Some(self.buckets.get(bucket_id as usize)?.as_ref()?.len())
+    }
+
+    /// Resolve `bucket_id`'s accumulated term ordinals into canonical HLL coupons and append
+    /// them into `cardinality`, consuming the bucket's ordinal set.
+    pub(super) fn append_bucket_to_sketch(
         &mut self,
         agg_data: &AggregationsSegmentCtx,
-        results: &mut IntermediateAggregationResults,
         bucket_id: BucketId,
+        cardinality: &mut CardinalityCollector,
     ) -> crate::Result<()> {
-        self.prepare_max_bucket(bucket_id, agg_data)?;
+        self.prepare_max_bucket_inner(bucket_id, agg_data)?;
         let req_data = &self.req_data;
         // `ValueSource::term_dictionary` guarantees a dictionary for every `Str` source.
         let Some(term_dictionary) = req_data.accessor.term_dictionary() else {
@@ -229,19 +252,131 @@ impl<S: TermOrdAccumulator + 'static> SegmentAggregationCollector
                 req_data.missing_coupon,
             )?);
         }
-        let name = req_data.name.to_string();
-        // take the bucket in buckets and replace it with a new empty one
+        // take the bucket in buckets and replace it with None
         let Some(term_ords) = self.buckets[bucket_id as usize].take() else {
             return Err(crate::TantivyError::InternalError(
                 "the same bucket should not be finalized twice.".to_string(),
             ));
         };
-        let mut cardinality = CardinalityCollector::default();
         if let Some(coupon_cache) = self.coupon_cache.as_ref() {
-            append_to_sketch(&term_ords, coupon_cache, &mut cardinality);
+            append_to_sketch(&term_ords, coupon_cache, cardinality);
         }
+        Ok(())
+    }
+
+    fn prepare_max_bucket_inner(
+        &mut self,
+        max_bucket: BucketId,
+        _agg_data: &AggregationsSegmentCtx,
+    ) -> crate::Result<()> {
+        if max_bucket as usize >= self.buckets.len() {
+            let max_term_ord_inclusive = self.max_term_ord_inclusive;
+            self.buckets.resize_with(max_bucket as usize + 1, || {
+                Some(S::new(max_term_ord_inclusive))
+            });
+        }
+        Ok(())
+    }
+}
+
+/// Type-erased wrapper over the two [`SegmentStrCardinalityCollector`] accumulator variants,
+/// used by [`super::SegmentMultiColumnCardinalityCollector`].
+#[derive(Debug)]
+pub(super) enum StrCardinalityCollector {
+    BitSet(SegmentStrCardinalityCollector<BitSet>),
+    TermOrdSet(SegmentStrCardinalityCollector<TermOrdSet>),
+}
+
+impl StrCardinalityCollector {
+    pub(super) fn from_req(req_data: CardinalityAggReqData) -> Self {
+        if let Some(str_col) = req_data.accessor.as_physical_str_column() {
+            let max_term_ord_inclusive = str_max_term_ord_inclusive(str_col);
+            if max_term_ord_inclusive < BITSET_MAX_TERM_ORD {
+                Self::BitSet(SegmentStrCardinalityCollector::<BitSet>::from_req(
+                    req_data,
+                    max_term_ord_inclusive,
+                ))
+            } else {
+                Self::TermOrdSet(SegmentStrCardinalityCollector::<TermOrdSet>::from_req(
+                    req_data,
+                    max_term_ord_inclusive,
+                ))
+            }
+        } else {
+            Self::TermOrdSet(SegmentStrCardinalityCollector::<TermOrdSet>::from_req(
+                req_data,
+                u64::MAX,
+            ))
+        }
+    }
+
+    pub(super) fn prepare_max_bucket(
+        &mut self,
+        max_bucket: BucketId,
+        agg_data: &AggregationsSegmentCtx,
+    ) -> crate::Result<()> {
+        match self {
+            Self::BitSet(c) => c.prepare_max_bucket(max_bucket, agg_data),
+            Self::TermOrdSet(c) => c.prepare_max_bucket(max_bucket, agg_data),
+        }
+    }
+
+    pub(super) fn collect(
+        &mut self,
+        parent_bucket_id: BucketId,
+        docs: &[crate::DocId],
+        agg_data: &mut AggregationsSegmentCtx,
+    ) -> crate::Result<()> {
+        match self {
+            Self::BitSet(c) => c.collect(parent_bucket_id, docs, agg_data),
+            Self::TermOrdSet(c) => c.collect(parent_bucket_id, docs, agg_data),
+        }
+    }
+
+    pub(super) fn insert_term_ord(
+        &mut self,
+        bucket_id: BucketId,
+        term_ord: u64,
+    ) -> crate::Result<()> {
+        match self {
+            Self::BitSet(c) => c.insert_term_ord(bucket_id, term_ord),
+            Self::TermOrdSet(c) => c.insert_term_ord(bucket_id, term_ord),
+        }
+    }
+
+    pub(super) fn bucket_len(&self, bucket_id: BucketId) -> Option<usize> {
+        match self {
+            Self::BitSet(c) => c.bucket_len(bucket_id),
+            Self::TermOrdSet(c) => c.bucket_len(bucket_id),
+        }
+    }
+
+    pub(super) fn append_bucket_to_sketch(
+        &mut self,
+        agg_data: &AggregationsSegmentCtx,
+        bucket_id: BucketId,
+        cardinality: &mut CardinalityCollector,
+    ) -> crate::Result<()> {
+        match self {
+            Self::BitSet(c) => c.append_bucket_to_sketch(agg_data, bucket_id, cardinality),
+            Self::TermOrdSet(c) => c.append_bucket_to_sketch(agg_data, bucket_id, cardinality),
+        }
+    }
+}
+
+impl<S: TermOrdAccumulator + 'static> SegmentAggregationCollector
+    for SegmentStrCardinalityCollector<S>
+{
+    fn add_intermediate_aggregation_result(
+        &mut self,
+        agg_data: &AggregationsSegmentCtx,
+        results: &mut IntermediateAggregationResults,
+        bucket_id: BucketId,
+    ) -> crate::Result<()> {
+        let mut cardinality = CardinalityCollector::default();
+        self.append_bucket_to_sketch(agg_data, bucket_id, &mut cardinality)?;
         results.push(
-            name,
+            self.req_data.name.clone(),
             IntermediateAggregationResult::Metric(IntermediateMetricResult::Cardinality(
                 cardinality,
             )),
@@ -280,15 +415,9 @@ impl<S: TermOrdAccumulator + 'static> SegmentAggregationCollector
     fn prepare_max_bucket(
         &mut self,
         max_bucket: BucketId,
-        _agg_data: &AggregationsSegmentCtx,
+        agg_data: &AggregationsSegmentCtx,
     ) -> crate::Result<()> {
-        if max_bucket as usize >= self.buckets.len() {
-            let max_term_ord_inclusive = self.max_term_ord_inclusive;
-            self.buckets.resize_with(max_bucket as usize + 1, || {
-                Some(S::new(max_term_ord_inclusive))
-            });
-        }
-        Ok(())
+        self.prepare_max_bucket_inner(max_bucket, agg_data)
     }
 
     fn compute_metric_value(
@@ -303,8 +432,7 @@ impl<S: TermOrdAccumulator + 'static> SegmentAggregationCollector
         }
         // The sketch isn't built until finalization; the term_ord set's len is
         // the exact distinct count.
-        let term_ords = self.buckets.get(bucket_id as usize)?.as_ref()?;
-        Some(term_ords.len() as f64)
+        self.bucket_len(bucket_id).map(|len| len as f64)
     }
 }
 

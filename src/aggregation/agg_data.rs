@@ -22,9 +22,10 @@ use crate::aggregation::bucket::{
 use crate::aggregation::metric::{
     build_segment_stats_collector, coupon_from_key, str_max_term_ord_inclusive, AverageAggregation,
     CardinalityAggReqData, CardinalityAggregationReq, CountAggregation, ExtendedStatsAggregation,
-    MaxAggregation, MetricAggReqData, MinAggregation, MissingCardinalityAggReqData,
-    SegmentExtendedStatsCollector, SegmentMissingCardinalityCollector, SegmentPercentilesCollector,
-    StatsAggregation, StatsType, SumAggregation, TopHitsAggReqData, TopHitsSegmentCollector,
+    MaxAggregation, MetricAggReqData, MinAggregation, MultiColumnCardinalityAggReqData,
+    MultiColumnMissingConfig, MultiColumnMissingTarget, SegmentExtendedStatsCollector,
+    SegmentMultiColumnCardinalityCollector, SegmentPercentilesCollector, StatsAggregation,
+    StatsType, SumAggregation, TopHitsAggReqData, TopHitsSegmentCollector,
 };
 use crate::aggregation::segment_agg_result::{
     GenericSegmentAggregationResultsCollector, SegmentAggregationCollector,
@@ -70,7 +71,7 @@ pub(crate) enum AggNodeData {
     Terms(TermsAggReqData),
     MissingTerm(MissingTermAggReqData),
     Cardinality(CardinalityAggReqData),
-    MissingCardinality(MissingCardinalityAggReqData),
+    MultiColumnCardinality(MultiColumnCardinalityAggReqData),
     /// Shared by avg, min, max, sum, stats, extended_stats, count and percentiles.
     Metric(MetricAggReqData),
     TopHits(Box<TopHitsAggReqData>),
@@ -93,7 +94,7 @@ impl AggNode {
             AggNodeData::Terms(req_data) => &req_data.name,
             AggNodeData::MissingTerm(req_data) => &req_data.name,
             AggNodeData::Cardinality(req_data) => &req_data.name,
-            AggNodeData::MissingCardinality(req_data) => &req_data.name,
+            AggNodeData::MultiColumnCardinality(req_data) => &req_data.name,
             AggNodeData::Metric(req_data) => &req_data.name,
             AggNodeData::TopHits(req_data) => &req_data.name,
             AggNodeData::Histogram(req_data) => &req_data.name,
@@ -110,7 +111,7 @@ impl AggNode {
             AggNodeData::Terms(_) => "Terms",
             AggNodeData::MissingTerm(_) => "MissingTerm",
             AggNodeData::Cardinality(_) => "Cardinality",
-            AggNodeData::MissingCardinality(_) => "MissingCardinality",
+            AggNodeData::MultiColumnCardinality(_) => "MultiColumnCardinality",
             AggNodeData::Metric(_) => "Metric",
             AggNodeData::TopHits(_) => "TopHits",
             AggNodeData::Histogram(req_data) if req_data.is_date_histogram => "DateHistogram",
@@ -132,7 +133,7 @@ impl AggNode {
             AggNodeData::Terms(req_data) => req_data.get_memory_consumption(),
             AggNodeData::MissingTerm(req_data) => req_data.get_memory_consumption(),
             AggNodeData::Cardinality(req_data) => req_data.get_memory_consumption(),
-            AggNodeData::MissingCardinality(req_data) => req_data.get_memory_consumption(),
+            AggNodeData::MultiColumnCardinality(req_data) => req_data.get_memory_consumption(),
             AggNodeData::Metric(req_data) => req_data.get_memory_consumption(),
             AggNodeData::TopHits(req_data) => req_data.get_memory_consumption(),
             AggNodeData::Histogram(req_data) => req_data.get_memory_consumption(),
@@ -228,8 +229,8 @@ pub(crate) fn build_segment_agg_collector(
         AggNodeData::Cardinality(req_data) => {
             crate::aggregation::metric::build_segment_cardinality_collector(req_data)
         }
-        AggNodeData::MissingCardinality(req_data) => Ok(Box::new(
-            SegmentMissingCardinalityCollector::from_req(req_data),
+        AggNodeData::MultiColumnCardinality(req_data) => Ok(Box::new(
+            SegmentMultiColumnCardinalityCollector::from_req(req_data)?,
         )),
         AggNodeData::Metric(req_data) => match req_data.collecting_for {
             StatsType::Sum
@@ -405,14 +406,14 @@ fn build_nodes(
             &req.sub_aggregation,
             is_top_level,
         ),
-        Cardinality(card_req) => build_cardinality_nodes(
+        Cardinality(card_req) => Ok(vec![build_cardinality_node(
             agg_name,
             card_req,
             reader,
             segment_ordinal,
             context,
             &req.sub_aggregation,
-        ),
+        )?]),
         Average(AverageAggregation { field, missing, .. })
         | Max(MaxAggregation { field, missing, .. })
         | Min(MinAggregation { field, missing, .. })
@@ -896,96 +897,145 @@ fn get_term_agg_accessors(
     Ok(sources)
 }
 
-fn build_cardinality_nodes(
+fn build_cardinality_node(
     agg_name: &str,
     req: &CardinalityAggregationReq,
     reader: &SegmentReader,
     segment_ordinal: SegmentOrdinal,
     context: &AggContextParams,
     sub_aggs: &Aggregations,
-) -> crate::Result<Vec<AggNode>> {
+) -> crate::Result<AggNode> {
     let field_name = &req.field;
     let missing = &req.missing;
     let value_sources = &context.value_sources;
 
     let sources = get_term_agg_accessors(reader, value_sources, field_name, missing, false)?;
-    let mut nodes = Vec::with_capacity(sources.len() + usize::from(missing.is_some()));
+    let children = build_children(sub_aggs, reader, segment_ordinal, context)?;
 
-    let missing_and_more_than_one_col = sources.len() > 1 && missing.is_some();
-    if let Some(missing_key) = missing.as_ref().filter(|_| missing_and_more_than_one_col) {
-        let accessors: Vec<Column<u64>> = sources
-            .iter()
-            .map(|source| {
-                require_physical_column(
-                    &**source,
-                    field_name,
-                    "cardinality with `missing` across multiple column types",
-                )
-            })
-            .collect::<crate::Result<Vec<_>>>()?;
-        // If any column for this field is Full, every document has a value so no document can be
-        // missing across all columns.
-        if !accessors
-            .iter()
-            .any(|col| col.index.get_cardinality().is_full())
-        {
-            let children = build_children(sub_aggs, reader, segment_ordinal, context)?;
-            let node_data = AggNodeData::MissingCardinality(MissingCardinalityAggReqData {
-                accessors,
+    let sources = match <[Box<dyn ValueSource>; 1]>::try_from(sources) {
+        Ok([accessor]) => {
+            let column_type = accessor.column_type();
+            let (missing_value_for_accessor, missing_coupon) =
+                if let Some(missing_key) = missing.as_ref() {
+                    if column_type == ColumnType::Str {
+                        let Some(str_col) = accessor.as_physical_str_column() else {
+                            return Err(crate::TantivyError::InvalidArgument(format!(
+                                "`missing` is not supported for the computed text value source \
+                                 `{field_name}`"
+                            )));
+                        };
+                        // Reuse the existing term ordinal if a Str missing key is already in the
+                        // dictionary so `compute_metric_value` stays exact. Otherwise use a
+                        // sentinel strictly past the dictionary range together with the canonical
+                        // missing coupon.
+                        let existing_term_ord = match missing_key {
+                            Key::Str(missing_str) => {
+                                str_col.dictionary().term_ord(missing_str.as_bytes())?
+                            }
+                            Key::I64(_) | Key::U64(_) | Key::F64(_) => None,
+                        };
+                        if let Some(term_ord) = existing_term_ord {
+                            (Some(term_ord), None)
+                        } else {
+                            let sentinel = str_max_term_ord_inclusive(str_col) + 1;
+                            (Some(sentinel), Some(coupon_from_key(missing_key)))
+                        }
+                    } else {
+                        // Non-Str cardinality collectors check for missing docs per block and
+                        // insert the canonical coupon directly, avoiding lossy coercion into the
+                        // column's u64 space.
+                        (None, Some(coupon_from_key(missing_key)))
+                    }
+                } else {
+                    (None, None)
+                };
+
+            let node_data = AggNodeData::Cardinality(CardinalityAggReqData {
+                accessor,
+                missing_value_for_accessor,
+                missing_coupon,
                 name: agg_name.to_string(),
-                missing_coupon: coupon_from_key(missing_key),
             });
-            nodes.push(AggNode::new(node_data, children));
+            return Ok(AggNode::new(node_data, children));
+        }
+        Err(sources) => sources,
+    };
+
+    // Multiple physical columns for the same logical field (e.g. a dynamic JSON path with both
+    // `Str` and numeric columns). Combine them in a single collector so segment-time ordering
+    // (`compute_metric_value`) sees the union across all columns and any `missing` value.
+    let mut str_accessor: Option<Box<dyn ValueSource>> = None;
+    let mut numeric_accessors: Vec<Box<dyn ValueSource>> = Vec::with_capacity(sources.len());
+    for source in sources {
+        if source.column_type() == ColumnType::Str {
+            if str_accessor.is_some() {
+                return Err(crate::TantivyError::InternalError(format!(
+                    "unexpected multiple Str columns for cardinality field `{field_name}`"
+                )));
+            }
+            str_accessor = Some(source);
+        } else {
+            numeric_accessors.push(source);
         }
     }
 
-    for accessor in sources {
-        let column_type = accessor.column_type();
-        let (missing_value_for_accessor, missing_coupon) = if missing_and_more_than_one_col {
-            (None, None)
-        } else if let Some(missing_key) = missing.as_ref() {
-            if column_type == ColumnType::Str {
-                let Some(str_col) = accessor.as_physical_str_column() else {
-                    return Err(crate::TantivyError::InvalidArgument(format!(
-                        "`missing` is not supported for the computed text value source \
-                         `{field_name}`"
-                    )));
-                };
-                // Reuse the existing term ordinal if a Str missing key is already in the
-                // dictionary so `compute_metric_value` stays exact. Otherwise use a sentinel
-                // strictly past the dictionary range together with the canonical missing coupon.
-                let existing_term_ord = match missing_key {
-                    Key::Str(missing_str) => {
-                        str_col.dictionary().term_ord(missing_str.as_bytes())?
-                    }
-                    Key::I64(_) | Key::U64(_) | Key::F64(_) => None,
-                };
-                if let Some(term_ord) = existing_term_ord {
-                    (Some(term_ord), None)
-                } else {
-                    let sentinel = str_max_term_ord_inclusive(str_col) + 1;
-                    (Some(sentinel), Some(coupon_from_key(missing_key)))
-                }
-            } else {
-                // Non-Str cardinality collectors check for missing docs per block and insert the
-                // canonical coupon directly, avoiding lossy coercion into the column's u64 space.
-                (None, Some(coupon_from_key(missing_key)))
-            }
+    let missing_config = if let Some(missing_key) = missing.as_ref() {
+        let mut all_columns =
+            Vec::with_capacity(numeric_accessors.len() + usize::from(str_accessor.is_some()));
+        if let Some(str_source) = str_accessor.as_deref() {
+            all_columns.push(require_physical_column(
+                str_source,
+                field_name,
+                "cardinality with `missing` across multiple column types",
+            )?);
+        }
+        for source in &numeric_accessors {
+            all_columns.push(require_physical_column(
+                &**source,
+                field_name,
+                "cardinality with `missing` across multiple column types",
+            )?);
+        }
+        // If any column for this field is Full, every document has a value so no document can be
+        // missing across all columns.
+        if all_columns
+            .iter()
+            .any(|col| col.index.get_cardinality().is_full())
+        {
+            None
         } else {
-            (None, None)
-        };
+            let existing_str_ord = match (missing_key, str_accessor.as_deref()) {
+                (Key::Str(missing_str), Some(str_source)) => {
+                    let Some(str_col) = str_source.as_physical_str_column() else {
+                        return Err(crate::TantivyError::InvalidArgument(format!(
+                            "`missing` is not supported for the computed text value source \
+                             `{field_name}`"
+                        )));
+                    };
+                    str_col.dictionary().term_ord(missing_str.as_bytes())?
+                }
+                _ => None,
+            };
+            let target = match existing_str_ord {
+                Some(term_ord) => MultiColumnMissingTarget::StrTermOrd(term_ord),
+                None => MultiColumnMissingTarget::Sketch(coupon_from_key(missing_key)),
+            };
+            Some(MultiColumnMissingConfig {
+                accessors: all_columns,
+                target,
+            })
+        }
+    } else {
+        None
+    };
 
-        let children = build_children(sub_aggs, reader, segment_ordinal, context)?;
-        let node_data = AggNodeData::Cardinality(CardinalityAggReqData {
-            accessor,
-            missing_value_for_accessor,
-            missing_coupon,
-            name: agg_name.to_string(),
-        });
-        nodes.push(AggNode::new(node_data, children));
-    }
-
-    Ok(nodes)
+    let node_data = AggNodeData::MultiColumnCardinality(MultiColumnCardinalityAggReqData {
+        name: agg_name.to_string(),
+        str_accessor,
+        numeric_accessors,
+        missing: missing_config,
+    });
+    Ok(AggNode::new(node_data, children))
 }
 
 #[allow(clippy::too_many_arguments)]

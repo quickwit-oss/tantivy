@@ -23,18 +23,12 @@ use crate::aggregation::value_source::ValueSource;
 use crate::aggregation::*;
 use crate::TantivyError;
 
-/// Segment collector for `cardinality` over any non-str column
-/// (numeric, bool, date, IpAddr).
+/// Per-column value reader for non-`Str` cardinality collectors.
 ///
-/// Hidden contract: `column_type` must not be `ColumnType::Str`. Values are
-/// inserted into the HLL sketch during collection, so the sketch of a bucket
-/// is already complete when the bucket is finalized.
-pub(crate) struct SegmentNumericCardinalityCollector {
-    /// Buckets are Some(_) until they get consumed by
-    /// `add_intermediate_aggregation_result`.
-    buckets: Vec<Option<CardinalityCollector>>,
-    /// The name of the aggregation.
-    name: String,
+/// Shared between [`SegmentNumericCardinalityCollector`] (single-column segments) and
+/// [`super::SegmentMultiColumnCardinalityCollector`] (multi-column segments) so both hash
+/// non-`Str` values through the exact same canonical coupon dispatch loop.
+pub(super) struct NumericCardinalitySource {
     /// The column accessor to access the fast field values.
     accessor: Box<dyn ValueSource>,
     /// The column_type of the field.
@@ -43,30 +37,24 @@ pub(crate) struct SegmentNumericCardinalityCollector {
     /// construction: the raw column values are compact-space codes that must
     /// be expanded to their u128 ip representation before hashing.
     compact_space_accessor: Option<Arc<CompactSpaceU64Accessor>>,
-    /// Pre-computed canonical HLL coupon for the configured `missing` key, if handled by this
-    /// collector.
-    missing_coupon: Option<Coupon>,
 }
 
-impl Debug for SegmentNumericCardinalityCollector {
+impl Debug for NumericCardinalitySource {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        f.debug_struct("SegmentNumericCardinalityCollector")
+        f.debug_struct("NumericCardinalitySource")
             .field("column_type", &self.column_type)
-            .field("missing_coupon", &self.missing_coupon)
             .finish()
     }
 }
 
-impl SegmentNumericCardinalityCollector {
-    pub(crate) fn from_req(req_data: CardinalityAggReqData) -> crate::Result<Self> {
-        let CardinalityAggReqData {
-            accessor,
-            missing_coupon,
-            name,
-            ..
-        } = req_data;
+impl NumericCardinalitySource {
+    pub(super) fn new(accessor: Box<dyn ValueSource>) -> crate::Result<Self> {
         let column_type = accessor.column_type();
-        assert_ne!(column_type, ColumnType::Str);
+        if matches!(column_type, ColumnType::Str | ColumnType::Bytes) {
+            return Err(TantivyError::InternalError(format!(
+                "unexpected column type {column_type:?} in NumericCardinalitySource"
+            )));
+        }
         let compact_space_accessor = if column_type == ColumnType::IpAddr {
             let compact_space_accessor = accessor
                 .as_physical_column()
@@ -93,56 +81,21 @@ impl SegmentNumericCardinalityCollector {
             None
         };
         Ok(Self {
-            buckets: Vec::new(),
-            name,
             accessor,
             column_type,
             compact_space_accessor,
-            missing_coupon,
         })
     }
-}
 
-impl SegmentAggregationCollector for SegmentNumericCardinalityCollector {
-    fn add_intermediate_aggregation_result(
+    pub(super) fn collect_into(
         &mut self,
-        agg_data: &AggregationsSegmentCtx,
-        results: &mut IntermediateAggregationResults,
-        bucket_id: BucketId,
-    ) -> crate::Result<()> {
-        self.prepare_max_bucket(bucket_id, agg_data)?;
-        let name = self.name.clone();
-        // take the bucket in buckets and replace it with a new empty one
-        let Some(cardinality) = self.buckets[bucket_id as usize].take() else {
-            return Err(crate::TantivyError::InternalError(
-                "the same bucket should not be finalized twice.".to_string(),
-            ));
-        };
-        results.push(
-            name,
-            IntermediateAggregationResult::Metric(IntermediateMetricResult::Cardinality(
-                cardinality,
-            )),
-        )?;
-        Ok(())
-    }
-
-    fn collect(
-        &mut self,
-        parent_bucket_id: BucketId,
         docs: &[crate::DocId],
+        cardinality: &mut CardinalityCollector,
         agg_data: &mut AggregationsSegmentCtx,
     ) -> crate::Result<()> {
         agg_data
             .column_block_accessor
             .fetch_block(docs, &mut *self.accessor);
-        let cardinality = self.buckets[parent_bucket_id as usize]
-            .as_mut()
-            .ok_or_else(|| {
-                crate::TantivyError::InternalError(
-                    "collection should not happen after finalization".to_string(),
-                )
-            })?;
         let col_block_accessor = &agg_data.column_block_accessor;
         // Dispatch on column_type once per block so the hot per-value loop stays branch-light
         // with zero allocations.
@@ -187,13 +140,101 @@ impl SegmentAggregationCollector for SegmentNumericCardinalityCollector {
             }
             ColumnType::Str | ColumnType::Bytes => {
                 return Err(crate::TantivyError::InternalError(format!(
-                    "unexpected column type {:?} in SegmentNumericCardinalityCollector",
+                    "unexpected column type {:?} in NumericCardinalitySource",
                     self.column_type
                 )));
             }
         }
+        Ok(())
+    }
+}
+
+/// Segment collector for `cardinality` over any non-str column
+/// (numeric, bool, date, IpAddr).
+///
+/// Hidden contract: `column_type` must not be `ColumnType::Str`. Values are
+/// inserted into the HLL sketch during collection, so the sketch of a bucket
+/// is already complete when the bucket is finalized.
+pub(crate) struct SegmentNumericCardinalityCollector {
+    /// Buckets are Some(_) until they get consumed by
+    /// `add_intermediate_aggregation_result`.
+    buckets: Vec<Option<CardinalityCollector>>,
+    /// The name of the aggregation.
+    name: String,
+    /// Per-column reader and canonical coupon dispatcher.
+    source: NumericCardinalitySource,
+    /// Pre-computed canonical HLL coupon for the configured `missing` key, if handled by this
+    /// collector.
+    missing_coupon: Option<Coupon>,
+}
+
+impl Debug for SegmentNumericCardinalityCollector {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        f.debug_struct("SegmentNumericCardinalityCollector")
+            .field("column_type", &self.source.column_type)
+            .field("missing_coupon", &self.missing_coupon)
+            .finish()
+    }
+}
+
+impl SegmentNumericCardinalityCollector {
+    pub(crate) fn from_req(req_data: CardinalityAggReqData) -> crate::Result<Self> {
+        let CardinalityAggReqData {
+            accessor,
+            missing_coupon,
+            name,
+            ..
+        } = req_data;
+        let source = NumericCardinalitySource::new(accessor)?;
+        Ok(Self {
+            buckets: Vec::new(),
+            name,
+            source,
+            missing_coupon,
+        })
+    }
+}
+
+impl SegmentAggregationCollector for SegmentNumericCardinalityCollector {
+    fn add_intermediate_aggregation_result(
+        &mut self,
+        agg_data: &AggregationsSegmentCtx,
+        results: &mut IntermediateAggregationResults,
+        bucket_id: BucketId,
+    ) -> crate::Result<()> {
+        self.prepare_max_bucket(bucket_id, agg_data)?;
+        let name = self.name.clone();
+        // take the bucket in buckets and replace it with a new empty one
+        let Some(cardinality) = self.buckets[bucket_id as usize].take() else {
+            return Err(crate::TantivyError::InternalError(
+                "the same bucket should not be finalized twice.".to_string(),
+            ));
+        };
+        results.push(
+            name,
+            IntermediateAggregationResult::Metric(IntermediateMetricResult::Cardinality(
+                cardinality,
+            )),
+        )?;
+        Ok(())
+    }
+
+    fn collect(
+        &mut self,
+        parent_bucket_id: BucketId,
+        docs: &[crate::DocId],
+        agg_data: &mut AggregationsSegmentCtx,
+    ) -> crate::Result<()> {
+        let cardinality = self.buckets[parent_bucket_id as usize]
+            .as_mut()
+            .ok_or_else(|| {
+                crate::TantivyError::InternalError(
+                    "collection should not happen after finalization".to_string(),
+                )
+            })?;
+        self.source.collect_into(docs, cardinality, agg_data)?;
         if let Some(missing_coupon) = self.missing_coupon {
-            if col_block_accessor.has_missing_docs(docs) {
+            if agg_data.column_block_accessor.has_missing_docs(docs) {
                 cardinality.insert_coupon(missing_coupon);
             }
         }

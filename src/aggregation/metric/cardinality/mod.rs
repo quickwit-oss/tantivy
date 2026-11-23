@@ -4,15 +4,17 @@
 //!     ordinals and resolves them to HLL coupons at finalization.
 //!   * [`numeric_collector`] holds the segment collector for every other column type, which feeds
 //!     the HLL sketch directly during collection.
-//!   * [`missing_collector`] handles the `missing` key when a segment has multiple typed columns
-//!     for the same logical field (e.g. a dynamic JSON path).
+//!   * [`multi_column_collector`] combines all physical columns (plus optional cross-column
+//!     `missing` detection) when a segment has multiple typed columns for the same logical field
+//!     (e.g. a dynamic JSON path), so segment-time ordering (`compute_metric_value`) sees the
+//!     combined cardinality across columns and `missing` values.
 //!
 //! All segment collectors hash values through the canonical coupon functions in this module and
 //! converge on the same [`IntermediateMetricResult::Cardinality`] payload, so results merge
 //! consistently across segments, column types, and `missing` keys through
 //! [`CardinalityCollector::merge_fruits`].
 
-mod missing_collector;
+mod multi_column_collector;
 mod numeric_collector;
 mod str_collector;
 mod term_ord_accumulator;
@@ -20,8 +22,9 @@ mod term_ord_accumulator;
 use columnar::{ColumnType, StrColumn};
 use common::BitSet;
 use datasketches::hll::{Coupon, HllSketch, HllType, HllUnion};
-pub(crate) use missing_collector::{
-    MissingCardinalityAggReqData, SegmentMissingCardinalityCollector,
+pub(crate) use multi_column_collector::{
+    MultiColumnCardinalityAggReqData, MultiColumnMissingConfig, MultiColumnMissingTarget,
+    SegmentMultiColumnCardinalityCollector,
 };
 pub(crate) use numeric_collector::SegmentNumericCardinalityCollector;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
@@ -1569,6 +1572,697 @@ mod tests {
         let val = serde_json::to_value(&final_res)?;
         // Distinct values: {"hello", 1, u64::MAX} = 3.
         assert_eq!(val["c"]["value"], 3.0);
+
+        Ok(())
+    }
+
+    #[test]
+    fn cardinality_terms_order_multi_column_includes_missing() -> crate::Result<()> {
+        let mut schema_builder = Schema::builder();
+        let group = schema_builder.add_text_field("group", STRING | FAST);
+        let json_field = schema_builder.add_json_field("json", FAST);
+        let index = Index::create_in_ram(schema_builder.build());
+        {
+            let mut writer = index.writer_for_tests()?;
+            // Multi-column segment (Str + I64 on `json.v`):
+            // - "with_missing_i64": {1i64, missing} -> cardinality 2 when missing=2
+            // - "only_i64": {1i64} -> cardinality 1
+            // - "only_str": {"s"} -> cardinality 1
+            writer.add_document(doc!(group => "only_str", json_field => json!({"v": "s"})))?;
+            writer.add_document(doc!(group => "only_i64", json_field => json!({"v": 1i64})))?;
+            writer.add_document(
+                doc!(group => "with_missing_i64", json_field => json!({"v": 1i64})),
+            )?;
+            writer.add_document(doc!(group => "with_missing_i64"))?;
+            writer.commit()?;
+        }
+
+        let req_desc: Aggregations = serde_json::from_value(json!({
+            "by_group": {
+                "terms": {
+                    "field": "group",
+                    "size": 1,
+                    "segment_size": 1,
+                    "order": { "card": "desc" }
+                },
+                "aggs": {
+                    "card": {
+                        "cardinality": {
+                            "field": "json.v",
+                            "missing": 2
+                        }
+                    }
+                }
+            }
+        }))
+        .unwrap();
+        let res = exec_request(req_desc, &index)?;
+        let buckets = res["by_group"]["buckets"].as_array().unwrap();
+        assert_eq!(buckets.len(), 1);
+        assert_eq!(buckets[0]["key"], "with_missing_i64");
+        assert_eq!(buckets[0]["card"]["value"], 2.0);
+
+        // Also test when the winning bucket's real value is in the Str column while a numeric
+        // competitor exists in the I64 column.
+        let mut schema_builder2 = Schema::builder();
+        let group2 = schema_builder2.add_text_field("group", STRING | FAST);
+        let json_field2 = schema_builder2.add_json_field("json", FAST);
+        let index2 = Index::create_in_ram(schema_builder2.build());
+        {
+            let mut writer = index2.writer_for_tests()?;
+            writer.add_document(doc!(group2 => "only_i64", json_field2 => json!({"v": 1i64})))?;
+            writer.add_document(doc!(group2 => "only_str", json_field2 => json!({"v": "s"})))?;
+            writer.add_document(
+                doc!(group2 => "with_missing_str", json_field2 => json!({"v": "s"})),
+            )?;
+            writer.add_document(doc!(group2 => "with_missing_str"))?;
+            writer.commit()?;
+        }
+
+        let req_desc2: Aggregations = serde_json::from_value(json!({
+            "by_group": {
+                "terms": {
+                    "field": "group",
+                    "size": 1,
+                    "segment_size": 1,
+                    "order": { "card": "desc" }
+                },
+                "aggs": {
+                    "card": {
+                        "cardinality": {
+                            "field": "json.v",
+                            "missing": 2
+                        }
+                    }
+                }
+            }
+        }))
+        .unwrap();
+        let res2 = exec_request(req_desc2, &index2)?;
+        let buckets2 = res2["by_group"]["buckets"].as_array().unwrap();
+        assert_eq!(buckets2.len(), 1);
+        assert_eq!(buckets2[0]["key"], "with_missing_str");
+        assert_eq!(buckets2[0]["card"]["value"], 2.0);
+
+        Ok(())
+    }
+
+    #[test]
+    fn cardinality_terms_order_multi_column_missing_no_double_count() -> crate::Result<()> {
+        // Case 1: numeric `missing: 2` already present in the I64 column of the same bucket
+        // (`{2, missing: 2}` has cardinality 1, NOT 2).
+        let mut schema_builder = Schema::builder();
+        let group = schema_builder.add_text_field("group", STRING | FAST);
+        let json_field = schema_builder.add_json_field("json", FAST);
+        let index = Index::create_in_ram(schema_builder.build());
+        {
+            let mut writer = index.writer_for_tests()?;
+            // Ensure multi-column (Str + I64) in one segment.
+            writer.add_document(doc!(group => "two_mixed", json_field => json!({"v": "a"})))?;
+            writer.add_document(doc!(group => "two_mixed", json_field => json!({"v": 1i64})))?;
+            writer.add_document(doc!(group => "dup_missing", json_field => json!({"v": 2i64})))?;
+            writer.add_document(doc!(group => "dup_missing"))?;
+            writer.commit()?;
+        }
+
+        let req_desc: Aggregations = serde_json::from_value(json!({
+            "by_group": {
+                "terms": {
+                    "field": "group",
+                    "size": 1,
+                    "segment_size": 1,
+                    "order": { "card": "desc" }
+                },
+                "aggs": {
+                    "card": {
+                        "cardinality": {
+                            "field": "json.v",
+                            "missing": 2
+                        }
+                    }
+                }
+            }
+        }))
+        .unwrap();
+        let res_desc = exec_request(req_desc, &index)?;
+        let buckets_desc = res_desc["by_group"]["buckets"].as_array().unwrap();
+        assert_eq!(buckets_desc.len(), 1);
+        assert_eq!(buckets_desc[0]["key"], "two_mixed");
+        assert_eq!(buckets_desc[0]["card"]["value"], 2.0);
+
+        let req_asc: Aggregations = serde_json::from_value(json!({
+            "by_group": {
+                "terms": {
+                    "field": "group",
+                    "size": 1,
+                    "segment_size": 1,
+                    "order": { "card": "asc" }
+                },
+                "aggs": {
+                    "card": {
+                        "cardinality": {
+                            "field": "json.v",
+                            "missing": 2
+                        }
+                    }
+                }
+            }
+        }))
+        .unwrap();
+        let res_asc = exec_request(req_asc, &index)?;
+        let buckets_asc = res_asc["by_group"]["buckets"].as_array().unwrap();
+        assert_eq!(buckets_asc.len(), 1);
+        assert_eq!(buckets_asc[0]["key"], "dup_missing");
+        assert_eq!(buckets_asc[0]["card"]["value"], 1.0);
+
+        // Case 2: `Key::Str` missing already present in the Str dictionary of the same bucket
+        // (`{"dup", missing: "dup"}` has cardinality 1, NOT 2).
+        let mut schema_builder2 = Schema::builder();
+        let group2 = schema_builder2.add_text_field("group", STRING | FAST);
+        let json_field2 = schema_builder2.add_json_field("json", FAST);
+        let index2 = Index::create_in_ram(schema_builder2.build());
+        {
+            let mut writer = index2.writer_for_tests()?;
+            writer.add_document(doc!(group2 => "two_mixed", json_field2 => json!({"v": "a"})))?;
+            writer.add_document(doc!(group2 => "two_mixed", json_field2 => json!({"v": 1i64})))?;
+            writer
+                .add_document(doc!(group2 => "dup_missing", json_field2 => json!({"v": "dup"})))?;
+            writer.add_document(doc!(group2 => "dup_missing"))?;
+            writer.commit()?;
+        }
+
+        let req_str_desc: Aggregations = serde_json::from_value(json!({
+            "by_group": {
+                "terms": {
+                    "field": "group",
+                    "size": 1,
+                    "segment_size": 1,
+                    "order": { "card": "desc" }
+                },
+                "aggs": {
+                    "card": {
+                        "cardinality": {
+                            "field": "json.v",
+                            "missing": "dup"
+                        }
+                    }
+                }
+            }
+        }))
+        .unwrap();
+        let res_str_desc = exec_request(req_str_desc, &index2)?;
+        let buckets_str_desc = res_str_desc["by_group"]["buckets"].as_array().unwrap();
+        assert_eq!(buckets_str_desc.len(), 1);
+        assert_eq!(buckets_str_desc[0]["key"], "two_mixed");
+        assert_eq!(buckets_str_desc[0]["card"]["value"], 2.0);
+
+        let req_str_asc: Aggregations = serde_json::from_value(json!({
+            "by_group": {
+                "terms": {
+                    "field": "group",
+                    "size": 1,
+                    "segment_size": 1,
+                    "order": { "card": "asc" }
+                },
+                "aggs": {
+                    "card": {
+                        "cardinality": {
+                            "field": "json.v",
+                            "missing": "dup"
+                        }
+                    }
+                }
+            }
+        }))
+        .unwrap();
+        let res_str_asc = exec_request(req_str_asc, &index2)?;
+        let buckets_str_asc = res_str_asc["by_group"]["buckets"].as_array().unwrap();
+        assert_eq!(buckets_str_asc.len(), 1);
+        assert_eq!(buckets_str_asc[0]["key"], "dup_missing");
+        assert_eq!(buckets_str_asc[0]["card"]["value"], 1.0);
+
+        // Case 3: `Key::Str` missing NOT present in the Str dictionary adds 1 to any bucket
+        // with missing docs.
+        let req_absent_str: Aggregations = serde_json::from_value(json!({
+            "by_group": {
+                "terms": {
+                    "field": "group",
+                    "size": 1,
+                    "segment_size": 1,
+                    "order": { "card": "desc" }
+                },
+                "aggs": {
+                    "card": {
+                        "cardinality": {
+                            "field": "json.v",
+                            "missing": "absent_key"
+                        }
+                    }
+                }
+            }
+        }))
+        .unwrap();
+        // Now "dup_missing" has {"dup", "absent_key"} = 2 and "two_mixed" has {"a", 1} = 2.
+        // Add an extra value to "dup_missing" in a dedicated index to break ties strictly.
+        let mut schema_builder3 = Schema::builder();
+        let group3 = schema_builder3.add_text_field("group", STRING | FAST);
+        let json_field3 = schema_builder3.add_json_field("json", FAST);
+        let index3 = Index::create_in_ram(schema_builder3.build());
+        {
+            let mut writer = index3.writer_for_tests()?;
+            writer.add_document(doc!(group3 => "only_one", json_field3 => json!({"v": 1i64})))?;
+            writer
+                .add_document(doc!(group3 => "str_plus_miss", json_field3 => json!({"v": "a"})))?;
+            writer.add_document(doc!(group3 => "str_plus_miss"))?;
+            writer.commit()?;
+        }
+        let res_absent = exec_request(req_absent_str, &index3)?;
+        let buckets_absent = res_absent["by_group"]["buckets"].as_array().unwrap();
+        assert_eq!(buckets_absent.len(), 1);
+        assert_eq!(buckets_absent[0]["key"], "str_plus_miss");
+        assert_eq!(buckets_absent[0]["card"]["value"], 2.0);
+
+        Ok(())
+    }
+
+    #[test]
+    fn cardinality_terms_order_multi_column_combines_real_columns() -> crate::Result<()> {
+        // Str + I64 without `missing`: bucket spanning both columns must sum their contributions.
+        let mut schema_builder = Schema::builder();
+        let group = schema_builder.add_text_field("group", STRING | FAST);
+        let json_field = schema_builder.add_json_field("json", FAST);
+        let index = Index::create_in_ram(schema_builder.build());
+        {
+            let mut writer = index.writer_for_tests()?;
+            writer.add_document(doc!(group => "str_two", json_field => json!({"v": "x"})))?;
+            writer.add_document(doc!(group => "str_two", json_field => json!({"v": "y"})))?;
+            writer.add_document(doc!(group => "num_two", json_field => json!({"v": 10i64})))?;
+            writer.add_document(doc!(group => "num_two", json_field => json!({"v": 20i64})))?;
+            // 2 Str + 1 I64 = 3 total, while `num_two` alone has 2 I64.
+            writer.add_document(doc!(group => "mixed_three", json_field => json!({"v": "a"})))?;
+            writer.add_document(doc!(group => "mixed_three", json_field => json!({"v": "b"})))?;
+            writer.add_document(doc!(group => "mixed_three", json_field => json!({"v": 1i64})))?;
+            writer.commit()?;
+        }
+
+        let req: Aggregations = serde_json::from_value(json!({
+            "by_group": {
+                "terms": {
+                    "field": "group",
+                    "size": 1,
+                    "segment_size": 1,
+                    "order": { "card": "desc" }
+                },
+                "aggs": {
+                    "card": {
+                        "cardinality": {
+                            "field": "json.v"
+                        }
+                    }
+                }
+            }
+        }))
+        .unwrap();
+        let res = exec_request(req, &index)?;
+        let buckets = res["by_group"]["buckets"].as_array().unwrap();
+        assert_eq!(buckets.len(), 1);
+        assert_eq!(buckets[0]["key"], "mixed_three");
+        assert_eq!(buckets[0]["card"]["value"], 3.0);
+
+        // I64 + F64 in one segment: mathematically equal `1i64`/`1.0f64` and `2i64`/`2.0f64`
+        // must not double-count during segment-time ordering.
+        // - "overlap_two": {1i64, 2i64, 1.0f64, 2.0f64} -> I64=2, F64=2, true cardinality = 2
+        // - "distinct_three": {1i64, 2.5f64, 3.5f64} -> I64=1, F64=2, true cardinality = 3
+        let mut schema_builder2 = Schema::builder();
+        let group2 = schema_builder2.add_text_field("group", STRING | FAST);
+        let json_field2 = schema_builder2.add_json_field("json", FAST);
+        let index2 = Index::create_in_ram(schema_builder2.build());
+        {
+            let mut writer = index2.writer_for_tests()?;
+            writer
+                .add_document(doc!(group2 => "overlap_two", json_field2 => json!({"v": 1i64})))?;
+            writer
+                .add_document(doc!(group2 => "overlap_two", json_field2 => json!({"v": 2i64})))?;
+            writer
+                .add_document(doc!(group2 => "overlap_two", json_field2 => json!({"v": 1.0f64})))?;
+            writer
+                .add_document(doc!(group2 => "overlap_two", json_field2 => json!({"v": 2.0f64})))?;
+            writer.add_document(
+                doc!(group2 => "distinct_three", json_field2 => json!({"v": 1i64})),
+            )?;
+            writer.add_document(
+                doc!(group2 => "distinct_three", json_field2 => json!({"v": 2.5f64})),
+            )?;
+            writer.add_document(
+                doc!(group2 => "distinct_three", json_field2 => json!({"v": 3.5f64})),
+            )?;
+            writer.commit()?;
+        }
+
+        let req_asc: Aggregations = serde_json::from_value(json!({
+            "by_group": {
+                "terms": {
+                    "field": "group",
+                    "size": 1,
+                    "segment_size": 1,
+                    "order": { "card": "asc" }
+                },
+                "aggs": {
+                    "card": {
+                        "cardinality": {
+                            "field": "json.v"
+                        }
+                    }
+                }
+            }
+        }))
+        .unwrap();
+        let res_asc = exec_request(req_asc, &index2)?;
+        let buckets_asc = res_asc["by_group"]["buckets"].as_array().unwrap();
+        assert_eq!(buckets_asc.len(), 1);
+        assert_eq!(buckets_asc[0]["key"], "overlap_two");
+        assert_eq!(buckets_asc[0]["card"]["value"], 2.0);
+
+        let req_desc: Aggregations = serde_json::from_value(json!({
+            "by_group": {
+                "terms": {
+                    "field": "group",
+                    "size": 1,
+                    "segment_size": 1,
+                    "order": { "card": "desc" }
+                },
+                "aggs": {
+                    "card": {
+                        "cardinality": {
+                            "field": "json.v"
+                        }
+                    }
+                }
+            }
+        }))
+        .unwrap();
+        let res_desc = exec_request(req_desc, &index2)?;
+        let buckets_desc = res_desc["by_group"]["buckets"].as_array().unwrap();
+        assert_eq!(buckets_desc.len(), 1);
+        assert_eq!(buckets_desc[0]["key"], "distinct_three");
+        assert_eq!(buckets_desc[0]["card"]["value"], 3.0);
+
+        Ok(())
+    }
+
+    #[test]
+    fn cardinality_multi_column_compute_metric_value_exact_and_idempotent() -> crate::Result<()> {
+        use crate::aggregation::agg_data::{
+            build_aggregations_data_from_req, build_segment_agg_collectors, AggregationsSegmentCtx,
+        };
+        use crate::aggregation::intermediate_agg_result::{
+            IntermediateAggregationResult, IntermediateAggregationResults, IntermediateMetricResult,
+        };
+
+        let mut schema_builder = Schema::builder();
+        let json_field = schema_builder.add_json_field("json", FAST);
+        let index = Index::create_in_ram(schema_builder.build());
+        {
+            let mut writer = index.writer_for_tests()?;
+            // doc 0: "a" (Str)
+            writer.add_document(doc!(json_field => json!({"v": "a"})))?;
+            // doc 1: 1i64 (I64)
+            writer.add_document(doc!(json_field => json!({"v": 1i64})))?;
+            // doc 2: 2i64 (I64)
+            writer.add_document(doc!(json_field => json!({"v": 2i64})))?;
+            // doc 3: missing (no json.v)
+            writer.add_document(doc!())?;
+            writer.commit()?;
+        }
+
+        let reader = index.reader()?;
+        let searcher = reader.searcher();
+        let seg_reader = searcher.segment_reader(0);
+
+        let req: Aggregations = serde_json::from_value(json!({
+            "card": {
+                "cardinality": {
+                    "field": "json.v",
+                    "missing": 2
+                }
+            }
+        }))
+        .unwrap();
+        let agg_nodes = build_aggregations_data_from_req(&req, seg_reader, 0, &Default::default())?;
+        let mut ctx = AggregationsSegmentCtx::new(Default::default());
+        let mut collector = build_segment_agg_collectors(&mut ctx, agg_nodes)?;
+
+        // Prepare 5 buckets:
+        // b0: [3] -> {missing=2} => 1.0
+        // b1: [1] -> {1} => 1.0
+        // b2: [1, 3] -> {1, missing=2} => 2.0
+        // b3: [2, 3] -> {2, missing=2} => 1.0 (no double counting!)
+        // b4: [0, 1, 3] -> {"a", 1, missing=2} => 3.0
+        collector.prepare_max_bucket(4, &ctx)?;
+        collector.collect(0, &[3], &mut ctx)?;
+        collector.collect(1, &[1], &mut ctx)?;
+        collector.collect(2, &[1, 3], &mut ctx)?;
+        collector.collect(3, &[2, 3], &mut ctx)?;
+        collector.collect(4, &[0, 1, 3], &mut ctx)?;
+
+        let expected = [1.0, 1.0, 2.0, 1.0, 3.0];
+        // Call compute_metric_value twice to prove idempotency.
+        for _ in 0..2 {
+            for (bucket_id, &exp) in expected.iter().enumerate() {
+                assert_eq!(
+                    collector.compute_metric_value(bucket_id as u32, "card", "", &ctx),
+                    Some(exp),
+                    "bucket_id={bucket_id}"
+                );
+            }
+            // Name mismatch and non-empty property must still return None.
+            assert_eq!(collector.compute_metric_value(0, "other", "", &ctx), None);
+            assert_eq!(
+                collector.compute_metric_value(0, "card", "value", &ctx),
+                None
+            );
+        }
+
+        // Finalize every bucket and confirm intermediate results match exactly.
+        for (bucket_id, &exp) in expected.iter().enumerate() {
+            let mut results = IntermediateAggregationResults::default();
+            collector.add_intermediate_aggregation_result(&ctx, &mut results, bucket_id as u32)?;
+            let Some(IntermediateAggregationResult::Metric(IntermediateMetricResult::Cardinality(
+                card,
+            ))) = results.aggs_res.remove("card")
+            else {
+                panic!("expected cardinality intermediate result for bucket {bucket_id}");
+            };
+            assert_eq!(
+                card.finalize(),
+                Some(exp),
+                "finalized bucket_id={bucket_id}"
+            );
+        }
+
+        Ok(())
+    }
+
+    #[test]
+    fn cardinality_terms_order_multi_column_missing_only_bucket_and_multi_terms(
+    ) -> crate::Result<()> {
+        let mut schema_builder = Schema::builder();
+        let group = schema_builder.add_text_field("group", STRING | FAST);
+        let region = schema_builder.add_text_field("region", STRING | FAST);
+        let json_field = schema_builder.add_json_field("json", FAST);
+        let index = Index::create_in_ram(schema_builder.build());
+        {
+            let mut writer = index.writer_for_tests()?;
+            // "missing_only": only missing docs -> cardinality 1
+            writer.add_document(doc!(group => "missing_only", region => "r1"))?;
+            writer.add_document(doc!(group => "missing_only", region => "r1"))?;
+            // "two_vals": {1i64, missing} -> cardinality 2
+            writer.add_document(
+                doc!(group => "two_vals", region => "r1", json_field => json!({"v": 1i64})),
+            )?;
+            writer.add_document(doc!(group => "two_vals", region => "r1"))?;
+            // "three_vals": {"a", 1i64, missing} -> cardinality 3
+            writer.add_document(
+                doc!(group => "three_vals", region => "r1", json_field => json!({"v": "a"})),
+            )?;
+            writer.add_document(
+                doc!(group => "three_vals", region => "r1", json_field => json!({"v": 1i64})),
+            )?;
+            writer.add_document(doc!(group => "three_vals", region => "r1"))?;
+            writer.commit()?;
+        }
+
+        // terms asc: "missing_only" (1.0) wins
+        let req_asc: Aggregations = serde_json::from_value(json!({
+            "by_group": {
+                "terms": {
+                    "field": "group",
+                    "size": 1,
+                    "segment_size": 1,
+                    "order": { "card": "asc" }
+                },
+                "aggs": {
+                    "card": {
+                        "cardinality": {
+                            "field": "json.v",
+                            "missing": 2
+                        }
+                    }
+                }
+            }
+        }))
+        .unwrap();
+        let res_asc = exec_request(req_asc, &index)?;
+        let buckets_asc = res_asc["by_group"]["buckets"].as_array().unwrap();
+        assert_eq!(buckets_asc.len(), 1);
+        assert_eq!(buckets_asc[0]["key"], "missing_only");
+        assert_eq!(buckets_asc[0]["card"]["value"], 1.0);
+
+        // terms desc: "three_vals" (3.0) wins
+        let req_desc: Aggregations = serde_json::from_value(json!({
+            "by_group": {
+                "terms": {
+                    "field": "group",
+                    "size": 1,
+                    "segment_size": 1,
+                    "order": { "card": "desc" }
+                },
+                "aggs": {
+                    "card": {
+                        "cardinality": {
+                            "field": "json.v",
+                            "missing": 2
+                        }
+                    }
+                }
+            }
+        }))
+        .unwrap();
+        let res_desc = exec_request(req_desc, &index)?;
+        let buckets_desc = res_desc["by_group"]["buckets"].as_array().unwrap();
+        assert_eq!(buckets_desc.len(), 1);
+        assert_eq!(buckets_desc[0]["key"], "three_vals");
+        assert_eq!(buckets_desc[0]["card"]["value"], 3.0);
+
+        // multi_terms desc: ["three_vals", "r1"] (3.0) wins
+        let req_mt_desc: Aggregations = serde_json::from_value(json!({
+            "by_pair": {
+                "multi_terms": {
+                    "terms": [
+                        { "field": "group" },
+                        { "field": "region" }
+                    ],
+                    "size": 1,
+                    "segment_size": 1,
+                    "order": { "card": "desc" }
+                },
+                "aggs": {
+                    "card": {
+                        "cardinality": {
+                            "field": "json.v",
+                            "missing": 2
+                        }
+                    }
+                }
+            }
+        }))
+        .unwrap();
+        let res_mt_desc = exec_request(req_mt_desc, &index)?;
+        let mt_buckets = res_mt_desc["by_pair"]["buckets"].as_array().unwrap();
+        assert_eq!(mt_buckets.len(), 1);
+        assert_eq!(mt_buckets[0]["key"], json!(["three_vals", "r1"]));
+        assert_eq!(mt_buckets[0]["card"]["value"], 3.0);
+
+        // multi_terms asc: ["missing_only", "r1"] (1.0) wins
+        let req_mt_asc: Aggregations = serde_json::from_value(json!({
+            "by_pair": {
+                "multi_terms": {
+                    "terms": [
+                        { "field": "group" },
+                        { "field": "region" }
+                    ],
+                    "size": 1,
+                    "segment_size": 1,
+                    "order": { "card": "asc" }
+                },
+                "aggs": {
+                    "card": {
+                        "cardinality": {
+                            "field": "json.v",
+                            "missing": 2
+                        }
+                    }
+                }
+            }
+        }))
+        .unwrap();
+        let res_mt_asc = exec_request(req_mt_asc, &index)?;
+        let mt_buckets_asc = res_mt_asc["by_pair"]["buckets"].as_array().unwrap();
+        assert_eq!(mt_buckets_asc.len(), 1);
+        assert_eq!(mt_buckets_asc[0]["key"], json!(["missing_only", "r1"]));
+        assert_eq!(mt_buckets_asc[0]["card"]["value"], 1.0);
+
+        Ok(())
+    }
+
+    #[test]
+    fn cardinality_terms_order_multi_column_term_ord_set_with_missing() -> crate::Result<()> {
+        let mut schema_builder = Schema::builder();
+        let group = schema_builder.add_text_field("group", STRING | FAST);
+        let json_field = schema_builder.add_json_field("json", FAST);
+        let index = Index::create_in_ram(schema_builder.build());
+        {
+            let mut writer = index.writer_for_tests()?;
+            // > BITSET_MAX_TERM_ORD (256) distinct strings forces the TermOrdSet variant inside
+            // the multi-column collector.
+            for i in 0..270 {
+                writer.add_document(
+                    doc!(group => "filler", json_field => json!({"v": format!("s_{i:03}")})),
+                )?;
+            }
+            // Add an I64 value so the segment has both Str and I64 columns.
+            writer.add_document(doc!(group => "only_one", json_field => json!({"v": 1i64})))?;
+            // "dup_str_missing": {"s_000", missing: "s_000"} -> cardinality 1
+            writer.add_document(
+                doc!(group => "dup_str_missing", json_field => json!({"v": "s_000"})),
+            )?;
+            writer.add_document(doc!(group => "dup_str_missing"))?;
+            // "distinct_two": {1i64, missing: "s_000"} -> cardinality 2
+            writer.add_document(doc!(group => "distinct_two", json_field => json!({"v": 1i64})))?;
+            writer.add_document(doc!(group => "distinct_two"))?;
+            writer.commit()?;
+        }
+
+        // With `missing: "s_000"` (in Str dictionary):
+        // - "filler": 270
+        // - "distinct_two": 2 ({1, "s_000"})
+        // - "only_one": 1 ({1})
+        // - "dup_str_missing": 1 ({"s_000"})
+        let req_top2: Aggregations = serde_json::from_value(json!({
+            "by_group": {
+                "terms": {
+                    "field": "group",
+                    "size": 2,
+                    "segment_size": 2,
+                    "order": { "card": "desc" }
+                },
+                "aggs": {
+                    "card": {
+                        "cardinality": {
+                            "field": "json.v",
+                            "missing": "s_000"
+                        }
+                    }
+                }
+            }
+        }))
+        .unwrap();
+        let res = exec_request(req_top2, &index)?;
+        let buckets = res["by_group"]["buckets"].as_array().unwrap();
+        assert_eq!(buckets.len(), 2);
+        assert_eq!(buckets[0]["key"], "filler");
+        assert_eq!(buckets[1]["key"], "distinct_two");
+        assert_eq!(buckets[1]["card"]["value"], 2.0);
 
         Ok(())
     }
