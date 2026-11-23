@@ -571,7 +571,7 @@ impl InvertedIndexReader {
             return Ok(bitset);
         }
         let mut dictionary_blocks = self.termdict.stream_blocks(byte_ranges, first_ordinals);
-        let flush_batch = |batch, automaton: A, mut postinglist_metdata: PostingListMetadata| async move {
+        let flush_batch = |batch, automaton: A, mut postinglist_metadata: PostingListMetadata| async move {
             let mut terms = self
                 .termdict
                 .search(automaton)
@@ -580,14 +580,14 @@ impl InvertedIndexReader {
             executor
                 .spawn_blocking(move || {
                     while let Some(info) = terms.next_without_key() {
-                        postinglist_metdata.push(info);
+                        postinglist_metadata.push(info);
                     }
-                    (terms.into_automaton(), postinglist_metdata)
+                    (terms.into_automaton(), postinglist_metadata)
                 })
                 .await
                 .map_err(|_| io::Error::other("automaton term enumeration task panicked"))
         };
-        let mut postinglist_metdata = PostingListMetadata::default();
+        let mut postinglist_metadata = PostingListMetadata::default();
         let mut batch = Vec::new();
         let mut batch_bytes = 0;
         // We don't want to block the async runtime, and we don't want to call spawn_blocking for
@@ -596,17 +596,17 @@ impl InvertedIndexReader {
             batch_bytes += block.0.len();
             batch.push(block);
             if batch_bytes >= TARGET_BYTES_PER_CPU_TASK {
-                (automaton, postinglist_metdata) =
-                    flush_batch(batch, automaton, postinglist_metdata).await?;
+                (automaton, postinglist_metadata) =
+                    flush_batch(batch, automaton, postinglist_metadata).await?;
                 batch = Vec::new();
                 batch_bytes = 0;
             }
         }
         drop(dictionary_blocks);
         if !batch.is_empty() {
-            (_, postinglist_metdata) = flush_batch(batch, automaton, postinglist_metdata).await?;
+            (_, postinglist_metadata) = flush_batch(batch, automaton, postinglist_metadata).await?;
         }
-        let ranges_and_doc_freqs = postinglist_metdata.into_ranges_and_doc_freqs();
+        let ranges_and_doc_freqs = postinglist_metadata.into_ranges_and_doc_freqs();
         let posting_ranges = ranges_and_doc_freqs.clone().map(|(range, _)| range);
         let mut doc_freqs = ranges_and_doc_freqs.map(|(_, doc_freq)| doc_freq);
         let mut posting_lists = self
