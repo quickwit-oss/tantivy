@@ -315,7 +315,10 @@ pub struct PostingsSerializer {
     mode: IndexRecordOption,
     fieldnorm_reader: Option<FieldNormReader>,
 
+    // Built on the first full block of a term: only full blocks store block-wand data,
+    // and most terms never fill one.
     bm25_weight: Option<Bm25Weight>,
+    term_doc_freq: u32,
     avg_fieldnorm: Score, /* Average number of term in the field for that segment.
                            * this value is used to compute the block wand information. */
     term_has_freq: bool,
@@ -342,6 +345,7 @@ impl PostingsSerializer {
 
             fieldnorm_reader,
             bm25_weight: None,
+            term_doc_freq: 0,
             avg_fieldnorm,
             term_has_freq: false,
         }
@@ -351,28 +355,24 @@ impl PostingsSerializer {
     /// * term_doc_freq - the number of documents containing the term.
     pub fn new_term(&mut self, term_doc_freq: u32, record_term_freq: bool) {
         self.bm25_weight = None;
-
+        self.term_doc_freq = term_doc_freq;
         self.term_has_freq = self.mode.has_freq() && record_term_freq;
+    }
+
+    /// BM25 weight of the current term, used to compute block-wand data.
+    fn current_term_bm25_weight(&self) -> Option<Bm25Weight> {
         if !self.term_has_freq {
-            return;
+            return None;
         }
-
-        let num_docs_in_segment: u64 =
-            if let Some(fieldnorm_reader) = self.fieldnorm_reader.as_ref() {
-                fieldnorm_reader.num_docs() as u64
-            } else {
-                return;
-            };
-
+        let num_docs_in_segment = self.fieldnorm_reader.as_ref()?.num_docs() as u64;
         if num_docs_in_segment == 0 {
-            return;
+            return None;
         }
-
-        self.bm25_weight = Some(Bm25Weight::for_one_term_without_explain(
-            term_doc_freq as u64,
+        Some(Bm25Weight::for_one_term_without_explain(
+            self.term_doc_freq as u64,
             num_docs_in_segment,
             self.avg_fieldnorm,
-        ));
+        ))
     }
 
     fn write_block(&mut self) {
@@ -401,6 +401,9 @@ impl PostingsSerializer {
                 self.skip_write.write_total_term_freq(sum_freq);
             }
             let mut blockwand_params = (0u8, 0u32);
+            if self.bm25_weight.is_none() {
+                self.bm25_weight = self.current_term_bm25_weight();
+            }
             if let Some(bm25_weight) = self.bm25_weight.as_ref() {
                 if let Some(fieldnorm_reader) = self.fieldnorm_reader.as_ref() {
                     let docs = self.block.doc_ids().iter().cloned();
@@ -482,5 +485,86 @@ impl PostingsSerializer {
     fn clear(&mut self) {
         self.block.clear();
         self.last_doc_id_encoded = 0;
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::docset::{DocSet, TERMINATED};
+    use crate::indexer::NoMergePolicy;
+    use crate::postings::compression::COMPRESSION_BLOCK_SIZE;
+    use crate::query::{EnableScoring, Scorer, TermQuery};
+    use crate::schema::{IndexRecordOption, Schema, TEXT};
+    use crate::{assert_nearly_equals, Index, IndexWriter, Searcher, Term};
+
+    /// For every full block of `token`, the block-wand max score stored at serialization
+    /// must be the max score of the block's documents.
+    fn check_block_wand_data(searcher: &Searcher, token: &str) -> crate::Result<usize> {
+        let text = searcher.schema().get_field("text").unwrap();
+        let term_query = TermQuery::new(
+            Term::from_field_text(text, token),
+            IndexRecordOption::WithFreqs,
+        );
+        let weight =
+            term_query.specialized_weight(EnableScoring::enabled_from_searcher(searcher))?;
+        let mut num_full_blocks = 0;
+        for segment_reader in searcher.segment_readers() {
+            let mut scorer = weight.term_scorer_for_test(segment_reader, 1.0)?.unwrap();
+            let mut scores_in_block = Vec::new();
+            let mut block_max = 0.0;
+            while scorer.doc() != TERMINATED {
+                block_max = scorer.block_max_score();
+                let score = scorer.score();
+                assert!(score <= block_max + 1e-6, "{score} > block max {block_max}");
+                scores_in_block.push(score);
+                if scores_in_block.len() == COMPRESSION_BLOCK_SIZE {
+                    let max = scores_in_block.iter().cloned().fold(f32::MIN, f32::max);
+                    assert_nearly_equals!(max, block_max);
+                    scores_in_block.clear();
+                    num_full_blocks += 1;
+                }
+                scorer.advance();
+            }
+            let _ = block_max;
+        }
+        Ok(num_full_blocks)
+    }
+
+    #[test]
+    fn test_block_wand_data_matches_block_scores() -> crate::Result<()> {
+        let mut schema_builder = Schema::builder();
+        let text = schema_builder.add_text_field("text", TEXT);
+        let index = Index::create_in_ram(schema_builder.build());
+        let mut writer: IndexWriter = index.writer_for_tests()?;
+        writer.set_merge_policy(Box::new(NoMergePolicy));
+        for segment in 0..2u32 {
+            for doc in 0..700u32 {
+                // `a` and `c` fill several blocks; the rare `b..` terms sort between them and
+                // never fill a block. Term frequencies and field lengths vary per document.
+                let mut tokens: Vec<String> = Vec::new();
+                tokens.extend((0..1 + doc % 5).map(|_| "a".to_string()));
+                tokens.push(format!("b{segment}x{doc}"));
+                if doc % 2 == 0 {
+                    tokens.extend((0..1 + doc % 4).map(|_| "c".to_string()));
+                }
+                tokens.extend((0..doc % 11).map(|_| "z".to_string()));
+                writer.add_document(doc!(text => tokens.join(" ")))?;
+            }
+            writer.commit()?;
+        }
+        let reader = index.reader()?;
+        let searcher = reader.searcher();
+        assert_eq!(searcher.segment_readers().len(), 2);
+        assert_eq!(check_block_wand_data(&searcher, "a")?, 2 * (700 / 128));
+        assert_eq!(check_block_wand_data(&searcher, "c")?, 2 * (350 / 128));
+
+        let segment_ids = index.searchable_segment_ids()?;
+        writer.merge(&segment_ids).wait()?;
+        reader.reload()?;
+        let searcher = reader.searcher();
+        assert_eq!(searcher.segment_readers().len(), 1);
+        assert_eq!(check_block_wand_data(&searcher, "a")?, 1400 / 128);
+        assert_eq!(check_block_wand_data(&searcher, "c")?, 700 / 128);
+        Ok(())
     }
 }
