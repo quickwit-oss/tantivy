@@ -190,9 +190,10 @@ impl TermDictionary {
             (byte_stream, first_ordinals.into_iter()),
             |(mut byte_stream, mut first_ordinals)| async move {
                 match (byte_stream.try_next().await?, first_ordinals.next()) {
-                    (Some(bytes), Some(first_ordinal)) => {
-                        Ok(Some(((bytes, first_ordinal), (byte_stream, first_ordinals))))
-                    }
+                    (Some(bytes), Some(first_ordinal)) => Ok(Some((
+                        (bytes, first_ordinal),
+                        (byte_stream, first_ordinals),
+                    ))),
                     (None, None) => Ok(None),
                     (None, Some(_)) => Err(io::ErrorKind::UnexpectedEof.into()),
                     (Some(_), None) => Err(io::Error::new(
