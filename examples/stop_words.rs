@@ -60,6 +60,15 @@ fn main() -> tantivy::Result<()> {
 
     index.tokenizers().register("stoppy", tokenizer);
 
+    // Rather than listing the words by hand, every `Language` tantivy supports also has a
+    // built-in stop word list. This registers an equivalent tokenizer using English's.
+    let built_in = TextAnalyzer::builder(SimpleTokenizer::default())
+        .filter(LowerCaser)
+        .filter(StopWordFilter::new(Language::English).expect("English has a stop word list"))
+        .build();
+
+    index.tokenizers().register("stoppy_built_in", built_in);
+
     let mut index_writer: IndexWriter = index.writer(50_000_000)?;
 
     let title = schema.get_field("title").unwrap();

@@ -125,6 +125,8 @@ mod alphanum_only;
 mod ascii_folding_filter;
 mod empty_tokenizer;
 mod facet_tokenizer;
+#[cfg(feature = "stemmer")]
+mod light_stemmer;
 mod lower_caser;
 mod ngram_tokenizer;
 mod raw_tokenizer;

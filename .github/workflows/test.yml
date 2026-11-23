@@ -72,6 +72,8 @@ jobs:
         features:
           - { label: "all", flags: "mmap,stopwords,lz4-compression,zstd-compression,failpoints,stemmer,jitexpr,plain_codec" }
           - { label: "quickwit", flags: "mmap,quickwit,failpoints,jitexpr,plain_codec" }
+          - { label: "stopwords-only", flags: "stopwords" }
+          - { label: "stemmer-only", flags: "stemmer" }
           - { label: "none", flags: "" }
 
     name: test-${{ matrix.features.label}}

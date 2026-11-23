@@ -4,6 +4,20 @@ Tantivy Upcoming Release
 ## Breaking change
 - MSRV is now 1.91, required by the `onpair` crate [#3179](https://github.com/quickwit-oss/tantivy/pull/3179)(@fulmicoton-dd)
 - `DynamicColumn` has new `PlainStr` and `PlainBytes` variants; exhaustive matches on `DynamicColumn` need new arms [#3179](https://github.com/quickwit-oss/tantivy/pull/3179)(@fulmicoton-dd)
+- `Language` has 23 new variants, so exhaustive matches on it need new arms.
+- `StopWordFilter::new` now returns `Some` for Arabic, Greek, Romanian, Tamil and Turkish, which previously returned `None`. Indexes using those languages will need to be rebuilt to pick up the newly filtered tokens.
+
+## Features
+- Stop words and stemmers now cover the same 41 languages, up from 18 stemmers and 13 stop word lists. `StopWordFilter::new` returns a list for every `Language`.
+  - 15 languages gained both a stemmer and a stop word list: Armenian, Basque, Catalan, Czech, Esperanto, Estonian, Hindi, Indonesian, Irish, Lithuanian, Nepali, Persian, Polish, Serbian and Sotho. Their stemmers were already present in `frostem` and only needed enabling.
+  - 5 languages gained a stemmer ported from Apache Lucene, which Snowball does not cover: Bengali, Bulgarian, Latvian, Sorani Kurdish and Telugu.
+  - Croatian was added using Snowball's Serbian algorithm, which is Ljubešić and Pandžić's Croatian stemmer with a Cyrillic-to-Latin prelude; it also conflates the Cyrillic and Latin spellings of a word.
+  - Slovak was added with a stemmer ported from Wikimedia's `search-extra`, which is in production on Slovak Wikipedia search.
+  - Ukrainian was added by upgrading `frostem` from 1.x to 2.x, which is where Snowball's Ukrainian algorithm first appears. The upgrade adds no dependencies and changes no stemming output: the two versions were diffed over 315,612 word/algorithm pairs covering all 33 shared Snowball languages, with zero differences.
+  - New stop word lists come from NLTK and stopwords-iso, with spaCy for Lithuanian, Serbian and Telugu. The 13 pre-existing lists are unchanged.
+
+## Bugfix
+- The `stopwords` feature now compiles without the `stemmer` feature.
 
 
 Tantivy 0.27.0
