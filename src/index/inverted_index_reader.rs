@@ -245,6 +245,44 @@ impl InvertedIndexReader {
         )
     }
 
+    /// Returns a block postings given a `term_info` without eagerly decoding the first block.
+    ///
+    /// Callers can inspect skip metadata, seek across blocks, or decode document IDs and term frequencies in separate
+    /// stages via [`BlockSegmentPostings::load_docs_only`] and [`BlockSegmentPostings::load_freqs_only`].
+    ///
+    /// This method is for advanced usage only. Most users should prefer [`Self::read_postings()`].
+    pub fn read_block_postings_lazy_from_terminfo(
+        &self,
+        term_info: &TermInfo,
+        requested_option: IndexRecordOption,
+    ) -> io::Result<BlockSegmentPostings> {
+        let postings_data = self
+            .postings_file_slice
+            .slice(term_info.postings_range.clone());
+        BlockSegmentPostings::open_lazy(
+            term_info.doc_freq,
+            postings_data,
+            self.record_option,
+            requested_option,
+        )
+    }
+
+    /// Returns a [`PositionReader`] for `term_info`, or `None` if positions were not indexed for this field.
+    ///
+    /// This method is for advanced usage only. Most users should prefer [`Self::read_postings()`].
+    pub fn read_position_reader_from_terminfo(
+        &self,
+        term_info: &TermInfo,
+    ) -> io::Result<Option<PositionReader>> {
+        if !self.record_option.has_positions() {
+            return Ok(None);
+        }
+        let positions_data = self
+            .positions_file_slice
+            .read_bytes_slice(term_info.positions_range.clone())?;
+        Ok(Some(PositionReader::open(positions_data)?))
+    }
+
     /// Returns a posting object given a `term_info`.
     /// This method is for an advanced usage only.
     ///
@@ -257,16 +295,10 @@ impl InvertedIndexReader {
         let option = option.downgrade(self.record_option);
 
         let block_postings = self.read_block_postings_from_terminfo(term_info, option)?;
-        let position_reader = {
-            if option.has_positions() {
-                let positions_data = self
-                    .positions_file_slice
-                    .read_bytes_slice(term_info.positions_range.clone())?;
-                let position_reader = PositionReader::open(positions_data)?;
-                Some(position_reader)
-            } else {
-                None
-            }
+        let position_reader = if option.has_positions() {
+            self.read_position_reader_from_terminfo(term_info)?
+        } else {
+            None
         };
         Ok(SegmentPostings::from_block_postings(
             block_postings,
@@ -660,6 +692,69 @@ mod tests {
                 &executor,
             ))?;
         assert_eq!(bitset.len(), 0);
+        Ok(())
+    }
+}
+
+#[cfg(test)]
+mod reader_tests {
+    use crate::postings::Postings;
+    use crate::schema::{IndexRecordOption, Schema, TextFieldIndexing, TextOptions, TEXT};
+    use crate::{Index, Term};
+
+    #[test]
+    fn test_read_position_reader_from_terminfo() -> crate::Result<()> {
+        let mut schema_builder = Schema::builder();
+        let with_pos = schema_builder.add_text_field("with_pos", TEXT);
+        let no_pos = schema_builder.add_text_field(
+            "no_pos",
+            TextOptions::default().set_indexing_options(
+                TextFieldIndexing::default().set_index_option(IndexRecordOption::WithFreqs),
+            ),
+        );
+        let schema = schema_builder.build();
+        let index = Index::create_in_ram(schema);
+        let mut index_writer = index.writer_for_tests()?;
+        index_writer.add_document(doc!(
+            with_pos => "zero target two target",
+            no_pos => "zero target two target",
+        ))?;
+        index_writer.commit()?;
+
+        let reader = index.reader()?;
+        let searcher = reader.searcher();
+        let segment_reader = searcher.segment_reader(0);
+
+        let inv_no_pos = segment_reader.inverted_index(no_pos)?;
+        let term_no_pos = Term::from_field_text(no_pos, "target");
+        let ti_no_pos = inv_no_pos.get_term_info(&term_no_pos)?.unwrap();
+        assert!(inv_no_pos
+            .read_position_reader_from_terminfo(&ti_no_pos)?
+            .is_none());
+
+        let inv_pos = segment_reader.inverted_index(with_pos)?;
+        let term_pos = Term::from_field_text(with_pos, "target");
+        let ti_pos = inv_pos.get_term_info(&term_pos)?.unwrap();
+        let mut pos_reader = inv_pos
+            .read_position_reader_from_terminfo(&ti_pos)?
+            .expect("positions should be present");
+        let mut deltas = vec![0u32; 2];
+        pos_reader.read(0, &mut deltas);
+        assert_eq!(deltas, vec![1, 2]);
+
+        let mut seg_postings = inv_pos
+            .read_postings_from_terminfo(&ti_pos, IndexRecordOption::WithFreqsAndPositions)?;
+        let mut expected_positions = Vec::new();
+        seg_postings.positions(&mut expected_positions);
+        let cumulative: Vec<u32> = deltas
+            .iter()
+            .scan(0u32, |acc, &d| {
+                *acc += d;
+                Some(*acc)
+            })
+            .collect();
+        assert_eq!(cumulative, expected_positions);
+
         Ok(())
     }
 }
