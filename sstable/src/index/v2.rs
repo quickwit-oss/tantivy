@@ -88,7 +88,10 @@ impl SSTableIndex {
         &'a self,
         automaton: &'a impl Automaton,
     ) -> impl Iterator<Item = (u64, BlockAddr)> + 'a {
-        std::iter::once((None, &self.blocks[0]))
+        self.blocks
+            .first()
+            .map(|first| (None, first))
+            .into_iter()
             .chain(self.blocks.windows(2).map(|window| {
                 let [prev, curr] = window else {
                     unreachable!();
@@ -233,6 +236,13 @@ mod tests {
                     }
                 )
             ]
+        );
+
+        assert!(
+            SSTableIndex::default()
+                .get_block_for_automaton(&tantivy_fst::automaton::AlwaysMatch)
+                .next()
+                .is_none()
         );
     }
 }
