@@ -151,6 +151,36 @@ impl SegmentPostings {
             position_reader,
         }
     }
+
+    /// Writes the positions of the current document to `output` as they are stored:
+    /// delta-encoded, the first value being relative to position 0.
+    ///
+    /// This is what the postings serializer expects, so merging can copy positions
+    /// without turning them into absolute positions and back.
+    /// The output is cleared first, and stays empty if positions are not available.
+    pub(crate) fn position_deltas(&mut self, output: &mut Vec<u32>) {
+        output.clear();
+        self.append_position_deltas(output);
+    }
+
+    fn append_position_deltas(&mut self, output: &mut Vec<u32>) {
+        let term_freq = self.term_freq();
+        if let Some(position_reader) = self.position_reader.as_mut() {
+            debug_assert!(
+                !self.block_cursor.freqs().is_empty(),
+                "No positions available"
+            );
+            let read_offset = self.block_cursor.position_offset()
+                + (self.block_cursor.freqs()[..self.cur]
+                    .iter()
+                    .cloned()
+                    .sum::<u32>() as u64);
+            let prev_len = output.len();
+            // TODO: instead of zeroing the output, we could use MaybeUninit or similar.
+            output.resize(prev_len + term_freq as usize, 0u32);
+            position_reader.read(read_offset, &mut output[prev_len..]);
+        }
+    }
 }
 
 impl DocSet for SegmentPostings {
@@ -230,26 +260,12 @@ impl Postings for SegmentPostings {
     }
 
     fn append_positions_with_offset(&mut self, offset: u32, output: &mut Vec<u32>) {
-        let term_freq = self.term_freq();
         let prev_len = output.len();
-        if let Some(position_reader) = self.position_reader.as_mut() {
-            debug_assert!(
-                !self.block_cursor.freqs().is_empty(),
-                "No positions available"
-            );
-            let read_offset = self.block_cursor.position_offset()
-                + (self.block_cursor.freqs()[..self.cur]
-                    .iter()
-                    .cloned()
-                    .sum::<u32>() as u64);
-            // TODO: instead of zeroing the output, we could use MaybeUninit or similar.
-            output.resize(prev_len + term_freq as usize, 0u32);
-            position_reader.read(read_offset, &mut output[prev_len..]);
-            let mut cum = offset;
-            for output_mut in output[prev_len..].iter_mut() {
-                cum += *output_mut;
-                *output_mut = cum;
-            }
+        self.append_position_deltas(output);
+        let mut cum = offset;
+        for output_mut in output[prev_len..].iter_mut() {
+            cum += *output_mut;
+            *output_mut = cum;
         }
     }
 }
@@ -263,6 +279,80 @@ mod tests {
     use crate::docset::{DocSet, TERMINATED};
     use crate::fastfield::AliveBitSet;
     use crate::postings::postings::Postings;
+    use crate::schema::{IndexRecordOption, Schema, TextFieldIndexing, TextOptions, TEXT};
+    use crate::{Index, IndexWriter, Term};
+
+    #[test]
+    fn test_position_deltas_match_positions() -> crate::Result<()> {
+        let mut schema_builder = Schema::builder();
+        let text = schema_builder.add_text_field("text", TEXT);
+        let index = Index::create_in_ram(schema_builder.build());
+        let mut writer: IndexWriter = index.writer_for_tests()?;
+        // Enough documents and occurrences for both the doc ids and the positions
+        // of `a` to span several 128-value blocks.
+        for doc in 0..300usize {
+            let body: Vec<&str> = (0..1 + doc % 13)
+                .map(|pos| if (pos * (doc + 1)) % 5 == 0 { "a" } else { "b" })
+                .collect();
+            writer.add_document(doc!(text => body.join(" ")))?;
+        }
+        writer.commit()?;
+        let searcher = index.reader()?.searcher();
+        let inverted_index = searcher.segment_reader(0).inverted_index(text)?;
+        let mut postings = inverted_index
+            .read_postings(
+                &Term::from_field_text(text, "a"),
+                IndexRecordOption::WithFreqsAndPositions,
+            )?
+            .unwrap();
+        let mut positions = Vec::new();
+        let mut deltas = vec![7, 7, 7];
+        let mut num_positions = 0;
+        while postings.doc() != TERMINATED {
+            postings.positions(&mut positions);
+            postings.position_deltas(&mut deltas);
+            assert_eq!(deltas.len(), postings.term_freq() as usize);
+            let mut pos = 0u32;
+            let summed: Vec<u32> = deltas
+                .iter()
+                .map(|delta| {
+                    pos += delta;
+                    pos
+                })
+                .collect();
+            assert_eq!(summed, positions);
+            num_positions += positions.len();
+            postings.advance();
+        }
+        assert!(num_positions > 2 * 128);
+        Ok(())
+    }
+
+    #[test]
+    fn test_position_deltas_empty_without_positions() -> crate::Result<()> {
+        let mut schema_builder = Schema::builder();
+        let text_options = TextOptions::default().set_indexing_options(
+            TextFieldIndexing::default().set_index_option(IndexRecordOption::WithFreqs),
+        );
+        let text = schema_builder.add_text_field("text", text_options);
+        let index = Index::create_in_ram(schema_builder.build());
+        let mut writer: IndexWriter = index.writer_for_tests()?;
+        writer.add_document(doc!(text => "a b a"))?;
+        writer.commit()?;
+        let searcher = index.reader()?.searcher();
+        let inverted_index = searcher.segment_reader(0).inverted_index(text)?;
+        let mut postings = inverted_index
+            .read_postings(
+                &Term::from_field_text(text, "a"),
+                IndexRecordOption::WithFreqsAndPositions,
+            )?
+            .unwrap();
+        assert_eq!(postings.term_freq(), 2);
+        let mut deltas = vec![7];
+        postings.position_deltas(&mut deltas);
+        assert!(deltas.is_empty());
+        Ok(())
+    }
 
     #[test]
     fn test_empty_segment_postings() {

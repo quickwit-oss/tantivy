@@ -1613,6 +1613,115 @@ mod tests {
         Ok(())
     }
 
+    /// Text of document `id` in `test_merge_preserves_positions`: a few frequent
+    /// terms, plus one term unique to the document.
+    fn positions_test_tokens(id: u64) -> Vec<String> {
+        let len = 1 + (id * 7 % 40) as usize;
+        let mut tokens: Vec<String> = (0..len)
+            .map(|pos| format!("t{}", (id as usize * 31 + pos * 17) % 11))
+            .collect();
+        tokens.insert((id % len as u64) as usize, format!("u{id}"));
+        tokens
+    }
+
+    fn check_merge_preserves_positions(sort_by_field: bool) -> crate::Result<()> {
+        use crate::docset::{DocSet, TERMINATED};
+        use crate::postings::Postings;
+
+        let mut schema_builder = schema::Schema::builder();
+        let id_field = schema_builder.add_u64_field("id", INDEXED | FAST);
+        let text = schema_builder.add_text_field("text", TEXT);
+        let mut index_builder = Index::builder().schema(schema_builder.build());
+        if sort_by_field {
+            index_builder = index_builder.settings(IndexSettings {
+                sort_by_field: Some(IndexSortByField {
+                    field: "id".to_string(),
+                    order: Order::Desc,
+                }),
+                ..Default::default()
+            });
+        }
+        let index = index_builder.create_in_ram()?;
+        let mut writer: IndexWriter = index.writer_for_tests()?;
+        writer.set_merge_policy(Box::new(NoMergePolicy));
+        // Four segments, with interleaved ids so that sorting reorders documents
+        // across segments.
+        for segment in 0..4u64 {
+            for i in 0..150u64 {
+                let id = i * 4 + segment;
+                writer.add_document(
+                    doc!(id_field => id, text => positions_test_tokens(id).join(" ")),
+                )?;
+            }
+            writer.commit()?;
+        }
+        let deleted = |id: u64| id.is_multiple_of(9);
+        for id in (0..600u64).filter(|id| deleted(*id)) {
+            writer.delete_term(Term::from_field_u64(id_field, id));
+        }
+        writer.commit()?;
+        let segment_ids = index.searchable_segment_ids()?;
+        assert_eq!(segment_ids.len(), 4);
+        writer.merge(&segment_ids).wait()?;
+        writer.wait_merging_threads()?;
+
+        let reader = index.reader()?;
+        reader.reload()?;
+        let searcher = reader.searcher();
+        assert_eq!(searcher.segment_readers().len(), 1);
+        let segment_reader = searcher.segment_reader(0);
+        let ids = segment_reader.fast_fields().u64("id")?;
+        let inverted_index = segment_reader.inverted_index(text)?;
+
+        let mut vocabulary: Vec<String> = (0..11).map(|t| format!("t{t}")).collect();
+        vocabulary.extend((0..600u64).map(|id| format!("u{id}")));
+        let mut positions = Vec::new();
+        let mut num_checked = 0;
+        for token in &vocabulary {
+            let term = Term::from_field_text(text, token);
+            let mut expected_ids: Vec<u64> = (0..600u64)
+                .filter(|id| !deleted(*id) && positions_test_tokens(*id).contains(token))
+                .collect();
+            let Some(mut postings) =
+                inverted_index.read_postings(&term, IndexRecordOption::WithFreqsAndPositions)?
+            else {
+                assert!(expected_ids.is_empty(), "missing postings for {token}");
+                continue;
+            };
+            let mut found_ids = Vec::new();
+            while postings.doc() != TERMINATED {
+                let id = ids.first(postings.doc()).unwrap();
+                let expected_positions: Vec<u32> = positions_test_tokens(id)
+                    .iter()
+                    .enumerate()
+                    .filter(|(_, t)| *t == token)
+                    .map(|(pos, _)| pos as u32)
+                    .collect();
+                postings.positions(&mut positions);
+                assert_eq!(positions, expected_positions, "term {token}, id {id}");
+                assert_eq!(postings.term_freq() as usize, expected_positions.len());
+                found_ids.push(id);
+                num_checked += 1;
+                postings.advance();
+            }
+            found_ids.sort_unstable();
+            expected_ids.sort_unstable();
+            assert_eq!(found_ids, expected_ids, "documents of {token}");
+        }
+        assert!(num_checked > 1_000);
+        Ok(())
+    }
+
+    #[test]
+    fn test_merge_preserves_positions() -> crate::Result<()> {
+        check_merge_preserves_positions(false)
+    }
+
+    #[test]
+    fn test_merge_preserves_positions_sorted_index() -> crate::Result<()> {
+        check_merge_preserves_positions(true)
+    }
+
     #[test]
     fn test_max_doc() {
         // this is the first time I write a unit test for a constant.

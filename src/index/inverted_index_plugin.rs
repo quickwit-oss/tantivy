@@ -479,30 +479,6 @@ fn merge_fieldnorms(ctx: &PluginMergeContext) -> crate::Result<()> {
 
 // --- Postings merge helpers (moved from IndexMerger) ---
 
-struct DeltaComputer {
-    buffer: Vec<u32>,
-}
-
-impl DeltaComputer {
-    fn new() -> DeltaComputer {
-        DeltaComputer {
-            buffer: vec![0u32; 512],
-        }
-    }
-
-    fn compute_delta(&mut self, positions: &[u32]) -> &[u32] {
-        if positions.len() > self.buffer.len() {
-            self.buffer.resize(positions.len(), 0u32);
-        }
-        let mut last_pos = 0u32;
-        for (cur_pos, dest) in positions.iter().cloned().zip(self.buffer.iter_mut()) {
-            *dest = cur_pos - last_pos;
-            last_pos = cur_pos;
-        }
-        &self.buffer[..positions.len()]
-    }
-}
-
 fn estimate_total_num_tokens_in_single_segment(
     reader: &SegmentReader,
     field: Field,
@@ -551,8 +527,8 @@ fn write_postings_for_field(
     doc_id_mapping: &SegmentDocIdMapping,
 ) -> crate::Result<()> {
     debug_time!("write-postings-for-field");
-    let mut positions_buffer: Vec<u32> = Vec::with_capacity(1_000);
-    let mut delta_computer = DeltaComputer::new();
+    // Positions are copied in the delta-encoded form in which they are stored and serialized.
+    let mut position_deltas: Vec<u32> = Vec::with_capacity(1_000);
 
     let mut max_term_ords: Vec<TermOrdinal> = Vec::new();
 
@@ -651,14 +627,13 @@ fn write_postings_for_field(
                 let mapping = &merged_doc_id_map[segment_ord];
                 while let Some(doc) = crate::postings::next_mapped_doc(&mut postings, mapping) {
                     let term_freq = if has_term_freq {
-                        postings.positions(&mut positions_buffer);
+                        postings.position_deltas(&mut position_deltas);
                         postings.term_freq()
                     } else {
-                        positions_buffer.clear();
+                        position_deltas.clear();
                         0
                     };
-                    let delta_positions = delta_computer.compute_delta(&positions_buffer);
-                    field_serializer.write_doc(doc, term_freq, delta_positions);
+                    field_serializer.write_doc(doc, term_freq, &position_deltas);
                     postings.advance();
                 }
             }
@@ -666,14 +641,13 @@ fn write_postings_for_field(
             merger.reset(segment_postings_containing_the_term.drain(..));
             while merger.advance() {
                 let term_freq = if has_term_freq {
-                    merger.positions(&mut positions_buffer);
+                    merger.position_deltas(&mut position_deltas);
                     merger.term_freq()
                 } else {
-                    positions_buffer.clear();
+                    position_deltas.clear();
                     0
                 };
-                let delta_positions = delta_computer.compute_delta(&positions_buffer);
-                field_serializer.write_doc(merger.doc(), term_freq, delta_positions);
+                field_serializer.write_doc(merger.doc(), term_freq, &position_deltas);
             }
         }
         field_serializer.close_term()?;
