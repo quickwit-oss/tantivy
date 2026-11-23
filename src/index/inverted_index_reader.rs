@@ -594,7 +594,10 @@ impl InvertedIndexReader {
         if !batch.is_empty() {
             (_, postinglist_metdata) = flush_batch(batch, automaton, postinglist_metdata).await?;
         }
-        let mut bitset = BitSet::with_max_value(max_doc);
+        let mut bitset = executor
+            .spawn_blocking(move || BitSet::with_max_value(max_doc))
+            .await
+            .map_err(|_| io::Error::other("automaton bitset task panicked"))?;
         let ranges = Box::new(postinglist_metdata.into_ranges_and_doc_freqs());
         let mut posting_lists = self.postings_file_slice.stream_ranges(ranges).fuse();
         let record_option = self.record_option;
@@ -607,6 +610,9 @@ impl InvertedIndexReader {
                 if batch_bytes >= TARGET_BYTES_PER_CPU_TASK {
                     break;
                 }
+            }
+            if batch.is_empty() {
+                break;
             }
             bitset = executor
                 .spawn_blocking(move || -> io::Result<BitSet> {
