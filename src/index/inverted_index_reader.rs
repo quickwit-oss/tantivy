@@ -70,7 +70,7 @@ impl PostingListMetadata {
         self.byte_offset_after_previous_list = range.end;
     }
 
-    fn into_ranges_and_doc_freqs(self) -> impl Iterator<Item = (Range<usize>, u64)> {
+    fn into_ranges_and_doc_freqs(self) -> impl Iterator<Item = (Range<usize>, u32)> + Clone {
         let mut metadata_bytes = OwnedBytes::new(self.metadata_bytes);
         let mut previous_end = 0;
         std::iter::from_fn(move || {
@@ -83,7 +83,7 @@ impl PostingListMetadata {
             let start = previous_end + next() as usize;
             let end = start + next() as usize;
             previous_end = end;
-            Some((start..end, next()))
+            Some((start..end, next() as u32))
         })
     }
 }
@@ -559,7 +559,7 @@ impl InvertedIndexReader {
     {
         const TARGET_BYTES_PER_CPU_TASK: usize = 1024 * 1024;
         let termdict = self.termdict.clone();
-        let (mut automaton, candidate_blocks, mut bitset) = executor
+        let (mut automaton, (byte_ranges, first_ordinals), mut bitset) = executor
             .spawn_blocking(move || {
                 let candidate_blocks = termdict.candidate_block_ranges(&automaton);
                 let bitset = BitSet::with_max_value(max_doc);
@@ -567,10 +567,10 @@ impl InvertedIndexReader {
             })
             .await
             .map_err(|_| io::Error::other("automaton candidate block task panicked"))?;
-        if candidate_blocks.is_empty() {
+        if byte_ranges.is_empty() {
             return Ok(bitset);
         }
-        let mut dictionary_blocks = self.termdict.stream_blocks(candidate_blocks);
+        let mut dictionary_blocks = self.termdict.stream_blocks(byte_ranges, first_ordinals);
         let flush_batch = |batch, automaton: A, mut postinglist_metdata: PostingListMetadata| async move {
             let mut terms = self
                 .termdict
@@ -606,15 +606,23 @@ impl InvertedIndexReader {
         if !batch.is_empty() {
             (_, postinglist_metdata) = flush_batch(batch, automaton, postinglist_metdata).await?;
         }
-        let ranges = Box::new(postinglist_metdata.into_ranges_and_doc_freqs());
-        let mut posting_lists = self.postings_file_slice.stream_ranges(ranges).fuse();
+        let ranges_and_doc_freqs = postinglist_metdata.into_ranges_and_doc_freqs();
+        let posting_ranges = ranges_and_doc_freqs.clone().map(|(range, _)| range);
+        let mut doc_freqs = ranges_and_doc_freqs.map(|(_, doc_freq)| doc_freq);
+        let mut posting_lists = self
+            .postings_file_slice
+            .stream_ranges(Box::new(posting_ranges))
+            .fuse();
         let record_option = self.record_option;
         while !posting_lists.is_done() {
             let mut batch = Vec::new();
             let mut batch_bytes = 0;
-            while let Some((posting_list_bytes, doc_freq)) = posting_lists.try_next().await? {
+            while let Some(posting_list_bytes) = posting_lists.try_next().await? {
+                let doc_freq = doc_freqs.next().ok_or_else(|| {
+                    io::Error::new(io::ErrorKind::InvalidData, "unexpected posting list")
+                })?;
                 batch_bytes += posting_list_bytes.len() + std::mem::size_of::<(u32, OwnedBytes)>();
-                batch.push((doc_freq as u32, posting_list_bytes));
+                batch.push((doc_freq, posting_list_bytes));
                 if batch_bytes >= TARGET_BYTES_PER_CPU_TASK {
                     break;
                 }
@@ -642,6 +650,9 @@ impl InvertedIndexReader {
                 })
                 .await
                 .map_err(|_| io::Error::other("automaton bitset task panicked"))??;
+        }
+        if doc_freqs.next().is_some() {
+            return Err(io::ErrorKind::UnexpectedEof.into());
         }
         Ok(bitset)
     }
