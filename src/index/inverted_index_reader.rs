@@ -550,7 +550,7 @@ impl InvertedIndexReader {
     /// to keep this CPU work off the calling thread.
     pub async fn create_bitset_for_automaton<A: Automaton + Send + 'static>(
         &self,
-        mut automaton: A,
+        automaton: A,
         max_doc: u32,
         executor: &Executor,
     ) -> io::Result<BitSet>
@@ -558,7 +558,19 @@ impl InvertedIndexReader {
         A::State: Clone + Send + 'static,
     {
         const TARGET_BYTES_PER_CPU_TASK: usize = 1024 * 1024;
-        let mut dictionary_blocks = self.termdict.stream_candidate_blocks(&automaton);
+        let termdict = self.termdict.clone();
+        let (mut automaton, candidate_blocks, mut bitset) = executor
+            .spawn_blocking(move || {
+                let candidate_blocks = termdict.candidate_block_ranges(&automaton);
+                let bitset = BitSet::with_max_value(max_doc);
+                (automaton, candidate_blocks, bitset)
+            })
+            .await
+            .map_err(|_| io::Error::other("automaton candidate block task panicked"))?;
+        if candidate_blocks.is_empty() {
+            return Ok(bitset);
+        }
+        let mut dictionary_blocks = self.termdict.stream_blocks(candidate_blocks);
         let flush_batch = |batch, automaton: A, mut postinglist_metdata: PostingListMetadata| async move {
             let mut terms = self
                 .termdict
@@ -594,10 +606,6 @@ impl InvertedIndexReader {
         if !batch.is_empty() {
             (_, postinglist_metdata) = flush_batch(batch, automaton, postinglist_metdata).await?;
         }
-        let mut bitset = executor
-            .spawn_blocking(move || BitSet::with_max_value(max_doc))
-            .await
-            .map_err(|_| io::Error::other("automaton bitset task panicked"))?;
         let ranges = Box::new(postinglist_metdata.into_ranges_and_doc_freqs());
         let mut posting_lists = self.postings_file_slice.stream_ranges(ranges).fuse();
         let record_option = self.record_option;
