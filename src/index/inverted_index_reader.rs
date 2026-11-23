@@ -651,9 +651,6 @@ impl InvertedIndexReader {
                 .await
                 .map_err(|_| io::Error::other("automaton bitset task panicked"))??;
         }
-        if doc_freqs.next().is_some() {
-            return Err(io::ErrorKind::UnexpectedEof.into());
-        }
         Ok(bitset)
     }
 
