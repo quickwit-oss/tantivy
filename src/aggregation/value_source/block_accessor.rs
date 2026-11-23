@@ -47,7 +47,7 @@ impl ColumnBlockAccessor {
     /// [`Self::fetch_block_with_missing_unique_per_doc`] instead, so duplicate values do not
     /// inflate document counts.
     #[inline]
-    fn fetch_block<S: ValueSource + ?Sized>(&mut self, docs: &[DocId], source: &mut S) {
+    pub(crate) fn fetch_block<S: ValueSource + ?Sized>(&mut self, docs: &[DocId], source: &mut S) {
         self.cardinality = source.load_block(
             docs,
             &mut self.val_cache,
@@ -270,6 +270,21 @@ impl ColumnBlockAccessor {
         self.multivalued
     }
 
+    /// Returns whether at least one document in `docs` had no value in the last `fetch_block`
+    /// call.
+    ///
+    /// `docs` must be the same sorted slice passed to [`Self::fetch_block`].
+    #[inline]
+    pub(crate) fn has_missing_docs(&self, docs: &[DocId]) -> bool {
+        if self.cardinality.is_full() || docs.is_empty() {
+            return false;
+        }
+        if !self.cardinality.is_multivalue() {
+            return self.docid_cache.len() < docs.len();
+        }
+        any_doc_missing(docs, &self.docid_cache)
+    }
+
     #[inline]
     pub(crate) fn iter_vals(&self) -> impl ExactSizeIterator<Item = u64> + '_ {
         self.val_cache.iter().cloned()
@@ -329,6 +344,22 @@ fn find_missing_docs(docs: &[u32], hits: &[u32], output: &mut Vec<u32>) {
 
     output.extend(doc);
     output.extend(docs_iter);
+}
+
+/// Returns `true` iff at least one doc in sorted `docs` does not appear in sorted `hits`
+/// (which may contain duplicate entries for multivalued documents).
+#[inline]
+fn any_doc_missing(docs: &[DocId], hits: &[DocId]) -> bool {
+    let mut hit_idx = 0;
+    for &doc in docs {
+        while hit_idx < hits.len() && hits[hit_idx] < doc {
+            hit_idx += 1;
+        }
+        if hit_idx == hits.len() || hits[hit_idx] != doc {
+            return true;
+        }
+    }
+    false
 }
 
 #[cfg(test)]
@@ -749,5 +780,41 @@ mod tests {
         // Single doc and full span.
         check(&mut accessor, &[42]);
         check(&mut accessor, &(0..200).collect::<Vec<u32>>());
+    }
+
+    #[test]
+    fn test_has_missing_docs() {
+        let mut accessor = ColumnBlockAccessor::default();
+
+        // Full column never has missing docs.
+        accessor.cardinality = Cardinality::Full;
+        accessor.docid_cache.clear();
+        assert!(!accessor.has_missing_docs(&[0, 1, 2]));
+        assert!(!accessor.has_missing_docs(&[]));
+
+        // Optional column compares hit count against docs length.
+        accessor.cardinality = Cardinality::Optional;
+        accessor.docid_cache = vec![0, 1, 2];
+        assert!(!accessor.has_missing_docs(&[0, 1, 2]));
+        assert!(!accessor.has_missing_docs(&[]));
+        accessor.docid_cache = vec![0, 2];
+        assert!(accessor.has_missing_docs(&[0, 1, 2]));
+        accessor.docid_cache.clear();
+        assert!(accessor.has_missing_docs(&[0]));
+
+        // Multivalued column handles duplicate docids and short-circuits on missing docs.
+        accessor.cardinality = Cardinality::Multivalued;
+        accessor.docid_cache = vec![0, 0, 1, 2, 2];
+        assert!(!accessor.has_missing_docs(&[0, 1, 2]));
+        assert!(!accessor.has_missing_docs(&[]));
+        // Same total count as `docs.len()`, but doc 1 is missing while doc 0 appears twice.
+        accessor.docid_cache = vec![0, 0, 2];
+        assert!(accessor.has_missing_docs(&[0, 1, 2]));
+        // Missing at the end.
+        accessor.docid_cache = vec![0, 0, 1, 1];
+        assert!(accessor.has_missing_docs(&[0, 1, 2]));
+        // Missing at the start.
+        accessor.docid_cache = vec![1, 1, 2];
+        assert!(accessor.has_missing_docs(&[0, 1, 2]));
     }
 }

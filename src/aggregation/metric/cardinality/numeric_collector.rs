@@ -10,7 +10,8 @@ use std::fmt::Debug;
 use std::sync::Arc;
 
 use columnar::column_values::CompactSpaceU64Accessor;
-use columnar::ColumnType;
+use columnar::{ColumnType, DateTime, MonotonicallyMappableToU64};
+use datasketches::hll::Coupon;
 
 use super::{CardinalityAggReqData, CardinalityCollector};
 use crate::aggregation::agg_data::AggregationsSegmentCtx;
@@ -42,18 +43,16 @@ pub(crate) struct SegmentNumericCardinalityCollector {
     /// construction: the raw column values are compact-space codes that must
     /// be expanded to their u128 ip representation before hashing.
     compact_space_accessor: Option<Arc<CompactSpaceU64Accessor>>,
-    /// The missing value normalized to the internal u64 representation of the field type.
-    missing_value_for_accessor: Option<u64>,
+    /// Pre-computed canonical HLL coupon for the configured `missing` key, if handled by this
+    /// collector.
+    missing_coupon: Option<Coupon>,
 }
 
 impl Debug for SegmentNumericCardinalityCollector {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         f.debug_struct("SegmentNumericCardinalityCollector")
             .field("column_type", &self.column_type)
-            .field(
-                "missing_value_for_accessor",
-                &self.missing_value_for_accessor,
-            )
+            .field("missing_coupon", &self.missing_coupon)
             .finish()
     }
 }
@@ -62,7 +61,7 @@ impl SegmentNumericCardinalityCollector {
     pub(crate) fn from_req(req_data: CardinalityAggReqData) -> crate::Result<Self> {
         let CardinalityAggReqData {
             accessor,
-            missing_value_for_accessor,
+            missing_coupon,
             name,
             ..
         } = req_data;
@@ -99,7 +98,7 @@ impl SegmentNumericCardinalityCollector {
             accessor,
             column_type,
             compact_space_accessor,
-            missing_value_for_accessor,
+            missing_coupon,
         })
     }
 }
@@ -134,11 +133,9 @@ impl SegmentAggregationCollector for SegmentNumericCardinalityCollector {
         docs: &[crate::DocId],
         agg_data: &mut AggregationsSegmentCtx,
     ) -> crate::Result<()> {
-        agg_data.column_block_accessor.fetch_block_with_missing(
-            docs,
-            &mut *self.accessor,
-            self.missing_value_for_accessor,
-        );
+        agg_data
+            .column_block_accessor
+            .fetch_block(docs, &mut *self.accessor);
         let cardinality = self.buckets[parent_bucket_id as usize]
             .as_mut()
             .ok_or_else(|| {
@@ -147,14 +144,57 @@ impl SegmentAggregationCollector for SegmentNumericCardinalityCollector {
                 )
             })?;
         let col_block_accessor = &agg_data.column_block_accessor;
-        if let Some(compact_space_accessor) = self.compact_space_accessor.as_ref() {
-            for val in col_block_accessor.iter_vals() {
-                let val: u128 = compact_space_accessor.compact_to_u128(val as u32);
-                cardinality.insert(val);
+        // Dispatch on column_type once per block so the hot per-value loop stays branch-light
+        // with zero allocations.
+        match self.column_type {
+            ColumnType::U64 => {
+                for val in col_block_accessor.iter_vals() {
+                    cardinality.insert_u64(val);
+                }
             }
-        } else {
-            for val in col_block_accessor.iter_vals() {
-                cardinality.insert(val);
+            ColumnType::I64 => {
+                for val in col_block_accessor.iter_vals() {
+                    cardinality.insert_i64(i64::from_u64(val));
+                }
+            }
+            ColumnType::F64 => {
+                for val in col_block_accessor.iter_vals() {
+                    cardinality.insert_f64(f64::from_u64(val));
+                }
+            }
+            ColumnType::Bool => {
+                for val in col_block_accessor.iter_vals() {
+                    cardinality.insert_bool(bool::from_u64(val));
+                }
+            }
+            ColumnType::DateTime => {
+                for val in col_block_accessor.iter_vals() {
+                    cardinality
+                        .insert_datetime_nanos(DateTime::from_u64(val).into_timestamp_nanos());
+                }
+            }
+            ColumnType::IpAddr => {
+                let compact_space_accessor =
+                    self.compact_space_accessor.as_ref().ok_or_else(|| {
+                        crate::TantivyError::InternalError(
+                            "IpAddr cardinality requires compact_space_accessor".to_string(),
+                        )
+                    })?;
+                for val in col_block_accessor.iter_vals() {
+                    let val: u128 = compact_space_accessor.compact_to_u128(val as u32);
+                    cardinality.insert_ip_addr(val);
+                }
+            }
+            ColumnType::Str | ColumnType::Bytes => {
+                return Err(crate::TantivyError::InternalError(format!(
+                    "unexpected column type {:?} in SegmentNumericCardinalityCollector",
+                    self.column_type
+                )));
+            }
+        }
+        if let Some(missing_coupon) = self.missing_coupon {
+            if col_block_accessor.has_missing_docs(docs) {
+                cardinality.insert_coupon(missing_coupon);
             }
         }
         Ok(())
@@ -166,9 +206,8 @@ impl SegmentAggregationCollector for SegmentNumericCardinalityCollector {
         _agg_data: &AggregationsSegmentCtx,
     ) -> crate::Result<()> {
         if max_bucket as usize >= self.buckets.len() {
-            let column_type = self.column_type;
             self.buckets.resize_with(max_bucket as usize + 1, || {
-                Some(CardinalityCollector::new(column_type as u8))
+                Some(CardinalityCollector::default())
             });
         }
         Ok(())

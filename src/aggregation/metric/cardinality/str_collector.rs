@@ -11,12 +11,11 @@
 use std::fmt::Debug;
 use std::io;
 
-use columnar::ColumnType;
 use datasketches::hll::Coupon;
 use rustc_hash::{FxBuildHasher, FxHashMap, FxHashSet};
 
 use super::term_ord_accumulator::TermOrdAccumulator;
-use super::{CardinalityAggReqData, CardinalityCollector};
+use super::{coupon_from_str_bytes, CardinalityAggReqData, CardinalityCollector};
 use crate::aggregation::agg_data::AggregationsSegmentCtx;
 use crate::aggregation::intermediate_agg_result::{
     IntermediateAggregationResult, IntermediateAggregationResults, IntermediateMetricResult,
@@ -118,12 +117,12 @@ impl<S: TermOrdAccumulator> Debug for SegmentStrCardinalityCollector<S> {
     }
 }
 
-/// Builds a coupon cache from the given buckets, dictionary, and optional missing value.
+/// Builds a coupon cache from the given buckets, dictionary, and optional missing coupon.
 /// Returns a mapping from term_ord to the hash (coupon) of the associated term.
 fn build_coupon_cache<S: TermOrdAccumulator>(
     buckets: &[Option<S>],
     dictionary: &dyn ValueSourceDictionary,
-    missing_value_opt: Option<&Key>,
+    missing_coupon_opt: Option<Coupon>,
 ) -> io::Result<CouponCache> {
     // Pass 1 computes the capacity hint, pass 2 inserts.
     let mut max_bucket_len = 0usize;
@@ -142,25 +141,11 @@ fn build_coupon_cache<S: TermOrdAccumulator>(
     let mut coupons: Vec<Coupon> = Vec::with_capacity(term_ords.len());
     let all_term_ords_found: bool =
         dictionary.sorted_ords_to_term_cb(&term_ords, &mut |term_bytes| {
-            let coupon: Coupon = Coupon::from_value(term_bytes);
+            let coupon: Coupon = coupon_from_str_bytes(term_bytes);
             coupons.push(coupon);
         })?;
     assert!(all_term_ords_found);
 
-    // Regardless of whether or not there is effectively a missing value in one of the buckets,
-    // we populate the cache with the missing key too (if any).
-    let missing_coupon_opt: Option<Coupon> = missing_value_opt.map(|missing_key| {
-        if let Key::Str(missing_value_str) = missing_key {
-            Coupon::from_value(missing_value_str.as_bytes())
-        } else {
-            // See https://github.com/quickwit-oss/tantivy/issues/2891
-            // A missing key with a type different from Str will not work as intended
-            // for the moment.
-            //
-            // Right now this is just a partial workaround.
-            Coupon::from_value("__tantivy_missing_non_str__".as_bytes())
-        }
-    });
     Ok(CouponCache::new(term_ords, coupons, missing_coupon_opt))
 }
 
@@ -241,7 +226,7 @@ impl<S: TermOrdAccumulator + 'static> SegmentAggregationCollector
             self.coupon_cache = Some(build_coupon_cache(
                 &self.buckets,
                 term_dictionary,
-                req_data.req.missing.as_ref(),
+                req_data.missing_coupon,
             )?);
         }
         let name = req_data.name.to_string();
@@ -251,7 +236,7 @@ impl<S: TermOrdAccumulator + 'static> SegmentAggregationCollector
                 "the same bucket should not be finalized twice.".to_string(),
             ));
         };
-        let mut cardinality = CardinalityCollector::new(ColumnType::Str as u8);
+        let mut cardinality = CardinalityCollector::default();
         if let Some(coupon_cache) = self.coupon_cache.as_ref() {
             append_to_sketch(&term_ords, coupon_cache, &mut cardinality);
         }
