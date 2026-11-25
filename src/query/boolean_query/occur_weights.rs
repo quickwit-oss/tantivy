@@ -40,6 +40,16 @@ impl OccurWeights {
         self.must.extend(should_weights);
     }
 
+    /// Orders MUST weights from the cheapest to the most expensive to refute.
+    ///
+    /// MUST scorers are built in order and building stops at the first empty one, so clauses
+    /// that cheaply prove the intersection empty go first. The sort is stable: weights with
+    /// the same cost keep the query order.
+    pub fn sort_must_by_refutation_cost(&mut self) {
+        self.must
+            .sort_by_cached_key(|weight| weight.refutation_cost());
+    }
+
     pub fn len(&self) -> usize {
         self.must.len() + self.should.len() + self.must_not.len()
     }

@@ -2,6 +2,7 @@ use super::Scorer;
 use crate::docset::TERMINATED;
 use crate::index::SegmentReader;
 use crate::query::explanation::does_not_match;
+use crate::query::weight::REFUTATION_COST_FREE;
 use crate::query::{EnableScoring, Explanation, Query, Weight};
 use crate::{DocId, DocSet, Score, Searcher};
 
@@ -28,6 +29,10 @@ pub struct EmptyWeight;
 impl Weight for EmptyWeight {
     fn scorer(&self, _reader: &SegmentReader, _boost: Score) -> crate::Result<Box<dyn Scorer>> {
         Ok(Box::new(EmptyScorer))
+    }
+
+    fn refutation_cost(&self) -> u64 {
+        REFUTATION_COST_FREE
     }
 
     fn explain(&self, _reader: &SegmentReader, doc: DocId) -> crate::Result<Explanation> {
