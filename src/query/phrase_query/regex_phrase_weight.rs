@@ -198,8 +198,10 @@ impl RegexPhraseWeight {
 
             if num_docs < SPARSE_TERM_DOC_THRESHOLD {
                 let current_bucket = &mut sparse_buckets[0];
-                Self::add_to_bitset(inverted_index, term_info, &mut current_bucket.0)?;
                 let docset = LoadedPostings::load(&mut term_posting);
+                for &doc in docset.doc_ids() {
+                    current_bucket.0.insert(doc);
+                }
                 current_bucket.1.push(docset);
 
                 // Move the bucket to the end if the term limit is reached
@@ -531,6 +533,25 @@ mod tests {
         assert_eq!(phrase_scorer.doc(), 0);
         assert_eq!(phrase_scorer.phrase_count(), 1);
         assert_eq!(phrase_scorer.advance(), TERMINATED);
+        Ok(())
+    }
+
+    #[test]
+    pub fn test_phrase_regex_sparse_and_dense_buckets() -> crate::Result<()> {
+        use crate::collector::Count;
+
+        // 1200 sparse terms overflow a 512-term bucket; "wdense" is not sparse.
+        let mut texts: Vec<String> = (0..1200).map(|i| format!("w{i} x")).collect();
+        texts.extend((0..150).map(|_| "wdense x".to_string()));
+        texts.extend((0..150).map(|_| "x wdense".to_string()));
+        let index = create_index(&texts)?;
+        let text_field = index.schema().get_field("text").unwrap();
+        let searcher = index.reader()?.searcher();
+        let query = RegexPhraseQuery::new(text_field, vec!["w.*".into(), "x".into()]);
+        assert_eq!(searcher.search(&query, &Count)?, 1350);
+        let query = RegexPhraseQuery::new(text_field, vec!["w1.*".into(), "x".into()]);
+        // w1, w10..w19, w100..w199, w1000..w1199
+        assert_eq!(searcher.search(&query, &Count)?, 1 + 10 + 100 + 200);
         Ok(())
     }
 }
