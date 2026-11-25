@@ -40,7 +40,7 @@ pub(crate) mod score_combiner;
 pub use query_grammar::Occur;
 
 pub use self::all_query::{AllQuery, AllScorer, AllWeight};
-pub use self::automaton_weight::AutomatonWeight;
+pub use self::automaton_weight::{AutomatonWeight, ExpansionRank, MatchedTermsSink};
 pub use self::bitset::BitSetDocSet;
 pub use self::bm25::{Bm25StatisticsProvider, Bm25Weight};
 pub use self::boolean_query::{BooleanQuery, BooleanWeight};
