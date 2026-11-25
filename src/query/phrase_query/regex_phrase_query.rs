@@ -2,7 +2,7 @@ use std::fmt;
 use std::sync::Arc;
 
 use once_cell::sync::OnceCell;
-use tantivy_fst::Regex;
+use tantivy_fst::{Automaton, Regex};
 
 use super::regex_phrase_weight::RegexPhraseWeight;
 use crate::query::bm25::Bm25Weight;
@@ -25,27 +25,71 @@ use crate::schema::{Field, IndexRecordOption, Term, Type};
 ///
 /// Using a `RegexPhraseQuery` on a field requires positions
 /// to be indexed for this field.
-#[derive(Clone, Debug)]
-pub struct RegexPhraseQuery {
+///
+/// The term automaton type `A` defaults to [`Regex`]. Any other
+/// [`Automaton`] (e.g. a DFA built by another regex engine) can be used
+/// through [`RegexPhraseQuery::from_automata`].
+pub struct RegexPhraseQuery<A = Regex> {
     field: Field,
     phrase_terms: Vec<(usize, String)>,
     slop: u32,
     max_expansions: u32,
-    regexes: CompiledRegexes,
+    automata: CompiledAutomata<A>,
 }
 
-/// The compiled `phrase_terms`, built on first use. Its `Debug` omits the automata.
-#[derive(Clone, Default)]
-struct CompiledRegexes(OnceCell<Vec<Arc<Regex>>>);
+impl<A> Clone for RegexPhraseQuery<A> {
+    fn clone(&self) -> Self {
+        RegexPhraseQuery {
+            field: self.field,
+            phrase_terms: self.phrase_terms.clone(),
+            slop: self.slop,
+            max_expansions: self.max_expansions,
+            automata: self.automata.clone(),
+        }
+    }
+}
 
-impl fmt::Debug for CompiledRegexes {
+impl<A> fmt::Debug for RegexPhraseQuery<A> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(if self.0.get().is_some() {
-            "CompiledRegexes(compiled)"
+        f.debug_struct("RegexPhraseQuery")
+            .field("field", &self.field)
+            .field("phrase_terms", &self.phrase_terms)
+            .field("slop", &self.slop)
+            .field("max_expansions", &self.max_expansions)
+            .field("automata", &self.automata)
+            .finish()
+    }
+}
+
+/// The automata of `phrase_terms`: given up front, or built on first use by `compile`.
+/// Its `Debug` omits the automata.
+struct CompiledAutomata<A> {
+    automata: OnceCell<Vec<Arc<A>>>,
+    compile: Option<fn(&str) -> crate::Result<A>>,
+}
+
+impl<A> Clone for CompiledAutomata<A> {
+    fn clone(&self) -> Self {
+        CompiledAutomata {
+            automata: self.automata.clone(),
+            compile: self.compile,
+        }
+    }
+}
+
+impl<A> fmt::Debug for CompiledAutomata<A> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(if self.automata.get().is_some() {
+            "CompiledAutomata(compiled)"
         } else {
-            "CompiledRegexes(pending)"
+            "CompiledAutomata(pending)"
         })
     }
+}
+
+fn compile_regex(pattern: &str) -> crate::Result<Regex> {
+    Regex::new(pattern)
+        .map_err(|e| crate::TantivyError::InvalidArgument(format!("Invalid regex: {e}")))
 }
 
 /// Transform a wildcard query to a regex string.
@@ -57,7 +101,7 @@ pub fn wildcard_query_to_regex_str(term: &str) -> String {
     regex::escape(term).replace(r"\*", ".*")
 }
 
-impl RegexPhraseQuery {
+impl RegexPhraseQuery<Regex> {
     /// Creates a new `RegexPhraseQuery` given a list of terms.
     ///
     /// There must be at least two terms, and all terms
@@ -92,7 +136,10 @@ impl RegexPhraseQuery {
             phrase_terms: terms,
             slop,
             max_expansions: 1 << 14,
-            regexes: CompiledRegexes::default(),
+            automata: CompiledAutomata {
+                automata: OnceCell::new(),
+                compile: Some(compile_regex),
+            },
         }
     }
 
@@ -103,27 +150,71 @@ impl RegexPhraseQuery {
     /// `pattern`; the pattern is what [`RegexPhraseQuery::phrase_terms`] returns.
     pub fn from_regexes(
         field: Field,
-        mut terms: Vec<(usize, String, Arc<Regex>)>,
+        terms: Vec<(usize, String, Arc<Regex>)>,
         slop: u32,
     ) -> RegexPhraseQuery {
+        RegexPhraseQuery::from_automata(field, terms, slop)
+    }
+
+    /// The compiled regex of each phrase term, in offset order.
+    ///
+    /// Compiled on first call and cached, so a query that is reused across searchers,
+    /// or inspected before searching, determinizes each pattern once.
+    pub fn regexes(&self) -> crate::Result<&[Arc<Regex>]> {
+        self.automata()
+    }
+}
+
+impl<A> RegexPhraseQuery<A>
+where
+    A: Automaton + Send + Sync + 'static,
+    A::State: Clone,
+{
+    /// Creates a new `RegexPhraseQuery` from one prebuilt term automaton per phrase term,
+    /// e.g. a DFA built by another regex engine and wrapped as an [`Automaton`].
+    ///
+    /// Each term is `(offset, pattern, automaton)`. The automaton alone decides which
+    /// dictionary terms match; `pattern` is what [`RegexPhraseQuery::phrase_terms`]
+    /// returns, and is used for the BM25 statistics when scoring is enabled.
+    pub fn from_automata(
+        field: Field,
+        mut terms: Vec<(usize, String, Arc<A>)>,
+        slop: u32,
+    ) -> RegexPhraseQuery<A> {
         assert!(
             terms.len() > 1,
             "A phrase query is required to have strictly more than one term."
         );
         terms.sort_by_key(|&(offset, _, _)| offset);
-        let (phrase_terms, regexes): (Vec<_>, Vec<_>) = terms
+        let (phrase_terms, automata): (Vec<_>, Vec<_>) = terms
             .into_iter()
-            .map(|(offset, pattern, regex)| ((offset, pattern), regex))
+            .map(|(offset, pattern, automaton)| ((offset, pattern), automaton))
             .unzip();
-        let compiled = OnceCell::new();
-        let _ = compiled.set(regexes);
         RegexPhraseQuery {
             field,
             phrase_terms,
             slop,
             max_expansions: 1 << 14,
-            regexes: CompiledRegexes(compiled),
+            automata: CompiledAutomata {
+                automata: OnceCell::with_value(automata),
+                compile: None,
+            },
         }
+    }
+
+    /// The automaton of each phrase term, in offset order.
+    pub fn automata(&self) -> crate::Result<&[Arc<A>]> {
+        let automata = self.automata.automata.get_or_try_init(|| {
+            let compile = self
+                .automata
+                .compile
+                .expect("automata without a compiler are set at construction");
+            self.phrase_terms
+                .iter()
+                .map(|(_, pattern)| compile(pattern).map(Arc::new))
+                .collect::<crate::Result<Vec<_>>>()
+        })?;
+        Ok(automata)
     }
 
     /// Slop allowed for the phrase.
@@ -163,24 +254,6 @@ impl RegexPhraseQuery {
             .collect::<Vec<Term>>()
     }
 
-    /// The compiled regex of each phrase term, in offset order.
-    ///
-    /// Compiled on first call and cached, so a query that is reused across searchers,
-    /// or inspected before searching, determinizes each pattern once.
-    pub fn regexes(&self) -> crate::Result<&[Arc<Regex>]> {
-        let regexes = self.regexes.0.get_or_try_init(|| {
-            self.phrase_terms
-                .iter()
-                .map(|(_, term)| {
-                    Regex::new(term).map(Arc::new).map_err(|e| {
-                        crate::TantivyError::InvalidArgument(format!("Invalid regex: {e}"))
-                    })
-                })
-                .collect::<crate::Result<Vec<_>>>()
-        })?;
-        Ok(regexes)
-    }
-
     /// Returns the [`RegexPhraseWeight`] for the given phrase query given a specific `searcher`.
     ///
     /// This function is the same as [`Query::weight()`] except it returns
@@ -188,7 +261,7 @@ impl RegexPhraseQuery {
     pub(crate) fn regex_phrase_weight(
         &self,
         enable_scoring: EnableScoring<'_>,
-    ) -> crate::Result<RegexPhraseWeight> {
+    ) -> crate::Result<RegexPhraseWeight<A>> {
         let schema = enable_scoring.schema();
         let field_type = schema.get_field_entry(self.field).field_type().value_type();
         if field_type != Type::Str {
@@ -223,7 +296,7 @@ impl RegexPhraseQuery {
             .phrase_terms
             .iter()
             .map(|(offset, _)| *offset)
-            .zip(self.regexes()?.iter().cloned())
+            .zip(self.automata()?.iter().cloned())
             .collect();
         let weight = RegexPhraseWeight::new(
             self.field,
@@ -236,7 +309,11 @@ impl RegexPhraseQuery {
     }
 }
 
-impl Query for RegexPhraseQuery {
+impl<A> Query for RegexPhraseQuery<A>
+where
+    A: Automaton + Send + Sync + 'static,
+    A::State: Clone,
+{
     /// Create the weight associated with a query.
     ///
     /// See [`Weight`].
