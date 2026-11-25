@@ -83,8 +83,9 @@ fn merge_top_k<D: Ord, TSortKey: Clone + std::fmt::Debug, C: Comparator<TSortKey
     }
     let mut top_collector: TopNComputer<TSortKey, D, C> =
         TopNComputer::new_with_comparator(doc_range.end, comparator);
+    // A segment returns its top K in no particular order.
     for (sort_key, doc) in sort_key_docs {
-        top_collector.push(sort_key, doc);
+        top_collector.push_unordered(sort_key, doc);
     }
     top_collector
         .into_sorted_vec()
@@ -189,5 +190,16 @@ mod tests {
         test_merge_top_k_aux(Order::Asc, 1..3, &[(1.0f32, 1), (2.0f32, 2)]);
         test_merge_top_k_aux(Order::Desc, 0..2, &[(9.0f32, 9), (8.0f32, 8)]);
         test_merge_top_k_aux(Order::Desc, 2..4, &[(7.0f32, 7), (6.0f32, 6)]);
+    }
+
+    #[test]
+    fn test_merge_top_k_breaks_ties_by_doc_whatever_order_docs_arrive_in() {
+        let vals = (0..20).rev().map(|doc| (1.0f32, doc));
+        let vals_merged = merge_top_k(vals, 0..5, ComparatorEnum::from(Order::Desc));
+
+        assert_eq!(
+            vals_merged,
+            [(1.0f32, 0), (1.0f32, 1), (1.0f32, 2), (1.0f32, 3), (1.0f32, 4)]
+        );
     }
 }
