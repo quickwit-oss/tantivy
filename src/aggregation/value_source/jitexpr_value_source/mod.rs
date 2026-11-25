@@ -9,7 +9,10 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use columnar::{ColumnType, DynamicColumnHandle};
-use jitexpr::ast::{infer_types, infer_types_with_target, InferredTypeSet, TypeError, UntypedExpr};
+use jitexpr::ast::{
+    infer_result_types, infer_types, infer_types_with_target, InferredTypeSet, TypeError,
+    UntypedExpr,
+};
 use jitexpr::compile::CompiledFn;
 use jitexpr::types::VarType;
 
@@ -35,6 +38,9 @@ use crate::{SegmentReader, TantivyError};
 ///   always fail.
 /// - If the expression does not produce an accepted type on a given segment, the source has no
 ///   value on that segment.
+/// - If the expression can only return a string (e.g. `REGEXP_EXTRACT`), and the aggregation
+///   accepts `f64` but not strings (e.g. `stats`, `histogram`), the string is parsed as `f64`. The
+///   doc has no value if the string cannot be parsed, or is not finite.
 ///
 /// # Values
 ///
@@ -52,13 +58,19 @@ use crate::{SegmentReader, TantivyError};
 #[derive(Clone, Debug)]
 pub struct JitExprValueSourceProvider {
     expression: UntypedExpr,
+    /// True if the expression can only return a string, whatever the column types.
+    is_str_expression: bool,
 }
 
 impl JitExprValueSourceProvider {
     /// Creates a provider. Returns an error if the expression is not well typed.
     pub fn new(expression: UntypedExpr) -> Result<JitExprValueSourceProvider, TypeError> {
         infer_types(&expression)?;
-        Ok(JitExprValueSourceProvider { expression })
+        let is_str_expression = infer_result_types(&expression)? == InferredTypeSet::STRING;
+        Ok(JitExprValueSourceProvider {
+            expression,
+            is_str_expression,
+        })
     }
 
     /// Returns the expression evaluated by this provider.
@@ -84,14 +96,23 @@ impl JitExprValueSourceProvider {
                 self.expression
             )));
         }
+        // A string expression cannot feed a numeric aggregation as is: we parse it as f64.
+        let coerce_str_to_f64 = self.is_str_expression && !target_types.string && target_types.f64;
+        let inference_target_types = if coerce_str_to_f64 {
+            InferredTypeSet::STRING
+        } else {
+            target_types
+        };
         let inferred_types: HashMap<&str, InferredTypeSet> =
-            infer_types_with_target(&self.expression, target_types).map_err(|type_error| {
-                TantivyError::InvalidArgument(format!(
-                    "the jitexpr field `{}` cannot produce any of the types accepted by the \
-                     aggregation {target_types}: {type_error}",
-                    self.expression
-                ))
-            })?;
+            infer_types_with_target(&self.expression, inference_target_types).map_err(
+                |type_error| {
+                    TantivyError::InvalidArgument(format!(
+                        "the jitexpr field `{}` cannot produce any of the types accepted by the \
+                         aggregation {target_types}: {type_error}",
+                        self.expression
+                    ))
+                },
+            )?;
 
         let mut variable_types: HashMap<&str, VarType> =
             HashMap::with_capacity(inferred_types.len());
@@ -110,7 +131,7 @@ impl JitExprValueSourceProvider {
             column_handles.insert(variable_name, handle);
         }
 
-        let compiled_fn: Arc<CompiledFn> = reader
+        let mut compiled_fn: Arc<CompiledFn> = reader
             .index()
             .expr_compilation_cache()
             .compile(&self.expression, &variable_types)
@@ -120,6 +141,17 @@ impl JitExprValueSourceProvider {
                     self.expression
                 ))
             })?;
+        if coerce_str_to_f64 && compiled_fn.result_type() == VarType::Str {
+            // Memoized on the cached compiled function.
+            compiled_fn = compiled_fn
+                .coerce_result_to_f64()
+                .map_err(|compile_error| {
+                    TantivyError::InternalError(format!(
+                        "the coercion of the expression `{}` to f64 failed: {compile_error}",
+                        self.expression
+                    ))
+                })?;
+        }
 
         let Some(column_type) = column_type_for_result_type(compiled_fn.result_type()) else {
             // The expression is null for all of the docs of the segment.
@@ -522,8 +554,8 @@ mod tests {
         let index = create_index();
         let err = try_run_agg(
             &index,
-            &[("#upper", "(UPPER label)")],
-            json!({ "s": { "stats": { "field": "#upper" } } }),
+            &[("#is_null", "(IS_NULL label)")],
+            json!({ "s": { "stats": { "field": "#is_null" } } }),
         )
         .unwrap_err();
         assert!(err.to_string().contains("cannot produce"), "{err}");
@@ -532,6 +564,101 @@ mod tests {
             &index,
             &[("#doubled", "(MULTIPLY number 2u64)")],
             json!({ "h": { "date_histogram": { "field": "#doubled", "fixed_interval": "1d" } } }),
+        )
+        .unwrap_err();
+        assert!(err.to_string().contains("cannot produce"), "{err}");
+    }
+
+    /// Two segments, with a `msg` text field. Only "latency=12" and "latency=30" hold a number.
+    fn create_latency_index() -> Index {
+        let mut schema_builder = Schema::builder();
+        let msg = schema_builder.add_text_field("msg", STRING | FAST);
+        let index = Index::create_in_ram(schema_builder.build());
+        let mut writer = index.writer_for_tests().unwrap();
+        writer.add_document(doc!(msg => "latency=12")).unwrap();
+        writer.add_document(doc!(msg => "latency=abc")).unwrap();
+        writer.add_document(doc!()).unwrap();
+        writer.commit().unwrap();
+        writer.add_document(doc!(msg => "latency=30")).unwrap();
+        writer.add_document(doc!(msg => "no latency")).unwrap();
+        writer.commit().unwrap();
+        index
+    }
+
+    const LATENCY_FIELD: (&str, &str) =
+        ("#latency", r#"(REGEXP_EXTRACT msg "latency=(\\w+)" 1u64)"#);
+
+    #[test]
+    fn test_str_jitexpr_field_is_parsed_as_f64_in_metrics() {
+        let index = create_latency_index();
+        let result = run_agg(
+            &index,
+            &[LATENCY_FIELD],
+            json!({
+                "s": { "stats": { "field": "#latency" } },
+                "with_missing": { "stats": { "field": "#latency", "missing": 1.0 } },
+                "p": { "percentiles": { "field": "#latency", "percents": [50.0] } }
+            }),
+        );
+        assert_eq!(result["s"]["count"], 2);
+        assert_eq!(result["s"]["sum"], 42.0);
+        assert_eq!(result["s"]["min"], 12.0);
+        assert_eq!(result["s"]["max"], 30.0);
+        // The docs where the string cannot be parsed have no value, and get `missing`.
+        assert_eq!(result["with_missing"]["count"], 5);
+        assert_eq!(result["with_missing"]["sum"], 45.0);
+        assert!(result["p"]["values"]["50.0"].as_f64().is_some());
+    }
+
+    #[test]
+    fn test_str_jitexpr_field_is_parsed_as_f64_in_histogram_and_range() {
+        let index = create_latency_index();
+        let result = run_agg(
+            &index,
+            &[LATENCY_FIELD],
+            json!({
+                "h": { "histogram": { "field": "#latency", "interval": 20.0 } },
+                "r": { "range": { "field": "#latency", "ranges": [{ "to": 20.0 }, { "from": 20.0 }] } }
+            }),
+        );
+        assert_eq!(
+            sorted_bucket_counts(&result, "h"),
+            vec![("0.0".to_string(), 1), ("20.0".to_string(), 1)]
+        );
+        let range_counts: Vec<u64> = result["r"]["buckets"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|bucket| bucket["doc_count"].as_u64().unwrap())
+            .collect();
+        assert_eq!(range_counts, vec![1, 1]);
+    }
+
+    #[test]
+    fn test_str_jitexpr_field_stays_a_str_in_terms() {
+        let index = create_latency_index();
+        let result = run_agg(
+            &index,
+            &[LATENCY_FIELD],
+            json!({ "t": { "terms": { "field": "#latency" } } }),
+        );
+        assert_eq!(
+            sorted_bucket_counts(&result, "t"),
+            vec![
+                ("\"12\"".to_string(), 1),
+                ("\"30\"".to_string(), 1),
+                ("\"abc\"".to_string(), 1)
+            ]
+        );
+    }
+
+    #[test]
+    fn test_str_jitexpr_field_in_date_histogram_is_an_error() {
+        let index = create_latency_index();
+        let err = try_run_agg(
+            &index,
+            &[LATENCY_FIELD],
+            json!({ "h": { "date_histogram": { "field": "#latency", "fixed_interval": "1d" } } }),
         )
         .unwrap_err();
         assert!(err.to_string().contains("cannot produce"), "{err}");
