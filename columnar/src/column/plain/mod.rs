@@ -29,7 +29,8 @@ use common::file_slice::FileSlice;
 #[cfg_attr(not(test), allow(unused_imports))]
 pub(crate) use serializer::PlainColumnSerializer;
 
-use self::block::PlainBlock;
+#[doc(hidden)]
+pub use self::block::{PlainBlock, encode_block};
 use self::block_index::PlainBlockIndex;
 use crate::column_index::{ColumnIndex, open_column_index};
 use crate::{Cardinality, DocId, RowId, Version};

@@ -74,7 +74,9 @@ fn load_offsets(bytes: OwnedBytes, expected_num_vals: u32) -> Arc<dyn ColumnValu
 ///
 /// The block is compressed with OnPair16, unless it is small or OnPair16 does not make it
 /// smaller. In that case, it is stored raw.
-pub(crate) fn encode_block(
+/// Public for benchmarks only: not part of the stable API.
+#[doc(hidden)]
+pub fn encode_block(
     bytes: &[u8],
     offsets: &[u32],
     output: &mut Vec<u8>,
@@ -100,7 +102,9 @@ pub(crate) fn encode_block(
 
 /// The decoded metadata of a block. All of the buffers are zero-copy views on the block bytes,
 /// except the dictionary offsets.
-pub(crate) enum PlainBlock {
+/// Public for benchmarks only: not part of the stable API.
+#[doc(hidden)]
+pub enum PlainBlock {
     OnPair16(OnPair16Block),
     Raw(RawBlock),
 }
@@ -109,7 +113,7 @@ impl PlainBlock {
     /// Opens a block holding `num_values` values.
     ///
     /// Panics if `bytes` is corrupted.
-    pub(crate) fn open(bytes: OwnedBytes, num_values: u32) -> PlainBlock {
+    pub fn open(bytes: OwnedBytes, num_values: u32) -> PlainBlock {
         assert!(!bytes.is_empty(), "empty plain block");
         let kind: u8 = bytes[0];
         match kind {
@@ -124,12 +128,7 @@ impl PlainBlock {
     /// Output is NOT cleared beforehand.
     ///
     /// `codes_buffer` is scratch space to contain the token codes.
-    pub(crate) fn append_value(
-        &self,
-        slot: u32,
-        codes_buffer: &mut Vec<u16>,
-        output: &mut Vec<u8>,
-    ) {
+    pub fn append_value(&self, slot: u32, codes_buffer: &mut Vec<u16>, output: &mut Vec<u8>) {
         match self {
             PlainBlock::OnPair16(onpair16_block) => {
                 onpair16_block.append_value(slot, codes_buffer, output)
