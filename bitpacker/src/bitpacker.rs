@@ -111,6 +111,30 @@ impl BitUnpacker {
         val_shifted & self.mask
     }
 
+    #[cold]
+    #[inline(never)]
+    fn get_pair_slow_path(&self, idx: u32, data: &[u8]) -> (u64, u64) {
+        (self.get(idx, data), self.get(idx + 1, data))
+    }
+
+    /// Reads two consecutive bit-packed values at `idx` and `idx + 1`.
+    #[inline(always)]
+    pub fn get_pair(&self, idx: u32, data: &[u8]) -> (u64, u64) {
+        let addr_in_bits = idx as usize * self.num_bits;
+        let addr = addr_in_bits >> 3;
+        // Two consecutive values fit in a single 8-byte load when `num_bits <= 28`
+        // (`7 + 2 * 28 = 63 <= 64` bits).
+        if self.num_bits <= 28 && addr + 8 <= data.len() {
+            let bit_shift = addr_in_bits & 7;
+            let bytes: [u8; 8] = (&data[addr..addr + 8]).try_into().unwrap();
+            let shifted = u64::from_le_bytes(bytes) >> bit_shift;
+            let first = shifted & self.mask;
+            let second = (shifted >> self.num_bits) & self.mask;
+            return (first, second);
+        }
+        self.get_pair_slow_path(idx, data)
+    }
+
     /// Decodes consecutive values into `output`.
     ///
     /// Panics if the requested bits are outside `data`.
@@ -504,6 +528,36 @@ mod test {
                         let expected = (start_idx + i as u32) & mask;
                         assert_eq!(*output_byte, expected);
                     }
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn test_get_pair_all_bit_widths() {
+        for num_bits in (0u8..=56).chain(std::iter::once(64)) {
+            let mask: u64 = if num_bits == 64 {
+                u64::MAX
+            } else {
+                (1u64 << num_bits) - 1
+            };
+            for len in [2usize, 3, 7, 8, 9, 32, 65] {
+                let vals: Vec<u64> = (0..len)
+                    .map(|i| (i as u64).wrapping_mul(0x9e37_79b9_7f4a_7c15) & mask)
+                    .collect();
+                let mut buffer: Vec<u8> = Vec::new();
+                let mut bitpacker = BitPacker::new();
+                for &val in &vals {
+                    bitpacker.write(val, num_bits, &mut buffer).unwrap();
+                }
+                bitpacker.close(&mut buffer).unwrap();
+                let bitunpacker = BitUnpacker::new(num_bits);
+                for i in 0..len - 1 {
+                    assert_eq!(
+                        bitunpacker.get_pair(i as u32, &buffer),
+                        (vals[i], vals[i + 1]),
+                        "mismatch for num_bits={num_bits}, len={len}, i={i}"
+                    );
                 }
             }
         }

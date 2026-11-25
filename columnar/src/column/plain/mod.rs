@@ -183,7 +183,6 @@ impl PlainBytesColumn {
         PlainValueReader {
             column: self.clone(),
             current_block: None,
-            codes_buffer: Vec::new(),
             value_buffer: Vec::new(),
         }
     }
@@ -246,7 +245,6 @@ pub struct PlainValueReader {
     column: PlainBytesColumn,
     /// The id of the last block read, and the block.
     current_block: Option<(u32, PlainBlock)>,
-    codes_buffer: Vec<u16>,
     value_buffer: Vec<u8>,
 }
 
@@ -306,7 +304,7 @@ impl PlainValueReader {
             .expect("load_block_for_value sets the current block");
         let block_index = &self.column.inner.block_index;
         let slot = value_idx - block_index.value_range(*current_block_id).start;
-        current_block.append_value(slot, &mut self.codes_buffer, output);
+        current_block.append_value(slot, output);
         Ok(())
     }
 

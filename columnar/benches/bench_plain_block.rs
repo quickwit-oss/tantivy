@@ -133,14 +133,11 @@ fn main() {
 
     // Divide by `num_values` to get the cost of reading one value.
     group.register("read_all_values", |input| {
-        let mut codes_buffer: Vec<u16> = Vec::new();
         let mut value: Vec<u8> = Vec::new();
         let mut total_len = 0;
         for slot in 0..input.num_values {
             value.clear();
-            input
-                .open_block
-                .append_value(slot, &mut codes_buffer, &mut value);
+            input.open_block.append_value(slot, &mut value);
             total_len += value.len();
         }
         black_box(total_len);
@@ -149,9 +146,8 @@ fn main() {
     // A point lookup: open the block, then read one value.
     group.register("open_and_read_one_value", |input| {
         let block = PlainBlock::open(input.block_bytes.clone(), input.num_values);
-        let mut codes_buffer: Vec<u16> = Vec::new();
         let mut value: Vec<u8> = Vec::new();
-        block.append_value(input.num_values / 2, &mut codes_buffer, &mut value);
+        block.append_value(input.num_values / 2, &mut value);
         black_box(value);
     });
 
