@@ -92,11 +92,14 @@ impl ZstdCompressor {
         if val == "zstd" {
             return Ok(ZstdCompressor::default());
         }
-        let options = &val["zstd".len() + 1..val.len() - 1];
+        let options = val
+            .strip_prefix("zstd(")
+            .and_then(|options| options.strip_suffix(')'))
+            .ok_or_else(|| format!("expected zstd or zstd(<options>), but got {val:?}"))?;
 
         let mut compressor = ZstdCompressor::default();
         for option in options.split(',') {
-            let (opt_name, value) = options
+            let (opt_name, value) = option
                 .split_once('=')
                 .ok_or_else(|| format!("no '=' found in option {option:?}"))?;
 
@@ -217,5 +220,40 @@ mod tests {
             "Could not parse value over9000 of option compression_level, e: invalid digit found \
              in string"
         );
+    }
+
+    #[test]
+    fn deser_zstd_each_option_is_parsed_separately() {
+        assert_eq!(
+            ZstdCompressor::deser_from_str("zstd(compression_level=3,foo=1)").unwrap_err(),
+            "unknown zstd option \"foo\""
+        );
+        assert_eq!(
+            ZstdCompressor::deser_from_str("zstd(compression_level=3,foo)").unwrap_err(),
+            "no '=' found in option \"foo\""
+        );
+    }
+
+    #[test]
+    fn deser_zstd_malformed_is_an_error() {
+        for malformed in [
+            "zstd5",
+            "zstd(",
+            "zstd)",
+            "zstdé",
+            "zstd(compression_level=",
+            "zstd(compression_level=)",
+            "zstd(compression_level=35",
+            "zstd_compression_level=3)",
+        ] {
+            assert!(
+                ZstdCompressor::deser_from_str(malformed).is_err(),
+                "{malformed:?} should be rejected"
+            );
+            assert!(
+                serde_json::from_str::<Compressor>(&format!("{malformed:?}")).is_err(),
+                "{malformed:?} should be rejected"
+            );
+        }
     }
 }
