@@ -127,9 +127,9 @@ You can also find other bindings on [GitHub](https://github.com/search?q=tantivy
 - [Bichon](https://github.com/rustmailer/bichon): A lightweight, high-performance Rust email archiver with WebUI
 - and [more](https://github.com/search?q=tantivy)!
 
-### On average, how much faster is Tantivy compared to Lucene?
+### How does Tantivy's search performance compare to Lucene?
 
-- According to our [search latency benchmark](https://tantivy-search.github.io/bench/), Tantivy is approximately 2x faster than Lucene.
+- It depends on the query type. Our [search latency benchmark](https://tantivy-search.github.io/bench/) breaks down performance by query/collection: Tantivy is faster on some queries and Lucene is faster on others.
 
 ### Does tantivy support incremental indexing?
 
