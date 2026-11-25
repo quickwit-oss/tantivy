@@ -133,7 +133,8 @@ fn codes_num_bytes(num_codes: usize, code_bits: u8) -> usize {
     (num_codes * code_bits as usize).div_ceil(8) + CODES_PADDING_NUM_BYTES
 }
 
-pub(crate) struct OnPair16Block {
+#[doc(hidden)]
+pub struct OnPair16Block {
     /// Token bytes, read padding included.
     dict_bytes: OwnedBytes,
     /// `num_tokens + 1` offsets of the tokens in `dict_bytes`.

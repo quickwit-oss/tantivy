@@ -64,6 +64,11 @@ harness = false
 name = "bench_multivalue_docids"
 harness = false
 
+[[bench]]
+name = "bench_plain_block"
+harness = false
+required-features = ["plain_codec"]
+
 [features]
 zstd-compression = ["sstable/zstd-compression"]
 # Compresses the blocks of plain-encoded Str and Bytes columns with OnPair16.

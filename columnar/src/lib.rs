@@ -36,6 +36,9 @@ mod value;
 
 pub use column::{BytesColumn, Column, StrColumn};
 #[cfg(feature = "plain_codec")]
+#[doc(hidden)]
+pub use column::{PlainBlock, encode_plain_block};
+#[cfg(feature = "plain_codec")]
 pub use column::{PlainBytesColumn, PlainStrColumn, PlainValueReader};
 pub use column_index::ColumnIndex;
 pub use column_values::{
