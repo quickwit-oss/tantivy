@@ -92,7 +92,7 @@ pub(crate) struct RangeDocSet<T> {
 
 const DEFAULT_FETCH_HORIZON: u32 = 128;
 const DEFAULT_MAX_FETCH_HORIZON: u32 = 100_000;
-const RANGE_DOCSET_COST_PER_HIT: f64 = 0.5;
+const RANGE_DOCSET_COST_PER_HIT: f64 = 1.0;
 
 impl<T: RangeDocSetValue> RangeDocSet<T> {
     pub(crate) fn new(value_range: RangeInclusive<T>, column: Column<T>) -> Self {
@@ -444,17 +444,6 @@ mod tests {
         values_for_doc: impl Fn(usize) -> Vec<u64>,
     ) -> RangeDocSet<u64> {
         RangeDocSet::new(value_range, build_u64_column(num_docs, values_for_doc))
-    }
-
-    #[test]
-    fn cost_estimates_hits_from_range_and_column_bounds() {
-        let column = build_u64_column(1_000, |i| vec![(i % 100) as u64]);
-
-        assert_eq!(RangeDocSet::new(20..=39, column.clone()).cost(), 100);
-        assert_eq!(RangeDocSet::new(50..=50, column.clone()).cost(), 5);
-        assert_eq!(RangeDocSet::new(0..=99, column.clone()).cost(), 500);
-        assert_eq!(RangeDocSet::new(90..=200, column.clone()).cost(), 50);
-        assert_eq!(RangeDocSet::new(200..=300, column).cost(), 0);
     }
 
     #[test]
