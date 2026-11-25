@@ -204,51 +204,21 @@ impl SkipReader {
 
     fn read_block_info(&mut self) {
         let bytes = self.owned_read.as_slice();
-        let advance_len: usize;
         self.last_doc_in_block = read_u32(bytes);
-        let (doc_num_bits, strict_delta_encoded) = decode_bitwidth(bytes[4]);
-        match self.skip_info {
+        let advance_len = match self.skip_info {
             IndexRecordOption::Basic => {
-                advance_len = 5;
-                self.block_info = BlockInfo::BitPacked {
-                    doc_num_bits,
-                    strict_delta_encoded,
-                    tf_num_bits: 0,
-                    tf_sum: 0,
-                    block_wand_fieldnorm_id: 0,
-                    block_wand_term_freq: 0,
-                };
+                self.block_info = Self::decode_entry::<5>(bytes);
+                5
             }
             IndexRecordOption::WithFreqs => {
-                let tf_num_bits = bytes[5];
-                let block_wand_fieldnorm_id = bytes[6];
-                let block_wand_term_freq = decode_block_wand_max_tf(bytes[7]);
-                advance_len = 8;
-                self.block_info = BlockInfo::BitPacked {
-                    doc_num_bits,
-                    strict_delta_encoded,
-                    tf_num_bits,
-                    tf_sum: 0,
-                    block_wand_fieldnorm_id,
-                    block_wand_term_freq,
-                };
+                self.block_info = Self::decode_entry::<8>(bytes);
+                8
             }
             IndexRecordOption::WithFreqsAndPositions => {
-                let tf_num_bits = bytes[5];
-                let tf_sum = read_u32(&bytes[6..10]);
-                let block_wand_fieldnorm_id = bytes[10];
-                let block_wand_term_freq = decode_block_wand_max_tf(bytes[11]);
-                advance_len = 12;
-                self.block_info = BlockInfo::BitPacked {
-                    doc_num_bits,
-                    strict_delta_encoded,
-                    tf_num_bits,
-                    tf_sum,
-                    block_wand_fieldnorm_id,
-                    block_wand_term_freq,
-                };
+                self.block_info = Self::decode_entry::<12>(bytes);
+                12
             }
-        }
+        };
         self.owned_read.advance(advance_len);
     }
 
@@ -264,11 +234,103 @@ impl SkipReader {
         if self.last_doc_in_block() >= target {
             return false;
         }
-        loop {
-            self.advance();
-            if self.last_doc_in_block() >= target {
-                return true;
+        match self.skip_info {
+            IndexRecordOption::Basic => self.seek_blocks::<5>(target),
+            IndexRecordOption::WithFreqs => self.seek_blocks::<8>(target),
+            IndexRecordOption::WithFreqsAndPositions => self.seek_blocks::<12>(target),
+        }
+    }
+
+    fn seek_blocks<const ENTRY_LEN: usize>(&mut self, target: DocId) -> bool {
+        let entries = self.owned_read.as_slice();
+        debug_assert_eq!(entries.len() % ENTRY_LEN, 0);
+        let entry_count = entries.len() / ENTRY_LEN;
+        let mut left = 0;
+        let mut right = 0;
+        let mut step = 1;
+        while right < entry_count && read_u32(&entries[right * ENTRY_LEN..]) < target {
+            left = right + 1;
+            right = (right + step).min(entry_count);
+            step *= 2;
+        }
+        while left < right {
+            let middle = left + (right - left) / 2;
+            let last_doc = read_u32(&entries[middle * ENTRY_LEN..]);
+            if last_doc < target {
+                left = middle + 1;
+            } else {
+                right = middle;
             }
+        }
+        let target_entry_index = left;
+        let BlockInfo::BitPacked {
+            doc_num_bits,
+            tf_num_bits,
+            tf_sum,
+            ..
+        } = self.block_info
+        else {
+            unreachable!();
+        };
+        let mut byte_offset = self.byte_offset + compressed_block_size(doc_num_bits + tf_num_bits);
+        let mut position_offset = self.position_offset + tf_sum as u64;
+        for entry in entries[..target_entry_index * ENTRY_LEN].chunks_exact(ENTRY_LEN) {
+            let doc_num_bits = entry[4] & 0x1f;
+            let tf_num_bits = if ENTRY_LEN >= 8 { entry[5] } else { 0 };
+            byte_offset += compressed_block_size(doc_num_bits + tf_num_bits);
+            if ENTRY_LEN == 12 {
+                position_offset += read_u32(&entry[6..10]) as u64;
+            }
+        }
+        let current_last_doc = self.last_doc_in_block;
+        let advances = target_entry_index + 1;
+        self.remaining_docs -= advances as u32 * COMPRESSION_BLOCK_SIZE as u32;
+        self.last_doc_in_previous_block = if target_entry_index == 0 {
+            current_last_doc
+        } else {
+            read_u32(&entries[(target_entry_index - 1) * ENTRY_LEN..])
+        };
+        let (last_doc_in_block, block_info) = if target_entry_index == entry_count {
+            (
+                TERMINATED,
+                BlockInfo::VInt {
+                    num_docs: self.remaining_docs,
+                },
+            )
+        } else {
+            let entry = &entries[target_entry_index * ENTRY_LEN..];
+            (read_u32(entry), Self::decode_entry::<ENTRY_LEN>(entry))
+        };
+        self.byte_offset = byte_offset;
+        self.position_offset = position_offset;
+        self.last_doc_in_block = last_doc_in_block;
+        self.block_info = block_info;
+        let entries_consumed = advances.min(entry_count);
+        self.owned_read.advance(entries_consumed * ENTRY_LEN);
+        true
+    }
+
+    fn decode_entry<const ENTRY_LEN: usize>(entry: &[u8]) -> BlockInfo {
+        let (doc_num_bits, strict_delta_encoded) = decode_bitwidth(entry[4]);
+        let tf_num_bits = if ENTRY_LEN >= 8 { entry[5] } else { 0 };
+        let tf_sum = if ENTRY_LEN == 12 {
+            read_u32(&entry[6..10])
+        } else {
+            0
+        };
+        let (block_wand_fieldnorm_id, block_wand_term_freq) = match ENTRY_LEN {
+            5 => (0, 0),
+            8 => (entry[6], decode_block_wand_max_tf(entry[7])),
+            12 => (entry[10], decode_block_wand_max_tf(entry[11])),
+            _ => unreachable!(),
+        };
+        BlockInfo::BitPacked {
+            doc_num_bits,
+            strict_delta_encoded,
+            tf_num_bits,
+            tf_sum,
+            block_wand_fieldnorm_id,
+            block_wand_term_freq,
         }
     }
 
@@ -445,6 +507,106 @@ mod tests {
         );
         skip_reader.advance();
         assert_eq!(skip_reader.block_info(), BlockInfo::VInt { num_docs: 0u32 });
+    }
+
+    fn assert_seek_matches_advance(
+        actual: &mut SkipReader,
+        expected: &mut SkipReader,
+        target: u32,
+    ) {
+        let changed = actual.seek(target);
+        let expected_changed = if expected.last_doc_in_block() >= target {
+            false
+        } else {
+            loop {
+                expected.advance();
+                if expected.last_doc_in_block() >= target {
+                    break true;
+                }
+            }
+        };
+        assert_eq!(changed, expected_changed, "target {target}");
+        assert_eq!(
+            actual.last_doc_in_block, expected.last_doc_in_block,
+            "target {target}"
+        );
+        assert_eq!(
+            actual.last_doc_in_previous_block, expected.last_doc_in_previous_block,
+            "target {target}"
+        );
+        assert_eq!(actual.block_info, expected.block_info, "target {target}");
+        assert_eq!(actual.byte_offset, expected.byte_offset, "target {target}");
+        assert_eq!(
+            actual.position_offset, expected.position_offset,
+            "target {target}"
+        );
+        assert_eq!(
+            actual.remaining_docs, expected.remaining_docs,
+            "target {target}"
+        );
+        assert_eq!(
+            actual.owned_read.as_slice(),
+            expected.owned_read.as_slice(),
+            "target {target}"
+        );
+    }
+
+    fn seek_fixture(skip_info: IndexRecordOption) -> (Vec<u8>, u32) {
+        let mut serializer = SkipSerializer::new();
+        for block in 0..8u32 {
+            serializer.write_doc(100 + block * 128, 1 + block as u8);
+            match skip_info {
+                IndexRecordOption::Basic => {}
+                IndexRecordOption::WithFreqs => {
+                    serializer.write_term_freq(2 + block as u8);
+                    serializer.write_blockwand_max(10 + block as u8, 3 + block);
+                }
+                IndexRecordOption::WithFreqsAndPositions => {
+                    serializer.write_term_freq(2 + block as u8);
+                    serializer.write_total_term_freq(200 + block * 13);
+                    serializer.write_blockwand_max(10 + block as u8, 3 + block);
+                }
+            }
+        }
+        let doc_freq = 3 + COMPRESSION_BLOCK_SIZE as u32 * 8;
+        (serializer.data().to_owned(), doc_freq)
+    }
+
+    #[test]
+    fn test_seek_matches_advance() {
+        for skip_info in [
+            IndexRecordOption::Basic,
+            IndexRecordOption::WithFreqs,
+            IndexRecordOption::WithFreqsAndPositions,
+        ] {
+            let (data, doc_freq) = seek_fixture(skip_info);
+            for target in [
+                0,
+                1,
+                99,
+                100,
+                101,
+                227,
+                228,
+                355,
+                500,
+                900,
+                996,
+                997,
+                2000,
+                crate::TERMINATED,
+            ] {
+                let mut actual =
+                    SkipReader::new(OwnedBytes::new(data.clone()), doc_freq, skip_info);
+                let mut expected = actual.clone();
+                assert_seek_matches_advance(&mut actual, &mut expected, target);
+            }
+            let mut actual = SkipReader::new(OwnedBytes::new(data), doc_freq, skip_info);
+            let mut expected = actual.clone();
+            for target in [1, 101, 300, 600, 997, 2000, crate::TERMINATED] {
+                assert_seek_matches_advance(&mut actual, &mut expected, target);
+            }
+        }
     }
 
     #[test]
