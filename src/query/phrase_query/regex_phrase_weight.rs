@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use common::BitSet;
-use tantivy_fst::Regex;
+use tantivy_fst::{Automaton, Regex};
 
 use super::PhraseScorer;
 use crate::fieldnorm::FieldNormReader;
@@ -10,8 +10,9 @@ use crate::postings::{LoadedPostings, Postings, SegmentPostings, TermInfo};
 use crate::query::bm25::Bm25Weight;
 use crate::query::explanation::does_not_match;
 use crate::query::union::{BitSetPostingUnion, SimpleUnion};
-use crate::query::{AutomatonWeight, BitSetDocSet, EmptyScorer, Explanation, Scorer, Weight};
+use crate::query::{BitSetDocSet, EmptyScorer, Explanation, Scorer, Weight};
 use crate::schema::{Field, IndexRecordOption};
+use crate::termdict::TermDictionary;
 use crate::{DocId, DocSet, InvertedIndexReader, Score};
 
 type UnionType = SimpleUnion<Box<dyn Postings + 'static>>;
@@ -68,18 +69,15 @@ impl RegexPhraseWeight {
         let inverted_index = reader.inverted_index(self.field)?;
         let mut num_terms = 0;
         for &(offset, ref regex) in &self.phrase_terms {
-            let automaton: AutomatonWeight<Regex> =
-                AutomatonWeight::new(self.field, Arc::clone(regex));
-            let term_infos = automaton.get_match_term_infos(reader)?;
+            let term_infos = match_term_infos_within_budget(
+                inverted_index.terms(),
+                regex.as_ref(),
+                &mut num_terms,
+                self.max_expansions,
+            )?;
             // If term_infos is empty, the phrase can not match any documents.
             if term_infos.is_empty() {
                 return Ok(None);
-            }
-            num_terms += term_infos.len();
-            if num_terms > self.max_expansions as usize {
-                return Err(crate::TantivyError::InvalidArgument(format!(
-                    "Phrase query exceeded max expansions {num_terms}"
-                )));
             }
             let union = Self::get_union_from_term_infos(&term_infos, reader, &inverted_index)?;
 
@@ -263,6 +261,32 @@ impl RegexPhraseWeight {
         // Return a union of sparse term unions and other term unions
         Ok(union)
     }
+}
+
+/// Streams the terms matched by `automaton`, failing as soon as the running `num_terms`
+/// exceeds `max_expansions` instead of after the whole dictionary scan.
+fn match_term_infos_within_budget<A>(
+    term_dict: &TermDictionary,
+    automaton: A,
+    num_terms: &mut usize,
+    max_expansions: u32,
+) -> crate::Result<Vec<TermInfo>>
+where
+    A: Automaton,
+    A::State: Clone,
+{
+    let mut term_stream = term_dict.search(automaton).into_stream()?;
+    let mut term_infos = Vec::new();
+    while term_stream.advance() {
+        *num_terms += 1;
+        if *num_terms > max_expansions as usize {
+            return Err(crate::TantivyError::InvalidArgument(format!(
+                "Phrase query exceeded max expansions {num_terms}"
+            )));
+        }
+        term_infos.push(term_stream.value().clone());
+    }
+    Ok(term_infos)
 }
 
 impl Weight for RegexPhraseWeight {
@@ -531,6 +555,75 @@ mod tests {
         assert_eq!(phrase_scorer.doc(), 0);
         assert_eq!(phrase_scorer.phrase_count(), 1);
         assert_eq!(phrase_scorer.advance(), TERMINATED);
+        Ok(())
+    }
+
+    #[test]
+    pub fn test_phrase_regex_max_expansions_counts_all_terms() -> crate::Result<()> {
+        use crate::collector::Count;
+
+        let index = create_index(&["a1 b", "a2 b", "a3 b", "a4 c"])?;
+        let text_field = index.schema().get_field("text").unwrap();
+        let searcher = index.reader()?.searcher();
+        let mut query = RegexPhraseQuery::new(text_field, vec!["a.*".into(), "b".into()]);
+        query.set_max_expansions(5);
+        assert_eq!(searcher.search(&query, &Count)?, 3);
+        query.set_max_expansions(4);
+        let err = searcher.search(&query, &Count).unwrap_err();
+        assert!(matches!(
+            err,
+            crate::TantivyError::InvalidArgument(ref msg)
+                if msg.starts_with("Phrase query exceeded max expansions")
+        ));
+        Ok(())
+    }
+
+    #[test]
+    pub fn test_match_term_infos_stops_at_the_budget() -> crate::Result<()> {
+        use std::sync::atomic::{AtomicUsize, Ordering};
+
+        use tantivy_fst::Automaton;
+
+        use super::match_term_infos_within_budget;
+
+        struct CountingMatches<'a>(&'a AtomicUsize);
+        impl Automaton for CountingMatches<'_> {
+            type State = ();
+            fn start(&self) {}
+            fn is_match(&self, _: &()) -> bool {
+                self.0.fetch_add(1, Ordering::Relaxed);
+                true
+            }
+            fn accept(&self, _: &(), _: u8) {}
+        }
+
+        let texts: Vec<String> = (0..200).map(|i| format!("t{i}")).collect();
+        let index = create_index(&texts)?;
+        let text_field = index.schema().get_field("text").unwrap();
+        let searcher = index.reader()?.searcher();
+        let inverted_index = searcher.segment_reader(0u32).inverted_index(text_field)?;
+
+        let matches = AtomicUsize::new(0);
+        let mut num_terms = 0;
+        let result = match_term_infos_within_budget(
+            inverted_index.terms(),
+            CountingMatches(&matches),
+            &mut num_terms,
+            10,
+        );
+        assert!(result.is_err());
+        assert_eq!(num_terms, 11);
+        // A full scan would visit all 200 matching terms.
+        assert!(matches.load(Ordering::Relaxed) < 50);
+
+        let mut num_terms = 0;
+        let term_infos = match_term_infos_within_budget(
+            inverted_index.terms(),
+            CountingMatches(&AtomicUsize::new(0)),
+            &mut num_terms,
+            200,
+        )?;
+        assert_eq!(term_infos.len(), 200);
         Ok(())
     }
 }
