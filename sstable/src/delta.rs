@@ -206,6 +206,9 @@ pub struct DeltaReader<TValueReader> {
     value_reader: TValueReader,
     block_reader: BlockReader,
     idx: usize,
+    /// When non-zero, the first `unloaded_values_len` bytes of the current block contain
+    /// serialized values that have been skipped and not yet loaded into `value_reader`.
+    unloaded_values_len: usize,
 }
 
 impl<TValueReader> DeltaReader<TValueReader>
@@ -218,6 +221,7 @@ where TValueReader: value::ValueReader
             suffix_range: 0..0,
             value_reader: TValueReader::default(),
             block_reader: BlockReader::new(reader),
+            unloaded_values_len: 0,
         }
     }
 
@@ -230,6 +234,7 @@ where TValueReader: value::ValueReader
             suffix_range: 0..0,
             value_reader: TValueReader::default(),
             block_reader: BlockReader::from_multiple_blocks(reader),
+            unloaded_values_len: 0,
         }
     }
 
@@ -284,17 +289,67 @@ where TValueReader: value::ValueReader
     }
 
     pub fn advance(&mut self) -> io::Result<bool> {
+        self.advance_inner::<false>()
+    }
+
+    /// Advances to the next key, skipping value decoding until [`Self::ensure_values_loaded`] or
+    /// [`Self::value_owned`] is called (when supported by `TValueReader::skip`).
+    pub(crate) fn advance_lazy(&mut self) -> io::Result<bool> {
+        self.advance_inner::<true>()
+    }
+
+    #[inline(always)]
+    fn advance_inner<const LAZY: bool>(&mut self) -> io::Result<bool> {
         if self.block_reader.buffer().is_empty() {
             if !self.block_reader.read_block()? {
                 return Ok(false);
             }
-            let consumed_len = self.value_reader.load(self.block_reader.buffer())?;
+            let buf = self.block_reader.buffer();
+            let consumed_len = if LAZY {
+                if let Some(skipped) = self.value_reader.skip(buf)? {
+                    self.unloaded_values_len = skipped;
+                    skipped
+                } else {
+                    self.unloaded_values_len = 0;
+                    self.value_reader.load(buf)?
+                }
+            } else {
+                self.unloaded_values_len = 0;
+                self.value_reader.load(buf)?
+            };
             self.block_reader.advance(consumed_len);
             self.idx = 0;
         } else {
             self.idx += 1;
         }
         Ok(self.read_delta_key())
+    }
+
+    #[inline(always)]
+    pub(crate) fn ensure_values_loaded(&mut self) -> io::Result<()> {
+        if self.unloaded_values_len != 0 {
+            let values_slice = self
+                .block_reader
+                .buffer_from_to(0..self.unloaded_values_len);
+            self.value_reader.load(values_slice)?;
+            self.unloaded_values_len = 0;
+        }
+        Ok(())
+    }
+
+    pub(crate) fn value_owned(&mut self) -> io::Result<TValueReader::Value>
+    where TValueReader::Value: Clone {
+        if self.unloaded_values_len != 0 {
+            let values_slice = self
+                .block_reader
+                .buffer_from_to(0..self.unloaded_values_len);
+            if let Some(val) = self.value_reader.load_single(values_slice, self.idx)? {
+                return Ok(val);
+            }
+            self.value_reader.load(values_slice)?;
+            self.unloaded_values_len = 0;
+        }
+        Ok(self.value_reader.value(self.idx).clone())
     }
 
     #[inline(always)]

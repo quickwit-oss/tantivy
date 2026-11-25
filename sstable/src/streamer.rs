@@ -285,7 +285,7 @@ where
 
     #[inline(always)]
     fn advance_delta_reader(&mut self) -> bool {
-        if !self.delta_reader.advance().unwrap() {
+        if !self.delta_reader.advance_lazy().unwrap() {
             return false;
         }
         // An automaton prunes whole blocks, so the ordinal is not simply the previous one
@@ -353,6 +353,15 @@ where
     /// Before the first call to `.advance()`, the stream
     /// is an uninitialized state.
     pub fn advance(&mut self) -> bool {
+        let found = self.advance_inner();
+        if found && self.delta_reader.ensure_values_loaded().is_err() {
+            return false;
+        }
+        found
+    }
+
+    #[inline(always)]
+    fn advance_inner(&mut self) -> bool {
         if !self.lower_bound_reached {
             if !self.initialize() {
                 // no key within the bounds at all

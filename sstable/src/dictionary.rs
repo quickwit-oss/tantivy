@@ -358,7 +358,7 @@ impl<TSSTable: SSTable> Dictionary<TSSTable> {
         let mut term_ord = 0;
         let key_bytes = key.as_ref();
         let mut key_comparator = DeltaKeyComparator::new();
-        while sstable_delta_reader.advance()? {
+        while sstable_delta_reader.advance_lazy()? {
             match key_comparator.compare(
                 key_bytes,
                 sstable_delta_reader.common_prefix_len(),
@@ -581,7 +581,7 @@ impl<TSSTable: SSTable> Dictionary<TSSTable> {
         mut reader: DeltaReader<TSSTable::ValueReader>,
     ) -> io::Result<Option<TSSTable::Value>> {
         if let Some(_ord) = self.decode_up_to_key(key, &mut reader)? {
-            Ok(Some(reader.value().clone()))
+            Ok(Some(reader.value_owned()?))
         } else {
             Ok(None)
         }

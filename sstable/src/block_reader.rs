@@ -1,4 +1,4 @@
-use std::io::{self, Read};
+use std::io;
 use std::ops::Range;
 
 use common::OwnedBytes;
@@ -7,6 +7,7 @@ use zstd::bulk::Decompressor;
 
 pub struct BlockReader {
     buffer: Vec<u8>,
+    block: OwnedBytes,
     reader: OwnedBytes,
     next_readers: std::vec::IntoIter<(OwnedBytes, u64)>,
     offset: usize,
@@ -23,6 +24,7 @@ impl BlockReader {
     pub fn new(reader: OwnedBytes) -> BlockReader {
         BlockReader {
             buffer: Vec::new(),
+            block: OwnedBytes::empty(),
             reader,
             next_readers: Vec::new().into_iter(),
             offset: 0,
@@ -39,6 +41,7 @@ impl BlockReader {
             .unwrap_or_else(|| (OwnedBytes::empty(), 0));
         BlockReader {
             buffer: Vec::new(),
+            block: OwnedBytes::empty(),
             reader,
             next_readers,
             offset: 0,
@@ -61,13 +64,23 @@ impl BlockReader {
     }
 
     #[inline(always)]
+    fn block_bytes(&self) -> &[u8] {
+        if !self.block.is_empty() {
+            self.block.as_slice()
+        } else {
+            &self.buffer
+        }
+    }
+
+    #[inline(always)]
     pub fn buffer_from_to(&self, range: Range<usize>) -> &[u8] {
-        &self.buffer[range]
+        &self.block_bytes()[range]
     }
 
     pub fn read_block(&mut self) -> io::Result<bool> {
         self.offset = 0;
         self.buffer.clear();
+        self.block = OwnedBytes::empty();
 
         loop {
             let block_len = match self.reader.len() {
@@ -123,8 +136,14 @@ impl BlockReader {
                     ));
                 }
             } else {
-                self.buffer.resize(block_len, 0u8);
-                self.reader.read_exact(&mut self.buffer[..])?;
+                if block_len > self.reader.len() {
+                    return Err(io::Error::new(
+                        io::ErrorKind::UnexpectedEof,
+                        "Unexpected EOF while reading uncompressed block",
+                    ));
+                }
+                self.block = self.reader.slice(0..block_len);
+                self.reader.advance(block_len);
             }
 
             return Ok(true);
@@ -143,7 +162,7 @@ impl BlockReader {
 
     #[inline(always)]
     pub fn buffer(&self) -> &[u8] {
-        &self.buffer[self.offset..]
+        &self.block_bytes()[self.offset..]
     }
 }
 
@@ -155,8 +174,9 @@ impl io::Read for BlockReader {
     }
 
     fn read_to_end(&mut self, buf: &mut Vec<u8>) -> io::Result<usize> {
-        let len = self.buffer.len();
-        buf.extend_from_slice(self.buffer());
+        let remaining = self.buffer();
+        let len = remaining.len();
+        buf.extend_from_slice(remaining);
         self.advance(len);
         Ok(len)
     }
