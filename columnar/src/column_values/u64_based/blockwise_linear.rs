@@ -1,6 +1,6 @@
+use std::io;
 use std::io::Write;
 use std::sync::Arc;
-use std::{io, iter};
 
 use common::{BinarySerializable, CountingWriter, DeserializeFrom, OwnedBytes};
 use fastdivide::DividerU64;
@@ -176,19 +176,21 @@ impl ColumnCodec<u64> for BlockwiseLinearCodec {
         let stats = ColumnStats::deserialize(&mut bytes)?;
         let footer_len: u32 = (&bytes[bytes.len() - 4..]).deserialize()?;
         let footer_offset = bytes.len() - 4 - footer_len as usize;
-        let (data, mut footer) = bytes.split(footer_offset);
-        let num_blocks = compute_num_blocks(stats.num_rows);
-        let mut blocks: Vec<Block> = iter::repeat_with(|| Block::deserialize(&mut footer))
-            .take(num_blocks as usize)
-            .collect::<io::Result<_>>()?;
+        let num_blocks = compute_num_blocks(stats.num_rows) as usize;
+        let mut blocks: Vec<Block> = Vec::with_capacity(num_blocks);
         let mut start_offset = 0;
-        for block in &mut blocks {
-            block.data_start_offset = start_offset;
-            start_offset += (block.bit_unpacker.bit_width() as usize) * BLOCK_SIZE as usize / 8;
+        {
+            let mut footer: &[u8] = &bytes.as_slice()[footer_offset..bytes.len() - 4];
+            for _ in 0..num_blocks {
+                let mut block = Block::deserialize(&mut footer)?;
+                block.data_start_offset = start_offset;
+                start_offset += (block.bit_unpacker.bit_width() as usize) * BLOCK_SIZE as usize / 8;
+                blocks.push(block);
+            }
         }
         Ok(BlockwiseLinearReader {
-            blocks: blocks.into_boxed_slice().into(),
-            data,
+            blocks: blocks.into(),
+            data: bytes,
             stats,
         })
     }
