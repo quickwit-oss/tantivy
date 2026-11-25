@@ -27,6 +27,11 @@ pub use self::directory_lock::{Lock, INDEX_WRITER_LOCK, META_LOCK};
 pub use self::ram_directory::RamDirectory;
 pub use self::watch_event_router::{WatchCallback, WatchCallbackList, WatchHandle};
 
+/// Suffix marking a temporary file.
+/// Temporary files can get special treatment affecting their durability.
+/// Actual behavior is specific to the directory implementation.
+pub const TEMP_SUFFIX: &str = ".temp";
+
 /// Outcome of the Garbage collection
 pub struct GarbageCollectionResult {
     /// List of files that were deleted in this cycle
@@ -46,7 +51,7 @@ pub use memmap2::Advice;
 
 pub use self::managed_directory::ManagedDirectory;
 #[cfg(feature = "mmap")]
-pub use self::mmap_directory::MmapDirectory;
+pub use self::mmap_directory::{MmapDirectory, MmapDirectoryConfig};
 
 /// Write object for Directory.
 ///
