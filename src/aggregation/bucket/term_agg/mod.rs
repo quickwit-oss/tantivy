@@ -5,6 +5,7 @@ use std::net::Ipv6Addr;
 use columnar::column_values::CompactSpaceU64Accessor;
 use columnar::{
     ColumnType, MonotonicallyMappableToU128, MonotonicallyMappableToU64, NumericalValue, StrColumn,
+    TermOrdHit,
 };
 use common::{BitSet, TinySet};
 use rustc_hash::FxHashMap;
@@ -1271,10 +1272,36 @@ where
         // going through sort_unstable's fast path.
         match &term_req.req.order.target {
             OrderTarget::Key => {
-                // We rely on the fact, that term ordinals match the order of the strings
-                // TODO: We could have a special collector, that keeps only TOP n results at any
-                // time.
+                // Real term ordinals follow key order, but the missing sentinel does not.
+                // Locate its key in the dictionary before pruning segment candidates.
+                let missing_term_ord = match (
+                    &term_req.req.missing,
+                    term_req.missing_value_for_accessor,
+                    term_req.accessor.as_physical_str_column(),
+                ) {
+                    (Some(Key::Str(missing)), Some(sentinel), Some(str_column)) => {
+                        let (TermOrdHit::Exact(ord) | TermOrdHit::Next(ord)) =
+                            str_column.dictionary().term_ord_or_next(missing)?;
+                        Some((sentinel, ord))
+                    }
+                    _ => None,
+                };
+                // Sort the missing key before the next real term, without decoding all keys.
+                let sort_key = |term_ord: u64| {
+                    if let Some((sentinel, missing_ord)) = missing_term_ord {
+                        if term_ord == sentinel {
+                            return (missing_ord, false);
+                        }
+                    }
+                    (term_ord, true)
+                };
                 if TermMap::SORTED_BY_KEY {
+                    if let Some((sentinel, missing_ord)) = missing_term_ord {
+                        if let Some(missing_entry) = entries.pop_if(|entry| entry.0 == sentinel) {
+                            let pos = entries.partition_point(|entry| entry.0 < missing_ord);
+                            entries.insert(pos, missing_entry);
+                        }
+                    }
                     // `into_vec` already returned entries sorted by ord ascending, we can just
                     // revert if we want descending.
                     if term_req.req.order.order == Order::Desc {
@@ -1283,10 +1310,11 @@ where
                 } else if entries.len() > segment_size {
                     // Unsorted source: use select_nth
                     if term_req.req.order.order == Order::Desc {
-                        entries
-                            .select_nth_unstable_by_key(segment_size, |b| std::cmp::Reverse(b.0));
+                        entries.select_nth_unstable_by_key(segment_size, |b| {
+                            std::cmp::Reverse(sort_key(b.0))
+                        });
                     } else {
-                        entries.select_nth_unstable_by_key(segment_size, |b| b.0);
+                        entries.select_nth_unstable_by_key(segment_size, |b| sort_key(b.0));
                     }
                 }
             }
@@ -3242,6 +3270,188 @@ mod tests {
                 assert_eq!(buckets[1]["doc_count"], 1);
                 assert_eq!(buckets[1]["total"]["value"], 100.0);
             }
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn terms_aggregation_missing_string_sort_segment_pruning() -> crate::Result<()> {
+        let mut schema_builder = Schema::builder();
+        let text_field = schema_builder.add_text_field("text", FAST);
+        let index = Index::create_in_ram(schema_builder.build());
+        {
+            let mut index_writer = index.writer_with_num_threads(1, 20_000_000)?;
+            index_writer.set_merge_policy(Box::new(NoMergePolicy));
+            index_writer.add_document(doc!(text_field => "apple"))?;
+            index_writer.add_document(doc!(text_field => "banana"))?;
+            index_writer.add_document(doc!(text_field => "cherry"))?;
+            index_writer.add_document(doc!())?;
+            index_writer.commit()?;
+        }
+        let agg_req: Aggregations = serde_json::from_value(json!({
+            "my_terms": {
+                "terms": {
+                    "field": "text",
+                    "size": 2,
+                    "segment_size": 3,
+                    "missing": "apricot",
+                    "order": { "_key": "asc" }
+                }
+            }
+        }))?;
+        let res = exec_request_with_query(agg_req, &index, None)?;
+        assert_eq!(res["my_terms"]["buckets"][0]["key"], "apple");
+        assert_eq!(res["my_terms"]["buckets"][1]["key"], "apricot");
+        Ok(())
+    }
+
+    #[test]
+    fn terms_aggregation_missing_string_key_order() -> crate::Result<()> {
+        for num_segments in [1, 2] {
+            for has_missing in [false, true] {
+                let mut schema_builder = Schema::builder();
+                let text_field = schema_builder.add_text_field("text", FAST);
+                let score_field = schema_builder.add_u64_field("score", FAST);
+                let group_field = schema_builder.add_u64_field("group", FAST);
+                let index = Index::create_in_ram(schema_builder.build());
+                {
+                    let mut index_writer = index.writer_with_num_threads(1, 20_000_000)?;
+                    index_writer.set_merge_policy(Box::new(NoMergePolicy));
+                    for _ in 0..num_segments {
+                        for (key, score) in [("apple", 10u64), ("banana", 20), ("cherry", 30)] {
+                            index_writer.add_document(doc!(
+                                text_field => key, score_field => score, group_field => 0u64
+                            ))?;
+                        }
+                        if has_missing {
+                            index_writer.add_document(doc!(
+                                score_field => 40u64, group_field => 0u64
+                            ))?;
+                        }
+                        index_writer.commit()?;
+                    }
+                }
+
+                // Top-level terms use ordinal-sorted storage; nested terms use a hash map.
+                for nested in [false, true] {
+                    for missing in ["", "aardvark", "apricot", "blueberry", "zebra"] {
+                        for order in ["asc", "desc"] {
+                            for segment_size in [2, 3] {
+                                let terms = json!({
+                                    "my_terms": {
+                                        "terms": {
+                                            "field": "text",
+                                            "size": 2,
+                                            "segment_size": segment_size,
+                                            "missing": missing,
+                                            "order": { "_key": order }
+                                        },
+                                        "aggs": { "total": { "sum": { "field": "score" } } }
+                                    }
+                                });
+                                let request = if nested {
+                                    json!({
+                                        "groups": {
+                                            "terms": { "field": "group" },
+                                            "aggs": terms
+                                        }
+                                    })
+                                } else {
+                                    terms
+                                };
+                                let res = exec_request_with_query(
+                                    serde_json::from_value(request)?,
+                                    &index,
+                                    None,
+                                )?;
+                                let result = if nested {
+                                    &res["groups"]["buckets"][0]["my_terms"]
+                                } else {
+                                    &res["my_terms"]
+                                };
+
+                                let mut expected =
+                                    vec![("apple", 10), ("banana", 20), ("cherry", 30)];
+                                if has_missing {
+                                    expected.push((missing, 40));
+                                }
+                                expected.sort_unstable_by_key(|(key, _)| *key);
+                                if order == "desc" {
+                                    expected.reverse();
+                                }
+                                let sum_other_doc_count = (expected.len() - 2) * num_segments;
+                                let buckets: Vec<_> = expected
+                                    .iter()
+                                    .take(2)
+                                    .map(|(key, score)| {
+                                        json!({
+                                            "key": key,
+                                            "doc_count": num_segments,
+                                            "total": { "value": (score * num_segments) as f64 }
+                                        })
+                                    })
+                                    .collect();
+                                assert_eq!(
+                                    result["buckets"],
+                                    json!(buckets),
+                                    "missing={missing:?}, order={order}, \
+                                     segment_size={segment_size}, nested={nested}, \
+                                     has_missing={has_missing}, segments={num_segments}"
+                                );
+                                assert_eq!(result["sum_other_doc_count"], sum_other_doc_count);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn terms_aggregation_missing_string_key_in_dictionary() -> crate::Result<()> {
+        let mut schema_builder = Schema::builder();
+        let text_field = schema_builder.add_text_field("text", FAST);
+        let filter_field = schema_builder.add_text_field("filter", STRING);
+        let index = Index::create_in_ram(schema_builder.build());
+        {
+            let mut index_writer = index.writer_with_num_threads(1, 20_000_000)?;
+            index_writer.set_merge_policy(Box::new(NoMergePolicy));
+            for key in ["apple", "banana", "cherry"] {
+                index_writer.add_document(doc!(text_field => key, filter_field => "keep"))?;
+            }
+            // The missing key is in the dictionary, but its document does not match.
+            index_writer.add_document(doc!(text_field => "apricot"))?;
+            index_writer.add_document(doc!(filter_field => "keep"))?;
+            index_writer.commit()?;
+        }
+        for (order, expected) in [
+            ("asc", ["apple", "apricot"]),
+            ("desc", ["cherry", "banana"]),
+        ] {
+            let request = json!({
+                "my_terms": {
+                    "terms": {
+                        "field": "text",
+                        "size": 2,
+                        "segment_size": 3,
+                        "missing": "apricot",
+                        "order": { "_key": order }
+                    }
+                }
+            });
+            let res = exec_request_with_query(
+                serde_json::from_value(request)?,
+                &index,
+                Some(("filter", "keep")),
+            )?;
+            assert_eq!(
+                res["my_terms"]["buckets"],
+                json!([
+                    { "key": expected[0], "doc_count": 1 },
+                    { "key": expected[1], "doc_count": 1 }
+                ])
+            );
         }
         Ok(())
     }
