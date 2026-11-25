@@ -1,10 +1,13 @@
 use std::clone::Clone;
+use std::fmt;
 use std::sync::Arc;
 
 use tantivy_fst::Regex;
 
 use crate::error::TantivyError;
-use crate::query::{AutomatonWeight, EnableScoring, Query, Weight};
+use crate::query::{
+    AutomatonWeight, EnableScoring, MatchedTermsSink, Query, Weight, ZeroWidthChars,
+};
 use crate::schema::Field;
 
 /// A Regex Query matches all of the documents
@@ -53,10 +56,32 @@ use crate::schema::Field;
 /// # }
 /// # assert!(test().is_ok());
 /// ```
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct RegexQuery {
     regex: Arc<Regex>,
     field: Field,
+    matched_terms_sink: Option<MatchedTermsSink>,
+    max_expansions: Option<usize>,
+    zero_width_chars: ZeroWidthChars,
+}
+
+impl fmt::Debug for RegexQuery {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let mut debug_struct = f.debug_struct("RegexQuery");
+        debug_struct
+            .field("regex", &self.regex)
+            .field("field", &self.field);
+        if let Some(sink) = &self.matched_terms_sink {
+            debug_struct.field("matched_terms_sink", sink);
+        }
+        if let Some(cap) = &self.max_expansions {
+            debug_struct.field("max_expansions", cap);
+        }
+        if !self.zero_width_chars.is_empty() {
+            debug_struct.field("zero_width_chars", &self.zero_width_chars);
+        }
+        debug_struct.finish()
+    }
 }
 
 impl RegexQuery {
@@ -72,11 +97,47 @@ impl RegexQuery {
         RegexQuery {
             regex: regex.into(),
             field,
+            matched_terms_sink: None,
+            max_expansions: None,
+            zero_width_chars: ZeroWidthChars::default(),
         }
     }
 
+    /// Records the terms this query matches in the term dictionary into `sink` while the search
+    /// runs. See [`MatchedTermsSink`].
+    pub fn set_matched_terms_sink(&mut self, sink: MatchedTermsSink) {
+        self.matched_terms_sink = Some(sink);
+    }
+
+    /// Uses at most `cap` matching terms per segment: the shortest, then the most frequent.
+    /// See [`AutomatonWeight::set_max_expansions`].
+    ///
+    /// Unlike [`RegexPhraseQuery::set_max_expansions`], which returns an error past its limit,
+    /// this keeps the selected terms and leaves the others out; the sink, if any, is then marked
+    /// truncated.
+    ///
+    /// [`RegexPhraseQuery::set_max_expansions`]: crate::query::RegexPhraseQuery::set_max_expansions
+    pub fn set_max_expansions(&mut self, cap: usize) {
+        self.max_expansions = Some(cap);
+    }
+
+    /// Sets characters that do not count towards a term's length under
+    /// [`set_max_expansions`](Self::set_max_expansions).
+    /// See [`AutomatonWeight::set_zero_width_chars`].
+    pub fn set_zero_width_chars(&mut self, zero_width_chars: ZeroWidthChars) {
+        self.zero_width_chars = zero_width_chars;
+    }
+
     fn specialized_weight(&self) -> AutomatonWeight<Regex> {
-        AutomatonWeight::new(self.field, self.regex.clone())
+        let mut weight = AutomatonWeight::new(self.field, self.regex.clone());
+        if let Some(sink) = &self.matched_terms_sink {
+            weight.set_matched_terms_sink(sink.clone());
+        }
+        if let Some(cap) = self.max_expansions {
+            weight.set_max_expansions(cap);
+        }
+        weight.set_zero_width_chars(self.zero_width_chars.clone());
+        weight
     }
 }
 
@@ -93,8 +154,10 @@ mod test {
     use tantivy_fst::Regex;
 
     use super::RegexQuery;
-    use crate::collector::TopDocs;
-    use crate::schema::{Field, Schema, TEXT};
+    use crate::collector::{Count, TopDocs};
+    use crate::indexer::NoMergePolicy;
+    use crate::query::{MatchedTermsSink, ZeroWidthChars};
+    use crate::schema::{Field, Schema, STRING, TEXT};
     use crate::{assert_nearly_equals, Index, IndexReader, IndexWriter};
 
     fn build_test_index() -> crate::Result<(IndexReader, Field)> {
@@ -180,6 +243,160 @@ mod test {
         let matching_zero = RegexQuery::from_regex(r2, field);
 
         verify_regex_query(matching_one, matching_zero, reader);
+        Ok(())
+    }
+
+    #[test]
+    pub fn test_regex_query_matched_terms_sink_multiple_segments() -> crate::Result<()> {
+        let mut schema_builder = Schema::builder();
+        let field = schema_builder.add_text_field("text", TEXT);
+        let mut index = Index::create_in_ram(schema_builder.build());
+        index.set_multithread_executor(2)?;
+        let mut index_writer: IndexWriter = index.writer_for_tests()?;
+        index_writer.set_merge_policy(Box::new(NoMergePolicy));
+        for segment_words in [["japan", "korea"], ["japan", "jamaica"], ["china", "chile"]] {
+            for word in segment_words {
+                index_writer.add_document(doc!(field => word))?;
+            }
+            index_writer.commit()?;
+        }
+        let searcher = index.reader()?.searcher();
+        assert_eq!(searcher.segment_readers().len(), 3);
+
+        let mut query = RegexQuery::from_pattern("ja.*", field)?;
+        let sink = MatchedTermsSink::new();
+        query.set_matched_terms_sink(sink.clone());
+        assert_eq!(searcher.search(&query, &Count)?, 3);
+        // "japan" matched in two segments and is recorded once
+        assert_eq!(sink.len(), 2);
+        assert_eq!(
+            format!("{sink:?}"),
+            "MatchedTermsSink { len: 2, truncated: false }"
+        );
+        // searching again does not add duplicates
+        assert_eq!(searcher.search(&query, &Count)?, 3);
+        assert_eq!(
+            sink.take_bytes(),
+            vec![b"jamaica".to_vec(), b"japan".to_vec()]
+        );
+        assert!(sink.is_empty());
+
+        // a query without a sink matches the same documents
+        let query = RegexQuery::from_pattern("ja.*", field)?;
+        assert_eq!(searcher.search(&query, &Count)?, 3);
+        Ok(())
+    }
+
+    #[test]
+    pub fn test_regex_query_max_expansions() -> crate::Result<()> {
+        let mut schema_builder = Schema::builder();
+        let field = schema_builder.add_text_field("text", TEXT);
+        let index = Index::create_in_ram(schema_builder.build());
+        let mut index_writer: IndexWriter = index.writer_for_tests()?;
+        // "abc" and "abd" have the same length: the more frequent "abd" wins
+        for word in ["ab", "abc", "abd", "abd", "abcd", "b"] {
+            index_writer.add_document(doc!(field => word))?;
+        }
+        index_writer.commit()?;
+        let searcher = index.reader()?.searcher();
+
+        let expected_terms: [&[&str]; 5] = [
+            &[],
+            &["ab"],
+            &["ab", "abd"],
+            &["ab", "abc", "abd"],
+            &["ab", "abc", "abcd", "abd"],
+        ];
+        for cap in 0..=5 {
+            let mut query = RegexQuery::from_pattern("a.*", field)?;
+            let sink = MatchedTermsSink::new();
+            query.set_matched_terms_sink(sink.clone());
+            query.set_max_expansions(cap);
+            let count = searcher.search(&query, &Count)?;
+            let expected = expected_terms[cap.min(4)];
+            assert_eq!(sink.take_strings(), expected, "cap {cap}");
+            assert_eq!(sink.is_truncated(), cap < 4, "cap {cap}");
+            let expected_count: usize = expected
+                .iter()
+                .map(|term| if *term == "abd" { 2 } else { 1 })
+                .sum();
+            assert_eq!(count, expected_count, "cap {cap}");
+        }
+
+        // with a cap of 0, the sink is marked truncated only if a term matched
+        let mut query = RegexQuery::from_pattern("z.*", field)?;
+        let sink = MatchedTermsSink::new();
+        query.set_matched_terms_sink(sink.clone());
+        query.set_max_expansions(0);
+        assert_eq!(searcher.search(&query, &Count)?, 0);
+        assert!(!sink.is_truncated(), "nothing matched, nothing left out");
+        Ok(())
+    }
+
+    #[test]
+    pub fn test_regex_query_max_expansions_per_segment() -> crate::Result<()> {
+        let mut schema_builder = Schema::builder();
+        let field = schema_builder.add_text_field("text", TEXT);
+        let index = Index::create_in_ram(schema_builder.build());
+        let mut index_writer: IndexWriter = index.writer_for_tests()?;
+        index_writer.set_merge_policy(Box::new(NoMergePolicy));
+        // in each segment, the longer term sorts first
+        for segment_words in [["aaaaa", "ab"], ["aaaa", "abc"], ["aaa", "abcd"]] {
+            for word in segment_words {
+                index_writer.add_document(doc!(field => word))?;
+            }
+            index_writer.commit()?;
+        }
+        let searcher = index.reader()?.searcher();
+        assert_eq!(searcher.segment_readers().len(), 3);
+
+        let mut query = RegexQuery::from_pattern("a.*", field)?;
+        let sink = MatchedTermsSink::new();
+        query.set_matched_terms_sink(sink.clone());
+        query.set_max_expansions(1);
+        assert_eq!(searcher.search(&query, &Count)?, 3);
+        // the shortest term of each segment
+        assert_eq!(sink.take_strings(), ["aaa", "ab", "abc"]);
+        assert!(sink.is_truncated());
+        Ok(())
+    }
+
+    #[test]
+    pub fn test_regex_query_max_expansions_zero_width_chars() -> crate::Result<()> {
+        let mut schema_builder = Schema::builder();
+        let field = schema_builder.add_text_field("text", STRING);
+        let index = Index::create_in_ram(schema_builder.build());
+        let mut index_writer: IndexWriter = index.writer_for_tests()?;
+        for word in ["can't", "cant", "cane", "cane", "canto", "cans"] {
+            index_writer.add_document(doc!(field => word))?;
+        }
+        index_writer.commit()?;
+        let searcher = index.reader()?.searcher();
+
+        let search = |zero_width_chars: ZeroWidthChars| -> crate::Result<(Vec<String>, usize)> {
+            let mut query = RegexQuery::from_pattern("can.*", field)?;
+            let sink = MatchedTermsSink::new();
+            query.set_matched_terms_sink(sink.clone());
+            query.set_max_expansions(2);
+            query.set_zero_width_chars(zero_width_chars);
+            let count = searcher.search(&query, &Count)?;
+            assert!(sink.is_truncated());
+            Ok((sink.take_strings(), count))
+        };
+        // "can't" counts 5 chars, "cane" is the most frequent 4-char term
+        assert_eq!(
+            search(ZeroWidthChars::default())?,
+            (vec!["cane".to_string(), "cans".to_string()], 3)
+        );
+        // "can't" counts 4 chars and shares a slot with "cant": their summed doc frequency of 2
+        // beats "cans", and both terms are used
+        assert_eq!(
+            search(ZeroWidthChars::from_chars(['\'']))?,
+            (
+                vec!["can't".to_string(), "cane".to_string(), "cant".to_string()],
+                4
+            )
+        );
         Ok(())
     }
 

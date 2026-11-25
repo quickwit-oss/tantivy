@@ -41,9 +41,9 @@ use common::BinarySerializable;
 pub use common::{KeyTracking, WithoutKeys};
 use tantivy_fst::Automaton;
 
+pub(crate) use self::termdict::TermStreamerBuilder;
 use self::termdict::{
     TermDictionary as InnerTermDict, TermDictionaryBuilder as InnerTermDictBuilder,
-    TermStreamerBuilder,
 };
 pub use self::termdict::{TermMerger, TermStreamer};
 use crate::postings::TermInfo;

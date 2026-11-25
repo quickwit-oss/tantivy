@@ -1,8 +1,13 @@
+use std::fmt;
+use std::sync::Arc;
+
 use levenshtein_automata::{Distance, LevenshteinAutomatonBuilder, DFA};
 use once_cell::sync::OnceCell;
 use tantivy_fst::Automaton;
 
-use crate::query::{AutomatonWeight, EnableScoring, Query, Weight};
+use crate::query::{
+    AutomatonWeight, EnableScoring, MatchedTermsSink, Query, Weight, ZeroWidthChars,
+};
 use crate::schema::{Term, Type};
 use crate::TantivyError::InvalidArgument;
 
@@ -80,7 +85,7 @@ impl Automaton for DfaWrapper {
 /// }
 /// # assert!(example().is_ok());
 /// ```
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct FuzzyTermQuery {
     /// What term are we searching
     term: Term,
@@ -90,6 +95,30 @@ pub struct FuzzyTermQuery {
     transposition_cost_one: bool,
     /// is a starts with query
     prefix: bool,
+    matched_terms_sink: Option<MatchedTermsSink>,
+    max_expansions: Option<usize>,
+    zero_width_chars: ZeroWidthChars,
+}
+
+impl fmt::Debug for FuzzyTermQuery {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let mut debug_struct = f.debug_struct("FuzzyTermQuery");
+        debug_struct
+            .field("term", &self.term)
+            .field("distance", &self.distance)
+            .field("transposition_cost_one", &self.transposition_cost_one)
+            .field("prefix", &self.prefix);
+        if let Some(sink) = &self.matched_terms_sink {
+            debug_struct.field("matched_terms_sink", sink);
+        }
+        if let Some(cap) = &self.max_expansions {
+            debug_struct.field("max_expansions", cap);
+        }
+        if !self.zero_width_chars.is_empty() {
+            debug_struct.field("zero_width_chars", &self.zero_width_chars);
+        }
+        debug_struct.finish()
+    }
 }
 
 impl FuzzyTermQuery {
@@ -100,6 +129,9 @@ impl FuzzyTermQuery {
             distance,
             transposition_cost_one,
             prefix: false,
+            matched_terms_sink: None,
+            max_expansions: None,
+            zero_width_chars: ZeroWidthChars::default(),
         }
     }
 
@@ -110,7 +142,35 @@ impl FuzzyTermQuery {
             distance,
             transposition_cost_one,
             prefix: true,
+            matched_terms_sink: None,
+            max_expansions: None,
+            zero_width_chars: ZeroWidthChars::default(),
         }
+    }
+
+    /// Records the terms this query matches in the term dictionary into `sink` while the search
+    /// runs. See [`MatchedTermsSink`].
+    pub fn set_matched_terms_sink(&mut self, sink: MatchedTermsSink) {
+        self.matched_terms_sink = Some(sink);
+    }
+
+    /// Uses at most `cap` matching terms per segment: the closest (by edit distance), then the
+    /// shortest, then the most frequent. See [`AutomatonWeight::set_max_expansions`].
+    ///
+    /// Unlike [`RegexPhraseQuery::set_max_expansions`], which returns an error past its limit,
+    /// this keeps the selected terms and leaves the others out; the sink, if any, is then marked
+    /// truncated.
+    ///
+    /// [`RegexPhraseQuery::set_max_expansions`]: crate::query::RegexPhraseQuery::set_max_expansions
+    pub fn set_max_expansions(&mut self, cap: usize) {
+        self.max_expansions = Some(cap);
+    }
+
+    /// Sets characters that do not count towards a term's length under
+    /// [`set_max_expansions`](Self::set_max_expansions).
+    /// See [`AutomatonWeight::set_zero_width_chars`].
+    pub fn set_zero_width_chars(&mut self, zero_width_chars: ZeroWidthChars) {
+        self.zero_width_chars = zero_width_chars;
     }
 
     /// Returns the automaton this query matches terms with.
@@ -180,16 +240,27 @@ impl FuzzyTermQuery {
     }
 
     fn specialized_weight(&self) -> crate::Result<AutomatonWeight<DfaWrapper>> {
-        let automaton = self.automaton()?;
-        if let Some((json_path_bytes, _)) = self.term.value().as_json() {
-            Ok(AutomatonWeight::new_for_json_path(
+        let automaton = Arc::new(self.automaton()?);
+        let mut weight = if let Some((json_path_bytes, _)) = self.term.value().as_json() {
+            AutomatonWeight::new_for_json_path(
                 self.term.field(),
-                automaton,
+                automaton.clone(),
                 json_path_bytes,
-            ))
+            )
         } else {
-            Ok(AutomatonWeight::new(self.term.field(), automaton))
+            AutomatonWeight::new(self.term.field(), automaton.clone())
+        };
+        if let Some(sink) = &self.matched_terms_sink {
+            weight.set_matched_terms_sink(sink.clone());
         }
+        if let Some(cap) = self.max_expansions {
+            weight.set_max_expansions(cap);
+            weight.set_expansion_rank(Arc::new(move |key: &[u8]| match automaton.0.eval(key) {
+                Distance::Exact(distance) | Distance::AtLeast(distance) => u32::from(distance),
+            }));
+        }
+        weight.set_zero_width_chars(self.zero_width_chars.clone());
+        Ok(weight)
     }
 }
 
@@ -204,8 +275,8 @@ mod test {
     use super::FuzzyTermQuery;
     use crate::collector::{Count, TopDocs};
     use crate::indexer::NoMergePolicy;
-    use crate::query::QueryParser;
-    use crate::schema::{Schema, STORED, TEXT};
+    use crate::query::{MatchedTermsSink, QueryParser, ZeroWidthChars};
+    use crate::schema::{Schema, STORED, STRING, TEXT};
     use crate::{assert_nearly_equals, Index, IndexWriter, TantivyDocument, Term};
 
     #[test]
@@ -283,11 +354,15 @@ mod test {
         // shall not match the first document due to json path mismatch
         {
             let term = get_json_path_term("attributes.aa:japan")?;
-            let fuzzy_query = FuzzyTermQuery::new(term, 2, true);
+            let mut fuzzy_query = FuzzyTermQuery::new(term, 2, true);
+            let sink = MatchedTermsSink::new();
+            fuzzy_query.set_matched_terms_sink(sink.clone());
             let top_docs =
                 searcher.search(&fuzzy_query, &TopDocs::with_limit(2).order_by_score())?;
             assert_eq!(top_docs.len(), 1, "Expected only 1 document");
             assert_eq!(top_docs[0].1.doc_id, 1, "Expected the second document");
+            // the JSON path and the type code are not part of the recorded terms
+            assert_eq!(sink.take_strings(), vec!["japan".to_string()]);
         }
 
         // shall match the first document because Levenshtein distance is 1 (substitute 'o' with
@@ -312,6 +387,85 @@ mod test {
             assert_eq!(top_docs.len(), 0, "Expected no document");
         }
 
+        Ok(())
+    }
+
+    #[test]
+    pub fn test_fuzzy_term_max_expansions() -> crate::Result<()> {
+        let mut schema_builder = Schema::builder();
+        let field = schema_builder.add_text_field("text", TEXT);
+        let index = Index::create_in_ram(schema_builder.build());
+        let mut index_writer: IndexWriter = index.writer_for_tests()?;
+        index_writer.set_merge_policy(Box::new(NoMergePolicy));
+        // distance to "abcd": "abxd" 1, "abcde" 1, "abd" 1, "ab" 2, "bd" 2 (with "abcd" absent)
+        for word in ["abxd", "abcde", "abd", "abd", "ab", "bd"] {
+            index_writer.add_document(doc!(field => word))?;
+        }
+        index_writer.commit()?;
+        let searcher = index.reader()?.searcher();
+        let term = Term::from_field_text(field, "abcd");
+
+        let expected_terms: [&[&str]; 4] = [
+            &["abd"],
+            &["abd", "abxd"],
+            &["abcde", "abd", "abxd"],
+            &["ab", "abcde", "abd", "abxd"],
+        ];
+        for (cap, expected) in (1..).zip(expected_terms) {
+            let mut query = FuzzyTermQuery::new(term.clone(), 2, true);
+            let sink = MatchedTermsSink::new();
+            query.set_matched_terms_sink(sink.clone());
+            query.set_max_expansions(cap);
+            searcher.search(&query, &Count)?;
+            assert_eq!(sink.take_strings(), expected, "cap {cap}");
+            assert!(sink.is_truncated(), "cap {cap}");
+        }
+
+        // a closer term wins even if it is longer and rarer
+        let mut query = FuzzyTermQuery::new(Term::from_field_text(field, "abcdx"), 2, true);
+        let sink = MatchedTermsSink::new();
+        query.set_matched_terms_sink(sink.clone());
+        query.set_max_expansions(1);
+        assert_eq!(searcher.search(&query, &Count)?, 1);
+        assert_eq!(sink.take_strings(), ["abcde"]);
+
+        // the cap applies per segment
+        index_writer.add_document(doc!(field => "abcf"))?;
+        index_writer.commit()?;
+        let searcher = index.reader()?.searcher();
+        assert_eq!(searcher.segment_readers().len(), 2);
+        let mut query = FuzzyTermQuery::new(term, 2, true);
+        let sink = MatchedTermsSink::new();
+        query.set_matched_terms_sink(sink.clone());
+        query.set_max_expansions(1);
+        assert_eq!(searcher.search(&query, &Count)?, 3);
+        assert_eq!(sink.take_strings(), ["abcf", "abd"]);
+        assert!(sink.is_truncated());
+        Ok(())
+    }
+
+    #[test]
+    pub fn test_fuzzy_term_max_expansions_zero_width_chars() -> crate::Result<()> {
+        let mut schema_builder = Schema::builder();
+        let field = schema_builder.add_text_field("text", STRING);
+        let index = Index::create_in_ram(schema_builder.build());
+        let mut index_writer: IndexWriter = index.writer_for_tests()?;
+        // "cafe\u{301}" is "cafe" with a combining accent
+        for word in ["cafe", "cafe\u{301}", "cafes", "cafes", "cafe\u{301}s"] {
+            index_writer.add_document(doc!(field => word))?;
+        }
+        index_writer.commit()?;
+        let searcher = index.reader()?.searcher();
+
+        let mut query = FuzzyTermQuery::new(Term::from_field_text(field, "cafe"), 2, true);
+        let sink = MatchedTermsSink::new();
+        query.set_matched_terms_sink(sink.clone());
+        query.set_max_expansions(1);
+        query.set_zero_width_chars(ZeroWidthChars::default().with_range('\u{300}'..='\u{36F}'));
+        assert_eq!(searcher.search(&query, &Count)?, 2);
+        // the slot's rank is the lowest edit distance of its terms
+        assert_eq!(sink.take_strings(), ["cafe", "cafe\u{301}"]);
+        assert!(sink.is_truncated());
         Ok(())
     }
 
@@ -343,6 +497,18 @@ mod test {
             assert_eq!(top_docs.len(), 1, "Expected only 1 document");
             let (score, _) = top_docs[0];
             assert_nearly_equals!(1.0, score);
+        }
+
+        // a sink records the matched terms, and only those
+        {
+            let term = Term::from_field_text(country_field, "japon");
+            let mut fuzzy_query = FuzzyTermQuery::new(term, 1, true);
+            let sink = MatchedTermsSink::new();
+            fuzzy_query.set_matched_terms_sink(sink.clone());
+            let top_docs =
+                searcher.search(&fuzzy_query, &TopDocs::with_limit(2).order_by_score())?;
+            assert_eq!(top_docs.len(), 1, "Expected only 1 document");
+            assert_eq!(sink.take_strings(), vec!["japan".to_string()]);
         }
 
         // fails because non-prefix Levenshtein distance is more than 1 (add 'a' and 'n')
