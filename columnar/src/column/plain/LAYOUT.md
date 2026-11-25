@@ -50,7 +50,7 @@ ONPAIR16_BLOCK :=
     [NUM_CODES: u32]
     [TOKEN_LENS: 4 bits * NUM_TOKENS]       # token length - 1, token 2k in the low nibble
     [DICT_BYTES]                            # tokens concatenated, with the onpair read padding
-    [CODE_OFFSETS]                          # u64 based column values, NUM_VALUES + 1 entries
+    [CODE_OFFSETS]                          # BlockwiseLinear (no codec tag), NUM_VALUES + 1 entries
     [CODES: ceil(NUM_CODES * CODE_BITS / 8) + 7]  # CODE_BITS bits per code, then 7 zero bytes
 
 CODE_BITS := ceil(log2(NUM_TOKENS))         # not stored: the minimal width of a token id
@@ -58,7 +58,7 @@ CODE_BITS := ceil(log2(NUM_TOKENS))         # not stored: the minimal width of a
 RAW_BLOCK :=                                # for small or incompressible blocks
     [KIND: u8 = 0]
     [OFFSETS_LEN: u32]
-    [OFFSETS]                               # u64 based column values, NUM_VALUES + 1 entries
+    [OFFSETS]                               # BlockwiseLinear (no codec tag), NUM_VALUES + 1 entries
     [VALUE_BYTES]
 ```
 

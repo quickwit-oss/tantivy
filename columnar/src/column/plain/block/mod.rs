@@ -11,13 +11,15 @@ mod onpair16_block;
 mod raw_block;
 
 use std::io;
-use std::sync::Arc;
+use std::num::NonZeroU64;
 
 use common::OwnedBytes;
 
 use self::onpair16_block::{OnPair16Block, encode_onpair16_block};
 use self::raw_block::{RAW_HEADER_NUM_BYTES, RawBlock, encode_raw_block};
-use crate::column_values::{CodecType, ColumnValues, load_u64_based_column_values};
+use crate::column_values::{
+    BlockwiseLinearCodec, BlockwiseLinearReader, ColumnCodec, ColumnStats, ColumnValues,
+};
 
 /// Kind of a block storing its values as is.
 const BLOCK_KIND_RAW: u8 = 0;
@@ -27,9 +29,6 @@ const BLOCK_KIND_ONPAIR16: u8 = 1;
 /// Blocks with fewer raw bytes than this are stored raw: an OnPair dictionary always contains the
 /// 256 single-byte tokens, which does not pay off on small blocks.
 const MIN_ONPAIR16_BLOCK_NUM_BYTES: usize = 4 << 10;
-
-/// Codecs considered for the code offsets and the byte offsets of a block.
-const OFFSETS_CODECS: [CodecType; 2] = [CodecType::Bitpacked, CodecType::BlockwiseLinear];
 
 /// Reads a little endian `u16` from the front of `bytes`, and advances `bytes` past it.
 ///
@@ -53,12 +52,35 @@ fn read_u32(bytes: &mut &[u8]) -> u32 {
     u32::from_le_bytes(*u32_bytes)
 }
 
-/// Loads `ColumnValues<u32>` with `expected_num_vals` values.
+/// Serializes block offsets directly with `BlockwiseLinearCodec` (no 1-byte codec tag, no
+/// estimation pass, and no stats pass).
+///
+/// Precondition: `offsets` is sorted in increasing order, which holds for value offsets.
+///
+/// Format evolution is handled by the block's leading kind byte and the plain column footer's
+/// format version.
+pub(super) fn serialize_offsets(sorted_offsets: &[u32], output: &mut Vec<u8>) -> io::Result<()> {
+    debug_assert!(sorted_offsets.is_sorted());
+    let min_value: u32 = sorted_offsets.first().copied().unwrap_or(0);
+    let max_value: u32 = sorted_offsets.last().copied().unwrap_or(0);
+    let stats = ColumnStats {
+        gcd: NonZeroU64::MIN,
+        min_value: min_value as u64,
+        max_value: max_value as u64,
+        num_rows: sorted_offsets.len() as u32,
+    };
+    BlockwiseLinearCodec::serialize(
+        &stats,
+        sorted_offsets.iter().map(|&offset| offset as u64),
+        output,
+    )
+}
+
+/// Loads `BlockwiseLinearReader` offsets with `expected_num_vals` values.
 ///
 /// Panics if `bytes` is corrupted.
-fn load_offsets(bytes: OwnedBytes, expected_num_vals: u32) -> Arc<dyn ColumnValues<u32>> {
-    let offsets: Arc<dyn ColumnValues<u32>> =
-        load_u64_based_column_values::<u32>(bytes).expect("corrupted offsets in plain block");
+pub(super) fn load_offsets(bytes: OwnedBytes, expected_num_vals: u32) -> BlockwiseLinearReader {
+    let offsets = BlockwiseLinearCodec::load(bytes).expect("corrupted offsets in plain block");
     assert_eq!(
         offsets.num_vals(),
         expected_num_vals,

@@ -13,7 +13,7 @@
 //! 15      ceil(num_tokens / 2)                  token lengths: 4 bits per token, (len - 1),
 //!                                               token 2k in the low nibble
 //! ..      dict_bytes_len                        token bytes, concatenated, + read padding
-//! ..      code_offsets_len                      code offsets: ColumnValues<u32>, n + 1 entries
+//! ..      code_offsets_len                      code offsets: BlockwiseLinear, n + 1 entries
 //! ..      ceil(num_codes * code_bits / 8) + 7   codes, bitpacked on code_bits bits,
 //!                                               followed by 7 zero bytes
 //! ```
@@ -21,14 +21,13 @@
 //! `code_bits` is not stored: it is `ceil(log2(num_tokens))`, the minimal width of a token id.
 
 use std::mem::MaybeUninit;
-use std::sync::Arc;
 
 use common::OwnedBytes;
 use onpair::{CompactDictionaryView, MaxDictBits, Threshold};
 use tantivy_bitpacker::{BitPacker, BitUnpacker};
 
-use super::{BLOCK_KIND_ONPAIR16, OFFSETS_CODECS, load_offsets, read_u16, read_u32};
-use crate::column_values::{ColumnValues, serialize_u64_based_column_values};
+use super::{BLOCK_KIND_ONPAIR16, load_offsets, read_u16, read_u32, serialize_offsets};
+use crate::column_values::{BlockwiseLinearReader, ColumnValues};
 
 const ONPAIR16_HEADER_NUM_BYTES: usize = 15;
 
@@ -106,8 +105,7 @@ pub(super) fn encode_onpair16_block(bytes: &[u8], offsets: &[u32], output: &mut 
     output.extend_from_slice(dict_bytes);
 
     let code_offsets_start = output.len();
-    serialize_u64_based_column_values::<u32>(&&code_offsets[..], &OFFSETS_CODECS, output)
-        .expect("writing to a Vec cannot fail");
+    serialize_offsets(&code_offsets, output).expect("writing to a Vec cannot fail");
     let code_offsets_len = (output.len() - code_offsets_start) as u32;
     output[code_offsets_len_pos..code_offsets_len_pos + 4]
         .copy_from_slice(&code_offsets_len.to_le_bytes());
@@ -142,7 +140,7 @@ pub struct OnPair16Block {
     /// Invariant: `(dict_bytes, dict_offsets)` passed `CompactDictionaryView::validate_safety`.
     dict_offsets: Vec<u32>,
     /// `num_values + 1` offsets of the values in the code stream.
-    code_offsets: Arc<dyn ColumnValues<u32>>,
+    code_offsets: BlockwiseLinearReader,
     code_unpacker: BitUnpacker,
     /// Bitpacked codes, followed by `CODES_PADDING_NUM_BYTES` zero bytes.
     codes: OwnedBytes,
@@ -216,6 +214,8 @@ impl OnPair16Block {
         output: &mut Vec<u8>,
     ) {
         let (code_start, code_end) = self.code_offsets.get_pair(slot);
+        let code_start = code_start as u32;
+        let code_end = code_end as u32;
         assert!(
             code_start <= code_end && code_end <= self.num_codes,
             "invalid code offsets in plain block"

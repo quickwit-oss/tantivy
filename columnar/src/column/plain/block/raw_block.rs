@@ -6,17 +6,16 @@
 //! offset  size          field
 //! 0       1             kind = BLOCK_KIND_RAW
 //! 1       4             offsets_len
-//! 5       offsets_len   byte offsets: ColumnValues<u32>, n + 1 entries
+//! 5       offsets_len   byte offsets: BlockwiseLinear, n + 1 entries
 //! ..      ..            value bytes, concatenated
 //! ```
 
 use std::io;
-use std::sync::Arc;
 
 use common::OwnedBytes;
 
-use super::{BLOCK_KIND_RAW, OFFSETS_CODECS, load_offsets, read_u32};
-use crate::column_values::{ColumnValues, serialize_u64_based_column_values};
+use super::{BLOCK_KIND_RAW, load_offsets, read_u32, serialize_offsets};
+use crate::column_values::{BlockwiseLinearReader, ColumnValues};
 
 pub(super) const RAW_HEADER_NUM_BYTES: usize = 5;
 
@@ -33,7 +32,7 @@ pub(super) fn encode_raw_block(
     let offsets_len_pos = output.len();
     output.extend_from_slice(&0u32.to_le_bytes());
     let offsets_start = output.len();
-    serialize_u64_based_column_values::<u32>(&offsets, &OFFSETS_CODECS, output)?;
+    serialize_offsets(offsets, output)?;
     let offsets_len = (output.len() - offsets_start) as u32;
     output[offsets_len_pos..offsets_len_pos + 4].copy_from_slice(&offsets_len.to_le_bytes());
     output.extend_from_slice(bytes);
@@ -42,9 +41,10 @@ pub(super) fn encode_raw_block(
 
 #[doc(hidden)]
 pub struct RawBlock {
-    /// `num_values + 1` offsets of the values in `bytes`.
-    byte_offsets: Arc<dyn ColumnValues<u32>>,
+    /// `num_values + 1` offsets of the values in `bytes[values_start..]`.
+    byte_offsets: BlockwiseLinearReader,
     bytes: OwnedBytes,
+    values_start: usize,
 }
 
 impl RawBlock {
@@ -53,30 +53,36 @@ impl RawBlock {
     /// Precondition: the first byte of `bytes` is `BLOCK_KIND_RAW`.
     /// Panics if `bytes` is corrupted.
     pub(super) fn open(bytes: OwnedBytes, num_values: u32) -> RawBlock {
-        // `OwnedBytes::split` panics on a truncated (corrupted) block.
-        let (header, body) = bytes.split(RAW_HEADER_NUM_BYTES);
+        let slice = bytes.as_slice();
+        assert!(slice.len() >= RAW_HEADER_NUM_BYTES, "truncated raw block");
         // Skip the block kind, checked by `PlainBlock::open`.
-        let mut header: &[u8] = &header.as_slice()[1..];
+        let mut header: &[u8] = &slice[1..RAW_HEADER_NUM_BYTES];
         let offsets_len = read_u32(&mut header) as usize;
         debug_assert!(header.is_empty());
-        let (offsets_bytes, value_bytes) = body.split(offsets_len);
+        let values_start = RAW_HEADER_NUM_BYTES
+            .checked_add(offsets_len)
+            .expect("raw block offsets length overflow");
+        assert!(values_start <= slice.len(), "truncated raw block");
+        let offsets_bytes = bytes.slice(RAW_HEADER_NUM_BYTES..values_start);
         let byte_offsets = load_offsets(offsets_bytes, num_values + 1);
         RawBlock {
             byte_offsets,
-            bytes: value_bytes,
+            bytes,
+            values_start,
         }
     }
 
     /// Appends the bytes of the value at position `slot` in the block to `output`.
     pub(super) fn append_value(&self, slot: u32, output: &mut Vec<u8>) {
         let (start, end) = self.byte_offsets.get_pair(slot);
+        let value_bytes = &self.bytes.as_slice()[self.values_start..];
         let start = start as usize;
         let end = end as usize;
         assert!(
-            start <= end && end <= self.bytes.len(),
+            start <= end && end <= value_bytes.len(),
             "invalid value offsets in raw plain block"
         );
-        output.extend_from_slice(&self.bytes.as_slice()[start..end]);
+        output.extend_from_slice(&value_bytes[start..end]);
     }
 }
 

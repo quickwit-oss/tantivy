@@ -30,6 +30,8 @@ pub use u64_based::{
     ALL_U64_CODEC_TYPES, CodecType, load_u64_based_column_values,
     serialize_and_load_u64_based_column_values, serialize_u64_based_column_values,
 };
+#[cfg(feature = "plain_codec")]
+pub(crate) use u64_based::{BlockwiseLinearCodec, BlockwiseLinearReader, ColumnCodec};
 pub use u128_based::{
     CompactHit, CompactSpaceU64Accessor, open_u128_as_compact_u64, open_u128_mapped,
     serialize_column_values_u128,

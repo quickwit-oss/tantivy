@@ -1,12 +1,11 @@
+use std::io;
 use std::io::Write;
 use std::sync::Arc;
-use std::{io, iter};
 
 use common::{BinarySerializable, CountingWriter, DeserializeFrom, OwnedBytes};
 use fastdivide::DividerU64;
 use tantivy_bitpacker::{BitPacker, BitUnpacker, compute_num_bits};
 
-use crate::MonotonicallyMappableToU64;
 use crate::column_values::u64_based::line::Line;
 use crate::column_values::u64_based::{ColumnCodec, ColumnCodecEstimator, ColumnStats};
 use crate::column_values::{ColumnValues, VecColumn};
@@ -104,7 +103,27 @@ impl ColumnCodecEstimator for BlockwiseLinearEstimator {
     fn serialize(
         &self,
         stats: &ColumnStats,
-        mut vals: &mut dyn Iterator<Item = u64>,
+        vals: &mut dyn Iterator<Item = u64>,
+        wrt: &mut dyn Write,
+    ) -> io::Result<()> {
+        // The estimate is not needed to serialize the column.
+        BlockwiseLinearCodec::serialize(stats, vals, wrt)
+    }
+}
+
+pub struct BlockwiseLinearCodec;
+
+impl BlockwiseLinearCodec {
+    /// Serializes `vals` with the blockwise linear codec, without an estimation pass.
+    ///
+    /// Precondition: `vals` yields exactly `stats.num_rows` values, every value is at least
+    /// `stats.min_value`, and `stats.gcd` divides every `value - stats.min_value`.
+    /// `stats.max_value` is only stored, for `ColumnValues::max_value`: it should be exact.
+    ///
+    /// No codec type byte is written: see `load_u64_based_column_values` for the tagged format.
+    pub fn serialize(
+        stats: &ColumnStats,
+        mut vals: impl Iterator<Item = u64>,
         wrt: &mut dyn Write,
     ) -> io::Result<()> {
         stats.serialize(wrt)?;
@@ -118,17 +137,16 @@ impl ColumnCodecEstimator for BlockwiseLinearEstimator {
 
         for _ in 0..num_blocks {
             buffer.clear();
-            buffer.extend(
-                (&mut vals)
-                    .map(MonotonicallyMappableToU64::to_u64)
-                    .take(BLOCK_SIZE as usize),
-            );
+            buffer.extend((&mut vals).take(BLOCK_SIZE as usize));
 
             for buffer_val in buffer.iter_mut() {
                 *buffer_val = gcd_divider.divide(*buffer_val - stats.min_value);
             }
 
-            let line = Line::train(&VecColumn::from(buffer.to_vec()));
+            // Avoid copying the buffer: it is moved into the `VecColumn`, and back.
+            let column = VecColumn::from(std::mem::take(&mut buffer));
+            let line = Line::train(&column);
+            buffer = column.into();
 
             assert!(!buffer.is_empty());
 
@@ -165,8 +183,6 @@ impl ColumnCodecEstimator for BlockwiseLinearEstimator {
     }
 }
 
-pub struct BlockwiseLinearCodec;
-
 impl ColumnCodec<u64> for BlockwiseLinearCodec {
     type ColumnValues = BlockwiseLinearReader;
 
@@ -176,19 +192,21 @@ impl ColumnCodec<u64> for BlockwiseLinearCodec {
         let stats = ColumnStats::deserialize(&mut bytes)?;
         let footer_len: u32 = (&bytes[bytes.len() - 4..]).deserialize()?;
         let footer_offset = bytes.len() - 4 - footer_len as usize;
-        let (data, mut footer) = bytes.split(footer_offset);
-        let num_blocks = compute_num_blocks(stats.num_rows);
-        let mut blocks: Vec<Block> = iter::repeat_with(|| Block::deserialize(&mut footer))
-            .take(num_blocks as usize)
-            .collect::<io::Result<_>>()?;
+        let num_blocks = compute_num_blocks(stats.num_rows) as usize;
+        let mut blocks: Vec<Block> = Vec::with_capacity(num_blocks);
         let mut start_offset = 0;
-        for block in &mut blocks {
-            block.data_start_offset = start_offset;
-            start_offset += (block.bit_unpacker.bit_width() as usize) * BLOCK_SIZE as usize / 8;
+        {
+            let mut footer: &[u8] = &bytes.as_slice()[footer_offset..bytes.len() - 4];
+            for _ in 0..num_blocks {
+                let mut block = Block::deserialize(&mut footer)?;
+                block.data_start_offset = start_offset;
+                start_offset += (block.bit_unpacker.bit_width() as usize) * BLOCK_SIZE as usize / 8;
+                blocks.push(block);
+            }
         }
         Ok(BlockwiseLinearReader {
-            blocks: blocks.into_boxed_slice().into(),
-            data,
+            blocks: blocks.into(),
+            data: bytes,
             stats,
         })
     }

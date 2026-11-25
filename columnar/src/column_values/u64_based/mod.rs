@@ -15,6 +15,8 @@ use crate::column_values::monotonic_mapping::{
 };
 pub use crate::column_values::u64_based::bitpacked::BitpackedCodec;
 pub use crate::column_values::u64_based::blockwise_linear::BlockwiseLinearCodec;
+#[cfg(feature = "plain_codec")]
+pub(crate) use crate::column_values::u64_based::blockwise_linear::BlockwiseLinearReader;
 pub use crate::column_values::u64_based::linear::LinearCodec;
 pub use crate::column_values::u64_based::stats_collector::StatsCollector;
 use crate::column_values::{ColumnStats, monotonic_map_column};
