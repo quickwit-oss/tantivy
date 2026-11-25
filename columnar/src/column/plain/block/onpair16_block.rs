@@ -215,8 +215,7 @@ impl OnPair16Block {
         codes_buffer: &mut Vec<u16>,
         output: &mut Vec<u8>,
     ) {
-        let code_start = self.code_offsets.get_val(slot);
-        let code_end = self.code_offsets.get_val(slot + 1);
+        let (code_start, code_end) = self.code_offsets.get_pair(slot);
         assert!(
             code_start <= code_end && code_end <= self.num_codes,
             "invalid code offsets in plain block"

@@ -95,8 +95,7 @@ impl MultiValueIndexV1 {
         if doc_id >= self.num_docs() {
             return 0..0;
         }
-        let start = self.start_index_column.get_val(doc_id);
-        let end = self.start_index_column.get_val(doc_id + 1);
+        let (start, end) = self.start_index_column.get_pair(doc_id);
         start..end
     }
 
@@ -242,8 +241,7 @@ impl MultiValueIndex {
                     while doc < num_docs {
                         let cur = doc;
                         doc += 1;
-                        let start = idx.start_index_column.get_val(cur);
-                        let end = idx.start_index_column.get_val(cur + 1);
+                        let (start, end) = idx.start_index_column.get_pair(cur);
                         if end > start {
                             return Some(cur);
                         }
@@ -287,8 +285,7 @@ impl MultiValueIndexV2 {
         let Some(rank) = self.optional_index.rank_if_exists(doc_id) else {
             return 0..0;
         };
-        let start = self.start_index_column.get_val(rank);
-        let end = self.start_index_column.get_val(rank + 1);
+        let (start, end) = self.start_index_column.get_pair(rank);
         start..end
     }
 
