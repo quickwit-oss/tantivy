@@ -55,6 +55,20 @@ pub trait ColumnValues<T: PartialOrd = u64>: Send + Sync + DowncastSync {
     /// May panic if `idx` is greater than the column length.
     fn get_val(&self, idx: u32) -> T;
 
+    /// Returns `(self.get_val(idx), self.get_val(idx + 1))`.
+    ///
+    /// Codecs whose values are grouped in blocks (such as `BlockwiseLinearReader`) can override
+    /// this to share the block lookup when both indices fall in the same block, and callers
+    /// holding `dyn ColumnValues<T>` avoid a second dynamic dispatch.
+    ///
+    /// # Panics
+    ///
+    /// May panic if `idx + 1 >= self.num_vals()`.
+    #[inline(always)]
+    fn get_pair(&self, idx: u32) -> (T, T) {
+        (self.get_val(idx), self.get_val(idx + 1))
+    }
+
     /// Allows to push down multiple fetch calls, to avoid dynamic dispatch overhead.
     ///
     /// idx and output should have the same length
@@ -201,6 +215,11 @@ impl<T: Copy + PartialOrd + Debug + 'static> ColumnValues<T> for Arc<dyn ColumnV
     #[inline(always)]
     fn get_val(&self, idx: u32) -> T {
         self.as_ref().get_val(idx)
+    }
+
+    #[inline(always)]
+    fn get_pair(&self, idx: u32) -> (T, T) {
+        self.as_ref().get_pair(idx)
     }
 
     #[inline(always)]

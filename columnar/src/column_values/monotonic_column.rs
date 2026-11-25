@@ -66,6 +66,15 @@ where
         self.monotonic_mapping.mapping(from_val)
     }
 
+    #[inline(always)]
+    fn get_pair(&self, idx: u32) -> (Output, Output) {
+        let (first_val, second_val) = self.from_column.get_pair(idx);
+        (
+            self.monotonic_mapping.mapping(first_val),
+            self.monotonic_mapping.mapping(second_val),
+        )
+    }
+
     fn min_value(&self) -> Output {
         let from_min_value = self.from_column.min_value();
         self.monotonic_mapping.mapping(from_min_value)

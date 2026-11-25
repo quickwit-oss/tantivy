@@ -221,6 +221,28 @@ impl ColumnValues for BlockwiseLinearReader {
     }
 
     #[inline(always)]
+    fn get_pair(&self, idx: u32) -> (u64, u64) {
+        let block_id = (idx / BLOCK_SIZE) as usize;
+        let idx_within_block = idx % BLOCK_SIZE;
+        if idx_within_block + 1 < BLOCK_SIZE {
+            let block = &self.blocks[block_id];
+            let block_bytes = &self.data[block.data_start_offset..];
+            let interp0 = block.line.eval(idx_within_block);
+            let interp1 = block.line.eval(idx_within_block + 1);
+            let diff0 = block.bit_unpacker.get(idx_within_block, block_bytes);
+            let diff1 = block.bit_unpacker.get(idx_within_block + 1, block_bytes);
+            let gcd = self.stats.gcd.get();
+            let min_val = self.stats.min_value;
+            (
+                min_val + gcd.wrapping_mul(interp0.wrapping_add(diff0)),
+                min_val + gcd.wrapping_mul(interp1.wrapping_add(diff1)),
+            )
+        } else {
+            (self.get_val(idx), self.get_val(idx + 1))
+        }
+    }
+
+    #[inline(always)]
     fn min_value(&self) -> u64 {
         self.stats.min_value
     }
@@ -301,6 +323,27 @@ mod tests {
             create_and_validate::<BlockwiseLinearCodec>(&data, "rand");
             data.reverse();
             create_and_validate::<BlockwiseLinearCodec>(&data, "rand");
+        }
+    }
+
+    #[test]
+    fn test_blockwise_linear_get_pair_and_arc_forwarding() {
+        use crate::column_values::{CodecType, serialize_and_load_u64_based_column_values};
+
+        // Spans more than 2 blocks (BLOCK_SIZE = 512) to cover within-block pairs and exact
+        // block boundaries (511 -> 512, 1023 -> 1024).
+        let offsets: Vec<u64> = (0..1_200u64).map(|i| i * 3 + (i % 7)).collect();
+        let column_u32: Arc<dyn ColumnValues<u32>> = serialize_and_load_u64_based_column_values::<
+            u32,
+        >(
+            &&offsets[..], &[CodecType::BlockwiseLinear]
+        );
+        for idx in 0..(offsets.len() as u32 - 1) {
+            let expected = (
+                offsets[idx as usize] as u32,
+                offsets[idx as usize + 1] as u32,
+            );
+            assert_eq!(column_u32.get_pair(idx), expected, "idx={idx}");
         }
     }
 }

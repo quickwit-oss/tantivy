@@ -69,8 +69,9 @@ impl RawBlock {
 
     /// Appends the bytes of the value at position `slot` in the block to `output`.
     pub(super) fn append_value(&self, slot: u32, output: &mut Vec<u8>) {
-        let start = self.byte_offsets.get_val(slot) as usize;
-        let end = self.byte_offsets.get_val(slot + 1) as usize;
+        let (start, end) = self.byte_offsets.get_pair(slot);
+        let start = start as usize;
+        let end = end as usize;
         assert!(
             start <= end && end <= self.bytes.len(),
             "invalid value offsets in raw plain block"
