@@ -39,6 +39,15 @@ impl<'a, D: Document> PreparedCommit<'a, D> {
         self.commit_future().wait()
     }
 
+    /// Soft-commit: publish segments in-memory for near real-time search without persisting
+    /// `meta.json`. This does not call gc or directory sync.
+    pub fn soft_commit(self) -> crate::Result<Opstamp> {
+        self.index_writer
+            .segment_updater()
+            .schedule_soft_commit(self.opstamp, self.payload)
+            .wait()
+    }
+
     /// Proceeds to commit.
     ///
     /// Unfortunately, contrary to what `PrepareCommit` may suggests,
