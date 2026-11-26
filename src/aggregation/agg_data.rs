@@ -459,6 +459,7 @@ fn build_nodes(
             let field_type = accessor.column_type();
             let node_data = AggNodeData::Metric(MetricAggReqData {
                 accessor,
+                null_if_empty_sum: false,
                 name: agg_name.to_string(),
                 collecting_for,
                 missing: *missing,
@@ -487,6 +488,7 @@ fn build_nodes(
             let field_type = accessor.column_type();
             let node_data = AggNodeData::Metric(MetricAggReqData {
                 accessor,
+                null_if_empty_sum: false,
                 name: agg_name.to_string(),
                 collecting_for: StatsType::Percentiles,
                 missing: percentiles_req.missing,

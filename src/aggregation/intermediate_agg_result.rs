@@ -15,9 +15,10 @@ use serde::{Deserialize, Serialize};
 use super::agg_req::{Aggregation, AggregationVariants, Aggregations};
 use super::agg_result::{AggregationResult, BucketResult, MetricResult, RangeBucketEntry};
 use super::bucket::{
-    composite_intermediate_key_ordering, cut_off_buckets, get_agg_name_and_property,
-    intermediate_histogram_buckets_to_final_buckets, CompositeAggregation, GetDocCount,
-    MissingOrder, Order, OrderTarget, RangeAggregation, TermsAggregation,
+    composite_intermediate_key_ordering, cut_off_buckets, empty_metric_sort_value,
+    get_agg_name_and_property, intermediate_histogram_buckets_to_final_buckets,
+    CompositeAggregation, GetDocCount, MissingOrder, Order, OrderTarget, RangeAggregation,
+    TermsAggregation,
 };
 use super::metric::{
     IntermediateAverage, IntermediateCount, IntermediateExtendedStats, IntermediateMax,
@@ -71,6 +72,13 @@ pub enum IntermediateKey {
 }
 
 impl IntermediateKey {
+    fn cmp_final_key(&self, other: &Self) -> Ordering {
+        match (self, other) {
+            (Self::Str(left), Self::Str(right)) => left.cmp(right),
+            _ => Key::from(self.clone()).cmp(&Key::from(other.clone())),
+        }
+    }
+
     fn variant_ord(&self) -> u8 {
         match self {
             Self::IpAddr(_) => 0,
@@ -134,14 +142,7 @@ impl From<IntermediateKey> for Key {
     fn from(value: IntermediateKey) -> Self {
         match value {
             IntermediateKey::Str(s) => Self::Str(s),
-            IntermediateKey::IpAddr(s) => {
-                // Prefer to use the IPv4 representation if possible
-                if let Some(ip) = s.to_ipv4_mapped() {
-                    Self::Str(ip.to_string())
-                } else {
-                    Self::Str(s.to_string())
-                }
-            }
+            IntermediateKey::IpAddr(ip) => Self::Str(ip.to_canonical().to_string()),
             IntermediateKey::F64(f) => Self::F64(f),
             IntermediateKey::Bool(f) => Self::U64(f as u64),
             IntermediateKey::U64(f) => Self::U64(f),
@@ -497,22 +498,10 @@ impl IntermediateMetricResult {
                 MetricResult::ExtendedStats(intermediate_stats.finalize())
             }
             IntermediateMetricResult::Sum(intermediate_sum) => {
-                // By default match Elasticsearch: empty / all-missing sum
-                // buckets serialize as `"value": 0`, not `"value": null`.
-                // The non-ES `none_if_no_match` flag on `SumAggregation`
-                // opts into SQL-style `null` for downstream consumers.
-                let none_if_no_match = req
-                    .agg
-                    .as_sum()
-                    .and_then(|sum| sum.none_if_no_match)
-                    .unwrap_or(false);
-                let value = intermediate_sum.finalize();
-                if none_if_no_match {
-                    MetricResult::Sum(value.into())
-                } else {
-                    let value = Some(value.unwrap_or(0.0));
-                    MetricResult::Sum(value.into())
-                }
+                let value = intermediate_sum
+                    .finalize()
+                    .or_else(|| req.agg.as_sum().map_or(Some(0.0), |sum| sum.empty_value()));
+                MetricResult::Sum(value.into())
             }
             IntermediateMetricResult::Percentiles(percentiles) => MetricResult::Percentiles(
                 percentiles
@@ -1066,9 +1055,10 @@ impl IntermediateTermBucketResult {
                     })
                     .collect::<crate::Result<Vec<_>>>()?;
 
-                buckets_with_val.sort_by(|(_, val1), (_, val2)| match &order {
-                    Order::Desc => val2.total_cmp(val1),
-                    Order::Asc => val1.total_cmp(val2),
+                buckets_with_val.sort_by(|(left, left_val), (right, right_val)| {
+                    order
+                        .apply(left_val.total_cmp(right_val))
+                        .then_with(|| left.key.cmp(&right.key))
                 });
                 buckets = buckets_with_val
                     .into_iter()
@@ -1122,25 +1112,29 @@ impl IntermediateTermBucketResult {
             match &req_internal.order.target {
                 OrderTarget::SubAggregation(sub_agg_path) => {
                     let (agg_name, agg_prop) = get_agg_name_and_property(sub_agg_path);
-                    let mut keyed: Vec<(f64, (IntermediateKey, IntermediateTermBucketEntry))> =
-                        entries
-                            .into_iter()
-                            .map(|entry| {
-                                let val = entry
-                                    .1
-                                    .sub_aggregation
-                                    .get_value_from_aggregation(agg_name, agg_prop)
-                                    .ok()
-                                    .flatten()
-                                    .unwrap_or(f64::MIN);
-                                (val, entry)
-                            })
-                            .collect();
-                    if req_internal.order.order == Order::Desc {
-                        keyed.select_nth_unstable_by(size, |a, b| b.0.total_cmp(&a.0));
-                    } else {
-                        keyed.select_nth_unstable_by(size, |a, b| a.0.total_cmp(&b.0));
-                    }
+                    let missing_value = empty_metric_sort_value(sub_aggregation_req, agg_name);
+                    let mut keyed: Vec<_> = entries
+                        .into_iter()
+                        .map(|entry| {
+                            let val = entry
+                                .1
+                                .sub_aggregation
+                                .get_value_from_aggregation(agg_name, agg_prop)
+                                .ok()
+                                .flatten()
+                                .unwrap_or(missing_value);
+                            (val, entry)
+                        })
+                        .collect();
+                    let order = req_internal.order.order;
+                    keyed.select_nth_unstable_by(
+                        size,
+                        |(left, (left_key, _)), (right, (right_key, _))| {
+                            order
+                                .apply(left.total_cmp(right))
+                                .then_with(|| left_key.cmp_final_key(right_key))
+                        },
+                    );
                     entries = keyed.into_iter().map(|(_, entry)| entry).collect();
                 }
                 OrderTarget::Key => {

@@ -217,6 +217,7 @@ fn create_collector<const TYPE_ID: u8>(
     Box::new(SegmentStatsCollector::<TYPE_ID> {
         name: req.name,
         collecting_for: req.collecting_for,
+        null_if_empty_sum: req.null_if_empty_sum,
         is_number_or_date_type: req.is_number_or_date_type,
         missing_u64: req.missing_u64,
         column_opt,
@@ -256,6 +257,7 @@ pub(crate) struct SegmentStatsCollector<const COLUMN_TYPE_ID: u8> {
     pub(crate) buckets: Vec<IntermediateStats>,
     pub(crate) name: String,
     pub(crate) collecting_for: StatsType,
+    null_if_empty_sum: bool,
 }
 
 impl<const COLUMN_TYPE_ID: u8> SegmentAggregationCollector
@@ -375,6 +377,7 @@ impl<const COLUMN_TYPE_ID: u8> SegmentAggregationCollector
         //     the value they were configured to collect.
         let prop = match self.collecting_for {
             StatsType::Stats if !sub_agg_property.is_empty() => sub_agg_property,
+            StatsType::Sum if self.null_if_empty_sum && stats.count == 0 => return None,
             StatsType::Sum if sub_agg_property.is_empty() => "sum",
             StatsType::Count if sub_agg_property.is_empty() => "count",
             StatsType::Max if sub_agg_property.is_empty() => "max",

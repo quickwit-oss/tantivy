@@ -51,6 +51,7 @@ use crate::schema::OwnedValue;
 pub(crate) struct MetricAggReqData {
     /// True if the field is of number or date type.
     pub(crate) is_number_or_date_type: bool,
+    pub(crate) null_if_empty_sum: bool,
     /// The missing value normalized to the internal u64 representation of the field type.
     pub(crate) missing_u64: Option<u64>,
     /// The column accessor to access the fast field values.

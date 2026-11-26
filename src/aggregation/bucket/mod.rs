@@ -30,6 +30,7 @@ mod range;
 mod term_agg;
 mod term_missing_agg;
 
+use std::cmp::Ordering;
 use std::collections::HashMap;
 use std::fmt;
 
@@ -52,6 +53,15 @@ pub enum Order {
     #[serde(rename = "desc")]
     #[default]
     Desc,
+}
+
+impl Order {
+    pub(super) fn apply(self, ordering: Ordering) -> Ordering {
+        match self {
+            Self::Asc => ordering,
+            Self::Desc => ordering.reverse(),
+        }
+    }
 }
 
 #[derive(Clone, Debug, PartialEq)]
