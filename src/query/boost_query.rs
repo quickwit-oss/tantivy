@@ -20,6 +20,16 @@ impl BoostQuery {
     pub fn new(query: Box<dyn Query>, boost: Score) -> BoostQuery {
         BoostQuery { query, boost }
     }
+
+    /// The boosted query.
+    pub(crate) fn query(&self) -> &dyn Query {
+        self.query.as_ref()
+    }
+
+    /// The boosted query, to change in place.
+    pub(crate) fn query_mut(&mut self) -> &mut dyn Query {
+        self.query.as_mut()
+    }
 }
 
 impl Clone for BoostQuery {
