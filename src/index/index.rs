@@ -695,7 +695,7 @@ impl Index {
                 )
             })?;
 
-        IndexWriter::new(self.clone(), options, directory_lock)
+        IndexWriter::new(self.clone(), options, Arc::new(directory_lock))
     }
 
     /// Open a new index writer. Attempts to acquire a lockfile.

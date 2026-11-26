@@ -71,7 +71,8 @@ pub struct IndexWriterOptions {
 pub struct IndexWriter<D: Document = TantivyDocument> {
     // the lock is just used to bind the
     // lifetime of the lock with that of the IndexWriter.
-    _directory_lock: Option<DirectoryLock>,
+    // Shared so that a failed `rollback()` keeps holding it.
+    _directory_lock: Arc<DirectoryLock>,
 
     index: Index,
 
@@ -280,7 +281,7 @@ impl<D: Document> IndexWriter<D> {
     pub(crate) fn new(
         index: Index,
         options: IndexWriterOptions,
-        directory_lock: DirectoryLock,
+        directory_lock: Arc<DirectoryLock>,
     ) -> crate::Result<Self> {
         index.validate_plugins()?;
         if options.memory_budget_per_thread < MEMORY_BUDGET_NUM_BYTES_MIN {
@@ -318,7 +319,7 @@ impl<D: Document> IndexWriter<D> {
         )?;
 
         let mut index_writer = Self {
-            _directory_lock: Some(directory_lock),
+            _directory_lock: directory_lock,
 
             options: options.clone(),
             index: index.clone(),
@@ -569,14 +570,11 @@ impl<D: Document> IndexWriter<D> {
         self.segment_updater.kill();
         let document_receiver_res = self.operation_receiver();
 
-        // take the directory lock to create a new index_writer.
-        let directory_lock = self
-            ._directory_lock
-            .take()
-            .expect("The IndexWriter does not have any lock. This is a bug, please report.");
-
-        let new_index_writer =
-            IndexWriter::new(self.index.clone(), self.options.clone(), directory_lock)?;
+        let new_index_writer = IndexWriter::new(
+            self.index.clone(),
+            self.options.clone(),
+            self._directory_lock.clone(),
+        )?;
 
         // the current `self` is dropped right away because of this call.
         //
@@ -839,7 +837,9 @@ mod tests {
 
     use super::super::operation::UserOperation;
     use crate::collector::{Count, TopDocs};
+    use crate::core::META_FILEPATH;
     use crate::directory::error::LockError;
+    use crate::directory::Directory;
     use crate::error::*;
     use crate::indexer::index_writer::MEMORY_BUDGET_NUM_BYTES_MIN;
     use crate::indexer::{IndexWriterOptions, NoMergePolicy};
@@ -1037,6 +1037,29 @@ mod tests {
             // index_writer leaves the scope.
         }
         let _index_writer_two: IndexWriter = index.writer_for_tests().unwrap();
+    }
+
+    #[test]
+    fn test_failed_rollback_keeps_lockfile() -> crate::Result<()> {
+        let mut schema_builder = schema::Schema::builder();
+        let text_field = schema_builder.add_text_field("text", TEXT);
+        let index = Index::create_in_ram(schema_builder.build());
+        let mut index_writer: IndexWriter = index.writer_for_tests()?;
+        index_writer.add_document(doc!(text_field=>"a"))?;
+        let commit_opstamp = index_writer.commit()?;
+
+        // A corrupt meta.json makes `IndexWriter::new` fail inside `rollback()`.
+        let meta = index.directory().atomic_read(&META_FILEPATH)?;
+        index.directory().atomic_write(&META_FILEPATH, b"garbage")?;
+        assert!(index_writer.rollback().is_err());
+        assert!(matches!(
+            index.writer_for_tests::<TantivyDocument>(),
+            Err(TantivyError::LockFailure(LockError::LockBusy, _))
+        ));
+
+        index.directory().atomic_write(&META_FILEPATH, &meta)?;
+        assert_eq!(index_writer.rollback()?, commit_opstamp);
+        Ok(())
     }
 
     #[test]
