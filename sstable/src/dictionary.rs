@@ -358,7 +358,7 @@ impl<TSSTable: SSTable> Dictionary<TSSTable> {
         let mut term_ord = 0;
         let key_bytes = key.as_ref();
         let mut key_comparator = DeltaKeyComparator::new();
-        while sstable_delta_reader.advance()? {
+        while sstable_delta_reader.advance_lazy()? {
             match key_comparator.compare(
                 key_bytes,
                 sstable_delta_reader.common_prefix_len(),
@@ -581,7 +581,7 @@ impl<TSSTable: SSTable> Dictionary<TSSTable> {
         mut reader: DeltaReader<TSSTable::ValueReader>,
     ) -> io::Result<Option<TSSTable::Value>> {
         if let Some(_ord) = self.decode_up_to_key(key, &mut reader)? {
-            Ok(Some(reader.value().clone()))
+            Ok(Some(reader.value_owned()?))
         } else {
             Ok(None)
         }
@@ -1148,5 +1148,127 @@ mod tests {
             seen += 1;
         }
         assert_eq!(seen, 3); // 0FFFF, 1FFFF, 2FFFF — the dictionary stops below 3FFFF
+    }
+
+    #[test]
+    fn test_lazy_value_loading() {
+        use std::cell::Cell;
+        use std::io;
+
+        use crate::SSTable;
+        use crate::value::{U64MonotonicValueReader, U64MonotonicValueWriter, ValueReader};
+
+        thread_local! {
+            static LOADS: Cell<usize> = const { Cell::new(0) };
+            static SKIPS: Cell<usize> = const { Cell::new(0) };
+            static SINGLE_LOADS: Cell<usize> = const { Cell::new(0) };
+        }
+
+        let reset = || {
+            LOADS.with(|c| c.set(0));
+            SKIPS.with(|c| c.set(0));
+            SINGLE_LOADS.with(|c| c.set(0));
+        };
+
+        #[derive(Default)]
+        struct CountingReader<const SINGLE: bool>(U64MonotonicValueReader);
+
+        impl<const SINGLE: bool> ValueReader for CountingReader<SINGLE> {
+            type Value = u64;
+
+            fn value(&self, idx: usize) -> &u64 {
+                self.0.value(idx)
+            }
+
+            fn load(&mut self, data: &[u8]) -> io::Result<usize> {
+                LOADS.with(|c| c.set(c.get() + 1));
+                self.0.load(data)
+            }
+
+            fn skip(&self, data: &[u8]) -> io::Result<Option<usize>> {
+                SKIPS.with(|c| c.set(c.get() + 1));
+                self.0.skip(data)
+            }
+
+            fn load_single(&mut self, data: &[u8], idx: usize) -> io::Result<Option<u64>> {
+                if SINGLE {
+                    SINGLE_LOADS.with(|c| c.set(c.get() + 1));
+                    self.0.load_single(data, idx)
+                } else {
+                    Ok(None)
+                }
+            }
+        }
+
+        struct CountingSSTable<const SINGLE: bool>;
+
+        impl<const SINGLE: bool> SSTable for CountingSSTable<SINGLE> {
+            type Value = u64;
+            type ValueReader = CountingReader<SINGLE>;
+            type ValueWriter = U64MonotonicValueWriter;
+        }
+
+        let build_bytes = || {
+            let mut builder = Dictionary::<CountingSSTable<true>>::builder(Vec::new()).unwrap();
+            for i in 0u64..5_000 {
+                let key = format!("key_{i:05}");
+                builder.insert(key.as_bytes(), &(i * 3)).unwrap();
+            }
+            OwnedBytes::new(builder.finish().unwrap())
+        };
+
+        let bytes = build_bytes();
+        let dict = Dictionary::<CountingSSTable<true>>::from_bytes(bytes.clone()).unwrap();
+
+        // Point lookup hit: skips block values and decodes only the matching value.
+        reset();
+        assert_eq!(dict.get(b"key_02500").unwrap(), Some(7500));
+        assert_eq!(LOADS.with(Cell::get), 0);
+        assert_eq!(SKIPS.with(Cell::get), 1);
+        assert_eq!(SINGLE_LOADS.with(Cell::get), 1);
+
+        // Point lookup miss: skips block values without decoding any value.
+        reset();
+        assert_eq!(dict.get(b"key_02500_missing").unwrap(), None);
+        assert_eq!(LOADS.with(Cell::get), 0);
+        assert_eq!(SKIPS.with(Cell::get), 1);
+        assert_eq!(SINGLE_LOADS.with(Cell::get), 0);
+
+        // term_ord: never decodes values.
+        reset();
+        assert_eq!(dict.term_ord(b"key_04999").unwrap(), Some(4999));
+        assert_eq!(LOADS.with(Cell::get), 0);
+        assert_eq!(SINGLE_LOADS.with(Cell::get), 0);
+
+        // Filtered stream with 0 matches: scans multiple blocks without loading values.
+        reset();
+        let mut stream = dict
+            .search(tantivy_fst::Regex::new(".*99999").unwrap())
+            .into_stream()
+            .unwrap();
+        assert!(!stream.advance());
+        assert_eq!(LOADS.with(Cell::get), 0);
+        assert!(SKIPS.with(Cell::get) > 1);
+
+        // Filtered stream with 1 match: loads values only for the single matching block.
+        reset();
+        let mut stream = dict
+            .search(tantivy_fst::Regex::new(".*02500").unwrap())
+            .into_stream()
+            .unwrap();
+        assert!(stream.advance());
+        assert_eq!(stream.key(), b"key_02500");
+        assert_eq!(stream.value(), &7500);
+        assert!(!stream.advance());
+        assert_eq!(LOADS.with(Cell::get), 1);
+        assert!(SKIPS.with(Cell::get) > 1);
+
+        // Fallback when `skip` is supported but `load_single` returns `Ok(None)`.
+        let skip_only_dict = Dictionary::<CountingSSTable<false>>::from_bytes(bytes).unwrap();
+        reset();
+        assert_eq!(skip_only_dict.get(b"key_02500").unwrap(), Some(7500));
+        assert_eq!(SKIPS.with(Cell::get), 1);
+        assert_eq!(LOADS.with(Cell::get), 1);
+        assert_eq!(SINGLE_LOADS.with(Cell::get), 0);
     }
 }

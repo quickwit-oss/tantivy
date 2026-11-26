@@ -29,6 +29,30 @@ impl ValueReader for U64MonotonicValueReader {
         }
         Ok(original_num_bytes - data.len())
     }
+
+    fn skip(&self, mut data: &[u8]) -> io::Result<Option<usize>> {
+        let original_num_bytes = data.len();
+        let num_vals = deserialize_vint_u64(&mut data) as usize;
+        for _ in 0..num_vals {
+            let _ = deserialize_vint_u64(&mut data);
+        }
+        Ok(Some(original_num_bytes - data.len()))
+    }
+
+    fn load_single(&mut self, mut data: &[u8], idx: usize) -> io::Result<Option<Self::Value>> {
+        let num_vals = deserialize_vint_u64(&mut data) as usize;
+        if idx >= num_vals {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                "value index out of bounds",
+            ));
+        }
+        let mut val = 0u64;
+        for _ in 0..=idx {
+            val += deserialize_vint_u64(&mut data);
+        }
+        Ok(Some(val))
+    }
 }
 
 #[derive(Default)]

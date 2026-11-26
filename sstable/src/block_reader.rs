@@ -1,4 +1,4 @@
-use std::io::{self, Read};
+use std::io;
 use std::ops::Range;
 
 use common::OwnedBytes;
@@ -6,7 +6,7 @@ use common::OwnedBytes;
 use zstd::bulk::Decompressor;
 
 pub struct BlockReader {
-    buffer: Vec<u8>,
+    buffer: OwnedBytes,
     reader: OwnedBytes,
     next_readers: std::vec::IntoIter<(OwnedBytes, u64)>,
     offset: usize,
@@ -21,8 +21,9 @@ pub struct BlockReader {
 
 impl BlockReader {
     pub fn new(reader: OwnedBytes) -> BlockReader {
+        let buffer = reader.slice(0..0);
         BlockReader {
-            buffer: Vec::new(),
+            buffer,
             reader,
             next_readers: Vec::new().into_iter(),
             offset: 0,
@@ -37,8 +38,9 @@ impl BlockReader {
         let (reader, first_ordinal) = next_readers
             .next()
             .unwrap_or_else(|| (OwnedBytes::empty(), 0));
+        let buffer = reader.slice(0..0);
         BlockReader {
-            buffer: Vec::new(),
+            buffer,
             reader,
             next_readers,
             offset: 0,
@@ -67,7 +69,6 @@ impl BlockReader {
 
     pub fn read_block(&mut self) -> io::Result<bool> {
         self.offset = 0;
-        self.buffer.clear();
 
         loop {
             let block_len = match self.reader.len() {
@@ -80,6 +81,7 @@ impl BlockReader {
                             continue;
                         }
                         _ => {
+                            self.buffer = self.reader.slice(0..0);
                             return Ok(false);
                         }
                     }
@@ -93,6 +95,7 @@ impl BlockReader {
                 _ => self.reader.read_u32() as usize,
             };
             if block_len <= 1 {
+                self.buffer = self.reader.slice(0..0);
                 return Ok(false);
             }
             let compress = self.reader.read_u8();
@@ -109,9 +112,10 @@ impl BlockReader {
                 {
                     let required_capacity =
                         Decompressor::upper_bound(&self.reader[..block_len]).unwrap_or(1024 * 1024);
-                    self.buffer.reserve(required_capacity);
+                    let mut decompressed = Vec::with_capacity(required_capacity);
                     Decompressor::new()?
-                        .decompress_to_buffer(&self.reader[..block_len], &mut self.buffer)?;
+                        .decompress_to_buffer(&self.reader[..block_len], &mut decompressed)?;
+                    self.buffer = OwnedBytes::new(decompressed);
 
                     self.reader.advance(block_len);
                 }
@@ -123,8 +127,8 @@ impl BlockReader {
                     ));
                 }
             } else {
-                self.buffer.resize(block_len, 0u8);
-                self.reader.read_exact(&mut self.buffer[..])?;
+                self.buffer = self.reader.slice(0..block_len);
+                self.reader.advance(block_len);
             }
 
             return Ok(true);

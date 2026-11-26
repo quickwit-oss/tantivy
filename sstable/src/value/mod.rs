@@ -25,6 +25,18 @@ pub trait ValueReader: Default {
     ///
     /// Returns the number of bytes that were read.
     fn load(&mut self, data: &[u8]) -> io::Result<usize>;
+
+    /// Skips a value block without decoding values, returning its byte length.
+    /// Returning `Ok(None)` falls back to eager `load()`.
+    fn skip(&self, _data: &[u8]) -> io::Result<Option<usize>> {
+        Ok(None)
+    }
+
+    /// Decodes only the value at `idx` directly from a serialized value block.
+    /// Returning `Ok(None)` falls back to `load()` + `value(idx)`.
+    fn load_single(&mut self, _data: &[u8], _idx: usize) -> io::Result<Option<Self::Value>> {
+        Ok(None)
+    }
 }
 
 /// `ValueWriter` is a trait to make it possible to write blocks
@@ -80,6 +92,14 @@ pub(crate) mod tests {
         assert_eq!(reader.load(&buffer[..]).unwrap(), data_len);
         for (i, val) in value_block.iter().enumerate() {
             assert_eq!(reader.value(i), val);
+        }
+        if let Some(skipped) = reader.skip(&buffer[..]).unwrap() {
+            assert_eq!(skipped, data_len);
+        }
+        for (i, val) in value_block.iter().enumerate() {
+            if let Some(single) = reader.load_single(&buffer[..data_len], i).unwrap() {
+                assert_eq!(&single, val);
+            }
         }
     }
 }

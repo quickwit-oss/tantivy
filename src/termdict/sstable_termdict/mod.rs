@@ -5,8 +5,8 @@ mod merger;
 use std::iter::ExactSizeIterator;
 
 use common::VInt;
-use sstable::value::{ValueReader, ValueWriter};
 use sstable::SSTable;
+use sstable::value::{ValueReader, ValueWriter};
 use tantivy_fst::automaton::AlwaysMatch;
 
 pub use self::merger::TermMerger;
@@ -45,6 +45,50 @@ pub struct TermInfoValueReader {
     term_infos: Vec<TermInfo>,
 }
 
+#[inline(always)]
+fn read_vint_u64(data: &mut &[u8]) -> io::Result<u64> {
+    let mut result = 0u64;
+    let mut shift = 0u32;
+    while let Some((&b, rest)) = data.split_first() {
+        *data = rest;
+        if shift >= 64 {
+            return Err(io::Error::new(io::ErrorKind::InvalidData, "VInt overflow"));
+        }
+        result |= u64::from(b & 127) << shift;
+        if b >= 128 {
+            return Ok(result);
+        }
+        shift += 7;
+    }
+    Err(io::Error::new(
+        io::ErrorKind::InvalidData,
+        "Reach end of buffer while reading VInt",
+    ))
+}
+
+/// Advances past `remaining` VInts by counting bytes with the stop bit (`0x80`) set.
+fn skip_vints(data: &[u8], mut remaining: usize) -> io::Result<usize> {
+    let mut pos = 0usize;
+    while remaining >= 8 && pos + 8 <= data.len() {
+        let word = u64::from_le_bytes(data[pos..pos + 8].try_into().unwrap());
+        remaining -= (word & 0x8080_8080_8080_8080).count_ones() as usize;
+        pos += 8;
+    }
+    while remaining > 0 {
+        let Some(&b) = data.get(pos) else {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                "Reach end of buffer while skipping VInts",
+            ));
+        };
+        pos += 1;
+        if b >= 128 {
+            remaining -= 1;
+        }
+    }
+    Ok(pos)
+}
+
 impl ValueReader for TermInfoValueReader {
     type Value = TermInfo;
 
@@ -56,13 +100,18 @@ impl ValueReader for TermInfoValueReader {
     fn load(&mut self, mut data: &[u8]) -> io::Result<usize> {
         let len_before = data.len();
         self.term_infos.clear();
-        let num_els = VInt::deserialize_u64(&mut data)?;
-        let mut postings_start = VInt::deserialize_u64(&mut data)? as usize;
-        let mut positions_start = VInt::deserialize_u64(&mut data)? as usize;
+        let num_els = read_vint_u64(&mut data)?;
+        if num_els == 0 {
+            return Ok(len_before - data.len());
+        }
+        self.term_infos
+            .reserve((num_els as usize).min(data.len() / 3));
+        let mut postings_start = read_vint_u64(&mut data)? as usize;
+        let mut positions_start = read_vint_u64(&mut data)? as usize;
         for _ in 0..num_els {
-            let doc_freq = VInt::deserialize_u64(&mut data)? as u32;
-            let postings_num_bytes = VInt::deserialize_u64(&mut data)?;
-            let positions_num_bytes = VInt::deserialize_u64(&mut data)?;
+            let doc_freq = read_vint_u64(&mut data)? as u32;
+            let postings_num_bytes = read_vint_u64(&mut data)?;
+            let positions_num_bytes = read_vint_u64(&mut data)?;
             let postings_end = postings_start + postings_num_bytes as usize;
             let positions_end = positions_start + positions_num_bytes as usize;
             let term_info = TermInfo {
@@ -76,6 +125,46 @@ impl ValueReader for TermInfoValueReader {
         }
         let consumed_len = len_before - data.len();
         Ok(consumed_len)
+    }
+
+    fn skip(&self, mut data: &[u8]) -> io::Result<Option<usize>> {
+        let len_before = data.len();
+        let num_els = read_vint_u64(&mut data)? as usize;
+        let header_len = len_before - data.len();
+        if num_els == 0 {
+            return Ok(Some(header_len));
+        }
+        let num_vints = num_els
+            .checked_mul(3)
+            .and_then(|n| n.checked_add(2))
+            .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidData, "TermInfo count overflow"))?;
+        let body_len = skip_vints(data, num_vints)?;
+        Ok(Some(header_len + body_len))
+    }
+
+    fn load_single(&mut self, mut data: &[u8], idx: usize) -> io::Result<Option<TermInfo>> {
+        let num_els = read_vint_u64(&mut data)? as usize;
+        if idx >= num_els {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                "TermInfo index out of bounds",
+            ));
+        }
+        let mut postings_start = read_vint_u64(&mut data)? as usize;
+        let mut positions_start = read_vint_u64(&mut data)? as usize;
+        for _ in 0..idx {
+            read_vint_u64(&mut data)?;
+            postings_start += read_vint_u64(&mut data)? as usize;
+            positions_start += read_vint_u64(&mut data)? as usize;
+        }
+        let doc_freq = read_vint_u64(&mut data)? as u32;
+        let postings_num_bytes = read_vint_u64(&mut data)? as usize;
+        let positions_num_bytes = read_vint_u64(&mut data)? as usize;
+        Ok(Some(TermInfo {
+            doc_freq,
+            postings_range: postings_start..postings_start + postings_num_bytes,
+            positions_range: positions_start..positions_start + positions_num_bytes,
+        }))
     }
 }
 
@@ -148,5 +237,56 @@ mod tests {
             }
         );
         assert_eq!(buffer.len(), num_bytes);
+    }
+
+    #[test]
+    fn test_skip_and_load_single_terminfos() {
+        let mut writer = super::TermInfoValueWriter::default();
+        let mut expected = Vec::new();
+        let mut postings_off = 17usize;
+        let mut positions_off = 10usize;
+        // Include >100 entries with a mix of 1-byte and multi-byte VInts to exercise the 8-byte
+        // SWAR loop and scalar tail in skip_vints.
+        for i in 0..130usize {
+            let doc_freq = (i * i * 3 + 1) as u32;
+            let postings_len = (i * 19 + 5) % 4096;
+            let positions_len = (i * 37 + 11) % 8192;
+            let ti = TermInfo {
+                doc_freq,
+                postings_range: postings_off..postings_off + postings_len,
+                positions_range: positions_off..positions_off + positions_len,
+            };
+            writer.write(&ti);
+            expected.push(ti);
+            postings_off += postings_len;
+            positions_off += positions_len;
+        }
+        let mut buffer = Vec::new();
+        writer.serialize_block(&mut buffer);
+        let value_len = buffer.len();
+        // Append trailing key bytes to make sure skip() stops at the exact boundary.
+        buffer.extend_from_slice(&[0xFF, 0x01, 0x80, 0x42]);
+
+        let mut reader = TermInfoValueReader::default();
+        assert_eq!(reader.skip(&buffer).unwrap(), Some(value_len));
+        for (idx, exp) in expected.iter().enumerate() {
+            assert_eq!(
+                reader.load_single(&buffer[..value_len], idx).unwrap(),
+                Some(exp.clone())
+            );
+        }
+        assert!(
+            reader
+                .load_single(&buffer[..value_len], expected.len())
+                .is_err()
+        );
+
+        // Empty block
+        let empty_writer = super::TermInfoValueWriter::default();
+        let mut empty_buf = Vec::new();
+        empty_writer.serialize_block(&mut empty_buf);
+        assert_eq!(reader.skip(&empty_buf).unwrap(), Some(empty_buf.len()));
+        assert_eq!(reader.load(&empty_buf).unwrap(), empty_buf.len());
+        assert!(reader.load_single(&empty_buf, 0).is_err());
     }
 }
