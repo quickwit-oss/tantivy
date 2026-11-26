@@ -101,10 +101,9 @@ pub(crate) fn list_segment_files(
 const RESERVED_NON_PLUGIN_EXTENSIONS: &[&str] = &["temp", "store.temp", "del"];
 
 /// Save the index meta file.
-/// This operation is atomic :
-/// Either
-/// - it fails, in which case an error is returned, and the `meta.json` remains untouched,
-/// - it succeeds, and `meta.json` is written and flushed.
+/// The file replacement itself is atomic, and the directory is synced both
+/// before and after replacing `meta.json`. Note that an error from the trailing
+/// `sync_directory()` can be returned after `meta.json` has already been replaced.
 ///
 /// This method is not part of tantivy's public API
 fn save_new_metas(
@@ -129,7 +128,6 @@ fn save_new_metas(
         },
         directory,
     )?;
-    directory.sync_directory()?;
     Ok(())
 }
 

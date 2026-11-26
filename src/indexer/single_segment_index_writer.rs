@@ -5,7 +5,7 @@ use crate::indexer::operation::AddOperation;
 use crate::indexer::segment_updater::save_metas;
 use crate::indexer::{DocIdMapping, SegmentWriter};
 use crate::schema::document::Document;
-use crate::{Directory, Index, IndexMeta, Opstamp, Segment, TantivyDocument};
+use crate::{Index, IndexMeta, Opstamp, Segment, TantivyDocument};
 
 #[doc(hidden)]
 pub struct SingleSegmentIndexWriter<D: Document = TantivyDocument> {
@@ -94,7 +94,6 @@ impl<D: Document> SingleSegmentIndexWriter<D> {
             payload: None,
         };
         save_metas(&index_meta, index.directory())?;
-        index.directory().sync_directory()?;
 
         if did_remapping {
             // Run the garbage collector to remove the temp docstore file from the directory.

@@ -29,14 +29,7 @@ use crate::{FutureResult, Opstamp, TantivyError};
 
 const PANIC_CAUGHT: &str = "Panic caught in merge thread";
 
-/// Save the index meta file.
-/// This operation is atomic:
-/// Either
-/// - it fails, in which case an error is returned, and the `meta.json` remains untouched,
-/// - it success, and `meta.json` is written and flushed.
-///
-/// This method is not part of tantivy's public API
-pub(crate) fn save_metas(metas: &IndexMeta, directory: &dyn Directory) -> crate::Result<()> {
+fn write_metas(metas: &IndexMeta, directory: &dyn Directory) -> crate::Result<()> {
     debug!("save metas");
     let mut buffer = serde_json::to_vec_pretty(metas)?;
     // Just adding a new line at the end of the buffer.
@@ -47,6 +40,19 @@ pub(crate) fn save_metas(metas: &IndexMeta, directory: &dyn Directory) -> crate:
     directory.sync_directory()?;
     directory.atomic_write(&META_FILEPATH, &buffer[..])?;
     debug!("Saved metas {:?}", serde_json::to_string_pretty(&metas));
+    Ok(())
+}
+
+/// Save the index meta file.
+/// The file replacement itself is atomic, and the directory is synced both
+/// before (for newly written segment files) and after (for the `meta.json`
+/// rename). Note that an error from the trailing `sync_directory()` can be
+/// returned after `meta.json` has already been replaced.
+///
+/// This method is not part of tantivy's public API
+pub(crate) fn save_metas(metas: &IndexMeta, directory: &dyn Directory) -> crate::Result<()> {
+    write_metas(metas, directory)?;
+    directory.sync_directory()?;
     Ok(())
 }
 
@@ -437,8 +443,9 @@ impl SegmentUpdater {
                 payload: commit_message,
             };
             // TODO add context to the error.
-            save_metas(&index_meta, directory.box_clone().borrow_mut())?;
+            write_metas(&index_meta, directory.box_clone().borrow_mut())?;
             self.store_meta(&index_meta);
+            directory.sync_directory()?;
         }
         Ok(())
     }
@@ -1165,6 +1172,515 @@ mod tests {
             assert_eq!(doc_ids_alive, vec![0, 1, 2]);
         }
 
+        Ok(())
+    }
+
+    #[derive(Clone, Debug, PartialEq, Eq)]
+    enum DirOp {
+        AtomicWrite(std::path::PathBuf),
+        SyncDirectory,
+        Delete(std::path::PathBuf),
+    }
+
+    const POST_META_SYNC_IDLE: u8 = 0;
+    const POST_META_SYNC_ARMED: u8 = 1;
+    const POST_META_SYNC_FAIL_NEXT: u8 = 2;
+
+    #[derive(Clone, Debug, Default)]
+    struct RecordingDirectory {
+        inner: RamDirectory,
+        ops: std::sync::Arc<std::sync::Mutex<Vec<DirOp>>>,
+        post_meta_sync_state: std::sync::Arc<std::sync::atomic::AtomicU8>,
+        fail_next_sync: std::sync::Arc<std::sync::atomic::AtomicBool>,
+    }
+
+    impl RecordingDirectory {
+        fn clear_ops(&self) {
+            self.ops.lock().unwrap().clear();
+        }
+
+        fn ops(&self) -> Vec<DirOp> {
+            self.ops.lock().unwrap().clone()
+        }
+
+        fn arm_fail_next_post_meta_sync(&self) {
+            self.post_meta_sync_state
+                .store(POST_META_SYNC_ARMED, std::sync::atomic::Ordering::SeqCst);
+        }
+
+        fn fail_next_sync(&self) {
+            self.fail_next_sync
+                .store(true, std::sync::atomic::Ordering::SeqCst);
+        }
+    }
+
+    impl Directory for RecordingDirectory {
+        fn get_file_handle(
+            &self,
+            path: &std::path::Path,
+        ) -> Result<
+            std::sync::Arc<dyn crate::directory::FileHandle>,
+            crate::directory::error::OpenReadError,
+        > {
+            self.inner.get_file_handle(path)
+        }
+
+        fn delete(
+            &self,
+            path: &std::path::Path,
+        ) -> Result<(), crate::directory::error::DeleteError> {
+            self.ops
+                .lock()
+                .unwrap()
+                .push(DirOp::Delete(path.to_path_buf()));
+            self.inner.delete(path)
+        }
+
+        fn exists(
+            &self,
+            path: &std::path::Path,
+        ) -> Result<bool, crate::directory::error::OpenReadError> {
+            self.inner.exists(path)
+        }
+
+        fn open_write(
+            &self,
+            path: &std::path::Path,
+        ) -> Result<crate::directory::WritePtr, crate::directory::error::OpenWriteError> {
+            self.inner.open_write(path)
+        }
+
+        fn atomic_read(
+            &self,
+            path: &std::path::Path,
+        ) -> Result<Vec<u8>, crate::directory::error::OpenReadError> {
+            self.inner.atomic_read(path)
+        }
+
+        fn atomic_write(&self, path: &std::path::Path, data: &[u8]) -> std::io::Result<()> {
+            let res = self.inner.atomic_write(path, data);
+            if res.is_ok() {
+                self.ops
+                    .lock()
+                    .unwrap()
+                    .push(DirOp::AtomicWrite(path.to_path_buf()));
+                if path == *crate::core::META_FILEPATH {
+                    let _ = self.post_meta_sync_state.compare_exchange(
+                        POST_META_SYNC_ARMED,
+                        POST_META_SYNC_FAIL_NEXT,
+                        std::sync::atomic::Ordering::SeqCst,
+                        std::sync::atomic::Ordering::SeqCst,
+                    );
+                }
+            }
+            res
+        }
+
+        fn sync_directory(&self) -> std::io::Result<()> {
+            if self
+                .post_meta_sync_state
+                .compare_exchange(
+                    POST_META_SYNC_FAIL_NEXT,
+                    POST_META_SYNC_IDLE,
+                    std::sync::atomic::Ordering::SeqCst,
+                    std::sync::atomic::Ordering::SeqCst,
+                )
+                .is_ok()
+                || self
+                    .fail_next_sync
+                    .swap(false, std::sync::atomic::Ordering::SeqCst)
+            {
+                return Err(std::io::Error::other("injected post-meta sync failure"));
+            }
+            let res = self.inner.sync_directory();
+            if res.is_ok() {
+                self.ops.lock().unwrap().push(DirOp::SyncDirectory);
+            }
+            res
+        }
+
+        fn watch(
+            &self,
+            watch_callback: crate::directory::WatchCallback,
+        ) -> crate::Result<crate::directory::WatchHandle> {
+            self.inner.watch(watch_callback)
+        }
+    }
+
+    #[test]
+    fn test_commit_syncs_directory_after_meta_write() -> crate::Result<()> {
+        let mut schema_builder = Schema::builder();
+        let text_field = schema_builder.add_text_field("text", TEXT);
+        let dir = RecordingDirectory::default();
+        let index = Index::create(
+            dir.clone(),
+            schema_builder.build(),
+            crate::IndexSettings::default(),
+        )?;
+
+        let mut writer = index.writer_for_tests()?;
+        writer.set_merge_policy(Box::new(crate::indexer::NoMergePolicy));
+
+        writer.add_document(doc!(text_field => "first"))?;
+        writer.commit()?;
+
+        dir.clear_ops();
+        writer.add_document(doc!(text_field => "second"))?;
+        writer.commit()?;
+
+        let ops = dir.ops();
+        let meta_pos = ops
+            .iter()
+            .rposition(|op| *op == DirOp::AtomicWrite(crate::core::META_FILEPATH.to_path_buf()))
+            .expect("commit must atomic_write meta.json");
+
+        assert!(
+            ops[..meta_pos].contains(&DirOp::SyncDirectory),
+            "expected sync_directory() before meta.json atomic_write: {ops:?}"
+        );
+        assert!(
+            ops[meta_pos + 1..].contains(&DirOp::SyncDirectory),
+            "expected sync_directory() after meta.json atomic_write: {ops:?}"
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn test_merge_gc_syncs_directory_before_deleting_old_segments() -> crate::Result<()> {
+        let mut schema_builder = Schema::builder();
+        let text_field = schema_builder.add_text_field("text", TEXT);
+        let dir = RecordingDirectory::default();
+        let index = Index::create(
+            dir.clone(),
+            schema_builder.build(),
+            crate::IndexSettings::default(),
+        )?;
+
+        let mut writer = index.writer_for_tests()?;
+        writer.set_merge_policy(Box::new(crate::indexer::NoMergePolicy));
+
+        writer.add_document(doc!(text_field => "alpha"))?;
+        writer.commit()?;
+        writer.add_document(doc!(text_field => "beta"))?;
+        writer.commit()?;
+
+        let segment_ids = index.searchable_segment_ids()?;
+        assert_eq!(segment_ids.len(), 2);
+
+        dir.clear_ops();
+        writer.merge(&segment_ids).wait()?;
+
+        let ops = dir.ops();
+        let meta_pos = ops
+            .iter()
+            .position(|op| *op == DirOp::AtomicWrite(crate::core::META_FILEPATH.to_path_buf()))
+            .expect("merge must atomic_write meta.json");
+        let first_seg_delete_pos = ops[meta_pos + 1..]
+            .iter()
+            .position(is_non_dot_delete)
+            .map(|rel| meta_pos + 1 + rel)
+            .expect("post-merge GC must delete obsolete pre-merge segment files");
+
+        assert!(
+            ops[meta_pos + 1..first_seg_delete_pos].contains(&DirOp::SyncDirectory),
+            "expected sync_directory() after meta.json atomic_write and before deleting obsolete \
+             segment files: {ops:?}"
+        );
+        Ok(())
+    }
+
+    fn is_non_dot_delete(op: &DirOp) -> bool {
+        match op {
+            DirOp::Delete(path) => path
+                .file_name()
+                .and_then(|n| n.to_str())
+                .is_some_and(|n| !n.starts_with('.')),
+            _ => false,
+        }
+    }
+
+    #[test]
+    fn test_post_meta_sync_failure_commit_preserves_new_segments_for_gc() -> crate::Result<()> {
+        let mut schema_builder = Schema::builder();
+        let text_field = schema_builder.add_text_field("text", TEXT);
+        let dir = RecordingDirectory::default();
+        let index = Index::create(
+            dir.clone(),
+            schema_builder.build(),
+            crate::IndexSettings::default(),
+        )?;
+
+        let mut writer = index.writer_for_tests()?;
+        writer.set_merge_policy(Box::new(crate::indexer::NoMergePolicy));
+
+        writer.add_document(doc!(text_field => "alpha"))?;
+        writer.commit()?;
+
+        dir.clear_ops();
+        dir.arm_fail_next_post_meta_sync();
+        writer.add_document(doc!(text_field => "beta"))?;
+        assert!(writer.commit().is_err());
+
+        assert!(
+            !dir.ops().iter().any(is_non_dot_delete),
+            "failed post-meta sync must not immediately delete segment files: {:?}",
+            dir.ops()
+        );
+
+        writer.delete_all_documents()?;
+        writer.garbage_collect_files().wait()?;
+
+        let reader = index.reader()?;
+        assert_eq!(reader.searcher().num_docs(), 2);
+
+        dir.clear_ops();
+        writer.commit()?;
+        let reader = index.reader()?;
+        assert_eq!(reader.searcher().num_docs(), 0);
+        assert!(
+            dir.ops().iter().any(is_non_dot_delete),
+            "expected obsolete segment files to be garbage collected after sync succeeds: {:?}",
+            dir.ops()
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn test_post_meta_sync_failure_merge_gc_requires_sync_before_delete() -> crate::Result<()> {
+        let mut schema_builder = Schema::builder();
+        let text_field = schema_builder.add_text_field("text", TEXT);
+        let dir = RecordingDirectory::default();
+        let index = Index::create(
+            dir.clone(),
+            schema_builder.build(),
+            crate::IndexSettings::default(),
+        )?;
+
+        let mut writer = index.writer_for_tests()?;
+        writer.set_merge_policy(Box::new(crate::indexer::NoMergePolicy));
+
+        writer.add_document(doc!(text_field => "alpha"))?;
+        writer.commit()?;
+        writer.add_document(doc!(text_field => "beta"))?;
+        writer.commit()?;
+
+        let pre_merge_metas = index.searchable_segment_metas()?;
+        assert_eq!(pre_merge_metas.len(), 2);
+        let segment_ids: Vec<SegmentId> = pre_merge_metas.iter().map(|m| m.id()).collect();
+        let pre_merge_files: Vec<std::path::PathBuf> =
+            crate::index::list_segment_files(&pre_merge_metas, &[])
+                .into_iter()
+                .filter(|path| {
+                    path.file_name()
+                        .and_then(|n| n.to_str())
+                        .is_some_and(|n| !n.starts_with('.'))
+                        && dir.exists(path).unwrap_or(false)
+                })
+                .collect();
+        drop(pre_merge_metas);
+        assert!(!pre_merge_files.is_empty());
+
+        dir.clear_ops();
+        dir.arm_fail_next_post_meta_sync();
+        assert!(writer.merge(&segment_ids).wait().is_err());
+
+        assert!(
+            !dir.ops().iter().any(is_non_dot_delete),
+            "failed post-meta sync on merge must not immediately delete segment files: {:?}",
+            dir.ops()
+        );
+
+        dir.fail_next_sync();
+        assert!(writer.garbage_collect_files().wait().is_err());
+        for path in &pre_merge_files {
+            assert!(
+                dir.exists(path)?,
+                "pre-merge segment file {path:?} was deleted while sync_directory was still \
+                 failing"
+            );
+        }
+
+        dir.clear_ops();
+        writer.garbage_collect_files().wait()?;
+        let ops = dir.ops();
+        let sync_pos = ops
+            .iter()
+            .position(|op| *op == DirOp::SyncDirectory)
+            .expect("GC must sync directory before deleting obsolete pre-merge segments");
+        let first_delete_pos = ops
+            .iter()
+            .position(is_non_dot_delete)
+            .expect("GC must delete obsolete pre-merge segment files once synced");
+        assert!(
+            sync_pos < first_delete_pos,
+            "expected sync_directory() before deleting obsolete segment files: {ops:?}"
+        );
+        for path in &pre_merge_files {
+            assert!(
+                !dir.exists(path)?,
+                "obsolete pre-merge segment file {path:?} was not deleted after sync succeeded"
+            );
+        }
+        assert_eq!(index.reader()?.searcher().num_docs(), 2);
+        Ok(())
+    }
+
+    #[test]
+    fn test_post_meta_sync_failure_rollback_and_reopen_sync_before_gc() -> crate::Result<()> {
+        for use_rollback in [true, false] {
+            let mut schema_builder = Schema::builder();
+            let text_field = schema_builder.add_text_field("text", TEXT);
+            let dir = RecordingDirectory::default();
+            let index = Index::create(
+                dir.clone(),
+                schema_builder.build(),
+                crate::IndexSettings::default(),
+            )?;
+
+            let mut writer = index.writer_for_tests()?;
+            writer.set_merge_policy(Box::new(crate::indexer::NoMergePolicy));
+
+            writer.add_document(doc!(text_field => "alpha"))?;
+            writer.commit()?;
+            writer.add_document(doc!(text_field => "beta"))?;
+            writer.commit()?;
+
+            let pre_merge_metas = index.searchable_segment_metas()?;
+            assert_eq!(pre_merge_metas.len(), 2);
+            let segment_ids: Vec<SegmentId> = pre_merge_metas.iter().map(|m| m.id()).collect();
+            let pre_merge_files: Vec<std::path::PathBuf> =
+                crate::index::list_segment_files(&pre_merge_metas, &[])
+                    .into_iter()
+                    .filter(|path| {
+                        path.file_name()
+                            .and_then(|n| n.to_str())
+                            .is_some_and(|n| !n.starts_with('.'))
+                            && dir.exists(path).unwrap_or(false)
+                    })
+                    .collect();
+            drop(pre_merge_metas);
+            assert!(!pre_merge_files.is_empty());
+
+            dir.clear_ops();
+            dir.arm_fail_next_post_meta_sync();
+            assert!(writer.merge(&segment_ids).wait().is_err());
+
+            if use_rollback {
+                writer.rollback()?;
+            } else {
+                drop(writer);
+                writer = index.writer_for_tests()?;
+                writer.set_merge_policy(Box::new(crate::indexer::NoMergePolicy));
+            }
+
+            dir.fail_next_sync();
+            assert!(writer.garbage_collect_files().wait().is_err());
+            for path in &pre_merge_files {
+                assert!(
+                    dir.exists(path)?,
+                    "pre-merge segment file {path:?} was deleted while sync_directory was still \
+                     failing (use_rollback={use_rollback})"
+                );
+            }
+
+            dir.clear_ops();
+            writer.garbage_collect_files().wait()?;
+            let ops = dir.ops();
+            let sync_pos = ops
+                .iter()
+                .position(|op| *op == DirOp::SyncDirectory)
+                .expect("fresh updater GC must sync directory before deleting obsolete segments");
+            let first_delete_pos = ops.iter().position(is_non_dot_delete).expect(
+                "fresh updater GC must delete obsolete pre-merge segment files once synced",
+            );
+            assert!(
+                sync_pos < first_delete_pos,
+                "expected sync_directory() before deleting obsolete segment files \
+                 (use_rollback={use_rollback}): {ops:?}"
+            );
+            for path in &pre_merge_files {
+                assert!(
+                    !dir.exists(path)?,
+                    "obsolete pre-merge segment file {path:?} was not deleted after sync \
+                     succeeded (use_rollback={use_rollback})"
+                );
+            }
+            assert_eq!(index.reader()?.searcher().num_docs(), 2);
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn test_retired_updater_gc_respects_replacement_writer_unsynced_meta() -> crate::Result<()> {
+        let mut schema_builder = Schema::builder();
+        let text_field = schema_builder.add_text_field("text", TEXT);
+        let dir = RecordingDirectory::default();
+        let index = Index::create(
+            dir.clone(),
+            schema_builder.build(),
+            crate::IndexSettings::default(),
+        )?;
+
+        let mut writer = index.writer_for_tests()?;
+        writer.set_merge_policy(Box::new(crate::indexer::NoMergePolicy));
+
+        writer.add_document(doc!(text_field => "initial"))?;
+        writer.commit()?;
+
+        let retired_updater = writer.segment_updater().clone();
+
+        writer.rollback()?;
+        writer.add_document(doc!(text_field => "alpha"))?;
+        writer.commit()?;
+        writer.add_document(doc!(text_field => "beta"))?;
+        writer.commit()?;
+
+        let pre_merge_metas = index.searchable_segment_metas()?;
+        assert_eq!(pre_merge_metas.len(), 3);
+        let segment_ids: Vec<SegmentId> = pre_merge_metas.iter().map(|m| m.id()).collect();
+        let pre_merge_files: Vec<std::path::PathBuf> =
+            crate::index::list_segment_files(&pre_merge_metas, &[])
+                .into_iter()
+                .filter(|path| {
+                    path.file_name()
+                        .and_then(|n| n.to_str())
+                        .is_some_and(|n| !n.starts_with('.'))
+                        && dir.exists(path).unwrap_or(false)
+                })
+                .collect();
+        drop(pre_merge_metas);
+        assert!(!pre_merge_files.is_empty());
+
+        dir.clear_ops();
+        dir.arm_fail_next_post_meta_sync();
+        assert!(writer.merge(&segment_ids).wait().is_err());
+
+        dir.fail_next_sync();
+        assert!(super::garbage_collect_files(retired_updater.clone()).is_err());
+        for path in &pre_merge_files {
+            assert!(
+                dir.exists(path)?,
+                "retired updater GC deleted pre-merge segment file {path:?} while sync_directory \
+                 was still failing"
+            );
+        }
+
+        dir.clear_ops();
+        super::garbage_collect_files(retired_updater)?;
+        let ops = dir.ops();
+        let sync_pos = ops
+            .iter()
+            .position(|op| *op == DirOp::SyncDirectory)
+            .expect("retired updater GC must sync directory before deleting obsolete segments");
+        let first_delete_pos = ops
+            .iter()
+            .position(is_non_dot_delete)
+            .expect("retired updater GC must delete obsolete pre-merge segment files once synced");
+        assert!(
+            sync_pos < first_delete_pos,
+            "expected sync_directory() before deleting obsolete segment files: {ops:?}"
+        );
+        assert_eq!(index.reader()?.searcher().num_docs(), 3);
         Ok(())
     }
 }
