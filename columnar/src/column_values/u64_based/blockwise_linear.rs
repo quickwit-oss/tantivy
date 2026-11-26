@@ -193,19 +193,22 @@ impl ColumnCodec<u64> for BlockwiseLinearCodec {
         let footer_len: u32 = (&bytes[bytes.len() - 4..]).deserialize()?;
         let footer_offset = bytes.len() - 4 - footer_len as usize;
         let num_blocks = compute_num_blocks(stats.num_rows) as usize;
-        let mut blocks: Vec<Block> = Vec::with_capacity(num_blocks);
+        let mut blocks = Arc::<[Block]>::new_uninit_slice(num_blocks);
         let mut start_offset = 0;
         {
             let mut footer: &[u8] = &bytes.as_slice()[footer_offset..bytes.len() - 4];
-            for _ in 0..num_blocks {
+            let blocks_slice = Arc::get_mut(&mut blocks).unwrap();
+            for block_slot in blocks_slice.iter_mut() {
                 let mut block = Block::deserialize(&mut footer)?;
                 block.data_start_offset = start_offset;
                 start_offset += (block.bit_unpacker.bit_width() as usize) * BLOCK_SIZE as usize / 8;
-                blocks.push(block);
+                block_slot.write(block);
             }
         }
+        // SAFETY: every element of `blocks` was initialized in the loop above.
+        let blocks = unsafe { blocks.assume_init() };
         Ok(BlockwiseLinearReader {
-            blocks: blocks.into(),
+            blocks,
             data: bytes,
             stats,
         })
