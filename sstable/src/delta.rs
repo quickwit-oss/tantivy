@@ -305,18 +305,16 @@ where TValueReader: value::ValueReader
                 return Ok(false);
             }
             let buf = self.block_reader.buffer();
-            let consumed_len = if LAZY {
-                if let Some(skipped) = self.value_reader.skip(buf)? {
-                    self.unloaded_values_len = skipped;
-                    skipped
-                } else {
-                    self.unloaded_values_len = 0;
-                    self.value_reader.load(buf)?
-                }
+            let skipped = if LAZY {
+                self.value_reader.skip(buf)?
             } else {
-                self.unloaded_values_len = 0;
-                self.value_reader.load(buf)?
+                None
             };
+            let consumed_len = match skipped {
+                Some(len) => len,
+                None => self.value_reader.load(buf)?,
+            };
+            self.unloaded_values_len = skipped.unwrap_or(0);
             self.block_reader.advance(consumed_len);
             self.idx = 0;
         } else {
@@ -328,10 +326,10 @@ where TValueReader: value::ValueReader
     #[inline(always)]
     pub(crate) fn ensure_values_loaded(&mut self) -> io::Result<()> {
         if self.unloaded_values_len != 0 {
-            let values_slice = self
+            let slice = self
                 .block_reader
                 .buffer_from_to(0..self.unloaded_values_len);
-            self.value_reader.load(values_slice)?;
+            self.value_reader.load(slice)?;
             self.unloaded_values_len = 0;
         }
         Ok(())
@@ -340,14 +338,13 @@ where TValueReader: value::ValueReader
     pub(crate) fn value_owned(&mut self) -> io::Result<TValueReader::Value>
     where TValueReader::Value: Clone {
         if self.unloaded_values_len != 0 {
-            let values_slice = self
+            let slice = self
                 .block_reader
                 .buffer_from_to(0..self.unloaded_values_len);
-            if let Some(val) = self.value_reader.load_single(values_slice, self.idx)? {
+            if let Some(val) = self.value_reader.load_single(slice, self.idx)? {
                 return Ok(val);
             }
-            self.value_reader.load(values_slice)?;
-            self.unloaded_values_len = 0;
+            self.ensure_values_loaded()?;
         }
         Ok(self.value_reader.value(self.idx).clone())
     }

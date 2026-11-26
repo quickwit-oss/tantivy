@@ -47,27 +47,15 @@ pub struct TermInfoValueReader {
 
 #[inline(always)]
 fn read_vint_u64(data: &mut &[u8]) -> io::Result<u64> {
-    let Some((&first, rest)) = data.split_first() else {
-        return Err(io::Error::new(
-            io::ErrorKind::InvalidData,
-            "Reach end of buffer while reading VInt",
-        ));
-    };
-    if first >= 128 {
+    let mut result = 0u64;
+    let mut shift = 0u32;
+    while let Some((&b, rest)) = data.split_first() {
         *data = rest;
-        return Ok(u64::from(first & 127));
-    }
-    let mut result = u64::from(first);
-    let mut shift = 7u32;
-    let mut slice = rest;
-    while let Some((&b, next)) = slice.split_first() {
-        slice = next;
         if shift >= 64 {
             return Err(io::Error::new(io::ErrorKind::InvalidData, "VInt overflow"));
         }
         result |= u64::from(b & 127) << shift;
         if b >= 128 {
-            *data = slice;
             return Ok(result);
         }
         shift += 7;
@@ -78,39 +66,12 @@ fn read_vint_u64(data: &mut &[u8]) -> io::Result<u64> {
     ))
 }
 
-#[inline(always)]
-fn skip_one_vint(data: &mut &[u8]) -> io::Result<()> {
-    let Some((&first, rest)) = data.split_first() else {
-        return Err(io::Error::new(
-            io::ErrorKind::InvalidData,
-            "Reach end of buffer while skipping VInt",
-        ));
-    };
-    if first >= 128 {
-        *data = rest;
-        return Ok(());
-    }
-    let mut slice = rest;
-    while let Some((&b, next)) = slice.split_first() {
-        slice = next;
-        if b >= 128 {
-            *data = slice;
-            return Ok(());
-        }
-    }
-    Err(io::Error::new(
-        io::ErrorKind::InvalidData,
-        "Reach end of buffer while skipping VInt",
-    ))
-}
-
-/// Advances past `count` VInts by counting bytes with the stop bit (`0x80`) set.
+/// Advances past `remaining` VInts by counting bytes with the stop bit (`0x80`) set.
 fn skip_vints(data: &[u8], mut remaining: usize) -> io::Result<usize> {
     let mut pos = 0usize;
     while remaining >= 8 && pos + 8 <= data.len() {
         let word = u64::from_le_bytes(data[pos..pos + 8].try_into().unwrap());
-        let stops = (word & 0x8080_8080_8080_8080).count_ones() as usize;
-        remaining -= stops;
+        remaining -= (word & 0x8080_8080_8080_8080).count_ones() as usize;
         pos += 8;
     }
     while remaining > 0 {
@@ -192,7 +153,7 @@ impl ValueReader for TermInfoValueReader {
         let mut postings_start = read_vint_u64(&mut data)? as usize;
         let mut positions_start = read_vint_u64(&mut data)? as usize;
         for _ in 0..idx {
-            skip_one_vint(&mut data)?;
+            read_vint_u64(&mut data)?;
             postings_start += read_vint_u64(&mut data)? as usize;
             positions_start += read_vint_u64(&mut data)? as usize;
         }
