@@ -113,7 +113,7 @@ where
 
     fn explain(&self, reader: &SegmentReader, doc: DocId) -> crate::Result<Explanation> {
         let mut scorer = self.scorer(reader, 1.0)?;
-        if scorer.seek(doc) == doc {
+        if scorer.doc() <= doc && scorer.seek(doc) == doc {
             Ok(Explanation::new("AutomatonScorer", 1.0))
         } else {
             Err(TantivyError::InvalidArgument(
