@@ -586,12 +586,8 @@ impl<TPostings: Postings> DocSet for PhraseScorer<TPostings> {
     }
 
     fn seek_danger(&mut self, target: DocId) -> SeekDangerResult {
-        debug_assert!(
-            target >= self.doc(),
-            "target ({}) should be greater than or equal to doc ({})",
-            target,
-            self.doc()
-        );
+        // `target` may be smaller than `doc()`, e.g. when the scorer already sits on its first
+        // match. The intersection then answers `SeekLowerBound(doc)`.
         let seek_res = self.intersection_docset.seek_danger(target);
         if seek_res != SeekDangerResult::Found {
             return seek_res;
