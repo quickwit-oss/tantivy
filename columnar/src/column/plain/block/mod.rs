@@ -7,19 +7,16 @@
 //! - `BLOCK_KIND_RAW`: values stored as is, see `raw_block`.
 //! - `BLOCK_KIND_ONPAIR16`: values compressed with OnPair16, see `onpair16_block`.
 
+mod offsets;
 mod onpair16_block;
 mod raw_block;
 
 use std::io;
-use std::num::NonZeroU64;
 
 use common::OwnedBytes;
 
 use self::onpair16_block::{OnPair16Block, encode_onpair16_block};
 use self::raw_block::{RAW_HEADER_NUM_BYTES, RawBlock, encode_raw_block};
-use crate::column_values::{
-    BlockwiseLinearCodec, BlockwiseLinearReader, ColumnCodec, ColumnStats, ColumnValues,
-};
 
 /// Kind of a block storing its values as is.
 const BLOCK_KIND_RAW: u8 = 0;
@@ -50,43 +47,6 @@ fn read_u32(bytes: &mut &[u8]) -> u32 {
         .expect("not enough bytes to read a u32");
     *bytes = rest;
     u32::from_le_bytes(*u32_bytes)
-}
-
-/// Serializes block offsets directly with `BlockwiseLinearCodec` (no 1-byte codec tag, no
-/// estimation pass, and no stats pass).
-///
-/// Precondition: `offsets` is sorted in increasing order, which holds for value offsets.
-///
-/// Format evolution is handled by the block's leading kind byte and the plain column footer's
-/// format version.
-pub(super) fn serialize_offsets(sorted_offsets: &[u32], output: &mut Vec<u8>) -> io::Result<()> {
-    debug_assert!(sorted_offsets.is_sorted());
-    let min_value: u32 = sorted_offsets.first().copied().unwrap_or(0);
-    let max_value: u32 = sorted_offsets.last().copied().unwrap_or(0);
-    let stats = ColumnStats {
-        gcd: NonZeroU64::MIN,
-        min_value: min_value as u64,
-        max_value: max_value as u64,
-        num_rows: sorted_offsets.len() as u32,
-    };
-    BlockwiseLinearCodec::serialize(
-        &stats,
-        sorted_offsets.iter().map(|&offset| offset as u64),
-        output,
-    )
-}
-
-/// Loads `BlockwiseLinearReader` offsets with `expected_num_vals` values.
-///
-/// Panics if `bytes` is corrupted.
-pub(super) fn load_offsets(bytes: OwnedBytes, expected_num_vals: u32) -> BlockwiseLinearReader {
-    let offsets = BlockwiseLinearCodec::load(bytes).expect("corrupted offsets in plain block");
-    assert_eq!(
-        offsets.num_vals(),
-        expected_num_vals,
-        "unexpected number of offsets in plain block"
-    );
-    offsets
 }
 
 /// Encodes the values of a block into `output`.
@@ -148,20 +108,17 @@ impl PlainBlock {
     /// Appends the bytes of the value at position `slot` in the block to `output`.
     ///
     /// Output is NOT cleared beforehand.
-    ///
-    /// `codes_buffer` is scratch space to contain the token codes.
-    pub fn append_value(&self, slot: u32, codes_buffer: &mut Vec<u16>, output: &mut Vec<u8>) {
+    #[inline]
+    pub fn append_value(&self, slot: u32, output: &mut Vec<u8>) {
         match self {
-            PlainBlock::OnPair16(onpair16_block) => {
-                onpair16_block.append_value(slot, codes_buffer, output)
-            }
+            PlainBlock::OnPair16(onpair16_block) => onpair16_block.append_value(slot, output),
             PlainBlock::Raw(raw_block) => raw_block.append_value(slot, output),
         }
     }
 
     // TODO add a batched version
-    // pub(crate) fn append_value_batch(&self, slots: &[u32], codes_buffer: &mut Vec<u16>,
-    // concatenated_output: &mut Vec<u8>, ouput_lens: &[u32]);
+    // pub(crate) fn append_value_batch(&self, slots: &[u32], concatenated_output: &mut Vec<u8>,
+    // ouput_lens: &[u32]);
 }
 
 #[cfg(test)]
@@ -205,11 +162,10 @@ mod tests {
 
     fn decode_all(block_bytes: Vec<u8>, num_values: usize) -> Vec<Vec<u8>> {
         let block = PlainBlock::open(OwnedBytes::new(block_bytes), num_values as u32);
-        let mut codes_buffer = Vec::new();
         (0..num_values as u32)
             .map(|slot| {
                 let mut value = Vec::new();
-                block.append_value(slot, &mut codes_buffer, &mut value);
+                block.append_value(slot, &mut value);
                 value
             })
             .collect()

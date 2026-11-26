@@ -14,8 +14,8 @@ use std::io;
 
 use common::OwnedBytes;
 
-use super::{BLOCK_KIND_RAW, load_offsets, read_u32, serialize_offsets};
-use crate::column_values::{BlockwiseLinearReader, ColumnValues};
+use super::offsets::{BlockOffsets, serialize_offsets};
+use super::{BLOCK_KIND_RAW, read_u32};
 
 pub(super) const RAW_HEADER_NUM_BYTES: usize = 5;
 
@@ -32,7 +32,7 @@ pub(super) fn encode_raw_block(
     let offsets_len_pos = output.len();
     output.extend_from_slice(&0u32.to_le_bytes());
     let offsets_start = output.len();
-    serialize_offsets(offsets, output)?;
+    serialize_offsets(offsets, output);
     let offsets_len = (output.len() - offsets_start) as u32;
     output[offsets_len_pos..offsets_len_pos + 4].copy_from_slice(&offsets_len.to_le_bytes());
     output.extend_from_slice(bytes);
@@ -42,7 +42,7 @@ pub(super) fn encode_raw_block(
 #[doc(hidden)]
 pub struct RawBlock {
     /// `num_values + 1` offsets of the values in `bytes[values_start..]`.
-    byte_offsets: BlockwiseLinearReader,
+    byte_offsets: BlockOffsets,
     bytes: OwnedBytes,
     values_start: usize,
 }
@@ -63,8 +63,8 @@ impl RawBlock {
             .checked_add(offsets_len)
             .expect("raw block offsets length overflow");
         assert!(values_start <= slice.len(), "truncated raw block");
-        let offsets_bytes = bytes.slice(RAW_HEADER_NUM_BYTES..values_start);
-        let byte_offsets = load_offsets(offsets_bytes, num_values + 1);
+        let byte_offsets =
+            BlockOffsets::open(slice, RAW_HEADER_NUM_BYTES, offsets_len, num_values + 1);
         RawBlock {
             byte_offsets,
             bytes,
@@ -74,8 +74,9 @@ impl RawBlock {
 
     /// Appends the bytes of the value at position `slot` in the block to `output`.
     pub(super) fn append_value(&self, slot: u32, output: &mut Vec<u8>) {
-        let (start, end) = self.byte_offsets.get_pair(slot);
-        let value_bytes = &self.bytes.as_slice()[self.values_start..];
+        let block_bytes = self.bytes.as_slice();
+        let (start, end) = self.byte_offsets.get_pair(block_bytes, slot);
+        let value_bytes = &block_bytes[self.values_start..];
         let start = start as usize;
         let end = end as usize;
         assert!(
