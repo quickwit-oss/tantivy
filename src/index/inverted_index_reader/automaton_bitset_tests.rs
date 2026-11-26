@@ -11,6 +11,16 @@ use crate::directory::{FileHandle, FileSlice, OwnedBytes};
 use crate::schema::{Schema, STRING};
 use crate::{Executor, Index, IndexWriter, TantivyDocument};
 
+async fn run_on(
+    executor: &Executor,
+    task: Box<dyn FnOnce() -> io::Result<()> + Send>,
+) -> io::Result<()> {
+    executor
+        .spawn_blocking(task)
+        .await
+        .map_err(|_| io::Error::other("task panicked"))?
+}
+
 #[test]
 fn test_create_bitset_for_automaton() -> crate::Result<()> {
     let mut schema_builder = Schema::builder();
@@ -40,7 +50,7 @@ fn test_create_bitset_for_automaton() -> crate::Result<()> {
         let bitset = futures::executor::block_on(inverted_index.create_bitset_for_automaton(
             Regex::new(pattern).unwrap(),
             segment_reader.max_doc(),
-            &executor,
+            |task| run_on(&executor, task),
         ))?;
         assert_eq!(bitset.len(), expected.len());
         let docs = (0..segment_reader.max_doc()).filter(|&doc| bitset.contains(doc));
@@ -56,7 +66,7 @@ fn test_create_bitset_for_automaton_empty_index() -> crate::Result<()> {
     let bitset = futures::executor::block_on(inverted_index.create_bitset_for_automaton(
         Regex::new(".*").unwrap(),
         0,
-        &executor,
+        |task| run_on(&executor, task),
     ))?;
     assert_eq!(bitset.len(), 0);
     Ok(())
@@ -122,7 +132,7 @@ fn streams_matching_lists_across_decode_batches() -> crate::Result<()> {
     let bitset = futures::executor::block_on(reader.create_bitset_for_automaton(
         Regex::new("match.*|z").unwrap(),
         3,
-        &executor,
+        |task| run_on(&executor, task),
     ))?;
     assert_eq!(bitset.len(), 2);
     assert!(bitset.contains(0) && bitset.contains(2));

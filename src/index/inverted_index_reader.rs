@@ -23,12 +23,33 @@ use crate::positions::PositionReader;
 use crate::postings::{BlockSegmentPostings, SegmentPostings, TermInfo};
 use crate::schema::{IndexRecordOption, Term, Type};
 use crate::termdict::TermDictionary;
-#[cfg(feature = "quickwit")]
-use crate::Executor;
 
 #[cfg(feature = "quickwit")]
 // This is how many bytes we can hope to receive during a TTFB from S3 (~80MiB/s, 50ms).
 const MERGE_HOLES_UNDER_BYTES: usize = (80 * 1024 * 1024 * 50) / 1000;
+
+#[cfg(feature = "quickwit")]
+struct CallbackExecutor<E>(E);
+
+#[cfg(feature = "quickwit")]
+impl<E, F> CallbackExecutor<E>
+where
+    E: Fn(Box<dyn FnOnce() -> io::Result<()> + Send>) -> F,
+    F: std::future::Future<Output = io::Result<()>>,
+{
+    async fn spawn_blocking<T: Send + 'static>(
+        &self,
+        task: impl FnOnce() -> T + Send + 'static,
+    ) -> io::Result<T> {
+        let (sender, receiver) = oneshot::channel();
+        (self.0)(Box::new(move || {
+            let _ = sender.send(task());
+            Ok(())
+        }))
+        .await?;
+        receiver.await.map_err(|_| io::Error::other("task dropped"))
+    }
+}
 
 #[cfg(feature = "quickwit")]
 fn send_coalesced_posting_ranges(
@@ -546,18 +567,22 @@ impl InvertedIndexReader {
     /// `max_doc` must be the segment's maximum document ID plus one, including deleted documents.
     /// Deleted documents are included in the result.
     ///
-    /// Term enumeration and postings decoding run on the executor. Use a thread-pool executor
+    /// Term enumeration and postings decoding run via `executor`. Use a thread-pool executor
     /// to keep this CPU work off the calling thread.
-    pub async fn create_bitset_for_automaton<A: Automaton + Send + 'static>(
+    pub async fn create_bitset_for_automaton<A, E, F>(
         &self,
         automaton: A,
         max_doc: u32,
-        executor: &Executor,
+        executor: E,
     ) -> io::Result<BitSet>
     where
+        A: Automaton + Send + 'static,
         A::State: Clone + Send + 'static,
+        E: Fn(Box<dyn FnOnce() -> io::Result<()> + Send>) -> F,
+        F: std::future::Future<Output = io::Result<()>>,
     {
         const TARGET_BYTES_PER_CPU_TASK: usize = 1024 * 1024;
+        let executor = &CallbackExecutor(executor);
         let termdict = self.termdict.clone();
         let (mut automaton, (byte_ranges, first_ordinals), mut bitset) = executor
             .spawn_blocking(move || {
@@ -565,8 +590,7 @@ impl InvertedIndexReader {
                 let bitset = BitSet::with_max_value(max_doc);
                 (automaton, candidate_blocks, bitset)
             })
-            .await
-            .map_err(|_| io::Error::other("automaton candidate block task panicked"))?;
+            .await?;
         if byte_ranges.is_empty() {
             return Ok(bitset);
         }
@@ -585,7 +609,6 @@ impl InvertedIndexReader {
                     (terms.into_automaton(), postinglist_metadata)
                 })
                 .await
-                .map_err(|_| io::Error::other("automaton term enumeration task panicked"))
         };
         let mut postinglist_metadata = PostingListMetadata::default();
         let mut batch = Vec::new();
@@ -648,8 +671,7 @@ impl InvertedIndexReader {
                     }
                     Ok(bitset)
                 })
-                .await
-                .map_err(|_| io::Error::other("automaton bitset task panicked"))??;
+                .await??;
         }
         Ok(bitset)
     }
