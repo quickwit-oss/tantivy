@@ -1689,3 +1689,150 @@ fn test_percentile_order_prune_intermediate() -> crate::Result<()> {
 
     Ok(())
 }
+
+#[test]
+fn test_terms_tie_break_at_segment_cutoff() -> crate::Result<()> {
+    let mut schema = Schema::builder();
+    let fruit = schema.add_text_field("fruit", crate::schema::STRING | FAST);
+    let price = schema.add_u64_field("price", FAST);
+    let index = Index::create_in_ram(schema.build());
+    let mut writer = index.writer_for_tests()?;
+    writer.add_document(doc!(fruit => "banana", price => 5u64))?;
+    writer.add_document(doc!(price => 5u64))?;
+    writer.add_document(doc!(fruit => "apple", price => 5u64))?;
+    writer.commit()?;
+
+    for order in ["_count", "avg_price"] {
+        for direction in ["asc", "desc"] {
+            let request = serde_json::from_value(json!({
+                "fruits": {
+                    "terms": {"field": "fruit", "missing": "apricot", "size": 2,
+                              "segment_size": 2, "order": {order: direction}},
+                    "aggs": {"avg_price": {"avg": {"field": "price"}}}
+                }
+            }))?;
+            let result = crate::aggregation::tests::exec_request(request, &index)?;
+            let buckets = &result["fruits"]["buckets"];
+            assert_eq!(buckets[0]["key"], "apple", "{order} {direction}");
+            assert_eq!(buckets[1]["key"], "apricot", "{order} {direction}");
+        }
+    }
+    let request = serde_json::from_value(json!({
+        "fruits": {
+            "terms": {"field": "fruit", "missing": "banana", "size": 1, "segment_size": 1,
+                      "order": {"total.value": "desc"}},
+            "aggs": {"total": {"sum": {"field": "price"}}}
+        }
+    }))?;
+    let result = crate::aggregation::tests::exec_request(request, &index)?;
+    assert_eq!(
+        result["fruits"]["buckets"],
+        json!([
+            {"key": "banana", "doc_count": 2, "total": {"value": 10.0}}
+        ])
+    );
+    assert_eq!(result["fruits"]["sum_other_doc_count"], 1);
+    Ok(())
+}
+
+#[test]
+fn test_terms_metric_order_with_empty_bucket() -> crate::Result<()> {
+    let mut schema = Schema::builder();
+    let fruit = schema.add_text_field("fruit", crate::schema::STRING | FAST);
+    let price = schema.add_i64_field("price", FAST);
+    let index = Index::create_in_ram(schema.build());
+    let mut writer = index.writer_for_tests()?;
+    writer.add_document(doc!(fruit => "apple", price => -9i64))?;
+    writer.add_document(doc!(fruit => "banana"))?;
+    writer.commit()?;
+
+    let count = json!({"value_count": {"field": "price"}});
+    let sum = json!({"sum": {"field": "price"}});
+    let nullable_sum = json!({"sum": {"field": "price", "none_if_no_match": true}});
+    for (matched, metric, key, doc_count, value) in [
+        ("banana", count, "apple", 0, Some(0.0)),
+        ("apple", sum, "apple", 1, Some(-9.0)),
+        ("apple", nullable_sum, "banana", 0, None),
+    ] {
+        let request = serde_json::from_value(json!({
+            "fruits": {
+                "terms": {"field": "fruit", "min_doc_count": 0, "size": 1,
+                          "segment_size": 1, "order": {"prices": "asc"}},
+                "aggs": {"prices": metric}
+            }
+        }))?;
+        let result = crate::aggregation::tests::exec_request_with_query(
+            request,
+            &index,
+            Some(("fruit", matched)),
+        )?;
+        assert_eq!(
+            result["fruits"]["buckets"],
+            json!([{"key": key, "doc_count": doc_count, "prices": {"value": value}}])
+        );
+    }
+    Ok(())
+}
+
+#[test]
+fn test_terms_ip_ties_at_segment_cutoff_and_shard_merge() -> crate::Result<()> {
+    let mut schema = Schema::builder();
+    let ip = schema.add_ip_addr_field("ip", FAST);
+    let score = schema.add_u64_field("score", FAST);
+    let schema = schema.build();
+    let addr = |first| std::net::Ipv4Addr::new(first, 0, 0, 1).to_ipv6_mapped();
+    let a = Index::create_in_ram(schema.clone());
+    let mut writer = a.writer_for_tests()?;
+    for _ in 0..2 {
+        writer.add_document(doc!(ip => addr(10), score => 5u64))?;
+        writer.add_document(doc!(ip => addr(2), score => 5u64))?;
+    }
+    writer.commit()?;
+
+    let request = serde_json::from_value(json!({
+        "ips": {"terms": {"field": "ip", "size": 1, "segment_size": 1}}
+    }))?;
+    let result = crate::aggregation::tests::exec_request(request, &a)?;
+    assert_eq!(result["ips"]["buckets"][0]["key"], "10.0.0.1");
+
+    let b = Index::create_in_ram(schema);
+    let mut writer = b.writer_for_tests()?;
+    writer.add_document(doc!(ip => addr(2), score => 5u64))?;
+    writer.add_document(doc!(score => 5u64))?;
+    writer.commit()?;
+
+    let mut expected_bucket = None;
+    for direction in ["asc", "desc"] {
+        let request: Aggregations = serde_json::from_value(json!({
+            "terms": {
+                "terms": {"field": "ip", "size": 1, "missing": "10.0.0.1",
+                          "order": {"avg_score": direction}},
+                "aggs": {"avg_score": {"avg": {"field": "score"}}}
+            }
+        }))?;
+        let collector =
+            DistributedAggregationCollector::from_aggs(request.clone(), Default::default());
+        let a = a.reader()?.searcher().search(&AllQuery, &collector)?;
+        let b = b.reader()?.searcher().search(&AllQuery, &collector)?;
+        for (first, second) in [(&a, &b), (&b, &a)] {
+            let mut merged = first.clone();
+            merged.merge_fruits(second.clone())?;
+            for prune in [false, true] {
+                let mut result = merged.clone();
+                if prune {
+                    result.prune_intermediate_results(&request, PruneMode::Final)?;
+                }
+                let result = result.into_final_result(request.clone(), Default::default())?;
+                let result = serde_json::to_value(result)?;
+                let bucket = &result["terms"]["buckets"][0];
+                assert_eq!(bucket["key"], "10.0.0.1");
+                assert_eq!(
+                    expected_bucket.get_or_insert_with(|| bucket.clone()),
+                    bucket,
+                    "{direction} {prune}"
+                );
+            }
+        }
+    }
+    Ok(())
+}

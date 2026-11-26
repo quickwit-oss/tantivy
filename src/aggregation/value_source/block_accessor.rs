@@ -1,6 +1,6 @@
 use std::cmp::Ordering;
 
-use columnar::{Cardinality, ColumnValues, RowId};
+use columnar::{Cardinality, ColumnType, ColumnValues, MonotonicallyMappableToU64, RowId};
 
 use crate::aggregation::value_source::ValueSource;
 use crate::DocId;
@@ -187,6 +187,26 @@ impl ColumnBlockAccessor {
         if self.cardinality.is_multivalue() {
             self.dedup_docid_val_pairs();
         }
+    }
+
+    #[inline]
+    pub(crate) fn fetch_block_for_terms(
+        &mut self,
+        docs: &[DocId],
+        source: &mut dyn ValueSource,
+        missing: Option<u64>,
+        ordered: bool,
+    ) {
+        self.fetch_block_with_missing_ordered(docs, source, missing, ordered);
+        if source.column_type() == ColumnType::F64 {
+            // Both zeros share a term key, even when a document contains both signs.
+            for value in &mut self.val_cache {
+                if *value == (-0.0f64).to_u64() {
+                    *value = 0.0f64.to_u64();
+                }
+            }
+        }
+        self.dedup_docid_val_pairs();
     }
 
     /// Sorts values within each document when needed for deduplication.

@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use columnar::{Column, ColumnType, StrColumn};
+use columnar::{Column, ColumnType, StrColumn, TermOrdHit};
 use common::BitSet;
 use rustc_hash::FxHashSet;
 use serde::Serialize;
@@ -459,6 +459,7 @@ fn build_nodes(
             let field_type = accessor.column_type();
             let node_data = AggNodeData::Metric(MetricAggReqData {
                 accessor,
+                null_if_empty_sum: false,
                 name: agg_name.to_string(),
                 collecting_for,
                 missing: *missing,
@@ -487,6 +488,7 @@ fn build_nodes(
             let field_type = accessor.column_type();
             let node_data = AggNodeData::Metric(MetricAggReqData {
                 accessor,
+                null_if_empty_sum: false,
                 name: agg_name.to_string(),
                 collecting_for: StatsType::Percentiles,
                 missing: percentiles_req.missing,
@@ -992,6 +994,20 @@ fn build_terms_or_cardinality_nodes(
         let children = build_children(sub_aggs, reader, segment_ordinal, context)?;
         let node_data = match req {
             TermsOrCardinalityRequest::Terms(ref req) => {
+                let (missing_value_for_accessor, missing_key_position) = match (
+                    missing_value_for_accessor,
+                    accessor.as_physical_str_column(),
+                    missing,
+                ) {
+                    (Some(sentinel), Some(column), Some(Key::Str(key))) => {
+                        match column.dictionary().term_ord_or_next(key)? {
+                            TermOrdHit::Exact(ord) => (Some(ord), None),
+                            TermOrdHit::Next(ord) => (Some(sentinel), Some(ord)),
+                        }
+                    }
+                    (Some(sentinel), Some(_), Some(_)) => (Some(sentinel), Some(u64::MAX)),
+                    _ => (missing_value_for_accessor, None),
+                };
                 let mut allowed_term_ids = None;
                 if req.include.is_some() || req.exclude.is_some() {
                     if column_type != ColumnType::Str {
@@ -1010,7 +1026,7 @@ fn build_terms_or_cardinality_nodes(
                         str_col,
                         &req.include,
                         &req.exclude,
-                        missing.is_some(),
+                        missing_key_position.is_some(),
                     )?;
                 };
                 // Some terms aggregation options are not supported on computed value sources. We
@@ -1040,6 +1056,7 @@ fn build_terms_or_cardinality_nodes(
                 AggNodeData::Terms(TermsAggReqData {
                     accessor,
                     missing_value_for_accessor,
+                    missing_key_position,
                     name: agg_name.to_string(),
                     req: req_internal,
                     sub_aggregations: sub_aggs.clone(),

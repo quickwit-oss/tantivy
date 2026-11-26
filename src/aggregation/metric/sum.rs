@@ -48,6 +48,11 @@ impl SumAggregation {
             none_if_no_match: None,
         }
     }
+
+    pub(crate) fn empty_value(&self) -> Option<f64> {
+        (self.none_if_no_match != Some(true)).then_some(0.0)
+    }
+
     /// Returns the field name the aggregation is computed on.
     pub fn field_name(&self) -> &str {
         &self.field

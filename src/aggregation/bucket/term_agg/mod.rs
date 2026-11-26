@@ -1,3 +1,4 @@
+use std::collections::BinaryHeap;
 use std::fmt::Debug;
 use std::hash::Hash;
 use std::net::Ipv6Addr;
@@ -12,9 +13,9 @@ use serde::{Deserialize, Serialize};
 
 use super::{BucketIdSlot, CustomOrder, Order, OrderTarget};
 use crate::aggregation::agg_data::{
-    build_sub_agg_collectors, find_sub_agg, AggNode, AggregationsSegmentCtx,
+    build_sub_agg_collectors, AggNode, AggNodeData, AggregationsSegmentCtx,
 };
-use crate::aggregation::agg_limits::MemoryConsumption;
+use crate::aggregation::agg_limits::{AggregationLimitsGuard, MemoryConsumption};
 use crate::aggregation::agg_req::Aggregations;
 use crate::aggregation::buffered_sub_aggs::{
     BufferedSubAggs, HighCardBufferedSubAggs, HighCardSubAggBuffer, LowCardBufferedSubAggs,
@@ -39,6 +40,8 @@ pub(crate) struct TermsAggReqData {
     pub(crate) accessor: Box<dyn ValueSource>,
     /// The missing value as u64 value.
     pub(crate) missing_value_for_accessor: Option<u64>,
+    /// A missing key outside the dictionary sorts before the term at this ordinal.
+    pub(crate) missing_key_position: Option<u64>,
     /// Used to build the correct nested result when we have an empty result.
     pub(crate) sub_aggregations: Aggregations,
     /// The name of the aggregation.
@@ -52,6 +55,26 @@ pub(crate) struct TermsAggReqData {
 }
 
 impl TermsAggReqData {
+    fn ip_key_reader(&self) -> crate::Result<impl Fn(u64) -> Ipv6Addr> {
+        let compact_space_accessor = self
+            .accessor
+            .as_physical_column()
+            .ok_or_else(|| {
+                TantivyError::AggregationError(crate::aggregation::AggregationError::InternalError(
+                    "IpAddr term keys require a physical column".to_string(),
+                ))
+            })?
+            .values
+            .clone()
+            .downcast_arc::<CompactSpaceU64Accessor>()
+            .map_err(|_| {
+                TantivyError::AggregationError(crate::aggregation::AggregationError::InternalError(
+                    "Type mismatch: Could not downcast to CompactSpaceU64Accessor".to_string(),
+                ))
+            })?;
+        Ok(move |ord| Ipv6Addr::from_u128(compact_space_accessor.compact_to_u128(ord as u32)))
+    }
+
     /// Estimate the memory consumption of this struct in bytes.
     pub fn get_memory_consumption(&self) -> usize {
         std::mem::size_of::<Self>()
@@ -360,11 +383,6 @@ pub const MAX_NUM_TERMS_FOR_PAGED_MAP: u64 = 8_000_000;
 /// TODO: Benchmark this threshold.
 pub(crate) const LAZY_BUCKET_ID_GENERATION_THRESHOLD: u64 = 4_096;
 
-/// Average docs-per-bucket below which term counts cluster too tightly (mostly 1s and 2s) for
-/// `select_nth_unstable` to beat `sort_unstable`'s adaptive paths, so we fall back to a full sort.
-/// This is very low on purpose, and meant to catch unique or mostly unique terms.
-const DOCS_PER_BUCKET_QUICKSELECT_THRESHOLD: u64 = 2;
-
 /// Charge a `Vec`-backed term storage's eager, up-front allocation against the memory limit.
 ///
 /// The paged/hashed storages grow lazily during `collect` and are charged there via deltas, but
@@ -386,7 +404,7 @@ fn add_memory_consumption<M: TermAggregationMap>(
 pub(crate) fn build_segment_term_collector(
     req_data: &mut AggregationsSegmentCtx,
     terms_req_data: TermsAggReqData,
-    children: Vec<AggNode>,
+    mut children: Vec<AggNode>,
 ) -> crate::Result<Box<dyn SegmentAggregationCollector>> {
     let column_type = terms_req_data.accessor.column_type();
 
@@ -399,11 +417,20 @@ pub(crate) fn build_segment_term_collector(
     // Validate that the referenced sub-aggregation exists when ordering by one.
     if let OrderTarget::SubAggregation(sub_agg_name) = &terms_req_data.req.order.target {
         let (agg_name, _agg_property) = get_agg_name_and_property(sub_agg_name);
-        find_sub_agg(&children, agg_name).ok_or_else(|| {
-            TantivyError::InvalidArgument(format!(
-                "could not find aggregation with name {agg_name} in metric sub_aggregations"
-            ))
-        })?;
+        let child = children
+            .iter_mut()
+            .find(|child| child.name() == agg_name)
+            .ok_or_else(|| {
+                TantivyError::InvalidArgument(format!(
+                    "could not find aggregation with name {agg_name} in metric sub_aggregations"
+                ))
+            })?;
+        if let AggNodeData::Metric(metric) = &mut child.data {
+            metric.null_if_empty_sum = terms_req_data.sub_aggregations[agg_name]
+                .agg
+                .as_sum()
+                .is_some_and(|sum| sum.empty_value().is_none());
+        }
     }
 
     // Build sub-aggregation blueprint if there are children.
@@ -1013,6 +1040,13 @@ struct SegmentTermCollector<TermMap: TermAggregationMap, B: SubAggBuffer> {
     terms_req_data: TermsAggReqData,
 }
 
+pub(crate) fn empty_metric_sort_value(req: &Aggregations, name: &str) -> f64 {
+    req.get(name)
+        .and_then(|agg| agg.agg.as_sum())
+        .and_then(|sum| sum.empty_value())
+        .unwrap_or(f64::MIN)
+}
+
 pub(crate) fn get_agg_name_and_property(name: &str) -> (&str, &str) {
     let (agg_name, agg_property) = name.split_once('.').unwrap_or((name, ""));
     (agg_name, agg_property)
@@ -1059,14 +1093,12 @@ impl<TermMap: TermAggregationMap, B: SubAggBuffer> SegmentAggregationCollector
 
         let req_data = &mut self.terms_req_data;
 
-        agg_data
-            .column_block_accessor
-            .fetch_block_with_missing_unique_per_doc(
-                docs,
-                &mut *req_data.accessor,
-                req_data.missing_value_for_accessor,
-                self.sub_agg.is_some(),
-            );
+        agg_data.column_block_accessor.fetch_block_for_terms(
+            docs,
+            &mut *req_data.accessor,
+            req_data.missing_value_for_accessor,
+            self.sub_agg.is_some(),
+        );
 
         if let Some(sub_agg) = &mut self.sub_agg {
             let term_buckets = &mut self.parent_buckets[parent_bucket_id as usize];
@@ -1154,6 +1186,7 @@ fn extract_missing_value<T>(
     entries: &mut Vec<(u64, T)>,
     term_req: &TermsAggReqData,
 ) -> Option<(IntermediateKey, T)> {
+    term_req.missing_key_position?;
     let missing_sentinel = term_req.missing_value_for_accessor?;
     let missing_value_entry_pos = entries
         .iter()
@@ -1239,6 +1272,159 @@ fn fill_zero_doc_count_terms(
     Ok(())
 }
 
+fn add_zero_count_candidates<B: BucketIdSlot>(
+    term_req: &TermsAggReqData,
+    entries: &mut Vec<(u64, Bucket<B>)>,
+) -> Option<IntermediateAggregationResults> {
+    let column = term_req.accessor.as_physical_str_column()?;
+    let num_terms = column.dictionary().num_terms();
+    let num_hits = entries.len();
+    let num_possible = term_req.allowed_term_ids.as_ref().map_or_else(
+        || num_terms + usize::from(term_req.missing_key_position.is_some()),
+        BitSet::len,
+    );
+    if num_hits == num_possible {
+        return None;
+    }
+    entries.sort_unstable_by_key(|(ord, _)| *ord);
+    let candidates = (0..num_terms as u64).filter(|&ord| {
+        term_req
+            .allowed_term_ids
+            .as_ref()
+            .is_none_or(|allowed| allowed.contains(ord as u32))
+    });
+    let mut matched = 0;
+    for ord in candidates {
+        while matched < num_hits && entries[matched].0 < ord {
+            matched += 1;
+        }
+        if matched == num_hits || entries[matched].0 != ord {
+            entries.push((ord, Bucket::default()));
+            // The first discarded bucket contributes to the document count error bound.
+            if entries.len() - num_hits > term_req.req.segment_size as usize {
+                break;
+            }
+        }
+    }
+    (entries.len() > num_hits)
+        .then(|| IntermediateAggregationResults::empty_from_req(&term_req.sub_aggregations))
+}
+
+fn normalized_f64_key(val: u64) -> IntermediateKey {
+    NumericalValue::from(f64::from_u64(val)).normalize().into()
+}
+
+fn select_by_decoded_key<T, K: Eq>(
+    entries: &mut [T],
+    cutoff: usize,
+    value: impl Fn(&T) -> K,
+    ord: impl Fn(&T) -> u64,
+    term_req: &TermsAggReqData,
+    limits: &AggregationLimitsGuard,
+) -> crate::Result<()> {
+    let cutoff_value = value(&entries[cutoff]);
+    let mut start = 0;
+    for idx in 0..cutoff {
+        if value(&entries[idx]) != cutoff_value {
+            entries.swap(start, idx);
+            start += 1;
+        }
+    }
+    if start == cutoff {
+        return Ok(());
+    }
+    let mut end = cutoff + 1;
+    for idx in cutoff + 1..entries.len() {
+        if value(&entries[idx]) == cutoff_value {
+            entries.swap(end, idx);
+            end += 1;
+        }
+    }
+    let tied = &mut entries[start..end];
+    let rank = cutoff - start;
+    let column_type = term_req.accessor.column_type();
+    if column_type == ColumnType::F64 {
+        tied.select_nth_unstable_by_key(rank, |entry| Key::from(normalized_f64_key(ord(entry))));
+        return Ok(());
+    }
+
+    let mut limits = limits.clone();
+    let heap_bytes = (rank as u64 + 1) * std::mem::size_of::<(Vec<u8>, usize)>() as u64;
+    limits.add_memory_consumed(heap_bytes)?;
+    let mut selected: BinaryHeap<(Vec<u8>, usize)> = BinaryHeap::with_capacity(rank + 1);
+    let mut index = 0;
+    let mut visit = |term: &[u8]| -> crate::Result<()> {
+        if selected.len() <= rank {
+            limits.add_memory_consumed(term.len() as u64)?;
+            selected.push((term.to_vec(), index));
+        } else if let Some(mut largest) = selected.peek_mut() {
+            if term < largest.0.as_slice() {
+                largest.0.clear();
+                if term.len() > largest.0.capacity() {
+                    limits.add_memory_consumed((term.len() - largest.0.capacity()) as u64)?;
+                    largest.0.reserve_exact(term.len());
+                }
+                largest.0.extend_from_slice(term);
+                largest.1 = index;
+            }
+        }
+        index += 1;
+        Ok(())
+    };
+    match column_type {
+        ColumnType::Str => {
+            let dictionary = term_req.accessor.term_dictionary().ok_or_else(|| {
+                TantivyError::InternalError(
+                    "a `Str` value source must provide a term dictionary".to_string(),
+                )
+            })?;
+            let mut ords = [0; crate::COLLECT_BLOCK_BUFFER_LEN];
+            for chunk in tied.chunks_mut(ords.len()) {
+                chunk.sort_unstable_by_key(&ord);
+                let ords = &mut ords[..chunk.len()];
+                for (ord_out, entry) in ords.iter_mut().zip(chunk) {
+                    *ord_out = ord(entry);
+                }
+                let mut result = Ok(());
+                let found = dictionary.sorted_ords_to_term_cb(ords, &mut |term| {
+                    if result.is_ok() {
+                        result = visit(term);
+                    }
+                })?;
+                result?;
+                if !found {
+                    return Err(DataCorruption::comment_only("unknown term ordinal").into());
+                }
+            }
+        }
+        ColumnType::DateTime => {
+            for entry in tied.iter() {
+                visit(format_date(i64::from_u64(ord(entry)))?.as_bytes())?;
+            }
+        }
+        ColumnType::IpAddr => {
+            let ip_key = term_req.ip_key_reader()?;
+            for entry in tied.iter() {
+                visit(ip_key(ord(entry)).to_canonical().to_string().as_bytes())?;
+            }
+        }
+        _ => unreachable!(),
+    }
+
+    let first_discarded = selected.peek().unwrap().1;
+    let mut selected = selected.into_vec();
+    // A swap must leave the source indices of the remaining entries valid.
+    selected.sort_unstable_by_key(|&(_, index)| index);
+    let discarded_position = selected
+        .binary_search_by_key(&first_discarded, |&(_, index)| index)
+        .unwrap();
+    for (dest, (_, src)) in selected.into_iter().enumerate() {
+        tied.swap(dest, src);
+    }
+    tied.swap(rank, discarded_position);
+    Ok(())
+}
+
 impl<TermMap, B> SegmentTermCollector<TermMap, B>
 where
     TermMap: TermAggregationMap,
@@ -1259,6 +1445,32 @@ where
         let mut entries: Vec<(u64, Bucket<TermMap::Slot>)> = term_buckets.into_vec();
 
         let segment_size = term_req.req.segment_size as usize;
+        let order = &term_req.req.order;
+        let column_type = term_req.accessor.column_type();
+        let rank_empty_terms = term_req.req.min_doc_count == 0
+            && (matches!(order.target, OrderTarget::SubAggregation(_))
+                || (order.target == OrderTarget::Count && order.order == Order::Asc));
+        let empty_subaggs = if rank_empty_terms {
+            add_zero_count_candidates(term_req, &mut entries)
+        } else {
+            None
+        };
+        let needs_tie_break = order.target != OrderTarget::Key && entries.len() > segment_size;
+        // Computed ordinals, normalized floats, and formatted dates and IPs can sort
+        // differently from the keys in the response.
+        let decode_ties = needs_tie_break
+            && match column_type {
+                ColumnType::Str => term_req.accessor.as_physical_str_column().is_none(),
+                ColumnType::F64 | ColumnType::IpAddr | ColumnType::DateTime => true,
+                _ => false,
+            };
+        let missing_ord = term_req
+            .missing_value_for_accessor
+            .zip(term_req.missing_key_position);
+        let key_order = |ord: u64| match missing_ord {
+            Some((sentinel, insertion_ord)) if ord == sentinel => (insertion_ord, false),
+            _ => (ord, true),
+        };
 
         // Total doc count over all buckets, computed is some case, and which can be reused by
         // `cut_off_buckets` to derive `sum_other_doc_count` without a second pass.
@@ -1290,7 +1502,7 @@ where
                     }
                 }
             }
-            OrderTarget::SubAggregation(sub_agg_path) => {
+            OrderTarget::SubAggregation(sub_agg_path) if needs_tie_break => {
                 // Peek segment-level metric values, select top-k, then fall through to
                 // `cut_off_buckets`. Like Elasticsearch, we always cut off when ordering
                 // by a sub-agg: top-K results are approximate and may differ from the
@@ -1301,6 +1513,12 @@ where
                     ))
                 })?;
                 let (agg_name, agg_prop) = get_agg_name_and_property(sub_agg_path);
+                let missing_value = empty_metric_sort_value(&term_req.sub_aggregations, agg_name);
+                let empty_metric = empty_subaggs
+                    .as_ref()
+                    .map(|empty| empty.get_value_from_aggregation(agg_name, agg_prop))
+                    .transpose()?
+                    .flatten();
                 // Fetch values up-front; otherwise sort would re-compute per call
                 let mut keyed: Vec<_> = entries
                     .into_iter()
@@ -1308,56 +1526,62 @@ where
                         // Reached only when ordering by a sub-agg, i.e. sub aggregations exist and
                         // the slot is a real `BucketId`, so `to_bucket_id` never hits
                         // `unreachable!`.
-                        let metric_value = coll
-                            .compute_metric_value(
+                        let metric_value = if bucket.1.count == 0 {
+                            empty_metric
+                        } else {
+                            coll.compute_metric_value(
                                 bucket.1.bucket_id.to_bucket_id(),
                                 agg_name,
                                 agg_prop,
                                 agg_data,
                             )
-                            .unwrap_or(0.0);
+                        }
+                        .unwrap_or(missing_value);
                         (metric_value, bucket)
                     })
                     .collect();
-                if keyed.len() > segment_size {
-                    // there are situations where sort_unstable might be advantageous, but
-                    // detecting them isn't trivial, and these situation should be rare.
-                    if term_req.req.order.order == Order::Desc {
-                        keyed.select_nth_unstable_by(segment_size, |a, b| {
-                            b.0.partial_cmp(&a.0).unwrap_or(std::cmp::Ordering::Equal)
-                        });
-                    } else {
-                        keyed.select_nth_unstable_by(segment_size, |a, b| {
-                            a.0.partial_cmp(&b.0).unwrap_or(std::cmp::Ordering::Equal)
-                        });
-                    }
+                keyed.select_nth_unstable_by(segment_size, |(left, a), (right, b)| {
+                    order
+                        .order
+                        .apply(left.total_cmp(right))
+                        .then_with(|| key_order(a.0).cmp(&key_order(b.0)))
+                });
+                if decode_ties {
+                    select_by_decoded_key(
+                        &mut keyed,
+                        segment_size,
+                        |(value, _)| value.to_bits(),
+                        |(_, entry)| entry.0,
+                        term_req,
+                        &agg_data.context.limits,
+                    )?;
                 }
                 entries = keyed.into_iter().map(|(_, e)| e).collect();
             }
-            OrderTarget::Count => {
-                if entries.len() > segment_size {
-                    // unique or near-unique fields create big runs of sorted values (ones),
-                    // which is defavorable to quickselect. use the then faster sort_unstable.
-                    let num_buckets = entries.len() as u64;
-                    let num_docs = entries.iter().map(|(_, b)| b.count as u64).sum();
-                    total_doc_count = Some(num_docs);
-                    let many_buckets_with_same_count =
-                        num_docs < num_buckets * DOCS_PER_BUCKET_QUICKSELECT_THRESHOLD;
-                    if term_req.req.order.order == Order::Desc {
-                        if many_buckets_with_same_count {
-                            entries.sort_unstable_by_key(|b| std::cmp::Reverse(b.1.count));
-                        } else {
-                            entries.select_nth_unstable_by_key(segment_size, |b| {
-                                std::cmp::Reverse(b.1.count)
-                            });
-                        }
-                    } else if many_buckets_with_same_count {
-                        entries.sort_unstable_by_key(|b| b.1.count);
-                    } else {
-                        entries.select_nth_unstable_by_key(segment_size, |b| b.1.count);
-                    }
+            OrderTarget::Count if needs_tie_break => {
+                let num_docs = entries.iter().map(|(_, b)| b.count as u64).sum();
+                total_doc_count = Some(num_docs);
+                let compare =
+                    |(left_key, left): &(u64, Bucket<TermMap::Slot>),
+                     (right_key, right): &(u64, Bucket<TermMap::Slot>)| {
+                        order
+                            .order
+                            .apply(left.count.cmp(&right.count))
+                            .then_with(|| key_order(*left_key).cmp(&key_order(*right_key)))
+                    };
+                entries.select_nth_unstable_by(segment_size, compare);
+                if decode_ties {
+                    select_by_decoded_key(
+                        &mut entries,
+                        segment_size,
+                        |(_, bucket)| bucket.count,
+                        |entry| entry.0,
+                        term_req,
+                        &agg_data.context.limits,
+                    )?;
                 }
             }
+            OrderTarget::Count | OrderTarget::SubAggregation(_) => {}
         }
 
         let (term_doc_count_before_cutoff, sum_other_doc_count) =
@@ -1369,7 +1593,6 @@ where
         let mut out: Vec<(IntermediateKey, IntermediateTermBucketEntry)> =
             Vec::with_capacity(entries.len());
 
-        let column_type = term_req.accessor.column_type();
         if column_type == ColumnType::Str {
             // `ValueSource::term_dictionary` guarantees a dictionary for every `Str` source.
             let Some(term_dict) = term_req.accessor.term_dictionary() else {
@@ -1378,11 +1601,6 @@ where
                 ));
             };
 
-            // Collect into a map to dedup by key, then flush into `out`. Two cases need it: a real
-            // term may equal the `missing` placeholder, and the min_doc_count==0 fill must skip
-            // already-collected terms. A single-segment query returns this result directly (the
-            // cross-segment merge that would otherwise dedup never runs), so duplicate keys here
-            // would reach the final result unmerged.
             let mut intermediate_entry_map: FxHashMap<
                 IntermediateKey,
                 IntermediateTermBucketEntry,
@@ -1407,6 +1625,14 @@ where
             let intermediate_entries: Vec<IntermediateTermBucketEntry> = buckets
                 .into_iter()
                 .map(|bucket| {
+                    if bucket.count == 0 {
+                        if let Some(empty) = &empty_subaggs {
+                            return Ok(IntermediateTermBucketEntry {
+                                doc_count: 0,
+                                sub_aggregation: empty.clone(),
+                            });
+                        }
+                    }
                     into_intermediate_bucket_entry(
                         bucket,
                         reborrow_opt_collector(&mut sub_agg_collector),
@@ -1429,7 +1655,7 @@ where
 
             // If min_doc_count is 0, we need to complete the results with terms that are part of
             // the dictionary, but not part of the search results.
-            if term_req.req.min_doc_count == 0 {
+            if term_req.req.min_doc_count == 0 && !rank_empty_terms {
                 // That feature only works on physical str column (with a term dictionary)
                 if let Some(str_column) = term_req.accessor.as_physical_str_column() {
                     fill_zero_doc_count_terms(str_column, term_req, &mut intermediate_entry_map)?;
@@ -1459,63 +1685,14 @@ where
                 out.push((IntermediateKey::Bool(val), intermediate_entry));
             }
         } else if column_type == ColumnType::IpAddr {
-            let compact_space_accessor = term_req
-                .accessor
-                .as_physical_column()
-                .ok_or_else(|| {
-                    TantivyError::AggregationError(
-                        crate::aggregation::AggregationError::InternalError(
-                            "IpAddr term keys require a physical column".to_string(),
-                        ),
-                    )
-                })?
-                .values
-                .clone()
-                .downcast_arc::<CompactSpaceU64Accessor>()
-                .map_err(|_| {
-                    TantivyError::AggregationError(
-                        crate::aggregation::AggregationError::InternalError(
-                            "Type mismatch: Could not downcast to CompactSpaceU64Accessor"
-                                .to_string(),
-                        ),
-                    )
-                })?;
-
+            let ip_key = term_req.ip_key_reader()?;
             for (val, doc_count) in entries {
                 let intermediate_entry = into_intermediate_bucket_entry(
                     doc_count,
                     reborrow_opt_collector(&mut sub_agg_collector),
                     agg_data,
                 )?;
-                let val: u128 = compact_space_accessor.compact_to_u128(val as u32);
-                let val = Ipv6Addr::from_u128(val);
-                out.push((IntermediateKey::IpAddr(val), intermediate_entry));
-            }
-        } else if column_type == ColumnType::F64 {
-            // -0.0 and +0.0 both normalize to I64(0). Sort by normalized key to merge their
-            // buckets below. Other distinct f64 encodings, including NaNs, remain distinct:
-            // NaNs are not normalized and IntermediateKey compares them using total_cmp.
-            let normalized_key = |val: u64| -> IntermediateKey {
-                NumericalValue::from(f64::from_u64(val)).normalize().into()
-            };
-            entries.sort_unstable_by_key(|(val, _)| normalized_key(*val));
-
-            for (val, bucket) in entries {
-                let key = normalized_key(val);
-                let intermediate_entry = into_intermediate_bucket_entry(
-                    bucket,
-                    reborrow_opt_collector(&mut sub_agg_collector),
-                    agg_data,
-                )?;
-                match out.last_mut() {
-                    Some((previous_key, existing)) if previous_key == &key => {
-                        existing.doc_count += intermediate_entry.doc_count;
-                        existing
-                            .sub_aggregation
-                            .merge_fruits(intermediate_entry.sub_aggregation)?;
-                    }
-                    _ => out.push((key, intermediate_entry)),
-                }
+                out.push((IntermediateKey::IpAddr(ip_key(val)), intermediate_entry));
             }
         } else {
             for (val, bucket) in entries {
@@ -1527,6 +1704,7 @@ where
                 let key_val: NumericalValue = match column_type {
                     ColumnType::U64 => val.into(),
                     ColumnType::I64 => i64::from_u64(val).into(),
+                    ColumnType::F64 => f64::from_u64(val).into(),
                     _ => {
                         return Err(TantivyError::SchemaError(format!(
                             "unknown key type: {}",
@@ -1810,39 +1988,47 @@ mod tests {
     }
 
     #[test]
-    fn terms_aggregation_merges_normalized_f64_buckets_with_sub_aggregations() -> crate::Result<()>
-    {
-        let index = get_test_index_from_values_and_terms(
-            true,
-            &[vec![
-                (-0.0, "negative_zero".to_string()),
-                (0.0, "positive_zero".to_string()),
-            ]],
-        )?;
+    fn terms_aggregation_counts_signed_zeros_once_per_doc_before_cutoff() -> crate::Result<()> {
+        let mut schema = Schema::builder();
+        let score = schema.add_f64_field("score", FAST);
+        let label = schema.add_text_field("label", STRING | FAST);
+        let index = Index::create_in_ram(schema.build());
+        let mut writer = index.writer_for_tests()?;
+        writer.add_document(doc!(score => -0.0, label => "negative"))?;
+        writer.add_document(doc!(score => 0.0, label => "positive"))?;
+        writer.add_document(doc!(score => -0.0, score => 0.0, label => "both"))?;
+        writer.add_document(doc!(score => 0.5, label => "fraction"))?;
+        writer.commit()?;
+
         let agg_req: Aggregations = serde_json::from_value(json!({
-            "zeros": {
-                "terms": { "field": "score_f64" },
+            "scores": {
+                "terms": { "field": "score", "size": 2, "segment_size": 2 },
                 "aggs": {
-                    "signs": { "terms": { "field": "string_id" } }
+                    "labels": { "terms": { "field": "label" } }
                 }
             }
         }))?;
 
         let result = exec_request(agg_req, &index)?;
-        let zero_buckets = result["zeros"]["buckets"].as_array().unwrap();
-        assert_eq!(zero_buckets.len(), 1, "unexpected result: {result}");
-        assert_eq!(zero_buckets[0]["key"], 0);
-        assert_eq!(zero_buckets[0]["doc_count"], 2);
-
-        let sign_buckets = zero_buckets[0]["signs"]["buckets"].as_array().unwrap();
-        assert_eq!(sign_buckets.len(), 2, "unexpected result: {result}");
-        for sign in ["negative_zero", "positive_zero"] {
-            let bucket = sign_buckets
-                .iter()
-                .find(|bucket| bucket["key"] == sign)
-                .unwrap_or_else(|| panic!("missing {sign:?} bucket in {result}"));
-            assert_eq!(bucket["doc_count"], 1);
-        }
+        let buckets = result["scores"]["buckets"].as_array().unwrap();
+        assert_eq!(buckets.len(), 2);
+        assert_eq!(buckets[0]["key"], 0);
+        assert_eq!(buckets[0]["doc_count"], 3);
+        assert_eq!(
+            buckets[0]["labels"]["buckets"],
+            json!([
+                { "key": "both", "doc_count": 1 },
+                { "key": "negative", "doc_count": 1 },
+                { "key": "positive", "doc_count": 1 },
+            ])
+        );
+        assert_eq!(buckets[1]["key"], 0.5);
+        assert_eq!(buckets[1]["doc_count"], 1);
+        assert_eq!(
+            buckets[1]["labels"]["buckets"],
+            json!([{ "key": "fraction", "doc_count": 1 }])
+        );
+        assert_eq!(result["scores"]["sum_other_doc_count"], 0);
         Ok(())
     }
 
