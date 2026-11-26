@@ -93,5 +93,13 @@ pub(crate) mod tests {
         for (i, val) in value_block.iter().enumerate() {
             assert_eq!(reader.value(i), val);
         }
+        if let Some(skipped) = reader.skip(&buffer[..]).unwrap() {
+            assert_eq!(skipped, data_len);
+        }
+        for (i, val) in value_block.iter().enumerate() {
+            if let Some(single) = reader.load_single(&buffer[..data_len], i).unwrap() {
+                assert_eq!(&single, val);
+            }
+        }
     }
 }
