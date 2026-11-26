@@ -117,9 +117,11 @@ impl<'a> PostingsMerger<'a> {
         self.cursors[self.current().1].postings.term_freq()
     }
 
-    pub(crate) fn positions(&mut self, output: &mut Vec<u32>) {
+    /// Delta-encoded positions of the current document, see
+    /// [`SegmentPostings::position_deltas`].
+    pub(crate) fn position_deltas(&mut self, output: &mut Vec<u32>) {
         let cursor_ord = self.current().1;
-        self.cursors[cursor_ord].postings.positions(output);
+        self.cursors[cursor_ord].postings.position_deltas(output);
     }
 }
 
@@ -132,10 +134,17 @@ mod tests {
 
     fn collect(merger: &mut PostingsMerger<'_>) -> Vec<(DocId, u32, Vec<u32>)> {
         let mut docs = Vec::new();
-        let mut positions = vec![7, 7, 7];
+        let mut deltas = vec![7, 7, 7];
         while merger.advance() {
-            merger.positions(&mut positions);
-            docs.push((merger.doc(), merger.term_freq(), positions.clone()));
+            merger.position_deltas(&mut deltas);
+            let positions: Vec<u32> = deltas
+                .iter()
+                .scan(0u32, |pos, delta| {
+                    *pos += delta;
+                    Some(*pos)
+                })
+                .collect();
+            docs.push((merger.doc(), merger.term_freq(), positions));
         }
         assert!(!merger.advance());
         docs
