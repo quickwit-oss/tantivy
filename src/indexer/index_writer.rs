@@ -19,7 +19,7 @@ use crate::indexer::index_writer_status::IndexWriterStatus;
 use crate::indexer::operation::DeleteOperation;
 use crate::indexer::stamper::Stamper;
 use crate::indexer::{MergePolicy, SegmentEntry, SegmentWriter};
-use crate::query::{EnableScoring, Query, TermQuery};
+use crate::query::{AllQuery, EnableScoring, Query, TermQuery};
 use crate::schema::document::Document;
 use crate::schema::{IndexRecordOption, TantivyDocument, Term};
 use crate::{FutureResult, Opstamp};
@@ -523,9 +523,9 @@ impl<D: Document> IndexWriter<D> {
     pub fn delete_all_documents(&self) -> crate::Result<Opstamp> {
         // Delete segments
         self.segment_updater.remove_all_segments();
-        // Return new stamp - reverted stamp
-        self.stamper.revert(self.committed_opstamp);
-        Ok(self.committed_opstamp)
+        // Documents still buffered in the indexing workers are not in any segment yet.
+        // A regular delete removes them, and leaves the documents added after it.
+        self.delete_query(Box::new(AllQuery))
     }
 
     /// Merges a given list of segments.
@@ -1295,6 +1295,41 @@ mod tests {
     }
 
     #[test]
+    fn test_delete_all_documents_deletes_uncommitted_documents() {
+        let mut schema_builder = schema::Schema::builder();
+        let text_field = schema_builder.add_text_field("text", TEXT);
+        let index = Index::create_in_ram(schema_builder.build());
+        let reader = index
+            .reader_builder()
+            .reload_policy(ReloadPolicy::Manual)
+            .try_into()
+            .unwrap();
+        let num_docs_containing = |s: &str| {
+            reader.reload().unwrap();
+            let searcher = reader.searcher();
+            let term = Term::from_field_text(text_field, s);
+            // doc_freq would also count deleted documents of a segment that is still alive
+            let query = TermQuery::new(term, IndexRecordOption::Basic);
+            searcher.search(&query, &Count).unwrap()
+        };
+        let mut index_writer = index
+            .writer_with_num_threads(4, MEMORY_BUDGET_NUM_BYTES_MIN * 4)
+            .unwrap();
+
+        index_writer.add_document(doc!(text_field => "a")).unwrap();
+        index_writer.commit().unwrap();
+        // not committed: still buffered in an indexing worker when the index is cleared
+        index_writer.add_document(doc!(text_field => "b")).unwrap();
+        index_writer.delete_all_documents().unwrap();
+        index_writer.add_document(doc!(text_field => "c")).unwrap();
+        index_writer.commit().unwrap();
+
+        assert_eq!(num_docs_containing("a"), 0);
+        assert_eq!(num_docs_containing("b"), 0);
+        assert_eq!(num_docs_containing("c"), 1);
+    }
+
+    #[test]
     fn test_delete_all_documents_rollback_correct_stamp() {
         let mut schema_builder = schema::Schema::builder();
         let text_field = schema_builder.add_text_field("text", TEXT);
@@ -1313,7 +1348,7 @@ mod tests {
 
         // delete_all_documents the index
         let clear_tstamp = index_writer.delete_all_documents().unwrap();
-        assert_eq!(clear_tstamp, add_tstamp);
+        assert!(clear_tstamp > first_commit_tstamp);
 
         // commit the clear command - now documents aren't available
         let second_commit = index_writer.commit();
@@ -1391,8 +1426,8 @@ mod tests {
 
         // clear but don't commit!
         let clear_tstamp = index_writer.delete_all_documents().unwrap();
-        // clear_tstamp should reset to before the last commit
-        assert!(clear_tstamp < commit_tstamp);
+        // the clear is a new operation, after the last commit
+        assert!(clear_tstamp > commit_tstamp);
 
         // rollback
         let _rollback_tstamp = index_writer.rollback().unwrap();
