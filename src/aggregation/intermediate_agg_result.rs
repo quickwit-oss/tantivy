@@ -77,6 +77,7 @@ impl IntermediateKey {
             (Self::Str(left), Self::Str(right)) => left.cmp(right),
             _ => Key::from(self.clone()).cmp(&Key::from(other.clone())),
         }
+        .then_with(|| self.variant_ord().cmp(&other.variant_ord()))
     }
 
     fn variant_ord(&self) -> u8 {
@@ -928,6 +929,28 @@ pub struct IntermediateTermBucketResult {
     pub(crate) key_to_idx_in_entries: FxHashMap<IntermediateKey, u32>,
 }
 
+#[derive(Debug)]
+struct FinalTermBucket {
+    entry: BucketEntry,
+    key_kind: u8,
+}
+
+impl FinalTermBucket {
+    fn cmp_key(&self, other: &Self) -> Ordering {
+        // An IP address and a string can have the same response key.
+        self.entry
+            .key
+            .cmp(&other.entry.key)
+            .then_with(|| self.key_kind.cmp(&other.key_kind))
+    }
+}
+
+impl GetDocCount for FinalTermBucket {
+    fn doc_count(&self) -> u64 {
+        self.entry.doc_count
+    }
+}
+
 impl IntermediateTermBucketResult {
     /// Merge `other` into `self` in place.
     ///
@@ -989,11 +1012,12 @@ impl IntermediateTermBucketResult {
         limits: &mut AggregationLimitsGuard,
     ) -> crate::Result<BucketResult> {
         let req = TermsAggregationInternal::from_req(req);
-        let mut buckets: Vec<BucketEntry> = self
+        let mut buckets: Vec<FinalTermBucket> = self
             .entries
             .into_iter()
             .filter(|bucket| bucket.1.doc_count >= req.min_doc_count)
             .map(|(key, entry)| {
+                let kind = key.variant_ord();
                 let key_as_string = match key {
                     IntermediateKey::Bool(key) => {
                         let val = if key { "true" } else { "false" };
@@ -1001,13 +1025,16 @@ impl IntermediateTermBucketResult {
                     }
                     _ => None,
                 };
-                Ok(BucketEntry {
-                    key_as_string,
-                    key: key.into(),
-                    doc_count: entry.doc_count,
-                    sub_aggregation: entry
-                        .sub_aggregation
-                        .into_final_result_internal(sub_aggregation_req, limits)?,
+                Ok(FinalTermBucket {
+                    entry: BucketEntry {
+                        key_as_string,
+                        key: key.into(),
+                        doc_count: entry.doc_count,
+                        sub_aggregation: entry
+                            .sub_aggregation
+                            .into_final_result_internal(sub_aggregation_req, limits)?,
+                    },
+                    key_kind: kind,
                 })
             })
             .collect::<crate::Result<_>>()?;
@@ -1015,32 +1042,14 @@ impl IntermediateTermBucketResult {
         let order = req.order.order;
         match req.order.target {
             OrderTarget::Key => {
-                buckets.sort_by(|left, right| {
-                    if req.order.order == Order::Asc {
-                        left.key.cmp(&right.key)
-                    } else {
-                        right.key.cmp(&left.key)
-                    }
-                });
+                buckets.sort_by(|left, right| order.apply(left.entry.key.cmp(&right.entry.key)));
             }
             OrderTarget::Count => {
-                // Tie-break equal counts by key ascending so the output is deterministic
-                // regardless of the merge's (insertion-order) output.
-                let key_tie = |left: &BucketEntry, right: &BucketEntry| left.key.cmp(&right.key);
-                if req.order.order == Order::Desc {
-                    buckets.sort_unstable_by(|left, right| {
-                        right
-                            .doc_count()
-                            .cmp(&left.doc_count())
-                            .then_with(|| key_tie(left, right))
-                    });
-                } else {
-                    buckets.sort_unstable_by(|left, right| {
-                        left.doc_count()
-                            .cmp(&right.doc_count())
-                            .then_with(|| key_tie(left, right))
-                    });
-                }
+                buckets.sort_unstable_by(|left, right| {
+                    order
+                        .apply(left.doc_count().cmp(&right.doc_count()))
+                        .then_with(|| left.cmp_key(right))
+                });
             }
             OrderTarget::SubAggregation(name) => {
                 let (agg_name, agg_property) = get_agg_name_and_property(&name);
@@ -1048,6 +1057,7 @@ impl IntermediateTermBucketResult {
                     .into_iter()
                     .map(|bucket| {
                         let val = bucket
+                            .entry
                             .sub_aggregation
                             .get_value_from_aggregation(agg_name, agg_property)?
                             .unwrap_or(f64::MIN);
@@ -1058,7 +1068,7 @@ impl IntermediateTermBucketResult {
                 buckets_with_val.sort_by(|(left, left_val), (right, right_val)| {
                     order
                         .apply(left_val.total_cmp(right_val))
-                        .then_with(|| left.key.cmp(&right.key))
+                        .then_with(|| left.cmp_key(right))
                 });
                 buckets = buckets_with_val
                     .into_iter()
@@ -1082,7 +1092,7 @@ impl IntermediateTermBucketResult {
         };
 
         Ok(BucketResult::Terms {
-            buckets,
+            buckets: buckets.into_iter().map(|bucket| bucket.entry).collect(),
             sum_other_doc_count: self.sum_other_doc_count + sum_other_doc_count,
             doc_count_error_upper_bound,
         })
@@ -1151,33 +1161,21 @@ impl IntermediateTermBucketResult {
                     entries = keyed.into_iter().map(|(_, entry)| entry).collect();
                 }
                 OrderTarget::Count => {
-                    // Match the final result ordering at every pruning level: equal counts are
-                    // ordered by key ascending, making the selected bucket set deterministic.
                     let mut keyed: Vec<(Key, (IntermediateKey, IntermediateTermBucketEntry))> =
                         entries
                             .into_iter()
                             .map(|entry| (entry.0.clone().into(), entry))
                             .collect();
-                    if req_internal.order.order == Order::Desc {
-                        keyed.select_nth_unstable_by(
-                            size,
-                            |(left_key, (_, left)), (right_key, (_, right))| {
-                                right
-                                    .doc_count
-                                    .cmp(&left.doc_count)
-                                    .then_with(|| left_key.cmp(right_key))
-                            },
-                        );
-                    } else {
-                        keyed.select_nth_unstable_by(
-                            size,
-                            |(left_key, (_, left)), (right_key, (_, right))| {
-                                left.doc_count
-                                    .cmp(&right.doc_count)
-                                    .then_with(|| left_key.cmp(right_key))
-                            },
-                        );
-                    }
+                    let order = req_internal.order.order;
+                    keyed.select_nth_unstable_by(
+                        size,
+                        |(left_key, (left_id, left)), (right_key, (right_id, right))| {
+                            order
+                                .apply(left.doc_count.cmp(&right.doc_count))
+                                .then_with(|| left_key.cmp(right_key))
+                                .then_with(|| left_id.variant_ord().cmp(&right_id.variant_ord()))
+                        },
+                    );
                     entries = keyed.into_iter().map(|(_, entry)| entry).collect();
                 }
             }

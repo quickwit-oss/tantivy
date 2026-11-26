@@ -181,7 +181,7 @@ impl SegmentAggregationCollector for SegmentNumericCardinalityCollector {
         sub_agg_property: &str,
         _agg_data: &AggregationsSegmentCtx,
     ) -> Option<f64> {
-        if self.name != sub_agg_name || !sub_agg_property.is_empty() {
+        if self.name != sub_agg_name || !matches!(sub_agg_property, "" | "value") {
             return None;
         }
         let cardinality = self.buckets.get(bucket_id as usize)?.as_ref()?;

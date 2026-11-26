@@ -1717,6 +1717,21 @@ fn test_terms_tie_break_at_segment_cutoff() -> crate::Result<()> {
             assert_eq!(buckets[1]["key"], "apricot", "{order} {direction}");
         }
     }
+    let request = serde_json::from_value(json!({
+        "fruits": {
+            "terms": {"field": "fruit", "missing": "banana", "size": 1, "segment_size": 1,
+                      "order": {"total.value": "desc"}},
+            "aggs": {"total": {"sum": {"field": "price"}}}
+        }
+    }))?;
+    let result = crate::aggregation::tests::exec_request(request, &index)?;
+    assert_eq!(
+        result["fruits"]["buckets"],
+        json!([
+            {"key": "banana", "doc_count": 2, "total": {"value": 10.0}}
+        ])
+    );
+    assert_eq!(result["fruits"]["sum_other_doc_count"], 1);
     Ok(())
 }
 
@@ -1760,34 +1775,39 @@ fn test_terms_metric_order_with_empty_bucket() -> crate::Result<()> {
 }
 
 #[test]
-fn test_terms_tie_break_by_ip_key_at_segment_cutoff() -> crate::Result<()> {
+fn test_terms_ip_ties_at_segment_cutoff_and_shard_merge() -> crate::Result<()> {
     let mut schema = Schema::builder();
     let ip = schema.add_ip_addr_field("ip", FAST);
-    let index = Index::create_in_ram(schema.build());
-    let mut writer = index.writer_for_tests()?;
-    for first_octet in [2, 10] {
-        let addr = std::net::Ipv4Addr::new(first_octet, 0, 0, 1).to_ipv6_mapped();
-        writer.add_document(doc!(ip => addr))?;
+    let score = schema.add_u64_field("score", FAST);
+    let schema = schema.build();
+    let addr = |first| std::net::Ipv4Addr::new(first, 0, 0, 1).to_ipv6_mapped();
+    let a = Index::create_in_ram(schema.clone());
+    let mut writer = a.writer_for_tests()?;
+    for _ in 0..2 {
+        writer.add_document(doc!(ip => addr(10), score => 5u64))?;
+        writer.add_document(doc!(ip => addr(2), score => 5u64))?;
     }
     writer.commit()?;
 
     let request = serde_json::from_value(json!({
         "ips": {"terms": {"field": "ip", "size": 1, "segment_size": 1}}
     }))?;
-    let result = crate::aggregation::tests::exec_request(request, &index)?;
+    let result = crate::aggregation::tests::exec_request(request, &a)?;
     assert_eq!(result["ips"]["buckets"][0]["key"], "10.0.0.1");
-    Ok(())
-}
 
-#[test]
-fn test_terms_metric_tie_break_after_merge() -> crate::Result<()> {
-    let a = get_test_index_from_values_and_terms(false, &[vec![(5.0, "a".to_string())]])?;
-    let b = get_test_index_from_values_and_terms(false, &[vec![(5.0, "b".to_string())]])?;
+    let b = Index::create_in_ram(schema);
+    let mut writer = b.writer_for_tests()?;
+    writer.add_document(doc!(ip => addr(2), score => 5u64))?;
+    writer.add_document(doc!(score => 5u64))?;
+    writer.commit()?;
+
+    let mut expected_bucket = None;
     for direction in ["asc", "desc"] {
         let request: Aggregations = serde_json::from_value(json!({
             "terms": {
-                "terms": {"field": "string_id", "size": 1, "order": {"avg_score": direction}},
-                "aggs": {"avg_score": {"avg": {"field": "score_f64"}}}
+                "terms": {"field": "ip", "size": 1, "missing": "10.0.0.1",
+                          "order": {"avg_score": direction}},
+                "aggs": {"avg_score": {"avg": {"field": "score"}}}
             }
         }))?;
         let collector =
@@ -1804,8 +1824,11 @@ fn test_terms_metric_tie_break_after_merge() -> crate::Result<()> {
                 }
                 let result = result.into_final_result(request.clone(), Default::default())?;
                 let result = serde_json::to_value(result)?;
+                let bucket = &result["terms"]["buckets"][0];
+                assert_eq!(bucket["key"], "10.0.0.1");
                 assert_eq!(
-                    result["terms"]["buckets"][0]["key"], "a",
+                    expected_bucket.get_or_insert_with(|| bucket.clone()),
+                    bucket,
                     "{direction} {prune}"
                 );
             }
