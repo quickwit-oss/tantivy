@@ -1308,7 +1308,9 @@ mod tests {
             reader.reload().unwrap();
             let searcher = reader.searcher();
             let term = Term::from_field_text(text_field, s);
-            searcher.doc_freq(&term).unwrap()
+            // doc_freq would also count deleted documents of a segment that is still alive
+            let query = TermQuery::new(term, IndexRecordOption::Basic);
+            searcher.search(&query, &Count).unwrap()
         };
         let mut index_writer = index
             .writer_with_num_threads(4, MEMORY_BUDGET_NUM_BYTES_MIN * 4)
