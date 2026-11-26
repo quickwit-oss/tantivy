@@ -135,11 +135,7 @@ fn decode_dict_entries_scalar_uninit(
 }
 
 #[cfg(test)]
-fn decode_dict_entries_scalar(
-    token_lens: &[u8],
-    dict_entries: &mut [DictEntry],
-    token_start: u32,
-) {
+fn decode_dict_entries_scalar(token_lens: &[u8], dict_entries: &mut [DictEntry], token_start: u32) {
     // SAFETY: `MaybeUninit<DictEntry>` has the same layout as `DictEntry`, and
     // `decode_dict_entries_scalar_uninit` only writes initialized `DictEntry` values.
     let uninit = unsafe {

@@ -2,10 +2,10 @@
 //!
 //! Encodes a non-decreasing `u32` sequence `offsets[0..num_vals]` in two levels, with zero
 //! allocation and O(1) work on open:
-//! - Level 1 (`bases`): the first value of each `BLOCK_SIZE`-element block,
-//!   `bases[block_id] = offsets[block_id * BLOCK_SIZE]`, bitpacked on `base_bit_width` bits.
-//! - Level 2 (`deltas`): within-block deltas for elements `1..BLOCK_SIZE` of each block
-//!   (omitting element `0`, whose delta is always `0`), bitpacked on `delta_bit_width` bits.
+//! - Level 1 (`bases`): the first value of each `BLOCK_SIZE`-element block, `bases[block_id] =
+//!   offsets[block_id * BLOCK_SIZE]`, bitpacked on `base_bit_width` bits.
+//! - Level 2 (`deltas`): within-block deltas for elements `1..BLOCK_SIZE` of each block (omitting
+//!   element `0`, whose delta is always `0`), bitpacked on `delta_bit_width` bits.
 //!
 //! ```text
 //! offset  size                                          field
