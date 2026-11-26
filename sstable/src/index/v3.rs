@@ -3,8 +3,8 @@ use std::sync::Arc;
 
 use common::{BinarySerializable, FixedSize, OwnedBytes};
 use tantivy_bitpacker::{BitPacker, compute_num_bits};
-use tantivy_fst::raw::Fst;
-use tantivy_fst::{Automaton, IntoStreamer, Map, Streamer};
+use tantivy_fst::raw::{Fst, Output};
+use tantivy_fst::{Automaton, Map, Streamer};
 
 use super::{BlockAddr, BlockStartAddr};
 use crate::block_match_automaton::can_block_match_automaton;
@@ -44,12 +44,53 @@ impl SSTableIndexV3 {
     ///
     /// Returns None if `key` is lexicographically after the last key recorded.
     pub(crate) fn locate_with_key(&self, key: &[u8]) -> Option<u64> {
-        self.fst_index
-            .range()
-            .ge(key)
-            .into_stream()
-            .next()
-            .map(|(_key, id)| id)
+        let fst = self.fst_index.as_fst();
+        if fst.is_empty() {
+            return None;
+        }
+        let mut node = fst.root();
+        let mut out = Output::zero();
+        // Deepest ancestor with a transition strictly greater than the matched key byte.
+        let mut fallback: Option<(usize, usize, Output)> = None;
+
+        for &b in key {
+            if let Some(ti) = node.find_input(b) {
+                if ti + 1 < node.len() {
+                    fallback = Some((node.addr(), ti + 1, out));
+                }
+                let t = node.transition(ti);
+                out = out.cat(t.out);
+                node = fst.node(t.addr);
+            } else {
+                let mut lo = 0;
+                let mut hi = node.len();
+                while lo < hi {
+                    let mid = (lo + hi) / 2;
+                    if node.transition(mid).inp < b {
+                        lo = mid + 1;
+                    } else {
+                        hi = mid;
+                    }
+                }
+                let t = if lo < node.len() {
+                    node.transition(lo)
+                } else {
+                    let (addr, ti, f_out) = fallback?;
+                    out = f_out;
+                    fst.node(addr).transition(ti)
+                };
+                out = out.cat(t.out);
+                node = fst.node(t.addr);
+                break;
+            }
+        }
+
+        while !node.is_final() {
+            let t = node.transition(0);
+            out = out.cat(t.out);
+            node = fst.node(t.addr);
+        }
+        Some(out.cat(node.final_output()).value())
     }
 
     /// Get the [`BlockAddr`] of the block that would contain `key`.
@@ -764,5 +805,35 @@ mod tests {
                 )
             ]
         );
+    }
+
+    #[test]
+    fn test_locate_with_key_matches_fst_range() {
+        use tantivy_fst::IntoStreamer;
+
+        let mut builder = SSTableIndexBuilder::default();
+        let keys: &[&[u8]] = &[b"ba", b"baa", b"bad", b"cat", b"dog", b"doge"];
+        for (i, key) in keys.iter().enumerate() {
+            let start = i * 10;
+            builder.add_block(key, start..start + 10, (i * 5) as u64);
+        }
+        let mut buf = Vec::new();
+        let fst_len = builder.serialize(&mut buf).unwrap();
+        let index = SSTableIndexV3::load(OwnedBytes::new(buf), fst_len).unwrap();
+
+        let probes: &[&[u8]] = &[
+            b"", b"a", b"b", b"ba", b"baa", b"baaa", b"bab", b"bac", b"bad", b"bae", b"baz", b"c",
+            b"ca", b"cat", b"catz", b"d", b"do", b"dog", b"dogd", b"doge", b"dogf", b"e", b"zzz",
+        ];
+        for probe in probes {
+            let expected = index
+                .fst_index
+                .range()
+                .ge(probe)
+                .into_stream()
+                .next()
+                .map(|(_, id)| id);
+            assert_eq!(index.locate_with_key(probe), expected, "probe={probe:?}");
+        }
     }
 }
