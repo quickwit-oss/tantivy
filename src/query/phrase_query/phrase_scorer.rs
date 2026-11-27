@@ -58,6 +58,8 @@ pub struct PhraseScorer<TPostings: Postings> {
     left_slops: Vec<u8>,
     positions_buffer: Vec<u32>,
     slops_buffer: Vec<u8>,
+    /// Positions of every term in the current doc. Only used by sloppy phrases of 3+ terms.
+    term_positions: Vec<Vec<u32>>,
 }
 
 /// Returns true if and only if the two sorted arrays contain a common element
@@ -215,6 +217,48 @@ fn intersection_exists_with_slop(
         }
     }
     false
+}
+
+/// Returns true if one position per term can be chosen such that the total slop is at most
+/// `max_slop`.
+///
+/// `term_positions[i]` are the sorted positions of the i-th term, already shifted by the term's
+/// offset, so that a perfect phrase has the same value for every term. The slop of a choice
+/// of positions is the sum of the distances between each chosen position and the best common
+/// alignment point (the median). This is the "budget between all terms" of `PhraseQuery::slop`:
+/// e.g. moving one term by one position costs 1, and swapping two adjacent terms costs 2.
+///
+/// The minimum over all choices is `min_x sum_i dist(x, term_positions[i])`. That function is
+/// piecewise linear, and its minimum is reached at one of the positions. So it is enough to try
+/// every position as the alignment point, and to pick the closest position for each term.
+///
+/// Unlike the incremental `intersection_count_with_carrying_slop`, this does not rely on
+/// intermediate (position, slop) states, which cannot represent all the alignments.
+fn exists_with_slop_alignment(term_positions: &[Vec<u32>], max_slop: u32) -> bool {
+    if term_positions.iter().any(|positions| positions.is_empty()) {
+        return false;
+    }
+    let max_slop = max_slop as u64;
+    term_positions.iter().flatten().any(|&alignment_point| {
+        let mut total_slop = 0u64;
+        for positions in term_positions {
+            let next_idx = positions.partition_point(|&pos| pos < alignment_point);
+            let dist_to_next = positions.get(next_idx).map(|&pos| pos - alignment_point);
+            let dist_to_prev = next_idx
+                .checked_sub(1)
+                .map(|prev_idx| alignment_point - positions[prev_idx]);
+            let dist = match (dist_to_prev, dist_to_next) {
+                (Some(prev), Some(next)) => prev.min(next),
+                (Some(dist), None) | (None, Some(dist)) => dist,
+                (None, None) => unreachable!("positions are not empty"),
+            };
+            total_slop += dist as u64;
+            if total_slop > max_slop {
+                return false;
+            }
+        }
+        true
+    })
 }
 
 /// Intersection variant for multi term searches that keeps track of slop so far.
@@ -440,6 +484,7 @@ impl<TPostings: Postings> PhraseScorer<TPostings> {
             left_slops: Vec::with_capacity(100),
             slops_buffer: Vec::with_capacity(100),
             positions_buffer: Vec::with_capacity(100),
+            term_positions: Vec::new(),
         };
         let doc = scorer.doc();
         debug_assert!(doc >= target);
@@ -467,6 +512,18 @@ impl<TPostings: Postings> PhraseScorer<TPostings> {
     }
 
     fn phrase_match(&mut self) -> bool {
+        if self.needs_exact_slop_check() {
+            if !self.sloppy_phrase_exists() {
+                return false;
+            }
+            if self.similarity_weight_opt.is_some() {
+                // The carrying-slop count is only a greedy approximation used for the score,
+                // and it can miss a match that exists. Matching must not depend on whether
+                // scoring is enabled, so a verified match counts at least once.
+                self.phrase_count = self.compute_phrase_count().max(1);
+            }
+            return true;
+        }
         if self.similarity_weight_opt.is_some() {
             let count = self.compute_phrase_count();
             self.phrase_count = count;
@@ -487,6 +544,24 @@ impl<TPostings: Postings> PhraseScorer<TPostings> {
         } else {
             intersection_exists(&self.left_positions, &self.right_positions[..])
         }
+    }
+
+    /// Sloppy phrases of 3+ terms spend their slop budget across all the terms. The incremental
+    /// merge only keeps a few (position, slop) states per step, so it can both miss matches and
+    /// report slop that is too low. Those phrases are checked on all the positions of the doc.
+    fn needs_exact_slop_check(&self) -> bool {
+        self.has_slop() && self.num_terms > 2
+    }
+
+    /// Exact check that a choice of one position per term costs at most `slop`.
+    fn sloppy_phrase_exists(&mut self) -> bool {
+        self.term_positions.resize_with(self.num_terms, Vec::new);
+        for (term_ord, positions) in self.term_positions.iter_mut().enumerate() {
+            self.intersection_docset
+                .docset_mut_specialized(term_ord)
+                .positions(positions);
+        }
+        exists_with_slop_alignment(&self.term_positions, self.slop)
     }
 
     fn compute_phrase_count(&mut self) -> u32 {

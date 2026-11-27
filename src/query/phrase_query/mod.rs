@@ -256,6 +256,227 @@ pub(crate) mod tests {
     }
 
     #[test]
+    pub fn test_phrase_slop_matches_same_docs_with_and_without_scoring() -> crate::Result<()> {
+        // The slop spent between earlier terms of the phrase has to be accounted for
+        // when scoring is disabled too. Otherwise `Count` (or a filter) matches
+        // documents that `TopDocs` never returns.
+        let index = create_index(&["a x b x c", "a b c", "a h d", "a x b c"])?;
+        let text_field = index.schema().get_field("text").unwrap();
+        let searcher = index.reader()?.searcher();
+        let matching_docs = |slop: u32, texts: &[&str], with_scoring: bool| -> Vec<DocId> {
+            let terms: Vec<Term> = texts
+                .iter()
+                .map(|text| Term::from_field_text(text_field, text))
+                .collect();
+            let mut phrase_query = PhraseQuery::new(terms);
+            phrase_query.set_slop(slop);
+            let collector = if with_scoring {
+                &TEST_COLLECTOR_WITH_SCORE
+            } else {
+                &TEST_COLLECTOR_WITHOUT_SCORE
+            };
+            searcher
+                .search(&phrase_query, collector)
+                .unwrap()
+                .docs()
+                .iter()
+                .map(|doc_address| doc_address.doc_id)
+                .collect()
+        };
+        for (slop, texts, expected) in [
+            (1, &["a", "b", "c"][..], vec![1, 3]),
+            (2, &["a", "b", "c"][..], vec![0, 1, 3]),
+            (1, &["a", "d", "h"][..], vec![]),
+        ] {
+            assert_eq!(matching_docs(slop, texts, true), expected);
+            assert_eq!(matching_docs(slop, texts, false), expected);
+        }
+        Ok(())
+    }
+
+    #[test]
+    pub fn test_phrase_slop_match_missed_by_greedy_count() -> crate::Result<()> {
+        // `c a b` matches `"a b c"~3`, but the greedy carrying-slop count skips it.
+        let index = create_index(&["b x a c a b"])?;
+        let scores = test_query(3, &index, vec!["a", "b", "c"]);
+        assert_eq!(scores.len(), 1);
+        let text_field = index.schema().get_field("text").unwrap();
+        let mut phrase_query = PhraseQuery::new(
+            ["a", "b", "c"]
+                .iter()
+                .map(|text| Term::from_field_text(text_field, text))
+                .collect(),
+        );
+        phrase_query.set_slop(3);
+        let searcher = index.reader()?.searcher();
+        let docs = searcher.search(&phrase_query, &TEST_COLLECTOR_WITHOUT_SCORE)?;
+        assert_eq!(docs.docs().len(), 1);
+        Ok(())
+    }
+
+    /// Doc ids matching the sloppy phrase, with or without scoring.
+    fn phrase_matching_docs(
+        index: &Index,
+        slop: u32,
+        texts: &[&str],
+        with_scoring: bool,
+    ) -> Vec<DocId> {
+        let text_field = index.schema().get_field("text").unwrap();
+        let searcher = index.reader().unwrap().searcher();
+        let terms: Vec<Term> = texts
+            .iter()
+            .map(|text| Term::from_field_text(text_field, text))
+            .collect();
+        let mut phrase_query = PhraseQuery::new(terms);
+        phrase_query.set_slop(slop);
+        let collector = if with_scoring {
+            &TEST_COLLECTOR_WITH_SCORE
+        } else {
+            &TEST_COLLECTOR_WITHOUT_SCORE
+        };
+        let mut docs: Vec<DocId> = searcher
+            .search(&phrase_query, collector)
+            .unwrap()
+            .docs()
+            .iter()
+            .map(|doc_address| doc_address.doc_id)
+            .collect();
+        docs.sort_unstable();
+        docs
+    }
+
+    #[test]
+    pub fn test_phrase_slop_interior_alignment_point() -> crate::Result<()> {
+        // `"a b c"~3` on `a x x c b`: the adjusted positions are a=2, b=5, c=3. Aligning
+        // all terms at 3 costs 1 + 2 + 0 = 3, so the document matches. The intermediate
+        // merge of `a` and `b` must not hide the interior point 3 from the last term.
+        let index = create_index(&["a x x c b"])?;
+        for with_scoring in [false, true] {
+            assert_eq!(
+                phrase_matching_docs(&index, 3, &["a", "b", "c"], with_scoring),
+                vec![0],
+                "with_scoring={with_scoring}"
+            );
+            assert!(phrase_matching_docs(&index, 2, &["a", "b", "c"], with_scoring).is_empty());
+        }
+        Ok(())
+    }
+
+    #[test]
+    pub fn test_phrase_slop_does_not_promote_non_match() -> crate::Result<()> {
+        // `"a b c d"~6` on `x x b d c c a b`: the cheapest choice of one position per term
+        // (b=2, a=6, c=4, d=3) costs 7, which is above the slop. Carried slop of the
+        // intermediate merges understates it, but the document must not match.
+        let index = create_index(&["x x b d c c a b"])?;
+        for with_scoring in [false, true] {
+            assert!(
+                phrase_matching_docs(&index, 6, &["a", "b", "c", "d"], with_scoring).is_empty(),
+                "with_scoring={with_scoring}"
+            );
+            assert_eq!(
+                phrase_matching_docs(&index, 7, &["a", "b", "c", "d"], with_scoring),
+                vec![0],
+                "with_scoring={with_scoring}"
+            );
+        }
+        Ok(())
+    }
+
+    /// Reference for sloppy phrase matching: the minimal total cost over all choices of one
+    /// position per term, where the cost of a choice is the sum of the distances from each
+    /// (offset adjusted) position to the best common alignment point.
+    fn naive_phrase_matches(doc_tokens: &[&str], phrase: &[&str], slop: u32) -> bool {
+        let positions: Vec<Vec<i64>> = phrase
+            .iter()
+            .enumerate()
+            .map(|(term_idx, term)| {
+                doc_tokens
+                    .iter()
+                    .enumerate()
+                    .filter(|(_, token)| *token == term)
+                    .map(|(pos, _)| pos as i64 - term_idx as i64)
+                    .collect()
+            })
+            .collect();
+        if positions
+            .iter()
+            .any(|term_positions| term_positions.is_empty())
+        {
+            return false;
+        }
+        let mut choice = vec![0usize; phrase.len()];
+        loop {
+            let mut chosen: Vec<i64> = choice
+                .iter()
+                .enumerate()
+                .map(|(term_idx, &i)| positions[term_idx][i])
+                .collect();
+            chosen.sort_unstable();
+            let median = chosen[chosen.len() / 2];
+            let cost: i64 = chosen.iter().map(|pos| (pos - median).abs()).sum();
+            if cost <= slop as i64 {
+                return true;
+            }
+            // Advance the mixed-radix counter.
+            let mut term_idx = 0;
+            loop {
+                if term_idx == choice.len() {
+                    return false;
+                }
+                choice[term_idx] += 1;
+                if choice[term_idx] < positions[term_idx].len() {
+                    break;
+                }
+                choice[term_idx] = 0;
+                term_idx += 1;
+            }
+        }
+    }
+
+    #[test]
+    pub fn test_sloppy_phrase_matches_naive_reference() -> crate::Result<()> {
+        use rand::rngs::StdRng;
+        use rand::{Rng, SeedableRng};
+
+        const ALPHABET: [&str; 4] = ["a", "b", "c", "d"];
+        let mut rng = StdRng::seed_from_u64(0x5107);
+        let texts: Vec<String> = (0..400)
+            .map(|_| {
+                let len = rng.random_range(2..=12);
+                (0..len)
+                    .map(|_| ALPHABET[rng.random_range(0..ALPHABET.len())])
+                    .collect::<Vec<_>>()
+                    .join(" ")
+            })
+            .collect();
+        let index = create_index(&texts)?;
+        for _ in 0..60 {
+            let num_terms = rng.random_range(2..=5);
+            let phrase: Vec<&str> = (0..num_terms)
+                .map(|_| ALPHABET[rng.random_range(0..ALPHABET.len())])
+                .collect();
+            let slop = rng.random_range(0..=8);
+            let expected: Vec<DocId> = texts
+                .iter()
+                .enumerate()
+                .filter(|(_, text)| {
+                    let tokens: Vec<&str> = text.split(' ').collect();
+                    naive_phrase_matches(&tokens, &phrase, slop)
+                })
+                .map(|(doc_id, _)| doc_id as DocId)
+                .collect();
+            for with_scoring in [false, true] {
+                assert_eq!(
+                    phrase_matching_docs(&index, slop, &phrase, with_scoring),
+                    expected,
+                    "phrase={phrase:?} slop={slop} with_scoring={with_scoring}"
+                );
+            }
+        }
+        Ok(())
+    }
+
+    #[test]
     pub fn test_phrase_score_with_slop_ordering() -> crate::Result<()> {
         let index = create_index(&[
             "a e b e c",
