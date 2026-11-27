@@ -1292,30 +1292,101 @@ mod tests {
 
     #[cfg(feature = "plain_codec")]
     #[test]
-    fn test_merge_plain_fast_field_returns_error() {
+    fn test_merge_plain_fast_fields() {
+        use std::collections::BTreeMap;
+
+        use columnar::{ColumnType, DynamicColumn, PlainBytesColumn, StrColumnCodec};
+
         let mut schema_builder = schema::Schema::builder();
-        let text_options =
-            schema::TextOptions::default().set_fast_codec(columnar::StrColumnCodec::Plain);
-        let text_field = schema_builder.add_text_field("text", text_options);
+        let plain_text_options =
+            schema::TextOptions::default().set_fast_codec(StrColumnCodec::Plain);
+        let text_field = schema_builder.add_text_field("text", plain_text_options.clone());
+        // A plain fast field without any value.
+        schema_builder.add_text_field("never_set", plain_text_options);
+        let bytes_field = schema_builder.add_bytes_field(
+            "bytes",
+            schema::BytesOptions::default().set_fast_codec(StrColumnCodec::Plain),
+        );
+        let id_field = schema_builder.add_u64_field("id", FAST | INDEXED);
         let index = Index::create_in_ram(schema_builder.build());
         let mut index_writer: IndexWriter = index.writer_for_tests().unwrap();
         index_writer.set_merge_policy(Box::new(NoMergePolicy));
-        index_writer.add_document(doc!(text_field => "a")).unwrap();
+        index_writer
+            .add_document(doc!(id_field => 0u64, text_field => "a", text_field => "a2"))
+            .unwrap();
+        index_writer
+            .add_document(doc!(id_field => 1u64, text_field => "deleted"))
+            .unwrap();
         index_writer.commit().unwrap();
-        index_writer.add_document(doc!(text_field => "b")).unwrap();
+        index_writer
+            .add_document(doc!(id_field => 2u64, bytes_field => b"b".as_ref()))
+            .unwrap();
+        index_writer.add_document(doc!(id_field => 3u64)).unwrap();
         index_writer.commit().unwrap();
-        // `IndexWriter::merge` panics on merge errors in tests: the merger is called directly.
-        let segments = index.searchable_segments().unwrap();
-        assert_eq!(segments.len(), 2);
-        let merger =
-            super::IndexMerger::open(index.schema(), index.settings().clone(), &segments).unwrap();
-        let merge_error = merger.write(&index.new_segment()).unwrap_err();
-        assert!(
-            merge_error
-                .to_string()
-                .contains("merging plain-encoded columns is not supported"),
-            "unexpected error: {merge_error}"
-        );
+        index_writer
+            .add_document(doc!(id_field => 4u64, text_field => "c", bytes_field => b"c".as_ref()))
+            .unwrap();
+        index_writer.commit().unwrap();
+        // The delete makes the merge go through the shuffled merge order.
+        index_writer.delete_term(Term::from_field_u64(id_field, 1));
+        index_writer.commit().unwrap();
+        let segment_ids = index.searchable_segment_ids().unwrap();
+        assert_eq!(segment_ids.len(), 3);
+        index_writer.merge(&segment_ids).wait().unwrap();
+        index_writer.wait_merging_threads().unwrap();
+
+        let reader = index.reader().unwrap();
+        let searcher = reader.searcher();
+        assert_eq!(searcher.segment_readers().len(), 1);
+        let segment_reader = searcher.segment_reader(0);
+        assert_eq!(segment_reader.num_docs(), 4);
+        let fast_fields = segment_reader.fast_fields();
+        let id_column = fast_fields.u64("id").unwrap();
+
+        // Returns the values of the plain column `field_name`, by `id`.
+        let values_by_id = |field_name: &str, column_type: ColumnType| {
+            let dynamic_column = fast_fields
+                .dynamic_column_handle(field_name, column_type)
+                .unwrap()
+                .unwrap()
+                .open()
+                .unwrap();
+            let plain_bytes_column: PlainBytesColumn = match dynamic_column {
+                DynamicColumn::PlainStr(plain_str_column) => plain_str_column.into(),
+                DynamicColumn::PlainBytes(plain_bytes_column) => plain_bytes_column,
+                _ => panic!("expected a plain column for `{field_name}`"),
+            };
+            let mut reader = plain_bytes_column.reader();
+            let mut values_by_id: BTreeMap<u64, Vec<Vec<u8>>> = BTreeMap::new();
+            for doc in 0..segment_reader.max_doc() {
+                let id = id_column.first(doc).unwrap();
+                let mut doc_values: Vec<Vec<u8>> = Vec::new();
+                reader
+                    .for_each_value(doc, |value| doc_values.push(value.to_vec()))
+                    .unwrap();
+                values_by_id.insert(id, doc_values);
+            }
+            values_by_id
+        };
+        let expected_text: BTreeMap<u64, Vec<Vec<u8>>> = BTreeMap::from([
+            (0, vec![b"a".to_vec(), b"a2".to_vec()]),
+            (2, vec![]),
+            (3, vec![]),
+            (4, vec![b"c".to_vec()]),
+        ]);
+        assert_eq!(values_by_id("text", ColumnType::Str), expected_text);
+        let expected_bytes: BTreeMap<u64, Vec<Vec<u8>>> = BTreeMap::from([
+            (0, vec![]),
+            (2, vec![b"b".to_vec()]),
+            (3, vec![]),
+            (4, vec![b"c".to_vec()]),
+        ]);
+        assert_eq!(values_by_id("bytes", ColumnType::Bytes), expected_bytes);
+        // A required plain column with no value stays plain.
+        let never_set_values = values_by_id("never_set", ColumnType::Str);
+        assert!(never_set_values
+            .values()
+            .all(|doc_values| doc_values.is_empty()));
     }
 
     #[derive(Debug, Clone, Copy, Eq, PartialEq)]

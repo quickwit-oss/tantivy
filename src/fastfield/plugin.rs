@@ -8,6 +8,7 @@ use std::collections::BTreeMap;
 
 use columnar::{
     ColumnType, ColumnarReader, MergeRowOrder, RowAddr, ShuffleMergeOrder, StackMergeOrder,
+    StrColumnCodec,
 };
 use common::TerminatingWrite;
 use measure_time::debug_time;
@@ -18,7 +19,7 @@ use crate::index::{SegmentComponent, SegmentReader};
 use crate::indexer::doc_id_mapping::{DocIdMapping, MappingType, SegmentDocIdMapping};
 use crate::plugin::{PluginMergeContext, PluginWriter, PluginWriterContext, SegmentPlugin};
 use crate::schema::document::Document;
-use crate::schema::{value_type_to_column_type, Schema};
+use crate::schema::{value_type_to_column_type, FieldType, Schema};
 use crate::space_usage::{ComponentSpaceUsage, FAST_FIELDS};
 use crate::Segment;
 
@@ -53,7 +54,7 @@ impl SegmentPlugin for FastFieldsPlugin {
         let doc_id_mapping = ctx.doc_id_mapping.clone();
         let merge_row_order = convert_to_merge_order(&columnars[..], doc_id_mapping);
 
-        columnar::merge_columnar(
+        columnar::merge_columnar_with_codecs(
             &columnars[..],
             &required_columns,
             merge_row_order,
@@ -173,7 +174,13 @@ fn convert_to_merge_order(
     }
 }
 
-fn extract_fast_field_required_columns(schema: &Schema) -> Vec<(String, ColumnType)> {
+/// Returns the columns of the fast fields of `schema`, with the codec of their values.
+///
+/// The codec is `Dictionary` for all of the fields, except text and bytes fields configured
+/// with another codec.
+fn extract_fast_field_required_columns(
+    schema: &Schema,
+) -> Vec<(String, ColumnType, StrColumnCodec)> {
     schema
         .fields()
         .map(|(_, field_entry)| field_entry)
@@ -181,7 +188,13 @@ fn extract_fast_field_required_columns(schema: &Schema) -> Vec<(String, ColumnTy
         .filter_map(|field_entry| {
             let column_name = field_entry.name().to_string();
             let column_type = value_type_to_column_type(field_entry.field_type().value_type())?;
-            Some((column_name, column_type))
+            let codec_opt = match field_entry.field_type() {
+                FieldType::Str(text_options) => text_options.get_fast_field_codec(),
+                FieldType::Bytes(bytes_options) => bytes_options.get_fast_field_codec(),
+                _ => None,
+            };
+            let codec = codec_opt.unwrap_or(StrColumnCodec::Dictionary);
+            Some((column_name, column_type, codec))
         })
         .collect()
 }

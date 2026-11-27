@@ -639,27 +639,227 @@ proptest! {
 }
 
 #[cfg(feature = "plain_codec")]
-#[test]
-fn test_merge_columnar_plain_column_returns_error() {
-    use crate::StrColumnCodec;
-    let mut columnar_writer = ColumnarWriter::default();
-    columnar_writer.set_str_column_codec("texts", ColumnType::Str, StrColumnCodec::Plain);
-    columnar_writer.record_str(0, "texts", "a");
-    let mut plain_buffer: Vec<u8> = Vec::new();
-    columnar_writer
-        .serialize(1, None, &mut plain_buffer)
+mod plain {
+    use super::*;
+    use crate::{PlainBytesColumn, RowAddr, StrColumnCodec};
+
+    /// Builds a columnar with a single plain `Str` column.
+    fn make_plain_columnar(column_name: &str, rows: &[&[&str]]) -> ColumnarReader {
+        let mut columnar_writer = ColumnarWriter::default();
+        columnar_writer.set_str_column_codec(column_name, ColumnType::Str, StrColumnCodec::Plain);
+        for (row_id, row_values) in rows.iter().enumerate() {
+            for value in row_values.iter() {
+                columnar_writer.record_str(row_id as RowId, column_name, value);
+            }
+        }
+        let mut buffer: Vec<u8> = Vec::new();
+        columnar_writer
+            .serialize(rows.len() as RowId, None, &mut buffer)
+            .unwrap();
+        ColumnarReader::open(buffer).unwrap()
+    }
+
+    fn merge(
+        columnars: &[&ColumnarReader],
+        required_columns: &[(String, ColumnType, StrColumnCodec)],
+        merge_row_order: MergeRowOrder,
+    ) -> ColumnarReader {
+        let mut buffer: Vec<u8> = Vec::new();
+        crate::columnar::merge_columnar_with_codecs(
+            columnars,
+            required_columns,
+            merge_row_order,
+            &mut buffer,
+        )
         .unwrap();
-    let plain_columnar = ColumnarReader::open(plain_buffer).unwrap();
-    let dictionary_columnar = make_text_columnar_multiple_columns(&[("texts", &[&["b"]])]);
-    let columnars = &[&plain_columnar, &dictionary_columnar];
-    let stack_merge_order = StackMergeOrder::stack(columnars);
-    let mut buffer = Vec::new();
-    let merge_error = crate::columnar::merge_columnar(
-        columnars,
-        &[],
-        MergeRowOrder::Stack(stack_merge_order),
-        &mut buffer,
-    )
-    .unwrap_err();
-    assert_eq!(merge_error.kind(), io::ErrorKind::InvalidInput);
+        ColumnarReader::open(buffer).unwrap()
+    }
+
+    fn stack(columnars: &[&ColumnarReader]) -> MergeRowOrder {
+        MergeRowOrder::Stack(StackMergeOrder::stack(columnars))
+    }
+
+    /// Returns the values of each row of the plain `Str` column `column_name`.
+    fn plain_str_values(columnar: &ColumnarReader, column_name: &str) -> Vec<Vec<String>> {
+        let handles = columnar.read_columns(column_name).unwrap();
+        assert_eq!(handles.len(), 1);
+        let DynamicColumn::PlainStr(plain_str_column) = handles[0].open().unwrap() else {
+            panic!("expected a plain str column");
+        };
+        let plain_bytes_column = PlainBytesColumn::from(plain_str_column);
+        let mut reader = plain_bytes_column.reader();
+        let mut values_per_row: Vec<Vec<String>> = Vec::with_capacity(columnar.num_docs() as usize);
+        for row_id in 0..columnar.num_docs() {
+            let mut row_values: Vec<String> = Vec::new();
+            reader
+                .for_each_value(row_id, |value| {
+                    row_values.push(String::from_utf8(value.to_vec()).unwrap())
+                })
+                .unwrap();
+            values_per_row.push(row_values);
+        }
+        values_per_row
+    }
+
+    fn to_strings(values_per_row: &[&[&str]]) -> Vec<Vec<String>> {
+        values_per_row
+            .iter()
+            .map(|row_values| row_values.iter().map(|value| value.to_string()).collect())
+            .collect()
+    }
+
+    #[test]
+    fn test_merge_columnar_plain_with_dictionary_column() {
+        let plain_columnar = make_plain_columnar("texts", &[&["a"]]);
+        let dictionary_columnar = make_text_columnar_multiple_columns(&[("texts", &[&["b"]])]);
+        let columnars = &[&plain_columnar, &dictionary_columnar];
+        let merged = merge(columnars, &[], stack(columnars));
+        assert_eq!(merged.num_docs(), 2);
+        assert_eq!(
+            plain_str_values(&merged, "texts"),
+            to_strings(&[&["a"], &["b"]])
+        );
+    }
+
+    #[test]
+    fn test_merge_columnar_plain_stacked_multivalued_and_missing() {
+        let columnar1 = make_plain_columnar("texts", &[&["a", "b"], &[], &["c"]]);
+        // No `texts` column at all.
+        let columnar2 = make_text_columnar_multiple_columns(&[("other", &[&["x"], &["y"]])]);
+        let columnar3 = make_plain_columnar("texts", &[&["d"], &["e", "e", "f"]]);
+        let columnars = &[&columnar1, &columnar2, &columnar3];
+        let merged = merge(columnars, &[], stack(columnars));
+        assert_eq!(merged.num_docs(), 7);
+        assert_eq!(
+            plain_str_values(&merged, "texts"),
+            to_strings(&[&["a", "b"], &[], &["c"], &[], &[], &["d"], &["e", "e", "f"]])
+        );
+    }
+
+    #[test]
+    fn test_merge_columnar_plain_shuffled_with_deletes() {
+        let columnar1 = make_plain_columnar("texts", &[&["a0"], &["a1", "a1bis"], &["a2"]]);
+        let columnar2 = make_text_columnar_multiple_columns(&[("texts", &[&["b0"], &[], &["b2"]])]);
+        let columnars = &[&columnar1, &columnar2];
+        // Row 1 of columnar 1 and row 0 of columnar 2 are deleted. Rows are interleaved.
+        let new_to_old_row_addrs: Vec<RowAddr> = [(1, 2), (0, 2), (1, 1), (0, 0)]
+            .into_iter()
+            .map(|(segment_ord, row_id)| RowAddr {
+                segment_ord,
+                row_id,
+            })
+            .collect();
+        let shuffle_merge_order = ShuffleMergeOrder::for_test(&[3, 3], new_to_old_row_addrs);
+        let merged = merge(columnars, &[], MergeRowOrder::Shuffled(shuffle_merge_order));
+        assert_eq!(merged.num_docs(), 4);
+        assert_eq!(
+            plain_str_values(&merged, "texts"),
+            to_strings(&[&["b2"], &["a2"], &[], &["a0"]])
+        );
+    }
+
+    #[test]
+    fn test_merge_columnar_plain_many_blocks() {
+        // Each input has more values than a block can hold.
+        let num_rows: usize = 120_000;
+        let make_columnar = |prefix: &str| {
+            let values: Vec<String> = (0..num_rows).map(|i| format!("{prefix}{i}")).collect();
+            let mut columnar_writer = ColumnarWriter::default();
+            columnar_writer.set_str_column_codec("texts", ColumnType::Str, StrColumnCodec::Plain);
+            for (row_id, value) in values.iter().enumerate() {
+                columnar_writer.record_str(row_id as RowId, "texts", value);
+            }
+            let mut buffer: Vec<u8> = Vec::new();
+            columnar_writer
+                .serialize(num_rows as RowId, None, &mut buffer)
+                .unwrap();
+            ColumnarReader::open(buffer).unwrap()
+        };
+        let columnar1 = make_columnar("left");
+        let columnar2 = make_columnar("right");
+        let columnars = &[&columnar1, &columnar2];
+        let merged = merge(columnars, &[], stack(columnars));
+        let values_per_row = plain_str_values(&merged, "texts");
+        assert_eq!(values_per_row.len(), 2 * num_rows);
+        for (row_id, row_values) in values_per_row.iter().enumerate() {
+            let expected = if row_id < num_rows {
+                format!("left{row_id}")
+            } else {
+                format!("right{}", row_id - num_rows)
+            };
+            assert_eq!(row_values, &vec![expected]);
+        }
+    }
+
+    #[test]
+    fn test_merge_columnar_required_plain_without_input() {
+        let columnar1 = make_text_columnar_multiple_columns(&[("other", &[&["x"]])]);
+        let columnar2 = make_text_columnar_multiple_columns(&[("other", &[&["y"]])]);
+        let columnars = &[&columnar1, &columnar2];
+        let required_columns = [("texts".to_string(), ColumnType::Str, StrColumnCodec::Plain)];
+        let merged = merge(columnars, &required_columns, stack(columnars));
+        assert_eq!(plain_str_values(&merged, "texts"), to_strings(&[&[], &[]]));
+    }
+
+    #[test]
+    fn test_merge_columnar_required_plain_converts_dictionary_inputs() {
+        let columnar1 =
+            make_text_columnar_multiple_columns(&[("texts", &[&["b", "a", "b"], &["c"]])]);
+        let columnar2 = make_text_columnar_multiple_columns(&[("texts", &[&[], &["a"]])]);
+        let columnars = &[&columnar1, &columnar2];
+        let required_columns = [("texts".to_string(), ColumnType::Str, StrColumnCodec::Plain)];
+        let merged = merge(columnars, &required_columns, stack(columnars));
+        // The values of a row keep their record order, duplicates included.
+        assert_eq!(
+            plain_str_values(&merged, "texts"),
+            to_strings(&[&["b", "a", "b"], &["c"], &[], &["a"]])
+        );
+    }
+
+    #[test]
+    fn test_merge_columnar_plain_key_order() {
+        // The key code of a plain bytes column (0x13) is greater than the key codes of a
+        // dictionary str column (0x04) and of a bool column (0x05).
+        let mut columnar_writer = ColumnarWriter::default();
+        columnar_writer.set_str_column_codec("field", ColumnType::Bytes, StrColumnCodec::Plain);
+        columnar_writer.record_bytes(0, "field", b"bytes");
+        columnar_writer.record_str(0, "field", "str");
+        columnar_writer.record_bool(0, "field", true);
+        let mut buffer: Vec<u8> = Vec::new();
+        columnar_writer.serialize(1, None, &mut buffer).unwrap();
+        let columnar = ColumnarReader::open(buffer).unwrap();
+        let columnars = &[&columnar, &columnar];
+        let merged = merge(columnars, &[], stack(columnars));
+        let mut codecs: Vec<(ColumnType, Option<StrColumnCodec>)> = merged
+            .read_columns("field")
+            .unwrap()
+            .iter()
+            .map(|handle| (handle.column_type(), handle.str_codec()))
+            .collect();
+        codecs.sort_by_key(|(column_type, _)| *column_type);
+        assert_eq!(
+            codecs,
+            vec![
+                (ColumnType::Bytes, Some(StrColumnCodec::Plain)),
+                (ColumnType::Str, Some(StrColumnCodec::Dictionary)),
+                (ColumnType::Bool, None),
+            ]
+        );
+    }
+
+    #[test]
+    fn test_merge_columnar_required_plain_numerical_returns_error() {
+        let columnar = make_text_columnar_multiple_columns(&[("texts", &[&["a"]])]);
+        let columnars = &[&columnar];
+        let required_columns = [("num".to_string(), ColumnType::U64, StrColumnCodec::Plain)];
+        let mut buffer: Vec<u8> = Vec::new();
+        let merge_error = crate::columnar::merge_columnar_with_codecs(
+            columnars,
+            &required_columns,
+            stack(columnars),
+            &mut buffer,
+        )
+        .unwrap_err();
+        assert_eq!(merge_error.kind(), io::ErrorKind::InvalidInput);
+    }
 }
