@@ -7,7 +7,7 @@
 use std::collections::BTreeMap;
 use std::ops::Bound;
 use std::path::Path;
-use std::sync::OnceLock;
+use std::sync::{Arc, OnceLock};
 
 use proptest::prelude::*;
 
@@ -26,6 +26,7 @@ enum Kind {
     RequiredOptional,
     Phrase,
     PhrasePrefix,
+    Span,
     FastFieldRange,
     Predicate,
     ScorerWrapper,
@@ -69,6 +70,7 @@ implementations! {
     ("reqopt_scorer.rs", RequiredOptional, query_seek_danger_required_optional),
     ("phrase_query/phrase_scorer.rs", Phrase, query_seek_danger_phrase),
     ("phrase_prefix_query/phrase_prefix_scorer.rs", PhrasePrefix, query_seek_danger_phrase_prefix),
+    ("span_query.rs", Span, query_seek_danger_span),
     ("range_query/fast_field_range_doc_set.rs", FastFieldRange, query_seek_danger_fast_field_range),
     ("doc_predicate_query/mod.rs", Predicate, query_seek_danger_predicate),
     ("disjunction.rs", ScorerWrapper, query_seek_danger_scorer_wrapper),
@@ -115,6 +117,14 @@ impl Expr {
                 term(fields[2], false),
                 Term::from_field_text(fields[2], "ord"),
             ])),
+            Kind::Span => {
+                let slot = |order| -> Arc<dyn SpanTermSource> {
+                    Arc::new(ExactTermSource::new(term(fields[2], order)))
+                };
+                let mut query = SpanQuery::new(fields[2], slot(false)).then_within(0, slot(true));
+                query.set_ordered(false);
+                Box::new(query)
+            }
             Kind::FastFieldRange => Box::new(RangeQuery::new(
                 Bound::Included(Term::from_field_u64(number, 3)),
                 Bound::Excluded(Term::from_field_u64(number, 8)),
