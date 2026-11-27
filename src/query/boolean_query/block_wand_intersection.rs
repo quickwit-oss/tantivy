@@ -3,177 +3,114 @@ use crate::query::term_query::TermScorer;
 use crate::query::Scorer;
 use crate::{DocId, DocSet, Score, TERMINATED};
 
-/// Block-max pruning for top-K over intersection of term scorers.
-///
-/// Uses the least-frequent term as "leader" to define 128-doc processing windows.
-/// For each window, the sum of block_max_scores is compared to the current threshold;
-/// if the block can't beat it, the entire block is skipped.
-///
-/// Within non-skipped blocks, individual documents are pruned by checking whether
-/// leader_score + sum(secondary block_max_scores) can exceed the threshold before
-/// performing the expensive intersection membership check (seeking into secondary scorers).
-///
-/// # Preconditions
-/// - `scorers` has at least 2 elements
-/// - All scorers read frequencies (`FreqReadingOption::ReadFreq`)
+/// Block-max pruning for intersections, with the score grouping of `Intersection::score`.
+/// Stored maxima are corrected conservatively when segment statistics differ.
+/// Scorers must read frequencies.
 pub(crate) fn block_wand_intersection(
     mut scorers: Vec<TermScorer>,
     mut threshold: Score,
     callback: &mut dyn FnMut(DocId, Score) -> Score,
 ) {
     assert!(scorers.len() >= 2);
+    scorers.sort_by_key(DocSet::cost);
 
-    // Sort by cost (ascending). scorers[0] becomes the "leader" (rarest term).
-    scorers.sort_by_key(TermScorer::size_hint);
-
-    let (leader, secondaries) = scorers.split_first_mut().unwrap();
-
-    // Precompute global max scores for early termination checks.
-    let leader_max_score: Score = leader.max_score();
-    let secondaries_global_max_sum: Score = secondaries.iter().map(TermScorer::max_score).sum();
-
-    // Early exit: no document can possibly beat the threshold.
-    if leader_max_score + secondaries_global_max_sum <= threshold {
+    let bounds = scorers
+        .iter()
+        .map(TermScorer::pruning_bounds)
+        .collect::<Option<Vec<_>>>();
+    let Some(mut bounds) = bounds else {
+        let mut scorer = crate::query::intersect_scorers(
+            scorers
+                .into_iter()
+                .map(|scorer| Box::new(scorer) as Box<dyn Scorer>)
+                .collect(),
+            u32::MAX,
+        );
+        crate::query::weight::for_each_pruning_scorer(scorer.as_mut(), threshold, callback);
+        return;
+    };
+    let global_max_score = (bounds[0].global + bounds[1].global)
+        + bounds[2..].iter().map(|bound| bound.global).sum::<Score>();
+    if global_max_score <= threshold {
         return;
     }
 
-    // Borrow fieldnorm reader and BM25 weight before the main loop.
-    // These are immutable references to disjoint fields from block_cursor,
-    // but Rust's borrow checker can't see through method calls, so we
-    // extract them once upfront.
+    let (leader, secondaries) = scorers.split_first_mut().unwrap();
+    // Keep scoring data available while the leader block cursor is mutably borrowed.
     let fieldnorm_reader = leader.fieldnorm_reader().clone();
     let bm25_weight = leader.bm25_weight().clone();
-
     let mut doc = leader.doc();
+    let mut secondary_block_max_scores = vec![0.0; secondaries.len()].into_boxed_slice();
 
-    let mut secondary_block_max_scores: Box<[f32]> =
-        vec![0.0f32; secondaries.len()].into_boxed_slice();
-    let mut secondary_suffix_block_max: Box<[f32]> =
-        vec![0.0f32; secondaries.len()].into_boxed_slice();
-
+    let mut shared_bounds = std::collections::HashMap::new();
     while doc < TERMINATED {
-        // --- Phase 1: Block-level pruning ---
-        //
-        // Position all skip readers on the block containing `doc`.
-        // seek_block is cheap: it only advances the skip reader, no block decompression.
         leader.seek_block(doc);
-        let leader_block_max: Score = leader.block_max_score();
-
-        // Compute the window end as the minimum last_doc_in_block across all scorers.
-        // This ensures the block_max values are valid for all docs in [doc, window_end].
-        // Different scorers have independently aligned blocks, so we must use the
-        // smallest window where all block_max values hold.
-        let mut window_end: DocId = leader.last_doc_in_block();
-
-        let mut secondary_block_max_sum: Score = 0.0;
-        let num_secondaries = secondaries.len();
+        let leader_block_max = leader.pruning_block_max_score(&mut bounds[0], &mut shared_bounds);
+        // Every bound must remain valid through the end of the shared window.
+        let mut window_end = leader.last_doc_in_block();
         for (idx, secondary) in secondaries.iter_mut().enumerate() {
             secondary.block_cursor().seek_block(doc);
             if !secondary.block_cursor().has_remaining_docs() {
                 return;
             }
             window_end = window_end.min(secondary.last_doc_in_block());
-            let bms = secondary.block_max_score();
-            secondary_block_max_scores[idx] = bms;
-            secondary_block_max_sum += bms;
+            secondary_block_max_scores[idx] =
+                secondary.pruning_block_max_score(&mut bounds[idx + 1], &mut shared_bounds);
         }
-
-        if leader_block_max + secondary_block_max_sum <= threshold {
-            // The entire window cannot beat the threshold. Skip past it.
+        let secondary_tail_bound: Score = secondary_block_max_scores[1..].iter().copied().sum();
+        if (leader_block_max + secondary_block_max_scores[0]) + secondary_tail_bound <= threshold {
             doc = window_end + 1;
             continue;
         }
 
-        // --- Phase 2: Batch processing within the window ---
-        //
-        // Score-first approach: decode the leader's block, filter by threshold,
-        // then check intersection membership only for survivors. This avoids expensive
-        // secondary seeks for docs that can't beat the threshold.
         let block_cursor = leader.block_cursor();
-        // seek loads the block and returns the in-block index of the first doc >= `doc`.
         let start_idx = block_cursor.seek(doc);
-
-        // Use the branchless binary search on the doc decoder to find the first
-        // index past window_end.
         let end_idx = block_cursor
             .doc_decoder
             .seek_within_block(window_end + 1)
             .min(block_cursor.block_len());
-
         let block_docs = &block_cursor.doc_decoder.output_array()[start_idx..end_idx];
         let block_freqs = &block_cursor.freq_output_array()[start_idx..end_idx];
-
-        // Pass 1: Batch-compute leader BM25 scores and branchlessly filter
-        // candidates that can't beat the threshold.
-        //
-        // The trick: always write to the buffer at `num_candidates`, then
-        // conditionally advance the count. The compiler can turn this into
-        // a cmov instead of a branch, avoiding misprediction costs.
-        let score_threshold = threshold - secondary_block_max_sum;
         let mut candidate_doc_ids = [0u32; COMPRESSION_BLOCK_SIZE];
         let mut candidate_scores = [0.0f32; COMPRESSION_BLOCK_SIZE];
         let mut num_candidates = 0usize;
-
         for (candidate_doc, term_freq) in
             block_docs.iter().copied().zip(block_freqs.iter().copied())
         {
             let fieldnorm_id = fieldnorm_reader.fieldnorm_id(candidate_doc);
             let leader_score = bm25_weight.score(fieldnorm_id, term_freq);
+            // Unconditional writes allow candidate rejection without a branch.
             candidate_doc_ids[num_candidates] = candidate_doc;
             candidate_scores[num_candidates] = leader_score;
-            num_candidates += (leader_score > score_threshold) as usize;
+            num_candidates += (((leader_score + secondary_block_max_scores[0])
+                + secondary_tail_bound)
+                > threshold) as usize;
         }
 
-        // Precompute suffix sums: suffix[i] = sum of block_max for secondaries[i+1..].
-        // Used in Phase 2 to prune candidates that can't beat threshold even with
-        // remaining secondaries contributing their block_max.
-        if num_candidates == 0 {
-            doc = window_end + 1;
-            continue;
-        }
-
-        let mut running = 0.0f32;
-        for idx in (0..num_secondaries).rev() {
-            secondary_suffix_block_max[idx] = running;
-            running += secondary_block_max_scores[idx];
-        }
-
-        // Pass 2: Check intersection membership only for survivors.
-        // score_threshold may be stale (threshold can increase from callbacks),
-        // but that's conservative — we may check a few extra candidates, never miss one.
         'next_candidate: for candidate_idx in 0..num_candidates {
             let candidate_doc = candidate_doc_ids[candidate_idx];
-            let mut total_score: Score = candidate_scores[candidate_idx];
-
-            for (secondary_idx, secondary) in secondaries.iter_mut().enumerate() {
-                // If a previous candidate already advanced this secondary past
-                // candidate_doc, the candidate can't be in the intersection.
-                if secondary.doc() > candidate_doc {
-                    continue 'next_candidate;
-                }
-                let seek_result = secondary.seek(candidate_doc);
-                if seek_result != candidate_doc {
-                    continue 'next_candidate;
-                }
-                total_score += secondary.score();
-
-                // Prune: even if all remaining secondaries score at their block max,
-                // can we still beat the threshold?
-                if total_score + secondary_suffix_block_max[secondary_idx] <= threshold {
+            let (second, tail) = secondaries.split_first_mut().unwrap();
+            if second.doc() > candidate_doc || second.seek(candidate_doc) != candidate_doc {
+                continue;
+            }
+            let head_score = candidate_scores[candidate_idx] + second.score();
+            if head_score + secondary_tail_bound <= threshold {
+                continue;
+            }
+            for secondary in tail.iter_mut() {
+                if secondary.doc() > candidate_doc || secondary.seek(candidate_doc) != candidate_doc
+                {
                     continue 'next_candidate;
                 }
             }
-
-            // All secondaries matched.
-            if total_score > threshold {
-                threshold = callback(candidate_doc, total_score);
-
-                if leader_max_score + secondaries_global_max_sum <= threshold {
+            let score = head_score + tail.iter_mut().map(Scorer::score).sum::<Score>();
+            if score > threshold {
+                threshold = callback(candidate_doc, score);
+                if global_max_score <= threshold {
                     return;
                 }
             }
         }
-
         doc = window_end + 1;
     }
 }
@@ -273,14 +210,12 @@ mod tests {
             }
 
             if all_match {
-                // Accumulate in the same left-to-right order as the WAND implementation
-                // (leader first, then each secondary in turn).  Float addition is not
-                // associative, so `leader + secondaries.sum()` gives a different bit
-                // pattern and can cause spurious nearly_equals failures.
-                let mut score: Score = leader.score();
-                for secondary in secondaries.iter_mut() {
-                    score += secondary.score();
-                }
+                let score = leader.score()
+                    + secondaries[0].score()
+                    + secondaries[1..]
+                        .iter_mut()
+                        .map(Scorer::score)
+                        .sum::<Score>();
 
                 if score > limit {
                     heap.push(Float(score));
@@ -658,5 +593,487 @@ mod tests {
         let checkpoints_naive =
             compute_checkpoints_naive_intersection(vec![make_scorer(), make_scorer()], 5);
         assert_eq!(checkpoints_opt.len(), checkpoints_naive.len());
+    }
+    #[test]
+    fn four_term_pruning_preserves_canonical_scores_and_cutoff_membership() {
+        let fieldnorms = (0..192).map(|id| 4 + (id * 37) % 173).collect::<Vec<u32>>();
+        let segment_average = fieldnorms.iter().map(|&norm| u64::from(norm)).sum::<u64>() as Score
+            / fieldnorms.len() as Score;
+        for (average, missing) in [
+            (107.0, false),
+            (segment_average, false),
+            (107.0, true),
+            (segment_average, true),
+        ] {
+            let postings = (0..4)
+                .map(|position| {
+                    (0..192)
+                        .filter(|id| !missing || position == 0 || id % (position + 3) != position)
+                        .map(|id| (id, 1 + (id * (7 + position * 4)) % (11 + position * 6)))
+                        .collect::<Vec<_>>()
+                })
+                .collect::<Vec<_>>();
+            let make = || {
+                postings
+                    .iter()
+                    .enumerate()
+                    .map(|(position, postings)| {
+                        let weight =
+                            Bm25Weight::for_one_term(192 + position as u64 * 9, 400, average)
+                                .boost_by(0.21);
+                        TermScorer::create_for_test(postings, &fieldnorms, weight)
+                    })
+                    .collect::<Vec<_>>()
+            };
+            let mut oracle = crate::query::intersect_scorers(
+                make()
+                    .into_iter()
+                    .map(|s| Box::new(s) as Box<dyn Scorer>)
+                    .collect(),
+                192,
+            );
+            let mut expected = Vec::new();
+            while oracle.doc() != TERMINATED {
+                expected.push((oracle.doc(), oracle.score()));
+                oracle.advance();
+            }
+            let mut actual = Vec::new();
+            super::block_wand_intersection(make(), Score::MIN, &mut |doc, score| {
+                actual.push((doc, score));
+                Score::MIN
+            });
+            let mut membership_difference = None;
+            for &(target, score) in &expected {
+                for threshold in [score.next_down(), score, score.next_up()] {
+                    let wanted = expected
+                        .iter()
+                        .filter(|(_, s)| *s > threshold)
+                        .map(|(d, _)| *d)
+                        .collect::<Vec<_>>();
+                    let mut found = Vec::new();
+                    super::block_wand_intersection(make(), threshold, &mut |doc, _| {
+                        found.push(doc);
+                        threshold
+                    });
+                    if found != wanted {
+                        membership_difference = Some((target, threshold.to_bits(), wanted, found));
+                        break;
+                    }
+                }
+            }
+            assert_eq!(
+                membership_difference, None,
+                "canonical cutoff changed membership"
+            );
+            assert_eq!(
+                actual
+                    .iter()
+                    .map(|(d, s)| (*d, s.to_bits()))
+                    .collect::<Vec<_>>(),
+                expected
+                    .iter()
+                    .map(|(d, s)| (*d, s.to_bits()))
+                    .collect::<Vec<_>>()
+            );
+        }
+    }
+
+    #[test]
+    fn intersection_without_fieldnorms_keeps_top_document_across_blocks() -> crate::Result<()> {
+        use crate::query::{BooleanQuery, EnableScoring, Occur, Query, TermQuery};
+        use crate::schema::{IndexRecordOption, Schema, TextFieldIndexing, TextOptions};
+        use crate::{Index, TantivyDocument, Term};
+        let mut schema = Schema::builder();
+        let field = schema.add_text_field(
+            "text",
+            TextOptions::default().set_indexing_options(
+                TextFieldIndexing::default()
+                    .set_tokenizer("default")
+                    .set_index_option(IndexRecordOption::WithFreqs)
+                    .set_fieldnorms(false),
+            ),
+        );
+        let index = Index::create_in_ram(schema.build());
+        let mut writer = index.writer::<TantivyDocument>(20_000_000)?;
+        for id in 0..256 {
+            let frequency = if id == 255 { 100 } else { 1 };
+            let text = std::iter::repeat_n("amber stone", frequency)
+                .collect::<Vec<_>>()
+                .join(" ");
+            writer.add_document(doc!(field => text))?;
+        }
+        writer.commit()?;
+        let searcher = index.reader()?.searcher();
+        let query = BooleanQuery::new(
+            ["amber", "stone"]
+                .iter()
+                .map(|term| {
+                    (
+                        Occur::Must,
+                        Box::new(TermQuery::new(
+                            Term::from_field_text(field, term),
+                            IndexRecordOption::WithFreqs,
+                        )) as Box<dyn Query>,
+                    )
+                })
+                .collect(),
+        );
+        let weight = query.weight(EnableScoring::enabled_from_searcher(&searcher))?;
+        let reader = &searcher.segment_readers()[0];
+        let mut scorer = weight.scorer(reader, 1.0)?;
+        let mut expected = (TERMINATED, Score::MIN);
+        while scorer.doc() != TERMINATED {
+            let score = scorer.score();
+            if score > expected.1 {
+                expected = (scorer.doc(), score);
+            }
+            scorer.advance();
+        }
+        assert_eq!(expected.0, 255);
+        let mut actual = (TERMINATED, Score::MIN);
+        weight.for_each_pruning(Score::MIN, reader, &mut |doc, score| {
+            actual = (doc, score);
+            score
+        })?;
+        assert_eq!(
+            (actual.0, actual.1.to_bits()),
+            (expected.0, expected.1.to_bits())
+        );
+        Ok(())
+    }
+    #[test]
+    fn unsupported_bounds_delegate_to_canonical_intersection() {
+        for (boost, average) in [
+            (-0.5, 10.0),
+            (Score::INFINITY, 10.0),
+            (Score::NAN, 10.0),
+            (1.0, 0.0),
+        ] {
+            let postings = [(0, 1), (1, 3), (2, 9)];
+            let make = || {
+                (0..4)
+                    .map(|_| {
+                        TermScorer::create_for_test(
+                            &postings,
+                            &[4, 8, 16],
+                            Bm25Weight::for_one_term(3, 10, average).boost_by(boost),
+                        )
+                    })
+                    .collect::<Vec<_>>()
+            };
+            let mut oracle = crate::query::intersect_scorers(
+                make()
+                    .into_iter()
+                    .map(|s| Box::new(s) as Box<dyn Scorer>)
+                    .collect(),
+                3,
+            );
+            let mut scores = Vec::new();
+            while oracle.doc() != TERMINATED {
+                scores.push((oracle.doc(), oracle.score()));
+                oracle.advance();
+            }
+            for threshold in [Score::NEG_INFINITY, -1.0, 0.0, Score::INFINITY, Score::NAN] {
+                let expected = scores
+                    .iter()
+                    .filter(|(_, s)| *s > threshold)
+                    .map(|(d, s)| (*d, s.to_bits()))
+                    .collect::<Vec<_>>();
+                let mut actual = Vec::new();
+                super::block_wand_intersection(make(), threshold, &mut |d, s| {
+                    actual.push((d, s.to_bits()));
+                    threshold
+                });
+                assert_eq!(
+                    actual, expected,
+                    "boost={boost} average={average} threshold={threshold}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn segment_statistics_and_deletions_preserve_topdocs() -> crate::Result<()> {
+        use crate::query::{
+            BooleanQuery, BoostQuery, EnableScoring, Occur, Query, TermQuery, Weight,
+        };
+        use crate::schema::{IndexRecordOption, Schema, FAST, INDEXED, TEXT};
+        use crate::{Index, TantivyDocument, Term};
+        #[derive(Debug, Clone)]
+        struct GenericQuery(BooleanQuery);
+        struct GenericWeight(Box<dyn Weight>);
+        impl Query for GenericQuery {
+            fn weight(&self, scoring: EnableScoring<'_>) -> crate::Result<Box<dyn Weight>> {
+                Ok(Box::new(GenericWeight(self.0.weight(scoring)?)))
+            }
+        }
+        impl Weight for GenericWeight {
+            fn scorer(
+                &self,
+                reader: &crate::SegmentReader,
+                boost: Score,
+            ) -> crate::Result<Box<dyn Scorer>> {
+                self.0.scorer(reader, boost)
+            }
+            fn explain(
+                &self,
+                reader: &crate::SegmentReader,
+                doc: DocId,
+            ) -> crate::Result<crate::query::Explanation> {
+                self.0.explain(reader, doc)
+            }
+        }
+        let mut schema = Schema::builder();
+        let field = schema.add_text_field("text", TEXT);
+        let id_field = schema.add_u64_field("id", FAST | INDEXED);
+        let index = Index::create_in_ram(schema.build());
+        let mut writer = index.writer::<TantivyDocument>(20_000_000)?;
+        writer.set_merge_policy(Box::new(crate::merge_policy::NoMergePolicy));
+        let terms = ["amber", "stone", "quartz", "ruby"];
+        for segment in 0..2 {
+            for id in 0..192 {
+                let text = terms
+                    .iter()
+                    .enumerate()
+                    .flat_map(|(position, term)| {
+                        std::iter::repeat_n(
+                            *term,
+                            1 + (id * (7 + position * 4)) % (11 + position * 6),
+                        )
+                    })
+                    .chain(std::iter::repeat_n(
+                        "filler",
+                        1 + (id * 37) % (173 + segment * 300),
+                    ))
+                    .collect::<Vec<_>>()
+                    .join(" ");
+                writer
+                    .add_document(doc!(field => text, id_field => (segment * 192 + id) as u64))?;
+            }
+            for (position, term) in terms.iter().enumerate() {
+                for _ in 0..(if segment == 0 {
+                    position + 1
+                } else {
+                    4 - position
+                }) * 9
+                {
+                    let text = std::iter::repeat_n(*term, 1 + segment * 200)
+                        .collect::<Vec<_>>()
+                        .join(" ");
+                    writer.add_document(doc!(field => text))?;
+                }
+            }
+            writer.commit()?;
+        }
+        writer.delete_term(Term::from_field_u64(id_field, 17));
+        writer.delete_term(Term::from_field_u64(id_field, 250));
+        writer.commit()?;
+        let searcher = index.reader()?.searcher();
+        assert_eq!(searcher.segment_readers().len(), 2);
+        assert_eq!(
+            searcher
+                .segment_readers()
+                .iter()
+                .map(|r| r.num_deleted_docs())
+                .sum::<u32>(),
+            2
+        );
+        let query = BooleanQuery::new(
+            terms
+                .iter()
+                .map(|term| {
+                    (
+                        Occur::Must,
+                        Box::new(BoostQuery::new(
+                            Box::new(TermQuery::new(
+                                Term::from_field_text(field, term),
+                                IndexRecordOption::WithFreqs,
+                            )),
+                            0.21,
+                        )) as Box<dyn Query>,
+                    )
+                })
+                .collect(),
+        );
+        let generic = GenericQuery(query.clone());
+        for (limit, offset) in [(1, 0), (20, 0), (20, 19), (100, 100)] {
+            let collector = crate::collector::TopDocs::with_limit(limit)
+                .and_offset(offset)
+                .order_by_score();
+            let expected = searcher.search(&generic, &collector)?;
+            let actual = searcher.search(&query, &collector)?;
+            let weight = query.weight(EnableScoring::enabled_from_searcher(&searcher))?;
+            for (score, address) in &actual {
+                let reader = &searcher.segment_readers()[address.segment_ord as usize];
+                assert_eq!(
+                    score.to_bits(),
+                    weight.explain(reader, address.doc_id)?.value().to_bits()
+                );
+            }
+            let bits = |hits: Vec<(Score, crate::DocAddress)>| {
+                hits.into_iter()
+                    .map(|(s, d)| (s.to_bits(), d))
+                    .collect::<Vec<_>>()
+            };
+            assert_eq!(bits(actual), bits(expected));
+        }
+        Ok(())
+    }
+    #[test]
+    fn saturated_skip_frequency_preserves_cutoff_membership() {
+        let frequency = u32::MAX - 255;
+        let mut norms = vec![1; 615];
+        norms[0] = frequency;
+        let average =
+            norms.iter().map(|&n| u64::from(n)).sum::<u64>() as Score / norms.len() as Score;
+        let postings = (0..128)
+            .map(|doc| (doc, if doc == 0 { frequency } else { 1 }))
+            .collect::<Vec<_>>();
+        let make = || {
+            (0..2)
+                .map(|_| {
+                    TermScorer::create_for_test(
+                        &postings,
+                        &norms,
+                        Bm25Weight::for_one_term(128, 615, average),
+                    )
+                })
+                .collect::<Vec<_>>()
+        };
+        let mut oracle = crate::query::intersect_scorers(
+            make()
+                .into_iter()
+                .map(|s| Box::new(s) as Box<dyn Scorer>)
+                .collect(),
+            615,
+        );
+        assert_eq!(oracle.doc(), 0);
+        let top_score = oracle.score();
+        let threshold = top_score.next_down();
+        let mut expected = Vec::new();
+        while oracle.doc() != TERMINATED {
+            let score = oracle.score();
+            if score > threshold {
+                expected.push((oracle.doc(), score.to_bits()));
+            }
+            oracle.advance();
+        }
+        assert_eq!(expected, vec![(0, top_score.to_bits())]);
+        let mut actual = Vec::new();
+        super::block_wand_intersection(make(), threshold, &mut |doc, score| {
+            actual.push((doc, score.to_bits()));
+            threshold
+        });
+        assert_eq!(actual, expected);
+    }
+
+    proptest! {
+        #![proptest_config(ProptestConfig::with_cases(32))]
+        #[test]
+        fn drifting_statistics_preserve_canonical_cutoffs(
+            seed in 0u32..10000,
+            scale in prop_oneof![Just(0.01f32), Just(0.5), Just(2.0), Just(100.0)],
+        ) {
+            let norms = (0..385u32)
+                .map(|id| 200 + (id.wrapping_mul(193).wrapping_add(seed)) % 2000)
+                .collect::<Vec<_>>();
+            let average =
+                norms.iter().map(|&n| u64::from(n)).sum::<u64>() as Score / norms.len() as Score;
+            let postings = (0..4u32)
+                .map(|term| {
+                    (0..385u32)
+                        .filter(|id| (id + term + seed) % (7 + term) != 0)
+                        .map(|id| (id, 1 + (id * 17 + term * 31 + seed) % 40))
+                        .collect::<Vec<_>>()
+                })
+                .collect::<Vec<_>>();
+            let make = || {
+                postings
+                    .iter()
+                    .map(|p| {
+                        TermScorer::create_for_test(
+                            p,
+                            &norms,
+                            Bm25Weight::for_one_term(p.len() as u64, 1000, average * scale)
+                                .boost_by(0.21),
+                        )
+                    })
+                    .collect::<Vec<_>>()
+            };
+            let mut oracle = crate::query::intersect_scorers(
+                make()
+                    .into_iter()
+                    .map(|s| Box::new(s) as Box<dyn Scorer>)
+                    .collect(),
+                385,
+            );
+            let mut expected = Vec::new();
+            while oracle.doc() != TERMINATED {
+                expected.push((oracle.doc(), oracle.score()));
+                oracle.advance();
+            }
+            let cutoff = expected[20].1;
+            for threshold in [Score::MIN, cutoff.next_down(), cutoff, cutoff.next_up()] {
+                let wanted = expected
+                    .iter()
+                    .filter(|(_, s)| *s > threshold)
+                    .map(|(d, s)| (*d, s.to_bits()))
+                    .collect::<Vec<_>>();
+                let mut actual = Vec::new();
+                super::block_wand_intersection(make(), threshold, &mut |d, s| {
+                    actual.push((d, s.to_bits()));
+                    threshold
+                });
+                prop_assert_eq!(actual, wanted);
+            }
+        }
+    }
+
+    #[test]
+    fn drifting_argmax_preserves_canonical_membership() {
+        let norms = (0..128)
+            .map(|d| if d % 2 == 0 { 2 } else { 1000 })
+            .collect::<Vec<_>>();
+        let postings = (0..128)
+            .map(|d| (d, if d % 2 == 0 { 1 } else { 2 }))
+            .collect::<Vec<_>>();
+        let make = || {
+            (0..2)
+                .map(|_| {
+                    TermScorer::create_for_test(
+                        &postings,
+                        &norms,
+                        Bm25Weight::for_one_term(128, 1000, 10000.0),
+                    )
+                })
+                .collect::<Vec<_>>()
+        };
+        let mut oracle = crate::query::intersect_scorers(
+            make()
+                .into_iter()
+                .map(|s| Box::new(s) as Box<dyn Scorer>)
+                .collect(),
+            128,
+        );
+        let low = oracle.score();
+        oracle.advance();
+        let high = oracle.score();
+        assert!(high > low);
+        let threshold = high.next_down();
+        let mut expected = Vec::new();
+        while oracle.doc() != TERMINATED {
+            let score = oracle.score();
+            if score > threshold {
+                expected.push((oracle.doc(), score.to_bits()));
+            }
+            oracle.advance();
+        }
+        assert_eq!(expected.len(), 64);
+        let mut actual = Vec::new();
+        super::block_wand_intersection(make(), threshold, &mut |d, s| {
+            actual.push((d, s.to_bits()));
+            threshold
+        });
+        assert_eq!(actual, expected);
     }
 }
