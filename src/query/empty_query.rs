@@ -30,7 +30,16 @@ impl Weight for EmptyWeight {
         Ok(Box::new(EmptyScorer))
     }
 
-    fn explain(&self, _reader: &SegmentReader, doc: DocId) -> crate::Result<Explanation> {
+    fn explain(&self, reader: &SegmentReader, doc: DocId) -> crate::Result<Explanation> {
+        self.explain_with_boost(reader, doc, 1.0)
+    }
+
+    fn explain_with_boost(
+        &self,
+        _reader: &SegmentReader,
+        doc: DocId,
+        _boost: Score,
+    ) -> crate::Result<Explanation> {
         Err(does_not_match(doc))
     }
 }
