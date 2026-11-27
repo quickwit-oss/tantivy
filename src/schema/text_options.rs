@@ -1,6 +1,7 @@
 use std::borrow::Cow;
 use std::ops::BitOr;
 
+use columnar::StrColumnCodec;
 use serde::{Deserialize, Serialize};
 
 use super::flags::{CoerceFlag, FastFlag};
@@ -35,30 +36,63 @@ pub(crate) struct FastFieldTextOptions {
     /// `Some("raw")`: the analyzer registered under the raw name may have extra filters, such as
     /// a token length limit.
     pub tokenizer: Option<String>,
+    /// Codec of the column storing the values.
+    pub codec: StrColumnCodec,
 }
 
 pub(super) fn merge_fast_field_options(
     left: Option<FastFieldTextOptions>,
     right: Option<FastFieldTextOptions>,
 ) -> Option<FastFieldTextOptions> {
+    let (left, right) = match (left, right) {
+        (None, right) => return right,
+        (left, None) => return left,
+        (Some(left), Some(right)) => (left, right),
+    };
     // A configured tokenizer takes precedence over recording values as is.
-    match (left, right) {
-        (Some(left), Some(right)) if left.tokenizer.is_none() => Some(right),
-        (Some(left), _) => Some(left),
-        (None, right) => right,
+    Some(FastFieldTextOptions {
+        tokenizer: left.tokenizer.or(right.tokenizer),
+        codec: merge_str_column_codecs(left.codec, right.codec),
+    })
+}
+
+/// Returns the codec of two combined fast field options: the plain codec takes precedence over
+/// the default dictionary codec.
+pub(super) fn merge_str_column_codecs(
+    left: StrColumnCodec,
+    right: StrColumnCodec,
+) -> StrColumnCodec {
+    if left == StrColumnCodec::Plain || right == StrColumnCodec::Plain {
+        StrColumnCodec::Plain
+    } else {
+        StrColumnCodec::Dictionary
     }
 }
 
+/// Wire format of the fast field options of text and JSON fields:
+/// - `false`: not a fast field.
+/// - `true`: a fast field without tokenizer, with the dictionary codec.
+/// - `{"with_tokenizer": "..", "codec": "plain"}`: both keys are optional.
 pub(super) mod fast_field_text_options_serde {
+    use columnar::StrColumnCodec;
     use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
     use super::FastFieldTextOptions;
+
+    fn is_dictionary(codec: &StrColumnCodec) -> bool {
+        *codec == StrColumnCodec::Dictionary
+    }
 
     #[derive(Serialize, Deserialize)]
     #[serde(untagged)]
     enum WireFormat {
         IsEnabled(bool),
-        EnabledWithTokenizer { with_tokenizer: String },
+        EnabledWithOptions {
+            #[serde(default, skip_serializing_if = "Option::is_none")]
+            with_tokenizer: Option<String>,
+            #[serde(default, skip_serializing_if = "is_dictionary")]
+            codec: StrColumnCodec,
+        },
     }
 
     pub fn serialize<S>(
@@ -70,11 +104,13 @@ pub(super) mod fast_field_text_options_serde {
     {
         let wire_format = match fast_field_options {
             None => WireFormat::IsEnabled(false),
-            Some(FastFieldTextOptions { tokenizer: None }) => WireFormat::IsEnabled(true),
             Some(FastFieldTextOptions {
-                tokenizer: Some(tokenizer_name),
-            }) => WireFormat::EnabledWithTokenizer {
-                with_tokenizer: tokenizer_name.clone(),
+                tokenizer: None,
+                codec: StrColumnCodec::Dictionary,
+            }) => WireFormat::IsEnabled(true),
+            Some(FastFieldTextOptions { tokenizer, codec }) => WireFormat::EnabledWithOptions {
+                with_tokenizer: tokenizer.clone(),
+                codec: *codec,
             },
         };
         wire_format.serialize(serializer)
@@ -86,8 +122,12 @@ pub(super) mod fast_field_text_options_serde {
         match wire_format {
             WireFormat::IsEnabled(false) => Ok(None),
             WireFormat::IsEnabled(true) => Ok(Some(FastFieldTextOptions::default())),
-            WireFormat::EnabledWithTokenizer { with_tokenizer } => Ok(Some(FastFieldTextOptions {
-                tokenizer: Some(with_tokenizer),
+            WireFormat::EnabledWithOptions {
+                with_tokenizer,
+                codec,
+            } => Ok(Some(FastFieldTextOptions {
+                tokenizer: with_tokenizer,
+                codec,
             })),
         }
     }
@@ -125,6 +165,12 @@ impl TextOptions {
         self.fast.as_ref()?.tokenizer.as_deref()
     }
 
+    /// Returns the codec of the fast field, or `None` if the field is not a fast field.
+    #[inline]
+    pub fn get_fast_field_codec(&self) -> Option<StrColumnCodec> {
+        Some(self.fast.as_ref()?.codec)
+    }
+
     /// Returns true if values should be coerced to strings (numbers, null).
     #[inline]
     pub fn should_coerce(&self) -> bool {
@@ -151,8 +197,8 @@ impl TextOptions {
     /// from the dictionary.
     #[must_use]
     pub fn set_fast(mut self, tokenizer_name: impl ToString) -> TextOptions {
-        let tokenizer = Some(tokenizer_name.to_string());
-        self.fast = Some(FastFieldTextOptions { tokenizer });
+        let fast_options = self.fast.get_or_insert_with(FastFieldTextOptions::default);
+        fast_options.tokenizer = Some(tokenizer_name.to_string());
         self
     }
 
@@ -161,7 +207,23 @@ impl TextOptions {
     /// Values are recorded as is. This is the same as the `FAST` flag.
     #[must_use]
     pub fn set_fast_no_tokenizer(mut self) -> TextOptions {
-        self.fast = Some(FastFieldTextOptions { tokenizer: None });
+        let fast_options = self.fast.get_or_insert_with(FastFieldTextOptions::default);
+        fast_options.tokenizer = None;
+        self
+    }
+
+    /// Sets the codec of the fast field. The default is [`StrColumnCodec::Dictionary`].
+    ///
+    /// If the field is not a fast field yet, it becomes a fast field without tokenizer. The
+    /// tokenizer and the codec can be set in any order.
+    ///
+    /// The plain codec stores the values without term ordinals. It is better suited to fields
+    /// with a high cardinality. Merging segments with plain columns is not supported yet: it
+    /// returns an error.
+    #[must_use]
+    pub fn set_fast_codec(mut self, codec: StrColumnCodec) -> TextOptions {
+        let fast_options = self.fast.get_or_insert_with(FastFieldTextOptions::default);
+        fast_options.codec = codec;
         self
     }
 
@@ -356,6 +418,8 @@ where
 
 #[cfg(test)]
 mod tests {
+    use columnar::StrColumnCodec;
+
     use crate::schema::text_options::FastFieldTextOptions;
     use crate::schema::*;
 
@@ -432,7 +496,8 @@ mod tests {
         assert_eq!(
             options.fast,
             Some(FastFieldTextOptions {
-                tokenizer: Some("default".to_string())
+                tokenizer: Some("default".to_string()),
+                codec: StrColumnCodec::Dictionary,
             })
         );
         let serialized = serde_json::to_value(&options).unwrap();
@@ -444,7 +509,8 @@ mod tests {
         assert_eq!(
             options.fast,
             Some(FastFieldTextOptions {
-                tokenizer: Some("default".to_string())
+                tokenizer: Some("default".to_string()),
+                codec: StrColumnCodec::Dictionary,
             })
         );
 
@@ -452,11 +518,23 @@ mod tests {
             "fast": true
         } "#;
         let options: TextOptions = serde_json::from_str(json).unwrap();
-        assert_eq!(options.fast, Some(FastFieldTextOptions { tokenizer: None }));
+        assert_eq!(
+            options.fast,
+            Some(FastFieldTextOptions {
+                tokenizer: None,
+                codec: StrColumnCodec::Dictionary,
+            })
+        );
         let serialized = serde_json::to_value(&options).unwrap();
         assert_eq!(serialized["fast"], serde_json::json!(true));
         let options: TextOptions = serde_json::from_value(serialized).unwrap();
-        assert_eq!(options.fast, Some(FastFieldTextOptions { tokenizer: None }));
+        assert_eq!(
+            options.fast,
+            Some(FastFieldTextOptions {
+                tokenizer: None,
+                codec: StrColumnCodec::Dictionary,
+            })
+        );
 
         let json = r#" {
             "fast": false
@@ -495,5 +573,57 @@ mod tests {
         assert_eq!(options.fast, fast_flag_options.fast);
         let serialized = serde_json::to_value(&options).unwrap();
         assert_eq!(serialized["fast"], serde_json::json!(true));
+    }
+
+    #[test]
+    fn serde_fast_field_codec() {
+        let options: TextOptions =
+            serde_json::from_value(serde_json::json!({ "fast": { "codec": "plain" } })).unwrap();
+        assert_eq!(options.get_fast_field_codec(), Some(StrColumnCodec::Plain));
+        assert_eq!(options.get_fast_field_tokenizer_name(), None);
+        let serialized = serde_json::to_value(&options).unwrap();
+        assert_eq!(serialized["fast"], serde_json::json!({ "codec": "plain" }));
+
+        let options = TextOptions::default()
+            .set_fast_codec(StrColumnCodec::Plain)
+            .set_fast("raw");
+        let serialized = serde_json::to_value(&options).unwrap();
+        assert_eq!(
+            serialized["fast"],
+            serde_json::json!({ "with_tokenizer": "raw", "codec": "plain" })
+        );
+        let deserialized: TextOptions = serde_json::from_value(serialized).unwrap();
+        assert_eq!(deserialized, options);
+
+        // The dictionary codec is the default, and is not serialized.
+        let options = TextOptions::default().set_fast_codec(StrColumnCodec::Dictionary);
+        assert_eq!(options, FAST.into());
+        assert_eq!(
+            serde_json::to_value(&options).unwrap()["fast"],
+            serde_json::json!(true)
+        );
+        let options: TextOptions = serde_json::from_value(
+            serde_json::json!({ "fast": { "with_tokenizer": "raw", "codec": "dictionary" } }),
+        )
+        .unwrap();
+        assert_eq!(
+            options.get_fast_field_codec(),
+            Some(StrColumnCodec::Dictionary)
+        );
+        assert_eq!(options.get_fast_field_tokenizer_name(), Some("raw"));
+    }
+
+    #[test]
+    fn test_fast_field_codec_composition() {
+        let plain_options = TextOptions::default().set_fast_codec(StrColumnCodec::Plain);
+        let tokenized_options = TextOptions::default().set_fast("default");
+        for options in [
+            plain_options.clone() | tokenized_options.clone(),
+            tokenized_options | plain_options,
+        ] {
+            assert_eq!(options.get_fast_field_codec(), Some(StrColumnCodec::Plain));
+            assert_eq!(options.get_fast_field_tokenizer_name(), Some("default"));
+        }
+        assert_eq!(TextOptions::default().get_fast_field_codec(), None);
     }
 }

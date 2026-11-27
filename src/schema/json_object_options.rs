@@ -78,6 +78,14 @@ impl JsonObjectOptions {
             .and_then(|fast_field_options| fast_field_options.tokenizer.as_deref())
     }
 
+    /// Returns the codec of the fast field, or `None` if the field is not a fast field.
+    ///
+    /// Only the dictionary codec is supported for JSON fields.
+    #[inline]
+    pub(crate) fn get_fast_field_codec(&self) -> Option<columnar::StrColumnCodec> {
+        Some(self.fast.as_ref()?.codec)
+    }
+
     /// Returns `true` iff dots in json keys should be expanded.
     ///
     /// When expand_dots is enabled, json object like
@@ -139,8 +147,8 @@ impl JsonObjectOptions {
     /// from the dictionary.
     #[must_use]
     pub fn set_fast(mut self, tokenizer_name: impl ToString) -> Self {
-        let tokenizer = Some(tokenizer_name.to_string());
-        self.fast = Some(FastFieldTextOptions { tokenizer });
+        let fast_options = self.fast.get_or_insert_with(FastFieldTextOptions::default);
+        fast_options.tokenizer = Some(tokenizer_name.to_string());
         self
     }
 
@@ -149,7 +157,8 @@ impl JsonObjectOptions {
     /// Text values are recorded as is. This is the same as the `FAST` flag.
     #[must_use]
     pub fn set_fast_no_tokenizer(mut self) -> Self {
-        self.fast = Some(FastFieldTextOptions { tokenizer: None });
+        let fast_options = self.fast.get_or_insert_with(FastFieldTextOptions::default);
+        fast_options.tokenizer = None;
         self
     }
 

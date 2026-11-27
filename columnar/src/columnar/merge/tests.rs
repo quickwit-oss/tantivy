@@ -637,3 +637,29 @@ proptest! {
 
     }
 }
+
+#[cfg(feature = "plain_codec")]
+#[test]
+fn test_merge_columnar_plain_column_returns_error() {
+    use crate::StrColumnCodec;
+    let mut columnar_writer = ColumnarWriter::default();
+    columnar_writer.set_str_column_codec("texts", ColumnType::Str, StrColumnCodec::Plain);
+    columnar_writer.record_str(0, "texts", "a");
+    let mut plain_buffer: Vec<u8> = Vec::new();
+    columnar_writer
+        .serialize(1, None, &mut plain_buffer)
+        .unwrap();
+    let plain_columnar = ColumnarReader::open(plain_buffer).unwrap();
+    let dictionary_columnar = make_text_columnar_multiple_columns(&[("texts", &[&["b"]])]);
+    let columnars = &[&plain_columnar, &dictionary_columnar];
+    let stack_merge_order = StackMergeOrder::stack(columnars);
+    let mut buffer = Vec::new();
+    let merge_error = crate::columnar::merge_columnar(
+        columnars,
+        &[],
+        MergeRowOrder::Stack(stack_merge_order),
+        &mut buffer,
+    )
+    .unwrap_err();
+    assert_eq!(merge_error.kind(), io::ErrorKind::InvalidInput);
+}

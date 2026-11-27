@@ -1290,6 +1290,34 @@ mod tests {
         Ok(())
     }
 
+    #[cfg(feature = "plain_codec")]
+    #[test]
+    fn test_merge_plain_fast_field_returns_error() {
+        let mut schema_builder = schema::Schema::builder();
+        let text_options =
+            schema::TextOptions::default().set_fast_codec(columnar::StrColumnCodec::Plain);
+        let text_field = schema_builder.add_text_field("text", text_options);
+        let index = Index::create_in_ram(schema_builder.build());
+        let mut index_writer: IndexWriter = index.writer_for_tests().unwrap();
+        index_writer.set_merge_policy(Box::new(NoMergePolicy));
+        index_writer.add_document(doc!(text_field => "a")).unwrap();
+        index_writer.commit().unwrap();
+        index_writer.add_document(doc!(text_field => "b")).unwrap();
+        index_writer.commit().unwrap();
+        // `IndexWriter::merge` panics on merge errors in tests: the merger is called directly.
+        let segments = index.searchable_segments().unwrap();
+        assert_eq!(segments.len(), 2);
+        let merger =
+            super::IndexMerger::open(index.schema(), index.settings().clone(), &segments).unwrap();
+        let merge_error = merger.write(&index.new_segment()).unwrap_err();
+        assert!(
+            merge_error
+                .to_string()
+                .contains("merging plain-encoded columns is not supported"),
+            "unexpected error: {merge_error}"
+        );
+    }
+
     #[derive(Debug, Clone, Copy, Eq, PartialEq)]
     enum IndexingOp {
         ZeroVal,

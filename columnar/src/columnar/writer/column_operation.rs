@@ -126,7 +126,7 @@ pub(super) trait SymbolValue: Clone + Copy {
     // Serializes the symbol into the given buffer.
     // Returns the number of bytes written into the buffer.
     /// # Panics
-    /// May not exceed 9bytes
+    /// May not exceed 16 bytes
     fn serialize(self, buffer: &mut [u8]) -> u8;
     // Panics if invalid
     fn deserialize(bytes: &[u8]) -> Self;
@@ -242,6 +242,40 @@ impl SymbolValue for UnorderedId {
     }
 }
 
+/// Location of a plain-encoded value in the value bytes of its column.
+///
+/// The value is `value_bytes[start..start + len]`.
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq, Ord, PartialOrd)]
+pub(crate) struct PlainValueSpan {
+    pub start: u64,
+    pub len: u32,
+}
+
+impl SymbolValue for PlainValueSpan {
+    /// `num_start_bytes: u8 | start (LE, num_start_bytes) | len (LE, remaining bytes)`.
+    ///
+    /// Leading zero bytes are dropped. At most 1 + 8 + 4 = 13 bytes.
+    fn serialize(self, output: &mut [u8]) -> u8 {
+        let num_start_bytes = compute_num_bytes_for_u64(self.start);
+        output[0] = num_start_bytes as u8;
+        let len_offset = 1 + num_start_bytes;
+        output[1..len_offset].copy_from_slice(&self.start.to_le_bytes()[..num_start_bytes]);
+        let num_len_bytes = self.len.serialize(&mut output[len_offset..]);
+        len_offset as u8 + num_len_bytes
+    }
+
+    fn deserialize(mut bytes: &[u8]) -> Self {
+        let num_start_bytes = pop_first_byte(&mut bytes).unwrap() as usize;
+        let (start_bytes, len_bytes) = bytes.split_at(num_start_bytes);
+        let mut start_octets: [u8; 8] = [0u8; 8];
+        start_octets[..start_bytes.len()].copy_from_slice(start_bytes);
+        PlainValueSpan {
+            start: u64::from_le_bytes(start_octets),
+            len: u32::deserialize(len_bytes),
+        }
+    }
+}
+
 fn compute_num_bytes_for_u64(val: u64) -> usize {
     let msb = (64u32 - val.leading_zeros()) as usize;
     msb.div_ceil(8)
@@ -311,6 +345,24 @@ mod tests {
         let serdeser_symbol = ColumnOperation::deserialize(&mut bytes).unwrap();
         assert_eq!(bytes.len() + buf.as_ref().len(), buffer.len());
         assert_eq!(column_op, serdeser_symbol);
+    }
+
+    #[test]
+    fn test_plain_value_span_serialization() {
+        for start in [0u64, 1, 255, 256, 1 << 40, u64::MAX] {
+            for len in [0u32, 1, 300, u32::MAX] {
+                let column_op = ColumnOperation::Value(PlainValueSpan { start, len });
+                let buf = column_op.serialize();
+                // 1 metadata byte + at most 13 bytes.
+                assert!(buf.as_ref().len() <= 14);
+                let mut buffer = buf.as_ref().to_vec();
+                buffer.extend_from_slice(b"234234");
+                let mut bytes = &buffer[..];
+                let serdeser_op = ColumnOperation::<PlainValueSpan>::deserialize(&mut bytes);
+                assert_eq!(serdeser_op, Some(column_op));
+                assert_eq!(bytes, b"234234");
+            }
+        }
     }
 
     #[test]

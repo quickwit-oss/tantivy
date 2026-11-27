@@ -2,9 +2,9 @@ use std::cmp::Ordering;
 
 use stacker::{ExpUnrolledLinkedList, MemoryArena};
 
-use crate::columnar::writer::column_operation::{ColumnOperation, SymbolValue};
+use crate::columnar::writer::column_operation::{ColumnOperation, PlainValueSpan, SymbolValue};
 use crate::dictionary::{DictionaryBuilder, UnorderedId};
-use crate::{Cardinality, NumericalType, NumericalValue, RowId};
+use crate::{Cardinality, NumericalType, NumericalValue, RowId, StrColumnCodec};
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 #[repr(u8)]
@@ -92,6 +92,11 @@ impl ColumnWriter {
             }
         }
         self.write_symbol(ColumnOperation::Value(value), arena);
+    }
+
+    /// Returns true if no value has been recorded yet.
+    pub(crate) fn is_empty(&self) -> bool {
+        self.last_doc_opt.is_none()
     }
 
     // Get the cardinality.
@@ -240,9 +245,25 @@ impl NumericalColumnWriter {
     }
 }
 
+/// Storage of the values of a `Str` or `Bytes` column while indexing.
+#[derive(Copy, Clone)]
+pub(crate) enum StrOrBytesValues {
+    /// Values are deduplicated in `dictionaries[dictionary_id]`. The column records
+    /// `UnorderedId`s.
+    Dictionary { dictionary_id: u32 },
+    /// Values are appended to `value_bytes` in record order, without deduplication. The column
+    /// records the `PlainValueSpan` of each value in `value_bytes`.
+    Plain {
+        /// We store the actual payloads in a separate exp unrolled linked list.
+        value_bytes: ExpUnrolledLinkedList,
+        /// Number of bytes in `value_bytes`.
+        num_bytes: u64,
+    },
+}
+
 #[derive(Copy, Clone)]
 pub(crate) struct StrOrBytesColumnWriter {
-    pub(crate) dictionary_id: u32,
+    pub(crate) values: StrOrBytesValues,
     pub(crate) column_writer: ColumnWriter,
     // If true, when facing a multivalued cardinality,
     // values associated to a given document will be sorted.
@@ -256,13 +277,30 @@ pub(crate) struct StrOrBytesColumnWriter {
 
 impl StrOrBytesColumnWriter {
     pub(crate) fn with_dictionary_id(dictionary_id: u32) -> StrOrBytesColumnWriter {
+        StrOrBytesColumnWriter::with_values(StrOrBytesValues::Dictionary { dictionary_id })
+    }
+
+    pub(crate) fn with_values(values: StrOrBytesValues) -> StrOrBytesColumnWriter {
         StrOrBytesColumnWriter {
-            dictionary_id,
+            values,
             column_writer: Default::default(),
             sort_values_within_row: false,
         }
     }
 
+    pub(crate) fn codec(&self) -> StrColumnCodec {
+        match self.values {
+            StrOrBytesValues::Dictionary { .. } => StrColumnCodec::Dictionary,
+            StrOrBytesValues::Plain { .. } => StrColumnCodec::Plain,
+        }
+    }
+
+    /// Returns true if no value has been recorded yet.
+    pub(crate) fn is_empty(&self) -> bool {
+        self.column_writer.is_empty()
+    }
+
+    /// Panics if the value of a plain column is larger than `u32::MAX` bytes.
     pub(crate) fn record_bytes(
         &mut self,
         doc: RowId,
@@ -270,17 +308,48 @@ impl StrOrBytesColumnWriter {
         dictionaries: &mut [DictionaryBuilder],
         arena: &mut MemoryArena,
     ) {
-        let unordered_id =
-            dictionaries[self.dictionary_id as usize].get_or_allocate_id(bytes, arena);
-        self.column_writer.record(doc, unordered_id, arena);
+        match &mut self.values {
+            StrOrBytesValues::Dictionary { dictionary_id } => {
+                let unordered_id: UnorderedId =
+                    dictionaries[*dictionary_id as usize].get_or_allocate_id(bytes, arena);
+                self.column_writer.record(doc, unordered_id, arena);
+            }
+            StrOrBytesValues::Plain {
+                value_bytes,
+                num_bytes,
+            } => {
+                let len: u32 = u32::try_from(bytes.len()).expect("field value to large");
+                let span = PlainValueSpan {
+                    start: *num_bytes,
+                    len: len as u32,
+                };
+                value_bytes.writer(arena).extend_from_slice(bytes);
+                *num_bytes += len as u64;
+                self.column_writer.record(doc, span, arena);
+            }
+        }
     }
 
-    pub(super) fn operation_iterator<'a>(
+    /// Panics if the column does not use the dictionary codec.
+    pub(super) fn dictionary_operation_iterator<'a>(
         &self,
         arena: &MemoryArena,
         old_to_new_ids: Option<&[RowId]>,
         byte_buffer: &'a mut Vec<u8>,
     ) -> impl Iterator<Item = ColumnOperation<UnorderedId>> + 'a + use<'a> {
+        assert_eq!(self.codec(), StrColumnCodec::Dictionary);
+        self.column_writer
+            .operation_iterator(arena, old_to_new_ids, byte_buffer)
+    }
+
+    /// Panics if the column does not use the plain codec.
+    pub(super) fn plain_operation_iterator<'a>(
+        &self,
+        arena: &MemoryArena,
+        old_to_new_ids: Option<&[RowId]>,
+        byte_buffer: &'a mut Vec<u8>,
+    ) -> impl Iterator<Item = ColumnOperation<PlainValueSpan>> + 'a + use<'a> {
+        assert_eq!(self.codec(), StrColumnCodec::Plain);
         self.column_writer
             .operation_iterator(arena, old_to_new_ids, byte_buffer)
     }

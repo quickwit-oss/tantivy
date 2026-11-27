@@ -11,6 +11,8 @@ use std::sync::Arc;
 use common::BinarySerializable;
 pub use dictionary_encoded::{BytesColumn, StrColumn};
 #[cfg(feature = "plain_codec")]
+pub(crate) use plain::PlainColumnSerializer;
+#[cfg(feature = "plain_codec")]
 #[doc(hidden)]
 pub use plain::{PlainBlock, encode_block as encode_plain_block};
 #[cfg(feature = "plain_codec")]
