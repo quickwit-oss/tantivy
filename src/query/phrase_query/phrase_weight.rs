@@ -168,6 +168,34 @@ mod tests {
     }
 
     #[test]
+    fn test_phrase_count_is_merge_order_independent() {
+        let phrase_count = |texts: &[&str]| {
+            let index = create_index(texts).unwrap();
+            let text_field = index.schema().get_field("text").unwrap();
+            let searcher = index.reader().unwrap().searcher();
+            let terms = ["a", "b", "c"]
+                .iter()
+                .map(|text| Term::from_field_text(text_field, text))
+                .collect();
+            let mut phrase_query = PhraseQuery::new(terms);
+            phrase_query.set_slop(1);
+            let phrase_weight = phrase_query
+                .phrase_weight(EnableScoring::enabled_from_searcher(&searcher))
+                .unwrap();
+            let phrase_scorer = phrase_weight
+                .phrase_scorer(searcher.segment_reader(0), 1.0)
+                .unwrap()
+                .unwrap();
+            assert_eq!(phrase_scorer.doc(), 0);
+            phrase_scorer.phrase_count()
+        };
+        let count_in_phrase_order = phrase_count(&["a a b c c"]);
+        let count_in_frequency_order = phrase_count(&["a a b c c", "b"]);
+        assert_eq!(count_in_phrase_order, 1);
+        assert_eq!(count_in_frequency_order, 1);
+    }
+
+    #[test]
     fn test_phrase_weight_scorer_danger() -> crate::Result<()> {
         let index = create_index(&["a b", "a c b", "a b", "a c"])?;
         let schema = index.schema();
