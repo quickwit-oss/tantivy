@@ -153,6 +153,14 @@ impl CompositeFile {
         }
     }
 
+    /// Fields with a primary (index-zero) slice in this composite file.
+    pub(crate) fn fields(&self) -> impl Iterator<Item = Field> + '_ {
+        self.offsets_index
+            .keys()
+            .filter(|addr| addr.idx == 0)
+            .map(|addr| addr.field)
+    }
+
     /// Returns the `FileSlice` associated with
     /// a given `Field` and stored in a `CompositeFile`.
     pub fn open_read(&self, field: Field) -> Option<FileSlice> {

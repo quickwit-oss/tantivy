@@ -170,16 +170,18 @@ impl SkipReader {
 
     // Returns the block max score for this block if available.
     //
-    // The block max score is available for all full bitpacked block,
-    // but no available for the last VInt encoded incomplete block.
+    // Full blocks with zero stored frequency have no bound (e.g. no norms or frequencies).
+    // The last VInt encoded incomplete block has no stored bound either.
     pub fn block_max_score(&self, bm25_weight: &Bm25Weight) -> Option<Score> {
         match self.block_info {
             BlockInfo::BitPacked {
                 block_wand_fieldnorm_id,
                 block_wand_term_freq,
                 ..
-            } => Some(bm25_weight.score(block_wand_fieldnorm_id, block_wand_term_freq)),
-            BlockInfo::VInt { .. } => None,
+            } if block_wand_term_freq > 0 => {
+                Some(bm25_weight.score(block_wand_fieldnorm_id, block_wand_term_freq))
+            }
+            _ => None,
         }
     }
 
@@ -327,6 +329,24 @@ mod tests {
             assert_eq!(super::decode_block_wand_max_tf(tf), tf as u32);
         }
         assert_eq!(super::decode_block_wand_max_tf(255), u32::MAX);
+    }
+
+    #[test]
+    fn test_missing_block_wand_bound() {
+        let weight = crate::query::Bm25Weight::for_one_term(128, 256, 10.0);
+        for term_freq in [0, 1, 100] {
+            let mut serializer = SkipSerializer::new();
+            serializer.write_doc(127, 7);
+            serializer.write_term_freq(7);
+            serializer.write_blockwand_max(0, term_freq);
+            let reader = SkipReader::new(
+                OwnedBytes::new(serializer.data().to_owned()),
+                COMPRESSION_BLOCK_SIZE as u32,
+                IndexRecordOption::WithFreqs,
+            );
+            let expected = (term_freq > 0).then(|| weight.score(0, term_freq));
+            assert_eq!(reader.block_max_score(&weight), expected);
+        }
     }
 
     #[test]

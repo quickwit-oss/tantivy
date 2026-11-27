@@ -1,4 +1,5 @@
-use std::sync::Arc;
+use std::collections::HashMap;
+use std::sync::{Arc, OnceLock};
 
 use super::{fieldnorm_to_id, id_to_fieldnorm};
 use crate::directory::{CompositeFile, FileSlice, OwnedBytes};
@@ -15,25 +16,35 @@ use crate::DocId;
 #[derive(Clone)]
 pub struct FieldNormReaders {
     data: Arc<CompositeFile>,
+    readers: Arc<HashMap<Field, OnceLock<FieldNormReader>>>,
 }
 
 impl FieldNormReaders {
     /// Creates a field norm reader.
     pub fn open(file: FileSlice) -> crate::Result<FieldNormReaders> {
         let data = CompositeFile::open(&file)?;
+        let readers = data
+            .fields()
+            .map(|field| (field, OnceLock::new()))
+            .collect();
         Ok(FieldNormReaders {
             data: Arc::new(data),
+            readers: Arc::new(readers),
         })
     }
 
     /// Returns the FieldNormReader for a specific field.
     pub fn get_field(&self, field: Field) -> crate::Result<Option<FieldNormReader>> {
-        if let Some(file) = self.data.open_read(field) {
-            let fieldnorm_reader = FieldNormReader::open(file)?;
-            Ok(Some(fieldnorm_reader))
-        } else {
-            Ok(None)
+        if let Some(reader) = self.readers.get(&field) {
+            if let Some(reader) = reader.get() {
+                return Ok(Some(reader.clone()));
+            }
+            if let Some(file) = self.data.open_read(field) {
+                let fieldnorm_reader = FieldNormReader::open(file)?;
+                return Ok(Some(reader.get_or_init(|| fieldnorm_reader).clone()));
+            }
         }
+        Ok(None)
     }
 
     /// Return a break down of the space usage per field.
@@ -62,7 +73,10 @@ impl From<ReaderImplEnum> for FieldNormReader {
 
 #[derive(Clone)]
 enum ReaderImplEnum {
-    FromData(OwnedBytes),
+    FromData {
+        data: OwnedBytes,
+        minimum: Arc<OnceLock<u8>>,
+    },
     Const {
         num_docs: u32,
         fieldnorm_id: u8,
@@ -93,13 +107,37 @@ impl FieldNormReader {
     }
 
     fn new(data: OwnedBytes) -> Self {
-        ReaderImplEnum::FromData(data).into()
+        ReaderImplEnum::FromData {
+            data,
+            minimum: Arc::new(OnceLock::new()),
+        }
+        .into()
+    }
+
+    pub(crate) fn is_constant(&self) -> bool {
+        matches!(&self.0, ReaderImplEnum::Const { .. })
+    }
+
+    /// Reuses a cached minimum, or scans at most `max_scan_docs` fieldnorms to compute it.
+    pub(crate) fn min_fieldnorm_id(&self, max_scan_docs: u32) -> Option<u8> {
+        match &self.0 {
+            ReaderImplEnum::FromData { data, minimum } => {
+                if let Some(&minimum) = minimum.get() {
+                    return Some(minimum);
+                }
+                if data.len() > max_scan_docs as usize {
+                    return None;
+                }
+                Some(*minimum.get_or_init(|| data.as_slice().iter().copied().min().unwrap_or(0)))
+            }
+            ReaderImplEnum::Const { fieldnorm_id, .. } => Some(*fieldnorm_id),
+        }
     }
 
     /// Returns the number of documents in this segment.
     pub fn num_docs(&self) -> u32 {
         match &self.0 {
-            ReaderImplEnum::FromData(data) => data.len() as u32,
+            ReaderImplEnum::FromData { data, .. } => data.len() as u32,
             ReaderImplEnum::Const { num_docs, .. } => *num_docs,
         }
     }
@@ -115,7 +153,7 @@ impl FieldNormReader {
     /// `fieldnorm_id` by doing a simple table lookup.
     pub fn fieldnorm(&self, doc_id: DocId) -> u32 {
         match &self.0 {
-            ReaderImplEnum::FromData(data) => {
+            ReaderImplEnum::FromData { data, .. } => {
                 let fieldnorm_id = data.as_slice()[doc_id as usize];
                 id_to_fieldnorm(fieldnorm_id)
             }
@@ -127,7 +165,7 @@ impl FieldNormReader {
     #[inline]
     pub fn fieldnorm_id(&self, doc_id: DocId) -> u8 {
         match &self.0 {
-            ReaderImplEnum::FromData(data) => {
+            ReaderImplEnum::FromData { data, .. } => {
                 let fieldnorm_id = data.as_slice()[doc_id as usize];
                 fieldnorm_id
             }
@@ -163,6 +201,83 @@ impl FieldNormReader {
 #[cfg(test)]
 mod tests {
     use crate::fieldnorm::FieldNormReader;
+
+    #[test]
+    fn test_fieldnorm_minimum_is_shared() -> crate::Result<()> {
+        let mut schema = crate::schema::Schema::builder();
+        let field = schema.add_text_field("status", crate::schema::STRING);
+        let index = crate::Index::create_in_ram(schema.build());
+        let mut writer = index.writer_with_num_threads::<crate::TantivyDocument>(1, 20_000_000)?;
+        writer.add_document(crate::doc!(field => "active", field => "pending"))?;
+        writer.add_document(crate::doc!(field => "active"))?;
+        writer.commit()?;
+        let searcher = index.reader()?.searcher();
+        let readers = searcher.segment_reader(0).fieldnorms_readers();
+        let first = readers.get_field(field)?.unwrap();
+        let cloned_readers = readers.clone();
+        let second = cloned_readers.get_field(field)?.unwrap();
+        match (&first.0, &second.0) {
+            (
+                super::ReaderImplEnum::FromData { minimum: a, .. },
+                super::ReaderImplEnum::FromData { minimum: b, .. },
+            ) => {
+                assert!(std::sync::Arc::ptr_eq(a, b));
+                assert!(a.get().is_none());
+                assert_eq!(first.min_fieldnorm_id(1), None);
+                assert_eq!(first.min_fieldnorm_id(2), Some(1));
+                assert_eq!(b.get(), Some(&1));
+            }
+            _ => panic!("Expected stored fieldnorms"),
+        }
+        assert_eq!(second.min_fieldnorm_id(0), Some(1));
+        assert_eq!(
+            FieldNormReader::constant(5, 10).min_fieldnorm_id(0),
+            Some(10)
+        );
+        assert_eq!(FieldNormReader::for_test(&[]).min_fieldnorm_id(0), Some(0));
+        assert_eq!(
+            FieldNormReader::for_test(&[4, 0, 2]).min_fieldnorm_id(3),
+            Some(0)
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn test_sparse_postings_do_not_initialize_minimum() -> crate::Result<()> {
+        let mut schema = crate::schema::Schema::builder();
+        let field = schema.add_text_field("status", crate::schema::STRING);
+        let index = crate::Index::create_in_ram(schema.build());
+        let mut writer = index.writer_with_num_threads::<crate::TantivyDocument>(1, 20_000_000)?;
+        for id in 0..1024 {
+            let mut doc = crate::doc!(field => "active");
+            if id < 128 {
+                doc.add_text(field, "short");
+            }
+            if id < 384 {
+                doc.add_text(field, "rare");
+            }
+            writer.add_document(doc)?;
+        }
+        writer.commit()?;
+        let searcher = index.reader()?.searcher();
+        let reader = searcher.segment_reader(0).get_fieldnorms_reader(field)?;
+        for term in ["short", "rare"] {
+            let query = crate::query::TermQuery::new(
+                crate::Term::from_field_text(field, term),
+                crate::schema::IndexRecordOption::Basic,
+            );
+            let hits = searcher.search(
+                &query,
+                &crate::collector::TopDocs::with_limit(10).order_by_score(),
+            )?;
+            assert_eq!(hits.len(), 10);
+            match &reader.0 {
+                super::ReaderImplEnum::FromData { minimum, .. } => assert!(minimum.get().is_none()),
+                _ => panic!("Expected stored fieldnorms"),
+            }
+        }
+        Ok(())
+    }
 
     #[test]
     fn test_from_fieldnorms_array() {
