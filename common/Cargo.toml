@@ -26,3 +26,7 @@ quickwit = ["dep:futures-util"]
 binggan = "0.17.0"
 proptest = "1.0.0"
 rand = "0.9"
+
+[[bench]]
+name = "bench"
+harness = false
