@@ -13,6 +13,9 @@ mod shared_arena_hashmap;
 
 pub use self::arena_hashmap::ArenaHashMap;
 pub use self::expull::{ExpUnrolledLinkedList, ExpUnrolledLinkedListChunks};
+#[doc(hidden)]
+#[cfg(not(feature = "compare_hash_only"))]
+pub use self::fastcmp::fast_short_slice_compare;
 pub use self::memory_arena::{Addr, MemoryArena};
 pub use self::shared_arena_hashmap::{SharedArenaHashMap, compute_table_memory_size};
 

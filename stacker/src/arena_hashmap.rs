@@ -139,4 +139,80 @@ mod tests {
             assert_eq!(terms[pos], terms_back[pos]);
         }
     }
+
+    #[test]
+    fn test_empty_key_and_all_lengths_0_to_130() {
+        let mut hash_map: ArenaHashMap = ArenaHashMap::with_capacity(4);
+        let mut expected = HashMap::new();
+
+        for len in 0usize..=130 {
+            let key: Vec<u8> = (0usize..len)
+                .map(|i| (i.wrapping_mul(31).wrapping_add(len)) as u8)
+                .collect();
+            hash_map.mutate_or_create(&key, |opt_val: Option<u64>| {
+                assert_eq!(opt_val, None);
+                len as u64
+            });
+            expected.insert(key, len as u64);
+        }
+
+        // Update every key and check previous value matches.
+        for (key, val) in expected.iter_mut() {
+            let old = *val;
+            let new_val = old * 10 + 7;
+            hash_map.mutate_or_create(key, |opt_val: Option<u64>| {
+                assert_eq!(opt_val, Some(old));
+                new_val
+            });
+            *val = new_val;
+        }
+
+        assert_eq!(hash_map.len(), expected.len());
+        assert_eq!(hash_map.get::<u64>(b""), Some(7));
+        for (key, &val) in &expected {
+            assert_eq!(hash_map.get::<u64>(key), Some(val));
+        }
+
+        let mut seen = HashMap::new();
+        for (key, addr) in hash_map.iter() {
+            let val: u64 = hash_map.read(addr);
+            seen.insert(key.to_vec(), val);
+        }
+        assert_eq!(seen, expected);
+    }
+
+    #[test]
+    fn test_quickwit_long_json_keys_and_resizing() {
+        let mut hash_map: ArenaHashMap = ArenaHashMap::with_capacity(4);
+        let mut expected = HashMap::new();
+        let prefixes: &[&[u8]] = &[
+            b"attributes\x01k8s\x01container\x01pod_name\x01prod-us-east-1-",
+            b"attributes\x01http\x01request\x01headers\x01x-forwarded-for\x01",
+            b"resource\x01service\x01instance\x01id\x01",
+        ];
+
+        for i in 0u32..2000 {
+            let mut key = prefixes[(i as usize) % prefixes.len()].to_vec();
+            key.extend_from_slice(format!("worker-{:04}-shard-{}", i % 500, i % 13).as_bytes());
+            let entry = expected.entry(key.clone()).or_insert(0u32);
+            *entry += 1;
+            let expected_count = *entry;
+            hash_map.mutate_or_create(&key, |opt_val: Option<u32>| {
+                let next = opt_val.unwrap_or(0) + 1;
+                assert_eq!(next, expected_count);
+                next
+            });
+        }
+
+        assert_eq!(hash_map.len(), expected.len());
+        for (key, &val) in &expected {
+            assert_eq!(hash_map.get::<u32>(key), Some(val));
+            let mut missing = key.clone();
+            let last = missing.len() - 1;
+            missing[last] ^= 0x01;
+            if !expected.contains_key(&missing) {
+                assert_eq!(hash_map.get::<u32>(&missing), None);
+            }
+        }
+    }
 }

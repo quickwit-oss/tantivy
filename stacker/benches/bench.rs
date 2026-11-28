@@ -119,7 +119,105 @@ fn bench_vint() {
     }
 }
 
+#[cfg(not(feature = "compare_hash_only"))]
+fn bench_fastcmp() {
+    use rand::Rng;
+    use rand::rngs::StdRng;
+    use tantivy_stacker::fast_short_slice_compare;
+
+    let mut runner = BenchRunner::new();
+
+    // Build 100k pairs in contiguous backing buffers so slice lengths and match/mismatch outcomes
+    // are non-periodic and overflow CPU branch predictors.
+    fn make_pairs(
+        rng: &mut StdRng,
+        count: usize,
+        mismatch_pct: u32,
+        mut pick_len: impl FnMut(&mut StdRng) -> usize,
+    ) -> (Vec<u8>, Vec<u8>, Vec<(usize, usize)>) {
+        let mut left_buf = Vec::new();
+        let mut right_buf = Vec::new();
+        let mut ranges = Vec::with_capacity(count);
+        for _ in 0..count {
+            let len = pick_len(rng);
+            let start = left_buf.len();
+            left_buf.resize(start + len, 0);
+            rng.fill(&mut left_buf[start..start + len]);
+            right_buf.extend_from_slice(&left_buf[start..start + len]);
+            if len > 0 && rng.random_range(0..100u32) < mismatch_pct {
+                let diff_pos = rng.random_range(0..len);
+                right_buf[start + diff_pos] ^= 0x01;
+            }
+            ranges.push((start, start + len));
+        }
+        (left_buf, right_buf, ranges)
+    }
+
+    const NUM_PAIRS: usize = 100_000;
+    let mut rng = StdRng::from_seed([11u8; 32]);
+
+    // Short token lengths (1..=16B, skewed like English words), 95% equal / 5% random mismatch.
+    let (short_l, short_r, short_ranges) = make_pairs(&mut rng, NUM_PAIRS, 5, |r| {
+        match r.random_range(0..100u32) {
+            0..30 => r.random_range(1..4),
+            30..75 => r.random_range(4..8),
+            _ => r.random_range(8..=16),
+        }
+    });
+
+    // Mixed log/JSON key lengths (1..=96B), 95% equal / 5% random mismatch.
+    let (mixed_l, mixed_r, mixed_ranges) = make_pairs(&mut rng, NUM_PAIRS, 5, |r| {
+        match r.random_range(0..100u32) {
+            0..25 => r.random_range(1..4),
+            25..50 => r.random_range(4..8),
+            50..75 => r.random_range(8..=16),
+            75..90 => r.random_range(17..=32),
+            _ => r.random_range(33..=96),
+        }
+    });
+
+    // Long JSON path keys (33..=128B), 95% equal / 5% random mismatch.
+    let (long_l, long_r, long_ranges) =
+        make_pairs(&mut rng, NUM_PAIRS, 5, |r| r.random_range(33..=128));
+
+    let mut group = runner.new_group();
+    group.set_name("fastcmp");
+    group.register("fastcmp_short_1_16", move |_| {
+        let mut eq = 0usize;
+        for &(start, end) in &short_ranges {
+            eq += usize::from(fast_short_slice_compare(
+                &short_l[start..end],
+                &short_r[start..end],
+            ));
+        }
+        black_box(eq);
+    });
+    group.register("fastcmp_mixed_1_96", move |_| {
+        let mut eq = 0usize;
+        for &(start, end) in &mixed_ranges {
+            eq += usize::from(fast_short_slice_compare(
+                &mixed_l[start..end],
+                &mixed_r[start..end],
+            ));
+        }
+        black_box(eq);
+    });
+    group.register("fastcmp_long_33_128", move |_| {
+        let mut eq = 0usize;
+        for &(start, end) in &long_ranges {
+            eq += usize::from(fast_short_slice_compare(
+                &long_l[start..end],
+                &long_r[start..end],
+            ));
+        }
+        black_box(eq);
+    });
+    group.run();
+}
+
 fn main() {
+    #[cfg(not(feature = "compare_hash_only"))]
+    bench_fastcmp();
     bench_vint();
 }
 
