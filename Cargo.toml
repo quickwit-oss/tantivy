@@ -37,25 +37,41 @@ fs4 = { version = "0.13.1", optional = true }
 levenshtein_automata = "0.2.1"
 uuid = { version = "1.0.0", features = ["v4", "serde"] }
 crossbeam-channel = "0.5.4"
-frostem = { version = "1.20260804.0", optional = true, default-features = false, features = [
+frostem = { version = "2.20261016.3", optional = true, default-features = false, features = [
     "arabic",
+    "armenian",
+    "basque",
+    "catalan",
+    "czech",
     "danish",
     "dutch",
     "english",
+    "esperanto",
+    "estonian",
     "finnish",
     "french",
     "german",
     "greek",
+    "hindi",
     "hungarian",
+    "indonesian",
+    "irish",
     "italian",
+    "lithuanian",
+    "nepali",
     "norwegian",
+    "persian",
+    "polish",
     "portuguese",
     "romanian",
     "russian",
+    "serbian",
+    "sesotho",
     "spanish",
     "swedish",
     "tamil",
     "turkish",
+    "ukrainian",
 ] }
 downcast-rs = "2.0.1"
 bitpacking = { version = "0.9.3", default-features = false, features = [
