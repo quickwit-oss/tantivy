@@ -69,9 +69,10 @@ pub type TermOrdinal = u64;
 const DEFAULT_KEY_CAPACITY: usize = 50;
 const SSTABLE_VERSION: u32 = 3;
 
-/// Given two byte string returns the length of
+/// Given two byte strings, returns the length of
 /// the longest common prefix.
-pub(crate) fn common_prefix_len(left: &[u8], right: &[u8]) -> usize {
+#[doc(hidden)]
+pub fn common_prefix_len(left: &[u8], right: &[u8]) -> usize {
     left.iter()
         .cloned()
         .zip(right.iter().cloned())
