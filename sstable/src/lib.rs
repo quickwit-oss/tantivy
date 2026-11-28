@@ -72,12 +72,41 @@ const SSTABLE_VERSION: u32 = 3;
 /// Given two byte strings, returns the length of
 /// the longest common prefix.
 #[doc(hidden)]
+#[inline]
 pub fn common_prefix_len(left: &[u8], right: &[u8]) -> usize {
-    left.iter()
-        .cloned()
-        .zip(right.iter().cloned())
-        .take_while(|(left, right)| left == right)
-        .count()
+    let min_len = left.len().min(right.len());
+    let left = &left[..min_len];
+    let right = &right[..min_len];
+
+    if min_len >= 8 {
+        let mut offset = 0;
+        for (l_chunk, r_chunk) in left.chunks_exact(8).zip(right.chunks_exact(8)) {
+            let l = u64::from_le_bytes(l_chunk.try_into().unwrap());
+            let r = u64::from_le_bytes(r_chunk.try_into().unwrap());
+            let diff = l ^ r;
+            if diff != 0 {
+                return offset + (diff.trailing_zeros() >> 3) as usize;
+            }
+            offset += 8;
+        }
+        if offset < min_len {
+            let tail_start = min_len - 8;
+            let l = u64::from_le_bytes(left[tail_start..].try_into().unwrap());
+            let r = u64::from_le_bytes(right[tail_start..].try_into().unwrap());
+            let diff = l ^ r;
+            if diff != 0 {
+                return tail_start + (diff.trailing_zeros() >> 3) as usize;
+            }
+        }
+        return min_len;
+    }
+
+    for i in 0..min_len {
+        if left[i] != right[i] {
+            return i;
+        }
+    }
+    min_len
 }
 
 #[derive(Debug, Copy, Clone)]
@@ -590,6 +619,42 @@ mod test {
                 assert_eq!(val.as_bytes(), stream.key());
             }
             assert!(btree_set_range.next().is_none());
+        }
+
+        #[test]
+        fn test_proptest_common_prefix_len(
+            prefix in prop::collection::vec(any::<u8>(), 0..128),
+            tail_a in prop::collection::vec(any::<u8>(), 0..64),
+            tail_b in prop::collection::vec(any::<u8>(), 0..64),
+        ) {
+            let mut left = prefix.clone();
+            left.extend_from_slice(&tail_a);
+            let mut right = prefix;
+            right.extend_from_slice(&tail_b);
+            let expected = left.iter().zip(right.iter()).take_while(|(a, b)| a == b).count();
+            prop_assert_eq!(crate::common_prefix_len(&left, &right), expected);
+            prop_assert_eq!(crate::common_prefix_len(&right, &left), expected);
+        }
+    }
+
+    #[test]
+    fn test_common_prefix_len_every_mismatch_position() {
+        assert_eq!(crate::common_prefix_len(b"", b""), 0);
+        assert_eq!(crate::common_prefix_len(b"", b"abc"), 0);
+        assert_eq!(crate::common_prefix_len(b"abc", b""), 0);
+        for len in 1usize..=130 {
+            let base: Vec<u8> = (0usize..len)
+                .map(|i| (i.wrapping_mul(31) ^ 0xA5) as u8)
+                .collect();
+            assert_eq!(crate::common_prefix_len(&base, &base), len);
+            assert_eq!(crate::common_prefix_len(&base[..len - 1], &base), len - 1);
+            assert_eq!(crate::common_prefix_len(&base, &base[..len - 1]), len - 1);
+            for diff_idx in 0..len {
+                let mut other = base.clone();
+                other[diff_idx] ^= 0x01;
+                assert_eq!(crate::common_prefix_len(&base, &other), diff_idx);
+                assert_eq!(crate::common_prefix_len(&other, &base), diff_idx);
+            }
         }
     }
 }
