@@ -151,12 +151,14 @@ impl Weight for FastFieldRangeWeight {
             else {
                 return Ok(Box::new(EmptyScorer));
             };
-            let value_range = bound_range_inclusive_ip(
+            let Some(value_range) = bound_range_inclusive_ip(
                 &bounds.lower_bound,
                 &bounds.upper_bound,
                 ip_addr_column.min_value(),
                 ip_addr_column.max_value(),
-            );
+            ) else {
+                return Ok(Box::new(EmptyScorer));
+            };
             let docset = RangeDocSet::new(value_range, ip_addr_column);
             Ok(Box::new(ConstScorer::new(docset, boost)))
         } else if field_type.is_str() {
@@ -463,24 +465,26 @@ pub(crate) fn maps_to_u64_fastfield(typ: Type) -> bool {
     }
 }
 
+// Returns None, if the range cannot be converted to a inclusive range (which equals to a empty
+// range).
 fn bound_range_inclusive_ip(
     lower_bound: &Bound<Ipv6Addr>,
     upper_bound: &Bound<Ipv6Addr>,
     min_value: Ipv6Addr,
     max_value: Ipv6Addr,
-) -> RangeInclusive<Ipv6Addr> {
+) -> Option<RangeInclusive<Ipv6Addr>> {
     let start_value = match lower_bound {
         Bound::Included(ip_addr) => *ip_addr,
-        Bound::Excluded(ip_addr) => Ipv6Addr::from(ip_addr.to_u128() + 1),
+        Bound::Excluded(ip_addr) => Ipv6Addr::from(ip_addr.to_u128().checked_add(1)?),
         Bound::Unbounded => min_value,
     };
 
     let end_value = match upper_bound {
         Bound::Included(ip_addr) => *ip_addr,
-        Bound::Excluded(ip_addr) => Ipv6Addr::from(ip_addr.to_u128() - 1),
+        Bound::Excluded(ip_addr) => Ipv6Addr::from(ip_addr.to_u128().checked_sub(1)?),
         Bound::Unbounded => max_value,
     };
-    start_value..=end_value
+    Some(start_value..=end_value)
 }
 
 // Returns None, if the range cannot be converted to a inclusive range (which equals to a empty
@@ -1528,7 +1532,7 @@ pub(crate) mod ip_range_tests {
 
     use super::*;
     use crate::collector::Count;
-    use crate::query::QueryParser;
+    use crate::query::{QueryParser, RangeQuery};
     use crate::schema::{Schema, FAST, INDEXED, STORED, STRING};
     use crate::{Index, IndexWriter};
 
@@ -1568,6 +1572,22 @@ pub(crate) mod ip_range_tests {
         fn test_ip_range_for_docs_prop(ops in proptest::collection::vec(operation_strategy(), 1..1000)) {
             assert!(test_ip_range_for_docs(&ops).is_ok());
         }
+    }
+
+    #[test]
+    fn test_ip_range_exclusive_bound_at_the_edge_of_the_ip_domain() {
+        let docs = &[doc_from_id_1(1), doc_from_id_1(2), doc_from_id_1(3)];
+        let index = create_index_from_ip_docs(docs);
+        let searcher = index.reader().unwrap().searcher();
+        let ip_field = index.schema().get_field("ip").unwrap();
+
+        let all_ones = Term::from_field_ip_addr(ip_field, Ipv6Addr::from_u128(u128::MAX));
+        let query = RangeQuery::new(Bound::Excluded(all_ones), Bound::Unbounded);
+        assert_eq!(searcher.search(&query, &Count).unwrap(), 0);
+
+        let all_zeros = Term::from_field_ip_addr(ip_field, Ipv6Addr::from_u128(0));
+        let query = RangeQuery::new(Bound::Unbounded, Bound::Excluded(all_zeros));
+        assert_eq!(searcher.search(&query, &Count).unwrap(), 0);
     }
 
     #[test]
