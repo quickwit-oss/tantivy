@@ -7,6 +7,15 @@ use crate::collector::{SegmentSortKeyComputer, SortKeyComputer};
 use crate::schema::{OwnedValue, Schema};
 use crate::{DocId, Order, Score};
 
+fn compare_integer_float(integer: i128, float: f64) -> Ordering {
+    // Rounding an integer to f64 can only change its ordering when it rounds to
+    // the float being compared. That float is then integral and fits in i128.
+    (integer as f64)
+        .to_u64()
+        .cmp(&float.to_u64())
+        .then_with(|| integer.cmp(&(float as i128)))
+}
+
 fn compare_owned_value<const NULLS_FIRST: bool>(lhs: &OwnedValue, rhs: &OwnedValue) -> Ordering {
     match (lhs, rhs) {
         (OwnedValue::Null, OwnedValue::Null) => Ordering::Equal,
@@ -48,10 +57,14 @@ fn compare_owned_value<const NULLS_FIRST: bool>(lhs: &OwnedValue, rhs: &OwnedVal
                 (*a as u64).cmp(b)
             }
         }
-        (OwnedValue::U64(a), OwnedValue::F64(b)) => (*a as f64).to_u64().cmp(&b.to_u64()),
-        (OwnedValue::F64(a), OwnedValue::U64(b)) => a.to_u64().cmp(&(*b as f64).to_u64()),
-        (OwnedValue::I64(a), OwnedValue::F64(b)) => (*a as f64).to_u64().cmp(&b.to_u64()),
-        (OwnedValue::F64(a), OwnedValue::I64(b)) => a.to_u64().cmp(&(*b as f64).to_u64()),
+        (OwnedValue::U64(a), OwnedValue::F64(b)) => compare_integer_float((*a).into(), *b),
+        (OwnedValue::F64(a), OwnedValue::U64(b)) => {
+            compare_integer_float((*b).into(), *a).reverse()
+        }
+        (OwnedValue::I64(a), OwnedValue::F64(b)) => compare_integer_float((*a).into(), *b),
+        (OwnedValue::F64(a), OwnedValue::I64(b)) => {
+            compare_integer_float((*b).into(), *a).reverse()
+        }
         (a, b) => {
             let ord = a.discriminant_value().cmp(&b.discriminant_value());
             // If the discriminant is equal, it's because a new type was added, but hasn't been
@@ -540,6 +553,32 @@ mod tests {
 
         // compare(None, None) should be Equal.
         assert_eq!(comp.compare(&null, &null), Ordering::Equal);
+    }
+
+    #[test]
+    fn test_integer_float_rounding_boundaries() {
+        use std::cmp::Ordering::{Equal, Greater, Less};
+
+        for (integer, float, expected) in [
+            (
+                OwnedValue::U64((1 << 53) + 1),
+                (1_u64 << 53) as f64,
+                Greater,
+            ),
+            (OwnedValue::I64(-(1 << 53) - 1), -(1_i64 << 53) as f64, Less),
+            (OwnedValue::U64(u64::MAX), u64::MAX as f64, Less),
+            (OwnedValue::I64(i64::MAX), i64::MAX as f64, Less),
+            (OwnedValue::I64(i64::MIN), i64::MIN as f64, Equal),
+            (OwnedValue::I64(0), -0.0, Greater),
+            (OwnedValue::U64(0), f64::INFINITY, Less),
+        ] {
+            let float = OwnedValue::F64(float);
+            assert_eq!(NaturalComparator.compare(&integer, &float), expected);
+            assert_eq!(
+                NaturalComparator.compare(&float, &integer),
+                expected.reverse()
+            );
+        }
     }
 
     #[test]
