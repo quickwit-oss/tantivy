@@ -225,20 +225,16 @@ pub fn merge_filtered_segments<T: Into<Box<dyn Directory>>>(
         filter_doc_ids,
     )?;
 
-    let mut merged_index = Index::create(
-        output_directory,
-        target_schema.clone(),
-        target_settings.clone(),
-    )?;
-
-    // Carry the merger's custom plugins onto the merged index (built-ins come for free) and
-    // record their extensions as the merged index's required set; without this the first GC
-    // drops the merged files.
+    let mut builder = Index::builder()
+        .schema(target_schema.clone())
+        .settings(target_settings.clone());
     let mut persisted_custom_extensions: Vec<String> = Vec::new();
     for plugin in merger.custom_plugins() {
         persisted_custom_extensions.extend(plugin.extensions().iter().map(|ext| ext.to_string()));
-        merged_index.register_plugin(plugin.clone());
+        builder = builder.register_plugin(plugin.clone());
     }
+    let mut merged_index = builder.create(output_directory)?;
+    merged_index.set_spatial_indices(segments[0].index().spatial_indices().clone());
 
     let merged_segment = merged_index.new_segment();
     let merged_segment_id = merged_segment.id();

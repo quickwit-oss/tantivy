@@ -13,6 +13,8 @@ use crate::schema::document::{
 };
 use crate::schema::field_type::ValueParsingError;
 use crate::schema::{Facet, Field, FieldType, NamedFieldDocument, OwnedValue, Schema};
+use crate::spatial::geometry::Geometry;
+use crate::spatial::plane::Plane;
 use crate::tokenizer::PreTokenizedString;
 
 #[repr(C, packed)]
@@ -269,6 +271,7 @@ impl CompactDoc {
             }
             ReferenceValueLeaf::IpAddr(num) => write_into(&mut self.node_data, num.to_u128()),
             ReferenceValueLeaf::PreTokStr(pre_tok) => write_into(&mut self.node_data, *pre_tok),
+            ReferenceValueLeaf::Geometry(geometry) => write_into(&mut self.node_data, *geometry),
         };
         ValueAddr { type_id, val_addr }
     }
@@ -485,6 +488,12 @@ impl<'a> CompactDocValue<'a> {
                 .map(Into::into)
                 .map(ReferenceValueLeaf::PreTokStr)
                 .map(Into::into),
+            ValueType::Geometry => self
+                .container
+                .read_from::<Geometry<Plane>>(addr)
+                .map(Into::into)
+                .map(ReferenceValueLeaf::Geometry)
+                .map(Into::into),
             ValueType::Object => Ok(ReferenceValue::Object(CompactDocObjectIter::new(
                 self.container,
                 addr,
@@ -565,6 +574,8 @@ pub enum ValueType {
     Array = 12,
     /// Opaque payload of a plugin-defined custom field.
     Custom = 13,
+    /// Spatial geometry.
+    Geometry = 14,
 }
 
 impl BinarySerializable for ValueType {
@@ -575,7 +586,7 @@ impl BinarySerializable for ValueType {
 
     fn deserialize<R: Read>(reader: &mut R) -> io::Result<Self> {
         let num = u8::deserialize(reader)?;
-        let type_id = if (0..=13).contains(&num) {
+        let type_id = if (0..=14).contains(&num) {
             unsafe { std::mem::transmute::<u8, ValueType>(num) }
         } else {
             return Err(io::Error::new(
@@ -611,6 +622,7 @@ impl<'a> From<&ReferenceValueLeaf<'a>> for ValueType {
             ReferenceValueLeaf::Facet(_) => ValueType::Facet,
             ReferenceValueLeaf::Bytes(_) => ValueType::Bytes,
             ReferenceValueLeaf::Custom(_) => ValueType::Custom,
+            ReferenceValueLeaf::Geometry(_) => ValueType::Geometry,
         }
     }
 }
