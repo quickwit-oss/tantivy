@@ -87,7 +87,7 @@ impl TokenFilter for SplitCompoundWords {
             dict: self.dict,
             inner: tokenizer,
             cuts: Vec::new(),
-            parts: Vec::new(),
+            part: Token::default(),
         }
     }
 }
@@ -97,7 +97,7 @@ pub struct SplitCompoundWordsFilter<T> {
     dict: AhoCorasick,
     inner: T,
     cuts: Vec<usize>,
-    parts: Vec<Token>,
+    part: Token,
 }
 
 impl<T: Tokenizer> Tokenizer for SplitCompoundWordsFilter<T> {
@@ -105,12 +105,12 @@ impl<T: Tokenizer> Tokenizer for SplitCompoundWordsFilter<T> {
 
     fn token_stream<'a>(&'a mut self, text: &'a str) -> Self::TokenStream<'a> {
         self.cuts.clear();
-        self.parts.clear();
         SplitCompoundWordsTokenStream {
             dict: self.dict.clone(),
             tail: self.inner.token_stream(text),
             cuts: &mut self.cuts,
-            parts: &mut self.parts,
+            part: &mut self.part,
+            next_part: None,
         }
     }
 }
@@ -119,15 +119,20 @@ pub struct SplitCompoundWordsTokenStream<'a, T> {
     dict: AhoCorasick,
     tail: T,
     cuts: &'a mut Vec<usize>,
-    parts: &'a mut Vec<Token>,
+    // Holds the part currently yielded, reusing its text buffer
+    // from one part to the next.
+    part: &'a mut Token,
+    // Index in `self.cuts` of the part held by `self.part`,
+    // or `None` if `self.tail.token()` is yielded as is.
+    next_part: Option<usize>,
 }
 
 impl<T: TokenStream> SplitCompoundWordsTokenStream<'_, T> {
-    // Will use `self.cuts` to fill `self.parts` if `self.tail.token()`
+    // Will fill `self.cuts` with the start of each part if `self.tail.token()`
     // can fully be split into consecutive matches against `self.dict`.
     fn split(&mut self) {
         let token = self.tail.token();
-        let mut text = token.text.as_str();
+        let text = token.text.as_str();
 
         self.cuts.clear();
         let mut pos = 0;
@@ -141,49 +146,63 @@ impl<T: TokenStream> SplitCompoundWordsTokenStream<'_, T> {
             pos = match_.end();
         }
 
-        if pos == token.text.len() {
-            // Fill `self.parts` in reverse order,
-            // so that `self.parts.pop()` yields
-            // the tokens in their original order.
-            for pos in self.cuts.iter().rev() {
-                let (head, tail) = text.split_at(*pos);
-
-                text = head;
-                self.parts.push(Token {
-                    text: tail.to_owned(),
-                    ..*token
-                });
-            }
+        if pos == token.text.len() && !self.cuts.is_empty() {
+            self.set_part(0);
         }
+    }
+
+    // Copies the part at `index` in `self.cuts` into `self.part`.
+    fn set_part(&mut self, index: usize) {
+        let token = self.tail.token();
+        let start = self.cuts[index];
+        let end = self
+            .cuts
+            .get(index + 1)
+            .copied()
+            .unwrap_or(token.text.len());
+        self.part.text.clear();
+        self.part.text.push_str(&token.text[start..end]);
+        self.part.offset_from = token.offset_from;
+        self.part.offset_to = token.offset_to;
+        self.part.position = token.position;
+        self.part.position_length = token.position_length;
+        self.next_part = Some(index);
     }
 }
 
 impl<T: TokenStream> TokenStream for SplitCompoundWordsTokenStream<'_, T> {
     fn advance(&mut self) -> bool {
-        self.parts.pop();
-
-        if !self.parts.is_empty() {
-            return true;
+        if let Some(index) = self.next_part.take() {
+            if index + 1 < self.cuts.len() {
+                self.set_part(index + 1);
+                return true;
+            }
         }
 
         if !self.tail.advance() {
             return false;
         }
 
-        // Will yield either `self.parts.last()` or
+        // Will yield either `self.part` or
         // `self.tail.token()` if it could not be split.
         self.split();
         true
     }
 
     fn token(&self) -> &Token {
-        self.parts.last().unwrap_or_else(|| self.tail.token())
+        if self.next_part.is_some() {
+            self.part
+        } else {
+            self.tail.token()
+        }
     }
 
     fn token_mut(&mut self) -> &mut Token {
-        self.parts
-            .last_mut()
-            .unwrap_or_else(|| self.tail.token_mut())
+        if self.next_part.is_some() {
+            self.part
+        } else {
+            self.tail.token_mut()
+        }
     }
 }
 
