@@ -55,7 +55,10 @@ impl Weight for FastFieldRangeWeight {
     fn scorer(&self, reader: &SegmentReader, boost: Score) -> crate::Result<Box<dyn Scorer>> {
         // Check if both bounds are Bound::Unbounded
         if self.bounds.is_unbounded() {
-            return Ok(Box::new(AllScorer::new(reader.max_doc())));
+            return Ok(Box::new(ConstScorer::new(
+                AllScorer::new(reader.max_doc()),
+                boost,
+            )));
         }
 
         let term = self
